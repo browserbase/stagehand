@@ -26,9 +26,9 @@ export interface V3Options {
    * but callers should not rely on that remaining a permanent invariant.
    */
   sessionId?: string;
-  // Browserbase (required when env = "BROWSERBASE")
-  apiKey?: string;
-  projectId?: string;
+  // Browserbase credentials
+  apiKey?: string; // Required when env = "BROWSERBASE" (or set BROWSERBASE_API_KEY env var)
+  projectId?: string; // Optional: defaults to your default project if omitted
   /**
    * Optional: fine-tune Browserbase session creation or resume an existing session.
    */
