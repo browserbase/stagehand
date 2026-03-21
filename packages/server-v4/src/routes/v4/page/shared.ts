@@ -37,14 +37,6 @@ type PageActionHandlerContext<TAction extends PageAction> = {
   sessionId: string;
 };
 
-// Selector is a discriminated union of xpath, css, text, or coordinate types.
-// Only xpath is fully resolved today; other types fall back to a stub xpath.
-function normalizeXPath(xpath: string): string {
-  return xpath.startsWith("xpath=") || xpath.startsWith("/")
-    ? xpath
-    : `xpath=${xpath}`;
-}
-
 export function getPageId(params: unknown): string | undefined {
   if (
     typeof params === "object" &&
@@ -190,5 +182,3 @@ export const pageActionListHandler: RouteHandlerMethod = async (
     ] as PageAction[],
   });
 };
-
-export { normalizeXPath };

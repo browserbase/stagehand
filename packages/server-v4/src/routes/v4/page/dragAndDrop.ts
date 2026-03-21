@@ -26,11 +26,10 @@ const dragAndDropRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "dragAndDrop",
     actionSchema: PageDragAndDropActionSchema,
-    execute: async ({ params }) => {
+    execute: async () => {
       return PageDragAndDropResultSchema.parse({
-        fromXpath:
-          "xpath" in params.from ? params.from.xpath : "xpath=//stub-from",
-        toXpath: "xpath" in params.to ? params.to.xpath : "xpath=//stub-to",
+        startSelector: {},
+        endSelector: {},
       });
     },
   }),
