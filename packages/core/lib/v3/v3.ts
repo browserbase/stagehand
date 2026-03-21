@@ -1421,6 +1421,30 @@ export class V3 {
     return this.ctx;
   }
 
+  /**
+   * Open an interactive chat REPL in the terminal.
+   * Pauses script execution and lets you run stagehand and page
+   * commands interactively. Press Enter to resume.
+   */
+  async chat(): Promise<void> {
+    if (this.state.kind === "UNINITIALIZED") {
+      throw new StagehandNotInitializedError("chat()");
+    }
+    const { chat } = await import("./chat.js");
+    const page = await this.resolvePage();
+    await chat({
+      act: (instruction) => this.act(instruction),
+      extract: (instruction) => this.extract(instruction),
+      observe: (instruction) => this.observe(instruction),
+      page,
+    });
+  }
+
+  /** Alias for `chat()`. Pauses script execution and opens an interactive REPL. */
+  async pause(): Promise<void> {
+    return this.chat();
+  }
+
   /** Best-effort cleanup of context and launched resources. */
   async close(opts?: { force?: boolean }): Promise<void> {
     // If we're already closing and this isn't a forced close, no-op.
