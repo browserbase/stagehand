@@ -270,12 +270,14 @@ export const PageClickParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
   button: MouseButtonSchema.optional(),
   clickCount: z.number().int().min(1).optional(),
+  returnSelector: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageClickParams" });
 
 export const PageHoverParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
+  returnSelector: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageHoverParams" });
@@ -305,6 +307,7 @@ export const PageDragAndDropParamsSchema = PageWithPageIdSchema.extend({
   button: MouseButtonSchema.optional(),
   steps: z.number().int().positive().optional(),
   delay: z.number().int().min(0).optional(),
+  returnSelector: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageDragAndDropParams" });
@@ -622,17 +625,47 @@ export const PageCloseRequestSchema = createPageRequestSchema(
   PageCloseParamsSchema,
 );
 
-export const PageXPathResultSchema = z
+export const PageScrollResultSchema = z
   .object({
-    xpath: z.string().optional(),
+    x: z.number(),
+    y: z.number(),
   })
   .strict()
-  .meta({ id: "PageXPathResult" });
+  .meta({ id: "PageScrollResult" });
+
+export const ResultSelectorSchema = z
+  .object({
+    xpath: z.string().optional(),
+    css: z.string().optional(),
+    text: z.string().optional(),
+    coordinates: z
+      .object({
+        x: z.number(),
+        y: z.number(),
+      })
+      .optional(),
+  })
+  .strict()
+  .meta({ id: "ResultSelector" });
+
+export const PageClickResultSchema = z
+  .object({
+    selector: ResultSelectorSchema,
+  })
+  .strict()
+  .meta({ id: "PageClickResult" });
+
+export const PageHoverResultSchema = z
+  .object({
+    selector: ResultSelectorSchema,
+  })
+  .strict()
+  .meta({ id: "PageHoverResult" });
 
 export const PageDragAndDropResultSchema = z
   .object({
-    fromXpath: z.string().optional(),
-    toXpath: z.string().optional(),
+    startSelector: ResultSelectorSchema,
+    endSelector: ResultSelectorSchema,
   })
   .strict()
   .meta({ id: "PageDragAndDropResult" });
@@ -821,21 +854,21 @@ export const PageClickActionSchema = createPageActionSchema(
   "PageClickAction",
   "click",
   PageClickParamsSchema,
-  PageXPathResultSchema,
+  PageClickResultSchema,
 );
 
 export const PageHoverActionSchema = createPageActionSchema(
   "PageHoverAction",
   "hover",
   PageHoverParamsSchema,
-  PageXPathResultSchema,
+  PageHoverResultSchema,
 );
 
 export const PageScrollActionSchema = createPageActionSchema(
   "PageScrollAction",
   "scroll",
   PageScrollParamsSchema,
-  PageXPathResultSchema,
+  PageScrollResultSchema,
 );
 
 export const PageDragAndDropActionSchema = createPageActionSchema(
@@ -1280,6 +1313,7 @@ export const pageOpenApiComponents = {
     CoordinateSelector: CoordinateSelectorSchema,
     Selector: SelectorSchema,
     ElementSelector: ElementSelectorSchema,
+    ResultSelector: ResultSelectorSchema,
     PageHeaders: PageHeadersSchema,
     PageInitScript: PageInitScriptSchema,
     PageClip: PageClipSchema,
