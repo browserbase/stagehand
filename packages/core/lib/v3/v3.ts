@@ -23,7 +23,10 @@ import { V3AgentHandler } from "./handlers/v3AgentHandler.js";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler.js";
 import { CAPTCHA_CUA_SYSTEM_PROMPT_NOTE } from "./agent/utils/captchaSolver.js";
 import { createBrowserbaseSession } from "./launch/browserbase.js";
-import { connectLightpanda } from "./launch/lightpanda.js";
+import {
+  connectLightpanda,
+  launchLightpanda,
+} from "./launch/lightpanda.js";
 import { launchLocalChrome } from "./launch/local.js";
 import { LLMClient } from "./llm/LLMClient.js";
 import { LLMProvider } from "./llm/LLMProvider.js";
@@ -1060,32 +1063,47 @@ export class V3 {
           const lpo: LightpandaLaunchOptions =
             this.opts.lightpandaLaunchOptions ?? {};
 
-          const cdpUrl = lpo.cdpUrl;
-          if (!cdpUrl) {
-            throw new StagehandInitError(
-              "lightpandaLaunchOptions.cdpUrl is required when env is LIGHTPANDA. " +
-                "Start Lightpanda separately and provide the CDP WebSocket URL.",
-            );
+          let ws: string;
+          let lpProcess:
+            | import("child_process").ChildProcessWithoutNullStreams
+            | undefined;
+
+          if (lpo.cdpUrl) {
+            // Connect to an already-running Lightpanda instance.
+            this.logger({
+              category: "init",
+              message: "Connecting to Lightpanda browser",
+              level: 1,
+              auxiliary: {
+                cdpUrl: { value: lpo.cdpUrl, type: "string" },
+              },
+            });
+            ({ ws } = await connectLightpanda({
+              cdpUrl: lpo.cdpUrl,
+              connectTimeoutMs: lpo.connectTimeoutMs,
+            }));
+          } else {
+            // Auto-launch Lightpanda via @lightpanda/browser.
+            this.logger({
+              category: "init",
+              message: "Launching Lightpanda browser",
+              level: 1,
+            });
+            const result = await launchLightpanda({
+              host: lpo.host,
+              port: lpo.port,
+              executablePath: lpo.executablePath,
+              connectTimeoutMs: lpo.connectTimeoutMs,
+              proxy: lpo.proxy,
+            });
+            ws = result.ws;
+            lpProcess = result.process;
           }
-
-          this.logger({
-            category: "init",
-            message: "Connecting to Lightpanda browser",
-            level: 1,
-            auxiliary: {
-              cdpUrl: { value: cdpUrl, type: "string" },
-            },
-          });
-
-          const { ws } = await connectLightpanda({
-            cdpUrl,
-            connectTimeoutMs: lpo.connectTimeoutMs,
-          });
 
           this.ctx = await V3Context.create(ws, { env: "LIGHTPANDA" });
           this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
-          this.state = { kind: "LIGHTPANDA", ws };
+          this.state = { kind: "LIGHTPANDA", ws, process: lpProcess };
           this.resetBrowserbaseSessionMetadata();
           return;
         }
@@ -1527,8 +1545,14 @@ export class V3 {
         // ignore
       }
 
-      // Lightpanda: no child process to kill (external instance)
-      // No cleanup needed beyond closing the CDP context above.
+      // Kill Lightpanda child process if we auto-launched it
+      if (this.state.kind === "LIGHTPANDA" && this.state.process) {
+        try {
+          this.state.process.kill();
+        } catch {
+          // best-effort
+        }
+      }
 
       // Kill local Chrome and clean up temp profile when keepAlive is not enabled
       if (!keepAlive && this.state.kind === "LOCAL") {

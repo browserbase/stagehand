@@ -1,3 +1,4 @@
+import type { ChildProcessWithoutNullStreams } from "child_process";
 import WebSocket from "ws";
 import { ConnectionTimeoutError } from "../types/public/sdkErrors.js";
 
@@ -22,6 +23,65 @@ export async function connectLightpanda(
   await waitForWebSocketReady(opts.cdpUrl, deadlineMs);
 
   return { ws: opts.cdpUrl };
+}
+
+interface LaunchLightpandaOptions {
+  host?: string;
+  port?: number;
+  executablePath?: string;
+  connectTimeoutMs?: number;
+  proxy?: string;
+}
+
+/**
+ * Auto-launches Lightpanda via the `@lightpanda/browser` npm package and
+ * waits for the CDP WebSocket endpoint to become ready.
+ *
+ * Requires `@lightpanda/browser` to be installed as an optional dependency.
+ */
+export async function launchLightpanda(
+  opts: LaunchLightpandaOptions,
+): Promise<{ ws: string; process: ChildProcessWithoutNullStreams }> {
+  const host = opts.host ?? "127.0.0.1";
+  const port = opts.port ?? 9222;
+  const connectTimeoutMs = opts.connectTimeoutMs ?? 15_000;
+
+  // If a custom executable path is provided, set the env var that
+  // @lightpanda/browser reads to locate the binary.
+  if (opts.executablePath) {
+    process.env.LIGHTPANDA_EXECUTABLE_PATH = opts.executablePath;
+  }
+
+  // Dynamic import so @lightpanda/browser is only loaded when needed.
+  let lightpanda: {
+    serve: (
+      opts: Record<string, unknown>,
+    ) => Promise<ChildProcessWithoutNullStreams>;
+  };
+  try {
+    const mod = await import("@lightpanda/browser");
+    lightpanda = (mod.default ?? mod).lightpanda ?? mod.default ?? mod;
+  } catch {
+    throw new Error(
+      "@lightpanda/browser is required to auto-launch Lightpanda. " +
+        'Install it with: npm install @lightpanda/browser\n\n' +
+        "Alternatively, start Lightpanda manually and pass " +
+        "lightpandaLaunchOptions.cdpUrl to connect to it.",
+    );
+  }
+
+  const childProcess = await lightpanda.serve({
+    host,
+    port,
+    ...(opts.proxy ? { httpProxy: opts.proxy } : {}),
+  });
+
+  const wsUrl = `ws://${host}:${port}`;
+  const deadlineMs = Date.now() + connectTimeoutMs;
+
+  await waitForWebSocketReady(wsUrl, deadlineMs);
+
+  return { ws: wsUrl, process: childProcess };
 }
 
 async function waitForWebSocketReady(

@@ -12,7 +12,11 @@ export type InitState =
       preserveUserDataDir?: boolean;
     }
   | { kind: "BROWSERBASE"; bb: Browserbase; sessionId: string; ws: string }
-  | { kind: "LIGHTPANDA"; ws: string };
+  | {
+      kind: "LIGHTPANDA";
+      ws: string;
+      process?: import("child_process").ChildProcessWithoutNullStreams;
+    };
 
 export type EncodedId = `${number}-${number}`;
 

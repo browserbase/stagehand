@@ -63,9 +63,29 @@ export const LightpandaLaunchOptionsSchema = z
       .optional()
       .meta({
         description:
-          "WebSocket URL of a running Lightpanda instance (e.g. ws://127.0.0.1:9222)",
+          "WebSocket URL of a running Lightpanda instance (e.g. ws://127.0.0.1:9222). " +
+          "When provided, Stagehand connects to the existing instance instead of auto-launching.",
+      }),
+    host: z
+      .string()
+      .optional()
+      .meta({ description: "Host to bind when auto-launching (default: 127.0.0.1)" }),
+    port: z
+      .number()
+      .optional()
+      .meta({ description: "Port for the CDP server when auto-launching (default: 9222)" }),
+    executablePath: z
+      .string()
+      .optional()
+      .meta({
+        description:
+          "Path to the Lightpanda binary. Overrides the default cached binary from @lightpanda/browser.",
       }),
     connectTimeoutMs: z.number().optional(),
+    proxy: z
+      .string()
+      .optional()
+      .meta({ description: "HTTP proxy URL" }),
   })
   .strict()
   .meta({ id: "LightpandaLaunchOptions" });
