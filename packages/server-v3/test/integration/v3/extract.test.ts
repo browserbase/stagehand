@@ -1,4 +1,12 @@
+import { spawn } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import assert from "node:assert/strict";
+import { once } from "node:events";
+import fs from "node:fs/promises";
+import { createServer } from "node:http";
+import type { Server } from "node:http";
+import os from "node:os";
+import path from "node:path";
 import { after, before, describe, it } from "node:test";
 
 import {
@@ -21,6 +29,158 @@ import {
 
 /** Result type for extract SSE events */
 type ExtractResult = Record<string, unknown>;
+
+type FakeChatServer = {
+  server: Server;
+  baseURL: string;
+  requests: Array<{ url: string; authorization?: string }>;
+};
+
+type LocalChromeHandle = {
+  process: ChildProcessWithoutNullStreams;
+  cdpUrl: string;
+  userDataDir: string;
+};
+
+async function startFakeChatCompletionsServer(): Promise<FakeChatServer> {
+  const responses = [
+    JSON.stringify({ title: "Example Domain" }),
+    JSON.stringify({ completed: true, progress: "done" }),
+  ];
+  const requests: Array<{ url: string; authorization?: string }> = [];
+
+  const server = createServer((req, res) => {
+    requests.push({
+      url: req.url ?? "",
+      authorization: req.headers.authorization,
+    });
+
+    const content = responses.shift();
+    if (!content) {
+      res.writeHead(500, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: { message: "unexpected extra request" } }));
+      return;
+    }
+
+    req.resume();
+    req.on("end", () => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          id: `chatcmpl-test-${requests.length}`,
+          object: "chat.completion",
+          created: 0,
+          model: "glm-4-flash",
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: "assistant",
+                content,
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: {
+            prompt_tokens: 1,
+            completion_tokens: 1,
+            total_tokens: 2,
+          },
+        }),
+      );
+    });
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Failed to determine fake chat server address");
+  }
+
+  return {
+    server,
+    baseURL: `http://127.0.0.1:${address.port}`,
+    requests,
+  };
+}
+
+async function stopFakeChatCompletionsServer(server: Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function startLocalChromeWithCdp(): Promise<LocalChromeHandle> {
+  const chromePath = process.env.CHROME_PATH;
+  if (!chromePath) {
+    throw new Error("CHROME_PATH must be set for the local CDP integration test");
+  }
+
+  const userDataDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "stagehand-cdp-v3-"),
+  );
+  const chrome = spawn(
+    chromePath,
+    [
+      "--headless=new",
+      "--disable-gpu",
+      "--no-first-run",
+      "--no-default-browser-check",
+      `--user-data-dir=${userDataDir}`,
+      "--remote-debugging-port=0",
+      "about:blank",
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+
+  const cdpUrl = await new Promise<string>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error("Timed out waiting for Chrome DevTools endpoint"));
+    }, 15_000);
+
+    const onData = (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      const match = text.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+      if (!match) return;
+
+      clearTimeout(timeout);
+      chrome.stderr.off("data", onData);
+      chrome.removeAllListeners("exit");
+      resolve(match[1]);
+    };
+
+    chrome.stderr.on("data", onData);
+    chrome.once("exit", (code, signal) => {
+      clearTimeout(timeout);
+      chrome.stderr.off("data", onData);
+      reject(
+        new Error(
+          `Chrome exited before exposing a DevTools endpoint (code=${code}, signal=${signal})`,
+        ),
+      );
+    });
+  });
+
+  return {
+    process: chrome,
+    cdpUrl,
+    userDataDir,
+  };
+}
+
+async function stopLocalChrome(handle: LocalChromeHandle): Promise<void> {
+  if (handle.process.exitCode === null && !handle.process.killed) {
+    handle.process.kill("SIGTERM");
+    await once(handle.process, "exit").catch((): undefined => undefined);
+  }
+  await fs.rm(handle.userDataDir, { recursive: true, force: true });
+}
 
 // Shared session for all extract tests (extract is read-only, safe to share)
 let sessionId: string;
@@ -332,6 +492,128 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
       "Result should have title property",
       ctx,
     );
+  });
+
+  it("should use x-model-base-url for chatcompletions extract requests", async () => {
+    const url = getBaseUrl();
+    const fakeChatServer = await startFakeChatCompletionsServer();
+    const localChrome = await startLocalChromeWithCdp();
+    let customSessionId: string | undefined;
+
+    try {
+      const headers = {
+        ...getHeaders("3.0.0"),
+        "x-model-api-key": "test-key",
+        "x-model-base-url": fakeChatServer.baseURL,
+      };
+
+      interface StartResponse {
+        success: boolean;
+        data?: {
+          sessionId: string;
+          cdpUrl: string;
+          available: boolean;
+        };
+      }
+
+      const startCtx = await fetchWithContext<StartResponse>(
+        `${url}/v1/sessions/start`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            modelName: "chatcompletions/glm-4-flash",
+            browser: { type: "local", cdpUrl: localChrome.cdpUrl },
+          }),
+        },
+      );
+
+      assertFetchStatus(startCtx, HTTP_OK, "Session start should succeed");
+      assertFetchOk(startCtx.body !== null, "Start should have body", startCtx);
+      assertFetchOk(
+        Boolean(startCtx.body.success && startCtx.body.data?.sessionId),
+        "Start should return a sessionId",
+        startCtx,
+      );
+
+      customSessionId = startCtx.body.data?.sessionId;
+      assert.ok(customSessionId, "Expected a custom session id");
+
+      const navResponse = await navigateSession(
+        customSessionId,
+        "https://example.com",
+        headers,
+      );
+      assert.equal(navResponse.status, HTTP_OK, "Navigate should succeed");
+
+      const frameId = await getMainFrameId(localChrome.cdpUrl);
+
+      interface ExtractResponse {
+        success: boolean;
+        data?: { result: Record<string, unknown>; actionId?: string };
+      }
+
+      const extractCtx = await fetchWithContext<ExtractResponse>(
+        `${url}/v1/sessions/${customSessionId}/extract`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            instruction: "extract the page title",
+            schema: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+              },
+              required: ["title"],
+            },
+            frameId,
+          }),
+        },
+      );
+
+      assertFetchStatus(
+        extractCtx,
+        HTTP_OK,
+        "Extract through custom model base URL should succeed",
+      );
+      assertFetchOk(
+        extractCtx.body !== null,
+        "Extract should have response body",
+        extractCtx,
+      );
+      assertFetchOk(
+        extractCtx.body.success,
+        "Extract should indicate success",
+        extractCtx,
+      );
+      assert.equal(extractCtx.body.data?.result.title, "Example Domain");
+      assert.equal(
+        fakeChatServer.requests.length,
+        2,
+        "Expected extract + metadata requests to hit the fake server",
+      );
+      for (const request of fakeChatServer.requests) {
+        assert.ok(
+          request.url.endsWith("/chat/completions") ||
+            request.url.endsWith("/v1/chat/completions"),
+          `Unexpected request path: ${request.url}`,
+        );
+        assert.equal(request.authorization, "Bearer test-key");
+      }
+    } finally {
+      if (customSessionId) {
+        await endSession(customSessionId, {
+          ...getHeaders("3.0.0"),
+          "x-model-api-key": "test-key",
+          "x-model-base-url": fakeChatServer.baseURL,
+        }).catch((): undefined => undefined);
+      }
+      await stopLocalChrome(localChrome).catch((): undefined => undefined);
+      await stopFakeChatCompletionsServer(fakeChatServer.server).catch(
+        (): undefined => undefined,
+      );
+    }
   });
 });
 
