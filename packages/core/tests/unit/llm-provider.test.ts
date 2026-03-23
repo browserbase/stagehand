@@ -57,6 +57,24 @@ describe("getAISDKLanguageModel", () => {
     });
   });
 
+  describe("chatcompletions provider", () => {
+    it("uses the OpenAI chat provider without clientOptions", () => {
+      const model = getAISDKLanguageModel("chatcompletions", "glm-4-flash");
+
+      expect(model.modelId).toBe("glm-4-flash");
+      expect((model as { provider?: string }).provider).toBe("openai.chat");
+    });
+
+    it("uses the OpenAI chat provider with custom baseURL", () => {
+      const model = getAISDKLanguageModel("chatcompletions", "glm-4-flash", {
+        baseURL: "https://open.bigmodel.cn/api/paas/v4",
+      });
+
+      expect(model.modelId).toBe("glm-4-flash");
+      expect((model as { provider?: string }).provider).toBe("openai.chat");
+    });
+  });
+
   describe("hasValidOptions logic", () => {
     it("treats undefined apiKey as no options", () => {
       // This should use the default provider path (AISDKProviders)

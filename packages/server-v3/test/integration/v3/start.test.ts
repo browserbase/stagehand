@@ -553,6 +553,34 @@ describe("POST /v1/sessions/start - V3 format", () => {
     await endSession(ctx.body.data.sessionId, headers);
   });
 
+  it("should accept chatcompletions-prefixed model names", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "chatcompletions/glm-4-flash",
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+    assertFetchOk(ctx.body.data.available, "Session should be available", ctx);
+    assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+
+    await endSession(ctx.body.data.sessionId, headers);
+  });
+
   it("should accept x-language header for python V3", async () => {
     const url = getBaseUrl();
     const pythonHeaders = getHeaders("1.0.0", "python");

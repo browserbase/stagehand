@@ -16,6 +16,7 @@ import { ChatCompletion } from "openai/resources";
 import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs.js";
 import { AvailableModel } from "../types/public/model.js";
+import { CreateChatCompletionResponseError } from "../types/public/sdkErrors.js";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
 import {
   FlowLogger,
@@ -289,8 +290,8 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           // 4. Validate against schema
           const secondTry = options.response_model.schema.safeParse(raw);
           if (!secondTry.success) {
-            throw new Error(
-              `Model response could not be coerced into the expected schema: ${secondTry.error.message}`,
+            throw new CreateChatCompletionResponseError(
+              "Model response could not be coerced into the expected schema",
             );
           }
           parsed = secondTry.data;
