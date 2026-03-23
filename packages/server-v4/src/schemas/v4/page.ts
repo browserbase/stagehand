@@ -98,6 +98,7 @@ export const PageActionMethodSchema = z
     "evaluate",
     "sendCDP",
     "close",
+    "elementInfo",
   ])
   .meta({ id: "PageActionMethod" });
 
@@ -487,6 +488,12 @@ export const PageCloseParamsSchema = PageWithPageIdSchema.meta({
   id: "PageCloseParams",
 });
 
+export const PageElementInfoParamsSchema = PageWithPageIdSchema.extend({
+  selector: ElementSelectorSchema,
+})
+  .strict()
+  .meta({ id: "PageElementInfoParams" });
+
 export const PageClickRequestSchema = createPageRequestSchema(
   "PageClickRequest",
   PageClickParamsSchema,
@@ -623,6 +630,11 @@ export const PageSendCDPRequestSchema = createPageRequestSchema(
 export const PageCloseRequestSchema = createPageRequestSchema(
   "PageCloseRequest",
   PageCloseParamsSchema,
+);
+
+export const PageElementInfoRequestSchema = createPageRequestSchema(
+  "PageElementInfoRequest",
+  PageElementInfoParamsSchema,
 );
 
 export const PageScrollResultSchema = z
@@ -850,6 +862,25 @@ export const PageCloseResultSchema = z
   .strict()
   .meta({ id: "PageCloseResult" });
 
+export const PageElementInfoResultSchema = z
+  .object({
+    count: z.number().int().nonnegative(),
+    isVisible: z.boolean(),
+    isChecked: z.boolean(),
+    inputValue: z.string(),
+    textContent: z.string(),
+    innerHTML: z.string(),
+    innerText: z.string(),
+    centroid: z
+      .object({
+        x: z.number(),
+        y: z.number(),
+      })
+      .strict(),
+  })
+  .strict()
+  .meta({ id: "PageElementInfoResult" });
+
 export const PageClickActionSchema = createPageActionSchema(
   "PageClickAction",
   "click",
@@ -1053,6 +1084,13 @@ export const PageCloseActionSchema = createPageActionSchema(
   PageCloseResultSchema,
 );
 
+export const PageElementInfoActionSchema = createPageActionSchema(
+  "PageElementInfoAction",
+  "elementInfo",
+  PageElementInfoParamsSchema,
+  PageElementInfoResultSchema,
+);
+
 export const PageActionSchema = z
   .union([
     PageClickActionSchema,
@@ -1084,6 +1122,7 @@ export const PageActionSchema = z
     PageEvaluateActionSchema,
     PageSendCDPActionSchema,
     PageCloseActionSchema,
+    PageElementInfoActionSchema,
   ])
   .meta({ id: "PageAction" });
 
@@ -1243,6 +1282,11 @@ export const PageCloseResponseSchema = createPageResponseSchema(
   PageCloseActionSchema,
 );
 
+export const PageElementInfoResponseSchema = createPageResponseSchema(
+  "PageElementInfoResponse",
+  PageElementInfoActionSchema,
+);
+
 export const PageActionIdParamsSchema = z
   .object({
     actionId: ActionIdSchema,
@@ -1352,6 +1396,7 @@ export const pageOpenApiComponents = {
     PageEvaluateParams: PageEvaluateParamsSchema,
     PageSendCDPParams: PageSendCDPParamsSchema,
     PageCloseParams: PageCloseParamsSchema,
+    PageElementInfoParams: PageElementInfoParamsSchema,
     PageClickRequest: PageClickRequestSchema,
     PageHoverRequest: PageHoverRequestSchema,
     PageScrollRequest: PageScrollRequestSchema,
@@ -1381,6 +1426,7 @@ export const pageOpenApiComponents = {
     PageEvaluateRequest: PageEvaluateRequestSchema,
     PageSendCDPRequest: PageSendCDPRequestSchema,
     PageCloseRequest: PageCloseRequestSchema,
+    PageElementInfoRequest: PageElementInfoRequestSchema,
     PageClickAction: PageClickActionSchema,
     PageHoverAction: PageHoverActionSchema,
     PageScrollAction: PageScrollActionSchema,
@@ -1410,6 +1456,7 @@ export const pageOpenApiComponents = {
     PageEvaluateAction: PageEvaluateActionSchema,
     PageSendCDPAction: PageSendCDPActionSchema,
     PageCloseAction: PageCloseActionSchema,
+    PageElementInfoAction: PageElementInfoActionSchema,
     PageAction: PageActionSchema,
     PageClickResponse: PageClickResponseSchema,
     PageHoverResponse: PageHoverResponseSchema,
@@ -1440,6 +1487,8 @@ export const pageOpenApiComponents = {
     PageEvaluateResponse: PageEvaluateResponseSchema,
     PageSendCDPResponse: PageSendCDPResponseSchema,
     PageCloseResponse: PageCloseResponseSchema,
+    PageElementInfoResult: PageElementInfoResultSchema,
+    PageElementInfoResponse: PageElementInfoResponseSchema,
     PageActionIdParams: PageActionIdParamsSchema,
     PageActionDetailsQuery: PageActionDetailsQuerySchema,
     PageActionListQuery: PageActionListQuerySchema,
