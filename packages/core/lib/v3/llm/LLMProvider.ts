@@ -153,7 +153,11 @@ export class LLMProvider {
   getClient(
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
-    options?: { experimental?: boolean; disableAPI?: boolean },
+    options?: {
+      experimental?: boolean;
+      disableAPI?: boolean;
+      middleware?: LanguageModelV2Middleware;
+    },
   ): LLMClient {
     if (modelName.includes("/")) {
       const firstSlashIndex = modelName.indexOf("/");
@@ -167,11 +171,12 @@ export class LLMProvider {
         throw new ExperimentalNotConfiguredError("Vertex provider");
       }
 
+      const effectiveMiddleware = options?.middleware ?? this.middleware;
       const languageModel = getAISDKLanguageModel(
         subProvider,
         subModelName,
         clientOptions,
-        this.middleware,
+        effectiveMiddleware,
       );
 
       return new AISdkClient({

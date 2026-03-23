@@ -445,17 +445,20 @@ export class V3 {
 
     let modelName: AvailableModel | string;
     let clientOptions: ClientOptions | undefined;
+    let perCallMiddleware: LanguageModelV2Middleware | undefined;
 
     if (typeof model === "string") {
       modelName = model;
     } else {
-      const { modelName: overrideModelName, middleware: _mw, ...rest } = model;
+      const { modelName: overrideModelName, middleware, ...rest } = model;
       modelName = overrideModelName;
       clientOptions = rest as ClientOptions;
+      perCallMiddleware = middleware;
     }
 
     if (
       modelName === this.modelName &&
+      !perCallMiddleware &&
       (!clientOptions || Object.keys(clientOptions).length === 0)
     ) {
       return this.llmClient;
@@ -480,6 +483,7 @@ export class V3 {
     const cacheKey = JSON.stringify({
       modelName,
       clientOptions: mergedOptions,
+      hasMiddleware: !!perCallMiddleware,
     });
 
     const cached = this.overrideLlmClients.get(cacheKey);
@@ -490,7 +494,11 @@ export class V3 {
     const client = this.llmProvider.getClient(
       modelName as AvailableModel,
       mergedOptions,
-      { experimental: this.experimental, disableAPI: this.disableAPI },
+      {
+        experimental: this.experimental,
+        disableAPI: this.disableAPI,
+        middleware: perCallMiddleware,
+      },
     );
 
     this.overrideLlmClients.set(cacheKey, client);
