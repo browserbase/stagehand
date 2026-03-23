@@ -60,7 +60,7 @@ export async function launchLightpanda(
   };
   try {
     const mod = await import("@lightpanda/browser");
-    lightpanda = (mod.default ?? mod).lightpanda ?? mod.default ?? mod;
+    lightpanda = mod.lightpanda;
   } catch {
     throw new Error(
       "@lightpanda/browser is required to auto-launch Lightpanda. " +

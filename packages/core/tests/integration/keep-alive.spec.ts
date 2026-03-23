@@ -6,7 +6,7 @@ import WebSocket from "ws";
 import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
 import { getPackageRootDir } from "../../lib/v3/runtimePaths.js";
 
-export type EnvKind = "LOCAL" | "BROWSERBASE";
+export type EnvKind = "LOCAL" | "BROWSERBASE" | "LIGHTPANDA";
 export type ScenarioKind = "unhandled" | "close" | "sigterm" | "sigint";
 
 export type KeepAliveCase = {

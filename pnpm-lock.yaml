@@ -202,6 +202,9 @@ importers:
       '@langchain/core':
         specifier: ^0.3.80
         version: 0.3.80(@opentelemetry/api@1.9.0)(openai@4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1))
+      '@lightpanda/browser':
+        specifier: '>=1.2.0'
+        version: 1.2.0
       bufferutil:
         specifier: ^4.0.9
         version: 4.0.9
@@ -1726,6 +1729,10 @@ packages:
 
   '@leichtgewicht/ip-codec@2.0.5':
     resolution: {integrity: sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw==}
+
+  '@lightpanda/browser@1.2.0':
+    resolution: {integrity: sha512-Ssvq+cAsXPH+bH7HFnCwZG2+nb0gyds7PqHU9B7WcT22oNGA/yG3Q4iG6DPq1hP1QNfc1l3u4q4gsfNvhzLdyg==}
+    hasBin: true
 
   '@lukeed/ms@2.0.2':
     resolution: {integrity: sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA==}
@@ -8111,6 +8118,11 @@ snapshots:
       - ws
 
   '@leichtgewicht/ip-codec@2.0.5': {}
+
+  '@lightpanda/browser@1.2.0':
+    dependencies:
+      yargs: 18.0.0
+    optional: true
 
   '@lukeed/ms@2.0.2': {}
 
