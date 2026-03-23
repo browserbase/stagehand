@@ -26,11 +26,8 @@ const scrollRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "scroll",
     actionSchema: PageScrollActionSchema,
-    execute: async ({ params }) => {
-      const sel = params.selector;
-      const x = "x" in sel ? sel.x : 0;
-      const y = "y" in sel ? sel.y : 0;
-      return PageScrollResultSchema.parse({ x, y });
+    execute: async () => {
+      return PageScrollResultSchema.parse({ x: 0, y: 0 });
     },
   }),
 };
