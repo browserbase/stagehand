@@ -226,6 +226,29 @@ components:
       required:
         - selector
         - description
+    VariablePrimitive:
+      anyOf:
+        - type: string
+        - type: number
+        - type: boolean
+    VariableValue:
+      anyOf:
+        - $ref: "#/components/schemas/VariablePrimitive"
+        - type: object
+          properties:
+            value:
+              $ref: "#/components/schemas/VariablePrimitive"
+            description:
+              type: string
+          required:
+            - value
+          additionalProperties: false
+    Variables:
+      type: object
+      propertyNames:
+        type: string
+      additionalProperties:
+        $ref: "#/components/schemas/VariableValue"
     BrowserConfig:
       type: object
       properties:
@@ -478,14 +501,14 @@ components:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
         variables:
-          description: Variables to substitute in the action instruction
+          description: Variables to substitute in the action instruction. Accepts flat
+            primitives or { value, description? } objects.
           example:
             username: john_doe
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties:
-            type: string
+            password:
+              value: secret123
+              description: The login password
+          $ref: "#/components/schemas/Variables"
         timeout:
           description: Timeout in ms for the action
           example: 30000
@@ -608,6 +631,17 @@ components:
           anyOf:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
+        variables:
+          description: Variables whose names are exposed to the model so observe() returns
+            %variableName% placeholders in suggested action arguments instead of
+            literal values. Accepts flat primitives or { value, description? }
+            objects.
+          example:
+            username:
+              value: john@example.com
+              description: The login email
+            rememberMe: true
+          $ref: "#/components/schemas/Variables"
         timeout:
           description: Timeout in ms for the observation
           example: 30000
@@ -1446,14 +1480,14 @@ components:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
         variables:
-          description: Variables to substitute in the action instruction
+          description: Variables to substitute in the action instruction. Accepts flat
+            primitives or { value, description? } objects.
           example:
             username: john_doe
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties:
-            type: string
+            password:
+              value: secret123
+              description: The login password
+          $ref: "#/components/schemas/Variables"
         timeout:
           description: Timeout in ms for the action
           example: 30000
@@ -1535,6 +1569,17 @@ components:
           anyOf:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
+        variables:
+          description: Variables whose names are exposed to the model so observe() returns
+            %variableName% placeholders in suggested action arguments instead of
+            literal values. Accepts flat primitives or { value, description? }
+            objects.
+          example:
+            username:
+              value: john@example.com
+              description: The login email
+            rememberMe: true
+          $ref: "#/components/schemas/Variables"
         timeout:
           description: Timeout in ms for the observation
           example: 30000
