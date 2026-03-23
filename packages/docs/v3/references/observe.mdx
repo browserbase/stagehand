@@ -31,11 +31,18 @@ await stagehand.observe(instruction: string, options: ObserveOptions): Promise<A
 ```typescript
 interface ObserveOptions {
   model?: ModelConfiguration;
+  variables?: Record<string, VariableValue>;
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   serverCache?: boolean;
 }
+
+type VariableValue =
+  | string
+  | number
+  | boolean
+  | { value: string | number | boolean; description?: string };
 
 // ModelConfiguration can be either a string or an object
 type ModelConfiguration =
@@ -74,6 +81,12 @@ type ModelConfiguration =
       Base URL for the API endpoint (for custom endpoints or proxies)
     </ParamField>
   </Expandable>
+</ParamField>
+
+<ParamField path="variables" type="Record<string, VariableValue>" optional>
+  Key-value pairs for placeholder generation using `%variableName%` syntax in returned action arguments. `observe()` exposes only the placeholder names to the model and returns `Action[]` that still contain `%variableName%` tokens so you can validate them before executing with `act()`.
+
+  Values can be simple primitives (`string`, `number`, `boolean`) or rich objects with an optional description (`{ value, description? }`).
 </ParamField>
 
 <ParamField path="timeout" type="number" optional>
@@ -213,6 +226,33 @@ const actions = await stagehand.observe("find navigation links", {
 const tableActions = await stagehand.observe("find all table rows", {
   selector: "/html/body/main/table"
 });
+```
+
+</Tab>
+<Tab title="Validate Then Act">
+
+```typescript
+const [emailField, passwordField, submitButton] = await stagehand.observe(
+  "Find the login fields and submit button",
+  {
+    variables: {
+      username: { value: "user@example.com", description: "The login email" },
+      password: { value: process.env.USER_PASSWORD, description: "The login password" },
+    },
+  }
+);
+
+// Returned actions can reference placeholders like %username% and %password%
+console.log(emailField.arguments);
+
+// Validate the suggested actions before executing them
+await stagehand.act(emailField, {
+  variables: { username: "user@example.com" },
+});
+await stagehand.act(passwordField, {
+  variables: { password: process.env.USER_PASSWORD },
+});
+await stagehand.act(submitButton);
 ```
 
 </Tab>

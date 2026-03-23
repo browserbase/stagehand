@@ -6,10 +6,10 @@ import type { V3 } from "../../lib/v3/v3.js";
 
 /**
  * Minimal mock of V3 that captures how tools pass `model` options
- * into v3.act(), v3.extract(), and v3.observe().
+ * into v3.act(), v3.extract(), and v3.observe(), plus observe variables.
  */
 function createMockV3() {
-  const calls: { method: string; model: unknown }[] = [];
+  const calls: { method: string; model: unknown; variables?: unknown }[] = [];
 
   const mock = {
     logger: vi.fn(),
@@ -34,8 +34,15 @@ function createMockV3() {
       },
     ),
     observe: vi.fn(
-      async (_instruction: unknown, options?: { model?: unknown }) => {
-        calls.push({ method: "observe", model: options?.model });
+      async (
+        _instruction: unknown,
+        options?: { model?: unknown; variables?: unknown },
+      ) => {
+        calls.push({
+          method: "observe",
+          model: options?.model,
+          variables: options?.variables,
+        });
         return [];
       },
     ),
@@ -101,6 +108,29 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
     expect(v3.calls).toHaveLength(1);
     expect(v3.calls[0].method).toBe("observe");
     expect(v3.calls[0].model).toBe(modelConfig);
+  });
+
+  it("fillFormTool passes variables through to v3.observe()", async () => {
+    const v3 = createMockV3();
+    const variables = {
+      username: {
+        value: "john@example.com",
+        description: "The login email",
+      },
+    };
+    const tool = fillFormTool(v3, undefined, variables);
+    await tool.execute!(
+      { fields: [{ action: "type %username% into the email field" }] },
+      {
+        toolCallId: "t3-variables",
+        messages: [],
+        abortSignal: new AbortController().signal,
+      },
+    );
+
+    expect(v3.calls).toHaveLength(1);
+    expect(v3.calls[0].method).toBe("observe");
+    expect(v3.calls[0].variables).toBe(variables);
   });
 
   it("actTool passes undefined when no executionModel is set", async () => {

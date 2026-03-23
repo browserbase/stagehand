@@ -46,8 +46,8 @@ export const fillFormTool = (
           .join(", ")}`;
 
         const observeOptions = executionModel
-          ? { model: executionModel, timeout: toolTimeout }
-          : { timeout: toolTimeout };
+          ? { model: executionModel, variables, timeout: toolTimeout }
+          : { variables, timeout: toolTimeout };
         const observeResults = await v3.observe(instruction, observeOptions);
 
         const completed = [] as unknown[];

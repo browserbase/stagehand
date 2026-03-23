@@ -1,5 +1,6 @@
 import type { AgentToolMode, Variables } from "../../types/public/agent.js";
 import { CAPTCHA_SYSTEM_PROMPT_NOTE } from "../utils/captchaSolver.js";
+import { getVariablePromptEntries } from "../utils/variables.js";
 
 export interface AgentSystemPromptOptions {
   url: string;
@@ -214,17 +215,14 @@ export function buildAgentSystemPrompt(
   const variableToolsNote = isHybridMode
     ? "Use %variableName% syntax in the type, fillFormVision, or act tool's value/text/action fields."
     : "Use %variableName% syntax in the act or fillForm tool's action fields.";
+  const variableEntries = getVariablePromptEntries(variables);
   const variablesSection = hasVariables
     ? `<variables>
     <note>You have access to the following variables. Use %variableName% syntax to substitute variable values. This is especially important for sensitive data like passwords.</note>
     <usage>${variableToolsNote}</usage>
     <example>To type a password, use: type %password% into the password field</example>
-    ${Object.entries(variables)
-      .map(([name, v]) => {
-        const description =
-          typeof v === "object" && v !== null && "value" in v
-            ? v.description
-            : undefined;
+    ${variableEntries
+      .map(({ name, description }) => {
         return description
           ? `<variable name="${name}">${description}</variable>`
           : `<variable name="${name}" />`;

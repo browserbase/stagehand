@@ -17,6 +17,7 @@ import type {
   StagehandZodObject,
 } from "./v3/zodCompat.js";
 import { SupportedUnderstudyAction } from "./v3/types/private/handlers.js";
+import type { Variables } from "./v3/types/public/agent.js";
 
 // Re-export for backward compatibility
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient.js";
@@ -245,6 +246,7 @@ export async function observe({
   logger,
   logInferenceToFile = false,
   supportedActions,
+  variables,
 }: {
   instruction: string;
   domElements: string;
@@ -253,6 +255,7 @@ export async function observe({
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
   supportedActions?: string[];
+  variables?: Variables;
 }) {
   const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
 
@@ -297,7 +300,11 @@ export async function observe({
   type ObserveResponse = z.infer<typeof observeSchema>;
 
   const messages: ChatMessage[] = [
-    buildObserveSystemPrompt(userProvidedInstructions, supportedActions),
+    buildObserveSystemPrompt(
+      userProvidedInstructions,
+      supportedActions,
+      variables,
+    ),
     buildObserveUserMessage(instruction, domElements),
   ];
 

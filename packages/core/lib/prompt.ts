@@ -1,5 +1,6 @@
 import { ChatMessage } from "./v3/llm/LLMClient.js";
 import type { Variables } from "./v3/types/public/agent.js";
+import { getVariablePromptEntries } from "./v3/agent/utils/variables.js";
 
 export function buildUserInstructionsString(
   userProvidedInstructions?: string,
@@ -112,9 +113,20 @@ Extracted content: ${JSON.stringify(extractionResponse, null, 2)}`,
 export function buildObserveSystemPrompt(
   userProvidedInstructions?: string,
   supportedActions?: string[],
+  variables?: Variables,
 ): ChatMessage {
   const actionsString = supportedActions?.length
     ? `\n\nSupported actions: ${supportedActions.join(", ")}`
+    : "";
+  const variableEntries = getVariablePromptEntries(variables);
+  const variablesString = variableEntries.length
+    ? `\n\nAvailable variables: ${variableEntries
+        .map(({ name, description }) => {
+          return description ? `%${name}% (${description})` : `%${name}%`;
+        })
+        .join(
+          ", ",
+        )}. When an action needs a dynamic or sensitive value, return the matching %variableName% placeholder in the action arguments instead of a literal value`
     : "";
 
   const observeSystemPrompt = `
@@ -125,7 +137,7 @@ You will be given:
 2. a hierarchical accessibility tree showing the semantic structure of the page. The tree is a hybrid of the DOM and the accessibility tree.
 
 Return an array of elements that match the instruction if they exist, otherwise return an empty array.
-When returning elements, include the appropriate method from the supported actions list.${actionsString}. When choosing non-left click actions, provide right or middle as the argument.`;
+When returning elements, include the appropriate method from the supported actions list.${actionsString}${variablesString}. When choosing non-left click actions, provide right or middle as the argument.`;
   const content = observeSystemPrompt.replace(/\s+/g, " ");
 
   return {

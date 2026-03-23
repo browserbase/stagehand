@@ -1,6 +1,10 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
-import type { Action } from "@browserbasehq/stagehand";
+import type {
+  Action,
+  ObserveOptions,
+  Variables,
+} from "@browserbasehq/stagehand";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 import { Api } from "@browserbasehq/stagehand";
 
@@ -51,8 +55,9 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
           );
         }
 
-        const safeOptions = {
+        const safeOptions: ObserveOptions = {
           ...data.options,
+          variables: data.options?.variables as Variables | undefined,
           model:
             typeof data.options?.model === "string"
               ? { modelName: data.options.model }
