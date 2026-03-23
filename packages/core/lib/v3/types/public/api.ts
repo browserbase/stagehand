@@ -79,6 +79,9 @@ export const ModelConfigObjectSchema = z
       description: "Base URL for the model provider",
       example: "https://api.openai.com/v1",
     }),
+    headers: z.record(z.string(), z.string()).optional().meta({
+      description: "Custom headers sent with every request to the model provider",
+    }),
   })
   .meta({ id: "ModelConfigObject" });
 
