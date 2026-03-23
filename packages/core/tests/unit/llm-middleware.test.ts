@@ -308,7 +308,7 @@ describe("middleware inside ModelConfiguration", () => {
     }
   });
 
-  it("middleware is stripped when resolving per-method overrides", () => {
+  it("middleware is separated from clientOptions when resolving per-method overrides", () => {
     const { middleware: mw } = createRecordingMiddleware();
     const overrideModel = {
       modelName: "anthropic/claude-sonnet-4-20250514" as const,
@@ -316,9 +316,9 @@ describe("middleware inside ModelConfiguration", () => {
       middleware: mw,
     };
 
-    // Simulate resolveLlmClient destructuring:
-    const { modelName, middleware: _mw, ...rest } = overrideModel;
+    const { modelName, middleware, ...rest } = overrideModel;
     expect(modelName).toBe("anthropic/claude-sonnet-4-20250514");
+    expect(middleware).toBe(mw);
     expect(rest).toEqual({ apiKey: "sk-ant-test" });
     expect("middleware" in rest).toBe(false);
   });
