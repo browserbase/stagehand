@@ -1,3 +1,4 @@
+import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
 import {
   ExperimentalNotConfiguredError,
   UnsupportedAISDKModelProviderError,
@@ -31,7 +32,7 @@ import { mistral, createMistral } from "@ai-sdk/mistral";
 import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama, createOllama } from "ollama-ai-provider-v2";
-import { gateway, createGateway } from "ai";
+import { gateway, createGateway, wrapLanguageModel } from "ai";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model.js";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
@@ -103,11 +104,13 @@ export function getAISDKLanguageModel(
   subProvider: string,
   subModelName: string,
   clientOptions?: ClientOptions,
+  middleware?: LanguageModelV2Middleware,
 ) {
   const hasValidOptions =
     clientOptions &&
     Object.values(clientOptions).some((v) => v !== undefined && v !== null);
 
+  let model;
   if (hasValidOptions) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
@@ -117,8 +120,7 @@ export function getAISDKLanguageModel(
       );
     }
     const provider = creator(clientOptions);
-    // Get the specific model from the provider
-    return provider(subModelName);
+    model = provider(subModelName);
   } else {
     const provider = AISDKProviders[subProvider];
     if (!provider) {
@@ -127,15 +129,25 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProviders),
       );
     }
-    return provider(subModelName);
+    model = provider(subModelName);
   }
+
+  if (middleware) {
+    return wrapLanguageModel({ model, middleware });
+  }
+  return model;
 }
 
 export class LLMProvider {
   private logger: (message: LogLine) => void;
+  private middleware?: LanguageModelV2Middleware;
 
-  constructor(logger: (message: LogLine) => void) {
+  constructor(
+    logger: (message: LogLine) => void,
+    middleware?: LanguageModelV2Middleware,
+  ) {
     this.logger = logger;
+    this.middleware = middleware;
   }
 
   getClient(
@@ -159,6 +171,7 @@ export class LLMProvider {
         subProvider,
         subModelName,
         clientOptions,
+        this.middleware,
       );
 
       return new AISdkClient({
