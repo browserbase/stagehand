@@ -246,7 +246,9 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
               });
             }
 
-            throw err;
+            throw new CreateChatCompletionResponseError(
+              "Model request failed before a valid response was produced",
+            );
           }
         }
       }
@@ -261,12 +263,26 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           output: "no-schema",
           temperature,
         });
+        const rawObject = noSchemaResponse.object;
+        if (
+          rawObject === null ||
+          typeof rawObject !== "object" ||
+          Array.isArray(rawObject)
+        ) {
+          throw new CreateChatCompletionResponseError(
+            "Model response could not be coerced into the expected schema",
+          );
+        }
         // 2. Fix strings — models may return "[]" instead of []
-        const raw = noSchemaResponse.object as Record<string, unknown>;
+        const raw = rawObject as Record<string, unknown>;
         for (const [k, v] of Object.entries(raw)) {
           if (typeof v === "string") {
+            const trimmed = v.trim();
+            if (!trimmed.startsWith("[") && !trimmed.startsWith("{")) {
+              continue;
+            }
             try {
-              raw[k] = JSON.parse(v);
+              raw[k] = JSON.parse(trimmed);
             } catch {
               // keep as string
             }

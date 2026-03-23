@@ -72,6 +72,18 @@ describe("getAISDKLanguageModel", () => {
 
       expect(model.modelId).toBe("glm-4-flash");
       expect((model as { provider?: string }).provider).toBe("openai.chat");
+      expect(
+        (
+          model as unknown as {
+            config: {
+              url: (ctx: { path: string; modelId: string }) => string;
+            };
+          }
+        ).config.url({
+          path: "/chat/completions",
+          modelId: "glm-4-flash",
+        }),
+      ).toBe("https://open.bigmodel.cn/api/paas/v4/chat/completions");
     });
   });
 

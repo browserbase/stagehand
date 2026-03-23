@@ -139,39 +139,50 @@ async function startLocalChromeWithCdp(): Promise<LocalChromeHandle> {
     { stdio: ["ignore", "pipe", "pipe"] },
   );
 
-  const cdpUrl = await new Promise<string>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error("Timed out waiting for Chrome DevTools endpoint"));
-    }, 15_000);
+  try {
+    const cdpUrl = await new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Timed out waiting for Chrome DevTools endpoint"));
+      }, 15_000);
 
-    const onData = (chunk: Buffer) => {
-      const text = chunk.toString("utf8");
-      const match = text.match(/DevTools listening on (ws:\/\/[^\s]+)/);
-      if (!match) return;
+      const onData = (chunk: Buffer) => {
+        const text = chunk.toString("utf8");
+        const match = text.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+        if (!match) return;
 
-      clearTimeout(timeout);
-      chrome.stderr.off("data", onData);
-      chrome.removeAllListeners("exit");
-      resolve(match[1]);
-    };
+        clearTimeout(timeout);
+        chrome.stderr.off("data", onData);
+        chrome.removeAllListeners("exit");
+        resolve(match[1]);
+      };
 
-    chrome.stderr.on("data", onData);
-    chrome.once("exit", (code, signal) => {
-      clearTimeout(timeout);
-      chrome.stderr.off("data", onData);
-      reject(
-        new Error(
-          `Chrome exited before exposing a DevTools endpoint (code=${code}, signal=${signal})`,
-        ),
-      );
+      chrome.stderr.on("data", onData);
+      chrome.once("exit", (code, signal) => {
+        clearTimeout(timeout);
+        chrome.stderr.off("data", onData);
+        reject(
+          new Error(
+            `Chrome exited before exposing a DevTools endpoint (code=${code}, signal=${signal})`,
+          ),
+        );
+      });
     });
-  });
 
-  return {
-    process: chrome,
-    cdpUrl,
-    userDataDir,
-  };
+    return {
+      process: chrome,
+      cdpUrl,
+      userDataDir,
+    };
+  } catch (error) {
+    if (chrome.exitCode === null && !chrome.killed) {
+      chrome.kill("SIGTERM");
+      await once(chrome, "exit").catch((): undefined => undefined);
+    }
+    await fs.rm(userDataDir, { recursive: true, force: true }).catch(
+      (): undefined => undefined,
+    );
+    throw error;
+  }
 }
 
 async function stopLocalChrome(handle: LocalChromeHandle): Promise<void> {
@@ -496,11 +507,17 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
 
   it("should use x-model-base-url for chatcompletions extract requests", async () => {
     const url = getBaseUrl();
-    const fakeChatServer = await startFakeChatCompletionsServer();
-    const localChrome = await startLocalChromeWithCdp();
+    let fakeChatServer: FakeChatServer | undefined;
+    let localChrome: LocalChromeHandle | undefined;
     let customSessionId: string | undefined;
 
     try {
+      fakeChatServer = await startFakeChatCompletionsServer();
+      localChrome = await startLocalChromeWithCdp();
+
+      assert.ok(fakeChatServer, "Expected fake chat server");
+      assert.ok(localChrome, "Expected local chrome handle");
+
       const headers = {
         ...getHeaders("3.0.0"),
         "x-model-api-key": "test-key",
@@ -606,13 +623,17 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
         await endSession(customSessionId, {
           ...getHeaders("3.0.0"),
           "x-model-api-key": "test-key",
-          "x-model-base-url": fakeChatServer.baseURL,
+          "x-model-base-url": fakeChatServer?.baseURL ?? "",
         }).catch((): undefined => undefined);
       }
-      await stopLocalChrome(localChrome).catch((): undefined => undefined);
-      await stopFakeChatCompletionsServer(fakeChatServer.server).catch(
-        (): undefined => undefined,
-      );
+      if (localChrome) {
+        await stopLocalChrome(localChrome).catch((): undefined => undefined);
+      }
+      if (fakeChatServer) {
+        await stopFakeChatCompletionsServer(fakeChatServer.server).catch(
+          (): undefined => undefined,
+        );
+      }
     }
   });
 });
