@@ -878,6 +878,12 @@ export const PageElementInfoResultSchema = z
       })
       .strict()
       .default({ x: 0, y: 0 }),
+    selector: ResultSelectorSchema.optional(),
+    elementType: z.string().optional(),
+    backendNodeId: z.number().int().optional(),
+    ariaRole: z.string().optional(),
+    ariaAttributes: z.record(z.string(), z.string()).optional(),
+    attrs: z.record(z.string(), z.string()).optional(),
   })
   .strict()
   .meta({ id: "PageElementInfoResult" });

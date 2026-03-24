@@ -4461,6 +4461,28 @@ components:
             - x
             - y
           additionalProperties: false
+        selector:
+          $ref: "#/components/schemas/ResultSelector"
+        elementType:
+          type: string
+        backendNodeId:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+        ariaRole:
+          type: string
+        ariaAttributes:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+        attrs:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
       additionalProperties: false
     BrowserSessionResponse:
       type: object
@@ -5965,6 +5987,28 @@ components:
             - x
             - y
           additionalProperties: false
+        selector:
+          $ref: "#/components/schemas/ResultSelectorOutput"
+        elementType:
+          type: string
+        backendNodeId:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+        ariaRole:
+          type: string
+        ariaAttributes:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+        attrs:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
       required:
         - count
         - isVisible
