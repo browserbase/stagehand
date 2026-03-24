@@ -193,6 +193,13 @@ components:
           example: https://api.openai.com/v1
           type: string
           format: uri
+        headers:
+          description: Custom headers sent with every request to the model provider
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
       required:
         - modelName
     ModelConfig:
@@ -1225,6 +1232,13 @@ components:
           example: https://api.openai.com/v1
           type: string
           format: uri
+        headers:
+          description: Custom headers sent with every request to the model provider
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
       required:
         - modelName
       additionalProperties: false

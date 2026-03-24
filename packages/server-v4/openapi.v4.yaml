@@ -452,19 +452,43 @@ components:
       required:
         - closed
       additionalProperties: false
-    PageXPathResult:
+    PageClickResult:
       type: object
       properties:
-        xpath:
-          type: string
+        selector:
+          $ref: "#/components/schemas/ResultSelector"
+      required:
+        - selector
+      additionalProperties: false
+    PageHoverResult:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelector"
+      required:
+        - selector
+      additionalProperties: false
+    PageScrollResult:
+      type: object
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+      required:
+        - x
+        - y
       additionalProperties: false
     PageDragAndDropResult:
       type: object
       properties:
-        fromXpath:
-          type: string
-        toXpath:
-          type: string
+        startSelector:
+          $ref: "#/components/schemas/ResultSelector"
+        endSelector:
+          $ref: "#/components/schemas/ResultSelector"
+      required:
+        - startSelector
+        - endSelector
       additionalProperties: false
     PageTypeResult:
       type: object
@@ -2390,6 +2414,26 @@ components:
         - $ref: "#/components/schemas/XPathSelector"
         - $ref: "#/components/schemas/CssSelector"
         - $ref: "#/components/schemas/TextSelector"
+    ResultSelector:
+      type: object
+      properties:
+        xpath:
+          type: string
+        css:
+          type: string
+        text:
+          type: string
+        coordinates:
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+          required:
+            - x
+            - y
+      additionalProperties: false
     PageHeaders:
       type: object
       properties: {}
@@ -2445,6 +2489,8 @@ components:
           type: integer
           minimum: 1
           maximum: 9007199254740991
+        returnSelector:
+          type: boolean
       required:
         - selector
       additionalProperties: false
@@ -2455,6 +2501,8 @@ components:
           $ref: "#/components/schemas/PageId"
         selector:
           $ref: "#/components/schemas/Selector"
+        returnSelector:
+          type: boolean
       required:
         - selector
       additionalProperties: false
@@ -2511,6 +2559,8 @@ components:
           type: integer
           minimum: 0
           maximum: 9007199254740991
+        returnSelector:
+          type: boolean
       required:
         - from
         - to
@@ -3113,7 +3163,7 @@ components:
           $ref: "#/components/schemas/PageClickParams"
         result:
           anyOf:
-            - $ref: "#/components/schemas/PageXPathResult"
+            - $ref: "#/components/schemas/PageClickResult"
             - type: "null"
       required:
         - id
@@ -3154,7 +3204,7 @@ components:
           $ref: "#/components/schemas/PageHoverParams"
         result:
           anyOf:
-            - $ref: "#/components/schemas/PageXPathResult"
+            - $ref: "#/components/schemas/PageHoverResult"
             - type: "null"
       required:
         - id
@@ -3195,7 +3245,7 @@ components:
           $ref: "#/components/schemas/PageScrollParams"
         result:
           anyOf:
-            - $ref: "#/components/schemas/PageXPathResult"
+            - $ref: "#/components/schemas/PageScrollResult"
             - type: "null"
       required:
         - id
@@ -4642,7 +4692,7 @@ components:
             - type: string
             - type: "null"
         action:
-          $ref: "#/components/schemas/PageAction"
+          $ref: "#/components/schemas/PageActionOutput"
       required:
         - success
         - error
@@ -4658,7 +4708,7 @@ components:
         error:
           type: "null"
         action:
-          $ref: "#/components/schemas/PageClickAction"
+          $ref: "#/components/schemas/PageClickActionOutput"
       required:
         - success
         - error
@@ -4673,7 +4723,7 @@ components:
         error:
           type: "null"
         action:
-          $ref: "#/components/schemas/PageHoverAction"
+          $ref: "#/components/schemas/PageHoverActionOutput"
       required:
         - success
         - error
@@ -4703,7 +4753,7 @@ components:
         error:
           type: "null"
         action:
-          $ref: "#/components/schemas/PageDragAndDropAction"
+          $ref: "#/components/schemas/PageDragAndDropActionOutput"
       required:
         - success
         - error
@@ -5093,7 +5143,7 @@ components:
         error:
           type: "null"
         action:
-          $ref: "#/components/schemas/PageAction"
+          $ref: "#/components/schemas/PageActionOutput"
       required:
         - success
         - error
@@ -5110,7 +5160,7 @@ components:
         actions:
           type: array
           items:
-            $ref: "#/components/schemas/PageAction"
+            $ref: "#/components/schemas/PageActionOutput"
       required:
         - success
         - error
@@ -5261,6 +5311,33 @@ components:
       required:
         - type
         - server
+      additionalProperties: false
+    PageClickResultOutput:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelectorOutput"
+      required:
+        - selector
+      additionalProperties: false
+    PageHoverResultOutput:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelectorOutput"
+      required:
+        - selector
+      additionalProperties: false
+    PageDragAndDropResultOutput:
+      type: object
+      properties:
+        startSelector:
+          $ref: "#/components/schemas/ResultSelectorOutput"
+        endSelector:
+          $ref: "#/components/schemas/ResultSelectorOutput"
+      required:
+        - startSelector
+        - endSelector
       additionalProperties: false
     SessionHeadersOutput:
       type: object
@@ -5509,6 +5586,181 @@ components:
       required:
         - browserSession
       additionalProperties: false
+    ResultSelectorOutput:
+      type: object
+      properties:
+        xpath:
+          type: string
+        css:
+          type: string
+        text:
+          type: string
+        coordinates:
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+          required:
+            - x
+            - y
+          additionalProperties: false
+      additionalProperties: false
+    PageClickActionOutput:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: click
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageClickParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageClickResultOutput"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageHoverActionOutput:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: hover
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageHoverParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageHoverResultOutput"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageDragAndDropActionOutput:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: dragAndDrop
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageDragAndDropParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageDragAndDropResultOutput"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageActionOutput:
+      anyOf:
+        - $ref: "#/components/schemas/PageClickActionOutput"
+        - $ref: "#/components/schemas/PageHoverActionOutput"
+        - $ref: "#/components/schemas/PageScrollAction"
+        - $ref: "#/components/schemas/PageDragAndDropActionOutput"
+        - $ref: "#/components/schemas/PageTypeAction"
+        - $ref: "#/components/schemas/PageKeyPressAction"
+        - $ref: "#/components/schemas/PageEnableCursorOverlayAction"
+        - $ref: "#/components/schemas/PageAddInitScriptAction"
+        - $ref: "#/components/schemas/PageGotoAction"
+        - $ref: "#/components/schemas/PageReloadAction"
+        - $ref: "#/components/schemas/PageGoBackAction"
+        - $ref: "#/components/schemas/PageGoForwardAction"
+        - $ref: "#/components/schemas/PageTargetIdAction"
+        - $ref: "#/components/schemas/PageMainFrameIdAction"
+        - $ref: "#/components/schemas/PageGetFullFrameTreeAction"
+        - $ref: "#/components/schemas/PageListAllFrameIdsAction"
+        - $ref: "#/components/schemas/PageTitleAction"
+        - $ref: "#/components/schemas/PageUrlAction"
+        - $ref: "#/components/schemas/PageScreenshotAction"
+        - $ref: "#/components/schemas/PageSnapshotAction"
+        - $ref: "#/components/schemas/PageFramesAction"
+        - $ref: "#/components/schemas/PageSetViewportSizeAction"
+        - $ref: "#/components/schemas/PageSetExtraHTTPHeadersAction"
+        - $ref: "#/components/schemas/PageWaitForLoadStateAction"
+        - $ref: "#/components/schemas/PageWaitForSelectorAction"
+        - $ref: "#/components/schemas/PageWaitForTimeoutAction"
+        - $ref: "#/components/schemas/PageEvaluateAction"
+        - $ref: "#/components/schemas/PageSendCDPAction"
+        - $ref: "#/components/schemas/PageCloseAction"
     BrowserSessionHeaders:
       $ref: "#/components/schemas/SessionHeadersOutput"
     BrowserSessionIdParams:
@@ -5718,7 +5970,7 @@ components:
             - type: string
             - type: "null"
         action:
-          $ref: "#/components/schemas/PageAction"
+          $ref: "#/components/schemas/PageActionOutput"
       required:
         - success
         - error
