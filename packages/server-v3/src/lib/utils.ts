@@ -18,6 +18,62 @@ interface JSONSchema {
   anyOf?: JSONSchema[];
   oneOf?: JSONSchema[];
   allOf?: JSONSchema[];
+  $defs?: Record<string, JSONSchema>;
+  $ref?: string;
+}
+
+/**
+ * Resolves all $ref pointers in a JSON Schema against its $defs, returning
+ * a self-contained schema with no $ref or $defs remaining.
+ */
+function resolveRefs(
+  schema: JSONSchema,
+  defs: Record<string, JSONSchema>,
+  seen: Set<string> = new Set(),
+): JSONSchema {
+  if (schema.$ref) {
+    const match = schema.$ref.match(/^#\/\$defs\/(.+)$/);
+    if (match && match[1] && defs[match[1]]) {
+      if (seen.has(match[1])) {
+        return {};
+      }
+      seen.add(match[1]);
+      return resolveRefs(defs[match[1]], defs, seen);
+    }
+    return {};
+  }
+
+  const resolved: JSONSchema = { ...schema };
+
+  if (resolved.properties) {
+    const props: Record<string, JSONSchema> = {};
+    for (const [key, val] of Object.entries(resolved.properties)) {
+      props[key] = resolveRefs(val, defs, new Set(seen));
+    }
+    resolved.properties = props;
+  }
+  if (resolved.items) {
+    resolved.items = resolveRefs(resolved.items, defs, new Set(seen));
+  }
+  if (resolved.anyOf) {
+    resolved.anyOf = resolved.anyOf.map((s) =>
+      resolveRefs(s, defs, new Set(seen)),
+    );
+  }
+  if (resolved.oneOf) {
+    resolved.oneOf = resolved.oneOf.map((s) =>
+      resolveRefs(s, defs, new Set(seen)),
+    );
+  }
+  if (resolved.allOf) {
+    resolved.allOf = resolved.allOf.map((s) =>
+      resolveRefs(s, defs, new Set(seen)),
+    );
+  }
+
+  delete resolved.$defs;
+  delete resolved.$ref;
+  return resolved;
 }
 
 /**
@@ -26,10 +82,19 @@ interface JSONSchema {
  * @returns A Zod schema equivalent to the input JSON Schema
  */
 export function jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
+  // Resolve $ref/$defs before converting so all types are inlined
+  const resolved =
+    schema.$defs || schema.$ref
+      ? resolveRefs(schema, schema.$defs ?? {})
+      : schema;
+  return _jsonSchemaToZod(resolved);
+}
+
+function _jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
   if (Array.isArray(schema.type)) {
     const subSchemas = schema.type.map((singleType) => {
       const sub = { ...schema, type: singleType };
-      return jsonSchemaToZod(sub);
+      return _jsonSchemaToZod(sub);
     });
 
     if (subSchemas.length === 0) {
@@ -45,7 +110,7 @@ export function jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
   }
 
   if (schema.anyOf && Array.isArray(schema.anyOf)) {
-    const subSchemas = schema.anyOf.map((sub) => jsonSchemaToZod(sub));
+    const subSchemas = schema.anyOf.map((sub) => _jsonSchemaToZod(sub));
     if (subSchemas.length === 0) {
       return z.any();
     } else if (subSchemas.length === 1) {
@@ -59,7 +124,7 @@ export function jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
   }
 
   if (schema.oneOf && Array.isArray(schema.oneOf)) {
-    const subSchemas = schema.oneOf.map((sub) => jsonSchemaToZod(sub));
+    const subSchemas = schema.oneOf.map((sub) => _jsonSchemaToZod(sub));
     if (subSchemas.length === 0) {
       return z.any();
     } else if (subSchemas.length === 1) {
@@ -84,7 +149,7 @@ export function jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
               StatusCodes.BAD_REQUEST,
             );
           }
-          shape[key] = jsonSchemaToZod(subSchema);
+          shape[key] = _jsonSchemaToZod(subSchema);
         }
         let zodObject = z.object(shape);
 
@@ -109,7 +174,7 @@ export function jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
 
     case "array":
       if (schema.items) {
-        let zodArray = z.array(jsonSchemaToZod(schema.items));
+        let zodArray = z.array(_jsonSchemaToZod(schema.items));
         if (schema.description) {
           zodArray = zodArray.describe(schema.description);
         }
@@ -118,8 +183,8 @@ export function jsonSchemaToZod(schema: JSONSchema): ZodTypeAny {
       return z.array(z.any());
 
     case "string": {
-      if (schema.enum) {
-        return z.string().refine((val) => schema.enum?.includes(val) ?? false);
+      if (schema.enum && schema.enum.length > 0) {
+        return z.enum(schema.enum as [string, ...string[]]);
       }
       let zodString = z.string();
 
