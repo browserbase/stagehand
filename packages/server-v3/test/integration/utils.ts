@@ -359,7 +359,8 @@ export async function readSSEStream(response: Response): Promise<SSEEvent[]> {
 // =============================================================================
 
 // Actual SSE event format from backend (see stream.ts):
-// { data: { status: "starting" | "connected" | "finished", result?: ... }, type: "system" | "log", id: "<uuid>" }
+// event: <status>
+// data: { data: { status: "starting" | "connected" | "finished", result?: ... }, type: "system" | "log", id: "<uuid>" }
 export interface TypedSSEEvent<TResult = unknown> {
   data: {
     status: string;

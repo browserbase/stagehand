@@ -19,6 +19,7 @@ import {
   navigateSession,
   OPENAI_API_KEY,
   readTypedSSEStreamWithContext,
+  readSSEStream,
   requireEnv,
 } from "../utils.js";
 
@@ -398,6 +399,47 @@ describe("POST /v1/sessions/:id/act with SSE streaming (V3)", () => {
       typeof finishedEvent.data.result.success,
       "boolean",
       "Result.success must be a boolean",
+    );
+  });
+
+  it("should include explicit SSE event names that match streamed statuses", async () => {
+    const url = getBaseUrl();
+
+    const response = await fetch(`${url}/v1/sessions/${sessionId}/act`, {
+      method: "POST",
+      headers: {
+        ...getHeaders("3.0.0"),
+      },
+      body: JSON.stringify({
+        input: "click the Learn more link",
+        streamResponse: true,
+      }),
+    });
+
+    const events = await readSSEStream(response);
+
+    assert.ok(events.length >= 2, "Should emit multiple SSE frames");
+    assert.ok(
+      events.every((event) => typeof event.event === "string" && event.event),
+      "Every streamed frame should include an SSE event name",
+    );
+
+    const startingEvent = events.find((event) => event.event === "starting");
+    assert.ok(startingEvent, "Should include a starting SSE event");
+    assert.equal(
+      (startingEvent.parsed as { data?: { status?: string } } | undefined)?.data
+        ?.status,
+      "starting",
+      "Starting SSE event should match the payload status",
+    );
+
+    const finishedEvent = events.find((event) => event.event === "finished");
+    assert.ok(finishedEvent, "Should include a finished SSE event");
+    assert.equal(
+      (finishedEvent.parsed as { data?: { status?: string } } | undefined)?.data
+        ?.status,
+      "finished",
+      "Finished SSE event should match the payload status",
     );
   });
 
