@@ -201,11 +201,9 @@ resources:
 
 streaming:
   on_event:
-    - data_starts_with: '{"data":{"status":"finished"'
-      handle: done
-    - data_starts_with: error
+    - event_type: error
       handle: error
-    - event_type: null
+    - event_type: [starting, connected, running, finished]
       handle: yield
 
 settings:
