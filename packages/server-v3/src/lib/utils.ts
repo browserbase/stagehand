@@ -29,11 +29,16 @@ interface JSONSchema {
 function resolveRefs(
   schema: JSONSchema,
   defs: Record<string, JSONSchema>,
+  seen: Set<string> = new Set(),
 ): JSONSchema {
   if (schema.$ref) {
     const match = schema.$ref.match(/^#\/\$defs\/(.+)$/);
     if (match && match[1] && defs[match[1]]) {
-      return resolveRefs(defs[match[1]], defs);
+      if (seen.has(match[1])) {
+        return {};
+      }
+      seen.add(match[1]);
+      return resolveRefs(defs[match[1]], defs, seen);
     }
     return {};
   }
@@ -43,21 +48,27 @@ function resolveRefs(
   if (resolved.properties) {
     const props: Record<string, JSONSchema> = {};
     for (const [key, val] of Object.entries(resolved.properties)) {
-      props[key] = resolveRefs(val, defs);
+      props[key] = resolveRefs(val, defs, new Set(seen));
     }
     resolved.properties = props;
   }
   if (resolved.items) {
-    resolved.items = resolveRefs(resolved.items, defs);
+    resolved.items = resolveRefs(resolved.items, defs, new Set(seen));
   }
   if (resolved.anyOf) {
-    resolved.anyOf = resolved.anyOf.map((s) => resolveRefs(s, defs));
+    resolved.anyOf = resolved.anyOf.map((s) =>
+      resolveRefs(s, defs, new Set(seen)),
+    );
   }
   if (resolved.oneOf) {
-    resolved.oneOf = resolved.oneOf.map((s) => resolveRefs(s, defs));
+    resolved.oneOf = resolved.oneOf.map((s) =>
+      resolveRefs(s, defs, new Set(seen)),
+    );
   }
   if (resolved.allOf) {
-    resolved.allOf = resolved.allOf.map((s) => resolveRefs(s, defs));
+    resolved.allOf = resolved.allOf.map((s) =>
+      resolveRefs(s, defs, new Set(seen)),
+    );
   }
 
   delete resolved.$defs;
