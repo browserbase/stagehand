@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "e7b1d05767ec",
+  "session_id": "70c8a7c3-8dc1-4ffb-9a61-ec2bd8dab837",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-24T20:22:56.472307Z",
+  "branch": "miguelgonzalez/stg-1647-parsing-issue-python-v3",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "packages/server-v3/package.json",
+    "packages/server-v3/test/unit/jsonSchemaToZod.test.ts"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "839b741ec2e4",
+  "transcript_identifier_at_start": "74012cc4-6591-4228-a07c-e5975f4d766f",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 83421,
+    "cache_read_tokens": 580708,
+    "output_tokens": 607,
+    "api_call_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-24T20:22:56.417027Z",
+    "agent_lines": 0,
+    "human_added": 45188,
+    "human_modified": 3,
+    "human_removed": 0,
+    "total_committed": 45188,
+    "agent_percentage": 0
+  },
+  "transcript_path": ".claude/projects/-Users-miguel-browserbase-Documents-Browserbase-stagehand/70c8a7c3-8dc1-4ffb-9a61-ec2bd8dab837.jsonl"
+}

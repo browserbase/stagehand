@@ -1,0 +1,12 @@
+# Session Context
+
+## User Prompts
+
+### Prompt 1
+
+I'm fixing our evals cli build logic. check the current changes on this pr. Now, when a user runs pnpm build:cli from the workspace root, it will generate the correct cli dist. However, it won't be auto-linked via npm link, would love to automate that as well. Also, whenever I run evals, it seems to override eval.config.json with new values (default) different than the ones specified (every time evals run is ran). Let's take this step by step, fixing npm link on pnpm build:cli first (and overrid...
+
+### Prompt 2
+
+yes let's do it
+

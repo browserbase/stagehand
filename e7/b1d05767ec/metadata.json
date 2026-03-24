@@ -3,7 +3,7 @@
   "checkpoint_id": "e7b1d05767ec",
   "strategy": "manual-commit",
   "branch": "miguelgonzalez/stg-1647-parsing-issue-python-v3",
-  "checkpoints_count": 2,
+  "checkpoints_count": 4,
   "files_touched": [
     "packages/server-v3/package.json",
     "packages/server-v3/test/unit/jsonSchemaToZod.test.ts"
@@ -15,13 +15,20 @@
       "context": "/e7/b1d05767ec/0/context.md",
       "content_hash": "/e7/b1d05767ec/0/content_hash.txt",
       "prompt": "/e7/b1d05767ec/0/prompt.txt"
+    },
+    {
+      "metadata": "/e7/b1d05767ec/1/metadata.json",
+      "transcript": "/e7/b1d05767ec/1/full.jsonl",
+      "context": "/e7/b1d05767ec/1/context.md",
+      "content_hash": "/e7/b1d05767ec/1/content_hash.txt",
+      "prompt": "/e7/b1d05767ec/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 61,
-    "cache_creation_tokens": 178231,
-    "cache_read_tokens": 1793471,
-    "output_tokens": 16206,
-    "api_call_count": 51
+    "input_tokens": 81,
+    "cache_creation_tokens": 261652,
+    "cache_read_tokens": 2374179,
+    "output_tokens": 16813,
+    "api_call_count": 67
   }
 }
