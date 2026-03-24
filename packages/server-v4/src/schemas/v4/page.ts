@@ -864,19 +864,20 @@ export const PageCloseResultSchema = z
 
 export const PageElementInfoResultSchema = z
   .object({
-    count: z.number().int().nonnegative(),
-    isVisible: z.boolean(),
-    isChecked: z.boolean(),
-    inputValue: z.string(),
-    textContent: z.string(),
-    innerHTML: z.string(),
-    innerText: z.string(),
+    count: z.number().int().nonnegative().default(0),
+    isVisible: z.boolean().default(false),
+    isChecked: z.boolean().default(false),
+    inputValue: z.string().default(""),
+    textContent: z.string().default(""),
+    innerHTML: z.string().default(""),
+    innerText: z.string().default(""),
     centroid: z
       .object({
         x: z.number(),
         y: z.number(),
       })
-      .strict(),
+      .strict()
+      .default({ x: 0, y: 0 }),
   })
   .strict()
   .meta({ id: "PageElementInfoResult" });

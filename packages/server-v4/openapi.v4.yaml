@@ -4425,22 +4425,32 @@ components:
       type: object
       properties:
         count:
+          default: 0
           type: integer
           minimum: 0
           maximum: 9007199254740991
         isVisible:
+          default: false
           type: boolean
         isChecked:
+          default: false
           type: boolean
         inputValue:
+          default: ""
           type: string
         textContent:
+          default: ""
           type: string
         innerHTML:
+          default: ""
           type: string
         innerText:
+          default: ""
           type: string
         centroid:
+          default:
+            x: 0
+            y: 0
           type: object
           properties:
             x:
@@ -4451,15 +4461,6 @@ components:
             - x
             - y
           additionalProperties: false
-      required:
-        - count
-        - isVisible
-        - isChecked
-        - inputValue
-        - textContent
-        - innerHTML
-        - innerText
-        - centroid
       additionalProperties: false
     BrowserSessionResponse:
       type: object
@@ -5249,7 +5250,7 @@ components:
         error:
           type: "null"
         action:
-          $ref: "#/components/schemas/PageElementInfoAction"
+          $ref: "#/components/schemas/PageElementInfoActionOutput"
       required:
         - success
         - error
@@ -5851,6 +5852,47 @@ components:
         - params
         - result
       additionalProperties: false
+    PageElementInfoActionOutput:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: elementInfo
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageElementInfoParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageElementInfoResultOutput"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
     PageActionOutput:
       anyOf:
         - $ref: "#/components/schemas/PageClickActionOutput"
@@ -5882,7 +5924,57 @@ components:
         - $ref: "#/components/schemas/PageEvaluateAction"
         - $ref: "#/components/schemas/PageSendCDPAction"
         - $ref: "#/components/schemas/PageCloseAction"
-        - $ref: "#/components/schemas/PageElementInfoAction"
+        - $ref: "#/components/schemas/PageElementInfoActionOutput"
+    PageElementInfoResultOutput:
+      type: object
+      properties:
+        count:
+          default: 0
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        isVisible:
+          default: false
+          type: boolean
+        isChecked:
+          default: false
+          type: boolean
+        inputValue:
+          default: ""
+          type: string
+        textContent:
+          default: ""
+          type: string
+        innerHTML:
+          default: ""
+          type: string
+        innerText:
+          default: ""
+          type: string
+        centroid:
+          default:
+            x: 0
+            y: 0
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+          required:
+            - x
+            - y
+          additionalProperties: false
+      required:
+        - count
+        - isVisible
+        - isChecked
+        - inputValue
+        - textContent
+        - innerHTML
+        - innerText
+        - centroid
+      additionalProperties: false
     BrowserSessionHeaders:
       $ref: "#/components/schemas/SessionHeadersOutput"
     BrowserSessionIdParams:

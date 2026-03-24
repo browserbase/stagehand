@@ -27,16 +27,7 @@ const elementInfoRoute: RouteOptions = {
     method: "elementInfo",
     actionSchema: PageElementInfoActionSchema,
     execute: async () => {
-      return PageElementInfoResultSchema.parse({
-        count: 0,
-        isVisible: false,
-        isChecked: false,
-        inputValue: "",
-        textContent: "",
-        innerHTML: "",
-        innerText: "",
-        centroid: { x: 0, y: 0 },
-      });
+      return PageElementInfoResultSchema.parse({});
     },
   }),
 };
