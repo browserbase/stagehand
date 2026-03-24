@@ -193,6 +193,13 @@ components:
           example: https://api.openai.com/v1
           type: string
           format: uri
+        headers:
+          description: Custom headers sent with every request to the model provider
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
       required:
         - modelName
     ModelConfig:
@@ -1225,6 +1232,13 @@ components:
           example: https://api.openai.com/v1
           type: string
           format: uri
+        headers:
+          description: Custom headers sent with every request to the model provider
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
       required:
         - modelName
       additionalProperties: false
@@ -1910,8 +1924,8 @@ components:
       additionalProperties: false
     StreamEvent:
       description: "Server-Sent Event emitted during streaming responses. Events are
-        sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type,
-        id."
+        sent as `event: <status>\\ndata: <JSON>\\n\\n`, where the JSON payload
+        has the shape `{ data, type, id }`."
       type: object
       properties:
         data:

@@ -79,6 +79,10 @@ export const ModelConfigObjectSchema = z
       description: "Base URL for the model provider",
       example: "https://api.openai.com/v1",
     }),
+    headers: z.record(z.string(), z.string()).optional().meta({
+      description:
+        "Custom headers sent with every request to the model provider",
+    }),
   })
   .meta({ id: "ModelConfigObject" });
 
@@ -931,11 +935,9 @@ export const StreamEventLogDataSchema = z
 /**
  * SSE stream event sent during streaming responses.
  *
- * IMPORTANT: Key ordering matters for Stainless SDK generation.
- * The `data` field MUST be serialized first, with `status` as the first key within it.
- * This allows Stainless to use `data_starts_with: '{"data":{"status":"finished"'` for event handling.
- *
- * Expected serialization order: {"data":{"status":...},"type":...,"id":...}
+ * The SSE wire format includes an `event:` line that mirrors the stream status
+ * (`starting`, `connected`, `running`, `finished`, or `error`) followed by a
+ * JSON `data:` line containing the typed payload below.
  */
 export const StreamEventSchema = z
   .object({
@@ -949,7 +951,7 @@ export const StreamEventSchema = z
   .meta({
     id: "StreamEvent",
     description:
-      "Server-Sent Event emitted during streaming responses. Events are sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type, id.",
+      "Server-Sent Event emitted during streaming responses. Events are sent as `event: <status>\\ndata: <JSON>\\n\\n`, where the JSON payload has the shape `{ data, type, id }`.",
   });
 
 // =============================================================================
