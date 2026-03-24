@@ -701,12 +701,15 @@ describe("jsonSchemaToZod – edge cases", () => {
 
   it("handles schema with extra/unknown fields gracefully", () => {
     // Fields not in the JSONSchema interface should be ignored
-    const zod = jsonSchemaToZod({
+    const schema = {
       type: "string",
       title: "A title",
       examples: ["foo", "bar"],
       default: "baz",
-    } as any);
+    } as Record<string, unknown>;
+    const zod = jsonSchemaToZod(
+      schema as Parameters<typeof jsonSchemaToZod>[0],
+    );
     assert.equal(zod.parse("hello"), "hello");
   });
 
