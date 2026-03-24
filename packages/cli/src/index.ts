@@ -18,6 +18,7 @@ import { spawn } from "child_process";
 import * as readline from "readline";
 import type { Protocol } from "devtools-protocol";
 import { version as VERSION } from "../package.json";
+import { resolveWsTarget } from "./resolve-ws";
 
 const program = new Command();
 
@@ -1454,34 +1455,6 @@ function output(data: unknown, json: boolean): void {
   } else {
     console.log(JSON.stringify(data, null, 2));
   }
-}
-
-/**
- * Resolve a --ws value to a CDP WebSocket URL.
- * Accepts a bare port number (e.g. "9222"), which is resolved via the
- * /json/version endpoint, or a full URL (ws://, wss://, http://) used as-is.
- */
-async function resolveWsTarget(input: string): Promise<string> {
-  // Bare numeric port → discover via /json/version
-  if (/^\d+$/.test(input)) {
-    const port = input;
-    const url = `http://127.0.0.1:${port}/json/version`;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} from ${url}`);
-      }
-      const json = (await res.json()) as { webSocketDebuggerUrl?: string };
-      if (json.webSocketDebuggerUrl) {
-        return json.webSocketDebuggerUrl;
-      }
-    } catch {
-      // /json/version unavailable — fall back to a conventional WS URL
-    }
-    return `ws://127.0.0.1:${port}`;
-  }
-  // Already a URL — use as-is
-  return input;
 }
 
 async function runCommand(command: string, args: unknown[]): Promise<unknown> {
