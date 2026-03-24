@@ -1,0 +1,114 @@
+name: Release CLI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release-cli:
+    name: Release browse-cli
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - name: Configure npm registry for Trusted Publishing
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Update npm for Trusted Publishing
+        run: npm install -g npm@latest
+
+      - name: Check for browse-cli changesets
+        id: check
+        run: |
+          # Only look at changeset markdown files (skip config, README, etc.)
+          CLI_CHANGESETS=""
+          for f in .changeset/*.md; do
+            [ "$f" = ".changeset/README.md" ] && continue
+            if grep -q "@browserbasehq/browse-cli" "$f" 2>/dev/null; then
+              CLI_CHANGESETS="${CLI_CHANGESETS} ${f}"
+            fi
+          done
+
+          if [ -z "$CLI_CHANGESETS" ]; then
+            echo "No pending browse-cli changesets found."
+            echo "has_changesets=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Found browse-cli changesets:${CLI_CHANGESETS}"
+          echo "has_changesets=true" >> "$GITHUB_OUTPUT"
+
+          # Fail if any changeset references browse-cli AND another package.
+          # Mixed changesets must be split so both release flows get their bumps.
+          for f in $CLI_CHANGESETS; do
+            if grep -qE '"@browserbasehq/(stagehand|stagehand-server-v3|stagehand-server-v4|stagehand-evals|stagehand-docs)"' "$f"; then
+              echo "::error::Mixed changeset found: $f references browse-cli AND other packages. Split it into separate changesets so both release workflows can consume their respective bumps."
+              exit 1
+            fi
+          done
+
+      - name: Version browse-cli
+        if: steps.check.outputs.has_changesets == 'true'
+        run: |
+          # Save original config
+          cp .changeset/config.json .changeset/config.json.bak
+
+          # Swap ignore list: ignore everything EXCEPT browse-cli
+          node -e "
+            const fs = require('fs');
+            const config = JSON.parse(fs.readFileSync('.changeset/config.json', 'utf8'));
+            config.ignore = [
+              '@browserbasehq/stagehand',
+              '@browserbasehq/stagehand-server-v3',
+              '@browserbasehq/stagehand-server-v4',
+              '@browserbasehq/stagehand-evals',
+              '@browserbasehq/stagehand-docs'
+            ];
+            fs.writeFileSync('.changeset/config.json', JSON.stringify(config, null, 2) + '\n');
+          "
+
+          # Version only browse-cli (consumes CLI-only changesets)
+          pnpm changeset version
+
+          # Restore original config so the ignore swap is never committed
+          mv .changeset/config.json.bak .changeset/config.json
+
+      - name: Build
+        if: steps.check.outputs.has_changesets == 'true'
+        run: pnpm exec turbo run build
+
+      - name: Publish browse-cli to npm
+        if: steps.check.outputs.has_changesets == 'true'
+        run: |
+          cd packages/cli
+          npm publish --provenance --access public
+
+      - name: Commit version bump and tag
+        if: steps.check.outputs.has_changesets == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          VERSION=$(node -p "require('./packages/cli/package.json').version")
+
+          git add packages/cli/package.json packages/cli/CHANGELOG.md .changeset/
+          git commit -m "Release @browserbasehq/browse-cli@${VERSION}"
+          git tag "@browserbasehq/browse-cli@${VERSION}"
+          git push origin main --follow-tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,6 +3,7 @@
   "commit": false,
   "fixed": [],
   "linked": [],
+  "ignore": ["@browserbasehq/browse-cli"],
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "access": "public",
