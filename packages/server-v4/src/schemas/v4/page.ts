@@ -960,7 +960,7 @@ export const PageCloseResultSchema = z
 
 export const PageFillResultSchema = z
   .object({
-    selector: ResultSelectorSchema.optional(),
+    selector: ResultSelectorSchema,
     value: z.string(),
   })
   .strict()
@@ -968,7 +968,7 @@ export const PageFillResultSchema = z
 
 export const PageHighlightResultSchema = z
   .object({
-    selector: ResultSelectorSchema.optional(),
+    selector: ResultSelectorSchema,
     highlighted: z.boolean(),
   })
   .strict()
@@ -976,7 +976,7 @@ export const PageHighlightResultSchema = z
 
 export const PageSelectOptionResultSchema = z
   .object({
-    selector: ResultSelectorSchema.optional(),
+    selector: ResultSelectorSchema,
     selected: z.array(z.string()),
   })
   .strict()
@@ -984,7 +984,7 @@ export const PageSelectOptionResultSchema = z
 
 export const PageSetInputFilesResultSchema = z
   .object({
-    selector: ResultSelectorSchema.optional(),
+    selector: ResultSelectorSchema,
     files: z.array(z.string()),
   })
   .strict()

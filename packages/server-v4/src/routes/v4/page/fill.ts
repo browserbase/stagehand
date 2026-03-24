@@ -27,7 +27,7 @@ const fillRoute: RouteOptions = {
     method: "fill",
     actionSchema: PageFillActionSchema,
     execute: async () => {
-      return PageFillResultSchema.parse({ value: "" });
+      return PageFillResultSchema.parse({ selector: {}, value: "" });
     },
   }),
 };

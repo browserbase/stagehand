@@ -27,7 +27,7 @@ const setInputFilesRoute: RouteOptions = {
     method: "setInputFiles",
     actionSchema: PageSetInputFilesActionSchema,
     execute: async () => {
-      return PageSetInputFilesResultSchema.parse({ files: [] });
+      return PageSetInputFilesResultSchema.parse({ selector: {}, files: [] });
     },
   }),
 };

@@ -27,7 +27,7 @@ const selectOptionRoute: RouteOptions = {
     method: "selectOption",
     actionSchema: PageSelectOptionActionSchema,
     execute: async () => {
-      return PageSelectOptionResultSchema.parse({ selected: [] });
+      return PageSelectOptionResultSchema.parse({ selector: {}, selected: [] });
     },
   }),
 };

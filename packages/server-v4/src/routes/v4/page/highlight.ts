@@ -27,7 +27,10 @@ const highlightRoute: RouteOptions = {
     method: "highlight",
     actionSchema: PageHighlightActionSchema,
     execute: async () => {
-      return PageHighlightResultSchema.parse({ highlighted: false });
+      return PageHighlightResultSchema.parse({
+        selector: {},
+        highlighted: false,
+      });
     },
   }),
 };
