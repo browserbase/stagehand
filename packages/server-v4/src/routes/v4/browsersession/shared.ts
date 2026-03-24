@@ -17,6 +17,7 @@ import {
 
 export function buildBrowserSession(input: {
   id: string;
+  llmId: string;
   env: BrowserSession["env"];
   status: "running" | "ended";
   available: boolean;
@@ -27,7 +28,6 @@ export function buildBrowserSession(input: {
   localBrowserLaunchOptions?: BrowserSession["localBrowserLaunchOptions"];
   domSettleTimeoutMs?: number;
   verbose?: BrowserSession["verbose"];
-  systemPrompt?: string;
   selfHeal?: boolean;
   waitForCaptchaSolves?: boolean;
   experimental?: boolean;
@@ -35,6 +35,7 @@ export function buildBrowserSession(input: {
 }): BrowserSession {
   return BrowserSessionSchema.parse({
     id: input.id,
+    llmId: input.llmId,
     env: input.env,
     status: input.status,
     modelName: input.modelName,
@@ -45,7 +46,6 @@ export function buildBrowserSession(input: {
     localBrowserLaunchOptions: input.localBrowserLaunchOptions,
     domSettleTimeoutMs: input.domSettleTimeoutMs,
     verbose: input.verbose,
-    systemPrompt: input.systemPrompt,
     selfHeal: input.selfHeal,
     waitForCaptchaSolves: input.waitForCaptchaSolves,
     experimental: input.experimental,

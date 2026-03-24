@@ -15,6 +15,7 @@ import connectURLRoute from "./connectURL.js";
 import cookiesRoute from "./cookies.js";
 import endBrowserSessionRoute from "./_id/end.js";
 import getBrowserSessionRoute from "./_id/index.js";
+import updateBrowserSessionRoute from "./_id/update.js";
 import getFullFrameTreeByMainFrameIdRoute from "./getFullFrameTreeByMainFrameId.js";
 import createBrowserSessionRoute from "./index.js";
 import newPageRoute from "./newPage.js";
@@ -27,6 +28,7 @@ import { normalizePluginError, withTag } from "../pluginUtils.js";
 const rawBrowserSessionRoutes: RouteOptions[] = [
   createBrowserSessionRoute,
   getBrowserSessionRoute,
+  updateBrowserSessionRoute,
   endBrowserSessionRoute,
   addInitScriptRoute,
   setExtraHTTPHeadersRoute,

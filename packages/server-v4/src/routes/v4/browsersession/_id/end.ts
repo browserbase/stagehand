@@ -7,25 +7,20 @@ import {
   BrowserSessionHeadersSchema,
   BrowserSessionIdParamsSchema,
   BrowserSessionResponseSchema,
+  BrowserSessionV4ErrorResponseSchema,
   type BrowserSessionIdParams,
 } from "../../../../schemas/v4/browserSession.js";
-import { buildBrowserSession } from "../shared.js";
+import { endBrowserSession } from "../../stubState.js";
 
 const endBrowserSessionHandler: RouteHandlerMethod = async (request, reply) => {
   const { id } = request.params as BrowserSessionIdParams;
+  const browserSession = endBrowserSession(id);
 
   return reply.status(StatusCodes.OK).send(
     BrowserSessionResponseSchema.parse({
       success: true,
       data: {
-        browserSession: buildBrowserSession({
-          id,
-          env: "LOCAL",
-          status: "ended",
-          modelName: "stub/model",
-          cdpUrl: "ws://stub.invalid/devtools/browser/stub",
-          available: false,
-        }),
+        browserSession,
       },
     }),
   );
@@ -42,6 +37,7 @@ const endBrowserSessionRoute: RouteOptions = {
     body: BrowserSessionEndRequestSchema,
     response: {
       200: BrowserSessionResponseSchema,
+      404: BrowserSessionV4ErrorResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: endBrowserSessionHandler,
