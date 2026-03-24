@@ -93,7 +93,7 @@ const writeCtrfFromJunit = (junitPath: string, tool: string) => {
   }
 };
 
-const sourceTestsDir = `${repoRoot}/packages/server-v3/test`;
+const sourceTestsDir = `${repoRoot}/packages/server-v3/tests`;
 const sourceUnitDir = `${sourceTestsDir}/unit`;
 const sourceIntegrationDir = `${sourceTestsDir}/integration`;
 const unitDir = `${repoRoot}/packages/server-v3/dist/tests/unit`;
@@ -224,7 +224,12 @@ const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
 
 const allPaths =
   paths.length > 0
-    ? paths.map(resolveRepoRelative)
+    ? paths.flatMap((p) => {
+        const abs = resolveRepoRelative(p);
+        return fs.existsSync(abs) && fs.statSync(abs).isDirectory()
+          ? collectFiles(abs, ".test.js")
+          : [abs];
+      })
     : [
         ...collectFiles(unitDir, ".test.js"),
         ...collectFiles(integrationDir, ".test.js"),

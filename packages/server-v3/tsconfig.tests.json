@@ -1,11 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "test",
-    "outDir": "dist/tests",
+    "rootDir": ".",
+    "outDir": "dist",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": false,
     "declaration": false,
     "noEmit": false
   },
-  "include": ["test/**/*.ts"],
+  "include": ["tests/**/*.ts", "src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
