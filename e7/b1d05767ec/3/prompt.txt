@@ -1,0 +1,85 @@
+Implement the following plan:
+
+# Fix: `cloneNode(true)` in `rerenderMissingShadowHosts()` doesn't trigger custom element constructors
+
+## Context
+
+`rerenderMissingShadowHosts()` is meant to re-trigger custom element constructors for elements created **before** the shadow DOM piercer was installed. This allows the piercer's patched `attachShadow()` to intercept the call and track closed shadow roots in its `WeakMap`.
+
+**The bug:** `cloneNode(true)` (line 22) does NOT invoke the custom element constructor per the HTML spec. The clone also lacks a shadow root, making the entire rerender loop a no-op.
+
+**The fix:** Replace `cloneNode(true)` with `document.createElement(tag)`, which DOES invoke the constructor, then transfer attributes and light DOM children.
+
+## Changes
+
+### 1. Fix `rerenderMissingShadows.runtime.ts`
+
+**File:** `packages/core/lib/v3/dom/rerenderMissingShadows.runtime.ts`
+
+Replace the clone loop (lines 20-27) with:
+
+```typescript
+for (const host of needsReset) {
+  try {
+    const tag = host.tagName.toLowerCase();
+    // createElement triggers the constructor → attachShadow() → piercer intercepts
+    const fresh = document.createElement(tag);
+
+    // Transfer attributes
+    for (const attr of Array.from(host.attributes)) {
+      try { fresh.setAttribute(attr.name, attr.value); } catch { /* skip */ }
+    }
+
+    // Move light DOM children (preserves event listeners on children)
+    while (host.firstChild) {
+      fresh.appendChild(host.firstChild);
+    }
+
+    host.replaceWith(fresh);
+  } catch {
+    // ignore individual failures (e.g., constructor throws)
+  }
+}
+```
+
+### 2. Regenerate bundled script
+
+Run `pnpm run build-dom-scripts` from `packages/core/` to update:
+- `packages/core/lib/v3/dom/build/rerender-index.js`
+- `packages/core/lib/v3/dom/build/reRenderScriptContent.ts`
+
+### 3. Add unit test
+
+**New file:** `packages/core/tests/unit/rerender-missing-shadows.test.ts`
+
+Follow the JSDOM pattern from `xpath-resolver.test.ts`. Test cases:
+1. Custom element with closed shadow gets re-rendered and piercer tracks the new root
+2. No-op when element already has an open shadow root
+3. No-op when element's closed root is already tracked by piercer
+4. Attributes are transferred to the fresh element
+5. Light DOM children are moved to the fresh element
+6. Constructor throws → element is skipped, rest continue
+
+## Verification
+
+```bash
+cd packages/core
+pnpm run build-dom-scripts          # regenerate bundled scripts
+pnpm run build:esm                  # compile TS → dist/esm
+pnpm run test:core                  # run all unit tests
+```
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/miguel-browserbase/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
+
+---
+
+what's a good pr description for this
+
+---
+
+seems to be failing  ❯ dist/esm/tests/unit/xpath-resolver.test.js (2 tests | 1 failed) 89ms
+     ✓ counts matches across light + shadow DOM without double counting 10ms
+     × resolves nth over composed tree in document-order DFS 13ms
