@@ -2492,6 +2492,7 @@ components:
         returnSelector:
           type: boolean
         synthetic:
+          default: false
           type: boolean
       required:
         - selector
@@ -5609,6 +5610,28 @@ components:
             - y
           additionalProperties: false
       additionalProperties: false
+    PageClickParamsOutput:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/Selector"
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        clickCount:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        returnSelector:
+          type: boolean
+        synthetic:
+          default: false
+          type: boolean
+      required:
+        - selector
+        - synthetic
+      additionalProperties: false
     PageClickActionOutput:
       type: object
       properties:
@@ -5634,7 +5657,7 @@ components:
             - $ref: "#/components/schemas/PageError"
             - type: "null"
         params:
-          $ref: "#/components/schemas/PageClickParams"
+          $ref: "#/components/schemas/PageClickParamsOutput"
         result:
           anyOf:
             - $ref: "#/components/schemas/PageClickResultOutput"
