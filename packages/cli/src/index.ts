@@ -1456,18 +1456,47 @@ function output(data: unknown, json: boolean): void {
   }
 }
 
+/**
+ * Resolve a --ws value to a CDP WebSocket URL.
+ * Accepts a bare port number (e.g. "9222"), which is resolved via the
+ * /json/version endpoint, or a full URL (ws://, wss://, http://) used as-is.
+ */
+async function resolveWsTarget(input: string): Promise<string> {
+  // Bare numeric port → discover via /json/version
+  if (/^\d+$/.test(input)) {
+    const port = input;
+    const url = `http://127.0.0.1:${port}/json/version`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} from ${url}`);
+      }
+      const json = (await res.json()) as { webSocketDebuggerUrl?: string };
+      if (json.webSocketDebuggerUrl) {
+        return json.webSocketDebuggerUrl;
+      }
+    } catch {
+      // /json/version unavailable — fall back to a conventional WS URL
+    }
+    return `ws://127.0.0.1:${port}`;
+  }
+  // Already a URL — use as-is
+  return input;
+}
+
 async function runCommand(command: string, args: unknown[]): Promise<unknown> {
   const opts = program.opts<GlobalOpts>();
   const session = getSession(opts);
   const headless = isHeadless(opts);
   // If --ws provided, bypass daemon and connect directly
   if (opts.ws) {
+    const cdpUrl = await resolveWsTarget(opts.ws);
     const stagehand = new Stagehand({
       env: "LOCAL",
       verbose: 0,
       disablePino: true,
       localBrowserLaunchOptions: {
-        cdpUrl: opts.ws,
+        cdpUrl,
       },
     });
     await stagehand.init();
@@ -1487,8 +1516,8 @@ program
   .description("Browser automation CLI for AI agents")
   .version(VERSION)
   .option(
-    "--ws <url>",
-    "CDP WebSocket URL (bypasses daemon, direct connection)",
+    "--ws <url|port>",
+    "CDP WebSocket URL or port number (bypasses daemon, direct connection)",
   )
   .option("--headless", "Run Chrome in headless mode")
   .option("--headed", "Run Chrome with visible window (default)")
