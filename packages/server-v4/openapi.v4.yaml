@@ -2648,6 +2648,7 @@ components:
           minimum: 1
           maximum: 3
         returnSelector:
+          default: false
           type: boolean
         method:
           default: xy
@@ -2666,6 +2667,7 @@ components:
         selector:
           $ref: "#/components/schemas/Selector"
         returnSelector:
+          default: false
           type: boolean
       required:
         - selector
@@ -2750,6 +2752,7 @@ components:
           minimum: 0
           maximum: 9007199254740991
         returnSelector:
+          default: false
           type: boolean
       required:
         - from

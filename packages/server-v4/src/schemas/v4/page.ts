@@ -275,7 +275,7 @@ export const PageClickParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
   button: MouseButtonSchema.optional(),
   clickCount: z.number().int().lte(3).gte(1).optional(),
-  returnSelector: z.boolean().optional(),
+  returnSelector: z.boolean().default(false).optional(),
   method: z.enum(["jsevent", "xy"]).default("xy"),
   // TODO: add expectDownload, expectNavigation, expectPopup  OR expect: z.enum(...)
 })
@@ -284,7 +284,7 @@ export const PageClickParamsSchema = PageWithPageIdSchema.extend({
 
 export const PageHoverParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
-  returnSelector: z.boolean().optional(),
+  returnSelector: z.boolean().default(false).optional(),
 })
   .strict()
   .meta({ id: "PageHoverParams" });
@@ -330,7 +330,7 @@ export const PageDragAndDropParamsSchema = PageWithPageIdSchema.extend({
   button: MouseButtonSchema.optional(),
   steps: z.number().int().positive().optional(),
   delay: z.number().int().min(0).optional(),
-  returnSelector: z.boolean().optional(),
+  returnSelector: z.boolean().default(false).optional(),
 })
   .strict()
   .meta({ id: "PageDragAndDropParams" });
