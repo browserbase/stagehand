@@ -2491,6 +2491,8 @@ components:
           maximum: 9007199254740991
         returnSelector:
           type: boolean
+        synthetic:
+          type: boolean
       required:
         - selector
       additionalProperties: false

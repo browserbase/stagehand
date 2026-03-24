@@ -271,6 +271,7 @@ export const PageClickParamsSchema = PageWithPageIdSchema.extend({
   button: MouseButtonSchema.optional(),
   clickCount: z.number().int().min(1).optional(),
   returnSelector: z.boolean().optional(),
+  synthetic: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageClickParams" });
