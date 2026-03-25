@@ -332,8 +332,11 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - fresh session lazy init", ()
         ctx,
       );
     } finally {
-      await endSession(sessionId, headers);
-      await browserHarness.close().catch(() => {});
+      try {
+        await endSession(sessionId, headers);
+      } finally {
+        await browserHarness.close().catch(() => {});
+      }
     }
   });
 
@@ -383,8 +386,11 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - fresh session lazy init", ()
         ctx,
       );
     } finally {
-      await endSession(sessionId, headers);
-      await browserHarness.close().catch(() => {});
+      try {
+        await endSession(sessionId, headers);
+      } finally {
+        await browserHarness.close().catch(() => {});
+      }
     }
   });
 });
