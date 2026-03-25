@@ -572,4 +572,68 @@ describe("Browse CLI", () => {
       expect(result.exitCode).not.toBe(0);
     });
   });
+
+  describe("Stale daemon recovery", () => {
+    const staleSession = `${TEST_SESSION}-stale`;
+
+    afterEach(async () => {
+      await browse("stop --force", { session: staleSession });
+      await cleanupSession(staleSession);
+    });
+
+    it("should recover when Chrome dies under a running daemon", async () => {
+      // Force local mode (Browserbase env vars may be set)
+      const tmpDir = os.tmpdir();
+      await fs.writeFile(
+        path.join(tmpDir, `browse-${staleSession}.mode-override`),
+        "local",
+      );
+
+      // 1. Start daemon and initialize browser by opening a page
+      const openResult = await browse("open https://example.com", {
+        session: staleSession,
+        timeout: 30000,
+      });
+      expect(openResult.exitCode).toBe(0);
+      const openData = parseJson(openResult.stdout);
+      expect(openData.url).toContain("example.com");
+
+      // 2. Find and kill the Chrome process launched by this session.
+      //    chrome-launcher creates a temp profile under stagehand-v3/.
+      const { stdout: psOut } = await new Promise<{
+        stdout: string;
+        stderr: string;
+      }>((resolve) => {
+        exec(
+          "ps aux | grep 'stagehand-v3' | grep -v grep | grep -v Helper | awk '{print $2}'",
+          (_, stdout, stderr) =>
+            resolve({ stdout: stdout?.trim() ?? "", stderr: stderr ?? "" }),
+        );
+      });
+
+      const chromePids = psOut.split("\n").filter(Boolean);
+      expect(chromePids.length).toBeGreaterThan(0);
+
+      // Kill all stagehand Chrome processes
+      for (const pid of chromePids) {
+        try {
+          process.kill(parseInt(pid), "SIGKILL");
+        } catch {}
+      }
+
+      // 3. Wait for the WebSocket close to propagate to the daemon
+      await new Promise((r) => setTimeout(r, 3000));
+
+      // 4. Daemon is still running (socket alive), but browser is dead.
+      //    Without the fix, this would fail with:
+      //    "No Page found for awaitActivePage: no page available"
+      const retryResult = await browse("open https://example.com", {
+        session: staleSession,
+        timeout: 30000,
+      });
+      expect(retryResult.exitCode).toBe(0);
+      const retryData = parseJson(retryResult.stdout);
+      expect(retryData.url).toContain("example.com");
+    }, 60000);
+  });
 });
