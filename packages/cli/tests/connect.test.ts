@@ -105,10 +105,7 @@ describe("Browse CLI --connect flag", () => {
 
   it("writes connect file when --connect is provided", async () => {
     const tmpDir = os.tmpdir();
-    const connectPath = path.join(
-      tmpDir,
-      `browse-${TEST_SESSION}.connect`,
-    );
+    const connectPath = path.join(tmpDir, `browse-${TEST_SESSION}.connect`);
 
     // open routes through runCommand() which writes the connect file before
     // ensureDaemon(). The daemon will fail (fake API key) but the file should
@@ -131,10 +128,7 @@ describe("Browse CLI --connect flag", () => {
 
   it("clears connect file when --connect is not provided", async () => {
     const tmpDir = os.tmpdir();
-    const connectPath = path.join(
-      tmpDir,
-      `browse-${TEST_SESSION}.connect`,
-    );
+    const connectPath = path.join(tmpDir, `browse-${TEST_SESSION}.connect`);
 
     // Pre-create a connect file
     await fs.writeFile(connectPath, "old-session-id");
