@@ -598,24 +598,32 @@ describe("Browse CLI", () => {
       const openData = parseJson(openResult.stdout);
       expect(openData.url).toContain("example.com");
 
-      // 2. Find and kill the Chrome process launched by this session.
-      //    chrome-launcher creates a temp profile under stagehand-v3/.
+      // 2. Kill the Chrome process tree owned by THIS session's daemon.
+      //    Read the daemon PID, then find its child processes to avoid
+      //    killing Chrome instances from other concurrent sessions.
+      const daemonPid = (
+        await fs.readFile(
+          path.join(tmpDir, `browse-${staleSession}.pid`),
+          "utf-8",
+        )
+      ).trim();
+
       const { stdout: psOut } = await new Promise<{
         stdout: string;
         stderr: string;
       }>((resolve) => {
         exec(
-          "ps aux | grep 'stagehand-v3' | grep -v grep | grep -v Helper | awk '{print $2}'",
+          `pgrep -P ${daemonPid}`,
           (_, stdout, stderr) =>
             resolve({ stdout: stdout?.trim() ?? "", stderr: stderr ?? "" }),
         );
       });
 
-      const chromePids = psOut.split("\n").filter(Boolean);
-      expect(chromePids.length).toBeGreaterThan(0);
+      const childPids = psOut.split("\n").filter(Boolean);
+      expect(childPids.length).toBeGreaterThan(0);
 
-      // Kill all stagehand Chrome processes
-      for (const pid of chromePids) {
+      // Kill the daemon's child processes (Chrome)
+      for (const pid of childPids) {
         try {
           process.kill(parseInt(pid), "SIGKILL");
         } catch {}
