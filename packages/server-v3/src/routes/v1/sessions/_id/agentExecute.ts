@@ -56,10 +56,10 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
             typeof agentConfig.model === "string"
               ? ({ modelName: agentConfig.model } as ModelConfiguration)
               : agentConfig.model
-                ? {
+                ? ({
                     ...agentConfig.model,
                     modelName: agentConfig.model.modelName ?? "gpt-4o",
-                  } as ModelConfiguration
+                  } as ModelConfiguration)
                 : undefined,
         };
 

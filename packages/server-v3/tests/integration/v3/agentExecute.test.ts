@@ -290,9 +290,8 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - fresh session lazy init", ()
   it("uses agentConfig.model for the first lazy init when the session has no stored model auth", async () => {
     const url = getBaseUrl();
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
-    const { sessionId, browserHarness } = await createFreshLazyAgentSession(
-      headers,
-    );
+    const { sessionId, browserHarness } =
+      await createFreshLazyAgentSession(headers);
 
     try {
       const ctx = await fetchWithContext<{
@@ -319,7 +318,11 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - fresh session lazy init", ()
         HTTP_OK,
         "First agentExecute call should lazy-init from agentConfig.model",
       );
-      assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+      assertFetchOk(
+        ctx.body !== null,
+        "Response body should be parseable",
+        ctx,
+      );
       assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
       assertFetchOk(
         ctx.body.data !== undefined,
@@ -343,9 +346,8 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - fresh session lazy init", ()
   it("streams the first agentExecute call successfully from createStreamingResponse using agentConfig.model", async () => {
     const url = getBaseUrl();
     const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
-    const { sessionId, browserHarness } = await createFreshLazyAgentSession(
-      headers,
-    );
+    const { sessionId, browserHarness } =
+      await createFreshLazyAgentSession(headers);
 
     try {
       const response = await fetch(
