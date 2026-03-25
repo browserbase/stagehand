@@ -203,10 +203,7 @@ async function writeLocalConfig(
   await fs.writeFile(getLocalConfigPath(session), JSON.stringify(config));
 }
 
-async function writeLocalInfo(
-  session: string,
-  info: LocalInfo,
-): Promise<void> {
+async function writeLocalInfo(session: string, info: LocalInfo): Promise<void> {
   await fs.writeFile(getLocalInfoPath(session), JSON.stringify(info));
 }
 
@@ -347,9 +344,7 @@ function isPortReachable(port: number, timeoutMs = 500): Promise<boolean> {
  * (needed for Chrome 136+ with UI-based remote debugging).
  * Returns the webSocketDebuggerUrl on success, or null.
  */
-async function probeCdpEndpoint(
-  port: number,
-): Promise<string | null> {
+async function probeCdpEndpoint(port: number): Promise<string | null> {
   // Try /json/version (standard path)
   try {
     const controller = new AbortController();
@@ -1991,101 +1986,106 @@ program
       "  browse env remote       Use Browserbase (requires API key)",
   )
   .option("--isolated", "Force isolated local browser (no auto-discovery)")
-  .action(async (target: string | undefined, cdpTarget: string | undefined, cmdOpts: { isolated?: boolean }) => {
-    const opts = program.opts<GlobalOpts>();
-    const session = getSession(opts);
+  .action(
+    async (
+      target: string | undefined,
+      cdpTarget: string | undefined,
+      cmdOpts: { isolated?: boolean },
+    ) => {
+      const opts = program.opts<GlobalOpts>();
+      const session = getSession(opts);
 
-    if (!target) {
-      let mode: string | null = null;
-      const desiredMode = await getDesiredMode(session);
-      const localConfig = await readLocalConfig(session);
-      const localInfo = await readLocalInfo(session);
-      if (await isDaemonRunning(session)) {
-        mode = toModeTarget((await readCurrentMode(session)) ?? desiredMode);
-      }
-      console.log(
-        JSON.stringify({
-          mode: mode ?? "not running",
-          desired: toModeTarget(desiredMode),
-          session,
-          ...(desiredMode === "local"
-            ? {
-                localStrategy: localConfig.strategy,
-                ...(localInfo ?? {}),
-              }
-            : {}),
-        }),
-      );
-      return;
-    }
-
-    const modeMap: Record<string, BrowseMode> = {
-      local: "local",
-      remote: "browserbase",
-    };
-    const mapped = modeMap[target];
-    if (!mapped) {
-      console.error(
-        "Usage: browse env [local|remote]\n" +
-          "  browse env local [--isolated] [<port|url>]",
-      );
-      process.exit(1);
-    }
-
-    try {
-      assertModeSupported(mapped);
-    } catch (err) {
-      console.error(err instanceof Error ? err.message : String(err));
-      process.exit(1);
-    }
-
-    // Determine local strategy when target is "local"
-    let localConfig: LocalConfig = { strategy: "auto" };
-    if (mapped === "local") {
-      if (cmdOpts.isolated) {
-        localConfig = { strategy: "isolated" };
-      } else if (cdpTarget) {
-        localConfig = { strategy: "cdp", cdpTarget };
-      }
-      // else: auto (default)
-      await writeLocalConfig(session, localConfig);
-    }
-
-    await fs.writeFile(getModeOverridePath(session), mapped);
-
-    // Always restart daemon when switching env to pick up new local config
-    if (await isDaemonRunning(session)) {
-      const currentMode = (await readCurrentMode(session)) ?? "local";
-      const needsRestart =
-        currentMode !== mapped || mapped === "local"; // local always restarts to pick up strategy change
-      if (!needsRestart) {
-        // needsRestart is false only when currentMode === mapped && mapped !== "local"
-        // (local always restarts to pick up strategy changes)
+      if (!target) {
+        let mode: string | null = null;
+        const desiredMode = await getDesiredMode(session);
+        const localConfig = await readLocalConfig(session);
+        const localInfo = await readLocalInfo(session);
+        if (await isDaemonRunning(session)) {
+          mode = toModeTarget((await readCurrentMode(session)) ?? desiredMode);
+        }
         console.log(
           JSON.stringify({
-            mode: toModeTarget(mapped),
+            mode: mode ?? "not running",
+            desired: toModeTarget(desiredMode),
             session,
-            restarted: false,
+            ...(desiredMode === "local"
+              ? {
+                  localStrategy: localConfig.strategy,
+                  ...(localInfo ?? {}),
+                }
+              : {}),
           }),
         );
         return;
       }
-      await stopDaemonAndCleanup(session);
-    }
 
-    await ensureDaemon(session, isHeadless(opts));
+      const modeMap: Record<string, BrowseMode> = {
+        local: "local",
+        remote: "browserbase",
+      };
+      const mapped = modeMap[target];
+      if (!mapped) {
+        console.error(
+          "Usage: browse env [local|remote]\n" +
+            "  browse env local [--isolated] [<port|url>]",
+        );
+        process.exit(1);
+      }
 
-    console.log(
-      JSON.stringify({
-        mode: toModeTarget(mapped),
-        session,
-        restarted: true,
-        ...(mapped === "local"
-          ? { localStrategy: localConfig.strategy }
-          : {}),
-      }),
-    );
-  });
+      try {
+        assertModeSupported(mapped);
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : String(err));
+        process.exit(1);
+      }
+
+      // Determine local strategy when target is "local"
+      let localConfig: LocalConfig = { strategy: "auto" };
+      if (mapped === "local") {
+        if (cmdOpts.isolated) {
+          localConfig = { strategy: "isolated" };
+        } else if (cdpTarget) {
+          localConfig = { strategy: "cdp", cdpTarget };
+        }
+        // else: auto (default)
+        await writeLocalConfig(session, localConfig);
+      }
+
+      await fs.writeFile(getModeOverridePath(session), mapped);
+
+      // Always restart daemon when switching env to pick up new local config
+      if (await isDaemonRunning(session)) {
+        const currentMode = (await readCurrentMode(session)) ?? "local";
+        const needsRestart = currentMode !== mapped || mapped === "local"; // local always restarts to pick up strategy change
+        if (!needsRestart) {
+          // needsRestart is false only when currentMode === mapped && mapped !== "local"
+          // (local always restarts to pick up strategy changes)
+          console.log(
+            JSON.stringify({
+              mode: toModeTarget(mapped),
+              session,
+              restarted: false,
+            }),
+          );
+          return;
+        }
+        await stopDaemonAndCleanup(session);
+      }
+
+      await ensureDaemon(session, isHeadless(opts));
+
+      console.log(
+        JSON.stringify({
+          mode: toModeTarget(mapped),
+          session,
+          restarted: true,
+          ...(mapped === "local"
+            ? { localStrategy: localConfig.strategy }
+            : {}),
+        }),
+      );
+    },
+  );
 
 program
   .command("refs")
