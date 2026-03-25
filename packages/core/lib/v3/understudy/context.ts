@@ -231,6 +231,22 @@ export class V3Context {
       });
     }
 
+    // Close unnavigable chrome:// tabs so the new about:blank tab becomes
+    // the only visible tab. Without this, --connect mode leaves the original
+    // chrome://newtab tab visible while the new page hides behind it.
+    try {
+      const targets = await this.conn.getTargets();
+      for (const t of targets) {
+        if (t.type === "page" && t.url?.startsWith("chrome://")) {
+          await this.conn
+            .send("Target.closeTarget", { targetId: t.targetId })
+            .catch(() => {});
+        }
+      }
+    } catch {
+      // best effort
+    }
+
     await this.newPage("about:blank");
   }
 

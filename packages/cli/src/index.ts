@@ -288,7 +288,11 @@ interface DaemonResponse {
 // Default viewport matching Stagehand core
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
-async function runDaemon(session: string, headless: boolean): Promise<void> {
+async function runDaemon(
+  session: string,
+  headless: boolean,
+  connectUrl?: string,
+): Promise<void> {
   // Only clean daemon state files (socket, pid, etc.), not client-written config (context)
   await cleanupDaemonStateFiles(session);
 
@@ -357,12 +361,18 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
                   : {}),
               },
             }
-          : {
-              localBrowserLaunchOptions: {
-                headless,
-                viewport: DEFAULT_VIEWPORT,
-              },
-            }),
+          : connectUrl
+            ? {
+                localBrowserLaunchOptions: {
+                  cdpUrl: connectUrl,
+                },
+              }
+            : {
+                localBrowserLaunchOptions: {
+                  headless,
+                  viewport: DEFAULT_VIEWPORT,
+                },
+              }),
       });
 
       // Persist mode so status command can report it
@@ -1289,6 +1299,7 @@ async function sendCommand(
   command: string,
   args: unknown[],
   headless: boolean = false,
+  connectUrl?: string,
 ): Promise<unknown> {
   const maxRetries = 3;
 
@@ -1319,14 +1330,14 @@ async function sendCommand(
 
       // Attempt 1: Try to restart daemon without cleanup
       if (attempt === 1) {
-        await ensureDaemon(session, headless);
+        await ensureDaemon(session, headless, connectUrl);
         continue;
       }
 
       // Final attempt: Full cleanup and restart
-      await killChromeProcesses(session);
+      if (!connectUrl) await killChromeProcesses(session);
       await cleanupStaleFiles(session);
-      await ensureDaemon(session, headless);
+      await ensureDaemon(session, headless, connectUrl);
     }
   }
 
@@ -1345,7 +1356,11 @@ async function stopDaemonAndCleanup(session: string): Promise<void> {
   await cleanupStaleFiles(session);
 }
 
-async function ensureDaemon(session: string, headless: boolean): Promise<void> {
+async function ensureDaemon(
+  session: string,
+  headless: boolean,
+  connectUrl?: string,
+): Promise<void> {
   const wantMode = await getDesiredMode(session);
   assertModeSupported(wantMode);
 
@@ -1374,7 +1389,9 @@ async function ensureDaemon(session: string, headless: boolean): Promise<void> {
       await stopDaemonAndCleanup(session);
     }
 
-    const args = ["--session", session, "daemon"];
+    const args = ["--session", session];
+    if (connectUrl) args.push("--connect", connectUrl);
+    args.push("daemon");
     if (headless) args.push("--headless");
 
     const child = spawn(process.argv[0], [process.argv[1], ...args], {
@@ -1433,6 +1450,7 @@ async function ensureDaemon(session: string, headless: boolean): Promise<void> {
 
 interface GlobalOpts {
   ws?: string;
+  connect?: string;
   headless?: boolean;
   headed?: boolean;
   json?: boolean;
@@ -1461,7 +1479,7 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
   const opts = program.opts<GlobalOpts>();
   const session = getSession(opts);
   const headless = isHeadless(opts);
-  // If --ws provided, bypass daemon and connect directly
+  // If --ws provided, bypass daemon and connect directly (stateless, no ref caching)
   if (opts.ws) {
     const stagehand = new Stagehand({
       env: "LOCAL",
@@ -1479,8 +1497,9 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
     }
   }
 
-  await ensureDaemon(session, headless);
-  return sendCommand(session, command, args, headless);
+  // --connect uses daemon mode (persistent refs) but attaches to existing Chrome
+  await ensureDaemon(session, headless, opts.connect);
+  return sendCommand(session, command, args, headless, opts.connect);
 }
 
 program
@@ -1490,6 +1509,10 @@ program
   .option(
     "--ws <url>",
     "CDP WebSocket URL (bypasses daemon, direct connection)",
+  )
+  .option(
+    "--connect <url>",
+    "CDP WebSocket URL for daemon to attach to (persistent refs, no Chrome launch)",
   )
   .option("--headless", "Run Chrome in headless mode")
   .option("--headed", "Run Chrome with visible window (default)")
@@ -1645,7 +1668,7 @@ program
   .description("Run as daemon (internal use)")
   .action(async () => {
     const opts = program.opts<GlobalOpts>();
-    await runDaemon(getSession(opts), isHeadless(opts));
+    await runDaemon(getSession(opts), isHeadless(opts), opts.connect);
   });
 
 // ==================== NAVIGATION ====================
