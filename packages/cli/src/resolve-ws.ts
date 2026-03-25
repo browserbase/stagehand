@@ -20,7 +20,7 @@ export async function resolveWsTarget(input: string): Promise<string> {
     } catch {
       // /json/version unavailable — fall back to a conventional WS URL
     }
-    return `ws://127.0.0.1:${port}`;
+    return `ws://127.0.0.1:${port}/devtools/browser`;
   }
   // Already a URL — use as-is
   return input;

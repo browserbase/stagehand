@@ -38,9 +38,9 @@ describe("resolveWsTarget", () => {
     expect(result).toBe(`ws://127.0.0.1:${port}/devtools/browser/abc123`);
   });
 
-  it("falls back to ws://127.0.0.1:{port} when /json/version is unavailable", async () => {
+  it("falls back to ws://127.0.0.1:{port}/devtools/browser when /json/version is unavailable", async () => {
     const result = await resolveWsTarget("19999");
-    expect(result).toBe("ws://127.0.0.1:19999");
+    expect(result).toBe("ws://127.0.0.1:19999/devtools/browser");
   });
 
   it("passes through ws:// URLs as-is", async () => {

@@ -382,28 +382,51 @@ async function probeCdpEndpoint(
 }
 
 /**
- * Verify a WebSocket URL responds to Browser.getVersion.
- * Returns true if the endpoint is a valid CDP browser target.
+ * Verify a WebSocket URL is a valid CDP endpoint by attempting an HTTP upgrade.
+ * Sends a minimal WebSocket handshake and checks for a 101 Switching Protocols response.
  */
 function verifyCdpWebSocket(wsUrl: string): Promise<boolean> {
   return new Promise((resolve) => {
-    // Use a raw TCP approach to avoid needing a WS library in the CLI.
-    // We just need to confirm the endpoint accepts a WS upgrade —
-    // the actual WS handshake is sufficient evidence of a CDP endpoint.
     const url = new URL(wsUrl);
     const port = parseInt(url.port) || 80;
+    const wsKey = Buffer.from(
+      Array.from({ length: 16 }, () => Math.floor(Math.random() * 256)),
+    ).toString("base64");
+
     const sock = net.createConnection({ host: url.hostname, port });
+    let response = "";
+
     const timer = setTimeout(() => {
       sock.destroy();
       resolve(false);
     }, 2000);
 
     sock.on("connect", () => {
-      clearTimeout(timer);
-      sock.destroy();
-      // If we can connect to the WS port, we'll trust it as a CDP endpoint.
-      // Full WS handshake verification is overkill for discovery.
-      resolve(true);
+      // Send a WebSocket upgrade request
+      sock.write(
+        `GET ${url.pathname} HTTP/1.1\r\n` +
+          `Host: ${url.hostname}:${port}\r\n` +
+          `Upgrade: websocket\r\n` +
+          `Connection: Upgrade\r\n` +
+          `Sec-WebSocket-Key: ${wsKey}\r\n` +
+          `Sec-WebSocket-Version: 13\r\n` +
+          `\r\n`,
+      );
+    });
+
+    sock.on("data", (data) => {
+      response += data.toString();
+      // Check for successful WebSocket upgrade (101 Switching Protocols)
+      if (response.includes("101")) {
+        clearTimeout(timer);
+        sock.destroy();
+        resolve(true);
+      } else if (response.includes("\r\n\r\n")) {
+        // Got a complete HTTP response that isn't 101
+        clearTimeout(timer);
+        sock.destroy();
+        resolve(false);
+      }
     });
 
     sock.on("error", () => {
