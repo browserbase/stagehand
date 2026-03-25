@@ -141,6 +141,7 @@ export function getProviderConstructorOptions(
     return undefined;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { providerConfig, provider: _provider, ...rest } = normalizedOptions;
 
   if (providerConfig?.provider === "bedrock") {
