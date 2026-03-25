@@ -12,6 +12,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   release-cli:
     name: Release browse-cli
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
