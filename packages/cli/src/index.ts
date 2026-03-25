@@ -787,7 +787,8 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
       }
     } catch {}
 
-    await cleanupStaleFiles(session);
+    // Only clean daemon state, not client-written config (local-config, context, mode-override)
+    await cleanupDaemonStateFiles(session);
     process.exit(0);
   };
 
@@ -1688,7 +1689,8 @@ async function stopDaemonAndCleanup(session: string): Promise<void> {
     // Daemon may already be down.
   }
   await new Promise((r) => setTimeout(r, 500));
-  await cleanupStaleFiles(session);
+  // Only clean daemon state files, not client-written config (local-config, context, mode-override)
+  await cleanupDaemonStateFiles(session);
 }
 
 async function ensureDaemon(session: string, headless: boolean): Promise<void> {
