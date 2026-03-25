@@ -74,8 +74,9 @@ describe("StagehandAPIClient model config handling", () => {
       ),
     );
 
-    (client as unknown as { fetchWithCookies: typeof fetchWithCookies })
-      .fetchWithCookies = fetchWithCookies;
+    (
+      client as unknown as { fetchWithCookies: typeof fetchWithCookies }
+    ).fetchWithCookies = fetchWithCookies;
 
     await client.init({
       modelName: "vertex/gemini-2.5-pro",
@@ -133,8 +134,9 @@ describe("StagehandAPIClient model config handling", () => {
       ),
     );
 
-    (client as unknown as { fetchWithCookies: typeof fetchWithCookies })
-      .fetchWithCookies = fetchWithCookies;
+    (
+      client as unknown as { fetchWithCookies: typeof fetchWithCookies }
+    ).fetchWithCookies = fetchWithCookies;
 
     await client.init({
       modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -185,8 +187,9 @@ describe("StagehandAPIClient model config handling", () => {
       ),
     );
 
-    (client as unknown as { fetchWithCookies: typeof fetchWithCookies })
-      .fetchWithCookies = fetchWithCookies;
+    (
+      client as unknown as { fetchWithCookies: typeof fetchWithCookies }
+    ).fetchWithCookies = fetchWithCookies;
 
     await client.init({
       modelName: "vertex/gemini-2.5-pro",
