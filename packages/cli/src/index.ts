@@ -412,7 +412,7 @@ function verifyCdpWebSocket(wsUrl: string): Promise<boolean> {
     sock.on("data", (data) => {
       response += data.toString();
       // Check for successful WebSocket upgrade (101 Switching Protocols)
-      if (response.includes("101")) {
+      if (/^HTTP\/1\.[01] 101(?:\s|$)/.test(response)) {
         clearTimeout(timer);
         sock.destroy();
         resolve(true);
