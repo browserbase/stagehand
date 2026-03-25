@@ -209,9 +209,8 @@ export class InMemorySessionStore implements SessionStore {
       typeof ctx.modelConfig?.modelName === "string"
         ? ctx.modelConfig.modelName
         : undefined;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { modelName: _requestModelName, ...requestModelClientOptions } =
-      ctx.modelConfig ?? {};
+    const { ...requestModelClientOptions } = ctx.modelConfig ?? {};
+    delete (requestModelClientOptions as Record<string, unknown>).modelName;
     const modelClientOptions = {
       ...(params.modelClientOptions ?? {}),
       ...requestModelClientOptions,
