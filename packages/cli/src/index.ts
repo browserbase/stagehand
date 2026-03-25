@@ -346,15 +346,16 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
         ...(useBrowserbase
           ? {
               disableAPI: true,
-              ...(contextConfig
-                ? {
-                    browserbaseSessionCreateParams: {
+              browserbaseSessionCreateParams: {
+                userMetadata: { "browse-cli": "true" },
+                ...(contextConfig
+                  ? {
                       browserSettings: {
                         context: contextConfig,
                       },
-                    },
-                  }
-                : {}),
+                    }
+                  : {}),
+              },
             }
           : {
               localBrowserLaunchOptions: {
