@@ -779,11 +779,11 @@ export function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
           shape[key] = jsonSchemaToZod(schema.properties[key]);
         }
         let zodObject = z.object(shape);
-        if (schema.required && Array.isArray(schema.required)) {
-          const requiredFields = schema.required.reduce<Record<string, true>>(
-            (acc, field) => ({ ...acc, [field]: true }),
-            {},
-          );
+        if (schema.required) {
+          const requiredFields: Record<string, true> = {};
+          for (const field of schema.required) {
+            requiredFields[field] = true;
+          }
           zodObject = zodObject.partial().required(requiredFields);
         }
         if (schema.description) {
