@@ -371,6 +371,15 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
 
       context = stagehand.context;
 
+      // Clear cached state when the browser connection dies so the next
+      // command triggers a full re-initialization instead of reusing a
+      // dead Stagehand/context pair (fixes "awaitActivePage: no page
+      // available" when a stale daemon outlives its browser).
+      context.conn.onTransportClosed(() => {
+        stagehand = null;
+        context = null;
+      });
+
       // Try to save Chrome info for reference (best effort)
       try {
         const wsUrl = stagehand.connectURL();
