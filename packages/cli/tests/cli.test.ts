@@ -612,10 +612,8 @@ describe("Browse CLI", () => {
         stdout: string;
         stderr: string;
       }>((resolve) => {
-        exec(
-          `pgrep -P ${daemonPid}`,
-          (_, stdout, stderr) =>
-            resolve({ stdout: stdout?.trim() ?? "", stderr: stderr ?? "" }),
+        exec(`pgrep -P ${daemonPid}`, (_, stdout, stderr) =>
+          resolve({ stdout: stdout?.trim() ?? "", stderr: stderr ?? "" }),
         );
       });
 
