@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
+import { V3 } from "@browserbasehq/stagehand";
 
 import {
   assertFetchOk,
@@ -16,6 +17,7 @@ import {
   HTTP_BAD_REQUEST,
   HTTP_OK,
   HTTP_UNPROCESSABLE_ENTITY,
+  LOCAL_BROWSER_BODY,
   navigateSession,
   OPENAI_API_KEY,
   readTypedSSEStreamWithContext,
@@ -25,6 +27,80 @@ import {
 // =============================================================================
 // POST /v1/sessions/:id/agentExecute (V3 Format)
 // =============================================================================
+
+interface SessionStartResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    sessionId: string;
+    cdpUrl: string;
+    available: boolean;
+  };
+}
+
+async function createFreshLazyAgentSession(
+  headers: Record<string, string>,
+): Promise<{ sessionId: string; browserHarness: V3 }> {
+  const url = getBaseUrl();
+  const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
+  const browserHarness = new V3({
+    env: "LOCAL",
+    disableAPI: true,
+    disablePino: true,
+    verbose: 0,
+    logger: () => {},
+    model: {
+      modelName: "openai/gpt-4.1-nano",
+      apiKey: openaiApiKey,
+    },
+    localBrowserLaunchOptions: {
+      ...LOCAL_BROWSER_BODY.browser.launchOptions,
+    },
+  });
+
+  try {
+    await browserHarness.init();
+    const page = browserHarness.context.pages()[0];
+    assert.ok(page, "Browser harness should expose a page");
+    await page.goto("https://example.com");
+
+    const ctx = await fetchWithContext<SessionStartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "openai/gpt-4.1-nano",
+          browser: {
+            type: "local",
+            cdpUrl: browserHarness.connectURL(),
+          },
+        }),
+      },
+    );
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Fresh local session with existing browser should start successfully",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+    assertFetchOk(
+      !!ctx.body.data?.sessionId,
+      "Response should include a sessionId",
+      ctx,
+    );
+
+    return {
+      sessionId: ctx.body.data!.sessionId,
+      browserHarness,
+    };
+  } catch (error) {
+    await browserHarness.close().catch(() => {});
+    throw error;
+  }
+}
 
 describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
   let sessionId: string;
@@ -202,6 +278,114 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
       "Response should have result",
       ctx,
     );
+  });
+});
+
+describe("POST /v1/sessions/:id/agentExecute (V3) - fresh session lazy init", () => {
+  const headers = {
+    ...getHeaders("3.0.0"),
+    "x-model-api-key": "",
+  };
+
+  it("uses agentConfig.model for the first lazy init when the session has no stored model auth", async () => {
+    const url = getBaseUrl();
+    const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
+    const { sessionId, browserHarness } = await createFreshLazyAgentSession(
+      headers,
+    );
+
+    try {
+      const ctx = await fetchWithContext<{
+        success: boolean;
+        data?: { result: unknown; actionId?: string };
+      }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          agentConfig: {
+            model: {
+              modelName: "openai/gpt-4.1-nano",
+              apiKey: openaiApiKey,
+            },
+          },
+          executeOptions: {
+            instruction: "What is the title of this page?",
+          },
+        }),
+      });
+
+      assertFetchStatus(
+        ctx,
+        HTTP_OK,
+        "First agentExecute call should lazy-init from agentConfig.model",
+      );
+      assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+      assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+      assertFetchOk(
+        ctx.body.data !== undefined,
+        "Response should have data",
+        ctx,
+      );
+      assertFetchOk(
+        ctx.body.data.result !== undefined,
+        "Response should have result",
+        ctx,
+      );
+    } finally {
+      await endSession(sessionId, headers);
+      await browserHarness.close().catch(() => {});
+    }
+  });
+
+  it("streams the first agentExecute call successfully from createStreamingResponse using agentConfig.model", async () => {
+    const url = getBaseUrl();
+    const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
+    const { sessionId, browserHarness } = await createFreshLazyAgentSession(
+      headers,
+    );
+
+    try {
+      const response = await fetch(
+        `${url}/v1/sessions/${sessionId}/agentExecute`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            agentConfig: {
+              model: {
+                modelName: "openai/gpt-4.1-nano",
+                apiKey: openaiApiKey,
+              },
+            },
+            executeOptions: {
+              instruction: "Describe the main content on the page",
+            },
+            streamResponse: true,
+          }),
+        },
+      );
+
+      const ctx = await readTypedSSEStreamWithContext(response);
+
+      assertWithContext(
+        ctx.events.some((event) => event.data.status === "starting"),
+        "Fresh-session SSE should include a starting event",
+        ctx,
+      );
+      assertWithContext(
+        ctx.events.some((event) => event.data.status === "connected"),
+        "Fresh-session SSE should include a connected event",
+        ctx,
+      );
+      assertWithContext(
+        ctx.events.some((event) => event.data.status === "finished"),
+        "Fresh-session SSE should include a finished event",
+        ctx,
+      );
+    } finally {
+      await endSession(sessionId, headers);
+      await browserHarness.close().catch(() => {});
+    }
   });
 });
 

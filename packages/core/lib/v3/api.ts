@@ -702,7 +702,17 @@ export class StagehandAPIClient {
       return undefined;
     }
 
-    const requestOptions = { ...normalizedOptions } as Record<string, unknown>;
+    const requestOptions = {
+      ...normalizedOptions,
+      ...(normalizedOptions.providerConfig
+        ? {
+            providerConfig: {
+              ...normalizedOptions.providerConfig,
+              options: { ...normalizedOptions.providerConfig.options },
+            },
+          }
+        : {}),
+    } as Record<string, unknown>;
     delete requestOptions.provider;
     const providerOptions =
       requestOptions.providerOptions &&
@@ -723,23 +733,50 @@ export class StagehandAPIClient {
       requestOptions.skipApiKeyFallback = true;
     }
 
-    const headers = requestOptions.headers;
-    if (typeof Headers !== "undefined" && headers instanceof Headers) {
-      requestOptions.headers = Object.fromEntries(headers.entries());
+    const toSerializableHeaders = (
+      headers: unknown,
+    ): Record<string, string> | undefined => {
+      if (typeof Headers !== "undefined" && headers instanceof Headers) {
+        return Object.fromEntries(headers.entries());
+      }
+
+      if (
+        headers === undefined ||
+        headers === null ||
+        typeof headers !== "object" ||
+        Array.isArray(headers) ||
+        "then" in headers ||
+        Object.values(headers as Record<string, unknown>).some(
+          (value) => typeof value !== "string",
+        )
+      ) {
+        return undefined;
+      }
+
+      return headers as Record<string, string>;
+    };
+
+    const normalizedHeaders = toSerializableHeaders(requestOptions.headers);
+    if (normalizedHeaders) {
+      requestOptions.headers = normalizedHeaders;
+    } else {
+      delete requestOptions.headers;
     }
 
-    const normalizedHeaders = requestOptions.headers;
-    if (
-      normalizedHeaders !== undefined &&
-      (normalizedHeaders === null ||
-        typeof normalizedHeaders !== "object" ||
-        Array.isArray(normalizedHeaders) ||
-        "then" in normalizedHeaders ||
-        Object.values(normalizedHeaders as Record<string, unknown>).some(
-          (value) => typeof value !== "string",
-        ))
-    ) {
-      delete requestOptions.headers;
+    const providerConfig = requestOptions.providerConfig as
+      | {
+          options?: Record<string, unknown>;
+        }
+      | undefined;
+    const normalizedProviderHeaders = toSerializableHeaders(
+      providerConfig?.options?.headers,
+    );
+    if (providerConfig?.options) {
+      if (normalizedProviderHeaders) {
+        providerConfig.options.headers = normalizedProviderHeaders;
+      } else {
+        delete providerConfig.options.headers;
+      }
     }
 
     return requestOptions as Api.ModelClientOptions;

@@ -39,22 +39,47 @@ export const getOptionalHeader = (
   return headerValue;
 };
 
-export function getRequestModelConfig(
-  request: FastifyRequest,
+function normalizeRequestModelConfig(
+  model: unknown,
 ): Record<string, unknown> | undefined {
-  const body = request.body as Record<string, unknown> | undefined;
-  const options = body?.options as Record<string, unknown> | undefined;
-  const model = options?.model as Record<string, unknown> | undefined;
-
-  if (model && typeof model === "object") {
-    return model;
+  if (typeof model === "string" && model) {
+    return { modelName: model };
   }
 
-  const modelClientOptions = body?.modelClientOptions as
+  if (model && typeof model === "object" && !Array.isArray(model)) {
+    return model as Record<string, unknown>;
+  }
+
+  return undefined;
+}
+
+export function getRequestModelConfigFromBody(
+  body: unknown,
+): Record<string, unknown> | undefined {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return undefined;
+  }
+
+  const record = body as Record<string, unknown>;
+  const options = record.options as Record<string, unknown> | undefined;
+  const optionsModel = normalizeRequestModelConfig(options?.model);
+
+  if (optionsModel) {
+    return optionsModel;
+  }
+
+  const agentConfig = record.agentConfig as Record<string, unknown> | undefined;
+  const agentModel = normalizeRequestModelConfig(agentConfig?.model);
+
+  if (agentModel) {
+    return agentModel;
+  }
+
+  const modelClientOptions = record.modelClientOptions as
     | Record<string, unknown>
     | undefined;
   const modelName =
-    typeof body?.modelName === "string" ? body.modelName : undefined;
+    typeof record.modelName === "string" ? record.modelName : undefined;
 
   if (!modelClientOptions && !modelName) {
     return undefined;
@@ -66,12 +91,25 @@ export function getRequestModelConfig(
   };
 }
 
+export function getRequestModelConfig(
+  request: FastifyRequest,
+): Record<string, unknown> | undefined {
+  return getRequestModelConfigFromBody(request.body);
+}
+
 /**
- * Extracts model name from request body, supporting V3 structure.
- * - V3: body.options.model.modelName
+ * Extracts model name from a request body or parsed payload, supporting V3
+ * structures like body.options.model, body.agentConfig.model, and
+ * /sessions/start modelClientOptions.
  */
-export function getModelName(request: FastifyRequest): string | undefined {
-  const modelConfig = getRequestModelConfig(request);
+export function getModelName(
+  request: FastifyRequest,
+  body?: unknown,
+): string | undefined {
+  const modelConfig =
+    body === undefined
+      ? getRequestModelConfig(request)
+      : getRequestModelConfigFromBody(body);
   if (typeof modelConfig?.modelName === "string" && modelConfig.modelName) {
     return modelConfig.modelName;
   }
@@ -83,8 +121,14 @@ export function getModelName(request: FastifyRequest): string | undefined {
  * 1. Per-request body apiKey (V3: body.options.model.apiKey)
  * 2. Per-request header x-model-api-key
  */
-export function getModelApiKey(request: FastifyRequest): string | undefined {
-  const modelConfig = getRequestModelConfig(request);
+export function getModelApiKey(
+  request: FastifyRequest,
+  body?: unknown,
+): string | undefined {
+  const modelConfig =
+    body === undefined
+      ? getRequestModelConfig(request)
+      : getRequestModelConfigFromBody(body);
   if (typeof modelConfig?.apiKey === "string" && modelConfig.apiKey) {
     return modelConfig.apiKey;
   }
