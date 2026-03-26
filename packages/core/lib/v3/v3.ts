@@ -102,7 +102,7 @@ type ResolvedModelConfiguration = {
   middleware?: LanguageModelV2Middleware;
 };
 
-function resolveModelConfiguration(
+export function resolveModelConfiguration(
   model?: V3Options["model"],
 ): ResolvedModelConfiguration {
   if (!model) {

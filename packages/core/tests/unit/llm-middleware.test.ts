@@ -7,6 +7,7 @@ import {
   getAISDKLanguageModel,
   LLMProvider,
 } from "../../lib/v3/llm/LLMProvider.js";
+import { resolveModelConfiguration } from "../../lib/v3/v3.js";
 
 /**
  * Creates a recording middleware that captures every doGenerate / doStream
@@ -282,45 +283,43 @@ describe("middleware captures usage from doGenerate and doStream", () => {
 // ---------------------------------------------------------------------------
 
 describe("middleware inside ModelConfiguration", () => {
-  it("resolveModelConfiguration extracts middleware from object config", async () => {
-    // Dynamically import the private helper used in v3.ts — it is not exported,
-    // but we can test the same logic by destructuring a ModelConfiguration.
+  it("resolveModelConfiguration extracts middleware from object config", () => {
     const { middleware: mw } = createRecordingMiddleware();
-    const modelConfig = {
-      modelName: "openai/gpt-4o" as const,
+    const result = resolveModelConfiguration({
+      modelName: "openai/gpt-4o",
       apiKey: "sk-test",
       middleware: mw,
-    };
+    });
 
-    // Simulate what resolveModelConfiguration does:
-    const { modelName, middleware, ...clientOptions } = modelConfig;
-    expect(modelName).toBe("openai/gpt-4o");
-    expect(middleware).toBe(mw);
-    expect(clientOptions).toEqual({ apiKey: "sk-test" });
-    expect("middleware" in clientOptions).toBe(false);
+    expect(result.modelName).toBe("openai/gpt-4o");
+    expect(result.middleware).toBe(mw);
+    expect(result.clientOptions).toEqual({ apiKey: "sk-test" });
+    expect(result.clientOptions && "middleware" in result.clientOptions).toBe(
+      false,
+    );
   });
 
   it("string ModelConfiguration has no middleware", () => {
-    const model = "openai/gpt-4o";
-    if (typeof model === "string") {
-      // String form never carries middleware
-      expect(typeof model).toBe("string");
-    }
+    const result = resolveModelConfiguration("openai/gpt-4o");
+    expect(result.modelName).toBe("openai/gpt-4o");
+    expect(result.middleware).toBeUndefined();
+    expect(result.clientOptions).toBeUndefined();
   });
 
   it("middleware is separated from clientOptions when resolving per-method overrides", () => {
     const { middleware: mw } = createRecordingMiddleware();
-    const overrideModel = {
-      modelName: "anthropic/claude-sonnet-4-20250514" as const,
+    const result = resolveModelConfiguration({
+      modelName: "anthropic/claude-sonnet-4-20250514",
       apiKey: "sk-ant-test",
       middleware: mw,
-    };
+    });
 
-    const { modelName, middleware, ...rest } = overrideModel;
-    expect(modelName).toBe("anthropic/claude-sonnet-4-20250514");
-    expect(middleware).toBe(mw);
-    expect(rest).toEqual({ apiKey: "sk-ant-test" });
-    expect("middleware" in rest).toBe(false);
+    expect(result.modelName).toBe("anthropic/claude-sonnet-4-20250514");
+    expect(result.middleware).toBe(mw);
+    expect(result.clientOptions).toEqual({ apiKey: "sk-ant-test" });
+    expect(result.clientOptions && "middleware" in result.clientOptions).toBe(
+      false,
+    );
   });
 });
 
