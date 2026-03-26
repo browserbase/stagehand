@@ -234,7 +234,15 @@ const startRouteHandler: RouteHandler = withErrorHandling(
         } catch (cleanupErr) {
           request.log.warn(
             {
-              err: cleanupErr,
+              err:
+                cleanupErr instanceof Error
+                  ? {
+                      name: cleanupErr.name,
+                      message: cleanupErr.message,
+                      stack: cleanupErr.stack,
+                      cause: cleanupErr.cause,
+                    }
+                  : cleanupErr,
               sessionId: session.sessionId,
             },
             "Failed to clean up session after local browser init error",
