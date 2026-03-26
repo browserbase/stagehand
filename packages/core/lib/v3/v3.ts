@@ -480,6 +480,18 @@ export class V3 {
       }
     }
 
+    if (perCallMiddleware) {
+      return this.llmProvider.getClient(
+        modelName as AvailableModel,
+        mergedOptions,
+        {
+          experimental: this.experimental,
+          disableAPI: this.disableAPI,
+          middleware: perCallMiddleware,
+        },
+      );
+    }
+
     const cacheKey = JSON.stringify({
       modelName,
       clientOptions: mergedOptions,
@@ -496,7 +508,6 @@ export class V3 {
       {
         experimental: this.experimental,
         disableAPI: this.disableAPI,
-        middleware: perCallMiddleware,
       },
     );
 
