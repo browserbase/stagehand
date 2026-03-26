@@ -483,7 +483,6 @@ export class V3 {
     const cacheKey = JSON.stringify({
       modelName,
       clientOptions: mergedOptions,
-      hasMiddleware: !!perCallMiddleware,
     });
 
     const cached = this.overrideLlmClients.get(cacheKey);
