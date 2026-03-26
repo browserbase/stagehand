@@ -218,14 +218,22 @@ export class InMemorySessionStore implements SessionStore {
     const skipApiKeyFallback = modelClientOptions.skipApiKeyFallback === true;
     delete modelClientOptions.skipApiKeyFallback;
 
+    const providerOptions =
+      modelClientOptions.providerOptions &&
+      typeof modelClientOptions.providerOptions === "object" &&
+      !Array.isArray(modelClientOptions.providerOptions)
+        ? (modelClientOptions.providerOptions as Record<string, unknown>)
+        : undefined;
+    const hasExplicitAwsCreds =
+      providerOptions?.accessKeyId !== undefined &&
+      providerOptions?.secretAccessKey !== undefined;
+
     if (
       ctx.modelApiKey &&
       modelClientOptions.apiKey === undefined &&
-      !skipApiKeyFallback
+      !skipApiKeyFallback &&
+      !hasExplicitAwsCreds
     ) {
-      // Hosted requests can carry a default x-model-api-key header even when the
-      // session authenticates through providerOptions. skipApiKeyFallback keeps
-      // that header fallback from being copied into model.apiKey.
       modelClientOptions.apiKey = ctx.modelApiKey;
     }
 
