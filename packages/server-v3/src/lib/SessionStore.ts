@@ -33,6 +33,13 @@ export interface CreateSessionParams {
   domSettleTimeoutMs?: number;
   /** Enable experimental features */
   experimental?: boolean;
+  /** Google Vertex AI service account credentials (required when modelName starts with "vertex/") */
+  vertexConfig?: {
+    project: string;
+    location: string;
+    clientEmail: string;
+    privateKey: string;
+  };
 
   // Browserbase-specific (used by cloud implementations)
   /** Browserbase API key */

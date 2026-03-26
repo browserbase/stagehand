@@ -365,7 +365,6 @@ export class V3 {
       this.llmClient = this.llmProvider.getClient(
         this.modelName,
         this.modelClientOptions,
-        { experimental: this.experimental, disableAPI: this.disableAPI },
       );
     }
 
@@ -485,7 +484,6 @@ export class V3 {
     const client = this.llmProvider.getClient(
       modelName as AvailableModel,
       mergedOptions,
-      { experimental: this.experimental, disableAPI: this.disableAPI },
     );
 
     this.overrideLlmClients.set(cacheKey, client);
@@ -954,6 +952,45 @@ export class V3 {
                 stagehand: "true",
               },
             };
+            const isVertex = this.modelName?.startsWith("vertex/");
+            const vertexConfig =
+              isVertex && this.modelClientOptions
+                ? {
+                    project: (
+                      this.modelClientOptions as {
+                        project?: string;
+                        location?: string;
+                        googleAuthOptions?: {
+                          credentials?: {
+                            client_email?: string;
+                            private_key?: string;
+                          };
+                        };
+                      }
+                    ).project ?? "",
+                    location: (
+                      this.modelClientOptions as {
+                        location?: string;
+                      }
+                    ).location ?? "",
+                    clientEmail:
+                      (
+                        this.modelClientOptions as {
+                          googleAuthOptions?: {
+                            credentials?: { client_email?: string };
+                          };
+                        }
+                      ).googleAuthOptions?.credentials?.client_email ?? "",
+                    privateKey:
+                      (
+                        this.modelClientOptions as {
+                          googleAuthOptions?: {
+                            credentials?: { private_key?: string };
+                          };
+                        }
+                      ).googleAuthOptions?.credentials?.private_key ?? "",
+                  }
+                : undefined;
             const { sessionId, available } = await this.apiClient.init({
               modelName: this.modelName,
               modelApiKey: this.modelClientOptions.apiKey,
@@ -963,6 +1000,7 @@ export class V3 {
               selfHeal: this.opts.selfHeal,
               browserbaseSessionCreateParams: createSessionPayload,
               browserbaseSessionID: this.opts.browserbaseSessionID,
+              ...(vertexConfig ? { vertexConfig } : {}),
             });
             if (!available) {
               this.apiClient = null;

@@ -348,6 +348,17 @@ export const SessionStartRequestSchema = z
     }),
     // experimental is a V3 field but doesn't need to go over the wire - included because wire type imports options type
     experimental: z.boolean().optional(),
+    // Vertex AI credentials — required when modelName starts with "vertex/"
+    // since Vertex uses a service account rather than an API key
+    vertexConfig: z
+      .object({
+        project: z.string().meta({ description: "GCP project ID" }),
+        location: z.string().meta({ description: "Vertex AI region, e.g. us-central1" }),
+        clientEmail: z.string().meta({ description: "Service account client_email" }),
+        privateKey: z.string().meta({ description: "Service account private_key" }),
+      })
+      .optional()
+      .meta({ description: "Google Vertex AI service account credentials" }),
     // V2 compatibility fields - only included because the server imports this type and supports V2
     // should never be used in v3 clients or v3-only server implementations
     waitForCaptchaSolves: z.boolean().optional().meta({

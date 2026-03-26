@@ -206,12 +206,27 @@ export class InMemorySessionStore implements SessionStore {
   ): V3Options {
     const isBrowserbase = params.browserType === "browserbase";
 
+    const isVertex = params.modelName?.startsWith("vertex/");
+    const model: V3Options["model"] = isVertex && params.vertexConfig
+      ? {
+          modelName: params.modelName,
+          project: params.vertexConfig.project,
+          location: params.vertexConfig.location,
+          googleAuthOptions: {
+            credentials: {
+              client_email: params.vertexConfig.clientEmail,
+              private_key: params.vertexConfig.privateKey,
+            },
+          },
+        }
+      : {
+          modelName: params.modelName,
+          apiKey: ctx.modelApiKey,
+        };
+
     const options: V3Options = {
       env: isBrowserbase ? "BROWSERBASE" : "LOCAL",
-      model: {
-        modelName: params.modelName,
-        apiKey: ctx.modelApiKey,
-      },
+      model,
       verbose: params.verbose,
       systemPrompt: params.systemPrompt,
       selfHeal: params.selfHeal,

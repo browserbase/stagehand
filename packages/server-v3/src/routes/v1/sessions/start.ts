@@ -76,6 +76,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       browserbaseSessionID,
       experimental,
       browser,
+      vertexConfig,
     } = body;
     if (!modelName) {
       return error(reply, "Missing required model name");
@@ -191,6 +192,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       clientLanguage,
       sdkVersion,
       experimental,
+      ...(vertexConfig ? { vertexConfig } : {}),
       localBrowserLaunchOptions:
         browserType === "local" && (browser?.launchOptions || browser?.cdpUrl)
           ? {

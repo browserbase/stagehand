@@ -1,5 +1,4 @@
 import {
-  ExperimentalNotConfiguredError,
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
   UnsupportedModelProviderError,
@@ -141,20 +140,11 @@ export class LLMProvider {
   getClient(
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
-    options?: { experimental?: boolean; disableAPI?: boolean },
   ): LLMClient {
     if (modelName.includes("/")) {
       const firstSlashIndex = modelName.indexOf("/");
       const subProvider = modelName.substring(0, firstSlashIndex);
       const subModelName = modelName.substring(firstSlashIndex + 1);
-      if (
-        subProvider === "vertex" &&
-        !options?.disableAPI &&
-        !options?.experimental
-      ) {
-        throw new ExperimentalNotConfiguredError("Vertex provider");
-      }
-
       const languageModel = getAISDKLanguageModel(
         subProvider,
         subModelName,

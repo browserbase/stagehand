@@ -208,9 +208,11 @@ export class StagehandAPIClient {
     selfHeal,
     browserbaseSessionCreateParams,
     browserbaseSessionID,
+    vertexConfig,
     // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
-    if (!modelApiKey) {
+    const isVertex = modelName?.startsWith("vertex/");
+    if (!modelApiKey && !isVertex) {
       throw new StagehandAPIError("modelApiKey is required");
     }
     this.modelApiKey = modelApiKey;
@@ -237,6 +239,7 @@ export class StagehandAPIClient {
       selfHeal,
       browserbaseSessionCreateParams,
       browserbaseSessionID,
+      ...(vertexConfig ? { vertexConfig } : {}),
       // browser, TODO: only send when connected to local fastify
     };
 
