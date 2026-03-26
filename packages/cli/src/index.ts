@@ -365,12 +365,17 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
                     keepAlive: true,
                   }
                 : {}),
-              ...(!connectSessionId && contextConfig
+              ...(!connectSessionId
                 ? {
                     browserbaseSessionCreateParams: {
-                      browserSettings: {
-                        context: contextConfig,
-                      },
+                      userMetadata: { "browse-cli": "true" },
+                      ...(contextConfig
+                        ? {
+                            browserSettings: {
+                              context: contextConfig,
+                            },
+                          }
+                        : {}),
                     },
                   }
                 : {}),
