@@ -155,6 +155,10 @@ function getContextPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.context`);
 }
 
+function getConnectPath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.connect`);
+}
+
 type BrowseMode = "browserbase" | "local";
 
 function hasBrowserbaseCredentials(): boolean {
@@ -226,8 +230,9 @@ const DAEMON_STATE_FILES = (session: string) => [
 async function cleanupStaleFiles(session: string): Promise<void> {
   const files = [
     ...DAEMON_STATE_FILES(session),
-    // Context is client-written config, only cleaned on full shutdown
+    // Client-written config, only cleaned on full shutdown
     getContextPath(session),
+    getConnectPath(session),
   ];
 
   for (const file of files) {
@@ -339,6 +344,14 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
         contextConfig = JSON.parse(raw);
       } catch {}
 
+      // Read connect config if present (written by `browse --connect <id>`)
+      let connectSessionId: string | null = null;
+      try {
+        connectSessionId = (
+          await fs.readFile(getConnectPath(session), "utf-8")
+        ).trim();
+      } catch {}
+
       stagehand = new Stagehand({
         env: useBrowserbase ? "BROWSERBASE" : "LOCAL",
         verbose: 0,
@@ -346,16 +359,26 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
         ...(useBrowserbase
           ? {
               disableAPI: true,
-              browserbaseSessionCreateParams: {
-                userMetadata: { "browse-cli": "true" },
-                ...(contextConfig
-                  ? {
-                      browserSettings: {
-                        context: contextConfig,
-                      },
-                    }
-                  : {}),
-              },
+              ...(connectSessionId
+                ? {
+                    browserbaseSessionID: connectSessionId,
+                    keepAlive: true,
+                  }
+                : {}),
+              ...(!connectSessionId
+                ? {
+                    browserbaseSessionCreateParams: {
+                      userMetadata: { "browse-cli": "true" },
+                      ...(contextConfig
+                        ? {
+                            browserSettings: {
+                              context: contextConfig,
+                            },
+                          }
+                        : {}),
+                    },
+                  }
+                : {}),
             }
           : {
               localBrowserLaunchOptions: {
@@ -1446,6 +1469,7 @@ interface GlobalOpts {
   headed?: boolean;
   json?: boolean;
   session?: string;
+  connect?: string;
 }
 
 function getSession(opts: GlobalOpts): string {
@@ -1488,6 +1512,34 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
     }
   }
 
+  // Handle --connect flag: write session ID for daemon to read
+  if (opts.connect) {
+    const desiredMode = await getDesiredMode(session);
+    if (desiredMode === "local") {
+      throw new Error(
+        "--connect is only supported in remote mode. Run `browse env remote` first.",
+      );
+    }
+
+    if (await isDaemonRunning(session)) {
+      let currentConnect: string | null = null;
+      try {
+        currentConnect = (
+          await fs.readFile(getConnectPath(session), "utf-8")
+        ).trim();
+      } catch {}
+      if (currentConnect !== opts.connect) {
+        await stopDaemonAndCleanup(session);
+      }
+    }
+
+    await fs.writeFile(getConnectPath(session), opts.connect);
+  } else {
+    try {
+      await fs.unlink(getConnectPath(session));
+    } catch {}
+  }
+
   await ensureDaemon(session, headless);
   return sendCommand(session, command, args, headless);
 }
@@ -1506,6 +1558,10 @@ program
   .option(
     "--session <name>",
     "Session name for multiple browsers (or use BROWSE_SESSION env var)",
+  )
+  .option(
+    "--connect <session-id>",
+    "Connect to an existing Browserbase session by ID",
   );
 
 // ==================== DAEMON COMMANDS ====================
@@ -1558,13 +1614,21 @@ program
     const running = await isDaemonRunning(session);
     let wsUrl = null;
     let mode: BrowseMode | null = null;
+    let browserbaseSessionId: string | null = null;
     if (running) {
       try {
         wsUrl = await fs.readFile(getWsPath(session), "utf-8");
       } catch {}
       mode = await readCurrentMode(session);
+      try {
+        browserbaseSessionId = (
+          await fs.readFile(getConnectPath(session), "utf-8")
+        ).trim();
+      } catch {}
     }
-    console.log(JSON.stringify({ running, session, wsUrl, mode }));
+    console.log(
+      JSON.stringify({ running, session, wsUrl, mode, browserbaseSessionId }),
+    );
   });
 
 program
@@ -1690,6 +1754,12 @@ program
       const session = getSession(opts);
 
       if (cmdOpts.contextId) {
+        if (opts.connect) {
+          console.error(
+            "Error: --context-id cannot be used with --connect (the session already exists)",
+          );
+          process.exit(1);
+        }
         // Contexts only work with Browserbase remote sessions
         const desiredMode = await getDesiredMode(session);
         if (desiredMode === "local") {
