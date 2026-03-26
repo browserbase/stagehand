@@ -10,6 +10,12 @@
  */
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
+import { VariablesSchema } from "./variables.js";
+export {
+  VariablePrimitiveSchema,
+  VariableValueSchema,
+  VariablesSchema,
+} from "./variables.js";
 
 // =============================================================================
 // Shared Components
@@ -72,6 +78,10 @@ export const ModelConfigObjectSchema = z
     baseURL: z.string().url().optional().meta({
       description: "Base URL for the model provider",
       example: "https://api.openai.com/v1",
+    }),
+    headers: z.record(z.string(), z.string()).optional().meta({
+      description:
+        "Custom headers sent with every request to the model provider",
     }),
   })
   .meta({ id: "ModelConfigObject" });
@@ -405,13 +415,17 @@ export const ActOptionsSchema = z
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
     }),
-    variables: z
-      .record(z.string(), z.string())
-      .optional()
-      .meta({
-        description: "Variables to substitute in the action instruction",
-        example: { username: "john_doe" },
-      }),
+    variables: VariablesSchema.optional().meta({
+      description:
+        "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
+      example: {
+        username: "john_doe",
+        password: {
+          value: "secret123",
+          description: "The login password",
+        },
+      },
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the action",
       example: 30000,
@@ -539,6 +553,17 @@ export const ObserveOptionsSchema = z
     model: z.union([ModelConfigSchema, z.string()]).optional().meta({
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
+    variables: VariablesSchema.optional().meta({
+      description:
+        "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
+      example: {
+        username: {
+          value: "john@example.com",
+          description: "The login email",
+        },
+        rememberMe: true,
+      },
     }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
@@ -910,11 +935,9 @@ export const StreamEventLogDataSchema = z
 /**
  * SSE stream event sent during streaming responses.
  *
- * IMPORTANT: Key ordering matters for Stainless SDK generation.
- * The `data` field MUST be serialized first, with `status` as the first key within it.
- * This allows Stainless to use `data_starts_with: '{"data":{"status":"finished"'` for event handling.
- *
- * Expected serialization order: {"data":{"status":...},"type":...,"id":...}
+ * The SSE wire format includes an `event:` line that mirrors the stream status
+ * (`starting`, `connected`, `running`, `finished`, or `error`) followed by a
+ * JSON `data:` line containing the typed payload below.
  */
 export const StreamEventSchema = z
   .object({
@@ -928,7 +951,7 @@ export const StreamEventSchema = z
   .meta({
     id: "StreamEvent",
     description:
-      "Server-Sent Event emitted during streaming responses. Events are sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type, id.",
+      "Server-Sent Event emitted during streaming responses. Events are sent as `event: <status>\\ndata: <JSON>\\n\\n`, where the JSON payload has the shape `{ data, type, id }`.",
   });
 
 // =============================================================================

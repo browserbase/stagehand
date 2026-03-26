@@ -83,11 +83,8 @@ export const PageActionMethodSchema = z
     "goForward",
     "targetId",
     "mainFrameId",
-    "mainFrame",
     "getFullFrameTree",
-    "asProtocolFrameTree",
     "listAllFrameIds",
-    "getOrdinal",
     "title",
     "url",
     "screenshot",
@@ -96,7 +93,6 @@ export const PageActionMethodSchema = z
     "setViewportSize",
     "setExtraHTTPHeaders",
     "waitForLoadState",
-    "waitForMainLoadState",
     "waitForSelector",
     "waitForTimeout",
     "evaluate",
@@ -112,6 +108,7 @@ export const PageActionStatusSchema = z
 export const XPathSelectorSchema = z
   .object({
     xpath: z.string().min(1).meta({ example: "//button[text()='Submit']" }),
+    idx: z.number().int().nonnegative().optional().meta({ example: 0 }),
   })
   .strict()
   .meta({ id: "XPathSelector" });
@@ -119,6 +116,7 @@ export const XPathSelectorSchema = z
 export const CssSelectorSchema = z
   .object({
     css: z.string().min(1).meta({ example: ".btn-submit" }),
+    idx: z.number().int().nonnegative().optional().meta({ example: 0 }),
   })
   .strict()
   .meta({ id: "CssSelector" });
@@ -126,6 +124,7 @@ export const CssSelectorSchema = z
 export const TextSelectorSchema = z
   .object({
     text: z.string().min(1).meta({ example: "Submit" }),
+    idx: z.number().int().nonnegative().optional().meta({ example: 0 }),
   })
   .strict()
   .meta({ id: "TextSelector" });
@@ -271,12 +270,14 @@ export const PageClickParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
   button: MouseButtonSchema.optional(),
   clickCount: z.number().int().min(1).optional(),
+  returnSelector: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageClickParams" });
 
 export const PageHoverParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
+  returnSelector: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageHoverParams" });
@@ -306,6 +307,7 @@ export const PageDragAndDropParamsSchema = PageWithPageIdSchema.extend({
   button: MouseButtonSchema.optional(),
   steps: z.number().int().positive().optional(),
   delay: z.number().int().min(0).optional(),
+  returnSelector: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageDragAndDropParams" });
@@ -373,29 +375,13 @@ export const PageMainFrameIdParamsSchema = PageWithPageIdSchema.meta({
   id: "PageMainFrameIdParams",
 });
 
-export const PageMainFrameParamsSchema = PageWithPageIdSchema.meta({
-  id: "PageMainFrameParams",
-});
-
 export const PageGetFullFrameTreeParamsSchema = PageWithPageIdSchema.meta({
   id: "PageGetFullFrameTreeParams",
 });
 
-export const PageAsProtocolFrameTreeParamsSchema = PageWithPageIdSchema.extend({
-  rootMainFrameId: FrameIdSchema,
-})
-  .strict()
-  .meta({ id: "PageAsProtocolFrameTreeParams" });
-
 export const PageListAllFrameIdsParamsSchema = PageWithPageIdSchema.meta({
   id: "PageListAllFrameIdsParams",
 });
-
-export const PageGetOrdinalParamsSchema = PageWithPageIdSchema.extend({
-  frameId: FrameIdSchema,
-})
-  .strict()
-  .meta({ id: "PageGetOrdinalParams" });
 
 export const PageTitleParamsSchema = PageWithPageIdSchema.meta({
   id: "PageTitleParams",
@@ -467,15 +453,6 @@ export const PageWaitForLoadStateParamsSchema = PageWithPageIdSchema.extend({
 })
   .strict()
   .meta({ id: "PageWaitForLoadStateParams" });
-
-export const PageWaitForMainLoadStateParamsSchema = PageWithPageIdSchema.extend(
-  {
-    state: LoadStateSchema,
-    timeoutMs: z.number().int().nonnegative().optional(),
-  },
-)
-  .strict()
-  .meta({ id: "PageWaitForMainLoadStateParams" });
 
 export const PageWaitForSelectorParamsSchema = PageWithPageIdSchema.extend({
   selector: ElementSelectorSchema,
@@ -578,25 +555,13 @@ export const PageMainFrameIdRequestSchema = PageQuerySchemaBase.extend(
   PageMainFrameIdParamsSchema.shape,
 ).meta({ id: "PageMainFrameIdRequest" });
 
-export const PageMainFrameRequestSchema = PageQuerySchemaBase.extend(
-  PageMainFrameParamsSchema.shape,
-).meta({ id: "PageMainFrameRequest" });
-
 export const PageGetFullFrameTreeRequestSchema = PageQuerySchemaBase.extend(
   PageGetFullFrameTreeParamsSchema.shape,
 ).meta({ id: "PageGetFullFrameTreeRequest" });
 
-export const PageAsProtocolFrameTreeRequestSchema = PageQuerySchemaBase.extend(
-  PageAsProtocolFrameTreeParamsSchema.shape,
-).meta({ id: "PageAsProtocolFrameTreeRequest" });
-
 export const PageListAllFrameIdsRequestSchema = PageQuerySchemaBase.extend(
   PageListAllFrameIdsParamsSchema.shape,
 ).meta({ id: "PageListAllFrameIdsRequest" });
-
-export const PageGetOrdinalRequestSchema = PageQuerySchemaBase.extend(
-  PageGetOrdinalParamsSchema.shape,
-).meta({ id: "PageGetOrdinalRequest" });
 
 export const PageTitleRequestSchema = PageQuerySchemaBase.extend(
   PageTitleParamsSchema.shape,
@@ -635,11 +600,6 @@ export const PageWaitForLoadStateRequestSchema = createPageRequestSchema(
   PageWaitForLoadStateParamsSchema,
 );
 
-export const PageWaitForMainLoadStateRequestSchema = createPageRequestSchema(
-  "PageWaitForMainLoadStateRequest",
-  PageWaitForMainLoadStateParamsSchema,
-);
-
 export const PageWaitForSelectorRequestSchema = createPageRequestSchema(
   "PageWaitForSelectorRequest",
   PageWaitForSelectorParamsSchema,
@@ -665,17 +625,47 @@ export const PageCloseRequestSchema = createPageRequestSchema(
   PageCloseParamsSchema,
 );
 
-export const PageXPathResultSchema = z
+export const PageScrollResultSchema = z
   .object({
-    xpath: z.string().optional(),
+    x: z.number(),
+    y: z.number(),
   })
   .strict()
-  .meta({ id: "PageXPathResult" });
+  .meta({ id: "PageScrollResult" });
+
+export const ResultSelectorSchema = z
+  .object({
+    xpath: z.string().optional(),
+    css: z.string().optional(),
+    text: z.string().optional(),
+    coordinates: z
+      .object({
+        x: z.number(),
+        y: z.number(),
+      })
+      .optional(),
+  })
+  .strict()
+  .meta({ id: "ResultSelector" });
+
+export const PageClickResultSchema = z
+  .object({
+    selector: ResultSelectorSchema,
+  })
+  .strict()
+  .meta({ id: "PageClickResult" });
+
+export const PageHoverResultSchema = z
+  .object({
+    selector: ResultSelectorSchema,
+  })
+  .strict()
+  .meta({ id: "PageHoverResult" });
 
 export const PageDragAndDropResultSchema = z
   .object({
-    fromXpath: z.string().optional(),
-    toXpath: z.string().optional(),
+    startSelector: ResultSelectorSchema,
+    endSelector: ResultSelectorSchema,
   })
   .strict()
   .meta({ id: "PageDragAndDropResult" });
@@ -749,13 +739,6 @@ export const PageFrameSchema = z
   .strict()
   .meta({ id: "PageFrame" });
 
-export const PageMainFrameResultSchema = z
-  .object({
-    frame: PageFrameSchema,
-  })
-  .strict()
-  .meta({ id: "PageMainFrameResult" });
-
 export const PageFrameTreeResultSchema = z
   .object({
     frameTree: z.unknown(),
@@ -769,14 +752,6 @@ export const PageListAllFrameIdsResultSchema = z
   })
   .strict()
   .meta({ id: "PageListAllFrameIdsResult" });
-
-export const PageGetOrdinalResultSchema = z
-  .object({
-    frameId: FrameIdSchema,
-    ordinal: z.number().int().nonnegative(),
-  })
-  .strict()
-  .meta({ id: "PageGetOrdinalResult" });
 
 export const PageTitleResultSchema = z
   .object({
@@ -879,21 +854,21 @@ export const PageClickActionSchema = createPageActionSchema(
   "PageClickAction",
   "click",
   PageClickParamsSchema,
-  PageXPathResultSchema,
+  PageClickResultSchema,
 );
 
 export const PageHoverActionSchema = createPageActionSchema(
   "PageHoverAction",
   "hover",
   PageHoverParamsSchema,
-  PageXPathResultSchema,
+  PageHoverResultSchema,
 );
 
 export const PageScrollActionSchema = createPageActionSchema(
   "PageScrollAction",
   "scroll",
   PageScrollParamsSchema,
-  PageXPathResultSchema,
+  PageScrollResultSchema,
 );
 
 export const PageDragAndDropActionSchema = createPageActionSchema(
@@ -973,24 +948,10 @@ export const PageMainFrameIdActionSchema = createPageActionSchema(
   PageMainFrameIdResultSchema,
 );
 
-export const PageMainFrameActionSchema = createPageActionSchema(
-  "PageMainFrameAction",
-  "mainFrame",
-  PageMainFrameParamsSchema,
-  PageMainFrameResultSchema,
-);
-
 export const PageGetFullFrameTreeActionSchema = createPageActionSchema(
   "PageGetFullFrameTreeAction",
   "getFullFrameTree",
   PageGetFullFrameTreeParamsSchema,
-  PageFrameTreeResultSchema,
-);
-
-export const PageAsProtocolFrameTreeActionSchema = createPageActionSchema(
-  "PageAsProtocolFrameTreeAction",
-  "asProtocolFrameTree",
-  PageAsProtocolFrameTreeParamsSchema,
   PageFrameTreeResultSchema,
 );
 
@@ -999,13 +960,6 @@ export const PageListAllFrameIdsActionSchema = createPageActionSchema(
   "listAllFrameIds",
   PageListAllFrameIdsParamsSchema,
   PageListAllFrameIdsResultSchema,
-);
-
-export const PageGetOrdinalActionSchema = createPageActionSchema(
-  "PageGetOrdinalAction",
-  "getOrdinal",
-  PageGetOrdinalParamsSchema,
-  PageGetOrdinalResultSchema,
 );
 
 export const PageTitleActionSchema = createPageActionSchema(
@@ -1064,13 +1018,6 @@ export const PageWaitForLoadStateActionSchema = createPageActionSchema(
   PageWaitForLoadStateResultSchema,
 );
 
-export const PageWaitForMainLoadStateActionSchema = createPageActionSchema(
-  "PageWaitForMainLoadStateAction",
-  "waitForMainLoadState",
-  PageWaitForMainLoadStateParamsSchema,
-  PageWaitForLoadStateResultSchema,
-);
-
 export const PageWaitForSelectorActionSchema = createPageActionSchema(
   "PageWaitForSelectorAction",
   "waitForSelector",
@@ -1122,11 +1069,8 @@ export const PageActionSchema = z
     PageGoForwardActionSchema,
     PageTargetIdActionSchema,
     PageMainFrameIdActionSchema,
-    PageMainFrameActionSchema,
     PageGetFullFrameTreeActionSchema,
-    PageAsProtocolFrameTreeActionSchema,
     PageListAllFrameIdsActionSchema,
-    PageGetOrdinalActionSchema,
     PageTitleActionSchema,
     PageUrlActionSchema,
     PageScreenshotActionSchema,
@@ -1135,7 +1079,6 @@ export const PageActionSchema = z
     PageSetViewportSizeActionSchema,
     PageSetExtraHTTPHeadersActionSchema,
     PageWaitForLoadStateActionSchema,
-    PageWaitForMainLoadStateActionSchema,
     PageWaitForSelectorActionSchema,
     PageWaitForTimeoutActionSchema,
     PageEvaluateActionSchema,
@@ -1225,29 +1168,14 @@ export const PageMainFrameIdResponseSchema = createPageResponseSchema(
   PageMainFrameIdActionSchema,
 );
 
-export const PageMainFrameResponseSchema = createPageResponseSchema(
-  "PageMainFrameResponse",
-  PageMainFrameActionSchema,
-);
-
 export const PageGetFullFrameTreeResponseSchema = createPageResponseSchema(
   "PageGetFullFrameTreeResponse",
   PageGetFullFrameTreeActionSchema,
 );
 
-export const PageAsProtocolFrameTreeResponseSchema = createPageResponseSchema(
-  "PageAsProtocolFrameTreeResponse",
-  PageAsProtocolFrameTreeActionSchema,
-);
-
 export const PageListAllFrameIdsResponseSchema = createPageResponseSchema(
   "PageListAllFrameIdsResponse",
   PageListAllFrameIdsActionSchema,
-);
-
-export const PageGetOrdinalResponseSchema = createPageResponseSchema(
-  "PageGetOrdinalResponse",
-  PageGetOrdinalActionSchema,
 );
 
 export const PageTitleResponseSchema = createPageResponseSchema(
@@ -1288,11 +1216,6 @@ export const PageSetExtraHTTPHeadersResponseSchema = createPageResponseSchema(
 export const PageWaitForLoadStateResponseSchema = createPageResponseSchema(
   "PageWaitForLoadStateResponse",
   PageWaitForLoadStateActionSchema,
-);
-
-export const PageWaitForMainLoadStateResponseSchema = createPageResponseSchema(
-  "PageWaitForMainLoadStateResponse",
-  PageWaitForMainLoadStateActionSchema,
 );
 
 export const PageWaitForSelectorResponseSchema = createPageResponseSchema(
@@ -1390,6 +1313,7 @@ export const pageOpenApiComponents = {
     CoordinateSelector: CoordinateSelectorSchema,
     Selector: SelectorSchema,
     ElementSelector: ElementSelectorSchema,
+    ResultSelector: ResultSelectorSchema,
     PageHeaders: PageHeadersSchema,
     PageInitScript: PageInitScriptSchema,
     PageClip: PageClipSchema,
@@ -1413,11 +1337,8 @@ export const pageOpenApiComponents = {
     PageGoForwardParams: PageGoForwardParamsSchema,
     PageTargetIdParams: PageTargetIdParamsSchema,
     PageMainFrameIdParams: PageMainFrameIdParamsSchema,
-    PageMainFrameParams: PageMainFrameParamsSchema,
     PageGetFullFrameTreeParams: PageGetFullFrameTreeParamsSchema,
-    PageAsProtocolFrameTreeParams: PageAsProtocolFrameTreeParamsSchema,
     PageListAllFrameIdsParams: PageListAllFrameIdsParamsSchema,
-    PageGetOrdinalParams: PageGetOrdinalParamsSchema,
     PageTitleParams: PageTitleParamsSchema,
     PageUrlParams: PageUrlParamsSchema,
     PageScreenshotParams: PageScreenshotParamsSchema,
@@ -1426,7 +1347,6 @@ export const pageOpenApiComponents = {
     PageSetViewportSizeParams: PageSetViewportSizeParamsSchema,
     PageSetExtraHTTPHeadersParams: PageSetExtraHTTPHeadersParamsSchema,
     PageWaitForLoadStateParams: PageWaitForLoadStateParamsSchema,
-    PageWaitForMainLoadStateParams: PageWaitForMainLoadStateParamsSchema,
     PageWaitForSelectorParams: PageWaitForSelectorParamsSchema,
     PageWaitForTimeoutParams: PageWaitForTimeoutParamsSchema,
     PageEvaluateParams: PageEvaluateParamsSchema,
@@ -1446,11 +1366,8 @@ export const pageOpenApiComponents = {
     PageGoForwardRequest: PageGoForwardRequestSchema,
     PageTargetIdRequest: PageTargetIdRequestSchema,
     PageMainFrameIdRequest: PageMainFrameIdRequestSchema,
-    PageMainFrameRequest: PageMainFrameRequestSchema,
     PageGetFullFrameTreeRequest: PageGetFullFrameTreeRequestSchema,
-    PageAsProtocolFrameTreeRequest: PageAsProtocolFrameTreeRequestSchema,
     PageListAllFrameIdsRequest: PageListAllFrameIdsRequestSchema,
-    PageGetOrdinalRequest: PageGetOrdinalRequestSchema,
     PageTitleRequest: PageTitleRequestSchema,
     PageUrlRequest: PageUrlRequestSchema,
     PageScreenshotRequest: PageScreenshotRequestSchema,
@@ -1459,7 +1376,6 @@ export const pageOpenApiComponents = {
     PageSetViewportSizeRequest: PageSetViewportSizeRequestSchema,
     PageSetExtraHTTPHeadersRequest: PageSetExtraHTTPHeadersRequestSchema,
     PageWaitForLoadStateRequest: PageWaitForLoadStateRequestSchema,
-    PageWaitForMainLoadStateRequest: PageWaitForMainLoadStateRequestSchema,
     PageWaitForSelectorRequest: PageWaitForSelectorRequestSchema,
     PageWaitForTimeoutRequest: PageWaitForTimeoutRequestSchema,
     PageEvaluateRequest: PageEvaluateRequestSchema,
@@ -1479,11 +1395,8 @@ export const pageOpenApiComponents = {
     PageGoForwardAction: PageGoForwardActionSchema,
     PageTargetIdAction: PageTargetIdActionSchema,
     PageMainFrameIdAction: PageMainFrameIdActionSchema,
-    PageMainFrameAction: PageMainFrameActionSchema,
     PageGetFullFrameTreeAction: PageGetFullFrameTreeActionSchema,
-    PageAsProtocolFrameTreeAction: PageAsProtocolFrameTreeActionSchema,
     PageListAllFrameIdsAction: PageListAllFrameIdsActionSchema,
-    PageGetOrdinalAction: PageGetOrdinalActionSchema,
     PageTitleAction: PageTitleActionSchema,
     PageUrlAction: PageUrlActionSchema,
     PageScreenshotAction: PageScreenshotActionSchema,
@@ -1492,7 +1405,6 @@ export const pageOpenApiComponents = {
     PageSetViewportSizeAction: PageSetViewportSizeActionSchema,
     PageSetExtraHTTPHeadersAction: PageSetExtraHTTPHeadersActionSchema,
     PageWaitForLoadStateAction: PageWaitForLoadStateActionSchema,
-    PageWaitForMainLoadStateAction: PageWaitForMainLoadStateActionSchema,
     PageWaitForSelectorAction: PageWaitForSelectorActionSchema,
     PageWaitForTimeoutAction: PageWaitForTimeoutActionSchema,
     PageEvaluateAction: PageEvaluateActionSchema,
@@ -1513,11 +1425,8 @@ export const pageOpenApiComponents = {
     PageGoForwardResponse: PageGoForwardResponseSchema,
     PageTargetIdResponse: PageTargetIdResponseSchema,
     PageMainFrameIdResponse: PageMainFrameIdResponseSchema,
-    PageMainFrameResponse: PageMainFrameResponseSchema,
     PageGetFullFrameTreeResponse: PageGetFullFrameTreeResponseSchema,
-    PageAsProtocolFrameTreeResponse: PageAsProtocolFrameTreeResponseSchema,
     PageListAllFrameIdsResponse: PageListAllFrameIdsResponseSchema,
-    PageGetOrdinalResponse: PageGetOrdinalResponseSchema,
     PageTitleResponse: PageTitleResponseSchema,
     PageUrlResponse: PageUrlResponseSchema,
     PageScreenshotResponse: PageScreenshotResponseSchema,
@@ -1526,7 +1435,6 @@ export const pageOpenApiComponents = {
     PageSetViewportSizeResponse: PageSetViewportSizeResponseSchema,
     PageSetExtraHTTPHeadersResponse: PageSetExtraHTTPHeadersResponseSchema,
     PageWaitForLoadStateResponse: PageWaitForLoadStateResponseSchema,
-    PageWaitForMainLoadStateResponse: PageWaitForMainLoadStateResponseSchema,
     PageWaitForSelectorResponse: PageWaitForSelectorResponseSchema,
     PageWaitForTimeoutResponse: PageWaitForTimeoutResponseSchema,
     PageEvaluateResponse: PageEvaluateResponseSchema,

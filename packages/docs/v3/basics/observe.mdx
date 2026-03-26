@@ -101,7 +101,7 @@ await stagehand.observe("what is the page title?");
 
 ## Advanced Configuration
 
-You can pass additional options to configure the model, timeout, and selector scope:
+You can pass additional options to configure the model, timeout, selector scope, and placeholder variables:
 
 ```typescript
 // Custom model configuration
@@ -110,6 +110,32 @@ const actions = await stagehand.observe("find navigation links", {
   timeout: 30000,
   selector: "//header" // Focus on specific area
 });
+```
+
+### Validate Then Act with Variables
+
+For login and other safety-sensitive flows, use `observe()` to discover candidate actions, validate them, and then execute them with `act()`. When you pass `variables`, `observe()` returns `%variableName%` placeholders in the suggested action arguments instead of raw secret values.
+
+```typescript
+const actions = await stagehand.observe("find the login form fields", {
+  variables: {
+    username: { value: "user@example.com", description: "The login email" },
+    password: { value: process.env.USER_PASSWORD, description: "The login password" },
+  }
+});
+
+const emailField = actions.find((action) => action.arguments?.includes("%username%"));
+const passwordField = actions.find((action) => action.arguments?.includes("%password%"));
+
+if (emailField && passwordField) {
+  await stagehand.act(emailField, {
+    variables: { username: "user@example.com" }
+  });
+
+  await stagehand.act(passwordField, {
+    variables: { password: process.env.USER_PASSWORD }
+  });
+}
 ```
 
 ### Server-side Caching

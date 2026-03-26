@@ -6,7 +6,7 @@ import {
   PageClickActionSchema,
   PageClickRequestSchema,
   PageClickResponseSchema,
-  PageXPathResultSchema,
+  PageClickResultSchema,
 } from "../../../schemas/v4/page.js";
 import { createPageActionHandler, pageErrorResponses } from "./shared.js";
 
@@ -26,11 +26,8 @@ const clickRoute: RouteOptions = {
   handler: createPageActionHandler({
     method: "click",
     actionSchema: PageClickActionSchema,
-    execute: async ({ params }) => {
-      const sel = params.selector;
-      return PageXPathResultSchema.parse({
-        xpath: "xpath" in sel ? sel.xpath : "xpath=//stub-click",
-      });
+    execute: async () => {
+      return PageClickResultSchema.parse({ selector: {} });
     },
   }),
 };
