@@ -224,7 +224,7 @@ export class InMemorySessionStore implements SessionStore {
       !Array.isArray(modelClientOptions.providerOptions)
         ? (modelClientOptions.providerOptions as Record<string, unknown>)
         : undefined;
-    const hasExplicitAwsCreds =
+    const hasBedrockCredentials =
       providerOptions?.accessKeyId !== undefined &&
       providerOptions?.secretAccessKey !== undefined;
 
@@ -232,7 +232,7 @@ export class InMemorySessionStore implements SessionStore {
       ctx.modelApiKey &&
       modelClientOptions.apiKey === undefined &&
       !skipApiKeyFallback &&
-      !hasExplicitAwsCreds
+      !hasBedrockCredentials
     ) {
       modelClientOptions.apiKey = ctx.modelApiKey;
     }
