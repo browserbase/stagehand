@@ -16,7 +16,7 @@ async function main() {
     const agent = stagehand.agent({
       mode: "cua",
       model: {
-        modelName: "openai/gpt-5.4-2026-03-05",
+        modelName: "openai/gpt-5.4",
         apiKey: process.env.OPENAI_API_KEY,
       },
       systemPrompt: `You are a helpful assistant that can use a web browser.

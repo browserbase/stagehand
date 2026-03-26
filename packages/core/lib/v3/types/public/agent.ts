@@ -449,7 +449,7 @@ export type AgentType =
   | "bedrock";
 
 export const AVAILABLE_CUA_MODELS = [
-  "openai/gpt-5.4-2026-03-05",
+  "openai/gpt-5.4",
   "openai/computer-use-preview",
   "openai/computer-use-preview-2025-03-11",
   "anthropic/claude-opus-4-5-20251101",
