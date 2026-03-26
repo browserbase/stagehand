@@ -37,6 +37,10 @@ export const InternalLLMConfigIdSchema = InternalUuidSchema.meta({
   example: "0195c7c6-7b71-7ed1-8ac5-8f8f7f318cc7",
 });
 
+export const InternalLLMSourceSchema = z
+  .enum(["user", "system-default"])
+  .meta({ id: "InternalLLMSource" });
+
 export const InternalLLMChatIdSchema = InternalUuidSchema.meta({
   id: "InternalLLMChatId",
   example: "0195c7c6-7b73-7002-b735-3471f4f0b8b0",
@@ -254,6 +258,7 @@ export const InternalLLMConfigSchema = z
   .object({
     id: InternalLLMConfigIdSchema,
     projectId: InternalProjectIdSchema,
+    source: InternalLLMSourceSchema,
     displayName: z.string().nullable(),
     modelName: z.string(),
     baseUrl: z.string().url().nullable(),

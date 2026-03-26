@@ -55,10 +55,32 @@ export function getLLM(id: string): LLM {
 }
 
 export function createLLM(input: LLMCreateRequest): LLM {
-  const timestamp = nowIso();
-  const llm = LLMSchema.parse({
-    id: buildId("llm"),
+  const llm = buildLLM({
     source: "user",
+    displayName: input.displayName,
+    modelName: input.modelName,
+    baseUrl: input.baseUrl,
+    systemPrompt: input.systemPrompt,
+    providerOptions: input.providerOptions,
+  });
+
+  llms.set(llm.id, llm);
+
+  return llm;
+}
+
+function buildLLM(input: {
+  source: LLM["source"];
+  displayName?: string;
+  modelName: string;
+  baseUrl?: string;
+  systemPrompt?: string;
+  providerOptions?: LLM["providerOptions"];
+}): LLM {
+  const timestamp = nowIso();
+  return LLMSchema.parse({
+    id: buildId("llm"),
+    source: input.source,
     displayName: input.displayName,
     modelName: input.modelName,
     baseUrl: input.baseUrl,
@@ -67,26 +89,22 @@ export function createLLM(input: LLMCreateRequest): LLM {
     createdAt: timestamp,
     updatedAt: timestamp,
   });
+}
+
+export function createDefaultLLM(): LLM {
+  const llm = buildDefaultLLM();
 
   llms.set(llm.id, llm);
 
   return llm;
 }
 
-export function createDefaultLLM(): LLM {
-  const timestamp = nowIso();
-  const llm = LLMSchema.parse({
-    id: buildId("llm"),
+function buildDefaultLLM(): LLM {
+  return buildLLM({
     source: "system-default",
     displayName: "Default LLM",
     modelName: DEFAULT_LLM_MODEL_NAME,
-    createdAt: timestamp,
-    updatedAt: timestamp,
   });
-
-  llms.set(llm.id, llm);
-
-  return llm;
 }
 
 export function updateLLM(id: string, input: LLMUpdateRequest): LLM {
@@ -110,16 +128,6 @@ export function updateLLM(id: string, input: LLMUpdateRequest): LLM {
   llms.set(id, updated);
 
   return updated;
-}
-
-function resolveLLMForBrowserSession(
-  input: Pick<BrowserSessionCreateRequest, "llmId">,
-): LLM {
-  if (input.llmId) {
-    return findLLMOrThrow(input.llmId);
-  }
-
-  return createDefaultLLM();
 }
 
 function resolveOptionalLLMId(id: string | null | undefined): string | null {
@@ -169,8 +177,14 @@ function buildBrowserSessionFromCreate(
 export function createBrowserSession(
   input: BrowserSessionCreateRequest,
 ): BrowserSession {
-  const llm = resolveLLMForBrowserSession(input);
+  const persistedLLM = input.llmId ? findLLMOrThrow(input.llmId) : null;
+  const defaultLLM = persistedLLM ? null : buildDefaultLLM();
+  const llm = persistedLLM ?? defaultLLM;
   const browserSession = buildBrowserSessionFromCreate(input, llm);
+
+  if (defaultLLM) {
+    llms.set(defaultLLM.id, defaultLLM);
+  }
 
   browserSessions.set(browserSession.id, browserSession);
 

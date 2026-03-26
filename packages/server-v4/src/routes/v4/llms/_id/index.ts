@@ -6,6 +6,7 @@ import {
   LLMHeadersSchema,
   LLMIdParamsSchema,
   LLMResponseSchema,
+  llmErrorResponses,
   type LLMIdParams,
 } from "../../../../schemas/v4/llm.js";
 import { getLLM } from "../../stubState.js";
@@ -34,6 +35,7 @@ const getLLMRoute: RouteOptions = {
     params: LLMIdParamsSchema,
     response: {
       200: LLMResponseSchema,
+      ...llmErrorResponses,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: getLLMHandler,

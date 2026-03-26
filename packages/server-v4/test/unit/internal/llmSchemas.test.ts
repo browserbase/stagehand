@@ -78,6 +78,7 @@ describe("internal llm data model schemas", () => {
     const config = InternalLLMConfigSchema.parse({
       id: configId,
       projectId,
+      source: "user",
       displayName: "Primary config",
       modelName: "openai/gpt-5-nano",
       baseUrl: "https://api.openai.com/v1",
@@ -91,6 +92,7 @@ describe("internal llm data model schemas", () => {
     });
 
     assert.equal(config.modelName, "openai/gpt-5-nano");
+    assert.equal(config.source, "user");
     assert.equal(
       (config.providerOptions as Record<string, unknown>).temperature,
       0.2,
