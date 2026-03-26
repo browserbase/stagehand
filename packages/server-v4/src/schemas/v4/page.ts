@@ -288,7 +288,7 @@ export const PageScrollByOffsetParamsSchema = PageWithPageIdSchema.extend({
   cursorPosition: SelectorSchema.optional(),
   offset: z
     .object({
-      x: z.number(),
+      x: z.number().default(0),
       y: z.number(),
     })
     .strict(),
@@ -298,7 +298,7 @@ export const PageScrollByOffsetParamsSchema = PageWithPageIdSchema.extend({
 
 export const PageScrollByPagesParamsSchema = PageWithPageIdSchema.extend({
   cursorPosition: SelectorSchema.optional(),
-  pages: z.number(),
+  pages: z.number().lte(100).gte(-100).default(1),
   delayBetweenMs: z.number().int().min(0).optional(),
 })
   .strict()
@@ -306,6 +306,7 @@ export const PageScrollByPagesParamsSchema = PageWithPageIdSchema.extend({
 
 export const PageScrollToTargetParamsSchema = PageWithPageIdSchema.extend({
   target: SelectorSchema,
+  position: z.enum(["center", "top", "bottom"]).default("center"),
 })
   .strict()
   .meta({ id: "PageScrollToTargetParams" });
