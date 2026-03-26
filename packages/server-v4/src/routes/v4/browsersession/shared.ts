@@ -18,10 +18,12 @@ import {
 export function buildBrowserSession(input: {
   id: string;
   llmId: string;
+  actLlmId?: string | null;
+  observeLlmId?: string | null;
+  extractLlmId?: string | null;
   env: BrowserSession["env"];
   status: "running" | "ended";
   available: boolean;
-  modelName: string;
   cdpUrl?: string | null;
   browserbaseSessionId?: string;
   browserbaseSessionCreateParams?: BrowserSession["browserbaseSessionCreateParams"];
@@ -36,9 +38,11 @@ export function buildBrowserSession(input: {
   return BrowserSessionSchema.parse({
     id: input.id,
     llmId: input.llmId,
+    actLlmId: input.actLlmId ?? null,
+    observeLlmId: input.observeLlmId ?? null,
+    extractLlmId: input.extractLlmId ?? null,
     env: input.env,
     status: input.status,
-    modelName: input.modelName,
     cdpUrl: input.cdpUrl ?? "ws://stub.invalid/devtools/browser/stub",
     available: input.available,
     browserbaseSessionId: input.browserbaseSessionId,

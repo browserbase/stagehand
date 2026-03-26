@@ -99,6 +99,12 @@ components:
           type: number
         llmId:
           $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          $ref: "#/components/schemas/LLMId"
+        observeLlmId:
+          $ref: "#/components/schemas/LLMId"
+        extractLlmId:
+          $ref: "#/components/schemas/LLMId"
         env:
           type: string
           const: LOCAL
@@ -131,6 +137,12 @@ components:
         actTimeoutMs:
           type: number
         llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          $ref: "#/components/schemas/LLMId"
+        observeLlmId:
+          $ref: "#/components/schemas/LLMId"
+        extractLlmId:
           $ref: "#/components/schemas/LLMId"
         env:
           type: string
@@ -876,22 +888,28 @@ components:
           type: number
         llmId:
           $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        observeLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        extractLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
       additionalProperties: false
     BrowserSession:
       type: object
       properties:
         id:
           $ref: "#/components/schemas/BrowserSessionId"
-        llmId:
-          $ref: "#/components/schemas/LLMId"
         env:
           $ref: "#/components/schemas/BrowserSessionEnv"
         status:
           $ref: "#/components/schemas/BrowserSessionStatus"
-        modelName:
-          description: Model name derived from the attached llm
-          example: openai/gpt-4.1-nano
-          type: string
         cdpUrl:
           anyOf:
             - type: string
@@ -922,13 +940,29 @@ components:
           type: boolean
         actTimeoutMs:
           type: number
+        llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        observeLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        extractLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
       required:
         - id
-        - llmId
         - env
         - status
-        - modelName
         - available
+        - llmId
+        - actLlmId
+        - observeLlmId
+        - extractLlmId
       additionalProperties: false
     BrowserSessionResult:
       type: object
@@ -2252,6 +2286,11 @@ components:
       example: llm_01JXAMPLE
       type: string
       minLength: 1
+    LLMSource:
+      type: string
+      enum:
+        - user
+        - system-default
     LLMProviderOptions:
       type: object
       properties:
@@ -2263,12 +2302,6 @@ components:
           type: string
         location:
           type: string
-        headers:
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties:
-            type: string
       additionalProperties: false
     LLMCreateRequest:
       type: object
@@ -2324,6 +2357,8 @@ components:
           $ref: "#/components/schemas/LLMProviderOptions"
         id:
           $ref: "#/components/schemas/LLMId"
+        source:
+          $ref: "#/components/schemas/LLMSource"
         createdAt:
           $ref: "#/components/schemas/Timestamp"
         updatedAt:
@@ -2331,6 +2366,7 @@ components:
       required:
         - modelName
         - id
+        - source
         - createdAt
         - updatedAt
       additionalProperties: false
@@ -5732,6 +5768,12 @@ components:
           type: number
         llmId:
           $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          $ref: "#/components/schemas/LLMId"
+        observeLlmId:
+          $ref: "#/components/schemas/LLMId"
+        extractLlmId:
+          $ref: "#/components/schemas/LLMId"
         env:
           type: string
           const: LOCAL
@@ -5764,6 +5806,12 @@ components:
         actTimeoutMs:
           type: number
         llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          $ref: "#/components/schemas/LLMId"
+        observeLlmId:
+          $ref: "#/components/schemas/LLMId"
+        extractLlmId:
           $ref: "#/components/schemas/LLMId"
         env:
           type: string
@@ -5882,16 +5930,10 @@ components:
       properties:
         id:
           $ref: "#/components/schemas/BrowserSessionId"
-        llmId:
-          $ref: "#/components/schemas/LLMId"
         env:
           $ref: "#/components/schemas/BrowserSessionEnv"
         status:
           $ref: "#/components/schemas/BrowserSessionStatus"
-        modelName:
-          description: Model name derived from the attached llm
-          example: openai/gpt-4.1-nano
-          type: string
         cdpUrl:
           anyOf:
             - type: string
@@ -5922,13 +5964,29 @@ components:
           type: boolean
         actTimeoutMs:
           type: number
+        llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        observeLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        extractLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
       required:
         - id
-        - llmId
         - env
         - status
-        - modelName
         - available
+        - llmId
+        - actLlmId
+        - observeLlmId
+        - extractLlmId
       additionalProperties: false
     BrowserSessionResultOutput:
       type: object

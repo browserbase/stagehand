@@ -16,9 +16,11 @@ import {
 interface BrowserSessionRecord {
   id: string;
   llmId: string;
+  actLlmId: string | null;
+  observeLlmId: string | null;
+  extractLlmId: string | null;
   env: "LOCAL" | "BROWSERBASE";
   status: "running" | "ended";
-  modelName: string;
   cdpUrl: string;
   available: boolean;
   selfHeal?: boolean;
@@ -38,6 +40,7 @@ interface LLMResponse {
   data?: {
     llm: {
       id: string;
+      source: "user" | "system-default";
       modelName: string;
     };
   };
@@ -73,6 +76,7 @@ describe("v4 browsersession routes", { concurrency: false }, () => {
         headers,
         body: JSON.stringify({
           llmId: primaryLLMCtx.body!.data!.llm.id,
+          actLlmId: primaryLLMCtx.body!.data!.llm.id,
           ...LOCAL_BROWSER_BODY,
         }),
       },
@@ -95,7 +99,9 @@ describe("v4 browsersession routes", { concurrency: false }, () => {
     assert.equal(browserSession.env, "LOCAL");
     assert.equal(browserSession.status, "running");
     assert.equal(browserSession.llmId, primaryLLMCtx.body!.data!.llm.id);
-    assert.equal(browserSession.modelName, "openai/gpt-4.1-nano");
+    assert.equal(browserSession.actLlmId, primaryLLMCtx.body!.data!.llm.id);
+    assert.equal(browserSession.observeLlmId, null);
+    assert.equal(browserSession.extractLlmId, null);
     assert.equal(browserSession.available, true);
     assert.ok(browserSession.cdpUrl.length > 0);
 
@@ -142,6 +148,8 @@ describe("v4 browsersession routes", { concurrency: false }, () => {
         headers,
         body: JSON.stringify({
           llmId: secondaryLLMCtx.body!.data!.llm.id,
+          actLlmId: null,
+          observeLlmId: secondaryLLMCtx.body!.data!.llm.id,
           selfHeal: true,
         }),
       },
@@ -153,9 +161,10 @@ describe("v4 browsersession routes", { concurrency: false }, () => {
       patchCtx.body.data?.browserSession.llmId,
       secondaryLLMCtx.body!.data!.llm.id,
     );
+    assert.equal(patchCtx.body.data?.browserSession.actLlmId, null);
     assert.equal(
-      patchCtx.body.data?.browserSession.modelName,
-      "anthropic/claude-sonnet-4-5-20250929",
+      patchCtx.body.data?.browserSession.observeLlmId,
+      secondaryLLMCtx.body!.data!.llm.id,
     );
     assert.equal(patchCtx.body.data?.browserSession.selfHeal, true);
 
@@ -219,10 +228,20 @@ describe("v4 browsersession routes", { concurrency: false }, () => {
       ctx,
     );
     assert.ok(ctx.body.data!.browserSession.llmId.length > 0);
-    assert.equal(
-      ctx.body.data!.browserSession.modelName,
-      "openai/gpt-4.1-nano",
+    assert.equal(ctx.body.data!.browserSession.actLlmId, null);
+    assert.equal(ctx.body.data!.browserSession.observeLlmId, null);
+    assert.equal(ctx.body.data!.browserSession.extractLlmId, null);
+
+    const llmCtx = await fetchWithContext<LLMResponse>(
+      `${getBaseUrl()}/v4/llms/${ctx.body.data!.browserSession.llmId}`,
+      {
+        method: "GET",
+        headers,
+      },
     );
+
+    assertFetchStatus(llmCtx, HTTP_OK);
+    assert.equal(llmCtx.body.data?.llm.source, "system-default");
   });
 
   it("POST /v4/browsersession rejects LOCAL requests without cdpUrl or localBrowserLaunchOptions", async () => {

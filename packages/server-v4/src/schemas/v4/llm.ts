@@ -20,13 +20,16 @@ export const LLMErrorResponseSchema = z
   .strict()
   .meta({ id: "LLMErrorResponse" });
 
+export const LLMSourceSchema = z
+  .enum(["user", "system-default"])
+  .meta({ id: "LLMSource" });
+
 export const LLMProviderOptionsSchema = z
   .object({
     temperature: z.number().optional(),
     organization: z.string().optional(),
     project: z.string().optional(),
     location: z.string().optional(),
-    headers: z.record(z.string(), z.string()).optional(),
   })
   .strict()
   .meta({ id: "LLMProviderOptions" });
@@ -61,6 +64,7 @@ export const LLMIdParamsSchema = z
 
 export const LLMSchema = LLMWritableSchema.extend({
   id: LLMIdSchema,
+  source: LLMSourceSchema,
   createdAt: TimestampSchema,
   updatedAt: TimestampSchema,
 })
@@ -102,6 +106,7 @@ export const llmOpenApiComponents = {
     LLMId: LLMIdSchema,
     LLMHeaders: LLMHeadersSchema,
     LLMErrorResponse: LLMErrorResponseSchema,
+    LLMSource: LLMSourceSchema,
     LLMProviderOptions: LLMProviderOptionsSchema,
     LLMCreateRequest: LLMCreateRequestSchema,
     LLMUpdateRequest: LLMUpdateRequestSchema,

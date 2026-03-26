@@ -13,6 +13,7 @@ import {
 interface LLMRecord {
   id: string;
   displayName?: string;
+  source: "user" | "system-default";
   modelName: string;
   baseUrl?: string;
   systemPrompt?: string;
@@ -21,7 +22,6 @@ interface LLMRecord {
     organization?: string;
     project?: string;
     location?: string;
-    headers?: Record<string, string>;
   };
   createdAt: string;
   updatedAt: string;
@@ -59,9 +59,6 @@ describe("v4 llm routes", { concurrency: false }, () => {
           providerOptions: {
             temperature: 0.2,
             organization: "org_123",
-            headers: {
-              "X-Test": "yes",
-            },
           },
         }),
       },
@@ -77,6 +74,7 @@ describe("v4 llm routes", { concurrency: false }, () => {
 
     const llm = createCtx.body.data!.llm;
     assert.equal(llm.displayName, "Primary LLM");
+    assert.equal(llm.source, "user");
     assert.equal(llm.modelName, "openai/gpt-4.1-nano");
     assert.equal(llm.baseUrl, "https://api.openai.com/v1");
     assert.equal(llm.systemPrompt, "Be precise.");
@@ -135,6 +133,7 @@ describe("v4 llm routes", { concurrency: false }, () => {
     assertFetchOk(patchCtx.body !== null, "Expected JSON response", patchCtx);
     assert.equal(patchCtx.body.data?.llm.id, llm.id);
     assert.equal(patchCtx.body.data?.llm.displayName, "Secondary LLM");
+    assert.equal(patchCtx.body.data?.llm.source, "user");
     assert.equal(patchCtx.body.data?.llm.systemPrompt, "Be terse.");
     assert.equal(patchCtx.body.data?.llm.providerOptions?.temperature, 0.7);
     assert.equal(

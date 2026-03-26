@@ -58,6 +58,7 @@ export function createLLM(input: LLMCreateRequest): LLM {
   const timestamp = nowIso();
   const llm = LLMSchema.parse({
     id: buildId("llm"),
+    source: "user",
     displayName: input.displayName,
     modelName: input.modelName,
     baseUrl: input.baseUrl,
@@ -73,10 +74,19 @@ export function createLLM(input: LLMCreateRequest): LLM {
 }
 
 export function createDefaultLLM(): LLM {
-  return createLLM({
+  const timestamp = nowIso();
+  const llm = LLMSchema.parse({
+    id: buildId("llm"),
+    source: "system-default",
     displayName: "Default LLM",
     modelName: DEFAULT_LLM_MODEL_NAME,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   });
+
+  llms.set(llm.id, llm);
+
+  return llm;
 }
 
 export function updateLLM(id: string, input: LLMUpdateRequest): LLM {
@@ -112,6 +122,14 @@ function resolveLLMForBrowserSession(
   return createDefaultLLM();
 }
 
+function resolveOptionalLLMId(id: string | null | undefined): string | null {
+  if (id === undefined || id === null) {
+    return id ?? null;
+  }
+
+  return findLLMOrThrow(id).id;
+}
+
 function buildBrowserSessionFromCreate(
   input: BrowserSessionCreateRequest,
   llm: LLM,
@@ -124,9 +142,11 @@ function buildBrowserSessionFromCreate(
   return BrowserSessionSchema.parse({
     id: buildId("session"),
     llmId: llm.id,
+    actLlmId: resolveOptionalLLMId(input.actLlmId),
+    observeLlmId: resolveOptionalLLMId(input.observeLlmId),
+    extractLlmId: resolveOptionalLLMId(input.extractLlmId),
     env: input.env,
     status: "running",
-    modelName: llm.modelName,
     cdpUrl,
     available: true,
     browserbaseSessionId:
@@ -174,7 +194,15 @@ export function updateBrowserSession(
   const updated = BrowserSessionSchema.parse({
     ...existing,
     llmId: llm.id,
-    modelName: llm.modelName,
+    ...(input.actLlmId !== undefined
+      ? { actLlmId: resolveOptionalLLMId(input.actLlmId) }
+      : {}),
+    ...(input.observeLlmId !== undefined
+      ? { observeLlmId: resolveOptionalLLMId(input.observeLlmId) }
+      : {}),
+    ...(input.extractLlmId !== undefined
+      ? { extractLlmId: resolveOptionalLLMId(input.extractLlmId) }
+      : {}),
     ...(input.domSettleTimeoutMs !== undefined
       ? { domSettleTimeoutMs: input.domSettleTimeoutMs }
       : {}),

@@ -22,13 +22,10 @@ export const InternalJsonValueSchema: z.ZodType<InternalJsonValue> = z.lazy(
 
 const InternalUuidSchema = z.string().uuid();
 
-export const InternalTimestampSchema = z
-  .string()
-  .datetime()
-  .meta({
-    id: "InternalTimestamp",
-    example: "2026-02-03T12:00:00.000Z",
-  });
+export const InternalTimestampSchema = z.string().datetime().meta({
+  id: "InternalTimestamp",
+  example: "2026-02-03T12:00:00.000Z",
+});
 
 export const InternalProjectIdSchema = InternalUuidSchema.meta({
   id: "InternalProjectId",
@@ -40,33 +37,18 @@ export const InternalLLMConfigIdSchema = InternalUuidSchema.meta({
   example: "0195c7c6-7b71-7ed1-8ac5-8f8f7f318cc7",
 });
 
-export const InternalLLMConfigSetIdSchema = InternalUuidSchema.meta({
-  id: "InternalLLMConfigSetId",
-  example: "0195c7c6-7b72-7339-91d0-b42c0339f0af",
-});
-
 export const InternalLLMChatIdSchema = InternalUuidSchema.meta({
   id: "InternalLLMChatId",
   example: "0195c7c6-7b73-7002-b735-3471f4f0b8b0",
 });
 
-export const InternalStagehandStepIdSchema = InternalUuidSchema.meta({
-  id: "InternalStagehandStepId",
-  example: "0195c7c6-7b74-75df-b8b4-42e50979d001",
+export const InternalUIMessageIdSchema = z.string().meta({
+  id: "InternalUIMessageId",
+  example: "msg_01JXAMPLE",
 });
 
-export const InternalLLMMessageIdSchema = InternalUuidSchema.meta({
-  id: "InternalLLMMessageId",
-  example: "0195c7c6-7b75-7e9e-98a2-f3b999c4aa11",
-});
-
-export const InternalLLMCallIdSchema = InternalUuidSchema.meta({
-  id: "InternalLLMCallId",
-  example: "0195c7c6-7b76-7db4-8128-445ea7c81122",
-});
-
-export const InternalStagehandBrowserSessionIdSchema = InternalUuidSchema.meta({
-  id: "InternalStagehandBrowserSessionId",
+export const InternalBrowserSessionIdSchema = InternalUuidSchema.meta({
+  id: "InternalBrowserSessionId",
   example: "0195c7c6-7b77-763e-bf87-efcc5ccf2233",
 });
 
@@ -78,33 +60,196 @@ export const InternalBrowserSessionStatusSchema = z
   .enum(["running", "ended"])
   .meta({ id: "InternalBrowserSessionStatus" });
 
-export const InternalLLMOperationSchema = z
-  .enum(["act", "observe", "extract"])
-  .meta({ id: "InternalLLMOperation" });
-
-export const InternalLLMChatStatusSchema = z
-  .enum(["idle", "thinking", "errored"])
-  .meta({ id: "InternalLLMChatStatus" });
-
-export const InternalStagehandStepStatusSchema = z
-  .enum(["queued", "running", "completed", "failed", "canceled"])
-  .meta({ id: "InternalStagehandStepStatus" });
-
-export const InternalLLMMessageRoleSchema = z
-  .enum(["system", "developer", "user", "assistant", "tool"])
-  .meta({ id: "InternalLLMMessageRole" });
+export const InternalUIMessageRoleSchema = z
+  .enum(["system", "user", "assistant"])
+  .meta({ id: "InternalUIMessageRole" });
 
 export const InternalLLMProviderOptionsSchema = z
   .record(z.string(), InternalJsonValueSchema)
   .meta({ id: "InternalLLMProviderOptions" });
 
-export const InternalHttpHeadersSchema = z
-  .record(z.string(), z.string())
-  .meta({ id: "InternalHttpHeaders" });
+export const InternalProviderMetadataSchema = z
+  .record(z.string(), z.unknown())
+  .meta({ id: "InternalProviderMetadata" });
+
+export const InternalUIMessageMetadataSchema = z.unknown().meta({
+  id: "InternalUIMessageMetadata",
+});
+
+export const InternalUIMessagePartStateSchema = z
+  .enum(["streaming", "done"])
+  .meta({ id: "InternalUIMessagePartState" });
+
+export const InternalUITextPartSchema = z
+  .object({
+    type: z.literal("text"),
+    text: z.string(),
+    state: InternalUIMessagePartStateSchema.optional(),
+  })
+  .strict()
+  .meta({ id: "InternalUITextPart" });
+
+export const InternalUIReasoningPartSchema = z
+  .object({
+    type: z.literal("reasoning"),
+    text: z.string(),
+    state: InternalUIMessagePartStateSchema.optional(),
+    providerMetadata: InternalProviderMetadataSchema.optional(),
+  })
+  .strict()
+  .meta({ id: "InternalUIReasoningPart" });
+
+export const InternalUIFilePartSchema = z
+  .object({
+    type: z.literal("file"),
+    mediaType: z.string(),
+    filename: z.string().optional(),
+    url: z.string(),
+  })
+  .strict()
+  .meta({ id: "InternalUIFilePart" });
+
+export const InternalUISourceUrlPartSchema = z
+  .object({
+    type: z.literal("source-url"),
+    sourceId: z.string(),
+    url: z.string(),
+    title: z.string().optional(),
+    providerMetadata: InternalProviderMetadataSchema.optional(),
+  })
+  .strict()
+  .meta({ id: "InternalUISourceUrlPart" });
+
+export const InternalUISourceDocumentPartSchema = z
+  .object({
+    type: z.literal("source-document"),
+    sourceId: z.string(),
+    mediaType: z.string(),
+    title: z.string(),
+    filename: z.string().optional(),
+    providerMetadata: InternalProviderMetadataSchema.optional(),
+  })
+  .strict()
+  .meta({ id: "InternalUISourceDocumentPart" });
+
+const InternalToolTypeSchema = z
+  .string()
+  .regex(/^tool-.+/)
+  .meta({ id: "InternalToolType" });
+
+const InternalDataTypeSchema = z
+  .string()
+  .regex(/^data-.+/)
+  .meta({ id: "InternalDataType" });
+
+export const InternalUIToolPartStateSchema = z
+  .enum([
+    "input-streaming",
+    "input-available",
+    "output-available",
+    "output-error",
+  ])
+  .meta({ id: "InternalUIToolPartState" });
+
+export const InternalUIToolInputSchema = z.unknown().meta({
+  id: "InternalUIToolInput",
+});
+
+export const InternalUIToolOutputSchema = z.unknown().meta({
+  id: "InternalUIToolOutput",
+});
+
+export const InternalUIToolInputStreamingPartSchema = z
+  .object({
+    type: InternalToolTypeSchema,
+    toolCallId: z.string(),
+    state: z.literal("input-streaming"),
+    input: InternalUIToolInputSchema.optional(),
+    providerExecuted: z.boolean().optional(),
+  })
+  .strict()
+  .meta({ id: "InternalUIToolInputStreamingPart" });
+
+export const InternalUIToolInputAvailablePartSchema = z
+  .object({
+    type: InternalToolTypeSchema,
+    toolCallId: z.string(),
+    state: z.literal("input-available"),
+    input: InternalUIToolInputSchema,
+    providerExecuted: z.boolean().optional(),
+  })
+  .strict()
+  .meta({ id: "InternalUIToolInputAvailablePart" });
+
+export const InternalUIToolOutputAvailablePartSchema = z
+  .object({
+    type: InternalToolTypeSchema,
+    toolCallId: z.string(),
+    state: z.literal("output-available"),
+    input: InternalUIToolInputSchema,
+    output: InternalUIToolOutputSchema,
+    providerExecuted: z.boolean().optional(),
+  })
+  .strict()
+  .meta({ id: "InternalUIToolOutputAvailablePart" });
+
+export const InternalUIToolOutputErrorPartSchema = z
+  .object({
+    type: InternalToolTypeSchema,
+    toolCallId: z.string(),
+    state: z.literal("output-error"),
+    input: InternalUIToolInputSchema,
+    errorText: z.string(),
+    providerExecuted: z.boolean().optional(),
+  })
+  .strict()
+  .meta({ id: "InternalUIToolOutputErrorPart" });
+
+export const InternalUIToolPartSchema = z
+  .union([
+    InternalUIToolInputStreamingPartSchema,
+    InternalUIToolInputAvailablePartSchema,
+    InternalUIToolOutputAvailablePartSchema,
+    InternalUIToolOutputErrorPartSchema,
+  ])
+  .meta({ id: "InternalUIToolPart" });
+
+export const InternalUIDataValueSchema = z.unknown().meta({
+  id: "InternalUIDataValue",
+});
+
+export const InternalUIDataPartSchema = z
+  .object({
+    type: InternalDataTypeSchema,
+    id: z.string().optional(),
+    data: InternalUIDataValueSchema,
+  })
+  .strict()
+  .meta({ id: "InternalUIDataPart" });
+
+export const InternalUIStepStartPartSchema = z
+  .object({
+    type: z.literal("step-start"),
+  })
+  .strict()
+  .meta({ id: "InternalUIStepStartPart" });
+
+export const InternalUIMessagePartSchema = z
+  .union([
+    InternalUITextPartSchema,
+    InternalUIReasoningPartSchema,
+    InternalUIFilePartSchema,
+    InternalUISourceUrlPartSchema,
+    InternalUISourceDocumentPartSchema,
+    InternalUIToolPartSchema,
+    InternalUIDataPartSchema,
+    InternalUIStepStartPartSchema,
+  ])
+  .meta({ id: "InternalUIMessagePart" });
 
 // Future DB intent: reusable, project-scoped non-secret LLM config template.
-// This row is intentionally browser-session independent so one config can be
-// reused by multiple sessions and config sets within the same project.
+// This row is browser-session independent so one config can be reused across
+// multiple sessions within the same project.
 export const InternalLLMConfigSchema = z
   .object({
     id: InternalLLMConfigIdSchema,
@@ -120,182 +265,85 @@ export const InternalLLMConfigSchema = z
   .strict()
   .meta({ id: "InternalLLMConfig" });
 
-// Future DB intent: immutable snapshot columns copied onto a chat when a
-// resolved config is attached. Existing chats must not change if the source
-// config row is later edited.
-export const InternalLLMConfigSnapshotSchema = z
+// Future DB intent: browser sessions remain the Stagehand root and store the
+// active/default chat plus per-operation LLM config references directly.
+export const InternalBrowserSessionSchema = z
   .object({
-    modelName: z.string(),
-    baseUrl: z.string().url().nullable(),
-    systemPrompt: z.string().nullable(),
-    providerOptions: InternalLLMProviderOptionsSchema.nullable(),
-  })
-  .strict()
-  .meta({ id: "InternalLLMConfigSnapshot" });
-
-// Future DB intent: operation-aware default config resolution owned by the
-// browser session. Operation-specific slots fall back to defaultConfigId.
-// All referenced config IDs are expected to belong to the same project.
-export const InternalLLMConfigSetSchema = z
-  .object({
-    id: InternalLLMConfigSetIdSchema,
-    projectId: InternalProjectIdSchema,
-    defaultConfigId: InternalLLMConfigIdSchema,
-    actConfigId: InternalLLMConfigIdSchema.nullable(),
-    observeConfigId: InternalLLMConfigIdSchema.nullable(),
-    extractConfigId: InternalLLMConfigIdSchema.nullable(),
-    createdAt: InternalTimestampSchema,
-    updatedAt: InternalTimestampSchema,
-  })
-  .strict()
-  .meta({ id: "InternalLLMConfigSet" });
-
-// Future DB intent: durable browser-session-scoped chat/thread with copied
-// config snapshot columns. Current behavior is one chat per step, but the chat
-// row is intentionally modeled to support multi-step threads later.
-export const InternalLLMChatSchema = z
-  .object({
-    id: InternalLLMChatIdSchema,
-    projectId: InternalProjectIdSchema,
-    browserSessionId: InternalStagehandBrowserSessionIdSchema,
-    sourceConfigId: InternalLLMConfigIdSchema.nullable(),
-    forkedFromChatId: InternalLLMChatIdSchema.nullable(),
-    status: InternalLLMChatStatusSchema,
-    createdAt: InternalTimestampSchema,
-    updatedAt: InternalTimestampSchema,
-    lastMessageAt: InternalTimestampSchema.nullable(),
-    lastErrorAt: InternalTimestampSchema.nullable(),
-  })
-  .extend(InternalLLMConfigSnapshotSchema.shape)
-  .strict()
-  .meta({ id: "InternalLLMChat" });
-
-// Future DB intent: execution unit for act/observe/extract. Config can be
-// requested explicitly or resolved via the browser session's default config set.
-// Raw provider calls belong primarily to this row.
-export const InternalStagehandStepSchema = z
-  .object({
-    id: InternalStagehandStepIdSchema,
-    projectId: InternalProjectIdSchema,
-    browserSessionId: InternalStagehandBrowserSessionIdSchema,
-    chatId: InternalLLMChatIdSchema,
-    operation: InternalLLMOperationSchema,
-    configSetId: InternalLLMConfigSetIdSchema.nullable(),
-    requestedConfigId: InternalLLMConfigIdSchema.nullable(),
-    resolvedConfigId: InternalLLMConfigIdSchema.nullable(),
-    params: InternalJsonValueSchema,
-    result: InternalJsonValueSchema.nullable(),
-    status: InternalStagehandStepStatusSchema,
-    createdAt: InternalTimestampSchema,
-    updatedAt: InternalTimestampSchema,
-    completedAt: InternalTimestampSchema.nullable(),
-  })
-  .strict()
-  .meta({ id: "InternalStagehandStep" });
-
-// Future DB intent: normalized message history for a chat. Messages belong to
-// the chat and optionally point back to the step that appended them so later
-// multi-step threads remain queryable by either dimension.
-export const InternalLLMMessageSchema = z
-  .object({
-    id: InternalLLMMessageIdSchema,
-    projectId: InternalProjectIdSchema,
-    chatId: InternalLLMChatIdSchema,
-    stepId: InternalStagehandStepIdSchema.nullable(),
-    role: InternalLLMMessageRoleSchema,
-    content: InternalJsonValueSchema,
-    sequence: z.number().int().nonnegative(),
-    createdAt: InternalTimestampSchema,
-  })
-  .strict()
-  .meta({ id: "InternalLLMMessage" });
-
-// Future DB intent: raw provider request/response audit row. Headers, if
-// stored, are expected to be redacted before persistence since auth stays
-// request-scoped and should not be stored in config rows.
-export const InternalLLMCallSchema = z
-  .object({
-    id: InternalLLMCallIdSchema,
-    projectId: InternalProjectIdSchema,
-    stepId: InternalStagehandStepIdSchema,
-    chatId: InternalLLMChatIdSchema.nullable(),
-    requestHeaders: InternalHttpHeadersSchema.nullable(),
-    requestBody: InternalJsonValueSchema.nullable(),
-    responseBody: InternalJsonValueSchema.nullable(),
-    errorBody: InternalJsonValueSchema.nullable(),
-    usage: InternalJsonValueSchema.nullable(),
-    modelName: z.string(),
-    startedAt: InternalTimestampSchema,
-    completedAt: InternalTimestampSchema.nullable(),
-  })
-  .strict()
-  .meta({ id: "InternalLLMCall" });
-
-// Future DB intent: browser session remains the owner of default config
-// selection via defaultConfigSetId. It should not point directly to a default
-// chat because chats are execution/thread state, not reusable config state.
-export const InternalStagehandBrowserSessionSchema = z
-  .object({
-    id: InternalStagehandBrowserSessionIdSchema,
+    id: InternalBrowserSessionIdSchema,
     projectId: InternalProjectIdSchema,
     env: InternalBrowserSessionEnvSchema,
     status: InternalBrowserSessionStatusSchema,
     browserbaseSessionId: z.string().uuid().nullable(),
     cdpUrl: z.string().nullable(),
-    defaultConfigSetId: InternalLLMConfigSetIdSchema,
+    primaryChatId: InternalLLMChatIdSchema,
+    defaultLlmConfigId: InternalLLMConfigIdSchema,
+    actLlmConfigId: InternalLLMConfigIdSchema.nullable(),
+    observeLlmConfigId: InternalLLMConfigIdSchema.nullable(),
+    extractLlmConfigId: InternalLLMConfigIdSchema.nullable(),
     createdAt: InternalTimestampSchema,
     updatedAt: InternalTimestampSchema,
     endedAt: InternalTimestampSchema.nullable(),
   })
   .strict()
-  .meta({ id: "InternalStagehandBrowserSession" });
+  .meta({ id: "InternalBrowserSession" });
+
+// Future DB intent: a browser session may own multiple chats, with one primary
+// chat referenced from the browser session row.
+export const InternalLLMChatSchema = z
+  .object({
+    id: InternalLLMChatIdSchema,
+    projectId: InternalProjectIdSchema,
+    browserSessionId: InternalBrowserSessionIdSchema,
+    createdAt: InternalTimestampSchema,
+    updatedAt: InternalTimestampSchema,
+    lastMessageAt: InternalTimestampSchema.nullable(),
+  })
+  .strict()
+  .meta({ id: "InternalLLMChat" });
+
+// Future DB intent: persisted AI-SDK-style chat messages. Messages are stored
+// as ordered parts plus optional metadata so we can later convert them into the
+// model-specific message format we send to the LLM.
+export const InternalUIMessageSchema = z
+  .object({
+    id: InternalUIMessageIdSchema,
+    projectId: InternalProjectIdSchema,
+    chatId: InternalLLMChatIdSchema,
+    role: InternalUIMessageRoleSchema,
+    parts: z.array(InternalUIMessagePartSchema),
+    metadata: InternalUIMessageMetadataSchema.optional(),
+    sequence: z.number().int().nonnegative(),
+    createdAt: InternalTimestampSchema,
+  })
+  .strict()
+  .meta({ id: "InternalUIMessage" });
 
 export type InternalLLMConfig = z.infer<typeof InternalLLMConfigSchema>;
-export type InternalLLMConfigSet = z.infer<typeof InternalLLMConfigSetSchema>;
-export type InternalLLMChat = z.infer<typeof InternalLLMChatSchema>;
-export type InternalStagehandStep = z.infer<typeof InternalStagehandStepSchema>;
-export type InternalLLMMessage = z.infer<typeof InternalLLMMessageSchema>;
-export type InternalLLMCall = z.infer<typeof InternalLLMCallSchema>;
-export type InternalStagehandBrowserSession = z.infer<
-  typeof InternalStagehandBrowserSessionSchema
+export type InternalBrowserSession = z.infer<
+  typeof InternalBrowserSessionSchema
 >;
-export type InternalLLMOperation = z.infer<typeof InternalLLMOperationSchema>;
+export type InternalLLMChat = z.infer<typeof InternalLLMChatSchema>;
+export type InternalUIMessage = z.infer<typeof InternalUIMessageSchema>;
 
 export function resolveInternalLLMConfigId(
-  configSet: InternalLLMConfigSet,
-  operation: InternalLLMOperation,
+  browserSession: Pick<
+    InternalBrowserSession,
+    | "defaultLlmConfigId"
+    | "actLlmConfigId"
+    | "observeLlmConfigId"
+    | "extractLlmConfigId"
+  >,
+  operation: "act" | "observe" | "extract",
 ): string {
   if (operation === "act") {
-    return configSet.actConfigId ?? configSet.defaultConfigId;
+    return browserSession.actLlmConfigId ?? browserSession.defaultLlmConfigId;
   }
 
   if (operation === "observe") {
-    return configSet.observeConfigId ?? configSet.defaultConfigId;
+    return (
+      browserSession.observeLlmConfigId ?? browserSession.defaultLlmConfigId
+    );
   }
 
-  return configSet.extractConfigId ?? configSet.defaultConfigId;
-}
-
-function cloneInternalJsonValue(
-  value: InternalJsonValue | null,
-): InternalJsonValue | null {
-  if (value === null) {
-    return null;
-  }
-
-  return JSON.parse(JSON.stringify(value)) as InternalJsonValue;
-}
-
-export function buildInternalLLMConfigSnapshot(
-  config: Pick<
-    InternalLLMConfig,
-    "modelName" | "baseUrl" | "systemPrompt" | "providerOptions"
-  >,
-): z.infer<typeof InternalLLMConfigSnapshotSchema> {
-  return InternalLLMConfigSnapshotSchema.parse({
-    modelName: config.modelName,
-    baseUrl: config.baseUrl,
-    systemPrompt: config.systemPrompt,
-    providerOptions: cloneInternalJsonValue(config.providerOptions),
-  });
+  return browserSession.extractLlmConfigId ?? browserSession.defaultLlmConfigId;
 }

@@ -47,9 +47,36 @@ const BrowserSessionMutableSchema = z
   })
   .strict();
 
-const BrowserSessionCommonSchema = BrowserSessionMutableSchema.extend({
-  llmId: LLMIdSchema.optional(),
-}).strict();
+const BrowserSessionLLMRefsCreateSchema = z
+  .object({
+    llmId: LLMIdSchema.optional(),
+    actLlmId: LLMIdSchema.optional(),
+    observeLlmId: LLMIdSchema.optional(),
+    extractLlmId: LLMIdSchema.optional(),
+  })
+  .strict();
+
+const BrowserSessionLLMRefsUpdateSchema = z
+  .object({
+    llmId: LLMIdSchema.optional(),
+    actLlmId: LLMIdSchema.nullable().optional(),
+    observeLlmId: LLMIdSchema.nullable().optional(),
+    extractLlmId: LLMIdSchema.nullable().optional(),
+  })
+  .strict();
+
+const BrowserSessionLLMRefsResponseSchema = z
+  .object({
+    llmId: LLMIdSchema,
+    actLlmId: LLMIdSchema.nullable(),
+    observeLlmId: LLMIdSchema.nullable(),
+    extractLlmId: LLMIdSchema.nullable(),
+  })
+  .strict();
+
+const BrowserSessionCommonSchema = BrowserSessionMutableSchema.extend(
+  BrowserSessionLLMRefsCreateSchema.shape,
+).strict();
 
 const BrowserSessionLocalCreateSchema = BrowserSessionCommonSchema.extend({
   env: z.literal("LOCAL"),
@@ -101,22 +128,15 @@ export const BrowserSessionEndRequestSchema = z
   .meta({ id: "BrowserSessionEndRequest" });
 
 export const BrowserSessionUpdateRequestSchema =
-  BrowserSessionMutableSchema.extend({
-    llmId: LLMIdSchema.optional(),
-  })
+  BrowserSessionMutableSchema.extend(BrowserSessionLLMRefsUpdateSchema.shape)
     .strict()
     .meta({ id: "BrowserSessionUpdateRequest" });
 
 export const BrowserSessionSchema = z
   .object({
     id: BrowserSessionIdSchema,
-    llmId: LLMIdSchema,
     env: BrowserSessionEnvSchema,
     status: BrowserSessionStatusSchema,
-    modelName: z.string().meta({
-      description: "Model name derived from the attached llm",
-      example: "openai/gpt-4.1-nano",
-    }),
     cdpUrl: z.string().nullish(),
     available: z.boolean(),
     browserbaseSessionId: z.string().optional(),
@@ -130,6 +150,7 @@ export const BrowserSessionSchema = z
     experimental: z.boolean().optional(),
     actTimeoutMs: z.number().optional(),
   })
+  .extend(BrowserSessionLLMRefsResponseSchema.shape)
   .strict()
   .meta({ id: "BrowserSession" });
 

@@ -72,6 +72,9 @@ export interface StartSessionResponse {
     browserSession: {
       id: string;
       llmId: string;
+      actLlmId: string | null;
+      observeLlmId: string | null;
+      extractLlmId: string | null;
       cdpUrl: string;
       available: boolean;
     };
