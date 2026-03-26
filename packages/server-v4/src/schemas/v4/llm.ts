@@ -20,13 +20,6 @@ export const LLMErrorResponseSchema = z
   .strict()
   .meta({ id: "LLMErrorResponse" });
 
-export const llmErrorResponses = {
-  400: LLMErrorResponseSchema,
-  401: LLMErrorResponseSchema,
-  404: LLMErrorResponseSchema,
-  500: LLMErrorResponseSchema,
-} as const;
-
 export const LLMSourceSchema = z
   .enum(["user", "system-default"])
   .meta({ id: "LLMSource" });

@@ -7912,6 +7912,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LLMResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
     patch:
       operationId: LLMUpdate
       summary: Update an llm

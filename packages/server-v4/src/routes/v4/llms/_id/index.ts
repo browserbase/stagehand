@@ -3,10 +3,10 @@ import { StatusCodes } from "http-status-codes";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
+  LLMErrorResponseSchema,
   LLMHeadersSchema,
   LLMIdParamsSchema,
   LLMResponseSchema,
-  llmErrorResponses,
   type LLMIdParams,
 } from "../../../../schemas/v4/llm.js";
 import { getLLM } from "../../stubState.js";
@@ -35,7 +35,10 @@ const getLLMRoute: RouteOptions = {
     params: LLMIdParamsSchema,
     response: {
       200: LLMResponseSchema,
-      ...llmErrorResponses,
+      400: LLMErrorResponseSchema,
+      401: LLMErrorResponseSchema,
+      404: LLMErrorResponseSchema,
+      500: LLMErrorResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: getLLMHandler,
