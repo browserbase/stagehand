@@ -203,8 +203,8 @@ function findNearestDescendantEncodedId(
     }
 
     if (candidates.length > 0) {
-      return candidates
-        .sort((a, b) => scoreProxyNode(b) - scoreProxyNode(a))[0]?.encodedId;
+      return candidates.sort((a, b) => scoreProxyNode(b) - scoreProxyNode(a))[0]
+        ?.encodedId;
     }
 
     queue = nextLevel;
