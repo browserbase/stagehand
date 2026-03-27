@@ -64,6 +64,8 @@ jobs:
 
       - name: Version browse-cli
         if: steps.check.outputs.has_changesets == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Back up config and package.json
           cp .changeset/config.json .changeset/config.json.bak
