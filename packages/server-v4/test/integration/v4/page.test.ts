@@ -315,10 +315,10 @@ describe("v4 page routes", { concurrency: false }, () => {
     assertSuccessAction(hoverCtx, "hover");
 
     const scrollCtx = await postPageRoute("scroll", sessionId, {
-      selector: {
+      cursorPosition: {
         xpath: "//div[@id='scroll-box']",
       },
-      percentage: 100,
+      pages: 1,
     });
     assertSuccessAction(scrollCtx, "scroll");
 

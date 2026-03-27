@@ -284,23 +284,39 @@ export const PageHoverParamsSchema = PageWithPageIdSchema.extend({
   .strict()
   .meta({ id: "PageHoverParams" });
 
-export const PageScrollElementParamsSchema = PageWithPageIdSchema.extend({
-  selector: ElementSelectorSchema,
-  percentage: z.number().min(0).max(100),
+export const PageScrollByOffsetParamsSchema = PageWithPageIdSchema.extend({
+  cursorPosition: SelectorSchema.optional(),
+  offset: z
+    .object({
+      x: z.number().default(0),
+      y: z.number(),
+    })
+    .strict(),
 })
   .strict()
-  .meta({ id: "PageScrollElementParams" });
+  .meta({ id: "PageScrollByOffsetParams" });
 
-export const PageScrollCoordinateParamsSchema = PageWithPageIdSchema.extend({
-  selector: CoordinateSelectorSchema,
-  deltaX: z.number().optional(),
-  deltaY: z.number(),
+export const PageScrollByPagesParamsSchema = PageWithPageIdSchema.extend({
+  cursorPosition: SelectorSchema.optional(),
+  pages: z.number().lte(100).gte(-100).default(1),
+  delayBetweenMs: z.number().int().min(0).optional(),
 })
   .strict()
-  .meta({ id: "PageScrollCoordinateParams" });
+  .meta({ id: "PageScrollByPagesParams" });
+
+export const PageScrollToTargetParamsSchema = PageWithPageIdSchema.extend({
+  target: SelectorSchema,
+  position: z.enum(["center", "top", "bottom"]).default("center"),
+})
+  .strict()
+  .meta({ id: "PageScrollToTargetParams" });
 
 export const PageScrollParamsSchema = z
-  .union([PageScrollElementParamsSchema, PageScrollCoordinateParamsSchema])
+  .union([
+    PageScrollByOffsetParamsSchema,
+    PageScrollByPagesParamsSchema,
+    PageScrollToTargetParamsSchema,
+  ])
   .meta({ id: "PageScrollParams" });
 
 export const PageDragAndDropParamsSchema = PageWithPageIdSchema.extend({
@@ -1325,8 +1341,9 @@ export const pageOpenApiComponents = {
     PageActionBase: PageActionBaseSchema,
     PageClickParams: PageClickParamsSchema,
     PageHoverParams: PageHoverParamsSchema,
-    PageScrollElementParams: PageScrollElementParamsSchema,
-    PageScrollCoordinateParams: PageScrollCoordinateParamsSchema,
+    PageScrollByOffsetParams: PageScrollByOffsetParamsSchema,
+    PageScrollByPagesParams: PageScrollByPagesParamsSchema,
+    PageScrollToTargetParams: PageScrollToTargetParamsSchema,
     PageScrollParams: PageScrollParamsSchema,
     PageDragAndDropParams: PageDragAndDropParamsSchema,
     PageTypeParams: PageTypeParamsSchema,
