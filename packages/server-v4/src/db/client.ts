@@ -12,13 +12,31 @@ import {
 } from "drizzle-orm/postgres-js";
 import { migrate as migratePostgres } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import * as relations from "./schema/relations.js";
 import * as schema from "./schema/index.js";
 
 export type DatabaseSchema = typeof schema;
-export type PostgresDatabaseClient = PostgresJsDatabase<DatabaseSchema>;
-export type PgliteDatabaseClient = PgliteDatabase<DatabaseSchema>;
+export type DatabaseRelations = typeof relations.relations;
+export type PostgresDatabaseClient = PostgresJsDatabase<
+  DatabaseSchema,
+  DatabaseRelations
+>;
+export type PgliteDatabaseClient = PgliteDatabase<
+  DatabaseSchema,
+  DatabaseRelations
+>;
 export type DatabaseClient = PostgresDatabaseClient | PgliteDatabaseClient;
 export type DatabaseDriver = ReturnType<typeof postgres> | PGlite;
+export type PostgresDatabaseTransaction = Parameters<
+  Parameters<PostgresDatabaseClient["transaction"]>[0]
+>[0];
+export type PgliteDatabaseTransaction = Parameters<
+  Parameters<PgliteDatabaseClient["transaction"]>[0]
+>[0];
+export type DatabaseExecutor =
+  | DatabaseClient
+  | PostgresDatabaseTransaction
+  | PgliteDatabaseTransaction;
 
 export type DatabaseRuntimeConfig =
   | {
@@ -61,7 +79,11 @@ export const createDatabaseConnection = async (
   if (config.mode === "postgres") {
     // Supabase pooled Postgres connections do not support prepared statements.
     const client = postgres(config.databaseUrl, { prepare: false });
-    const db = drizzlePostgres({ client, schema });
+    const db = drizzlePostgres({
+      client,
+      schema,
+      relations: relations.relations,
+    });
 
     return {
       mode: "postgres",
@@ -82,7 +104,7 @@ export const createDatabaseConnection = async (
   fs.mkdirSync(config.dataDir, { recursive: true });
   const client = new PGlite(config.dataDir);
   await client.waitReady;
-  const db = drizzlePglite({ client, schema });
+  const db = drizzlePglite({ client, schema, relations: relations.relations });
 
   return {
     mode: "pglite",

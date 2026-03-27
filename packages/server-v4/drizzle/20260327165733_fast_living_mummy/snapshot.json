@@ -1,0 +1,979 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "742a2758-ab12-40d4-90e0-7ebada53ba93",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "ddl": [
+    {
+      "values": [
+        "disconnected",
+        "idle",
+        "thinking",
+        "permanent-error",
+        "ratelimited"
+      ],
+      "name": "llm_session_status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "user",
+        "system-default"
+      ],
+      "name": "llm_source",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "running",
+        "terminated"
+      ],
+      "name": "stagehand_browser_session_status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "act",
+        "extract",
+        "observe",
+        "agent"
+      ],
+      "name": "stagehand_step_operation",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "llm_calls",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "llm_configs",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "llm_sessions",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "stagehand_browser_sessions",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "stagehand_steps",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "llm_session_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "sent_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "received_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "prompt",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expected_response_schema",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "response",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "error",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "usage",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "model",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_configs"
+    },
+    {
+      "type": "llm_source",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'user'",
+      "generated": null,
+      "identity": null,
+      "name": "source",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_configs"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "display_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_configs"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "model_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_configs"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "base_url",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_configs"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "system_prompt",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_configs"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "provider_options",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_configs"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_configs"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_configs"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "copied_template_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "forked_session_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "project_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "browser_session_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "connected_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "disconnected_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_request_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_response_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_error_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_error_message",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "llm_session_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "model",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "base_url",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "options",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "extra_http_headers",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "system_prompt",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "tokens_input",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "tokens_output",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "tokens_reasoning",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "tokens_cached_input",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "tokens_total",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_browser_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "project_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_browser_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "browserbase_session_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_browser_sessions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cdp_url",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_browser_sessions"
+    },
+    {
+      "type": "stagehand_browser_session_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_browser_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "default_llm_session_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_browser_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_steps"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "stagehand_browser_session_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_steps"
+    },
+    {
+      "type": "stagehand_step_operation",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "operation",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_steps"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "llm_template_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_steps"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "llm_session_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_steps"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "params",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_steps"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "result",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "stagehand_steps"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "llm_session_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "llm_sessions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "llm_calls_llm_session_id_llm_sessions_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "llm_calls"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "copied_template_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "llm_sessions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "llm_sessions_copied_template_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "forked_session_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "llm_sessions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "llm_sessions_forked_session_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "llm_sessions"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "default_llm_session_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "llm_sessions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "stagehand_browser_sessions_s0BMZHuHZkxx_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "stagehand_browser_sessions"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "stagehand_browser_session_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "stagehand_browser_sessions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "stagehand_steps_kqGcAyNQHgqC_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "stagehand_steps"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "llm_template_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "llm_sessions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "stagehand_steps_llm_template_id_llm_sessions_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "stagehand_steps"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "llm_session_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "llm_sessions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "stagehand_steps_llm_session_id_llm_sessions_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "stagehand_steps"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "llm_calls_pkey",
+      "schema": "public",
+      "table": "llm_calls",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "llm_configs_pkey",
+      "schema": "public",
+      "table": "llm_configs",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "llm_sessions_pkey",
+      "schema": "public",
+      "table": "llm_sessions",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "stagehand_browser_sessions_pkey",
+      "schema": "public",
+      "table": "stagehand_browser_sessions",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "stagehand_steps_pkey",
+      "schema": "public",
+      "table": "stagehand_steps",
+      "entityType": "pks"
+    }
+  ],
+  "renames": []
+}
