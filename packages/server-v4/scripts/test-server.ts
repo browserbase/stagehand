@@ -93,12 +93,9 @@ const writeCtrfFromJunit = (junitPath: string, tool: string) => {
   }
 };
 
-const sourceTestsDir = `${repoRoot}/packages/server-v4/test`;
-const sourceUnitDir = `${sourceTestsDir}/unit`;
-const sourceIntegrationDir = `${sourceTestsDir}/integration`;
-const unitDir = sourceUnitDir;
-const integrationDir = sourceIntegrationDir;
-const allTestsDir = sourceTestsDir;
+const testsDir = `${repoRoot}/packages/server-v4/test`;
+const unitTestsDir = `${testsDir}/unit`;
+const integrationTestsDir = `${testsDir}/integration`;
 
 const resolveRepoRelative = (value: string) =>
   path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
@@ -141,7 +138,7 @@ const rawArgs = process.argv.slice(2);
 const listRequested = rawArgs.includes("--list");
 
 if (listRequested) {
-  const unitTests = collectFiles(sourceUnitDir, ".test.ts").map((file) => {
+  const unitTests = collectFiles(unitTestsDir, ".test.ts").map((file) => {
     const name = path.basename(file, ".test.ts");
     return {
       path: path.relative(repoRoot, file).replaceAll("\\", "/"),
@@ -149,10 +146,10 @@ if (listRequested) {
       safe_name: toSafeName(name),
     };
   });
-  const integrationTests = collectFiles(sourceIntegrationDir, ".test.ts").map(
+  const integrationTests = collectFiles(integrationTestsDir, ".test.ts").map(
     (file) => {
       const rel = path
-        .relative(sourceIntegrationDir, file)
+        .relative(integrationTestsDir, file)
         .replaceAll("\\", "/")
         .replace(/\.test\.ts$/, "");
       return {
@@ -175,7 +172,7 @@ if (removedReporterOverride) {
   );
 }
 
-if (!fs.existsSync(allTestsDir)) {
+if (!fs.existsSync(testsDir)) {
   console.error(
     "Missing packages/server-v4/test. Check the repository layout.",
   );
@@ -220,8 +217,8 @@ const allPaths =
   paths.length > 0
     ? paths.map(resolveRepoRelative)
     : [
-        ...collectFiles(unitDir, ".test.ts"),
-        ...collectFiles(integrationDir, ".test.ts"),
+        ...collectFiles(unitTestsDir, ".test.ts"),
+        ...collectFiles(integrationTestsDir, ".test.ts"),
       ];
 
 const unitPaths = allPaths.filter((p) =>
@@ -233,11 +230,11 @@ const integrationPaths = allPaths.filter((p) =>
 
 const singlePath = allPaths.length === 1 ? allPaths[0] : null;
 const coverageSuffix =
-  singlePath && singlePath.startsWith(unitDir)
+  singlePath && singlePath.startsWith(unitTestsDir)
     ? `server-unit/${path.basename(singlePath).replace(/\.test\.ts$/, "")}`
-    : singlePath && singlePath.startsWith(integrationDir)
+    : singlePath && singlePath.startsWith(integrationTestsDir)
       ? `server-integration/${path
-          .relative(integrationDir, singlePath)
+          .relative(integrationTestsDir, singlePath)
           .replace(/\.test\.ts$/, "")
           .replaceAll("\\", "/")}`
       : "server";
@@ -346,7 +343,7 @@ let status = 0;
 
 if (unitPaths.length > 0) {
   const unitName =
-    unitPaths.length === 1 ? toTestName(unitPaths[0], unitDir) : undefined;
+    unitPaths.length === 1 ? toTestName(unitPaths[0], unitTestsDir) : undefined;
   const reporter = reporterArgsFor("unit", unitName);
   const result = runNodeTests(unitPaths, reporter.args);
   status = result.status ?? 1;
@@ -362,7 +359,7 @@ if (status === 0 && integrationPaths.length > 0) {
   } else {
     const integrationName =
       integrationPaths.length === 1
-        ? toTestName(integrationPaths[0], integrationDir)
+        ? toTestName(integrationPaths[0], integrationTestsDir)
         : undefined;
     const reporter = reporterArgsFor("integration", integrationName);
     const result = runNodeTests(integrationPaths, reporter.args);
