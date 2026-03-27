@@ -1,4 +1,5 @@
 import fastify from "fastify";
+import path from "node:path";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUI from "@fastify/swagger-ui";
 import {
@@ -9,6 +10,8 @@ import {
   type FastifyZodOpenApiTypeProvider,
 } from "fastify-zod-openapi";
 import { StatusCodes } from "http-status-codes";
+import { constants } from "./constants.js";
+import { databasePlugin } from "./db/plugin.js";
 import { env } from "./env.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute from "./routes/readiness.js";
@@ -20,11 +23,18 @@ import { llmOpenApiComponents } from "./schemas/v4/llm.js";
 import { pageOpenApiComponents } from "./schemas/v4/page.js";
 
 export const buildApp = async () => {
+  const pgliteDataDir = path.resolve(
+    env.BROWSERBASE_CONFIG_DIR,
+    ...constants.paths.pgliteDataDirSegments,
+  );
+
   const app = fastify({
     logger: true,
     return503OnClosing: false,
   });
 
+  // Allow requests with `Content-Type: application/json` and an empty body (0 bytes).
+  // Some clients always send the header even when there is no request body (e.g. /end).
   const defaultJsonParser = app.getDefaultJsonParser("error", "error");
   app.addContentTypeParser<string>(
     "application/json",
@@ -41,6 +51,20 @@ export const buildApp = async () => {
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+
+  await app.register(databasePlugin, {
+    database:
+      env.STAGEHAND_DB_MODE === "postgres"
+        ? {
+            mode: "postgres",
+            databaseUrl: env.DATABASE_URL,
+          }
+        : {
+            mode: "pglite",
+            dataDir: pgliteDataDir,
+          },
+    migrateOnStartup: env.STAGEHAND_DB_MODE === "pglite",
+  });
 
   await app.register(fastifyZodOpenApiPlugin, {
     components: {
