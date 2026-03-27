@@ -1970,7 +1970,14 @@ program
       }
     }
     console.log(
-      JSON.stringify({ running, session, wsUrl, mode, browserbaseSessionId, ...localDetails }),
+      JSON.stringify({
+        running,
+        session,
+        wsUrl,
+        mode,
+        browserbaseSessionId,
+        ...localDetails,
+      }),
     );
   });
 
