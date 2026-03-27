@@ -71,21 +71,21 @@ export function createLLM(input: LLMCreateRequest): LLM {
 
 function buildLLM(input: {
   source: LLM["source"];
-  displayName?: string;
+  displayName?: string | null;
   modelName: string;
-  baseUrl?: string;
-  systemPrompt?: string;
-  providerOptions?: LLM["providerOptions"];
+  baseUrl?: string | null;
+  systemPrompt?: string | null;
+  providerOptions?: LLM["providerOptions"] | null;
 }): LLM {
   const timestamp = nowIso();
   return LLMSchema.parse({
-    id: buildId("llm"),
+    id: randomUUID(),
     source: input.source,
-    displayName: input.displayName,
+    displayName: input.displayName ?? null,
     modelName: input.modelName,
-    baseUrl: input.baseUrl,
-    systemPrompt: input.systemPrompt,
-    providerOptions: input.providerOptions,
+    baseUrl: input.baseUrl ?? null,
+    systemPrompt: input.systemPrompt ?? null,
+    providerOptions: input.providerOptions ?? null,
     createdAt: timestamp,
     updatedAt: timestamp,
   });

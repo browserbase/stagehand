@@ -1,5 +1,14 @@
-// Intentionally empty in the Drizzle foundation PR.
-// Follow-up PRs will add concrete table definitions here and export them
-// through this barrel so the Drizzle client and schema-derived Zod helpers
-// can treat the database schema as the source of truth.
-export {};
+export { llmCallsTable as llmCalls } from "./llmCalls.js";
+export { llmConfigsTable as llmConfigs, llmSourceEnum } from "./llmConfigs.js";
+export {
+  llmSessionStatusEnum,
+  llmSessionsTable as llmSessions,
+} from "./llmSessions.js";
+export {
+  stagehandBrowserSessionStatusEnum,
+  stagehandBrowserSessionsTable as stagehandBrowserSessions,
+} from "./stagehandBrowserSessions.js";
+export {
+  stagehandStepOperationEnum,
+  stagehandStepsTable as stagehandSteps,
+} from "./stagehandSteps.js";
