@@ -99,6 +99,10 @@ export const PageActionMethodSchema = z
     "sendCDP",
     "close",
     "elementInfo",
+    "fill",
+    "highlight",
+    "selectOption",
+    "setInputFiles",
   ])
   .meta({ id: "PageActionMethod" });
 
@@ -271,7 +275,7 @@ export const PageClickParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
   button: MouseButtonSchema.optional(),
   clickCount: z.number().int().lte(3).gte(1).optional(),
-  returnSelector: z.boolean().optional(),
+  returnSelector: z.boolean().default(false).optional(),
   method: z.enum(["jsevent", "xy"]).default("xy"),
   // TODO: add expectDownload, expectNavigation, expectPopup  OR expect: z.enum(...)
 })
@@ -280,7 +284,7 @@ export const PageClickParamsSchema = PageWithPageIdSchema.extend({
 
 export const PageHoverParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
-  returnSelector: z.boolean().optional(),
+  returnSelector: z.boolean().default(false).optional(),
 })
   .strict()
   .meta({ id: "PageHoverParams" });
@@ -326,7 +330,7 @@ export const PageDragAndDropParamsSchema = PageWithPageIdSchema.extend({
   button: MouseButtonSchema.optional(),
   steps: z.number().int().positive().optional(),
   delay: z.number().int().min(0).optional(),
-  returnSelector: z.boolean().optional(),
+  returnSelector: z.boolean().default(false).optional(),
 })
   .strict()
   .meta({ id: "PageDragAndDropParams" });
@@ -525,6 +529,47 @@ export const PageElementInfoParamsSchema = PageWithPageIdSchema.extend({
   .strict()
   .meta({ id: "PageElementInfoParams" });
 
+export const PageFillParamsSchema = PageWithPageIdSchema.extend({
+  selector: SelectorSchema,
+  value: z.string(),
+  returnSelector: z.boolean().default(false).optional(),
+})
+  .strict()
+  .meta({ id: "PageFillParams" });
+
+export const PageHighlightParamsSchema = PageWithPageIdSchema.extend({
+  selector: SelectorSchema,
+  color: z.string().optional(),
+  durationMs: z.number().int().min(0).optional(),
+  returnSelector: z.boolean().default(false).optional(),
+})
+  .strict()
+  .meta({ id: "PageHighlightParams" });
+
+export const PageSelectOptionParamsSchema = PageWithPageIdSchema.extend({
+  selector: SelectorSchema,
+  values: z.array(z.string()),
+  returnSelector: z.boolean().default(false).optional(),
+})
+  .strict()
+  .meta({ id: "PageSelectOptionParams" });
+
+export const PageSetInputFilesParamsSchema = PageWithPageIdSchema.extend({
+  selector: SelectorSchema,
+  files: z.array(
+    z
+      .object({
+        name: z.string(),
+        mimeType: z.string(),
+        base64: z.string(),
+      })
+      .strict(),
+  ),
+  returnSelector: z.boolean().default(false).optional(),
+})
+  .strict()
+  .meta({ id: "PageSetInputFilesParams" });
+
 export const PageClickRequestSchema = createPageRequestSchema(
   "PageClickRequest",
   PageClickParamsSchema,
@@ -666,6 +711,26 @@ export const PageCloseRequestSchema = createPageRequestSchema(
 export const PageElementInfoRequestSchema = createPageRequestSchema(
   "PageElementInfoRequest",
   PageElementInfoParamsSchema,
+);
+
+export const PageFillRequestSchema = createPageRequestSchema(
+  "PageFillRequest",
+  PageFillParamsSchema,
+);
+
+export const PageHighlightRequestSchema = createPageRequestSchema(
+  "PageHighlightRequest",
+  PageHighlightParamsSchema,
+);
+
+export const PageSelectOptionRequestSchema = createPageRequestSchema(
+  "PageSelectOptionRequest",
+  PageSelectOptionParamsSchema,
+);
+
+export const PageSetInputFilesRequestSchema = createPageRequestSchema(
+  "PageSetInputFilesRequest",
+  PageSetInputFilesParamsSchema,
 );
 
 export const PageScrollResultSchema = z
@@ -892,6 +957,38 @@ export const PageCloseResultSchema = z
   })
   .strict()
   .meta({ id: "PageCloseResult" });
+
+export const PageFillResultSchema = z
+  .object({
+    selector: ResultSelectorSchema,
+    value: z.string(),
+  })
+  .strict()
+  .meta({ id: "PageFillResult" });
+
+export const PageHighlightResultSchema = z
+  .object({
+    selector: ResultSelectorSchema,
+    highlighted: z.boolean(),
+  })
+  .strict()
+  .meta({ id: "PageHighlightResult" });
+
+export const PageSelectOptionResultSchema = z
+  .object({
+    selector: ResultSelectorSchema,
+    selected: z.array(z.string()),
+  })
+  .strict()
+  .meta({ id: "PageSelectOptionResult" });
+
+export const PageSetInputFilesResultSchema = z
+  .object({
+    selector: ResultSelectorSchema,
+    files: z.array(z.string()),
+  })
+  .strict()
+  .meta({ id: "PageSetInputFilesResult" });
 
 export const ElementInfoVisibilitySchema = z
   .object({
@@ -1184,6 +1281,34 @@ export const PageCloseActionSchema = createPageActionSchema(
   PageCloseResultSchema,
 );
 
+export const PageFillActionSchema = createPageActionSchema(
+  "PageFillAction",
+  "fill",
+  PageFillParamsSchema,
+  PageFillResultSchema,
+);
+
+export const PageHighlightActionSchema = createPageActionSchema(
+  "PageHighlightAction",
+  "highlight",
+  PageHighlightParamsSchema,
+  PageHighlightResultSchema,
+);
+
+export const PageSelectOptionActionSchema = createPageActionSchema(
+  "PageSelectOptionAction",
+  "selectOption",
+  PageSelectOptionParamsSchema,
+  PageSelectOptionResultSchema,
+);
+
+export const PageSetInputFilesActionSchema = createPageActionSchema(
+  "PageSetInputFilesAction",
+  "setInputFiles",
+  PageSetInputFilesParamsSchema,
+  PageSetInputFilesResultSchema,
+);
+
 export const PageElementInfoActionSchema = createPageActionSchema(
   "PageElementInfoAction",
   "elementInfo",
@@ -1223,6 +1348,10 @@ export const PageActionSchema = z
     PageSendCDPActionSchema,
     PageCloseActionSchema,
     PageElementInfoActionSchema,
+    PageFillActionSchema,
+    PageHighlightActionSchema,
+    PageSelectOptionActionSchema,
+    PageSetInputFilesActionSchema,
   ])
   .meta({ id: "PageAction" });
 
@@ -1382,6 +1511,26 @@ export const PageCloseResponseSchema = createPageResponseSchema(
   PageCloseActionSchema,
 );
 
+export const PageFillResponseSchema = createPageResponseSchema(
+  "PageFillResponse",
+  PageFillActionSchema,
+);
+
+export const PageHighlightResponseSchema = createPageResponseSchema(
+  "PageHighlightResponse",
+  PageHighlightActionSchema,
+);
+
+export const PageSelectOptionResponseSchema = createPageResponseSchema(
+  "PageSelectOptionResponse",
+  PageSelectOptionActionSchema,
+);
+
+export const PageSetInputFilesResponseSchema = createPageResponseSchema(
+  "PageSetInputFilesResponse",
+  PageSetInputFilesActionSchema,
+);
+
 export const PageElementInfoResponseSchema = createPageResponseSchema(
   "PageElementInfoResponse",
   PageElementInfoActionSchema,
@@ -1497,6 +1646,10 @@ export const pageOpenApiComponents = {
     PageEvaluateParams: PageEvaluateParamsSchema,
     PageSendCDPParams: PageSendCDPParamsSchema,
     PageCloseParams: PageCloseParamsSchema,
+    PageFillParams: PageFillParamsSchema,
+    PageHighlightParams: PageHighlightParamsSchema,
+    PageSelectOptionParams: PageSelectOptionParamsSchema,
+    PageSetInputFilesParams: PageSetInputFilesParamsSchema,
     PageElementInfoParams: PageElementInfoParamsSchema,
     PageClickRequest: PageClickRequestSchema,
     PageHoverRequest: PageHoverRequestSchema,
@@ -1527,6 +1680,10 @@ export const pageOpenApiComponents = {
     PageEvaluateRequest: PageEvaluateRequestSchema,
     PageSendCDPRequest: PageSendCDPRequestSchema,
     PageCloseRequest: PageCloseRequestSchema,
+    PageFillRequest: PageFillRequestSchema,
+    PageHighlightRequest: PageHighlightRequestSchema,
+    PageSelectOptionRequest: PageSelectOptionRequestSchema,
+    PageSetInputFilesRequest: PageSetInputFilesRequestSchema,
     PageElementInfoRequest: PageElementInfoRequestSchema,
     PageClickAction: PageClickActionSchema,
     PageHoverAction: PageHoverActionSchema,
@@ -1557,6 +1714,10 @@ export const pageOpenApiComponents = {
     PageEvaluateAction: PageEvaluateActionSchema,
     PageSendCDPAction: PageSendCDPActionSchema,
     PageCloseAction: PageCloseActionSchema,
+    PageFillAction: PageFillActionSchema,
+    PageHighlightAction: PageHighlightActionSchema,
+    PageSelectOptionAction: PageSelectOptionActionSchema,
+    PageSetInputFilesAction: PageSetInputFilesActionSchema,
     PageElementInfoAction: PageElementInfoActionSchema,
     PageAction: PageActionSchema,
     PageClickResponse: PageClickResponseSchema,
@@ -1588,6 +1749,14 @@ export const pageOpenApiComponents = {
     PageEvaluateResponse: PageEvaluateResponseSchema,
     PageSendCDPResponse: PageSendCDPResponseSchema,
     PageCloseResponse: PageCloseResponseSchema,
+    PageFillResult: PageFillResultSchema,
+    PageFillResponse: PageFillResponseSchema,
+    PageHighlightResult: PageHighlightResultSchema,
+    PageHighlightResponse: PageHighlightResponseSchema,
+    PageSelectOptionResult: PageSelectOptionResultSchema,
+    PageSelectOptionResponse: PageSelectOptionResponseSchema,
+    PageSetInputFilesResult: PageSetInputFilesResultSchema,
+    PageSetInputFilesResponse: PageSetInputFilesResponseSchema,
     ElementInfoField: ElementInfoFieldSchema,
     ElementInfoVisibility: ElementInfoVisibilitySchema,
     ElementInfoDomRect: ElementInfoDomRectSchema,
