@@ -6,6 +6,7 @@ import pageActionListRoute from "./action/index.js";
 import clickRoute from "./click.js";
 import closeRoute from "./close.js";
 import dragAndDropRoute from "./dragAndDrop.js";
+import elementInfoRoute from "./elementInfo.js";
 import enableCursorOverlayRoute from "./enableCursorOverlay.js";
 import evaluateRoute from "./evaluate.js";
 import framesRoute from "./frames.js";
@@ -46,6 +47,7 @@ const rawPageRoutes: RouteOptions[] = [
   goBackRoute,
   goForwardRoute,
   closeRoute,
+  elementInfoRoute,
   enableCursorOverlayRoute,
   addInitScriptRoute,
   targetIdRoute,
