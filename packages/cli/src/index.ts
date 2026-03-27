@@ -214,7 +214,6 @@ async function readLocalInfo(session: string): Promise<LocalInfo | null> {
   } catch {
     return null;
   }
->>>>>>> 277885da (STG-1668: feat(cli): browse env local auto-discovers existing Chrome via CDP)
 }
 
 type BrowseMode = "browserbase" | "local";
