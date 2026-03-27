@@ -237,17 +237,6 @@
         "!dist/esm/**"
       ]
     },
-    "build:esm-tests": {
-      "dependsOn": ["^build:esm"],
-      "outputs": ["dist/tests/**"],
-      "inputs": [
-        "test/**/*.ts",
-        "package.json",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "!dist/tests/**"
-      ]
-    },
     "build:server:dist": {
       "dependsOn": ["^build:esm"],
       "outputs": [
@@ -510,7 +499,7 @@
       ]
     },
     "test:server": {
-      "dependsOn": ["build:sea:esm", "build:esm-tests"],
+      "dependsOn": ["build:server:dist", "build:sea:esm"],
       "outputs": [],
       "cache": false,
       "env": [
