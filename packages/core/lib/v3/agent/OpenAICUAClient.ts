@@ -1,4 +1,9 @@
 import OpenAI from "openai";
+import type {
+  EasyInputMessage,
+  ResponseInputImage,
+  ResponseInputText,
+} from "openai/resources/responses/responses";
 import { LogLine } from "../types/public/logs.js";
 import {
   AgentAction,
@@ -31,6 +36,8 @@ import { v7 as uuidv7 } from "uuid";
  * This implementation uses the official OpenAI Responses API for Computer Use
  */
 const CAPTCHA_PROCEED_TOOL = "captchaSolvedProceed";
+
+type OpenAIRequestInputItem = ResponseInputItem | EasyInputMessage;
 
 export class OpenAICUAClient extends AgentClient {
   private pendingContextNotes: string[] = [];
@@ -141,7 +148,8 @@ export class OpenAICUAClient extends AgentClient {
     this.reasoningItems.clear(); // Clear any previous reasoning items
 
     // Start with the initial instruction
-    let inputItems = this.createInitialInputItems(instruction);
+    let inputItems: OpenAIRequestInputItem[] =
+      await this.createInitialInputItems(instruction);
     let previousResponseId: string | undefined = undefined;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
@@ -241,7 +249,7 @@ export class OpenAICUAClient extends AgentClient {
    * This coordinates the flow: Request → Get Action → Execute Action
    */
   async executeStep(
-    inputItems: ResponseInputItem[],
+    inputItems: OpenAIRequestInputItem[],
     previousResponseId: string | undefined,
     logger: (message: LogLine) => void,
   ): Promise<{
@@ -430,22 +438,47 @@ export class OpenAICUAClient extends AgentClient {
     );
   }
 
-  private createInitialInputItems(instruction: string): ResponseInputItem[] {
-    // For the initial request, we use a simple array with the user's instruction
-    return [
-      {
+  private async createInitialInputItems(
+    instruction: string,
+  ): Promise<OpenAIRequestInputItem[]> {
+    const inputItems: OpenAIRequestInputItem[] = [];
+
+    if (this.userProvidedInstructions) {
+      const systemMessage: EasyInputMessage = {
         role: "system",
         content: this.userProvidedInstructions,
-      },
-      {
-        role: "user",
-        content: instruction,
-      },
-    ];
+      };
+      inputItems.push(systemMessage);
+    }
+
+    const textInput: ResponseInputText = {
+      type: "input_text",
+      text: instruction,
+    };
+    const userContent: Array<ResponseInputText | ResponseInputImage> =
+      [textInput];
+
+    const initialScreenshot = await this.captureInitialScreenshot();
+    if (initialScreenshot) {
+      const screenshotInput: ResponseInputImage = {
+        type: "input_image",
+        image_url: initialScreenshot,
+        detail: "high",
+      };
+      userContent.push(screenshotInput);
+    }
+
+    const userMessage: EasyInputMessage = {
+      role: "user",
+      content: userContent,
+    };
+    inputItems.push(userMessage);
+
+    return inputItems;
   }
 
   async getAction(
-    inputItems: ResponseInputItem[],
+    inputItems: OpenAIRequestInputItem[],
     previousResponseId?: string,
   ): Promise<{
     output: ResponseItem[];
@@ -846,6 +879,18 @@ export class OpenAICUAClient extends AgentClient {
     const notes = [...this.pendingContextNotes];
     this.pendingContextNotes = [];
     return notes;
+  }
+
+  private async captureInitialScreenshot(): Promise<string | undefined> {
+    if (!this.screenshotProvider) {
+      return undefined;
+    }
+
+    try {
+      return await this.captureScreenshot();
+    } catch {
+      return undefined;
+    }
   }
 
   private convertFunctionCallToAction(
