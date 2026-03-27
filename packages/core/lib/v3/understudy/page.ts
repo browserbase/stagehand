@@ -825,7 +825,7 @@ export class Page {
       if (this.apiClient) {
         const result = await this.apiClient.goto(
           url,
-          { waitUntil: options?.waitUntil },
+          { waitUntil: options?.waitUntil, timeout: options?.timeoutMs },
           this.mainFrameId(),
         );
         this._currentUrl = url;

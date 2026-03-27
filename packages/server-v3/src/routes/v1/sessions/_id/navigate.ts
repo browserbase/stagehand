@@ -46,7 +46,12 @@ const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
           throw new AppError("Page not found", StatusCodes.NOT_FOUND);
         }
 
-        const result = await page.goto(data.url, data.options);
+        const { timeout, ...restOptions } = data.options ?? {};
+        const gotoOptions = {
+          ...restOptions,
+          ...(timeout === undefined ? {} : { timeoutMs: timeout }),
+        };
+        const result = await page.goto(data.url, gotoOptions);
 
         return { result };
       },
