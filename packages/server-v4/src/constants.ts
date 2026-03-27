@@ -9,5 +9,11 @@ export const constants = {
      * @constant
      */
     defaultConfigDirName: ".stagehand",
+
+    /**
+     * The relative path segments used for the local persistent PGlite database.
+     * @constant
+     */
+    pgliteDataDirSegments: ["db", "stagehand-v4"] as const,
   },
 } as const;
