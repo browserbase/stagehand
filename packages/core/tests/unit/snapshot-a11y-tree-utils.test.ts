@@ -29,8 +29,12 @@ const makeAxNode = (
   overrides: Partial<Protocol.Accessibility.AXNode> = {},
 ): Protocol.Accessibility.AXNode => ({
   nodeId: overrides.nodeId ?? String(Math.random()),
-  backendDOMNodeId:
-    overrides.backendDOMNodeId ?? Math.floor(Math.random() * 1e6),
+  backendDOMNodeId: Object.prototype.hasOwnProperty.call(
+    overrides,
+    "backendDOMNodeId",
+  )
+    ? overrides.backendDOMNodeId
+    : Math.floor(Math.random() * 1e6),
   role: overrides.role ?? axString("generic"),
   childIds: overrides.childIds ?? [],
   parentId: overrides.parentId,
@@ -91,6 +95,59 @@ describe("decorateRoles", () => {
     const nodes = [makeAxNode({ backendDOMNodeId: 4 })];
     const decorated = decorateRoles(nodes, opts);
     expect(decorated[0]?.encodedId).toBeUndefined();
+  });
+
+  it("proxies unresolved AX nodes to the nearest DOM-backed descendant", () => {
+    const opts: A11yOptions = {
+      ...defaultOpts,
+      tagNameMap: { "enc-2": "button" },
+    };
+    const nodes = [
+      makeAxNode({
+        nodeId: "1",
+        backendDOMNodeId: undefined,
+        role: { type: "string", value: "group" },
+        childIds: ["2"],
+      }),
+      makeAxNode({
+        nodeId: "2",
+        backendDOMNodeId: 2,
+        role: { type: "string", value: "button" },
+        name: axString("Open menu"),
+        parentId: "1",
+      }),
+    ];
+
+    const decorated = decorateRoles(nodes, opts);
+    expect(decorated[0]?.encodedId).toBe("enc-2");
+    expect(decorated[1]?.encodedId).toBe("enc-2");
+  });
+
+  it("falls back to the nearest DOM-backed ancestor when needed", () => {
+    const opts: A11yOptions = {
+      ...defaultOpts,
+      tagNameMap: { "enc-1": "button" },
+    };
+    const nodes = [
+      makeAxNode({
+        nodeId: "1",
+        backendDOMNodeId: 1,
+        role: { type: "string", value: "button" },
+        name: axString("Open menu"),
+        childIds: ["2"],
+      }),
+      makeAxNode({
+        nodeId: "2",
+        backendDOMNodeId: undefined,
+        role: { type: "string", value: "StaticText" },
+        name: axString("..."),
+        parentId: "1",
+      }),
+    ];
+
+    const decorated = decorateRoles(nodes, opts);
+    expect(decorated[0]?.encodedId).toBe("enc-1");
+    expect(decorated[1]?.encodedId).toBe("enc-1");
   });
 });
 

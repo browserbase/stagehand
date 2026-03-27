@@ -106,7 +106,7 @@ export function decorateRoles(
   const asRole = (n: Protocol.Accessibility.AXNode) =>
     String(n.role?.value ?? "");
 
-  return nodes.map((n) => {
+  const decorated = nodes.map((n) => {
     let encodedId: string | undefined;
     if (typeof n.backendDOMNodeId === "number") {
       try {
@@ -142,6 +142,91 @@ export function decorateRoles(
       encodedId,
     };
   });
+
+  // Some AX nodes are virtual wrappers without a direct DOM backend node.
+  // Proxy those nodes to the nearest real DOM-backed node so observe()/act()
+  // can still resolve them through the existing xpath map.
+  return resolveMissingEncodedIds(decorated);
+}
+
+function resolveMissingEncodedIds(nodes: A11yNode[]): A11yNode[] {
+  const byId = new Map(nodes.map((node) => [node.nodeId, node]));
+
+  return nodes.map((node) => {
+    if (node.encodedId) return node;
+
+    const descendantId = findNearestDescendantEncodedId(node, byId);
+    if (descendantId) {
+      return { ...node, encodedId: descendantId };
+    }
+
+    // If the node has no DOM-backed child, fall back to the closest DOM-backed
+    // ancestor. This handles virtual text/label AX nodes nested inside controls.
+    let parentId = node.parentId;
+    while (parentId) {
+      const parent = byId.get(parentId);
+      if (!parent) break;
+      if (parent.encodedId) {
+        return { ...node, encodedId: parent.encodedId };
+      }
+      parentId = parent.parentId;
+    }
+
+    return node;
+  });
+}
+
+function findNearestDescendantEncodedId(
+  start: A11yNode,
+  byId: Map<string, A11yNode>,
+): string | undefined {
+  const seen = new Set<string>();
+  let queue = [...(start.childIds ?? [])];
+
+  while (queue.length) {
+    const nextLevel: string[] = [];
+    const candidates: A11yNode[] = [];
+
+    for (const nodeId of queue) {
+      if (seen.has(nodeId)) continue;
+      seen.add(nodeId);
+
+      const node = byId.get(nodeId);
+      if (!node) continue;
+      if (node.encodedId) {
+        candidates.push(node);
+        continue;
+      }
+      for (const childId of node.childIds ?? []) {
+        nextLevel.push(childId);
+      }
+    }
+
+    if (candidates.length > 0) {
+      return candidates
+        .sort((a, b) => scoreProxyNode(b) - scoreProxyNode(a))[0]?.encodedId;
+    }
+
+    queue = nextLevel;
+  }
+
+  return undefined;
+}
+
+function scoreProxyNode(node: A11yNode): number {
+  const role = node.role.toLowerCase();
+  const actionable =
+    role === "button" ||
+    role === "link" ||
+    role === "checkbox" ||
+    role === "radio" ||
+    role === "textbox" ||
+    role === "combobox" ||
+    role === "menuitem" ||
+    role === "tab" ||
+    role === "option";
+
+  return (actionable ? 10 : 0) + (node.name?.trim() ? 1 : 0);
 }
 
 export async function buildHierarchicalTree(
