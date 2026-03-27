@@ -173,11 +173,47 @@ browse env
 # Switch current session to Browserbase (restarts daemon if needed)
 browse env remote
 
-# Switch back to local Chrome
+# Switch back to local Chrome (auto-discovers existing Chrome, falls back to isolated)
 browse env local
 ```
 
-Behavior details:
+#### Local Browser Strategies
+
+By default, `browse env local` auto-discovers an already-running Chrome with remote
+debugging enabled. This lets agents use your existing cookies, logins, and browser state.
+If no debuggable Chrome is found, it falls back to launching an isolated browser.
+
+```bash
+# Auto-discover local Chrome, fallback to isolated (default)
+browse env local
+
+# Force a clean isolated browser (no auto-discovery)
+browse env local --isolated
+
+# Attach to a specific CDP target (port or URL)
+browse env local 9222
+browse env local ws://localhost:9222/devtools/browser/...
+```
+
+Auto-discovery checks:
+1. `DevToolsActivePort` files in well-known Chrome/Chromium/Brave user-data directories
+2. Common debugging ports (9222, 9229)
+
+To make your Chrome discoverable:
+
+1. Open `chrome://inspect/#remote-debugging`
+2. Check the box **"Allow remote debugging for this browser instance"**
+
+For more information, see the [Chrome DevTools docs](https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session).
+
+Use `browse status` to see which strategy was resolved:
+
+```bash
+browse status
+# {"running":true,"session":"default","mode":"local","localStrategy":"auto","localSource":"attached-existing","resolvedCdpUrl":"ws://..."}
+```
+
+#### General Behavior
 
 - Environment is scoped per `--session`
 - `browse env <target>` persists an override and restarts the daemon
@@ -193,7 +229,7 @@ Behavior details:
 | `--session <name>` | Session name for multiple browsers (default: "default") |
 | `--headless` | Run Chrome in headless mode |
 | `--headed` | Run Chrome with visible window (default) |
-| `--ws <url>` | Connect to existing Chrome via CDP WebSocket |
+| `--ws <url\|port>` | One-shot CDP connection (bypasses daemon) |
 | `--json` | Output as JSON |
 
 ## Environment Variables
@@ -249,11 +285,21 @@ browse --session personal open https://twitter.com
 
 Connect to an existing Chrome instance:
 
-```bash
-# Start Chrome with remote debugging
-google-chrome --remote-debugging-port=9222
+To make your Chrome discoverable:
 
-# Connect via WebSocket
+1. Open `chrome://inspect/#remote-debugging`
+2. Check the box **"Allow remote debugging for this browser instance"**
+3. Re-run the CLI and it will auto-connect!
+
+For more information, see the [Chrome DevTools docs](https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session).
+
+```bash
+# Auto-discover Chrome with remote debugging enabled
+browse env local
+browse open https://example.com
+
+# Or target a specific port / WebSocket URL
+browse env local 9222
 browse --ws ws://localhost:9222/devtools/browser/... open https://example.com
 ```
 

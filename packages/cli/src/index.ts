@@ -18,6 +18,7 @@ import { spawn } from "child_process";
 import * as readline from "readline";
 import type { Protocol } from "devtools-protocol";
 import { version as VERSION } from "../package.json";
+import { resolveWsTarget } from "./resolve-ws";
 
 const program = new Command();
 
@@ -159,6 +160,62 @@ function getConnectPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.connect`);
 }
 
+function getLocalConfigPath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.local-config`);
+}
+
+function getLocalInfoPath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.local-info`);
+}
+
+// ==================== LOCAL STRATEGY CONFIG ====================
+
+type LocalStrategy = "auto" | "isolated" | "cdp";
+
+interface LocalConfig {
+  strategy: LocalStrategy;
+  cdpTarget?: string; // port number or URL
+}
+
+interface LocalInfo {
+  localSource:
+    | "attached-existing"
+    | "attached-explicit"
+    | "isolated"
+    | "isolated-fallback";
+  resolvedCdpUrl?: string;
+  fallbackReason?: string;
+}
+
+async function readLocalConfig(session: string): Promise<LocalConfig> {
+  try {
+    const raw = await fs.readFile(getLocalConfigPath(session), "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return { strategy: "auto" };
+  }
+}
+
+async function writeLocalConfig(
+  session: string,
+  config: LocalConfig,
+): Promise<void> {
+  await fs.writeFile(getLocalConfigPath(session), JSON.stringify(config));
+}
+
+async function writeLocalInfo(session: string, info: LocalInfo): Promise<void> {
+  await fs.writeFile(getLocalInfoPath(session), JSON.stringify(info));
+}
+
+async function readLocalInfo(session: string): Promise<LocalInfo | null> {
+  try {
+    const raw = await fs.readFile(getLocalInfoPath(session), "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 type BrowseMode = "browserbase" | "local";
 
 function hasBrowserbaseCredentials(): boolean {
@@ -200,6 +257,241 @@ async function getDesiredMode(session: string): Promise<BrowseMode> {
   return hasBrowserbaseCredentials() ? "browserbase" : "local";
 }
 
+// ==================== CDP AUTO-DISCOVERY ====================
+
+/**
+ * Well-known Chrome user-data directories per platform.
+ * Each may contain a DevToolsActivePort file when Chrome is running with
+ * remote debugging enabled.
+ */
+function getChromeUserDataDirs(): string[] {
+  const home = os.homedir();
+  const dirs: string[] = [];
+
+  if (process.platform === "darwin") {
+    const base = path.join(home, "Library", "Application Support");
+    for (const name of [
+      "Google/Chrome",
+      "Google/Chrome Canary",
+      "Chromium",
+      "BraveSoftware/Brave-Browser",
+    ]) {
+      dirs.push(path.join(base, name));
+    }
+  } else if (process.platform === "linux") {
+    const config = path.join(home, ".config");
+    for (const name of [
+      "google-chrome",
+      "google-chrome-unstable",
+      "chromium",
+      "BraveSoftware/Brave-Browser",
+    ]) {
+      dirs.push(path.join(config, name));
+    }
+  }
+
+  return dirs;
+}
+
+/**
+ * Read DevToolsActivePort file from a Chrome user-data directory.
+ * Returns { port, wsPath } or null if file doesn't exist or is malformed.
+ */
+async function readDevToolsActivePort(
+  userDataDir: string,
+): Promise<{ port: number; wsPath: string } | null> {
+  try {
+    const content = await fs.readFile(
+      path.join(userDataDir, "DevToolsActivePort"),
+      "utf-8",
+    );
+    const lines = content.trim().split("\n");
+    const port = parseInt(lines[0]?.trim(), 10);
+    if (isNaN(port) || port <= 0 || port > 65535) return null;
+    const wsPath = lines[1]?.trim() || "/devtools/browser";
+    return { port, wsPath };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if a TCP port is reachable on localhost with a short timeout.
+ */
+function isPortReachable(port: number, timeoutMs = 500): Promise<boolean> {
+  return new Promise((resolve) => {
+    const sock = net.createConnection({ host: "127.0.0.1", port });
+    const timer = setTimeout(() => {
+      sock.destroy();
+      resolve(false);
+    }, timeoutMs);
+    sock.on("connect", () => {
+      clearTimeout(timer);
+      sock.destroy();
+      resolve(true);
+    });
+    sock.on("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * Probe a CDP endpoint at the given port.
+ * Tries /json/version first, then falls back to a direct WebSocket handshake
+ * (needed for Chrome 136+ with UI-based remote debugging).
+ * Returns the webSocketDebuggerUrl on success, or null.
+ */
+async function probeCdpEndpoint(port: number): Promise<string | null> {
+  // Try /json/version (standard path)
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (res.ok) {
+      const json = (await res.json()) as { webSocketDebuggerUrl?: string };
+      if (json.webSocketDebuggerUrl) {
+        return json.webSocketDebuggerUrl;
+      }
+    }
+  } catch {
+    // /json/version unavailable
+  }
+
+  // Fallback: direct WebSocket at /devtools/browser
+  // Chrome 136+ with chrome://inspect may only expose WS, not HTTP endpoints
+  const wsUrl = `ws://127.0.0.1:${port}/devtools/browser`;
+  try {
+    const verified = await verifyCdpWebSocket(wsUrl);
+    if (verified) return wsUrl;
+  } catch {
+    // WS fallback also failed
+  }
+
+  return null;
+}
+
+/**
+ * Verify a WebSocket URL is a valid CDP endpoint by attempting an HTTP upgrade.
+ * Sends a minimal WebSocket handshake and checks for a 101 Switching Protocols response.
+ */
+function verifyCdpWebSocket(wsUrl: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const url = new URL(wsUrl);
+    const port = parseInt(url.port) || 80;
+    const wsKey = Buffer.from(
+      Array.from({ length: 16 }, () => Math.floor(Math.random() * 256)),
+    ).toString("base64");
+
+    const sock = net.createConnection({ host: url.hostname, port });
+    let response = "";
+
+    const timer = setTimeout(() => {
+      sock.destroy();
+      resolve(false);
+    }, 2000);
+
+    sock.on("connect", () => {
+      // Send a WebSocket upgrade request
+      sock.write(
+        `GET ${url.pathname} HTTP/1.1\r\n` +
+          `Host: ${url.hostname}:${port}\r\n` +
+          `Upgrade: websocket\r\n` +
+          `Connection: Upgrade\r\n` +
+          `Sec-WebSocket-Key: ${wsKey}\r\n` +
+          `Sec-WebSocket-Version: 13\r\n` +
+          `\r\n`,
+      );
+    });
+
+    sock.on("data", (data) => {
+      response += data.toString();
+      // Check for successful WebSocket upgrade (101 Switching Protocols)
+      if (/^HTTP\/1\.[01] 101(?:\s|$)/.test(response)) {
+        clearTimeout(timer);
+        sock.destroy();
+        resolve(true);
+      } else if (response.includes("\r\n\r\n")) {
+        // Got a complete HTTP response that isn't 101
+        clearTimeout(timer);
+        sock.destroy();
+        resolve(false);
+      }
+    });
+
+    sock.on("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+}
+
+interface CdpCandidate {
+  wsUrl: string;
+  source: string; // e.g. "DevToolsActivePort (Google Chrome)" or "port 9222"
+}
+
+/**
+ * Discover locally-running Chrome instances with CDP debugging enabled.
+ * Returns the discovered CDP WebSocket URL, or null with a reason.
+ *
+ * Discovery order:
+ * 1. DevToolsActivePort files in well-known Chrome user-data dirs
+ * 2. Common debugging ports (9222, 9229)
+ *
+ * If multiple healthy candidates are found, returns null (ambiguity).
+ */
+async function discoverLocalCdp(): Promise<{
+  wsUrl: string;
+  source: string;
+} | null> {
+  const candidates: CdpCandidate[] = [];
+
+  // Phase 1: Scan DevToolsActivePort files
+  const userDataDirs = getChromeUserDataDirs();
+  for (const dir of userDataDirs) {
+    const info = await readDevToolsActivePort(dir);
+    if (!info) continue;
+
+    // Verify port is alive
+    if (!(await isPortReachable(info.port))) {
+      // Stale file — clean up
+      try {
+        await fs.unlink(path.join(dir, "DevToolsActivePort"));
+      } catch {}
+      continue;
+    }
+
+    const wsUrl = await probeCdpEndpoint(info.port);
+    if (wsUrl) {
+      const name = path.basename(dir);
+      candidates.push({ wsUrl, source: `DevToolsActivePort (${name})` });
+    }
+  }
+
+  // Phase 2: Probe common ports (only if DevToolsActivePort yielded nothing)
+  if (candidates.length === 0) {
+    for (const port of [9222, 9229]) {
+      if (!(await isPortReachable(port))) continue;
+      const wsUrl = await probeCdpEndpoint(port);
+      if (wsUrl) {
+        candidates.push({ wsUrl, source: `port ${port}` });
+      }
+    }
+  }
+
+  // Ambiguity check
+  if (candidates.length > 1) {
+    return null; // Caller should fall back to isolated and report ambiguity
+  }
+
+  return candidates[0] ?? null;
+}
+
 async function isDaemonRunning(session: string): Promise<boolean> {
   try {
     const pidFile = getPidPath(session);
@@ -225,6 +517,7 @@ const DAEMON_STATE_FILES = (session: string) => [
   getChromePidPath(session),
   getLockPath(session),
   getModePath(session),
+  getLocalInfoPath(session),
 ];
 
 async function cleanupStaleFiles(session: string): Promise<void> {
@@ -233,6 +526,7 @@ async function cleanupStaleFiles(session: string): Promise<void> {
     // Client-written config, only cleaned on full shutdown
     getContextPath(session),
     getConnectPath(session),
+    getLocalConfigPath(session),
   ];
 
   for (const file of files) {
@@ -352,6 +646,43 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
         ).trim();
       } catch {}
 
+      // Resolve local browser launch options based on strategy
+      let localLaunchOptions: Record<string, unknown> | undefined;
+      let localInfo: LocalInfo | undefined;
+
+      if (!useBrowserbase) {
+        const localConfig = await readLocalConfig(session);
+
+        if (localConfig.strategy === "isolated") {
+          localLaunchOptions = { headless, viewport: DEFAULT_VIEWPORT };
+          localInfo = { localSource: "isolated" };
+        } else if (localConfig.strategy === "cdp") {
+          // Explicit CDP target — resolve port or URL
+          const cdpUrl = await resolveWsTarget(localConfig.cdpTarget!);
+          localLaunchOptions = { cdpUrl };
+          localInfo = {
+            localSource: "attached-explicit",
+            resolvedCdpUrl: cdpUrl,
+          };
+        } else {
+          // strategy === "auto": try discovery, fall back to isolated
+          const discovered = await discoverLocalCdp();
+          if (discovered) {
+            localLaunchOptions = { cdpUrl: discovered.wsUrl };
+            localInfo = {
+              localSource: "attached-existing",
+              resolvedCdpUrl: discovered.wsUrl,
+            };
+          } else {
+            localLaunchOptions = { headless, viewport: DEFAULT_VIEWPORT };
+            localInfo = {
+              localSource: "isolated-fallback",
+              fallbackReason: "no debuggable local browser found",
+            };
+          }
+        }
+      }
+
       stagehand = new Stagehand({
         env: useBrowserbase ? "BROWSERBASE" : "LOCAL",
         verbose: 0,
@@ -381,15 +712,15 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
                 : {}),
             }
           : {
-              localBrowserLaunchOptions: {
-                headless,
-                viewport: DEFAULT_VIEWPORT,
-              },
+              localBrowserLaunchOptions: localLaunchOptions,
             }),
       });
 
-      // Persist mode so status command can report it
+      // Persist mode and local info so status command can report it
       await fs.writeFile(getModePath(session), desiredMode);
+      if (localInfo) {
+        await writeLocalInfo(session, localInfo);
+      }
 
       await stagehand.init();
 
@@ -473,7 +804,8 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
       }
     } catch {}
 
-    await cleanupStaleFiles(session);
+    // Only clean daemon state, not client-written config (local-config, context, mode-override)
+    await cleanupDaemonStateFiles(session);
     process.exit(0);
   };
 
@@ -1374,7 +1706,8 @@ async function stopDaemonAndCleanup(session: string): Promise<void> {
     // Daemon may already be down.
   }
   await new Promise((r) => setTimeout(r, 500));
-  await cleanupStaleFiles(session);
+  // Only clean daemon state files, not client-written config (local-config, context, mode-override)
+  await cleanupDaemonStateFiles(session);
 }
 
 async function ensureDaemon(session: string, headless: boolean): Promise<void> {
@@ -1496,12 +1829,13 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
   const headless = isHeadless(opts);
   // If --ws provided, bypass daemon and connect directly
   if (opts.ws) {
+    const cdpUrl = await resolveWsTarget(opts.ws);
     const stagehand = new Stagehand({
       env: "LOCAL",
       verbose: 0,
       disablePino: true,
       localBrowserLaunchOptions: {
-        cdpUrl: opts.ws,
+        cdpUrl,
       },
     });
     await stagehand.init();
@@ -1549,8 +1883,8 @@ program
   .description("Browser automation CLI for AI agents")
   .version(VERSION)
   .option(
-    "--ws <url>",
-    "CDP WebSocket URL (bypasses daemon, direct connection)",
+    "--ws <url|port>",
+    "CDP WebSocket URL or port number (bypasses daemon, direct connection)",
   )
   .option("--headless", "Run Chrome in headless mode")
   .option("--headed", "Run Chrome with visible window (default)")
@@ -1615,6 +1949,7 @@ program
     let wsUrl = null;
     let mode: BrowseMode | null = null;
     let browserbaseSessionId: string | null = null;
+    let localDetails: Record<string, unknown> = {};
     if (running) {
       try {
         wsUrl = await fs.readFile(getWsPath(session), "utf-8");
@@ -1625,79 +1960,138 @@ program
           await fs.readFile(getConnectPath(session), "utf-8")
         ).trim();
       } catch {}
+      if (mode === "local") {
+        const localConfig = await readLocalConfig(session);
+        const localInfo = await readLocalInfo(session);
+        localDetails = {
+          localStrategy: localConfig.strategy,
+          ...(localInfo ?? {}),
+        };
+      }
     }
     console.log(
-      JSON.stringify({ running, session, wsUrl, mode, browserbaseSessionId }),
+      JSON.stringify({
+        running,
+        session,
+        wsUrl,
+        mode,
+        browserbaseSessionId,
+        ...localDetails,
+      }),
     );
   });
 
 program
-  .command("env [target]")
-  .description("Show or switch browser environment (local | remote)")
-  .action(async (target?: string) => {
-    const opts = program.opts<GlobalOpts>();
-    const session = getSession(opts);
+  .command("env [target] [cdpTarget]")
+  .description(
+    "Show or switch browser environment (local | remote)\n\n" +
+      "  browse env              Show current environment\n" +
+      "  browse env local        Auto-discover local Chrome, fallback to isolated\n" +
+      "  browse env local --isolated  Force clean isolated browser\n" +
+      "  browse env local <port|url>  Attach to specific CDP target\n" +
+      "  browse env remote       Use Browserbase (requires API key)",
+  )
+  .option("--isolated", "Force isolated local browser (no auto-discovery)")
+  .action(
+    async (
+      target: string | undefined,
+      cdpTarget: string | undefined,
+      cmdOpts: { isolated?: boolean },
+    ) => {
+      const opts = program.opts<GlobalOpts>();
+      const session = getSession(opts);
 
-    if (!target) {
-      let mode: string | null = null;
-      const desiredMode = await getDesiredMode(session);
-      if (await isDaemonRunning(session)) {
-        mode = toModeTarget((await readCurrentMode(session)) ?? desiredMode);
-      }
-      console.log(
-        JSON.stringify({
-          mode: mode ?? "not running",
-          desired: toModeTarget(desiredMode),
-          session,
-        }),
-      );
-      return;
-    }
-
-    const modeMap: Record<string, BrowseMode> = {
-      local: "local",
-      remote: "browserbase",
-    };
-    const mapped = modeMap[target];
-    if (!mapped) {
-      console.error("Usage: browse env [local|remote]");
-      process.exit(1);
-    }
-
-    try {
-      assertModeSupported(mapped);
-    } catch (err) {
-      console.error(err instanceof Error ? err.message : String(err));
-      process.exit(1);
-    }
-
-    await fs.writeFile(getModeOverridePath(session), mapped);
-
-    if (await isDaemonRunning(session)) {
-      const currentMode = (await readCurrentMode(session)) ?? "local";
-      if (currentMode === mapped) {
+      if (!target) {
+        let mode: string | null = null;
+        const desiredMode = await getDesiredMode(session);
+        const localConfig = await readLocalConfig(session);
+        const localInfo = await readLocalInfo(session);
+        if (await isDaemonRunning(session)) {
+          mode = toModeTarget((await readCurrentMode(session)) ?? desiredMode);
+        }
         console.log(
           JSON.stringify({
-            mode: toModeTarget(mapped),
+            mode: mode ?? "not running",
+            desired: toModeTarget(desiredMode),
             session,
-            restarted: false,
+            ...(desiredMode === "local"
+              ? {
+                  localStrategy: localConfig.strategy,
+                  ...(localInfo ?? {}),
+                }
+              : {}),
           }),
         );
         return;
       }
-      await stopDaemonAndCleanup(session);
-    }
 
-    await ensureDaemon(session, isHeadless(opts));
+      const modeMap: Record<string, BrowseMode> = {
+        local: "local",
+        remote: "browserbase",
+      };
+      const mapped = modeMap[target];
+      if (!mapped) {
+        console.error(
+          "Usage: browse env [local|remote]\n" +
+            "  browse env local [--isolated] [<port|url>]",
+        );
+        process.exit(1);
+      }
 
-    console.log(
-      JSON.stringify({
-        mode: toModeTarget(mapped),
-        session,
-        restarted: true,
-      }),
-    );
-  });
+      try {
+        assertModeSupported(mapped);
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : String(err));
+        process.exit(1);
+      }
+
+      // Determine local strategy when target is "local"
+      let localConfig: LocalConfig = { strategy: "auto" };
+      if (mapped === "local") {
+        if (cmdOpts.isolated) {
+          localConfig = { strategy: "isolated" };
+        } else if (cdpTarget) {
+          localConfig = { strategy: "cdp", cdpTarget };
+        }
+        // else: auto (default)
+        await writeLocalConfig(session, localConfig);
+      }
+
+      await fs.writeFile(getModeOverridePath(session), mapped);
+
+      // Always restart daemon when switching env to pick up new local config
+      if (await isDaemonRunning(session)) {
+        const currentMode = (await readCurrentMode(session)) ?? "local";
+        const needsRestart = currentMode !== mapped || mapped === "local"; // local always restarts to pick up strategy change
+        if (!needsRestart) {
+          // needsRestart is false only when currentMode === mapped && mapped !== "local"
+          // (local always restarts to pick up strategy changes)
+          console.log(
+            JSON.stringify({
+              mode: toModeTarget(mapped),
+              session,
+              restarted: false,
+            }),
+          );
+          return;
+        }
+        await stopDaemonAndCleanup(session);
+      }
+
+      await ensureDaemon(session, isHeadless(opts));
+
+      console.log(
+        JSON.stringify({
+          mode: toModeTarget(mapped),
+          session,
+          restarted: true,
+          ...(mapped === "local"
+            ? { localStrategy: localConfig.strategy }
+            : {}),
+        }),
+      );
+    },
+  );
 
 program
   .command("refs")
