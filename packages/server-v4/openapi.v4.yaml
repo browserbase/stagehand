@@ -2488,9 +2488,15 @@ components:
         clickCount:
           type: integer
           minimum: 1
-          maximum: 9007199254740991
+          maximum: 3
         returnSelector:
           type: boolean
+        method:
+          default: xy
+          type: string
+          enum:
+            - jsevent
+            - xy
       required:
         - selector
       additionalProperties: false
@@ -5607,6 +5613,31 @@ components:
             - y
           additionalProperties: false
       additionalProperties: false
+    PageClickParamsOutput:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/Selector"
+        button:
+          $ref: "#/components/schemas/MouseButton"
+        clickCount:
+          type: integer
+          minimum: 1
+          maximum: 3
+        returnSelector:
+          type: boolean
+        method:
+          default: xy
+          type: string
+          enum:
+            - jsevent
+            - xy
+      required:
+        - selector
+        - method
+      additionalProperties: false
     PageClickActionOutput:
       type: object
       properties:
@@ -5632,7 +5663,7 @@ components:
             - $ref: "#/components/schemas/PageError"
             - type: "null"
         params:
-          $ref: "#/components/schemas/PageClickParams"
+          $ref: "#/components/schemas/PageClickParamsOutput"
         result:
           anyOf:
             - $ref: "#/components/schemas/PageClickResultOutput"
