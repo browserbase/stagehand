@@ -9,19 +9,23 @@ import dragAndDropRoute from "./dragAndDrop.js";
 import elementInfoRoute from "./elementInfo.js";
 import enableCursorOverlayRoute from "./enableCursorOverlay.js";
 import evaluateRoute from "./evaluate.js";
+import fillRoute from "./fill.js";
 import framesRoute from "./frames.js";
 import getFullFrameTreeRoute from "./getFullFrameTree.js";
 import goBackRoute from "./goBack.js";
 import goForwardRoute from "./goForward.js";
 import gotoRoute from "./goto.js";
+import highlightRoute from "./highlight.js";
 import hoverRoute from "./hover.js";
 import keyPressRoute from "./keyPress.js";
 import listAllFrameIdsRoute from "./listAllFrameIds.js";
 import mainFrameIdRoute from "./mainFrameId.js";
 import screenshotRoute from "./screenshot.js";
 import scrollRoute from "./scroll.js";
+import selectOptionRoute from "./selectOption.js";
 import sendCDPRoute from "./sendCDP.js";
 import setExtraHTTPHeadersRoute from "./setExtraHTTPHeaders.js";
+import setInputFilesRoute from "./setInputFiles.js";
 import setViewportSizeRoute from "./setViewportSize.js";
 import snapshotRoute from "./snapshot.js";
 import targetIdRoute from "./targetId.js";
@@ -48,6 +52,10 @@ const rawPageRoutes: RouteOptions[] = [
   goForwardRoute,
   closeRoute,
   elementInfoRoute,
+  fillRoute,
+  highlightRoute,
+  selectOptionRoute,
+  setInputFilesRoute,
   enableCursorOverlayRoute,
   addInitScriptRoute,
   targetIdRoute,

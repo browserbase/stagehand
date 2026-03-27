@@ -2497,6 +2497,10 @@ components:
         - sendCDP
         - close
         - elementInfo
+        - fill
+        - highlight
+        - selectOption
+        - setInputFiles
     PageActionStatus:
       type: string
       enum:
@@ -2648,6 +2652,7 @@ components:
           minimum: 1
           maximum: 3
         returnSelector:
+          default: false
           type: boolean
         method:
           default: xy
@@ -2666,6 +2671,7 @@ components:
         selector:
           $ref: "#/components/schemas/Selector"
         returnSelector:
+          default: false
           type: boolean
       required:
         - selector
@@ -2750,6 +2756,7 @@ components:
           minimum: 0
           maximum: 9007199254740991
         returnSelector:
+          default: false
           type: boolean
       required:
         - from
@@ -3038,6 +3045,89 @@ components:
       properties:
         pageId:
           $ref: "#/components/schemas/PageId"
+      additionalProperties: false
+    PageFillParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/Selector"
+        value:
+          type: string
+        returnSelector:
+          default: false
+          type: boolean
+      required:
+        - selector
+        - value
+      additionalProperties: false
+    PageHighlightParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/Selector"
+        color:
+          type: string
+        durationMs:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        returnSelector:
+          default: false
+          type: boolean
+      required:
+        - selector
+      additionalProperties: false
+    PageSelectOptionParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/Selector"
+        values:
+          type: array
+          items:
+            type: string
+        returnSelector:
+          default: false
+          type: boolean
+      required:
+        - selector
+        - values
+      additionalProperties: false
+    PageSetInputFilesParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/Selector"
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              mimeType:
+                type: string
+              base64:
+                type: string
+            required:
+              - name
+              - mimeType
+              - base64
+            additionalProperties: false
+        returnSelector:
+          default: false
+          type: boolean
+      required:
+        - selector
+        - files
       additionalProperties: false
     PageElementInfoParams:
       type: object
@@ -3335,6 +3425,58 @@ components:
           $ref: "#/components/schemas/SessionId"
         params:
           $ref: "#/components/schemas/PageCloseParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageFillRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageFillParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageHighlightRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageHighlightParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageSelectOptionRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageSelectOptionParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageSetInputFilesRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageSetInputFilesParams"
       required:
         - sessionId
         - params
@@ -4541,6 +4683,170 @@ components:
         - params
         - result
       additionalProperties: false
+    PageFillAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: fill
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageFillParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageFillResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageHighlightAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: highlight
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageHighlightParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageHighlightResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageSelectOptionAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: selectOption
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageSelectOptionParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageSelectOptionResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageSetInputFilesAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: setInputFiles
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageSetInputFilesParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageSetInputFilesResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
     PageElementInfoAction:
       type: object
       properties:
@@ -4614,6 +4920,58 @@ components:
         - $ref: "#/components/schemas/PageSendCDPAction"
         - $ref: "#/components/schemas/PageCloseAction"
         - $ref: "#/components/schemas/PageElementInfoAction"
+        - $ref: "#/components/schemas/PageFillAction"
+        - $ref: "#/components/schemas/PageHighlightAction"
+        - $ref: "#/components/schemas/PageSelectOptionAction"
+        - $ref: "#/components/schemas/PageSetInputFilesAction"
+    PageFillResult:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelector"
+        value:
+          type: string
+      required:
+        - selector
+        - value
+      additionalProperties: false
+    PageHighlightResult:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelector"
+        highlighted:
+          type: boolean
+      required:
+        - selector
+        - highlighted
+      additionalProperties: false
+    PageSelectOptionResult:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelector"
+        selected:
+          type: array
+          items:
+            type: string
+      required:
+        - selector
+        - selected
+      additionalProperties: false
+    PageSetInputFilesResult:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelector"
+        files:
+          type: array
+          items:
+            type: string
+      required:
+        - selector
+        - files
+      additionalProperties: false
     ElementInfoField:
       type: string
       enum:
@@ -5573,6 +5931,66 @@ components:
         - error
         - action
       additionalProperties: false
+    PageFillResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/PageFillActionOutput"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    PageHighlightResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/PageHighlightActionOutput"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    PageSelectOptionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/PageSelectOptionActionOutput"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
+    PageSetInputFilesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/PageSetInputFilesActionOutput"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
     PageElementInfoResponse:
       type: object
       properties:
@@ -6090,6 +6508,7 @@ components:
           minimum: 1
           maximum: 3
         returnSelector:
+          default: false
           type: boolean
         method:
           default: xy
@@ -6329,6 +6748,170 @@ components:
         - params
         - result
       additionalProperties: false
+    PageFillActionOutput:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: fill
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageFillParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageFillResultOutput"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageHighlightActionOutput:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: highlight
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageHighlightParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageHighlightResultOutput"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageSelectOptionActionOutput:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: selectOption
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageSelectOptionParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageSelectOptionResultOutput"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
+    PageSetInputFilesActionOutput:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: setInputFiles
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageSetInputFilesParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageSetInputFilesResultOutput"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
     PageElementInfoActionOutput:
       type: object
       properties:
@@ -6402,6 +6985,58 @@ components:
         - $ref: "#/components/schemas/PageSendCDPAction"
         - $ref: "#/components/schemas/PageCloseAction"
         - $ref: "#/components/schemas/PageElementInfoActionOutput"
+        - $ref: "#/components/schemas/PageFillActionOutput"
+        - $ref: "#/components/schemas/PageHighlightActionOutput"
+        - $ref: "#/components/schemas/PageSelectOptionActionOutput"
+        - $ref: "#/components/schemas/PageSetInputFilesActionOutput"
+    PageFillResultOutput:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelectorOutput"
+        value:
+          type: string
+      required:
+        - selector
+        - value
+      additionalProperties: false
+    PageHighlightResultOutput:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelectorOutput"
+        highlighted:
+          type: boolean
+      required:
+        - selector
+        - highlighted
+      additionalProperties: false
+    PageSelectOptionResultOutput:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelectorOutput"
+        selected:
+          type: array
+          items:
+            type: string
+      required:
+        - selector
+        - selected
+      additionalProperties: false
+    PageSetInputFilesResultOutput:
+      type: object
+      properties:
+        selector:
+          $ref: "#/components/schemas/ResultSelectorOutput"
+        files:
+          type: array
+          items:
+            type: string
+      required:
+        - selector
+        - files
+      additionalProperties: false
     PageElementInfoResultOutput:
       type: object
       properties:
@@ -9139,6 +9774,270 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PageElementInfoResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/fill:
+    post:
+      operationId: PageFill
+      summary: page.fill
+      tags:
+        - page
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageFillRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageFillResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/highlight:
+    post:
+      operationId: PageHighlight
+      summary: page.highlight
+      tags:
+        - page
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageHighlightRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageHighlightResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/selectOption:
+    post:
+      operationId: PageSelectOption
+      summary: page.selectOption
+      tags:
+        - page
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageSelectOptionRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageSelectOptionResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/setInputFiles:
+    post:
+      operationId: PageSetInputFiles
+      summary: page.setInputFiles
+      tags:
+        - page
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageSetInputFilesRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageSetInputFilesResponse"
         "400":
           description: Default Response
           content:
