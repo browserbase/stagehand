@@ -2286,42 +2286,42 @@ components:
         - $ref: "#/components/schemas/BrowserSessionSetViewportSizeAction"
         - $ref: "#/components/schemas/BrowserSessionCloseAction"
     LLMId:
-      example: llm_01JXAMPLE
+      example: 550e8400-e29b-41d4-a716-446655440000
       type: string
-      minLength: 1
-    LLMSource:
-      type: string
-      enum:
-        - user
-        - system-default
-    LLMProviderOptions:
-      type: object
-      properties:
-        temperature:
-          type: number
-        organization:
-          type: string
-        project:
-          type: string
-        location:
-          type: string
-      additionalProperties: false
+      format: uuid
+      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
     LLMCreateRequest:
       type: object
       properties:
         displayName:
-          type: string
+          anyOf:
+            - type: string
+            - type: "null"
         modelName:
-          description: Provider-prefixed model identifier
-          example: openai/gpt-4.1-nano
           type: string
         baseUrl:
-          type: string
-          format: uri
+          anyOf:
+            - type: string
+              format: uri
+            - type: "null"
         systemPrompt:
-          type: string
+          anyOf:
+            - type: string
+            - type: "null"
         providerOptions:
-          $ref: "#/components/schemas/LLMProviderOptions"
+          anyOf:
+            - type: object
+              properties:
+                temperature:
+                  type: number
+                organization:
+                  type: string
+                project:
+                  type: string
+                location:
+                  type: string
+              additionalProperties: false
+            - type: "null"
       required:
         - modelName
       additionalProperties: false
@@ -2329,47 +2329,88 @@ components:
       type: object
       properties:
         displayName:
-          type: string
+          anyOf:
+            - type: string
+            - type: "null"
         modelName:
-          description: Provider-prefixed model identifier
-          example: openai/gpt-4.1-nano
           type: string
         baseUrl:
-          type: string
-          format: uri
+          anyOf:
+            - type: string
+              format: uri
+            - type: "null"
         systemPrompt:
-          type: string
+          anyOf:
+            - type: string
+            - type: "null"
         providerOptions:
-          $ref: "#/components/schemas/LLMProviderOptions"
+          anyOf:
+            - type: object
+              properties:
+                temperature:
+                  type: number
+                organization:
+                  type: string
+                project:
+                  type: string
+                location:
+                  type: string
+              additionalProperties: false
+            - type: "null"
       additionalProperties: false
     LLM:
       type: object
       properties:
-        displayName:
+        id:
           type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        source:
+          type: string
+          enum:
+            - user
+            - system-default
+        displayName:
+          anyOf:
+            - type: string
+            - type: "null"
         modelName:
-          description: Provider-prefixed model identifier
-          example: openai/gpt-4.1-nano
           type: string
         baseUrl:
-          type: string
-          format: uri
+          anyOf:
+            - type: string
+              format: uri
+            - type: "null"
         systemPrompt:
-          type: string
+          anyOf:
+            - type: string
+            - type: "null"
         providerOptions:
-          $ref: "#/components/schemas/LLMProviderOptions"
-        id:
-          $ref: "#/components/schemas/LLMId"
-        source:
-          $ref: "#/components/schemas/LLMSource"
+          anyOf:
+            - type: object
+              properties:
+                temperature:
+                  type: number
+                organization:
+                  type: string
+                project:
+                  type: string
+                location:
+                  type: string
+              additionalProperties: false
+            - type: "null"
         createdAt:
-          $ref: "#/components/schemas/Timestamp"
+          type: string
         updatedAt:
-          $ref: "#/components/schemas/Timestamp"
+          type: string
       required:
-        - modelName
         - id
         - source
+        - displayName
+        - modelName
+        - baseUrl
+        - systemPrompt
+        - providerOptions
         - createdAt
         - updatedAt
       additionalProperties: false
@@ -6163,6 +6204,23 @@ components:
       additionalProperties: false
     LLMHeaders:
       $ref: "#/components/schemas/SessionHeadersOutput"
+    LLMSource:
+      type: string
+      enum:
+        - user
+        - system-default
+    LLMProviderOptions:
+      type: object
+      properties:
+        temperature:
+          type: number
+        organization:
+          type: string
+        project:
+          type: string
+        location:
+          type: string
+      additionalProperties: false
     LLMIdParams:
       type: object
       properties:

@@ -16,7 +16,34 @@ const createBrowserSessionHandler: RouteHandlerMethod = async (
   reply,
 ) => {
   const body = request.body as BrowserSessionCreateRequest;
-  const browserSession = createBrowserSession(body);
+  const llm =
+    body.llmId !== undefined
+      ? await request.server.llmService.getLlm(body.llmId)
+      : await request.server.llmService.createSystemDefaultLlm();
+  const [actLlmId, observeLlmId, extractLlmId] = await Promise.all([
+    body.actLlmId
+      ? request.server.llmService
+          .getLlm(body.actLlmId)
+          .then((value) => value.id)
+      : Promise.resolve(null),
+    body.observeLlmId
+      ? request.server.llmService
+          .getLlm(body.observeLlmId)
+          .then((value) => value.id)
+      : Promise.resolve(null),
+    body.extractLlmId
+      ? request.server.llmService
+          .getLlm(body.extractLlmId)
+          .then((value) => value.id)
+      : Promise.resolve(null),
+  ]);
+  const browserSession = createBrowserSession(
+    body,
+    llm.id,
+    actLlmId,
+    observeLlmId,
+    extractLlmId,
+  );
 
   return reply.status(StatusCodes.OK).send(
     BrowserSessionResponseSchema.parse({
