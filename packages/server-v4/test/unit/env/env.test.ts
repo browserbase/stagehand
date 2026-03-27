@@ -6,24 +6,13 @@ import { ZodError } from "zod";
 import { parseEnvironment } from "../../../src/env.js";
 
 describe("environment parsing", () => {
-  it("requires DATABASE_URL in postgres mode", () => {
+  it("requires a real DATABASE_URL in postgres mode", () => {
     assert.throws(
       () =>
         parseEnvironment({
           STAGEHAND_DB_MODE: "postgres",
         }),
-      ZodError,
-    );
-  });
-
-  it("rejects PGLITE_DATA_DIR in postgres mode", () => {
-    assert.throws(
-      () =>
-        parseEnvironment({
-          STAGEHAND_DB_MODE: "postgres",
-          DATABASE_URL: "postgres://user:pass@localhost:5432/stagehand",
-        }),
-      ZodError,
+      /DATABASE_URL must be set when STAGEHAND_DB_MODE=postgres/,
     );
   });
 
@@ -56,6 +45,32 @@ describe("environment parsing", () => {
     assert.equal(
       env.BROWSERBASE_CONFIG_DIR,
       path.resolve("/tmp/browserbase-config"),
+    );
+  });
+
+  it("defaults DATABASE_URL to the placeholder in pglite mode", () => {
+    const env = parseEnvironment({
+      STAGEHAND_DB_MODE: "pglite",
+    });
+
+    assert.equal(env.DATABASE_URL, "postgresql://example.com/stagehand_v4");
+  });
+
+  it("defaults PORT and NODE_ENV", () => {
+    const env = parseEnvironment({});
+
+    assert.equal(env.PORT, 3000);
+    assert.equal(env.NODE_ENV, "development");
+  });
+
+  it("throws a ZodError for an invalid DATABASE_URL", () => {
+    assert.throws(
+      () =>
+        parseEnvironment({
+          STAGEHAND_DB_MODE: "postgres",
+          DATABASE_URL: "not-a-url",
+        }),
+      ZodError,
     );
   });
 });
