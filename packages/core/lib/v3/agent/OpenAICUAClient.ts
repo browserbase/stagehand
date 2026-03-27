@@ -455,8 +455,9 @@ export class OpenAICUAClient extends AgentClient {
       type: "input_text",
       text: instruction,
     };
-    const userContent: Array<ResponseInputText | ResponseInputImage> =
-      [textInput];
+    const userContent: Array<ResponseInputText | ResponseInputImage> = [
+      textInput,
+    ];
 
     const initialScreenshot = await this.captureInitialScreenshot();
     if (initialScreenshot) {
