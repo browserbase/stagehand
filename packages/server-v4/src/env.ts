@@ -6,9 +6,6 @@ import { constants } from "./constants.js";
 
 export type DatabaseMode = "postgres" | "pglite";
 
-// TODO(sam): Replace this placeholder once the real v4 database URL has been provisioned.
-const DEFAULT_DATABASE_URL = "postgresql://example.com/stagehand_v4";
-
 const defaultConfigDir = path.resolve(
   os.homedir(),
   constants.paths.defaultConfigDirName,
@@ -29,7 +26,7 @@ export const parseEnvironment = (runtimeEnv: NodeJS.ProcessEnv) => {
         .default("development"),
       PORT: z.coerce.number().int().positive().default(3000),
       STAGEHAND_DB_MODE: z.enum(["postgres", "pglite"]).default("pglite"),
-      DATABASE_URL: z.url().default(DEFAULT_DATABASE_URL),
+      DATABASE_URL: z.url().default(constants.urls.defaultDatabaseUrl),
     },
     runtimeEnvStrict: {
       BROWSERBASE_CONFIG_DIR: runtimeEnv.BROWSERBASE_CONFIG_DIR,
@@ -43,7 +40,7 @@ export const parseEnvironment = (runtimeEnv: NodeJS.ProcessEnv) => {
 
   if (
     parsedEnv.STAGEHAND_DB_MODE === "postgres" &&
-    parsedEnv.DATABASE_URL === DEFAULT_DATABASE_URL
+    parsedEnv.DATABASE_URL === constants.urls.defaultDatabaseUrl
   ) {
     throw new Error("DATABASE_URL must be set when STAGEHAND_DB_MODE=postgres");
   }
