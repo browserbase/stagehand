@@ -199,11 +199,12 @@ Auto-discovery checks:
 1. `DevToolsActivePort` files in well-known Chrome/Chromium/Brave user-data directories
 2. Common debugging ports (9222, 9229)
 
-To make your Chrome discoverable, launch it with `--remote-debugging-port`:
+To make your Chrome discoverable:
 
-```bash
-google-chrome --remote-debugging-port=9222
-```
+1. Open `chrome://inspect/#remote-debugging`
+2. Check the box **"Allow remote debugging for this browser instance"**
+
+For more information, see the [Chrome DevTools docs](https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session).
 
 Use `browse status` to see which strategy was resolved:
 
