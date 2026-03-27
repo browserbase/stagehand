@@ -734,19 +734,10 @@ export class OpenAICUAClient extends AgentClient {
               level: 0,
             });
 
-            // Even without a screenshot, OpenAI requires input_image format
-            // for computer_call_output. Use a 1x1 transparent PNG as placeholder.
-            const PLACEHOLDER_PNG =
-              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAA0lEQVQI12P4//8/AwAI/AL+hc2rNAAAAABJRU5ErkJggg==";
-            nextInputItems.push({
-              type: "computer_call_output",
-              call_id: item.call_id,
-              output: {
-                type: "input_image" as const,
-                image_url: PLACEHOLDER_PNG,
-                error: errorMessage,
-              },
-            } as ResponseInputItem);
+            // If we can't capture a screenshot, the browser is likely in an
+            // unrecoverable state (crashed, CDP disconnected, etc.). Re-throw
+            // so the caller can handle it rather than sending a fake image.
+            throw screenshotError;
           }
         }
       } else if (
