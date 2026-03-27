@@ -11,10 +11,12 @@ import {
 import { StatusCodes } from "http-status-codes";
 
 import { browserSessionOpenApiComponents } from "./schemas/v4/browserSession.js";
+import { llmOpenApiComponents } from "./schemas/v4/llm.js";
 import { pageOpenApiComponents } from "./schemas/v4/page.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute, { setReady, setUnready } from "./routes/readiness.js";
 import { browserSessionRoutesPlugin } from "./routes/v4/browsersession/routes.js";
+import { llmRoutesPlugin } from "./routes/v4/llms/routes.js";
 import { pageRoutesPlugin } from "./routes/v4/page/routes.js";
 
 const app = fastify({
@@ -47,6 +49,7 @@ const start = async () => {
       components: {
         schemas: {
           ...browserSessionOpenApiComponents.schemas,
+          ...llmOpenApiComponents.schemas,
           ...pageOpenApiComponents.schemas,
         },
       },
@@ -63,6 +66,10 @@ const start = async () => {
           {
             name: "browserSession",
             description: "Browser session lifecycle and browser-scoped actions",
+          },
+          {
+            name: "llm",
+            description: "Reusable llm configuration resources",
           },
           {
             name: "page",
@@ -103,6 +110,7 @@ const start = async () => {
     const appWithTypes = app.withTypeProvider<FastifyZodOpenApiTypeProvider>();
 
     await appWithTypes.register(browserSessionRoutesPlugin, { prefix: "/v4" });
+    await appWithTypes.register(llmRoutesPlugin, { prefix: "/v4" });
     await appWithTypes.register(pageRoutesPlugin, { prefix: "/v4" });
 
     // Register health and readiness routes at the root level

@@ -229,6 +229,25 @@ const startRouteHandler: RouteHandler = withErrorHandling(
           },
           "Failed to initialize local browser session in /v1/sessions/start",
         );
+        try {
+          await sessionStore.endSession(session.sessionId);
+        } catch (cleanupErr) {
+          request.log.warn(
+            {
+              err:
+                cleanupErr instanceof Error
+                  ? {
+                      name: cleanupErr.name,
+                      message: cleanupErr.message,
+                      stack: cleanupErr.stack,
+                      cause: cleanupErr.cause,
+                    }
+                  : cleanupErr,
+              sessionId: session.sessionId,
+            },
+            "Failed to clean up session after local browser init error",
+          );
+        }
         throw err;
       }
     }

@@ -17,17 +17,19 @@ import {
 
 export function buildBrowserSession(input: {
   id: string;
+  llmId: string;
+  actLlmId?: string | null;
+  observeLlmId?: string | null;
+  extractLlmId?: string | null;
   env: BrowserSession["env"];
   status: "running" | "ended";
   available: boolean;
-  modelName: string;
   cdpUrl?: string | null;
   browserbaseSessionId?: string;
   browserbaseSessionCreateParams?: BrowserSession["browserbaseSessionCreateParams"];
   localBrowserLaunchOptions?: BrowserSession["localBrowserLaunchOptions"];
   domSettleTimeoutMs?: number;
   verbose?: BrowserSession["verbose"];
-  systemPrompt?: string;
   selfHeal?: boolean;
   waitForCaptchaSolves?: boolean;
   experimental?: boolean;
@@ -35,9 +37,12 @@ export function buildBrowserSession(input: {
 }): BrowserSession {
   return BrowserSessionSchema.parse({
     id: input.id,
+    llmId: input.llmId,
+    actLlmId: input.actLlmId ?? null,
+    observeLlmId: input.observeLlmId ?? null,
+    extractLlmId: input.extractLlmId ?? null,
     env: input.env,
     status: input.status,
-    modelName: input.modelName,
     cdpUrl: input.cdpUrl ?? "ws://stub.invalid/devtools/browser/stub",
     available: input.available,
     browserbaseSessionId: input.browserbaseSessionId,
@@ -45,7 +50,6 @@ export function buildBrowserSession(input: {
     localBrowserLaunchOptions: input.localBrowserLaunchOptions,
     domSettleTimeoutMs: input.domSettleTimeoutMs,
     verbose: input.verbose,
-    systemPrompt: input.systemPrompt,
     selfHeal: input.selfHeal,
     waitForCaptchaSolves: input.waitForCaptchaSolves,
     experimental: input.experimental,
