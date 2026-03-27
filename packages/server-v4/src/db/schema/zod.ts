@@ -25,7 +25,11 @@ export const DatabaseJsonValueSchema: z.ZodType<DatabaseJsonValue> = z.lazy(
     ]),
 );
 
-export const DatabaseTimestampSchema = z.string().datetime();
+export const DatabaseTimestampSchema = z
+  .string()
+  .refine((value) => !Number.isNaN(Date.parse(value)), {
+    message: "Invalid timestamp",
+  });
 
 export const LLMProviderOptionsSchema = z
   .object({
@@ -235,6 +239,8 @@ export const stagehandStepUpdateSchema = createUpdateSchema(
 ).strict();
 
 export type LLMConfigSelect = z.infer<typeof llmConfigSelectSchema>;
+export type LLMConfigInsert = z.infer<typeof llmConfigInsertSchema>;
+export type LLMConfigUpdate = z.infer<typeof llmConfigUpdateSchema>;
 export type LLMSessionSelect = z.infer<typeof llmSessionSelectSchema>;
 export type LLMCallSelect = z.infer<typeof llmCallSelectSchema>;
 export type StagehandBrowserSessionSelect = z.infer<

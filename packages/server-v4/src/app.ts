@@ -13,6 +13,7 @@ import { StatusCodes } from "http-status-codes";
 import { constants } from "./constants.js";
 import { databasePlugin } from "./db/plugin.js";
 import { env } from "./env.js";
+import { llmModulePlugin } from "./plugins/llmModule.js";
 import healthcheckRoute from "./routes/healthcheck.js";
 import readinessRoute from "./routes/readiness.js";
 import { browserSessionRoutesPlugin } from "./routes/v4/browsersession/routes.js";
@@ -65,6 +66,8 @@ export const buildApp = async () => {
           },
     migrateOnStartup: env.STAGEHAND_DB_MODE === "pglite",
   });
+
+  await app.register(llmModulePlugin);
 
   await app.register(fastifyZodOpenApiPlugin, {
     components: {

@@ -11,7 +11,19 @@ import {
   type BrowserSessionIdParams,
   type BrowserSessionUpdateRequest,
 } from "../../../../schemas/v4/browserSession.js";
-import { updateBrowserSession } from "../../stubState.js";
+import { getBrowserSession, updateBrowserSession } from "../../stubState.js";
+
+async function resolveOptionalLLMId(
+  request: Parameters<RouteHandlerMethod>[0],
+  id: string | null | undefined,
+): Promise<string | null> {
+  if (id === undefined || id === null) {
+    return id ?? null;
+  }
+
+  const llm = await request.server.llmService.getLlm(id);
+  return llm.id;
+}
 
 const updateBrowserSessionHandler: RouteHandlerMethod = async (
   request,
@@ -19,7 +31,17 @@ const updateBrowserSessionHandler: RouteHandlerMethod = async (
 ) => {
   const { id } = request.params as BrowserSessionIdParams;
   const body = request.body as BrowserSessionUpdateRequest;
-  const browserSession = updateBrowserSession(id, body);
+  const existingBrowserSession = getBrowserSession(id);
+  const llmId =
+    body.llmId !== undefined
+      ? (await request.server.llmService.getLlm(body.llmId)).id
+      : existingBrowserSession.llmId;
+  const browserSession = updateBrowserSession(id, body, {
+    llmId,
+    actLlmId: await resolveOptionalLLMId(request, body.actLlmId),
+    observeLlmId: await resolveOptionalLLMId(request, body.observeLlmId),
+    extractLlmId: await resolveOptionalLLMId(request, body.extractLlmId),
+  });
 
   return reply.status(StatusCodes.OK).send(
     BrowserSessionResponseSchema.parse({

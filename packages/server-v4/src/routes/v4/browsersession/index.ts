@@ -11,12 +11,33 @@ import {
 } from "../../../schemas/v4/browserSession.js";
 import { createBrowserSession } from "../stubState.js";
 
+async function resolveOptionalLLMId(
+  request: Parameters<RouteHandlerMethod>[0],
+  id: string | undefined,
+): Promise<string | null> {
+  if (!id) {
+    return null;
+  }
+
+  const llm = await request.server.llmService.getLlm(id);
+  return llm.id;
+}
+
 const createBrowserSessionHandler: RouteHandlerMethod = async (
   request,
   reply,
 ) => {
   const body = request.body as BrowserSessionCreateRequest;
-  const browserSession = createBrowserSession(body);
+  const llm =
+    body.llmId !== undefined
+      ? await request.server.llmService.getLlm(body.llmId)
+      : await request.server.llmService.createSystemDefaultLlm();
+  const browserSession = createBrowserSession(body, {
+    llmId: llm.id,
+    actLlmId: await resolveOptionalLLMId(request, body.actLlmId),
+    observeLlmId: await resolveOptionalLLMId(request, body.observeLlmId),
+    extractLlmId: await resolveOptionalLLMId(request, body.extractLlmId),
+  });
 
   return reply.status(StatusCodes.OK).send(
     BrowserSessionResponseSchema.parse({

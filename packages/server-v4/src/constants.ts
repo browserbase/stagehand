@@ -3,6 +3,19 @@
  * @constant
  */
 export const constants = {
+  llm: {
+    /**
+     * The display name used when the server materializes a system default LLM.
+     * @constant
+     */
+    defaultDisplayName: "Default LLM",
+
+    /**
+     * The default model name used for system-generated LLM configs.
+     * @constant
+     */
+    defaultModelName: "openai/gpt-4.1-nano",
+  },
   paths: {
     /**
      * The default local config directory name under the user's home directory.
