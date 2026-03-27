@@ -2496,6 +2496,7 @@ components:
         - evaluate
         - sendCDP
         - close
+        - elementInfo
     PageActionStatus:
       type: string
       enum:
@@ -3038,6 +3039,20 @@ components:
         pageId:
           $ref: "#/components/schemas/PageId"
       additionalProperties: false
+    PageElementInfoParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        selector:
+          $ref: "#/components/schemas/Selector"
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/ElementInfoField"
+      required:
+        - selector
+      additionalProperties: false
     PageClickRequest:
       type: object
       properties:
@@ -3320,6 +3335,19 @@ components:
           $ref: "#/components/schemas/SessionId"
         params:
           $ref: "#/components/schemas/PageCloseParams"
+      required:
+        - sessionId
+        - params
+      additionalProperties: false
+    PageElementInfoRequest:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/RequestId"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        params:
+          $ref: "#/components/schemas/PageElementInfoParams"
       required:
         - sessionId
         - params
@@ -4513,6 +4541,47 @@ components:
         - params
         - result
       additionalProperties: false
+    PageElementInfoAction:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: elementInfo
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageElementInfoParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageElementInfoResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
     PageAction:
       anyOf:
         - $ref: "#/components/schemas/PageClickAction"
@@ -4544,6 +4613,163 @@ components:
         - $ref: "#/components/schemas/PageEvaluateAction"
         - $ref: "#/components/schemas/PageSendCDPAction"
         - $ref: "#/components/schemas/PageCloseAction"
+        - $ref: "#/components/schemas/PageElementInfoAction"
+    ElementInfoField:
+      type: string
+      enum:
+        - visibility
+        - domRects
+        - content
+        - inputInfo
+        - ariaInfo
+        - attributes
+        - styles
+    ElementInfoVisibility:
+      type: object
+      properties:
+        isInViewport:
+          type: boolean
+        isOccluded:
+          type: boolean
+      required:
+        - isInViewport
+        - isOccluded
+      additionalProperties: false
+    ElementInfoDomRect:
+      type: object
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+      required:
+        - x
+        - y
+        - width
+        - height
+      additionalProperties: false
+    ElementInfoDomRects:
+      type: object
+      properties:
+        rects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ElementInfoDomRect"
+      required:
+        - rects
+      additionalProperties: false
+    ElementInfoContent:
+      type: object
+      properties:
+        innerText:
+          type: string
+        textContent:
+          type: string
+        innerHTML:
+          type: string
+      required:
+        - innerText
+        - textContent
+        - innerHTML
+      additionalProperties: false
+    ElementInfoInputInfo:
+      type: object
+      properties:
+        value:
+          type: string
+        isChecked:
+          type: boolean
+      required:
+        - value
+        - isChecked
+      additionalProperties: false
+    ElementInfoAriaInfo:
+      type: object
+      properties:
+        role:
+          type: string
+        attributes:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+      required:
+        - role
+        - attributes
+      additionalProperties: false
+    ElementInfoAttributes:
+      type: object
+      properties:
+        values:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+      required:
+        - values
+      additionalProperties: false
+    ElementInfoStyles:
+      type: object
+      properties:
+        computed:
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+      required:
+        - computed
+      additionalProperties: false
+    PageElementInfoResult:
+      type: object
+      properties:
+        count:
+          default: 0
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        selector:
+          default: {}
+          $ref: "#/components/schemas/ResultSelector"
+        tagName:
+          type: string
+        backendNodeId:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        visibility:
+          default:
+            isInViewport: false
+            isOccluded: false
+          $ref: "#/components/schemas/ElementInfoVisibility"
+        domRects:
+          default:
+            rects: []
+          $ref: "#/components/schemas/ElementInfoDomRects"
+        content:
+          default:
+            innerText: ""
+            textContent: ""
+            innerHTML: ""
+          $ref: "#/components/schemas/ElementInfoContent"
+        inputInfo:
+          $ref: "#/components/schemas/ElementInfoInputInfo"
+        ariaInfo:
+          $ref: "#/components/schemas/ElementInfoAriaInfo"
+        attributes:
+          $ref: "#/components/schemas/ElementInfoAttributes"
+        styles:
+          $ref: "#/components/schemas/ElementInfoStyles"
+      required:
+        - tagName
+        - backendNodeId
+      additionalProperties: false
     BrowserSessionResponse:
       type: object
       properties:
@@ -5347,6 +5573,21 @@ components:
         - error
         - action
       additionalProperties: false
+    PageElementInfoResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        error:
+          type: "null"
+        action:
+          $ref: "#/components/schemas/PageElementInfoActionOutput"
+      required:
+        - success
+        - error
+        - action
+      additionalProperties: false
     PageActionDetailsResponse:
       type: object
       properties:
@@ -6088,6 +6329,47 @@ components:
         - params
         - result
       additionalProperties: false
+    PageElementInfoActionOutput:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: elementInfo
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageElementInfoParams"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageElementInfoResultOutput"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
     PageActionOutput:
       anyOf:
         - $ref: "#/components/schemas/PageClickActionOutput"
@@ -6119,6 +6401,56 @@ components:
         - $ref: "#/components/schemas/PageEvaluateAction"
         - $ref: "#/components/schemas/PageSendCDPAction"
         - $ref: "#/components/schemas/PageCloseAction"
+        - $ref: "#/components/schemas/PageElementInfoActionOutput"
+    PageElementInfoResultOutput:
+      type: object
+      properties:
+        count:
+          default: 0
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        selector:
+          default: {}
+          $ref: "#/components/schemas/ResultSelectorOutput"
+        tagName:
+          type: string
+        backendNodeId:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        visibility:
+          default:
+            isInViewport: false
+            isOccluded: false
+          $ref: "#/components/schemas/ElementInfoVisibility"
+        domRects:
+          default:
+            rects: []
+          $ref: "#/components/schemas/ElementInfoDomRects"
+        content:
+          default:
+            innerText: ""
+            textContent: ""
+            innerHTML: ""
+          $ref: "#/components/schemas/ElementInfoContent"
+        inputInfo:
+          $ref: "#/components/schemas/ElementInfoInputInfo"
+        ariaInfo:
+          $ref: "#/components/schemas/ElementInfoAriaInfo"
+        attributes:
+          $ref: "#/components/schemas/ElementInfoAttributes"
+        styles:
+          $ref: "#/components/schemas/ElementInfoStyles"
+      required:
+        - count
+        - selector
+        - tagName
+        - backendNodeId
+        - visibility
+        - domRects
+        - content
+      additionalProperties: false
     BrowserSessionHeaders:
       $ref: "#/components/schemas/SessionHeadersOutput"
     BrowserSessionIdParams:
@@ -8741,6 +9073,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PageCloseResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "408":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "422":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/V4ErrorResponse"
+  /v4/page/elementInfo:
+    post:
+      operationId: PageElementInfo
+      summary: page.elementInfo
+      tags:
+        - page
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PageElementInfoRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageElementInfoResponse"
         "400":
           description: Default Response
           content:

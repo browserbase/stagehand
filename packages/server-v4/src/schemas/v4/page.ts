@@ -98,6 +98,7 @@ export const PageActionMethodSchema = z
     "evaluate",
     "sendCDP",
     "close",
+    "elementInfo",
   ])
   .meta({ id: "PageActionMethod" });
 
@@ -505,6 +506,25 @@ export const PageCloseParamsSchema = PageWithPageIdSchema.meta({
   id: "PageCloseParams",
 });
 
+export const ElementInfoFieldSchema = z
+  .enum([
+    "visibility",
+    "domRects",
+    "content",
+    "inputInfo",
+    "ariaInfo",
+    "attributes",
+    "styles",
+  ])
+  .meta({ id: "ElementInfoField" });
+
+export const PageElementInfoParamsSchema = PageWithPageIdSchema.extend({
+  selector: SelectorSchema,
+  fields: z.array(ElementInfoFieldSchema).optional(),
+})
+  .strict()
+  .meta({ id: "PageElementInfoParams" });
+
 export const PageClickRequestSchema = createPageRequestSchema(
   "PageClickRequest",
   PageClickParamsSchema,
@@ -641,6 +661,11 @@ export const PageSendCDPRequestSchema = createPageRequestSchema(
 export const PageCloseRequestSchema = createPageRequestSchema(
   "PageCloseRequest",
   PageCloseParamsSchema,
+);
+
+export const PageElementInfoRequestSchema = createPageRequestSchema(
+  "PageElementInfoRequest",
+  PageElementInfoParamsSchema,
 );
 
 export const PageScrollResultSchema = z
@@ -868,6 +893,94 @@ export const PageCloseResultSchema = z
   .strict()
   .meta({ id: "PageCloseResult" });
 
+export const ElementInfoVisibilitySchema = z
+  .object({
+    isInViewport: z.boolean(),
+    isOccluded: z.boolean(),
+  })
+  .strict()
+  .meta({ id: "ElementInfoVisibility" });
+
+export const ElementInfoDomRectSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number(),
+  })
+  .strict()
+  .meta({ id: "ElementInfoDomRect" });
+
+export const ElementInfoDomRectsSchema = z
+  .object({
+    rects: z.array(ElementInfoDomRectSchema),
+  })
+  .strict()
+  .meta({ id: "ElementInfoDomRects" });
+
+export const ElementInfoContentSchema = z
+  .object({
+    innerText: z.string(),
+    textContent: z.string(),
+    innerHTML: z.string(),
+  })
+  .strict()
+  .meta({ id: "ElementInfoContent" });
+
+export const ElementInfoInputInfoSchema = z
+  .object({
+    value: z.string(),
+    isChecked: z.boolean(),
+  })
+  .strict()
+  .meta({ id: "ElementInfoInputInfo" });
+
+export const ElementInfoAriaInfoSchema = z
+  .object({
+    role: z.string(),
+    attributes: z.record(z.string(), z.string()),
+  })
+  .strict()
+  .meta({ id: "ElementInfoAriaInfo" });
+
+export const ElementInfoAttributesSchema = z
+  .object({
+    values: z.record(z.string(), z.string()),
+  })
+  .strict()
+  .meta({ id: "ElementInfoAttributes" });
+
+export const ElementInfoStylesSchema = z
+  .object({
+    computed: z.record(z.string(), z.string()),
+  })
+  .strict()
+  .meta({ id: "ElementInfoStyles" });
+
+export const PageElementInfoResultSchema = z
+  .object({
+    count: z.number().int().nonnegative().default(0),
+    selector: ResultSelectorSchema.default({}),
+    tagName: z.string(),
+    backendNodeId: z.number().int().nonnegative(),
+    visibility: ElementInfoVisibilitySchema.default({
+      isInViewport: false,
+      isOccluded: false,
+    }),
+    domRects: ElementInfoDomRectsSchema.default({ rects: [] }),
+    content: ElementInfoContentSchema.default({
+      innerText: "",
+      textContent: "",
+      innerHTML: "",
+    }),
+    inputInfo: ElementInfoInputInfoSchema.optional(),
+    ariaInfo: ElementInfoAriaInfoSchema.optional(),
+    attributes: ElementInfoAttributesSchema.optional(),
+    styles: ElementInfoStylesSchema.optional(),
+  })
+  .strict()
+  .meta({ id: "PageElementInfoResult" });
+
 export const PageClickActionSchema = createPageActionSchema(
   "PageClickAction",
   "click",
@@ -1071,6 +1184,13 @@ export const PageCloseActionSchema = createPageActionSchema(
   PageCloseResultSchema,
 );
 
+export const PageElementInfoActionSchema = createPageActionSchema(
+  "PageElementInfoAction",
+  "elementInfo",
+  PageElementInfoParamsSchema,
+  PageElementInfoResultSchema,
+);
+
 export const PageActionSchema = z
   .union([
     PageClickActionSchema,
@@ -1102,6 +1222,7 @@ export const PageActionSchema = z
     PageEvaluateActionSchema,
     PageSendCDPActionSchema,
     PageCloseActionSchema,
+    PageElementInfoActionSchema,
   ])
   .meta({ id: "PageAction" });
 
@@ -1261,6 +1382,11 @@ export const PageCloseResponseSchema = createPageResponseSchema(
   PageCloseActionSchema,
 );
 
+export const PageElementInfoResponseSchema = createPageResponseSchema(
+  "PageElementInfoResponse",
+  PageElementInfoActionSchema,
+);
+
 export const PageActionIdParamsSchema = z
   .object({
     actionId: ActionIdSchema,
@@ -1371,6 +1497,7 @@ export const pageOpenApiComponents = {
     PageEvaluateParams: PageEvaluateParamsSchema,
     PageSendCDPParams: PageSendCDPParamsSchema,
     PageCloseParams: PageCloseParamsSchema,
+    PageElementInfoParams: PageElementInfoParamsSchema,
     PageClickRequest: PageClickRequestSchema,
     PageHoverRequest: PageHoverRequestSchema,
     PageScrollRequest: PageScrollRequestSchema,
@@ -1400,6 +1527,7 @@ export const pageOpenApiComponents = {
     PageEvaluateRequest: PageEvaluateRequestSchema,
     PageSendCDPRequest: PageSendCDPRequestSchema,
     PageCloseRequest: PageCloseRequestSchema,
+    PageElementInfoRequest: PageElementInfoRequestSchema,
     PageClickAction: PageClickActionSchema,
     PageHoverAction: PageHoverActionSchema,
     PageScrollAction: PageScrollActionSchema,
@@ -1429,6 +1557,7 @@ export const pageOpenApiComponents = {
     PageEvaluateAction: PageEvaluateActionSchema,
     PageSendCDPAction: PageSendCDPActionSchema,
     PageCloseAction: PageCloseActionSchema,
+    PageElementInfoAction: PageElementInfoActionSchema,
     PageAction: PageActionSchema,
     PageClickResponse: PageClickResponseSchema,
     PageHoverResponse: PageHoverResponseSchema,
@@ -1459,6 +1588,17 @@ export const pageOpenApiComponents = {
     PageEvaluateResponse: PageEvaluateResponseSchema,
     PageSendCDPResponse: PageSendCDPResponseSchema,
     PageCloseResponse: PageCloseResponseSchema,
+    ElementInfoField: ElementInfoFieldSchema,
+    ElementInfoVisibility: ElementInfoVisibilitySchema,
+    ElementInfoDomRect: ElementInfoDomRectSchema,
+    ElementInfoDomRects: ElementInfoDomRectsSchema,
+    ElementInfoContent: ElementInfoContentSchema,
+    ElementInfoInputInfo: ElementInfoInputInfoSchema,
+    ElementInfoAriaInfo: ElementInfoAriaInfoSchema,
+    ElementInfoAttributes: ElementInfoAttributesSchema,
+    ElementInfoStyles: ElementInfoStylesSchema,
+    PageElementInfoResult: PageElementInfoResultSchema,
+    PageElementInfoResponse: PageElementInfoResponseSchema,
     PageActionIdParams: PageActionIdParamsSchema,
     PageActionDetailsQuery: PageActionDetailsQuerySchema,
     PageActionListQuery: PageActionListQuerySchema,

@@ -322,6 +322,13 @@ describe("v4 page routes", { concurrency: false }, () => {
     });
     assertSuccessAction(scrollCtx, "scroll");
 
+    const elementInfoCtx = await postPageRoute("elementInfo", sessionId, {
+      selector: {
+        xpath: "//main[@id='message']",
+      },
+    });
+    assertSuccessAction(elementInfoCtx, "elementInfo");
+
     const dragCtx = await postPageRoute("dragAndDrop", sessionId, {
       from: {
         xpath: "//div[@id='drag-source']",
