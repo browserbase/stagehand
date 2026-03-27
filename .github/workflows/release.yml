@@ -46,8 +46,33 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check for npm-published package changesets in this push
+        id: check_changesets
+        run: |
+          set -euo pipefail
+
+          # Only look at changeset files added/modified in this push.
+          # || true because grep -v exits 1 when there are no matches (i.e. no new changesets).
+          new_changesets=$(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }} -- '.changeset/*.md' | grep -v README.md || true)
+
+          if [ -z "$new_changesets" ]; then
+            echo "has_changesets=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if any new changesets reference our npm-published packages.
+          # Private packages (server-v3, server-v4) have their own release workflows.
+          has_publishable=false
+          for file in $new_changesets; do
+            if grep -qE '"@browserbasehq/stagehand"|"@browserbasehq/browse-cli"' "$file"; then
+              has_publishable=true
+              break
+            fi
+          done
+          echo "has_changesets=$has_publishable" >> $GITHUB_OUTPUT
+
       - name: Publish Canary
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.check_changesets.outputs.has_changesets == 'true'
         run: |
           git checkout main
           pnpm run release-canary
