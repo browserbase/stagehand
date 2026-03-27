@@ -2669,40 +2669,66 @@ components:
       required:
         - selector
       additionalProperties: false
-    PageScrollElementParams:
+    PageScrollByOffsetParams:
       type: object
       properties:
         pageId:
           $ref: "#/components/schemas/PageId"
-        selector:
-          $ref: "#/components/schemas/ElementSelector"
-        percentage:
-          type: number
-          minimum: 0
-          maximum: 100
+        cursorPosition:
+          $ref: "#/components/schemas/Selector"
+        offset:
+          type: object
+          properties:
+            x:
+              default: 0
+              type: number
+            y:
+              type: number
+          required:
+            - y
+          additionalProperties: false
       required:
-        - selector
-        - percentage
+        - offset
       additionalProperties: false
-    PageScrollCoordinateParams:
+    PageScrollByPagesParams:
       type: object
       properties:
         pageId:
           $ref: "#/components/schemas/PageId"
-        selector:
-          $ref: "#/components/schemas/CoordinateSelector"
-        deltaX:
+        cursorPosition:
+          $ref: "#/components/schemas/Selector"
+        pages:
+          default: 1
           type: number
-        deltaY:
-          type: number
+          minimum: -100
+          maximum: 100
+        delayBetweenMs:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      additionalProperties: false
+    PageScrollToTargetParams:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        target:
+          $ref: "#/components/schemas/Selector"
+        position:
+          default: center
+          type: string
+          enum:
+            - center
+            - top
+            - bottom
       required:
-        - selector
-        - deltaY
+        - target
       additionalProperties: false
     PageScrollParams:
       anyOf:
-        - $ref: "#/components/schemas/PageScrollElementParams"
-        - $ref: "#/components/schemas/PageScrollCoordinateParams"
+        - $ref: "#/components/schemas/PageScrollByOffsetParams"
+        - $ref: "#/components/schemas/PageScrollByPagesParams"
+        - $ref: "#/components/schemas/PageScrollToTargetParams"
     PageDragAndDropParams:
       type: object
       properties:
@@ -4925,7 +4951,7 @@ components:
         error:
           type: "null"
         action:
-          $ref: "#/components/schemas/PageScrollAction"
+          $ref: "#/components/schemas/PageScrollActionOutput"
       required:
         - success
         - error
@@ -5834,6 +5860,70 @@ components:
         - selector
         - method
       additionalProperties: false
+    PageScrollByOffsetParamsOutput:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        cursorPosition:
+          $ref: "#/components/schemas/Selector"
+        offset:
+          type: object
+          properties:
+            x:
+              default: 0
+              type: number
+            y:
+              type: number
+          required:
+            - x
+            - y
+          additionalProperties: false
+      required:
+        - offset
+      additionalProperties: false
+    PageScrollByPagesParamsOutput:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        cursorPosition:
+          $ref: "#/components/schemas/Selector"
+        pages:
+          default: 1
+          type: number
+          minimum: -100
+          maximum: 100
+        delayBetweenMs:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - pages
+      additionalProperties: false
+    PageScrollToTargetParamsOutput:
+      type: object
+      properties:
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        target:
+          $ref: "#/components/schemas/Selector"
+        position:
+          default: center
+          type: string
+          enum:
+            - center
+            - top
+            - bottom
+      required:
+        - target
+        - position
+      additionalProperties: false
+    PageScrollParamsOutput:
+      anyOf:
+        - $ref: "#/components/schemas/PageScrollByOffsetParamsOutput"
+        - $ref: "#/components/schemas/PageScrollByPagesParamsOutput"
+        - $ref: "#/components/schemas/PageScrollToTargetParamsOutput"
     PageClickActionOutput:
       type: object
       properties:
@@ -5916,6 +6006,47 @@ components:
         - params
         - result
       additionalProperties: false
+    PageScrollActionOutput:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/ActionId"
+        method:
+          type: string
+          const: scroll
+        status:
+          $ref: "#/components/schemas/PageActionStatus"
+        sessionId:
+          $ref: "#/components/schemas/SessionId"
+        pageId:
+          $ref: "#/components/schemas/PageId"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+        completedAt:
+          $ref: "#/components/schemas/Timestamp"
+        error:
+          anyOf:
+            - $ref: "#/components/schemas/PageError"
+            - type: "null"
+        params:
+          $ref: "#/components/schemas/PageScrollParamsOutput"
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/PageScrollResult"
+            - type: "null"
+      required:
+        - id
+        - method
+        - status
+        - sessionId
+        - createdAt
+        - updatedAt
+        - error
+        - params
+        - result
+      additionalProperties: false
     PageDragAndDropActionOutput:
       type: object
       properties:
@@ -5961,7 +6092,7 @@ components:
       anyOf:
         - $ref: "#/components/schemas/PageClickActionOutput"
         - $ref: "#/components/schemas/PageHoverActionOutput"
-        - $ref: "#/components/schemas/PageScrollAction"
+        - $ref: "#/components/schemas/PageScrollActionOutput"
         - $ref: "#/components/schemas/PageDragAndDropActionOutput"
         - $ref: "#/components/schemas/PageTypeAction"
         - $ref: "#/components/schemas/PageKeyPressAction"
