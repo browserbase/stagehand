@@ -18,6 +18,11 @@ export const HTTP_INTERNAL_SERVER_ERROR = 500;
 // =============================================================================
 
 export const SESSION_CLOSE_WAIT_MS = 2000;
+const SESSION_START_RETRY_DELAY_MS = 500;
+const SESSION_START_MAX_ATTEMPTS = (() => {
+  const parsed = Number(process.env.STAGEHAND_TEST_SESSION_START_MAX_ATTEMPTS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
+})();
 
 // =============================================================================
 // Environment Variables
@@ -84,6 +89,10 @@ const LOCAL_CONNECT_TIMEOUT_MS = (() => {
 export interface SessionInfo {
   sessionId: string;
   cdpUrl: string;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function createLocalBrowserBody() {
@@ -195,48 +204,60 @@ export async function createSessionWithCdp(
     ...createLocalBrowserBody(),
   };
 
-  const response = await fetch(`${url}/v1/sessions/start`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(startPayload),
-  });
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= SESSION_START_MAX_ATTEMPTS; attempt += 1) {
+    const response = await fetch(`${url}/v1/sessions/start`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(startPayload),
+    });
 
-  const responseText = await response.text();
-  let parsedBody: unknown;
-  try {
-    parsedBody = responseText ? JSON.parse(responseText) : null;
-  } catch {
-    parsedBody = responseText;
-  }
-  const body = parsedBody as StartSessionResponse;
+    const responseText = await response.text();
+    let parsedBody: unknown;
+    try {
+      parsedBody = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      parsedBody = responseText;
+    }
+    const body = parsedBody as StartSessionResponse;
 
-  if (!response.ok || !body?.success) {
-    const launchDiagnostics = readLaunchDiagnostics(
-      startPayload.browser?.launchOptions,
-    );
-    throw new Error(
+    if (response.ok && body?.success) {
+      if (!body.data?.available) {
+        throw new Error("Session not available");
+      }
+      if (!body.data.sessionId) {
+        throw new Error("No sessionId returned");
+      }
+      if (!body.data.cdpUrl) {
+        throw new Error("No cdpUrl returned");
+      }
+
+      // Wait for session to be fully ready before returning
+      await sleep(SESSION_READY_DELAY_MS);
+
+      return {
+        sessionId: body.data.sessionId,
+        cdpUrl: body.data.cdpUrl,
+      };
+    }
+
+    lastError = new Error(
       `Failed to create session (status=${response.status}): ${JSON.stringify(
         parsedBody,
-      )}\n${launchDiagnostics}`,
+      )}\n${readLaunchDiagnostics(startPayload.browser?.launchOptions)}`,
     );
-  }
-  if (!body.data?.available) {
-    throw new Error(`Session not available`);
-  }
-  if (!body.data.sessionId) {
-    throw new Error("No sessionId returned");
-  }
-  if (!body.data.cdpUrl) {
-    throw new Error("No cdpUrl returned");
+
+    const shouldRetry =
+      response.status === HTTP_INTERNAL_SERVER_ERROR &&
+      attempt < SESSION_START_MAX_ATTEMPTS;
+    if (!shouldRetry) {
+      throw lastError;
+    }
+
+    await sleep(SESSION_START_RETRY_DELAY_MS * attempt);
   }
 
-  // Wait for session to be fully ready before returning
-  await new Promise((resolve) => setTimeout(resolve, SESSION_READY_DELAY_MS));
-
-  return {
-    sessionId: body.data.sessionId,
-    cdpUrl: body.data.cdpUrl,
-  };
+  throw lastError ?? new Error("Failed to create session");
 }
 
 export async function endSession(

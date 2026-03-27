@@ -79,10 +79,6 @@ components:
     BrowserSessionLocalCreateRequest:
       type: object
       properties:
-        modelName:
-          description: Model name to use for AI operations
-          example: openai/gpt-4.1-nano
-          type: string
         domSettleTimeoutMs:
           type: number
         verbose:
@@ -93,8 +89,6 @@ components:
               const: 1
             - type: number
               const: 2
-        systemPrompt:
-          type: string
         selfHeal:
           type: boolean
         waitForCaptchaSolves:
@@ -103,6 +97,14 @@ components:
           type: boolean
         actTimeoutMs:
           type: number
+        llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          $ref: "#/components/schemas/LLMId"
+        observeLlmId:
+          $ref: "#/components/schemas/LLMId"
+        extractLlmId:
+          $ref: "#/components/schemas/LLMId"
         env:
           type: string
           const: LOCAL
@@ -111,16 +113,11 @@ components:
         localBrowserLaunchOptions:
           $ref: "#/components/schemas/LocalBrowserLaunchOptions"
       required:
-        - modelName
         - env
       additionalProperties: false
     BrowserSessionBrowserbaseCreateRequest:
       type: object
       properties:
-        modelName:
-          description: Model name to use for AI operations
-          example: openai/gpt-4.1-nano
-          type: string
         domSettleTimeoutMs:
           type: number
         verbose:
@@ -131,8 +128,6 @@ components:
               const: 1
             - type: number
               const: 2
-        systemPrompt:
-          type: string
         selfHeal:
           type: boolean
         waitForCaptchaSolves:
@@ -141,6 +136,14 @@ components:
           type: boolean
         actTimeoutMs:
           type: number
+        llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          $ref: "#/components/schemas/LLMId"
+        observeLlmId:
+          $ref: "#/components/schemas/LLMId"
+        extractLlmId:
+          $ref: "#/components/schemas/LLMId"
         env:
           type: string
           const: BROWSERBASE
@@ -149,7 +152,6 @@ components:
         browserbaseSessionCreateParams:
           $ref: "#/components/schemas/BrowserbaseSessionCreateParams"
       required:
-        - modelName
         - env
       additionalProperties: false
     BrowserbaseBrowserSettings:
@@ -866,6 +868,42 @@ components:
       type: object
       properties: {}
       additionalProperties: false
+    BrowserSessionUpdateRequest:
+      type: object
+      properties:
+        domSettleTimeoutMs:
+          type: number
+        verbose:
+          anyOf:
+            - type: number
+              const: 0
+            - type: number
+              const: 1
+            - type: number
+              const: 2
+        selfHeal:
+          type: boolean
+        waitForCaptchaSolves:
+          type: boolean
+        experimental:
+          type: boolean
+        actTimeoutMs:
+          type: number
+        llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        observeLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        extractLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+      additionalProperties: false
     BrowserSession:
       type: object
       properties:
@@ -875,8 +913,6 @@ components:
           $ref: "#/components/schemas/BrowserSessionEnv"
         status:
           $ref: "#/components/schemas/BrowserSessionStatus"
-        modelName:
-          type: string
         cdpUrl:
           anyOf:
             - type: string
@@ -899,8 +935,6 @@ components:
               const: 1
             - type: number
               const: 2
-        systemPrompt:
-          type: string
         selfHeal:
           type: boolean
         waitForCaptchaSolves:
@@ -909,12 +943,29 @@ components:
           type: boolean
         actTimeoutMs:
           type: number
+        llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        observeLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        extractLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
       required:
         - id
         - env
         - status
-        - modelName
         - available
+        - llmId
+        - actLlmId
+        - observeLlmId
+        - extractLlmId
       additionalProperties: false
     BrowserSessionResult:
       type: object
@@ -2234,6 +2285,112 @@ components:
         - $ref: "#/components/schemas/BrowserSessionIsAdvancedStealthAction"
         - $ref: "#/components/schemas/BrowserSessionSetViewportSizeAction"
         - $ref: "#/components/schemas/BrowserSessionCloseAction"
+    LLMId:
+      example: llm_01JXAMPLE
+      type: string
+      minLength: 1
+    LLMSource:
+      type: string
+      enum:
+        - user
+        - system-default
+    LLMProviderOptions:
+      type: object
+      properties:
+        temperature:
+          type: number
+        organization:
+          type: string
+        project:
+          type: string
+        location:
+          type: string
+      additionalProperties: false
+    LLMCreateRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+        modelName:
+          description: Provider-prefixed model identifier
+          example: openai/gpt-4.1-nano
+          type: string
+        baseUrl:
+          type: string
+          format: uri
+        systemPrompt:
+          type: string
+        providerOptions:
+          $ref: "#/components/schemas/LLMProviderOptions"
+      required:
+        - modelName
+      additionalProperties: false
+    LLMUpdateRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+        modelName:
+          description: Provider-prefixed model identifier
+          example: openai/gpt-4.1-nano
+          type: string
+        baseUrl:
+          type: string
+          format: uri
+        systemPrompt:
+          type: string
+        providerOptions:
+          $ref: "#/components/schemas/LLMProviderOptions"
+      additionalProperties: false
+    LLM:
+      type: object
+      properties:
+        displayName:
+          type: string
+        modelName:
+          description: Provider-prefixed model identifier
+          example: openai/gpt-4.1-nano
+          type: string
+        baseUrl:
+          type: string
+          format: uri
+        systemPrompt:
+          type: string
+        providerOptions:
+          $ref: "#/components/schemas/LLMProviderOptions"
+        id:
+          $ref: "#/components/schemas/LLMId"
+        source:
+          $ref: "#/components/schemas/LLMSource"
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+        updatedAt:
+          $ref: "#/components/schemas/Timestamp"
+      required:
+        - modelName
+        - id
+        - source
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    LLMResult:
+      type: object
+      properties:
+        llm:
+          $ref: "#/components/schemas/LLM"
+      required:
+        - llm
+      additionalProperties: false
+    LLMListResult:
+      type: object
+      properties:
+        llms:
+          type: array
+          items:
+            $ref: "#/components/schemas/LLM"
+      required:
+        - llms
+      additionalProperties: false
     RequestId:
       example: req_01JXAMPLE
       type: string
@@ -4373,18 +4530,6 @@ components:
         - success
         - data
       additionalProperties: false
-    BrowserSessionErrorResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          const: false
-        message:
-          type: string
-      required:
-        - success
-        - message
-      additionalProperties: false
     BrowserSessionV4ErrorResponse:
       type: object
       properties:
@@ -4680,6 +4825,42 @@ components:
         - success
         - error
         - actions
+      additionalProperties: false
+    LLMErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: false
+        message:
+          type: string
+      required:
+        - success
+        - message
+      additionalProperties: false
+    LLMResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/LLMResult"
+      required:
+        - success
+        - data
+      additionalProperties: false
+    LLMListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: "#/components/schemas/LLMListResult"
+      required:
+        - success
+        - data
       additionalProperties: false
     V4ErrorResponse:
       type: object
@@ -5359,10 +5540,6 @@ components:
     BrowserSessionLocalCreateRequestOutput:
       type: object
       properties:
-        modelName:
-          description: Model name to use for AI operations
-          example: openai/gpt-4.1-nano
-          type: string
         domSettleTimeoutMs:
           type: number
         verbose:
@@ -5373,8 +5550,6 @@ components:
               const: 1
             - type: number
               const: 2
-        systemPrompt:
-          type: string
         selfHeal:
           type: boolean
         waitForCaptchaSolves:
@@ -5383,6 +5558,14 @@ components:
           type: boolean
         actTimeoutMs:
           type: number
+        llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          $ref: "#/components/schemas/LLMId"
+        observeLlmId:
+          $ref: "#/components/schemas/LLMId"
+        extractLlmId:
+          $ref: "#/components/schemas/LLMId"
         env:
           type: string
           const: LOCAL
@@ -5391,16 +5574,11 @@ components:
         localBrowserLaunchOptions:
           $ref: "#/components/schemas/LocalBrowserLaunchOptionsOutput"
       required:
-        - modelName
         - env
       additionalProperties: false
     BrowserSessionBrowserbaseCreateRequestOutput:
       type: object
       properties:
-        modelName:
-          description: Model name to use for AI operations
-          example: openai/gpt-4.1-nano
-          type: string
         domSettleTimeoutMs:
           type: number
         verbose:
@@ -5411,8 +5589,6 @@ components:
               const: 1
             - type: number
               const: 2
-        systemPrompt:
-          type: string
         selfHeal:
           type: boolean
         waitForCaptchaSolves:
@@ -5421,6 +5597,14 @@ components:
           type: boolean
         actTimeoutMs:
           type: number
+        llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          $ref: "#/components/schemas/LLMId"
+        observeLlmId:
+          $ref: "#/components/schemas/LLMId"
+        extractLlmId:
+          $ref: "#/components/schemas/LLMId"
         env:
           type: string
           const: BROWSERBASE
@@ -5429,7 +5613,6 @@ components:
         browserbaseSessionCreateParams:
           $ref: "#/components/schemas/BrowserbaseSessionCreateParamsOutput"
       required:
-        - modelName
         - env
       additionalProperties: false
     LocalBrowserLaunchOptionsOutput:
@@ -5543,8 +5726,6 @@ components:
           $ref: "#/components/schemas/BrowserSessionEnv"
         status:
           $ref: "#/components/schemas/BrowserSessionStatus"
-        modelName:
-          type: string
         cdpUrl:
           anyOf:
             - type: string
@@ -5567,8 +5748,6 @@ components:
               const: 1
             - type: number
               const: 2
-        systemPrompt:
-          type: string
         selfHeal:
           type: boolean
         waitForCaptchaSolves:
@@ -5577,12 +5756,29 @@ components:
           type: boolean
         actTimeoutMs:
           type: number
+        llmId:
+          $ref: "#/components/schemas/LLMId"
+        actLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        observeLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
+        extractLlmId:
+          anyOf:
+            - $ref: "#/components/schemas/LLMId"
+            - type: "null"
       required:
         - id
         - env
         - status
-        - modelName
         - available
+        - llmId
+        - actLlmId
+        - observeLlmId
+        - extractLlmId
       additionalProperties: false
     BrowserSessionResultOutput:
       type: object
@@ -5802,6 +5998,18 @@ components:
       required:
         - id
       additionalProperties: false
+    BrowserSessionErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: false
+        message:
+          type: string
+      required:
+        - success
+        - message
+      additionalProperties: false
     BrowserSessionActionBase:
       type: object
       properties:
@@ -5983,6 +6191,16 @@ components:
           maximum: 500
       required:
         - sessionId
+      additionalProperties: false
+    LLMHeaders:
+      $ref: "#/components/schemas/SessionHeadersOutput"
+    LLMIdParams:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/LLMId"
+      required:
+        - id
       additionalProperties: false
     ValidationErrorResponse:
       type: object
@@ -6198,19 +6416,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSessionErrorResponse"
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
         "401":
           description: Default Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSessionErrorResponse"
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
         "500":
           description: Default Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSessionErrorResponse"
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
   /v4/browsersession/{id}:
     get:
       operationId: BrowserSessionStatus
@@ -6240,6 +6458,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BrowserSessionResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+    patch:
+      operationId: BrowserSessionUpdate
+      summary: Update a browser session
+      tags:
+        - browserSession
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserSessionUpdateRequest"
+        required: true
+      parameters:
+        - schema:
+            $ref: "#/components/schemas/BrowserSessionId"
+          in: path
+          name: id
+          required: true
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
   /v4/browsersession/{id}/end:
     post:
       operationId: BrowserSessionEnd
@@ -6275,6 +6539,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BrowserSessionResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
   /v4/browsersession/addInitScript:
     post:
       operationId: BrowserSessionAddInitScript
@@ -7492,6 +7762,164 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BrowserSessionV4ErrorResponse"
+  /v4/llms:
+    get:
+      operationId: LLMList
+      summary: List llms
+      tags:
+        - llm
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMListResponse"
+    post:
+      operationId: LLMCreate
+      summary: Create an llm
+      tags:
+        - llm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LLMCreateRequest"
+        required: true
+      parameters:
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
+  /v4/llms/{id}:
+    get:
+      operationId: LLMRetrieve
+      summary: Get an llm
+      tags:
+        - llm
+      parameters:
+        - schema:
+            $ref: "#/components/schemas/LLMId"
+          in: path
+          name: id
+          required: true
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMResponse"
+        "400":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
+        "401":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
+        "404":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
+        "500":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMErrorResponse"
+    patch:
+      operationId: LLMUpdate
+      summary: Update an llm
+      tags:
+        - llm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LLMUpdateRequest"
+        required: true
+      parameters:
+        - schema:
+            $ref: "#/components/schemas/LLMId"
+          in: path
+          name: id
+          required: true
+        - schema:
+            description: Whether to stream the response via SSE
+            example: "true"
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: header
+          name: x-stream-response
+          description: Whether to stream the response via SSE
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LLMResponse"
   /v4/page/click:
     post:
       operationId: PageClick

@@ -6,14 +6,20 @@ import {
   BrowserSessionHeadersSchema,
   BrowserSessionIdParamsSchema,
   BrowserSessionResponseSchema,
+  BrowserSessionUpdateRequestSchema,
   BrowserSessionV4ErrorResponseSchema,
   type BrowserSessionIdParams,
+  type BrowserSessionUpdateRequest,
 } from "../../../../schemas/v4/browserSession.js";
-import { getBrowserSession } from "../../stubState.js";
+import { updateBrowserSession } from "../../stubState.js";
 
-const getBrowserSessionHandler: RouteHandlerMethod = async (request, reply) => {
+const updateBrowserSessionHandler: RouteHandlerMethod = async (
+  request,
+  reply,
+) => {
   const { id } = request.params as BrowserSessionIdParams;
-  const browserSession = getBrowserSession(id);
+  const body = request.body as BrowserSessionUpdateRequest;
+  const browserSession = updateBrowserSession(id, body);
 
   return reply.status(StatusCodes.OK).send(
     BrowserSessionResponseSchema.parse({
@@ -25,20 +31,21 @@ const getBrowserSessionHandler: RouteHandlerMethod = async (request, reply) => {
   );
 };
 
-const getBrowserSessionRoute: RouteOptions = {
-  method: "GET",
+const updateBrowserSessionRoute: RouteOptions = {
+  method: "PATCH",
   url: "/browsersession/:id",
   schema: {
-    operationId: "BrowserSessionStatus",
-    summary: "Get browser session status",
+    operationId: "BrowserSessionUpdate",
+    summary: "Update a browser session",
     headers: BrowserSessionHeadersSchema,
     params: BrowserSessionIdParamsSchema,
+    body: BrowserSessionUpdateRequestSchema,
     response: {
       200: BrowserSessionResponseSchema,
       404: BrowserSessionV4ErrorResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
-  handler: getBrowserSessionHandler,
+  handler: updateBrowserSessionHandler,
 };
 
-export default getBrowserSessionRoute;
+export default updateBrowserSessionRoute;

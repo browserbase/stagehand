@@ -9,6 +9,7 @@ import {
   RequestIdSchema,
   TimestampSchema,
 } from "./page.js";
+import { LLMIdSchema } from "./llm.js";
 
 export const BrowserSessionIdSchema = z
   .string()
@@ -35,21 +36,47 @@ export const BrowserSessionErrorResponseSchema = z
   .strict()
   .meta({ id: "BrowserSessionErrorResponse" });
 
-const BrowserSessionCommonSchema = z
+const BrowserSessionMutableSchema = z
   .object({
-    modelName: z.string().meta({
-      description: "Model name to use for AI operations",
-      example: "openai/gpt-4.1-nano",
-    }),
     domSettleTimeoutMs: z.number().optional(),
     verbose: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
-    systemPrompt: z.string().optional(),
     selfHeal: z.boolean().optional(),
     waitForCaptchaSolves: z.boolean().optional(),
     experimental: z.boolean().optional(),
     actTimeoutMs: z.number().optional(),
   })
   .strict();
+
+const BrowserSessionLLMRefsCreateSchema = z
+  .object({
+    llmId: LLMIdSchema.optional(),
+    actLlmId: LLMIdSchema.optional(),
+    observeLlmId: LLMIdSchema.optional(),
+    extractLlmId: LLMIdSchema.optional(),
+  })
+  .strict();
+
+const BrowserSessionLLMRefsUpdateSchema = z
+  .object({
+    llmId: LLMIdSchema.optional(),
+    actLlmId: LLMIdSchema.nullable().optional(),
+    observeLlmId: LLMIdSchema.nullable().optional(),
+    extractLlmId: LLMIdSchema.nullable().optional(),
+  })
+  .strict();
+
+const BrowserSessionLLMRefsResponseSchema = z
+  .object({
+    llmId: LLMIdSchema,
+    actLlmId: LLMIdSchema.nullable(),
+    observeLlmId: LLMIdSchema.nullable(),
+    extractLlmId: LLMIdSchema.nullable(),
+  })
+  .strict();
+
+const BrowserSessionCommonSchema = BrowserSessionMutableSchema.extend(
+  BrowserSessionLLMRefsCreateSchema.shape,
+).strict();
 
 const BrowserSessionLocalCreateSchema = BrowserSessionCommonSchema.extend({
   env: z.literal("LOCAL"),
@@ -100,12 +127,16 @@ export const BrowserSessionEndRequestSchema = z
   .optional()
   .meta({ id: "BrowserSessionEndRequest" });
 
+export const BrowserSessionUpdateRequestSchema =
+  BrowserSessionMutableSchema.extend(BrowserSessionLLMRefsUpdateSchema.shape)
+    .strict()
+    .meta({ id: "BrowserSessionUpdateRequest" });
+
 export const BrowserSessionSchema = z
   .object({
     id: BrowserSessionIdSchema,
     env: BrowserSessionEnvSchema,
     status: BrowserSessionStatusSchema,
-    modelName: z.string(),
     cdpUrl: z.string().nullish(),
     available: z.boolean(),
     browserbaseSessionId: z.string().optional(),
@@ -114,12 +145,12 @@ export const BrowserSessionSchema = z
     localBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema.optional(),
     domSettleTimeoutMs: z.number().optional(),
     verbose: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
-    systemPrompt: z.string().optional(),
     selfHeal: z.boolean().optional(),
     waitForCaptchaSolves: z.boolean().optional(),
     experimental: z.boolean().optional(),
     actTimeoutMs: z.number().optional(),
   })
+  .extend(BrowserSessionLLMRefsResponseSchema.shape)
   .strict()
   .meta({ id: "BrowserSession" });
 
@@ -1019,6 +1050,7 @@ export const browserSessionOpenApiComponents = {
     BrowserSessionCreateRequest: BrowserSessionCreateRequestSchema,
     BrowserSessionIdParams: BrowserSessionIdParamsSchema,
     BrowserSessionEndRequest: BrowserSessionEndRequestSchema,
+    BrowserSessionUpdateRequest: BrowserSessionUpdateRequestSchema,
     BrowserSession: BrowserSessionSchema,
     BrowserSessionResult: BrowserSessionResultSchema,
     BrowserSessionResponse: BrowserSessionResponseSchema,
@@ -1171,6 +1203,9 @@ export const browserSessionOpenApiComponents = {
 
 export type BrowserSessionCreateRequest = z.infer<
   typeof BrowserSessionCreateRequestSchema
+>;
+export type BrowserSessionUpdateRequest = z.infer<
+  typeof BrowserSessionUpdateRequestSchema
 >;
 export type BrowserSessionIdParams = z.infer<
   typeof BrowserSessionIdParamsSchema

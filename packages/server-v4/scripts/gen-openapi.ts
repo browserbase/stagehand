@@ -13,8 +13,10 @@ import {
 } from "fastify-zod-openapi";
 import { Api } from "@browserbasehq/stagehand";
 import { browserSessionOpenApiComponents } from "../src/schemas/v4/browserSession.js";
+import { llmOpenApiComponents } from "../src/schemas/v4/llm.js";
 import { pageOpenApiComponents } from "../src/schemas/v4/page.js";
 import { browserSessionRoutes } from "../src/routes/v4/browsersession/routes.js";
+import { llmRoutes } from "../src/routes/v4/llms/routes.js";
 import { pageRoutes } from "../src/routes/v4/page/routes.js";
 
 // Routes
@@ -35,6 +37,7 @@ async function main() {
   const components = {
     schemas: {
       ...browserSessionOpenApiComponents.schemas,
+      ...llmOpenApiComponents.schemas,
       ...pageOpenApiComponents.schemas,
     },
   };
@@ -79,6 +82,9 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
   await app.register(
     (instance, _opts, done) => {
       for (const route of browserSessionRoutes) {
+        instance.route(route);
+      }
+      for (const route of llmRoutes) {
         instance.route(route);
       }
       for (const route of pageRoutes) {

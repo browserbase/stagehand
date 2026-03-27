@@ -71,6 +71,10 @@ export interface StartSessionResponse {
   data?: {
     browserSession: {
       id: string;
+      llmId: string;
+      actLlmId: string | null;
+      observeLlmId: string | null;
+      extractLlmId: string | null;
       cdpUrl: string;
       available: boolean;
     };
@@ -191,7 +195,6 @@ export async function createSessionWithCdp(
 ): Promise<SessionInfo> {
   const url = getBaseUrl();
   const startPayload = {
-    modelName: "gpt-4.1-nano",
     ...createLocalBrowserBody(),
   };
 

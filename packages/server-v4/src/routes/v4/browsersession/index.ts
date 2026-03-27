@@ -4,56 +4,25 @@ import { type FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   BrowserSessionCreateRequestSchema,
-  BrowserSessionErrorResponseSchema,
   BrowserSessionHeadersSchema,
   BrowserSessionResponseSchema,
+  BrowserSessionV4ErrorResponseSchema,
   type BrowserSessionCreateRequest,
 } from "../../../schemas/v4/browserSession.js";
-import { buildBrowserSession } from "./shared.js";
+import { createBrowserSession } from "../stubState.js";
 
 const createBrowserSessionHandler: RouteHandlerMethod = async (
   request,
   reply,
 ) => {
   const body = request.body as BrowserSessionCreateRequest;
-  const env = body.env === "BROWSERBASE" ? "BROWSERBASE" : "LOCAL";
-  const cdpUrl = "cdpUrl" in body ? body.cdpUrl : undefined;
-  const browserbaseSessionId =
-    "browserbaseSessionId" in body ? body.browserbaseSessionId : undefined;
-  const browserbaseSessionCreateParams =
-    "browserbaseSessionCreateParams" in body
-      ? body.browserbaseSessionCreateParams
-      : undefined;
-  const localBrowserLaunchOptions =
-    "localBrowserLaunchOptions" in body
-      ? body.localBrowserLaunchOptions
-      : undefined;
+  const browserSession = createBrowserSession(body);
 
   return reply.status(StatusCodes.OK).send(
     BrowserSessionResponseSchema.parse({
       success: true,
       data: {
-        browserSession: buildBrowserSession({
-          id: "session_stub",
-          env,
-          status: "running",
-          modelName: body.modelName,
-          cdpUrl:
-            env === "LOCAL"
-              ? (cdpUrl ?? "ws://stub.invalid/devtools/browser/stub")
-              : "ws://stub.invalid/devtools/browser/stub",
-          available: false,
-          browserbaseSessionId,
-          browserbaseSessionCreateParams,
-          localBrowserLaunchOptions,
-          domSettleTimeoutMs: body.domSettleTimeoutMs,
-          verbose: body.verbose,
-          systemPrompt: body.systemPrompt,
-          selfHeal: body.selfHeal,
-          waitForCaptchaSolves: body.waitForCaptchaSolves,
-          experimental: body.experimental,
-          actTimeoutMs: body.actTimeoutMs,
-        }),
+        browserSession,
       },
     }),
   );
@@ -69,9 +38,9 @@ const createBrowserSessionRoute: RouteOptions = {
     body: BrowserSessionCreateRequestSchema,
     response: {
       200: BrowserSessionResponseSchema,
-      400: BrowserSessionErrorResponseSchema,
-      401: BrowserSessionErrorResponseSchema,
-      500: BrowserSessionErrorResponseSchema,
+      400: BrowserSessionV4ErrorResponseSchema,
+      401: BrowserSessionV4ErrorResponseSchema,
+      500: BrowserSessionV4ErrorResponseSchema,
     },
   } satisfies FastifyZodOpenApiSchema,
   handler: createBrowserSessionHandler,
