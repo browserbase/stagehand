@@ -36,7 +36,7 @@
     "dev": "turbo run dev",
     "example": "pnpm --filter @browserbasehq/stagehand run example --",
     "cache:clear": "turbo run build --force",
-    "prepare": "node packages/core/scripts/prepare.js",
+    "prepare": "node packages/core/scripts/prepare.js && husky",
     "release": "turbo run build && changeset publish",
     "release-canary": "turbo run build && changeset version --snapshot && changeset publish --tag alpha"
   },
@@ -50,7 +50,9 @@
     "eslint": "^10.0.2",
     "eslint-plugin-security": "^3.0.1",
     "globals": "^15.13.0",
+    "husky": "^9.1.7",
     "junit-to-ctrf": "^0.0.14",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.2.5",
     "source-map": "^0.7.4",
     "tsx": "^4.19.4",
@@ -74,6 +76,9 @@
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
+  },
+  "lint-staged": {
+    "*": "prettier --write --ignore-unknown"
   },
   "packageManager": "pnpm@9.15.0+sha512.76e2379760a4328ec4415815bcd6628dee727af3779aaa4c914e3944156c4299921a89f976381ee107d41f12cfa4b66681ca9c718f0668fa0831ed4c6d8ba56c"
 }
