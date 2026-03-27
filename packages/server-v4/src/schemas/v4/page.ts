@@ -328,7 +328,7 @@ export const PageKeyPressParamsSchema = PageWithPageIdSchema.extend({
   .meta({ id: "PageKeyPressParams" });
 
 export const PageGotoParamsSchema = PageWithPageIdSchema.extend({
-  url: z.string().url(),
+  url: z.url(),
   waitUntil: LoadStateSchema.optional(),
   timeoutMs: z.number().int().nonnegative().optional(),
 })

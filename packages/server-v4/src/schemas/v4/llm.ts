@@ -41,7 +41,7 @@ const LLMWritableSchema = z
       description: "Provider-prefixed model identifier",
       example: "openai/gpt-4.1-nano",
     }),
-    baseUrl: z.string().url().optional(),
+    baseUrl: z.url().optional(),
     systemPrompt: z.string().optional(),
     providerOptions: LLMProviderOptionsSchema.optional(),
   })
