@@ -269,9 +269,9 @@ function createPageResponseSchema<T extends z.ZodTypeAny>(
 export const PageClickParamsSchema = PageWithPageIdSchema.extend({
   selector: SelectorSchema,
   button: MouseButtonSchema.optional(),
-  clickCount: z.number().int().min(1).optional(),
+  clickCount: z.number().int().lte(3).gte(1).optional(),
   returnSelector: z.boolean().optional(),
-  synthetic: z.boolean().default(false),
+  method: z.enum(["jsevent", "xy"]).default("xy"),
 })
   .strict()
   .meta({ id: "PageClickParams" });

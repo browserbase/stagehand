@@ -918,11 +918,11 @@ describe("v4 page routes", { concurrency: false }, () => {
     });
     assertSuccessAction(coordSelectorCtx, "click");
 
-    const syntheticCtx = await postPageRoute("click", sessionId, {
+    const jseventCtx = await postPageRoute("click", sessionId, {
       selector: { css: "#click-target" },
-      synthetic: true,
+      method: "jsevent",
     });
-    assertSuccessAction(syntheticCtx, "click");
+    assertSuccessAction(jseventCtx, "click");
   });
 
   it("POST /v4/page/dragAndDrop accepts mixed selector types (xpath from, coordinates to)", async () => {

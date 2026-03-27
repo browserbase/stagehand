@@ -2488,12 +2488,15 @@ components:
         clickCount:
           type: integer
           minimum: 1
-          maximum: 9007199254740991
+          maximum: 3
         returnSelector:
           type: boolean
-        synthetic:
-          default: false
-          type: boolean
+        method:
+          default: xy
+          type: string
+          enum:
+            - jsevent
+            - xy
       required:
         - selector
       additionalProperties: false
@@ -5622,15 +5625,18 @@ components:
         clickCount:
           type: integer
           minimum: 1
-          maximum: 9007199254740991
+          maximum: 3
         returnSelector:
           type: boolean
-        synthetic:
-          default: false
-          type: boolean
+        method:
+          default: xy
+          type: string
+          enum:
+            - jsevent
+            - xy
       required:
         - selector
-        - synthetic
+        - method
       additionalProperties: false
     PageClickActionOutput:
       type: object
