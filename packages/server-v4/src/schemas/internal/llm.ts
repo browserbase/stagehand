@@ -87,7 +87,7 @@ export const InternalLLMSessionSchema = z
       description: "Provider-prefixed model identifier",
       example: "openai/gpt-5-nano",
     }),
-    baseUrl: z.string().url().nullable(),
+    baseUrl: z.url().nullable(),
     options: InternalJsonValueSchema.nullable(),
     extraHttpHeaders: z.record(z.string(), z.string()).nullable(),
     systemPrompt: z.string().nullable(),
