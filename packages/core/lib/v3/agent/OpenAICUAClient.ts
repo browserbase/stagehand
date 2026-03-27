@@ -140,8 +140,8 @@ export class OpenAICUAClient extends AgentClient {
     let finalMessage = "";
     this.reasoningItems.clear(); // Clear any previous reasoning items
 
-    // Start with the initial instruction
-    let inputItems = this.createInitialInputItems(instruction);
+    // Start with the initial instruction and an initial screenshot
+    let inputItems = await this.createInitialInputItems(instruction);
     let previousResponseId: string | undefined = undefined;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
@@ -430,8 +430,25 @@ export class OpenAICUAClient extends AgentClient {
     );
   }
 
-  private createInitialInputItems(instruction: string): ResponseInputItem[] {
-    // For the initial request, we use a simple array with the user's instruction
+  private async createInitialInputItems(
+    instruction: string,
+  ): Promise<ResponseInputItem[]> {
+    // OpenAI's computer-use-preview requires an initial screenshot in the
+    // first request. Capture one now and embed it alongside the instruction.
+    let screenshotUrl: string | undefined;
+    try {
+      screenshotUrl = await this.captureScreenshot();
+    } catch {
+      // Fall back to text-only if the screenshot provider is not yet set
+    }
+
+    const userContent: unknown[] = [
+      { type: "input_text", text: instruction },
+    ];
+    if (screenshotUrl) {
+      userContent.push({ type: "input_image", image_url: screenshotUrl });
+    }
+
     return [
       {
         role: "system",
@@ -439,9 +456,9 @@ export class OpenAICUAClient extends AgentClient {
       },
       {
         role: "user",
-        content: instruction,
+        content: userContent,
       },
-    ];
+    ] as ResponseInputItem[];
   }
 
   async getAction(
@@ -717,11 +734,18 @@ export class OpenAICUAClient extends AgentClient {
               level: 0,
             });
 
-            // For error cases without a screenshot, we need to use a string output
+            // Even without a screenshot, OpenAI requires input_image format
+            // for computer_call_output. Use a 1x1 transparent PNG as placeholder.
+            const PLACEHOLDER_PNG =
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAA0lEQVQI12P4//8/AwAI/AL+hc2rNAAAAABJRU5ErkJggg==";
             nextInputItems.push({
               type: "computer_call_output",
               call_id: item.call_id,
-              output: `Error: ${errorMessage}`,
+              output: {
+                type: "input_image" as const,
+                image_url: PLACEHOLDER_PNG,
+                error: errorMessage,
+              },
             } as ResponseInputItem);
           }
         }
