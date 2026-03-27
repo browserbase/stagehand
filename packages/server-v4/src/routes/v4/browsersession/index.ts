@@ -11,18 +11,6 @@ import {
 } from "../../../schemas/v4/browserSession.js";
 import { createBrowserSession } from "../stubState.js";
 
-async function resolveOptionalLLMId(
-  request: Parameters<RouteHandlerMethod>[0],
-  id: string | undefined,
-): Promise<string | null> {
-  if (!id) {
-    return null;
-  }
-
-  const llm = await request.server.llmService.getLlm(id);
-  return llm.id;
-}
-
 const createBrowserSessionHandler: RouteHandlerMethod = async (
   request,
   reply,
@@ -32,12 +20,30 @@ const createBrowserSessionHandler: RouteHandlerMethod = async (
     body.llmId !== undefined
       ? await request.server.llmService.getLlm(body.llmId)
       : await request.server.llmService.createSystemDefaultLlm();
-  const browserSession = createBrowserSession(body, {
-    llmId: llm.id,
-    actLlmId: await resolveOptionalLLMId(request, body.actLlmId),
-    observeLlmId: await resolveOptionalLLMId(request, body.observeLlmId),
-    extractLlmId: await resolveOptionalLLMId(request, body.extractLlmId),
-  });
+  const [actLlmId, observeLlmId, extractLlmId] = await Promise.all([
+    body.actLlmId
+      ? request.server.llmService
+          .getLlm(body.actLlmId)
+          .then((value) => value.id)
+      : Promise.resolve(null),
+    body.observeLlmId
+      ? request.server.llmService
+          .getLlm(body.observeLlmId)
+          .then((value) => value.id)
+      : Promise.resolve(null),
+    body.extractLlmId
+      ? request.server.llmService
+          .getLlm(body.extractLlmId)
+          .then((value) => value.id)
+      : Promise.resolve(null),
+  ]);
+  const browserSession = createBrowserSession(
+    body,
+    llm.id,
+    actLlmId,
+    observeLlmId,
+    extractLlmId,
+  );
 
   return reply.status(StatusCodes.OK).send(
     BrowserSessionResponseSchema.parse({

@@ -25,16 +25,12 @@ function findBrowserSessionOrThrow(id: string): BrowserSession {
   return browserSession;
 }
 
-interface BrowserSessionResolvedLLMRefs {
-  llmId: string;
-  actLlmId?: string | null;
-  observeLlmId?: string | null;
-  extractLlmId?: string | null;
-}
-
 function buildBrowserSessionFromCreate(
   input: BrowserSessionCreateRequest,
-  llmRefs: BrowserSessionResolvedLLMRefs,
+  llmId: string,
+  actLlmId: string | null,
+  observeLlmId: string | null,
+  extractLlmId: string | null,
 ): BrowserSession {
   const cdpUrl =
     input.env === "LOCAL"
@@ -43,10 +39,10 @@ function buildBrowserSessionFromCreate(
 
   return BrowserSessionSchema.parse({
     id: buildId("session"),
-    llmId: llmRefs.llmId,
-    actLlmId: llmRefs.actLlmId ?? null,
-    observeLlmId: llmRefs.observeLlmId ?? null,
-    extractLlmId: llmRefs.extractLlmId ?? null,
+    llmId,
+    actLlmId,
+    observeLlmId,
+    extractLlmId,
     env: input.env,
     status: "running",
     cdpUrl,
@@ -70,9 +66,18 @@ function buildBrowserSessionFromCreate(
 
 export function createBrowserSession(
   input: BrowserSessionCreateRequest,
-  llmRefs: BrowserSessionResolvedLLMRefs,
+  llmId: string,
+  actLlmId: string | null,
+  observeLlmId: string | null,
+  extractLlmId: string | null,
 ): BrowserSession {
-  const browserSession = buildBrowserSessionFromCreate(input, llmRefs);
+  const browserSession = buildBrowserSessionFromCreate(
+    input,
+    llmId,
+    actLlmId,
+    observeLlmId,
+    extractLlmId,
+  );
 
   browserSessions.set(browserSession.id, browserSession);
 
@@ -86,22 +91,19 @@ export function getBrowserSession(id: string): BrowserSession {
 export function updateBrowserSession(
   id: string,
   input: BrowserSessionUpdateRequest,
-  llmRefs: BrowserSessionResolvedLLMRefs,
+  llmId: string,
+  actLlmId: string | null | undefined,
+  observeLlmId: string | null | undefined,
+  extractLlmId: string | null | undefined,
 ): BrowserSession {
   const existing = findBrowserSessionOrThrow(id);
 
   const updated = BrowserSessionSchema.parse({
     ...existing,
-    llmId: llmRefs.llmId,
-    ...(input.actLlmId !== undefined
-      ? { actLlmId: llmRefs.actLlmId ?? null }
-      : {}),
-    ...(input.observeLlmId !== undefined
-      ? { observeLlmId: llmRefs.observeLlmId ?? null }
-      : {}),
-    ...(input.extractLlmId !== undefined
-      ? { extractLlmId: llmRefs.extractLlmId ?? null }
-      : {}),
+    llmId,
+    ...(input.actLlmId !== undefined ? { actLlmId } : {}),
+    ...(input.observeLlmId !== undefined ? { observeLlmId } : {}),
+    ...(input.extractLlmId !== undefined ? { extractLlmId } : {}),
     ...(input.domSettleTimeoutMs !== undefined
       ? { domSettleTimeoutMs: input.domSettleTimeoutMs }
       : {}),

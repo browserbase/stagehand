@@ -42,20 +42,21 @@ export class LlmService {
   }
 
   async createLlm(input: LLMCreateRequest): Promise<LLMConfigSelect> {
-    const values = llmConfigInsertSchema.parse({
-      ...input,
-      source: "user",
-    }) as unknown as LlmConfigInsertRow;
+    // Single-row create, so we do not need a transaction yet.
+    // TODO(sam): when LLM config creation needs packages/core involvement, call
+    // into the lower-level runtime here first, then persist the returned config
+    // snapshot from the same service method.
+    const values = await this.buildStubUserLlmConfig(input);
 
     return this.dependencies.llmConfigRepository.create(values);
   }
 
   async createSystemDefaultLlm(): Promise<LLMConfigSelect> {
-    const values = llmConfigInsertSchema.parse({
-      source: "system-default",
-      displayName: constants.llm.defaultDisplayName,
-      modelName: constants.llm.defaultModelName,
-    }) as unknown as LlmConfigInsertRow;
+    // Single-row create, so we do not need a transaction yet.
+    // TODO(sam): when system-default creation needs packages/core involvement,
+    // resolve the runtime default there first, then persist the resulting
+    // config snapshot from this service method.
+    const values = await this.buildStubSystemDefaultLlmConfig();
 
     return this.dependencies.llmConfigRepository.create(values);
   }
@@ -66,14 +67,10 @@ export class LlmService {
   ): Promise<LLMConfigSelect> {
     await this.getLlm(id);
 
-    const values = llmConfigUpdateSchema
-      .omit({
-        id: true,
-        source: true,
-        createdAt: true,
-        updatedAt: true,
-      })
-      .parse(input) as unknown as LlmConfigUpdateRow;
+    // Single-row update, so we do not need a transaction yet.
+    // TODO(sam): when updates need packages/core validation or enrichment,
+    // perform that call here before persisting the returned update payload.
+    const values = await this.buildStubLlmConfigUpdate(input);
 
     const llm = await this.dependencies.llmConfigRepository.updateById(
       id,
@@ -86,8 +83,34 @@ export class LlmService {
 
     return llm;
   }
-}
 
-// TODO(sam): when we add execution-focused endpoints, this service layer should
-// call into packages/core to perform the actual model execution and persist the
-// related llm_sessions / llm_calls rows. For now `/v4/llms` is config-only.
+  private async buildStubUserLlmConfig(
+    input: LLMCreateRequest,
+  ): Promise<LlmConfigInsertRow> {
+    return llmConfigInsertSchema.parse({
+      ...input,
+      source: "user",
+    }) as unknown as LlmConfigInsertRow;
+  }
+
+  private async buildStubSystemDefaultLlmConfig(): Promise<LlmConfigInsertRow> {
+    return llmConfigInsertSchema.parse({
+      source: "system-default",
+      displayName: constants.llm.defaultDisplayName,
+      modelName: constants.llm.defaultModelName,
+    }) as unknown as LlmConfigInsertRow;
+  }
+
+  private async buildStubLlmConfigUpdate(
+    input: LLMUpdateRequest,
+  ): Promise<LlmConfigUpdateRow> {
+    return llmConfigUpdateSchema
+      .omit({
+        id: true,
+        source: true,
+        createdAt: true,
+        updatedAt: true,
+      })
+      .parse(input) as unknown as LlmConfigUpdateRow;
+  }
+}

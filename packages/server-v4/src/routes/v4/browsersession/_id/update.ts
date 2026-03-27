@@ -13,18 +13,6 @@ import {
 } from "../../../../schemas/v4/browserSession.js";
 import { getBrowserSession, updateBrowserSession } from "../../stubState.js";
 
-async function resolveOptionalLLMId(
-  request: Parameters<RouteHandlerMethod>[0],
-  id: string | null | undefined,
-): Promise<string | null> {
-  if (id === undefined || id === null) {
-    return id ?? null;
-  }
-
-  const llm = await request.server.llmService.getLlm(id);
-  return llm.id;
-}
-
 const updateBrowserSessionHandler: RouteHandlerMethod = async (
   request,
   reply,
@@ -36,12 +24,37 @@ const updateBrowserSessionHandler: RouteHandlerMethod = async (
     body.llmId !== undefined
       ? (await request.server.llmService.getLlm(body.llmId)).id
       : existingBrowserSession.llmId;
-  const browserSession = updateBrowserSession(id, body, {
+  const [actLlmId, observeLlmId, extractLlmId] = await Promise.all([
+    body.actLlmId === undefined
+      ? Promise.resolve(undefined)
+      : body.actLlmId === null
+        ? Promise.resolve(null)
+        : request.server.llmService
+            .getLlm(body.actLlmId)
+            .then((value) => value.id),
+    body.observeLlmId === undefined
+      ? Promise.resolve(undefined)
+      : body.observeLlmId === null
+        ? Promise.resolve(null)
+        : request.server.llmService
+            .getLlm(body.observeLlmId)
+            .then((value) => value.id),
+    body.extractLlmId === undefined
+      ? Promise.resolve(undefined)
+      : body.extractLlmId === null
+        ? Promise.resolve(null)
+        : request.server.llmService
+            .getLlm(body.extractLlmId)
+            .then((value) => value.id),
+  ]);
+  const browserSession = updateBrowserSession(
+    id,
+    body,
     llmId,
-    actLlmId: await resolveOptionalLLMId(request, body.actLlmId),
-    observeLlmId: await resolveOptionalLLMId(request, body.observeLlmId),
-    extractLlmId: await resolveOptionalLLMId(request, body.extractLlmId),
-  });
+    actLlmId,
+    observeLlmId,
+    extractLlmId,
+  );
 
   return reply.status(StatusCodes.OK).send(
     BrowserSessionResponseSchema.parse({
