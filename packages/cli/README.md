@@ -284,16 +284,21 @@ browse --session personal open https://twitter.com
 
 Connect to an existing Chrome instance:
 
-```bash
-# Start Chrome with remote debugging
-google-chrome --remote-debugging-port=9222
+To make your Chrome discoverable:
 
-# Option 1: Persistent session (recommended) — daemon stays attached
-browse env local 9222
+1. Open `chrome://inspect/#remote-debugging`
+2. Check the box **"Allow remote debugging for this browser instance"**
+3. Re-run the CLI and it will auto-connect!
+
+For more information, see the [Chrome DevTools docs](https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session).
+
+```bash
+# Auto-discover Chrome with remote debugging enabled
+browse env local
 browse open https://example.com
 
-# Option 2: One-shot bypass (no daemon, per-command)
-browse --ws 9222 open https://example.com
+# Or target a specific port / WebSocket URL
+browse env local 9222
 browse --ws ws://localhost:9222/devtools/browser/... open https://example.com
 ```
 
