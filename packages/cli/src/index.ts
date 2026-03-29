@@ -2811,12 +2811,24 @@ program
   .action(async (filePath: string | undefined, cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
+      const scale = parseFloat(cmdOpts.scale);
+      if (isNaN(scale) || scale < 0.1 || scale > 2) {
+        console.error("Error: --scale must be a number between 0.1 and 2");
+        process.exit(1);
+      }
+      const validFormats = ["letter", "legal", "a4", "a3"];
+      if (!validFormats.includes(cmdOpts.format.toLowerCase())) {
+        console.error(
+          `Error: --format must be one of: ${validFormats.join(", ")}`,
+        );
+        process.exit(1);
+      }
       const result = await runCommand("pdf", [
         {
           path: filePath,
           landscape: cmdOpts.landscape,
           printBackground: cmdOpts.background !== false,
-          scale: parseFloat(cmdOpts.scale),
+          scale,
           format: cmdOpts.format,
         },
       ]);
