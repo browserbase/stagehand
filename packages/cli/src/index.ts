@@ -854,6 +854,18 @@ let networkCounter = 0;
 let networkSession: string | null = null;
 const pendingRequests = new Map<string, PendingRequest>();
 
+// ==================== DIALOG HANDLING STATE ====================
+
+type DialogMode = "accept" | "dismiss" | "off";
+let dialogMode: DialogMode = "off";
+let dialogHandlerInstalled = false;
+const dialogHistory: Array<{
+  type: string;
+  message: string;
+  handled: DialogMode;
+  timestamp: string;
+}> = [];
+
 /** Sanitize a string for use in a filename */
 function sanitizeForFilename(str: string, maxLen: number = 30): string {
   return str
@@ -1580,6 +1592,45 @@ async function executeCommand(
           error: err instanceof Error ? err.message : String(err),
         };
       }
+    }
+
+    // Dialog handling
+    case "dialog": {
+      const [mode] = args as [DialogMode];
+      dialogMode = mode;
+
+      if (mode !== "off" && !dialogHandlerInstalled && page) {
+        const cdpSession = page.mainFrame().session;
+        cdpSession.on(
+          "Page.javascriptDialogOpening",
+          async (params: {
+            type: string;
+            message: string;
+            defaultPrompt?: string;
+          }) => {
+            if (dialogMode === "off") return;
+            dialogHistory.push({
+              type: params.type,
+              message: params.message,
+              handled: dialogMode,
+              timestamp: new Date().toISOString(),
+            });
+            await cdpSession.send("Page.handleJavaScriptDialog", {
+              accept: dialogMode === "accept",
+              promptText:
+                dialogMode === "accept"
+                  ? (params.defaultPrompt ?? "")
+                  : undefined,
+            });
+          },
+        );
+        dialogHandlerInstalled = true;
+      }
+
+      return { mode: dialogMode, handlerInstalled: dialogHandlerInstalled };
+    }
+    case "dialog_history": {
+      return { dialogs: dialogHistory };
     }
 
     // Daemon control
@@ -2749,6 +2800,43 @@ networkCmd
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("network_clear", []);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+// ==================== DIALOG HANDLING ====================
+
+program
+  .command("dialog <mode>")
+  .description(
+    "Set dialog handling mode: accept, dismiss, or off.\n" +
+      "When enabled, alert/confirm/prompt dialogs are auto-handled.",
+  )
+  .action(async (mode: string) => {
+    const opts = program.opts<GlobalOpts>();
+    if (mode !== "accept" && mode !== "dismiss" && mode !== "off") {
+      console.error("Error: mode must be accept, dismiss, or off");
+      process.exit(1);
+    }
+    try {
+      const result = await runCommand("dialog", [mode]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("dialog_history")
+  .description("Show history of handled dialogs")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("dialog_history", []);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
