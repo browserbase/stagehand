@@ -1180,6 +1180,13 @@ async function executeCommand(
       await stagehand.act(action);
       return { selected: values };
     }
+    case "upload": {
+      const [selector, filePaths] = args as [string, string[]];
+      const resolved = resolveSelector(selector);
+      const files = filePaths.length === 1 ? filePaths[0] : filePaths;
+      await page!.deepLocator(resolved).setInputFiles(files);
+      return { uploaded: true, files: filePaths };
+    }
     case "highlight": {
       const [selector, duration] = args as [string, number?];
       await page!
@@ -2435,6 +2442,20 @@ program
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("select", [selector, values]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("upload <selector> <files...>")
+  .description('Upload file(s) to an <input type="file"> element')
+  .action(async (selector: string, files: string[]) => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("upload", [selector, files]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
