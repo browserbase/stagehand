@@ -2815,20 +2815,17 @@ networkCmd
 
 // ==================== DIALOG HANDLING ====================
 
-program
-  .command("dialog <mode>")
-  .description(
-    "Set dialog handling mode: accept, dismiss, or off.\n" +
-      "When enabled, alert/confirm/prompt dialogs are auto-handled.",
-  )
-  .action(async (mode: string) => {
+const dialogCmd = program
+  .command("dialog")
+  .description("Dialog handling commands");
+
+dialogCmd
+  .command("accept")
+  .description("Auto-accept all dialogs (alerts, confirms, prompts)")
+  .action(async () => {
     const opts = program.opts<GlobalOpts>();
-    if (mode !== "accept" && mode !== "dismiss" && mode !== "off") {
-      console.error("Error: mode must be accept, dismiss, or off");
-      process.exit(1);
-    }
     try {
-      const result = await runCommand("dialog", [mode]);
+      const result = await runCommand("dialog", ["accept"]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
@@ -2836,8 +2833,36 @@ program
     }
   });
 
-program
-  .command("dialog_history")
+dialogCmd
+  .command("dismiss")
+  .description("Auto-dismiss all dialogs")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("dialog", ["dismiss"]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+dialogCmd
+  .command("off")
+  .description("Disable automatic dialog handling")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("dialog", ["off"]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+dialogCmd
+  .command("history")
   .description("Show history of handled dialogs")
   .action(async () => {
     const opts = program.opts<GlobalOpts>();
