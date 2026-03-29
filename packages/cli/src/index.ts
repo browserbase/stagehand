@@ -699,7 +699,7 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
               ...(!connectSessionId
                 ? {
                     browserbaseSessionCreateParams: {
-                      userMetadata: { "browse-cli": "true" },
+                      userMetadata: { browse_cli: "true" },
                       ...(contextConfig
                         ? {
                             browserSettings: {
