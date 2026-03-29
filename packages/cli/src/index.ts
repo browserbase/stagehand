@@ -858,7 +858,7 @@ const pendingRequests = new Map<string, PendingRequest>();
 
 type DialogMode = "accept" | "dismiss" | "off";
 let dialogMode: DialogMode = "off";
-let dialogHandlerInstalled = false;
+const dialogInstalledSessions = new WeakSet<object>();
 const dialogHistory: Array<{
   type: string;
   message: string;
@@ -1599,35 +1599,41 @@ async function executeCommand(
       const [mode] = args as [DialogMode];
       dialogMode = mode;
 
-      if (mode !== "off" && !dialogHandlerInstalled && page) {
+      if (mode !== "off" && page) {
         const cdpSession = page.mainFrame().session;
-        cdpSession.on(
-          "Page.javascriptDialogOpening",
-          async (params: {
-            type: string;
-            message: string;
-            defaultPrompt?: string;
-          }) => {
-            if (dialogMode === "off") return;
-            dialogHistory.push({
-              type: params.type,
-              message: params.message,
-              handled: dialogMode,
-              timestamp: new Date().toISOString(),
-            });
-            await cdpSession.send("Page.handleJavaScriptDialog", {
-              accept: dialogMode === "accept",
-              promptText:
-                dialogMode === "accept"
-                  ? (params.defaultPrompt ?? "")
-                  : undefined,
-            });
-          },
-        );
-        dialogHandlerInstalled = true;
+        if (!dialogInstalledSessions.has(cdpSession)) {
+          cdpSession.on(
+            "Page.javascriptDialogOpening",
+            async (params: {
+              type: string;
+              message: string;
+              defaultPrompt?: string;
+            }) => {
+              if (dialogMode === "off") return;
+              dialogHistory.push({
+                type: params.type,
+                message: params.message,
+                handled: dialogMode,
+                timestamp: new Date().toISOString(),
+              });
+              try {
+                await cdpSession.send("Page.handleJavaScriptDialog", {
+                  accept: dialogMode === "accept",
+                  promptText:
+                    dialogMode === "accept"
+                      ? (params.defaultPrompt ?? "")
+                      : undefined,
+                });
+              } catch {
+                // Dialog may have been closed by navigation or externally
+              }
+            },
+          );
+          dialogInstalledSessions.add(cdpSession);
+        }
       }
 
-      return { mode: dialogMode, handlerInstalled: dialogHandlerInstalled };
+      return { mode: dialogMode };
     }
     case "dialog_history": {
       return { dialogs: dialogHistory };
