@@ -1599,7 +1599,7 @@ async function executeCommand(
       const [opts] = args as [
         { name?: string; domain?: string; path?: string }?,
       ];
-      await context.clearCookies(opts ?? undefined);
+      await context.clearCookies(opts);
       return { cleared: true };
     }
 
