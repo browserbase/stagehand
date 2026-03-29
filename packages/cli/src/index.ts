@@ -1582,6 +1582,27 @@ async function executeCommand(
       }
     }
 
+    // Cookies
+    case "cookies_get": {
+      const [urls] = args as [string[]?];
+      const cookies = await context.cookies(urls?.length ? urls : undefined);
+      return { cookies };
+    }
+    case "cookies_set": {
+      const [cookieParams] = args as [unknown[]];
+      await context.addCookies(
+        cookieParams as Parameters<typeof context.addCookies>[0],
+      );
+      return { added: cookieParams.length };
+    }
+    case "cookies_clear": {
+      const [opts] = args as [
+        { name?: string; domain?: string; path?: string }?,
+      ];
+      await context.clearCookies(opts ?? undefined);
+      return { cleared: true };
+    }
+
     // Daemon control
     case "stop": {
       process.nextTick(() => {
@@ -2755,6 +2776,70 @@ networkCmd
       process.exit(1);
     }
   });
+
+// ==================== COOKIES ====================
+
+const cookiesCmd = program
+  .command("cookies")
+  .description("Cookie management commands");
+
+cookiesCmd
+  .command("get [urls...]")
+  .description("Get cookies, optionally filtered by URLs")
+  .action(async (urls: string[]) => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("cookies_get", [
+        urls?.length ? urls : undefined,
+      ]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+cookiesCmd
+  .command("set <json>")
+  .description(
+    'Add cookies from JSON array (e.g. \'[{"name":"a","value":"b","url":"https://example.com"}]\')',
+  )
+  .action(async (json: string) => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const cookies = JSON.parse(json);
+      if (!Array.isArray(cookies)) {
+        console.error("Error: cookies must be a JSON array");
+        process.exit(1);
+      }
+      const result = await runCommand("cookies_set", [cookies]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+cookiesCmd
+  .command("clear")
+  .description("Clear cookies (all or filtered by name/domain/path)")
+  .option("--name <name>", "Filter by cookie name")
+  .option("--domain <domain>", "Filter by domain")
+  .option("--path <path>", "Filter by path")
+  .action(
+    async (cmdOpts: { name?: string; domain?: string; path?: string }) => {
+      const opts = program.opts<GlobalOpts>();
+      try {
+        const filter =
+          cmdOpts.name || cmdOpts.domain || cmdOpts.path ? cmdOpts : undefined;
+        const result = await runCommand("cookies_clear", [filter]);
+        output(result, opts.json ?? false);
+      } catch (e) {
+        console.error("Error:", e instanceof Error ? e.message : e);
+        process.exit(1);
+      }
+    },
+  );
 
 // ==================== RUN ====================
 
