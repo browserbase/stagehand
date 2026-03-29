@@ -2962,7 +2962,7 @@ program
           // Filter out responses to our own commands
           if (data.id !== undefined && pendingIds.has(data.id)) {
             pendingIds.delete(data.id);
-            if (data.error && usePretty) {
+            if (data.error) {
               process.stderr.write(
                 `CDP error (id=${data.id}): ${data.error.message}\n`,
               );
