@@ -1584,6 +1584,9 @@ async function executeCommand(
 
     // PDF
     case "pdf": {
+      if (!page) {
+        return { error: "No page open. Navigate to a URL first." };
+      }
       const [opts] = args as [
         {
           path?: string;
@@ -1593,7 +1596,7 @@ async function executeCommand(
           format?: string;
         }?,
       ];
-      const cdpSession = page!.mainFrame().session;
+      const cdpSession = page.mainFrame().session;
       const paperSizes: Record<string, { width: number; height: number }> = {
         letter: { width: 8.5, height: 11 },
         legal: { width: 8.5, height: 14 },
