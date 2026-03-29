@@ -2831,7 +2831,11 @@ cookiesCmd
       const opts = program.opts<GlobalOpts>();
       try {
         const filter =
-          cmdOpts.name || cmdOpts.domain || cmdOpts.path ? cmdOpts : undefined;
+          cmdOpts.name !== undefined ||
+          cmdOpts.domain !== undefined ||
+          cmdOpts.path !== undefined
+            ? cmdOpts
+            : undefined;
         const result = await runCommand("cookies_clear", [filter]);
         output(result, opts.json ?? false);
       } catch (e) {
