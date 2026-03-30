@@ -46,6 +46,33 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Tag browse-cli release
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if git diff --quiet HEAD^ HEAD -- packages/cli/package.json; then
+            echo "browse-cli version did not change on this push."
+            exit 0
+          fi
+
+          OLD_VERSION=$(git show HEAD^:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+          NEW_VERSION=$(node -p "require('./packages/cli/package.json').version")
+
+          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "browse-cli version did not change on this push."
+            exit 0
+          fi
+
+          TAG="@browserbasehq/browse-cli@${NEW_VERSION}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+
       - name: Publish Canary
         if: github.ref == 'refs/heads/main'
         run: |

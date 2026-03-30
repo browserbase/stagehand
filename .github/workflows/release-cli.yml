@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
   id-token: write
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
@@ -111,23 +112,69 @@ jobs:
         if: steps.check.outputs.has_changesets == 'true'
         run: pnpm exec turbo run build
 
-      - name: Publish browse-cli to npm
+      - name: Check if browse-cli version is already published
         if: steps.check.outputs.has_changesets == 'true'
+        id: publish_check
+        run: |
+          VERSION=$(node -p "require('./packages/cli/package.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+          if npm view "@browserbasehq/browse-cli@${VERSION}" version >/dev/null 2>&1; then
+            echo "browse-cli ${VERSION} is already published. Skipping npm publish."
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish browse-cli to npm
+        if: steps.check.outputs.has_changesets == 'true' && steps.publish_check.outputs.already_published != 'true'
         run: |
           cd packages/cli
-          npm publish --provenance --access public
+          PACK_DIR=$(mktemp -d)
+          trap 'rm -rf "$PACK_DIR"' EXIT
 
-      - name: Commit version bump and tag
+          TARBALL=$(pnpm pack --json --pack-destination "$PACK_DIR" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).filename")
+          npm publish "$TARBALL" --provenance --access public
+
+      - name: Create release sync pull request
         if: steps.check.outputs.has_changesets == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          VERSION=$(node -p "require('./packages/cli/package.json').version")
+          VERSION="${{ steps.publish_check.outputs.version }}"
+          BRANCH="release/browse-cli-v${VERSION}"
 
+          # main requires PR-based updates, so sync the version bump via a release PR
+          # instead of pushing directly after publish.
+          git checkout -b "$BRANCH"
           git add packages/cli/package.json packages/cli/CHANGELOG.md .changeset/
+          if git diff --cached --quiet; then
+            echo "No release metadata changes to sync."
+            exit 0
+          fi
+
           git commit -m "Release @browserbasehq/browse-cli@${VERSION}"
-          git tag "@browserbasehq/browse-cli@${VERSION}"
-          git push origin main --follow-tags
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          git push --force-with-lease origin "$BRANCH"
+
+          PR_NUMBER=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$BRANCH" \
+            --base main \
+            --state open \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            echo "Release sync PR already exists: #$PR_NUMBER"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$BRANCH" \
+            --title "Release @browserbasehq/browse-cli@${VERSION}" \
+            --body "Sync the version bump, changelog, and consumed changesets for the published @browserbasehq/browse-cli@${VERSION} release."
