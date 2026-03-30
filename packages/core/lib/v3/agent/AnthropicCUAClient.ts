@@ -454,16 +454,19 @@ export class AnthropicCUAClient extends AgentClient {
         isAdaptiveThinkingModel || modelBase === "claude-opus-4-5-20251101";
 
       // Configure thinking capability based on model version
-      // - For 4.6 models: Use adaptive thinking with effort (recommended)
+      // - For 4.6 models: Use adaptive thinking with effort (recommended, defaults to "medium")
       // - For older models: Use enabled thinking with budget_tokens (deprecated)
       let thinking: { type: "adaptive" } | { type: "enabled"; budget_tokens: number } | undefined;
       let outputConfig: { effort: ThinkingEffort } | undefined;
+      let useAdaptiveThinking = false;
 
-      if (isAdaptiveThinkingModel && this.thinkingEffort) {
+      if (isAdaptiveThinkingModel) {
         // Claude 4.6+ models use adaptive thinking with output_config.effort
+        // Default to "medium" effort if not explicitly specified
         // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
         thinking = { type: "adaptive" };
-        outputConfig = { effort: this.thinkingEffort };
+        outputConfig = { effort: this.thinkingEffort || "medium" };
+        useAdaptiveThinking = true;
       } else if (this.thinkingBudget) {
         // Older models use enabled thinking with budget_tokens (deprecated for 4.6)
         thinking = { type: "enabled", budget_tokens: this.thinkingBudget };
@@ -536,6 +539,12 @@ export class AnthropicCUAClient extends AgentClient {
       // Add output_config for adaptive thinking (Claude 4.6+ models)
       if (outputConfig) {
         requestParams.output_config = outputConfig;
+      }
+
+      // Adaptive thinking requires temperature to be set to 1
+      // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      if (useAdaptiveThinking) {
+        requestParams.temperature = 1;
       }
 
       // Log LLM request
