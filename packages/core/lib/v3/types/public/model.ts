@@ -116,6 +116,8 @@ export type ClientOptions = (
   temperature?: number;
   /** Custom headers sent with every request to the provider */
   headers?: Record<string, string>;
+  /** Reasoning effort for reasoning-capable models (e.g., "none", "low", "medium", "high") */
+  reasoningEffort?: string;
 };
 
 export type ModelConfiguration =
