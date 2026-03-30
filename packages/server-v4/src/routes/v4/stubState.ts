@@ -28,9 +28,6 @@ function findBrowserSessionOrThrow(id: string): BrowserSession {
 function buildBrowserSessionFromCreate(
   input: BrowserSessionCreateRequest,
   llmId: string,
-  actLlmId: string | null,
-  observeLlmId: string | null,
-  extractLlmId: string | null,
 ): BrowserSession {
   const cdpUrl =
     input.env === "LOCAL"
@@ -40,9 +37,9 @@ function buildBrowserSessionFromCreate(
   return BrowserSessionSchema.parse({
     id: buildId("session"),
     llmId,
-    actLlmId,
-    observeLlmId,
-    extractLlmId,
+    actLlmId: input.actLlmId ?? null,
+    observeLlmId: input.observeLlmId ?? null,
+    extractLlmId: input.extractLlmId ?? null,
     env: input.env,
     status: "running",
     cdpUrl,
@@ -67,17 +64,8 @@ function buildBrowserSessionFromCreate(
 export function createBrowserSession(
   input: BrowserSessionCreateRequest,
   llmId: string,
-  actLlmId: string | null,
-  observeLlmId: string | null,
-  extractLlmId: string | null,
 ): BrowserSession {
-  const browserSession = buildBrowserSessionFromCreate(
-    input,
-    llmId,
-    actLlmId,
-    observeLlmId,
-    extractLlmId,
-  );
+  const browserSession = buildBrowserSessionFromCreate(input, llmId);
 
   browserSessions.set(browserSession.id, browserSession);
 
@@ -91,19 +79,19 @@ export function getBrowserSession(id: string): BrowserSession {
 export function updateBrowserSession(
   id: string,
   input: BrowserSessionUpdateRequest,
-  llmId: string,
-  actLlmId: string | null | undefined,
-  observeLlmId: string | null | undefined,
-  extractLlmId: string | null | undefined,
 ): BrowserSession {
   const existing = findBrowserSessionOrThrow(id);
 
   const updated = BrowserSessionSchema.parse({
     ...existing,
-    llmId,
-    ...(input.actLlmId !== undefined ? { actLlmId } : {}),
-    ...(input.observeLlmId !== undefined ? { observeLlmId } : {}),
-    ...(input.extractLlmId !== undefined ? { extractLlmId } : {}),
+    ...(input.llmId !== undefined ? { llmId: input.llmId } : {}),
+    ...(input.actLlmId !== undefined ? { actLlmId: input.actLlmId } : {}),
+    ...(input.observeLlmId !== undefined
+      ? { observeLlmId: input.observeLlmId }
+      : {}),
+    ...(input.extractLlmId !== undefined
+      ? { extractLlmId: input.extractLlmId }
+      : {}),
     ...(input.domSettleTimeoutMs !== undefined
       ? { domSettleTimeoutMs: input.domSettleTimeoutMs }
       : {}),
