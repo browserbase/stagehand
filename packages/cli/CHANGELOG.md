@@ -1,5 +1,9 @@
 # @browserbasehq/browse-cli
 
+## 0.3.0
+
+This version was published to npm with a broken `workspace:*` dependency and is not installable. The pending browse-cli changesets remain in the repo so the next installable release can include those changes normally.
+
 ## 0.2.0
 
 ### Minor Changes
