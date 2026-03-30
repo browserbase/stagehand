@@ -55,6 +55,7 @@ describe("AnthropicCUAClient adaptive thinking", () => {
         expect.objectContaining({
           thinking: { type: "adaptive" },
           output_config: { effort: "high" },
+          temperature: 1,
         }),
       );
 
@@ -81,6 +82,7 @@ describe("AnthropicCUAClient adaptive thinking", () => {
         expect.objectContaining({
           thinking: { type: "adaptive" },
           output_config: { effort: "medium" },
+          temperature: 1,
         }),
       );
     });
@@ -103,6 +105,7 @@ describe("AnthropicCUAClient adaptive thinking", () => {
         expect.objectContaining({
           thinking: { type: "adaptive" },
           output_config: { effort: "max" },
+          temperature: 1,
         }),
       );
     });
@@ -125,11 +128,12 @@ describe("AnthropicCUAClient adaptive thinking", () => {
         expect.objectContaining({
           thinking: { type: "adaptive" },
           output_config: { effort: "low" },
+          temperature: 1,
         }),
       );
     });
 
-    it("should NOT include thinking parameter when thinkingEffort is not set for 4.6 models", async () => {
+    it("should default to adaptive thinking with 'medium' effort when thinkingEffort is not set for 4.6 models", async () => {
       const client = new AnthropicCUAClient(
         "anthropic",
         "claude-opus-4-6",
@@ -142,9 +146,57 @@ describe("AnthropicCUAClient adaptive thinking", () => {
 
       await client.getAction([{ role: "user", content: "test" }]);
 
-      const callArgs = mockCreate.mock.calls[0][0];
-      expect(callArgs.thinking).toBeUndefined();
-      expect(callArgs.output_config).toBeUndefined();
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          thinking: { type: "adaptive" },
+          output_config: { effort: "medium" },
+          temperature: 1,
+        }),
+      );
+    });
+
+    it("should set temperature to 1 when adaptive thinking is enabled", async () => {
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "claude-opus-4-6",
+        undefined,
+        {
+          apiKey: "test-key",
+          thinkingEffort: "high",
+        },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }]);
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          temperature: 1,
+        }),
+      );
+    });
+
+    it("should set temperature to 1 for claude-sonnet-4-6 with adaptive thinking", async () => {
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "claude-sonnet-4-6",
+        undefined,
+        {
+          apiKey: "test-key",
+          thinkingEffort: "low",
+        },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }]);
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          thinking: { type: "adaptive" },
+          output_config: { effort: "low" },
+          temperature: 1,
+        }),
+      );
     });
   });
 
@@ -193,6 +245,25 @@ describe("AnthropicCUAClient adaptive thinking", () => {
           thinking: { type: "enabled", budget_tokens: 10000 },
         }),
       );
+    });
+
+    it("should NOT force temperature to 1 for older models with budget_tokens", async () => {
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "claude-sonnet-4-5-20250929",
+        undefined,
+        {
+          apiKey: "test-key",
+          thinkingBudget: 8000,
+        },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }]);
+
+      const callArgs = mockCreate.mock.calls[0][0];
+      // Temperature should not be explicitly set to 1 for older models
+      expect(callArgs.temperature).toBeUndefined();
     });
   });
 
