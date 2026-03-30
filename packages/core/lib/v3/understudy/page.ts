@@ -1,5 +1,7 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
+import { createWriteStream, type WriteStream } from "fs";
+import { resolve as pathResolve, join as pathJoin } from "path";
 import { v3Logger } from "../logger.js";
 import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import type { CDPSessionLike } from "./cdp.js";
@@ -99,6 +101,12 @@ export class Page {
   private readonly pageId: string;
   /** Cached current URL for synchronous page.url() */
   private _currentUrl: string = "about:blank";
+
+  /** Video recording state */
+  private _videoRecordingDir: string | null = null;
+  private _videoFrames: Buffer[] = [];
+  private _videoRecording = false;
+  private _videoFrameCount = 0;
 
   private navigationCommandSeq = 0;
   private latestNavigationCommandId = 0;
@@ -339,6 +347,21 @@ export class Page {
       }
     } catch {
       // ignore
+    }
+
+    // Auto-start video recording if configured
+    if (localBrowserLaunchOptions?.recordVideo?.dir) {
+      try {
+        const videoSize = localBrowserLaunchOptions.recordVideo.size;
+        await page.startVideoRecording(
+          localBrowserLaunchOptions.recordVideo.dir,
+          videoSize
+            ? { maxWidth: videoSize.width, maxHeight: videoSize.height }
+            : undefined,
+        );
+      } catch {
+        // best-effort video recording
+      }
     }
 
     // Seed topology + ownership for nodes known at creation time.
@@ -1174,6 +1197,84 @@ export class Page {
     };
 
     return await withTimeout(exec(), opts.timeout, "screenshot");
+  }
+
+  /**
+   * Start recording the page as a series of PNG frames using CDP screencast.
+   * Frames are saved to the specified directory and can be assembled into a video.
+   * @param dir Directory to save video frames to.
+   * @param options Optional screencast configuration.
+   */
+  async startVideoRecording(
+    dir: string,
+    options?: { maxWidth?: number; maxHeight?: number; everyNthFrame?: number },
+  ): Promise<void> {
+    if (this._videoRecording) return;
+
+    this._videoRecordingDir = pathResolve(dir);
+    this._videoFrames = [];
+    this._videoFrameCount = 0;
+    this._videoRecording = true;
+
+    await fs.mkdir(this._videoRecordingDir, { recursive: true });
+
+    // Listen for screencast frames
+    this.mainSession.on(
+      "Page.screencastFrame",
+      async (params: {
+        data: string;
+        metadata: { timestamp: number };
+        sessionId: number;
+      }) => {
+        if (!this._videoRecording) return;
+        try {
+          const frameBuffer = Buffer.from(params.data, "base64");
+          const frameNum = String(this._videoFrameCount++).padStart(6, "0");
+          await fs.writeFile(
+            pathJoin(this._videoRecordingDir!, `frame-${frameNum}.png`),
+            frameBuffer,
+          );
+          // Acknowledge the frame so Chrome sends the next one
+          await this.mainSession
+            .send("Page.screencastFrameAck", {
+              sessionId: params.sessionId,
+            })
+            .catch(() => {});
+        } catch {
+          // best-effort frame capture
+        }
+      },
+    );
+
+    await this.mainSession.send("Page.startScreencast", {
+      format: "png",
+      maxWidth: options?.maxWidth ?? 1280,
+      maxHeight: options?.maxHeight ?? 720,
+      everyNthFrame: options?.everyNthFrame ?? 2,
+    });
+  }
+
+  /**
+   * Stop video recording and return the directory containing the frames.
+   * Use ffmpeg or similar to assemble frames into a video file.
+   * @returns The directory path containing the recorded frames, or null if not recording.
+   */
+  async stopVideoRecording(): Promise<string | null> {
+    if (!this._videoRecording) return null;
+    this._videoRecording = false;
+
+    await this.mainSession
+      .send("Page.stopScreencast")
+      .catch(() => {});
+
+    return this._videoRecordingDir;
+  }
+
+  /**
+   * Check if the page is currently recording video.
+   */
+  get isVideoRecording(): boolean {
+    return this._videoRecording;
   }
 
   /**
