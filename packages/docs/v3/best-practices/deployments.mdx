@@ -67,10 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       apiKey: process.env.BROWSERBASE_API_KEY!,
       projectId: process.env.BROWSERBASE_PROJECT_ID!,
       disablePino: true,
-      model: {
-        modelName: "google/gemini-2.5-flash",
-        apiKey: process.env.GOOGLE_API_KEY!,
-      },
+      model: "google/gemini-2.5-flash",
       // optional session params
       browserbaseSessionCreateParams: {
         projectId: process.env.BROWSERBASE_PROJECT_ID!,

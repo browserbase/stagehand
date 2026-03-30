@@ -132,10 +132,7 @@ await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/drag-d
 
 const agent = stagehand.agent({
   mode: "cua",
-  model: {
-    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
-  },
+  model: "google/gemini-2.5-computer-use-preview-10-2025",
   systemPrompt: "You are a helpful assistant that can use a web browser.",
 });
 
