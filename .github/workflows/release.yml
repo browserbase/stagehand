@@ -46,6 +46,59 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check if browse-cli publish is needed
+        if: github.ref == 'refs/heads/main'
+        id: browse_cli
+        run: |
+          if git diff --quiet HEAD^ HEAD -- packages/cli/package.json; then
+            echo "browse-cli version did not change on this push."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          OLD_VERSION=$(git show HEAD^:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+          NEW_VERSION=$(node -p "require('./packages/cli/package.json').version")
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "browse-cli version did not change on this push."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+
+          if npm view "@browserbasehq/browse-cli@${NEW_VERSION}" version >/dev/null 2>&1; then
+            echo "browse-cli ${NEW_VERSION} is already published."
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish browse-cli to npm
+        if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        run: |
+          cd packages/cli
+          PACK_DIR=$(mktemp -d)
+          trap 'rm -rf "$PACK_DIR"' EXIT
+
+          TARBALL=$(pnpm pack --json --pack-destination "$PACK_DIR" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).filename")
+          npm publish "$TARBALL" --provenance --access public
+
+      - name: Tag browse-cli release
+        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish == 'true'
+        run: |
+          TAG="@browserbasehq/browse-cli@${{ steps.browse_cli.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+
       - name: Publish Canary
         if: github.ref == 'refs/heads/main'
         run: |

@@ -1,17 +1,17 @@
-name: Release CLI
+name: Prepare CLI Release
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: write
-  id-token: write
+  pull-requests: write
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   release-cli:
-    name: Release browse-cli
+    name: Prepare browse-cli release PR
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -23,14 +23,6 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
           use-prebuilt-artifacts: "false"
-
-      - name: Configure npm registry for Trusted Publishing
-        uses: actions/setup-node@v6
-        with:
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Update npm for Trusted Publishing
-        run: npm install -g npm@latest
 
       - name: Check for browse-cli changesets
         id: check
@@ -107,27 +99,59 @@ jobs:
           mv .changeset/config.json.bak .changeset/config.json
           rm packages/cli/package.json.bak
 
-      - name: Build
+      - name: Create or update release pull request
         if: steps.check.outputs.has_changesets == 'true'
-        run: pnpm exec turbo run build
-
-      - name: Publish browse-cli to npm
-        if: steps.check.outputs.has_changesets == 'true'
-        run: |
-          cd packages/cli
-          npm publish --provenance --access public
-
-      - name: Commit version bump and tag
-        if: steps.check.outputs.has_changesets == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           VERSION=$(node -p "require('./packages/cli/package.json').version")
+          BRANCH="release/browse-cli"
+          PR_TITLE="Release @browserbasehq/browse-cli@${VERSION}"
+          PR_BODY_FILE=$(mktemp)
+          cat > "$PR_BODY_FILE" <<EOF
+          Prepare the next browse-cli release by versioning the package on \`main\`.
 
+          What this PR does:
+          - bumps \`packages/cli/package.json\` to \`${VERSION}\`
+          - updates the browse-cli changelog
+          - consumes the pending browse-cli changesets
+
+          After this PR merges, the \`Release\` workflow on \`main\` will publish \`@browserbasehq/browse-cli@${VERSION}\` from that exact commit using \`pnpm pack\` + \`npm publish --provenance\`.
+          EOF
+
+          git checkout -B "$BRANCH"
           git add packages/cli/package.json packages/cli/CHANGELOG.md .changeset/
-          git commit -m "Release @browserbasehq/browse-cli@${VERSION}"
-          git tag "@browserbasehq/browse-cli@${VERSION}"
-          git push origin main --follow-tags
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if git diff --cached --quiet; then
+            echo "No release metadata changes to publish."
+            exit 0
+          fi
+
+          git commit -m "$PR_TITLE"
+          git push --force-with-lease origin "$BRANCH"
+
+          PR_NUMBER=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$BRANCH" \
+            --base main \
+            --state open \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            gh pr edit "$PR_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$PR_TITLE" \
+              --body-file "$PR_BODY_FILE"
+            echo "Updated existing release PR: #$PR_NUMBER"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$BRANCH" \
+            --title "$PR_TITLE" \
+            --body-file "$PR_BODY_FILE"
