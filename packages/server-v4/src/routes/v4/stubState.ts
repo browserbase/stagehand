@@ -6,6 +6,7 @@ import type {
   BrowserSessionUpdateRequest,
 } from "../../schemas/v4/browserSession.js";
 import { BrowserSessionSchema } from "../../schemas/v4/browserSession.js";
+import { omitUndefined } from "../../utils/object.js";
 
 const browserSessions = new Map<string, BrowserSession>();
 
@@ -84,28 +85,7 @@ export function updateBrowserSession(
 
   const updated = BrowserSessionSchema.parse({
     ...existing,
-    ...(input.llmId !== undefined ? { llmId: input.llmId } : {}),
-    ...(input.actLlmId !== undefined ? { actLlmId: input.actLlmId } : {}),
-    ...(input.observeLlmId !== undefined
-      ? { observeLlmId: input.observeLlmId }
-      : {}),
-    ...(input.extractLlmId !== undefined
-      ? { extractLlmId: input.extractLlmId }
-      : {}),
-    ...(input.domSettleTimeoutMs !== undefined
-      ? { domSettleTimeoutMs: input.domSettleTimeoutMs }
-      : {}),
-    ...(input.verbose !== undefined ? { verbose: input.verbose } : {}),
-    ...(input.selfHeal !== undefined ? { selfHeal: input.selfHeal } : {}),
-    ...(input.waitForCaptchaSolves !== undefined
-      ? { waitForCaptchaSolves: input.waitForCaptchaSolves }
-      : {}),
-    ...(input.experimental !== undefined
-      ? { experimental: input.experimental }
-      : {}),
-    ...(input.actTimeoutMs !== undefined
-      ? { actTimeoutMs: input.actTimeoutMs }
-      : {}),
+    ...omitUndefined(input),
   });
 
   browserSessions.set(id, updated);
