@@ -136,7 +136,8 @@ export class AISdkClient extends LLMClient {
     const isCodex = this.model.modelId.includes("codex");
     const usesLowReasoningEffort =
       (this.model.modelId.includes("gpt-5.1") ||
-        this.model.modelId.includes("gpt-5.2")) &&
+        this.model.modelId.includes("gpt-5.2") ||
+        this.model.modelId.includes("gpt-5.4")) &&
       !isCodex;
     // Kimi models only support temperature=1
     const isKimi = this.model.modelId.includes("kimi");
