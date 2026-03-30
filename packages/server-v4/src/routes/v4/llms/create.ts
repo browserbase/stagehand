@@ -1,5 +1,4 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
-import { StatusCodes } from "http-status-codes";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
@@ -7,23 +6,10 @@ import {
   LLMErrorResponseSchema,
   LLMHeadersSchema,
   LLMResponseSchema,
-  type LLMCreateRequest,
 } from "../../../schemas/v4/llm.js";
-import { createLLM } from "../stubState.js";
 
-const createLLMHandler: RouteHandlerMethod = async (request, reply) => {
-  const body = request.body as LLMCreateRequest;
-  const llm = createLLM(body);
-
-  return reply.status(StatusCodes.OK).send(
-    LLMResponseSchema.parse({
-      success: true,
-      data: {
-        llm,
-      },
-    }),
-  );
-};
+const createLLMHandler: RouteHandlerMethod = async (request, reply) =>
+  request.server.llmController.create(request, reply);
 
 const createLLMRoute: RouteOptions = {
   method: "POST",

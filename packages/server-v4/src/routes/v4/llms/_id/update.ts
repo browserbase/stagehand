@@ -1,5 +1,4 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
-import { StatusCodes } from "http-status-codes";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
@@ -7,25 +6,10 @@ import {
   LLMIdParamsSchema,
   LLMResponseSchema,
   LLMUpdateRequestSchema,
-  type LLMIdParams,
-  type LLMUpdateRequest,
 } from "../../../../schemas/v4/llm.js";
-import { updateLLM } from "../../stubState.js";
 
-const updateLLMHandler: RouteHandlerMethod = async (request, reply) => {
-  const { id } = request.params as LLMIdParams;
-  const body = request.body as LLMUpdateRequest;
-  const llm = updateLLM(id, body);
-
-  return reply.status(StatusCodes.OK).send(
-    LLMResponseSchema.parse({
-      success: true,
-      data: {
-        llm,
-      },
-    }),
-  );
-};
+const updateLLMHandler: RouteHandlerMethod = async (request, reply) =>
+  request.server.llmController.update(request, reply);
 
 const updateLLMRoute: RouteOptions = {
   method: "PATCH",

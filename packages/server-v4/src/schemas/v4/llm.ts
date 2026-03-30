@@ -1,12 +1,18 @@
 import { Api } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
-import { TimestampSchema } from "./page.js";
+import {
+  LLMProviderOptionsSchema as DatabaseLLMProviderOptionsSchema,
+  llmConfigInsertSchema,
+  llmConfigSelectSchema,
+  llmConfigUpdateSchema,
+  llmSourceSchema as DatabaseLLMSourceSchema,
+} from "../../db/schema/zod.js";
 
-export const LLMIdSchema = z
-  .string()
-  .min(1)
-  .meta({ id: "LLMId", example: "llm_01JXAMPLE" });
+export const LLMIdSchema = llmConfigSelectSchema.shape.id.meta({
+  id: "LLMId",
+  example: "550e8400-e29b-41d4-a716-446655440000",
+});
 
 export const LLMHeadersSchema = Api.SessionHeadersSchema.meta({
   id: "LLMHeaders",
@@ -20,40 +26,35 @@ export const LLMErrorResponseSchema = z
   .strict()
   .meta({ id: "LLMErrorResponse" });
 
-export const LLMSourceSchema = z
-  .enum(["user", "system-default"])
-  .meta({ id: "LLMSource" });
-
-export const LLMProviderOptionsSchema = z
-  .object({
-    temperature: z.number().optional(),
-    organization: z.string().optional(),
-    project: z.string().optional(),
-    location: z.string().optional(),
-  })
-  .strict()
-  .meta({ id: "LLMProviderOptions" });
-
-const LLMWritableSchema = z
-  .object({
-    displayName: z.string().optional(),
-    modelName: z.string().meta({
-      description: "Provider-prefixed model identifier",
-      example: "openai/gpt-4.1-nano",
-    }),
-    baseUrl: z.string().url().optional(),
-    systemPrompt: z.string().optional(),
-    providerOptions: LLMProviderOptionsSchema.optional(),
-  })
-  .strict();
-
-export const LLMCreateRequestSchema = LLMWritableSchema.meta({
-  id: "LLMCreateRequest",
+export const LLMSourceSchema = DatabaseLLMSourceSchema.meta({
+  id: "LLMSource",
 });
 
-export const LLMUpdateRequestSchema = LLMWritableSchema.partial().meta({
-  id: "LLMUpdateRequest",
+export const LLMProviderOptionsSchema = DatabaseLLMProviderOptionsSchema.meta({
+  id: "LLMProviderOptions",
 });
+
+export const LLMCreateRequestSchema = llmConfigInsertSchema
+  .omit({
+    id: true,
+    source: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .meta({
+    id: "LLMCreateRequest",
+  });
+
+export const LLMUpdateRequestSchema = llmConfigUpdateSchema
+  .omit({
+    id: true,
+    source: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .meta({
+    id: "LLMUpdateRequest",
+  });
 
 export const LLMIdParamsSchema = z
   .object({
@@ -62,14 +63,7 @@ export const LLMIdParamsSchema = z
   .strict()
   .meta({ id: "LLMIdParams" });
 
-export const LLMSchema = LLMWritableSchema.extend({
-  id: LLMIdSchema,
-  source: LLMSourceSchema,
-  createdAt: TimestampSchema,
-  updatedAt: TimestampSchema,
-})
-  .strict()
-  .meta({ id: "LLM" });
+export const LLMSchema = llmConfigSelectSchema.meta({ id: "LLM" });
 
 export const LLMResultSchema = z
   .object({

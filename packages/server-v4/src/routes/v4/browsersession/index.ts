@@ -16,7 +16,9 @@ const createBrowserSessionHandler: RouteHandlerMethod = async (
   reply,
 ) => {
   const body = request.body as BrowserSessionCreateRequest;
-  const browserSession = createBrowserSession(body);
+  const llmId =
+    body.llmId ?? (await request.server.llmService.createSystemDefaultLlm()).id;
+  const browserSession = createBrowserSession(body, llmId);
 
   return reply.status(StatusCodes.OK).send(
     BrowserSessionResponseSchema.parse({
