@@ -10,7 +10,7 @@
 
 import { Command } from "commander";
 import { Stagehand, type Page as BrowsePage } from "@browserbasehq/stagehand";
-import { promises as fs, default as fsSync } from "fs";
+import { promises as fs } from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as net from "net";
@@ -609,13 +609,11 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
     context: BrowseContext;
   }> {
     if (stagehand && context) {
-      console.error("[daemon] Browser already initialized, reusing");
       return { stagehand, context };
     }
 
     // Prevent concurrent initialization
     if (isInitializing) {
-      console.error("[daemon] Waiting for concurrent initialization to finish");
       // Wait for initialization to complete
       while (isInitializing) {
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -627,13 +625,11 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
     }
 
     isInitializing = true;
-    console.error("[daemon] Starting browser initialization...");
 
     try {
       const desiredMode = await getDesiredMode(session);
       assertModeSupported(desiredMode);
       const useBrowserbase = desiredMode === "browserbase";
-      console.error(`[daemon] Mode: ${desiredMode}, useBrowserbase: ${useBrowserbase}`);
 
       // Read context config if present (written by `browse open --context-id`)
       let contextConfig: { id: string; persist?: boolean } | null = null;
@@ -726,20 +722,15 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
         await writeLocalInfo(session, localInfo);
       }
 
-      console.error("[daemon] Calling stagehand.init()...");
       await stagehand.init();
-      console.error("[daemon] stagehand.init() complete");
 
       context = stagehand.context;
-      const pages = context.pages();
-      console.error(`[daemon] Context ready, pages: ${pages.length}, activePage: ${context.activePage()?.url() ?? "none"}`);
 
       // Clear cached state when the browser connection dies so the next
       // command triggers a full re-initialization instead of reusing a
       // dead Stagehand/context pair (fixes "awaitActivePage: no page
       // available" when a stale daemon outlives its browser).
       context.conn.onTransportClosed(() => {
-        console.error("[daemon] Transport closed — clearing stagehand/context for re-init");
         stagehand = null;
         context = null;
       });
@@ -768,23 +759,19 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
       let response: DaemonResponse;
       try {
         const request: DaemonRequest = JSON.parse(line);
-        console.error(`[daemon] Received command: ${request.command} args: ${JSON.stringify(request.args)}`);
 
         // Lazy browser initialization on first command (like agent-browser)
         const { stagehand: sh, context: ctx } =
           await ensureBrowserInitialized();
 
-        console.error(`[daemon] Executing command: ${request.command}`);
         const result = await executeCommand(
           ctx,
           request.command,
           request.args,
           sh,
         );
-        console.error(`[daemon] Command succeeded: ${request.command}`);
         response = { success: true, result };
       } catch (e) {
-        console.error(`[daemon] Command failed: ${e instanceof Error ? e.message : String(e)}`);
         response = {
           success: false,
           error: e instanceof Error ? e.message : String(e),
@@ -1010,18 +997,13 @@ async function executeCommand(
   stagehand?: Stagehand,
 ): Promise<unknown> {
   // Use awaitActivePage() like stagehand.act() does - handles popups and waits for page to be ready
-  const allPages = context.pages();
-  const active = context.activePage();
-  console.error(`[exec] command=${command}, pages.length=${allPages.length}, activePage=${active?.url() ?? "none"}`);
   const page =
     command !== "pages" && command !== "newpage"
       ? await context.awaitActivePage()
       : context.activePage();
   if (!page && command !== "pages" && command !== "newpage") {
-    console.error(`[exec] No active page after awaitActivePage — pagesByTarget size: ${(context as any).pagesByTarget?.size ?? "unknown"}`);
     throw new Error("No active page");
   }
-  console.error(`[exec] Got page: ${page?.url() ?? "null"}`);
 
   switch (command) {
     // Navigation
@@ -1676,11 +1658,9 @@ async function sendCommand(
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      console.error(`[client] sendCommand attempt ${attempt + 1}/${maxRetries} for ${command}`);
       return await sendCommandOnce(session, command, args);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[client] sendCommand attempt ${attempt + 1} failed: ${errMsg}`);
 
       if (command === "stop") {
         throw err;
@@ -1733,17 +1713,13 @@ async function stopDaemonAndCleanup(session: string): Promise<void> {
 async function ensureDaemon(session: string, headless: boolean): Promise<void> {
   const wantMode = await getDesiredMode(session);
   assertModeSupported(wantMode);
-  console.error(`[client] ensureDaemon: session=${session}, wantMode=${wantMode}`);
 
   if (await isDaemonRunning(session)) {
     // Missing mode file means daemon predates mode support, which was local-only.
     const currentMode = (await readCurrentMode(session)) ?? "local";
-    console.error(`[client] Daemon already running, currentMode=${currentMode}`);
     if (currentMode === wantMode) {
-      console.error(`[client] Mode matches, reusing existing daemon`);
       return;
     }
-    console.error(`[client] Mode mismatch (${currentMode} != ${wantMode}), restarting daemon`);
     await stopDaemonAndCleanup(session);
   }
 
@@ -1766,20 +1742,17 @@ async function ensureDaemon(session: string, headless: boolean): Promise<void> {
     const args = ["--session", session, "daemon"];
     if (headless) args.push("--headless");
 
-    const logPath = path.join(SOCKET_DIR, `browse-${session}.log`);
-    console.error(`[client] Spawning daemon, log: ${logPath}`);
-    const logFd = fsSync.openSync(logPath, "a");
     const child = spawn(
       process.argv[0],
       [...process.execArgv, process.argv[1], ...args],
       {
         detached: true,
-        // Redirect stderr to log file so daemon debug output is visible
-        stdio: ["ignore", logFd, logFd],
+        // Avoid piping stdout for detached daemon startup. Deep-locator internals
+        // can log via console fallback, and writing to a broken pipe crashes daemon.
+        stdio: ["ignore", "ignore", "ignore"],
       },
     );
     child.unref();
-    fsSync.closeSync(logFd);
 
     await new Promise<void>((resolve, reject) => {
       let settled = false;
@@ -1858,7 +1831,6 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
   const opts = program.opts<GlobalOpts>();
   const session = getSession(opts);
   const headless = isHeadless(opts);
-  console.error(`[client] runCommand: command=${command}, args=${JSON.stringify(args)}, session=${session}, headless=${headless}`);
   // If --ws provided, bypass daemon and connect directly
   if (opts.ws) {
     const cdpUrl = await resolveWsTarget(opts.ws);
@@ -1906,9 +1878,7 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
     } catch {}
   }
 
-  console.error(`[client] Ensuring daemon for session=${session}`);
   await ensureDaemon(session, headless);
-  console.error(`[client] Daemon ready, sending command`);
   return sendCommand(session, command, args, headless);
 }
 
