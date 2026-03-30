@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { actTool } from "../../lib/v3/agent/tools/act.js";
 import { extractTool } from "../../lib/v3/agent/tools/extract.js";
 import { fillFormTool } from "../../lib/v3/agent/tools/fillform.js";
+import { keysTool } from "../../lib/v3/agent/tools/keys.js";
 import type { V3 } from "../../lib/v3/v3.js";
 
 /**
@@ -10,10 +11,17 @@ import type { V3 } from "../../lib/v3/v3.js";
  */
 function createMockV3() {
   const calls: { method: string; model: unknown; variables?: unknown }[] = [];
+  const mockPage = {
+    type: vi.fn(async () => undefined),
+    keyPress: vi.fn(async () => undefined),
+  };
 
   const mock = {
     logger: vi.fn(),
     recordAgentReplayStep: vi.fn(),
+    context: {
+      awaitActivePage: vi.fn(async () => mockPage),
+    },
     act: vi.fn(async (_instruction: unknown, options?: { model?: unknown }) => {
       calls.push({ method: "act", model: options?.model });
       return {
@@ -47,9 +55,13 @@ function createMockV3() {
       },
     ),
     calls,
+    mockPage,
   };
 
-  return mock as unknown as V3 & { calls: typeof calls };
+  return mock as unknown as V3 & {
+    calls: typeof calls;
+    mockPage: typeof mockPage;
+  };
 }
 
 describe("agent tools pass full executionModel config to v3 methods", () => {
@@ -131,6 +143,29 @@ describe("agent tools pass full executionModel config to v3 methods", () => {
     expect(v3.calls).toHaveLength(1);
     expect(v3.calls[0].method).toBe("observe");
     expect(v3.calls[0].variables).toBe(variables);
+  });
+
+  it("keysTool substitutes variables before typing", async () => {
+    const v3 = createMockV3();
+    const variables = {
+      token: {
+        value: "my-secret-value",
+        description: "The token to type",
+      },
+    };
+    const tool = keysTool(v3, variables);
+    await tool.execute!(
+      { method: "type", value: "%token%" },
+      {
+        toolCallId: "t3-keys-variables",
+        messages: [],
+        abortSignal: new AbortController().signal,
+      },
+    );
+
+    expect(v3.mockPage.type).toHaveBeenCalledWith("my-secret-value", {
+      delay: 100,
+    });
   });
 
   it("actTool passes undefined when no executionModel is set", async () => {
