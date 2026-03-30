@@ -1,23 +1,13 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
-import { StatusCodes } from "http-status-codes";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
 
 import {
   LLMHeadersSchema,
   LLMListResponseSchema,
 } from "../../../schemas/v4/llm.js";
-import { listLLMs } from "../stubState.js";
 
-const listLLMsHandler: RouteHandlerMethod = async (_request, reply) => {
-  return reply.status(StatusCodes.OK).send(
-    LLMListResponseSchema.parse({
-      success: true,
-      data: {
-        llms: listLLMs(),
-      },
-    }),
-  );
-};
+const listLLMsHandler: RouteHandlerMethod = async (request, reply) =>
+  request.server.llmController.list(request, reply);
 
 const listLLMsRoute: RouteOptions = {
   method: "GET",

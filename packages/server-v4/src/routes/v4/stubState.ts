@@ -6,36 +6,16 @@ import type {
   BrowserSessionUpdateRequest,
 } from "../../schemas/v4/browserSession.js";
 import { BrowserSessionSchema } from "../../schemas/v4/browserSession.js";
-import type {
-  LLM,
-  LLMCreateRequest,
-  LLMUpdateRequest,
-} from "../../schemas/v4/llm.js";
-import { LLMSchema } from "../../schemas/v4/llm.js";
+import { omitUndefined } from "../../utils.js";
 
-const llms = new Map<string, LLM>();
 const browserSessions = new Map<string, BrowserSession>();
-
-const DEFAULT_LLM_MODEL_NAME = "openai/gpt-4.1-nano";
 
 function buildId(prefix: string): string {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
 }
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
 function notFoundError(message: string): Error & { statusCode: number } {
   return Object.assign(new Error(message), { statusCode: 404 });
-}
-
-function findLLMOrThrow(id: string): LLM {
-  const llm = llms.get(id);
-  if (!llm) {
-    throw notFoundError("LLM not found");
-  }
-  return llm;
 }
 
 function findBrowserSessionOrThrow(id: string): BrowserSession {
@@ -46,101 +26,9 @@ function findBrowserSessionOrThrow(id: string): BrowserSession {
   return browserSession;
 }
 
-export function listLLMs(): LLM[] {
-  return [...llms.values()];
-}
-
-export function getLLM(id: string): LLM {
-  return findLLMOrThrow(id);
-}
-
-export function createLLM(input: LLMCreateRequest): LLM {
-  const llm = buildLLM({
-    source: "user",
-    displayName: input.displayName,
-    modelName: input.modelName,
-    baseUrl: input.baseUrl,
-    systemPrompt: input.systemPrompt,
-    providerOptions: input.providerOptions,
-  });
-
-  llms.set(llm.id, llm);
-
-  return llm;
-}
-
-function buildLLM(input: {
-  source: LLM["source"];
-  displayName?: string;
-  modelName: string;
-  baseUrl?: string;
-  systemPrompt?: string;
-  providerOptions?: LLM["providerOptions"];
-}): LLM {
-  const timestamp = nowIso();
-  return LLMSchema.parse({
-    id: buildId("llm"),
-    source: input.source,
-    displayName: input.displayName,
-    modelName: input.modelName,
-    baseUrl: input.baseUrl,
-    systemPrompt: input.systemPrompt,
-    providerOptions: input.providerOptions,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-}
-
-export function createDefaultLLM(): LLM {
-  const llm = buildDefaultLLM();
-
-  llms.set(llm.id, llm);
-
-  return llm;
-}
-
-function buildDefaultLLM(): LLM {
-  return buildLLM({
-    source: "system-default",
-    displayName: "Default LLM",
-    modelName: DEFAULT_LLM_MODEL_NAME,
-  });
-}
-
-export function updateLLM(id: string, input: LLMUpdateRequest): LLM {
-  const existing = findLLMOrThrow(id);
-  const updated = LLMSchema.parse({
-    ...existing,
-    ...(input.displayName !== undefined
-      ? { displayName: input.displayName }
-      : {}),
-    ...(input.modelName !== undefined ? { modelName: input.modelName } : {}),
-    ...(input.baseUrl !== undefined ? { baseUrl: input.baseUrl } : {}),
-    ...(input.systemPrompt !== undefined
-      ? { systemPrompt: input.systemPrompt }
-      : {}),
-    ...(input.providerOptions !== undefined
-      ? { providerOptions: input.providerOptions }
-      : {}),
-    updatedAt: nowIso(),
-  });
-
-  llms.set(id, updated);
-
-  return updated;
-}
-
-function resolveOptionalLLMId(id: string | null | undefined): string | null {
-  if (id === undefined || id === null) {
-    return id ?? null;
-  }
-
-  return findLLMOrThrow(id).id;
-}
-
 function buildBrowserSessionFromCreate(
   input: BrowserSessionCreateRequest,
-  llm: LLM,
+  llmId: string,
 ): BrowserSession {
   const cdpUrl =
     input.env === "LOCAL"
@@ -149,10 +37,10 @@ function buildBrowserSessionFromCreate(
 
   return BrowserSessionSchema.parse({
     id: buildId("session"),
-    llmId: llm.id,
-    actLlmId: resolveOptionalLLMId(input.actLlmId),
-    observeLlmId: resolveOptionalLLMId(input.observeLlmId),
-    extractLlmId: resolveOptionalLLMId(input.extractLlmId),
+    llmId,
+    actLlmId: input.actLlmId ?? null,
+    observeLlmId: input.observeLlmId ?? null,
+    extractLlmId: input.extractLlmId ?? null,
     env: input.env,
     status: "running",
     cdpUrl,
@@ -176,15 +64,9 @@ function buildBrowserSessionFromCreate(
 
 export function createBrowserSession(
   input: BrowserSessionCreateRequest,
+  llmId: string,
 ): BrowserSession {
-  const persistedLLM = input.llmId ? findLLMOrThrow(input.llmId) : null;
-  const defaultLLM = persistedLLM ? null : buildDefaultLLM();
-  const llm = persistedLLM ?? defaultLLM;
-  const browserSession = buildBrowserSessionFromCreate(input, llm);
-
-  if (defaultLLM) {
-    llms.set(defaultLLM.id, defaultLLM);
-  }
+  const browserSession = buildBrowserSessionFromCreate(input, llmId);
 
   browserSessions.set(browserSession.id, browserSession);
 
@@ -200,37 +82,10 @@ export function updateBrowserSession(
   input: BrowserSessionUpdateRequest,
 ): BrowserSession {
   const existing = findBrowserSessionOrThrow(id);
-  const llm =
-    input.llmId !== undefined
-      ? findLLMOrThrow(input.llmId)
-      : getLLM(existing.llmId);
 
   const updated = BrowserSessionSchema.parse({
     ...existing,
-    llmId: llm.id,
-    ...(input.actLlmId !== undefined
-      ? { actLlmId: resolveOptionalLLMId(input.actLlmId) }
-      : {}),
-    ...(input.observeLlmId !== undefined
-      ? { observeLlmId: resolveOptionalLLMId(input.observeLlmId) }
-      : {}),
-    ...(input.extractLlmId !== undefined
-      ? { extractLlmId: resolveOptionalLLMId(input.extractLlmId) }
-      : {}),
-    ...(input.domSettleTimeoutMs !== undefined
-      ? { domSettleTimeoutMs: input.domSettleTimeoutMs }
-      : {}),
-    ...(input.verbose !== undefined ? { verbose: input.verbose } : {}),
-    ...(input.selfHeal !== undefined ? { selfHeal: input.selfHeal } : {}),
-    ...(input.waitForCaptchaSolves !== undefined
-      ? { waitForCaptchaSolves: input.waitForCaptchaSolves }
-      : {}),
-    ...(input.experimental !== undefined
-      ? { experimental: input.experimental }
-      : {}),
-    ...(input.actTimeoutMs !== undefined
-      ? { actTimeoutMs: input.actTimeoutMs }
-      : {}),
+    ...omitUndefined(input),
   });
 
   browserSessions.set(id, updated);
