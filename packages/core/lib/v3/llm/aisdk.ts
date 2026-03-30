@@ -376,8 +376,13 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       model: this.model.modelId,
       output:
         textResponse.text ||
-        (transformedToolCalls.length > 0
-          ? `[${transformedToolCalls.length} tool calls]`
+        ((textResponse.toolCalls?.length ?? 0) > 0
+          ? summarizeToolCalls(
+              textResponse.toolCalls!.map((toolCall) => ({
+                name: toolCall.toolName,
+                input: toolCall.input,
+              })),
+            )
           : ""),
       inputTokens: textResponse.usage.inputTokens,
       outputTokens: textResponse.usage.outputTokens,
@@ -406,4 +411,34 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
 
     return result;
   }
+}
+
+function summarizeToolCalls(
+  toolCalls: Array<{ name?: string; input?: unknown }>,
+): string {
+  if (toolCalls.length === 0) {
+    return "";
+  }
+
+  const summaries = toolCalls.map((toolCall) => {
+    const name = toolCall.name || "unknown";
+    return `${name}(${truncateToolArguments(toolCall.input)})`;
+  });
+
+  return toolCalls.length === 1
+    ? `tool call: ${summaries[0]}`
+    : `tool calls: ${summaries.join("; ")}`;
+}
+
+function truncateToolArguments(toolInput: unknown, maxLength = 160): string {
+  if (toolInput === undefined) {
+    return "";
+  }
+
+  const serializedArguments =
+    typeof toolInput === "string" ? toolInput : JSON.stringify(toolInput);
+
+  return serializedArguments.length > maxLength
+    ? `${serializedArguments.slice(0, maxLength - 3)}...`
+    : serializedArguments;
 }
