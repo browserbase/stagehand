@@ -106,6 +106,7 @@ export class Page {
   private _videoRecordingDir: string | null = null;
   private _videoFrames: Buffer[] = [];
   private _videoRecording = false;
+  private _videoStarting = false;
   private _videoFrameCount = 0;
   private _screencastHandler: ((params: any) => void) | null = null;
 
@@ -1210,7 +1211,10 @@ export class Page {
     dir: string,
     options?: { maxWidth?: number; maxHeight?: number; everyNthFrame?: number },
   ): Promise<void> {
-    if (this._videoRecording) return;
+    if (this._videoRecording || this._videoStarting) return;
+
+    // Set synchronous lock immediately to prevent concurrent calls from racing
+    this._videoStarting = true;
 
     this._videoRecordingDir = pathResolve(dir);
     this._videoFrames = [];
@@ -1260,11 +1264,13 @@ export class Page {
         everyNthFrame: options?.everyNthFrame ?? 2,
       });
       this._videoRecording = true;
+      this._videoStarting = false;
     } catch (err) {
       // Cleanup on failure so the recording can be retried
       this.mainSession.off("Page.screencastFrame", this._screencastHandler);
       this._screencastHandler = null;
       this._videoRecording = false;
+      this._videoStarting = false;
       throw err;
     }
   }
