@@ -107,6 +107,7 @@ export class Page {
   private _videoFrames: Buffer[] = [];
   private _videoRecording = false;
   private _videoFrameCount = 0;
+  private _screencastHandler: ((params: any) => void) | null = null;
 
   private navigationCommandSeq = 0;
   private latestNavigationCommandId = 0;
@@ -1214,44 +1215,58 @@ export class Page {
     this._videoRecordingDir = pathResolve(dir);
     this._videoFrames = [];
     this._videoFrameCount = 0;
-    this._videoRecording = true;
 
     await fs.mkdir(this._videoRecordingDir, { recursive: true });
 
-    // Listen for screencast frames
-    this.mainSession.on(
-      "Page.screencastFrame",
-      async (params: {
-        data: string;
-        metadata: { timestamp: number };
-        sessionId: number;
-      }) => {
-        if (!this._videoRecording) return;
-        try {
-          const frameBuffer = Buffer.from(params.data, "base64");
-          const frameNum = String(this._videoFrameCount++).padStart(6, "0");
-          await fs.writeFile(
-            pathJoin(this._videoRecordingDir!, `frame-${frameNum}.png`),
-            frameBuffer,
-          );
-          // Acknowledge the frame so Chrome sends the next one
-          await this.mainSession
-            .send("Page.screencastFrameAck", {
-              sessionId: params.sessionId,
-            })
-            .catch(() => {});
-        } catch {
-          // best-effort frame capture
-        }
-      },
-    );
+    // Remove any previous listener to prevent duplicates across stop/start cycles
+    if (this._screencastHandler) {
+      this.mainSession.off("Page.screencastFrame", this._screencastHandler);
+      this._screencastHandler = null;
+    }
 
-    await this.mainSession.send("Page.startScreencast", {
-      format: "png",
-      maxWidth: options?.maxWidth ?? 1280,
-      maxHeight: options?.maxHeight ?? 720,
-      everyNthFrame: options?.everyNthFrame ?? 2,
-    });
+    // Create and register the frame handler
+    this._screencastHandler = async (params: {
+      data: string;
+      metadata: { timestamp: number };
+      sessionId: number;
+    }) => {
+      if (!this._videoRecording) return;
+      try {
+        const frameBuffer = Buffer.from(params.data, "base64");
+        const frameNum = String(this._videoFrameCount++).padStart(6, "0");
+        await fs.writeFile(
+          pathJoin(this._videoRecordingDir!, `frame-${frameNum}.png`),
+          frameBuffer,
+        );
+        // Acknowledge the frame so Chrome sends the next one
+        await this.mainSession
+          .send("Page.screencastFrameAck", {
+            sessionId: params.sessionId,
+          })
+          .catch(() => {});
+      } catch {
+        // best-effort frame capture
+      }
+    };
+
+    this.mainSession.on("Page.screencastFrame", this._screencastHandler);
+
+    // Start the screencast — if this fails, reset state so retries are possible
+    try {
+      await this.mainSession.send("Page.startScreencast", {
+        format: "png",
+        maxWidth: options?.maxWidth ?? 1280,
+        maxHeight: options?.maxHeight ?? 720,
+        everyNthFrame: options?.everyNthFrame ?? 2,
+      });
+      this._videoRecording = true;
+    } catch (err) {
+      // Cleanup on failure so the recording can be retried
+      this.mainSession.off("Page.screencastFrame", this._screencastHandler);
+      this._screencastHandler = null;
+      this._videoRecording = false;
+      throw err;
+    }
   }
 
   /**
@@ -1266,6 +1281,12 @@ export class Page {
     await this.mainSession
       .send("Page.stopScreencast")
       .catch(() => {});
+
+    // Remove the listener to prevent leaks
+    if (this._screencastHandler) {
+      this.mainSession.off("Page.screencastFrame", this._screencastHandler);
+      this._screencastHandler = null;
+    }
 
     return this._videoRecordingDir;
   }
