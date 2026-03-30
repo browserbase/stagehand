@@ -10,7 +10,7 @@ import {
   ToolUseItem,
 } from "../types/public/agent.js";
 import { LogLine } from "../types/public/logs.js";
-import { ClientOptions } from "../types/public/model.js";
+import { ClientOptions, ThinkingEffort } from "../types/public/model.js";
 import {
   AgentScreenshotProviderError,
   StagehandClosedError,
@@ -44,6 +44,7 @@ export class AnthropicCUAClient extends AgentClient {
   private screenshotProvider?: () => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
   private thinkingBudget: number | null = null;
+  private thinkingEffort: ThinkingEffort | null = null;
   private tools?: ToolSet;
 
   constructor(
@@ -60,12 +61,17 @@ export class AnthropicCUAClient extends AgentClient {
       (clientOptions?.apiKey as string) || process.env.ANTHROPIC_API_KEY || "";
     this.baseURL = (clientOptions?.baseURL as string) || undefined;
 
-    // Get thinking budget if specified
+    // Get thinking budget if specified (deprecated for 4.6 models)
     if (
       clientOptions?.thinkingBudget &&
       typeof clientOptions.thinkingBudget === "number"
     ) {
       this.thinkingBudget = clientOptions.thinkingBudget;
+    }
+
+    // Get thinking effort for adaptive thinking (Claude 4.6+ models)
+    if (clientOptions?.thinkingEffort) {
+      this.thinkingEffort = clientOptions.thinkingEffort;
     }
 
     // Store client options for reference
@@ -432,20 +438,36 @@ export class AnthropicCUAClient extends AgentClient {
         // as they should already be properly wrapped in user messages
       }
 
-      // Configure thinking capability if available
-      const thinking = this.thinkingBudget
-        ? { type: "enabled" as const, budget_tokens: this.thinkingBudget }
-        : undefined;
-
       // Claude 4.6+ models require the newer computer_20251124 tool version
+      // and support adaptive thinking instead of budget_tokens
       const modelBase = this.modelName.includes("/")
         ? this.modelName.split("/")[1]
         : this.modelName;
-      const shouldUseNewToolVersion = [
+
+      // Check if this is a Claude 4.6+ model that supports adaptive thinking
+      const isAdaptiveThinkingModel = [
         "claude-opus-4-6",
         "claude-sonnet-4-6",
-        "claude-opus-4-5-20251101",
       ].includes(modelBase);
+
+      const shouldUseNewToolVersion =
+        isAdaptiveThinkingModel || modelBase === "claude-opus-4-5-20251101";
+
+      // Configure thinking capability based on model version
+      // - For 4.6 models: Use adaptive thinking with effort (recommended)
+      // - For older models: Use enabled thinking with budget_tokens (deprecated)
+      let thinking: { type: "adaptive" } | { type: "enabled"; budget_tokens: number } | undefined;
+      let outputConfig: { effort: ThinkingEffort } | undefined;
+
+      if (isAdaptiveThinkingModel && this.thinkingEffort) {
+        // Claude 4.6+ models use adaptive thinking with output_config.effort
+        // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+        thinking = { type: "adaptive" };
+        outputConfig = { effort: this.thinkingEffort };
+      } else if (this.thinkingBudget) {
+        // Older models use enabled thinking with budget_tokens (deprecated for 4.6)
+        thinking = { type: "enabled", budget_tokens: this.thinkingBudget };
+      }
 
       const computerToolType = shouldUseNewToolVersion
         ? "computer_20251124"
@@ -509,6 +531,11 @@ export class AnthropicCUAClient extends AgentClient {
       // Add thinking parameter if available
       if (thinking) {
         requestParams.thinking = thinking;
+      }
+
+      // Add output_config for adaptive thinking (Claude 4.6+ models)
+      if (outputConfig) {
+        requestParams.output_config = outputConfig;
       }
 
       // Log LLM request
