@@ -70,9 +70,10 @@
     },
     "@browserbasehq/stagehand-server-v3#build:esm-tests": {
       "dependsOn": ["^build:esm"],
-      "outputs": ["dist/tests/**"],
+      "outputs": ["dist/tests/**", "dist/src/**"],
       "inputs": [
         "tests/**/*.ts",
+        "src/**/*.ts",
         "package.json",
         "tsconfig.tests.json",
         "!dist/tests/**"
