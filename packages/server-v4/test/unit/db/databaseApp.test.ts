@@ -1,14 +1,11 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
-import path from "node:path";
 import { describe, it } from "node:test";
 
 describe("app database boot", () => {
   it("boots the full app with PGlite and serves /healthz", async () => {
-    const configDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "stagehand-server-v4-app-"),
-    );
+    const configDir = fs.mkdtempSync(`${os.tmpdir()}/stagehand-server-v4-app-`);
 
     const previousEnv = {
       BROWSERBASE_CONFIG_DIR: process.env.BROWSERBASE_CONFIG_DIR,

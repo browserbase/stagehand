@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
-import path from "node:path";
 import { describe, it } from "node:test";
 import fastify from "fastify";
 import { databasePlugin } from "../../../src/db/plugin.js";
@@ -9,7 +8,7 @@ import { databasePlugin } from "../../../src/db/plugin.js";
 describe("database plugin", () => {
   it("registers a persistent local pglite database", async () => {
     const dataDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "stagehand-server-v4-pglite-"),
+      `${os.tmpdir()}/stagehand-server-v4-pglite-`,
     );
     const app = fastify({ logger: false });
 

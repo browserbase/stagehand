@@ -43,9 +43,7 @@ export class LlmService {
 
   async createLlm(input: LLMCreateRequest): Promise<LLMConfigSelect> {
     // Single-row create, so we do not need a transaction yet.
-    // TODO(sam): when LLM config creation needs packages/core involvement, call
-    // into the lower-level runtime here first, then persist the returned config
-    // snapshot from the same service method.
+    // TODO: swap this stub for the real packages/core implementation.
     const values = await this.buildStubUserLlmConfig(input);
 
     return this.dependencies.llmConfigRepository.create(values);
@@ -53,9 +51,7 @@ export class LlmService {
 
   async createSystemDefaultLlm(): Promise<LLMConfigSelect> {
     // Single-row create, so we do not need a transaction yet.
-    // TODO(sam): when system-default creation needs packages/core involvement,
-    // resolve the runtime default there first, then persist the resulting
-    // config snapshot from this service method.
+    // TODO: swap this stub for the real packages/core implementation.
     const values = await this.buildStubSystemDefaultLlmConfig();
 
     return this.dependencies.llmConfigRepository.create(values);
@@ -68,8 +64,7 @@ export class LlmService {
     await this.getLlm(id);
 
     // Single-row update, so we do not need a transaction yet.
-    // TODO(sam): when updates need packages/core validation or enrichment,
-    // perform that call here before persisting the returned update payload.
+    // TODO: swap this stub for the real packages/core implementation.
     const values = await this.buildStubLlmConfigUpdate(input);
 
     const llm = await this.dependencies.llmConfigRepository.updateById(

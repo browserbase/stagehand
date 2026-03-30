@@ -6,7 +6,7 @@ import type {
   BrowserSessionUpdateRequest,
 } from "../../schemas/v4/browserSession.js";
 import { BrowserSessionSchema } from "../../schemas/v4/browserSession.js";
-import { omitUndefined } from "../../utils/object.js";
+import { omitUndefined } from "../../utils.js";
 
 const browserSessions = new Map<string, BrowserSession>();
 

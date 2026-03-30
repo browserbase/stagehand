@@ -68,6 +68,16 @@
         "!openapi.v3.yaml"
       ]
     },
+    "@browserbasehq/stagehand-server-v3#build:esm-tests": {
+      "dependsOn": ["^build:esm"],
+      "outputs": ["dist/tests/**"],
+      "inputs": [
+        "tests/**/*.ts",
+        "package.json",
+        "tsconfig.tests.json",
+        "!dist/tests/**"
+      ]
+    },
     "@browserbasehq/stagehand-server-v4#build": {
       "dependsOn": ["^build"],
       "outputs": [
@@ -499,7 +509,7 @@
       ]
     },
     "test:server": {
-      "dependsOn": ["build:server:dist", "build:sea:esm"],
+      "dependsOn": ["build:server:dist", "build:sea:esm", "build:esm-tests"],
       "outputs": [],
       "cache": false,
       "env": [

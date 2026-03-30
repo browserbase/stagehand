@@ -31,7 +31,7 @@ export const constants = {
   },
   urls: {
     /**
-     * TODO(sam): Replace this placeholder once the real v4 database URL has been provisioned.
+     * TODO: Replace this placeholder once the real v4 database URL has been provisioned.
      * @constant
      */
     defaultDatabaseUrl: "postgresql://example.com/stagehand_v4",
