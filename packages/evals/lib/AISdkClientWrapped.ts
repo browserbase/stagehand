@@ -15,6 +15,7 @@ import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import {
   AvailableModel,
+  ClientOptions,
   CreateChatCompletionOptions,
   LLMClient,
   LogLine,
@@ -32,13 +33,18 @@ export class AISdkClientWrapped extends LLMClient {
   constructor({
     model,
     logger,
+    clientOptions,
   }: {
     model: LanguageModelV2;
     logger?: (message: LogLine) => void;
+    clientOptions?: ClientOptions;
   }) {
     super(model.modelId as AvailableModel);
     this.model = model;
     this.logger = logger;
+    if (clientOptions) {
+      this.clientOptions = clientOptions;
+    }
   }
 
   public getLanguageModel(): LanguageModelV2 {
@@ -135,14 +141,16 @@ export class AISdkClientWrapped extends LLMClient {
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
-    const usesLowReasoningEffort =
-      (this.model.modelId.includes("gpt-5.1") ||
-        this.model.modelId.includes("gpt-5.2")) &&
-      !isCodex;
     const isDeepSeek = this.model.modelId.includes("deepseek");
     // Kimi models only support temperature=1
     const isKimi = this.model.modelId.includes("kimi");
     const temperature = isKimi ? 1 : options.temperature;
+
+    // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
+    const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
+    const userReasoningEffort = this.clientOptions?.reasoningEffort;
+    const resolvedReasoningEffort =
+      userReasoningEffort ?? (isGPT5SubModel ? "none" : undefined);
     if (options.response_model) {
       if (isDeepSeek || isKimi) {
         const parsedSchema = JSON.stringify(
@@ -162,15 +170,13 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           messages: formattedMessages,
           schema: options.response_model.schema,
           temperature,
-          providerOptions: isGPT5
+          providerOptions: resolvedReasoningEffort
             ? {
                 openai: {
-                  textVerbosity: isCodex ? "medium" : "low", // codex models only support 'medium'
-                  reasoningEffort: isCodex
-                    ? "medium"
-                    : usesLowReasoningEffort
-                      ? "low"
-                      : "minimal",
+                  ...(isGPT5
+                    ? { textVerbosity: isCodex ? "medium" : "low" }
+                    : {}),
+                  reasoningEffort: resolvedReasoningEffort,
                 },
               }
             : undefined,
