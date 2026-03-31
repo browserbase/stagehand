@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - .changeset/**
+      - .github/workflows/stagehand-server-v4-release.yml
   workflow_dispatch:
 
 permissions:
@@ -46,7 +47,7 @@ jobs:
           latest_tag="$(git tag -l 'stagehand-server-v4/v*' --sort=-v:refname | head -n 1 || true)"
           changed_files="$(mktemp)"
           if [ -n "${latest_tag}" ]; then
-            git diff --name-only "${latest_tag}"..HEAD -- '.changeset/*.md' > "${changed_files}"
+            git diff --diff-filter=d --name-only "${latest_tag}"..HEAD -- '.changeset/*.md' > "${changed_files}"
           else
             find .changeset -maxdepth 1 -name '*.md' -print | sort > "${changed_files}"
           fi
