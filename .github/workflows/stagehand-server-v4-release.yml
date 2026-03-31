@@ -44,20 +44,72 @@ jobs:
         run: |
           set -euo pipefail
 
-          latest_tag="$(git tag -l 'stagehand-server-v4/v*' --sort=-v:refname | head -n 1 || true)"
+          remote_tags="$(mktemp)"
+          git ls-remote --tags --refs origin 'refs/tags/stagehand-server-v4/v*' \
+            | awk '{sub("refs/tags/", "", $2); print $2}' \
+            > "${remote_tags}"
+
+          latest_tag_file="$(mktemp)"
+          REMOTE_TAGS_FILE="${remote_tags}" LATEST_TAG_FILE="${latest_tag_file}" node <<'NODE'
+          const fs = require('fs');
+
+          const tags = fs
+            .readFileSync(process.env.REMOTE_TAGS_FILE, 'utf8')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+          const parseTag = (tag) => {
+            const match = /^stagehand-server-v4\/v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
+            if (!match) {
+              return null;
+            }
+            return match.slice(1).map((part) => Number(part));
+          };
+
+          const compareVersions = (left, right) => {
+            for (let i = 0; i < 3; i += 1) {
+              if (left[i] !== right[i]) {
+                return left[i] - right[i];
+              }
+            }
+            return 0;
+          };
+
+          let best = null;
+          for (const tag of tags) {
+            const version = parseTag(tag);
+            if (!version) {
+              continue;
+            }
+            if (best === null || compareVersions(version, best.version) > 0) {
+              best = { tag, version };
+            }
+          }
+
+          fs.writeFileSync(process.env.LATEST_TAG_FILE, best?.tag ?? '', 'utf8');
+          NODE
+          latest_tag="$(cat "${latest_tag_file}")"
+
           changed_files="$(mktemp)"
           if [ -n "${latest_tag}" ]; then
+            git fetch --force origin "refs/tags/${latest_tag}:refs/tags/${latest_tag}"
             git diff --diff-filter=d --name-only "${latest_tag}"..HEAD -- '.changeset/*.md' > "${changed_files}"
           else
             find .changeset -maxdepth 1 -name '*.md' -print | sort > "${changed_files}"
           fi
 
-          LATEST_TAG="${latest_tag}" CHANGED_CHANGESET_FILES="${changed_files}" node <<'NODE'
+          LATEST_TAG="${latest_tag}" REMOTE_TAGS_FILE="${remote_tags}" CHANGED_CHANGESET_FILES="${changed_files}" node <<'NODE'
           const fs = require('fs');
           const path = require('path');
 
           const packageName = '@browserbasehq/stagehand-server-v4';
           const latestTag = process.env.LATEST_TAG || '';
+          const remoteTags = fs
+            .readFileSync(process.env.REMOTE_TAGS_FILE, 'utf8')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
           const changesetFiles = fs
             .readFileSync(process.env.CHANGED_CHANGESET_FILES, 'utf8')
             .split('\n')
@@ -66,6 +118,33 @@ jobs:
             .filter((file) => path.basename(file) !== 'config.json');
 
           const releasePriority = { patch: 0, minor: 1, major: 2 };
+          const compareVersions = (left, right) => {
+            for (let i = 0; i < 3; i += 1) {
+              if (left[i] !== right[i]) {
+                return left[i] - right[i];
+              }
+            }
+            return 0;
+          };
+          const parseTag = (tag) => {
+            const match = /^stagehand-server-v4\/v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
+            if (!match) {
+              return null;
+            }
+            return match.slice(1).map((part) => Number(part));
+          };
+
+          let highestRemoteVersion = null;
+          for (const tag of remoteTags) {
+            const version = parseTag(tag);
+            if (!version) {
+              continue;
+            }
+            if (highestRemoteVersion === null || compareVersions(version, highestRemoteVersion) > 0) {
+              highestRemoteVersion = version;
+            }
+          }
+
           let highestReleaseType = null;
 
           for (const file of changesetFiles) {
@@ -104,14 +183,13 @@ jobs:
           let version = '';
 
           if (shouldRelease) {
-            const baseVersion = latestTag
-              ? latestTag.replace(/^stagehand-server-v4\/v/, '')
-              : '0.0.0';
-            const parts = baseVersion.split('.').map((part) => Number(part));
-            if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
-              throw new Error(`Invalid latest stagehand-server-v4 tag: ${latestTag || '<none>'}`);
+            if (!latestTag || highestRemoteVersion === null) {
+              throw new Error(
+                'No existing remote stagehand-server-v4 release tag was found. Refusing to bootstrap from 0.0.0.',
+              );
             }
 
+            const parts = [...highestRemoteVersion];
             if (highestReleaseType === 'major') {
               parts[0] += 1;
               parts[1] = 0;
@@ -121,6 +199,12 @@ jobs:
               parts[2] = 0;
             } else {
               parts[2] += 1;
+            }
+
+            if (compareVersions(parts, highestRemoteVersion) <= 0) {
+              throw new Error(
+                `Computed stagehand-server-v4 version ${parts.join('.')} does not advance remote latest ${highestRemoteVersion.join('.')}.`,
+              );
             }
 
             version = parts.join('.');
