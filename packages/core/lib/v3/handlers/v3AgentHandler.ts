@@ -1,4 +1,7 @@
-import { createAgentTools } from "../agent/tools/index.js";
+import {
+  createAgentTools,
+  createAnthropicCuaTools,
+} from "../agent/tools/index.js";
 import { buildAgentSystemPrompt } from "../agent/prompts/agentSystemPrompt.js";
 import { LogLine } from "../types/public/logs.js";
 import { V3 } from "../v3.js";
@@ -116,6 +119,8 @@ export class V3AgentHandler {
       // Get the initial page URL first (needed for the system prompt)
       const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
 
+      const provider = this.llmClient?.getLanguageModel?.()?.provider;
+
       // Build the system prompt with mode-aware tool guidance
       const systemPrompt = buildAgentSystemPrompt({
         url: initialPageUrl,
@@ -126,6 +131,7 @@ export class V3AgentHandler {
         excludeTools: options.excludeTools,
         variables: options.variables,
         useSearch: options.useSearch,
+        provider,
       });
 
       if (options.useSearch) {
@@ -138,13 +144,14 @@ export class V3AgentHandler {
         }
       }
 
-      const tools = this.createTools(
+      const tools = await this.createTools(
         options.excludeTools,
         options.variables,
         options.toolTimeout,
         options.useSearch,
       );
-      const allTools: ToolSet = { ...tools, ...this.mcpTools };
+      const allTools: ToolSet =
+        this.mode === "cua" ? tools : { ...tools, ...this.mcpTools };
 
       // Use provided messages for continuation, or start fresh with the instruction
       const messages: ModelMessage[] = options.messages?.length
@@ -310,9 +317,9 @@ export class V3AgentHandler {
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
     const signal = options?.signal;
 
-    // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
-      options?.highlightCursor ?? this.mode === "hybrid";
+      options?.highlightCursor ??
+      (this.mode === "hybrid" || this.mode === "cua");
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -336,8 +343,7 @@ export class V3AgentHandler {
         initialPageUrl,
       } = await this.prepareAgent(instructionOrOptions);
 
-      // Enable cursor overlay for hybrid mode (coordinate-based interactions)
-      if (shouldHighlightCursor && this.mode === "hybrid") {
+      if (shouldHighlightCursor) {
         const page = await this.v3.context.awaitActivePage();
         await page.enableCursorOverlay().catch(() => {});
       }
@@ -447,9 +453,9 @@ export class V3AgentHandler {
     const streamOptions =
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
 
-    // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
-      streamOptions?.highlightCursor ?? this.mode === "hybrid";
+      streamOptions?.highlightCursor ??
+      (this.mode === "hybrid" || this.mode === "cua");
 
     const {
       options,
@@ -461,8 +467,7 @@ export class V3AgentHandler {
       initialPageUrl,
     } = await this.prepareAgent(instructionOrOptions);
 
-    // Enable cursor overlay for hybrid mode (coordinate-based interactions)
-    if (shouldHighlightCursor && this.mode === "hybrid") {
+    if (shouldHighlightCursor) {
       const page = await this.v3.context.awaitActivePage();
       await page.enableCursorOverlay().catch(() => {});
     }
@@ -642,12 +647,23 @@ export class V3AgentHandler {
     };
   }
 
-  private createTools(
+  private async createTools(
     excludeTools?: string[],
     variables?: Variables,
     toolTimeout?: number,
     useSearch?: boolean,
-  ) {
+  ): Promise<ToolSet> {
+    if (this.mode === "cua") {
+      const provider = this.llmClient?.getLanguageModel?.()?.provider;
+      if (provider?.startsWith("anthropic")) {
+        return createAnthropicCuaTools(this.v3);
+      }
+      throw new Error(
+        `CUA mode in V3AgentHandler is only supported for Anthropic models. ` +
+          `Provider "${provider}" should use V3CuaAgentHandler instead.`,
+      );
+    }
+
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,

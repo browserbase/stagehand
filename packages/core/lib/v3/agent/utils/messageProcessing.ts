@@ -1,6 +1,6 @@
 import type { ModelMessage } from "ai";
 
-// Vision action tools that include screenshots in their results
+// Hybrid/DOM vision action tools that include screenshots in their results
 const VISION_ACTION_TOOLS = [
   "click",
   "type",
@@ -9,6 +9,9 @@ const VISION_ACTION_TOOLS = [
   "fillFormVision",
   "scroll",
 ];
+
+// CUA tool names that include screenshots via toModelOutput
+const CUA_TOOLS = ["computer"];
 
 function isToolMessage(
   message: unknown,
@@ -35,8 +38,16 @@ function isVisionActionPart(part: unknown): boolean {
   return typeof toolName === "string" && VISION_ACTION_TOOLS.includes(toolName);
 }
 
+function isCuaToolPart(part: unknown): boolean {
+  if (!part || typeof part !== "object") return false;
+  const toolName = (part as { toolName?: unknown }).toolName;
+  return typeof toolName === "string" && CUA_TOOLS.includes(toolName);
+}
+
 function isVisionPart(part: unknown): boolean {
-  return isScreenshotPart(part) || isVisionActionPart(part);
+  return (
+    isScreenshotPart(part) || isVisionActionPart(part) || isCuaToolPart(part)
+  );
 }
 
 function isAriaTreePart(part: unknown): boolean {
@@ -84,9 +95,9 @@ export function processMessages(messages: ModelMessage[]): number {
     for (const index of toCompress) {
       const message = messages[index];
       if (isToolMessage(message)) {
-        // Both functions are safe to call - they only modify their respective part types
         compressScreenshotMessage(message);
         compressVisionActionMessage(message);
+        compressCuaToolMessage(message);
         compressedCount++;
       }
     }
@@ -184,6 +195,37 @@ function compressVisionActionMessage(message: {
           (item) => item && typeof item === "object" && item.type !== "media",
         );
         // Replace entire output to ensure type/value consistency
+        typedPart.output = {
+          type: "content",
+          value: filteredValue,
+        };
+      }
+    }
+  }
+}
+
+/**
+ * Compress CUA tool message content in-place by removing the screenshot
+ * but keeping the action result text.
+ */
+function compressCuaToolMessage(message: {
+  role: "tool";
+  content: unknown[];
+}): void {
+  for (const part of message.content) {
+    if (isCuaToolPart(part)) {
+      const typedPart = part as ToolResultPart;
+
+      if (
+        typedPart.output &&
+        isContentTypeOutput(typedPart.output) &&
+        Array.isArray(typedPart.output.value)
+      ) {
+        const filteredValue = (
+          typedPart.output.value as Array<{ type?: string }>
+        ).filter(
+          (item) => item && typeof item === "object" && item.type !== "media",
+        );
         typedPart.output = {
           type: "content",
           value: filteredValue,

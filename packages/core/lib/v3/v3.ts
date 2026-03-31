@@ -1898,146 +1898,159 @@ export class V3 {
         ...this.modelClientOptions,
       };
 
-      const { modelName, isCua, clientOptions } = resolveModel(modelToUse);
+      const { modelName, isCua, clientOptions, provider } =
+        resolveModel(modelToUse);
 
       if (!isCua) {
         throw new CuaModelRequiredError(AVAILABLE_CUA_MODELS);
       }
 
-      const agentConfigSignature =
-        this.agentCache.buildConfigSignature(options);
-      const execute = async (
-        instructionOrOptions: string | AgentExecuteOptions,
-      ): Promise<AgentResult> =>
-        withInstanceLogContext(
-          this.instanceId,
-          async (): Promise<AgentResult> => {
-            validateExperimentalFeatures({
-              isExperimental: this.experimental,
-              agentConfig: options,
-              executeOptions:
-                typeof instructionOrOptions === "object"
-                  ? instructionOrOptions
-                  : null,
-            });
-
-            const tools = options?.integrations
-              ? await resolveTools(options.integrations, options.tools)
-              : (options?.tools ?? {});
-
-            const handler = new V3CuaAgentHandler(
-              this,
-              this.logger,
-              {
-                modelName,
-                clientOptions,
-                userProvidedInstructions:
-                  (options.systemPrompt ??
-                    `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`) +
-                  (this.isCaptchaAutoSolveEnabled
-                    ? CAPTCHA_CUA_SYSTEM_PROMPT_NOTE
-                    : ""),
-              },
-              tools,
-            );
-
-            const resolvedOptions: AgentExecuteOptions =
-              typeof instructionOrOptions === "string"
-                ? {
-                    instruction: instructionOrOptions,
-                    toolTimeout: DEFAULT_AGENT_TOOL_TIMEOUT_MS,
-                  }
-                : {
-                    ...instructionOrOptions,
-                    toolTimeout:
-                      instructionOrOptions.toolTimeout ??
-                      DEFAULT_AGENT_TOOL_TIMEOUT_MS,
-                  };
-            if (resolvedOptions.page) {
-              const normalizedPage = await this.normalizeToV3Page(
-                resolvedOptions.page,
-              );
-              this.ctx!.setActivePage(normalizedPage);
-            }
-            const instruction = resolvedOptions.instruction.trim();
-            const sanitizedOptions =
-              this.agentCache.sanitizeExecuteOptions(resolvedOptions);
-
-            const cacheVariables = flattenVariables(resolvedOptions.variables);
-
-            let cacheContext: AgentCacheContext | null = null;
-            if (this.agentCache.shouldAttemptCache(instruction)) {
-              const startPage = await this.ctx!.awaitActivePage();
-              cacheContext = await this.agentCache.prepareContext({
-                instruction,
-                options: sanitizedOptions,
-                configSignature: agentConfigSignature,
-                page: startPage,
-                variables: cacheVariables,
+      // Anthropic CUA models use V3AgentHandler with the provider-defined
+      // computer_20250124 tool. Let them fall through to the default
+      // AI SDK tools-based agent path below.
+      if (provider === "anthropic") {
+        // fall through to V3AgentHandler at the bottom of this method
+      } else {
+        const agentConfigSignature =
+          this.agentCache.buildConfigSignature(options);
+        const execute = async (
+          instructionOrOptions: string | AgentExecuteOptions,
+        ): Promise<AgentResult> =>
+          withInstanceLogContext(
+            this.instanceId,
+            async (): Promise<AgentResult> => {
+              validateExperimentalFeatures({
+                isExperimental: this.experimental,
+                agentConfig: options,
+                executeOptions:
+                  typeof instructionOrOptions === "object"
+                    ? instructionOrOptions
+                    : null,
               });
-              if (cacheContext) {
-                const replayed = await this.agentCache.tryReplay(cacheContext);
-                if (replayed) {
-                  return replayed;
-                }
-              }
-            }
 
-            let agentSteps: AgentReplayStep[] = [];
-            const shouldRecordLocally =
-              !!cacheContext && (!this.apiClient || this.experimental);
-            if (shouldRecordLocally) {
-              this.beginAgentReplayRecording();
-            }
+              const tools = options?.integrations
+                ? await resolveTools(options.integrations, options.tools)
+                : (options?.tools ?? {});
 
-            let result: AgentResult;
-            try {
-              if (this.apiClient && !this.experimental) {
-                const page = await this.ctx!.awaitActivePage();
-                result = await this.apiClient.agentExecute(
-                  options,
-                  resolvedOptions,
-                  page.mainFrameId(),
-                  !!cacheContext,
+              const handler = new V3CuaAgentHandler(
+                this,
+                this.logger,
+                {
+                  modelName,
+                  clientOptions,
+                  userProvidedInstructions:
+                    (options.systemPrompt ??
+                      `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`) +
+                    (this.isCaptchaAutoSolveEnabled
+                      ? CAPTCHA_CUA_SYSTEM_PROMPT_NOTE
+                      : ""),
+                },
+                tools,
+              );
+
+              const resolvedOptions: AgentExecuteOptions =
+                typeof instructionOrOptions === "string"
+                  ? {
+                      instruction: instructionOrOptions,
+                      toolTimeout: DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+                    }
+                  : {
+                      ...instructionOrOptions,
+                      toolTimeout:
+                        instructionOrOptions.toolTimeout ??
+                        DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+                    };
+              if (resolvedOptions.page) {
+                const normalizedPage = await this.normalizeToV3Page(
+                  resolvedOptions.page,
                 );
+                this.ctx!.setActivePage(normalizedPage);
+              }
+              const instruction = resolvedOptions.instruction.trim();
+              const sanitizedOptions =
+                this.agentCache.sanitizeExecuteOptions(resolvedOptions);
+
+              const cacheVariables = flattenVariables(
+                resolvedOptions.variables,
+              );
+
+              let cacheContext: AgentCacheContext | null = null;
+              if (this.agentCache.shouldAttemptCache(instruction)) {
+                const startPage = await this.ctx!.awaitActivePage();
+                cacheContext = await this.agentCache.prepareContext({
+                  instruction,
+                  options: sanitizedOptions,
+                  configSignature: agentConfigSignature,
+                  page: startPage,
+                  variables: cacheVariables,
+                });
                 if (cacheContext) {
-                  const transferredEntry =
-                    this.apiClient.consumeLatestAgentCacheEntry();
-                  await this.agentCache.storeTransferredEntry(transferredEntry);
+                  const replayed =
+                    await this.agentCache.tryReplay(cacheContext);
+                  if (replayed) {
+                    return replayed;
+                  }
                 }
-              } else {
-                result = await handler.execute(instructionOrOptions);
-              }
-              if (shouldRecordLocally) {
-                agentSteps = this.endAgentReplayRecording();
               }
 
-              if (
-                shouldRecordLocally &&
-                cacheContext &&
-                result.success &&
-                agentSteps.length > 0
-              ) {
-                await this.agentCache.store(cacheContext, agentSteps, result);
+              let agentSteps: AgentReplayStep[] = [];
+              const shouldRecordLocally =
+                !!cacheContext && (!this.apiClient || this.experimental);
+              if (shouldRecordLocally) {
+                this.beginAgentReplayRecording();
               }
 
-              return result;
-            } catch (err) {
-              if (shouldRecordLocally) this.discardAgentReplayRecording();
-              throw err;
-            } finally {
-              if (shouldRecordLocally) {
-                this.discardAgentReplayRecording();
+              let result: AgentResult;
+              try {
+                if (this.apiClient && !this.experimental) {
+                  const page = await this.ctx!.awaitActivePage();
+                  result = await this.apiClient.agentExecute(
+                    options,
+                    resolvedOptions,
+                    page.mainFrameId(),
+                    !!cacheContext,
+                  );
+                  if (cacheContext) {
+                    const transferredEntry =
+                      this.apiClient.consumeLatestAgentCacheEntry();
+                    await this.agentCache.storeTransferredEntry(
+                      transferredEntry,
+                    );
+                  }
+                } else {
+                  result = await handler.execute(instructionOrOptions);
+                }
+                if (shouldRecordLocally) {
+                  agentSteps = this.endAgentReplayRecording();
+                }
+
+                if (
+                  shouldRecordLocally &&
+                  cacheContext &&
+                  result.success &&
+                  agentSteps.length > 0
+                ) {
+                  await this.agentCache.store(cacheContext, agentSteps, result);
+                }
+
+                return result;
+              } catch (err) {
+                if (shouldRecordLocally) this.discardAgentReplayRecording();
+                throw err;
+              } finally {
+                if (shouldRecordLocally) {
+                  this.discardAgentReplayRecording();
+                }
               }
-            }
-          },
-        );
-      return {
-        execute: FlowLogger.wrapWithLogging({
-          eventType: "AgentExecute",
-          context: this.flowLoggerContext,
-        })(execute),
-      };
+            },
+          );
+        return {
+          execute: FlowLogger.wrapWithLogging({
+            eventType: "AgentExecute",
+            context: this.flowLoggerContext,
+          })(execute),
+        };
+      } // end else (non-Anthropic CUA providers)
     }
 
     // Default: AISDK tools-based agent

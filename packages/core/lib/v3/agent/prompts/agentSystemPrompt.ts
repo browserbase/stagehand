@@ -15,6 +15,8 @@ export interface AgentSystemPromptOptions {
   variables?: Variables;
   /** Whether the search tool is enabled for this execution */
   useSearch?: boolean;
+  /** The LLM provider string (e.g. "google.generative-ai", "anthropic.messages") */
+  provider?: string;
 }
 
 /**
@@ -118,9 +120,39 @@ function buildToolsSection(
   return `<tools>\n${toolLines}\n  </tools>`;
 }
 
+function buildCuaSystemPrompt(options: AgentSystemPromptOptions): string {
+  const { url, executionInstruction, systemInstructions, provider } = options;
+  const today = new Date().toISOString().split("T")[0];
+
+  const customInstructions = systemInstructions
+    ? `\n\nAdditional instructions:\n${systemInstructions}`
+    : "";
+
+  const isAnthropic = provider?.startsWith("anthropic");
+
+  const toolGuidance = isAnthropic
+    ? `You have access to a computer tool that lets you interact with a browser via actions like left_click, type, key, scroll, mouse_move, and more. Coordinates are in pixel space matching the browser viewport dimensions. You do not have access to anything aside from the browser window.`
+    : `You have access to a set of browser interaction tools. Coordinates are in pixel space matching the browser viewport.`;
+
+  return `You are a general-purpose browser agent whose job is to accomplish the user's goal.
+Today's date is ${today}.
+${toolGuidance}
+
+You will be given a goal and a screenshot of the current page after each action. Use the screenshot to understand what is on the page and decide your next action.
+
+When you are done with the task, call the done tool with a message summarizing what you accomplished.
+
+Current URL: ${url}
+Goal: ${executionInstruction}${customInstructions}`;
+}
+
 export function buildAgentSystemPrompt(
   options: AgentSystemPromptOptions,
 ): string {
+  if (options.mode === "cua") {
+    return buildCuaSystemPrompt(options);
+  }
+
   const {
     url,
     executionInstruction,

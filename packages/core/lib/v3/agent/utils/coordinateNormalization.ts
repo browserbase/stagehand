@@ -23,6 +23,13 @@ export function normalizeGoogleCoordinates(
   };
 }
 
+export function getConfiguredViewport(v3: V3): {
+  width: number;
+  height: number;
+} {
+  return v3.isAdvancedStealth ? STEALTH_VIEWPORT : v3.configuredViewport;
+}
+
 export function processCoordinates(
   x: number,
   y: number,
@@ -30,10 +37,7 @@ export function processCoordinates(
   v3?: V3,
 ): { x: number; y: number } {
   if (isGoogleProvider(provider) && v3) {
-    // advancedStealth uses fixed viewport, otherwise use configured viewport
-    const viewport = v3.isAdvancedStealth
-      ? STEALTH_VIEWPORT
-      : v3.configuredViewport;
+    const viewport = getConfiguredViewport(v3);
     return normalizeGoogleCoordinates(x, y, viewport);
   }
   return { x, y };

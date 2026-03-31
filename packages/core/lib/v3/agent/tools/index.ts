@@ -17,6 +17,8 @@ import { thinkTool } from "./think.js";
 import { searchTool as browserbaseSearchTool } from "./browserbaseSearch.js";
 import { searchTool as braveSearchTool } from "./braveSearch.js";
 
+export { createAnthropicCuaTools } from "./anthropicCua/index.js";
+
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3.js";
 import type { LogLine } from "../../types/public/logs.js";
