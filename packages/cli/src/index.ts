@@ -168,6 +168,10 @@ function getLocalInfoPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.local-info`);
 }
 
+function getSessionParamsPath(session: string): string {
+  return path.join(SOCKET_DIR, `browse-${session}.session-params`);
+}
+
 // ==================== LOCAL STRATEGY CONFIG ====================
 
 type LocalStrategy = "auto" | "isolated" | "cdp";
@@ -527,6 +531,7 @@ async function cleanupStaleFiles(session: string): Promise<void> {
     getContextPath(session),
     getConnectPath(session),
     getLocalConfigPath(session),
+    getSessionParamsPath(session),
   ];
 
   for (const file of files) {
@@ -646,6 +651,15 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
         ).trim();
       } catch {}
 
+      // Read session params if present (written by --proxies, --advanced-stealth, etc.)
+      let sessionParams: Record<string, unknown> = {};
+      try {
+        const raw = await fs.readFile(getSessionParamsPath(session), "utf-8");
+        sessionParams = JSON.parse(raw);
+      } catch {
+        // No session params file
+      }
+
       // Resolve local browser launch options based on strategy
       let localLaunchOptions: Record<string, unknown> | undefined;
       let localInfo: LocalInfo | undefined;
@@ -698,16 +712,27 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
                 : {}),
               ...(!connectSessionId
                 ? {
-                    browserbaseSessionCreateParams: {
-                      userMetadata: { browse_cli: "true" },
-                      ...(contextConfig
-                        ? {
-                            browserSettings: {
-                              context: contextConfig,
-                            },
-                          }
-                        : {}),
-                    },
+                    browserbaseSessionCreateParams: (() => {
+                      const sessionBrowserSettings =
+                        (sessionParams.browserSettings as Record<
+                          string,
+                          unknown
+                        >) || {};
+                      const {
+                        browserSettings: _bs,
+                        ...sessionParamsWithoutBS
+                      } = sessionParams;
+                      return {
+                        userMetadata: { browse_cli: "true" },
+                        ...sessionParamsWithoutBS,
+                        browserSettings: {
+                          ...sessionBrowserSettings,
+                          ...(contextConfig
+                            ? { context: contextConfig }
+                            : {}),
+                        },
+                      };
+                    })(),
                   }
                 : {}),
             }
@@ -1803,6 +1828,14 @@ interface GlobalOpts {
   json?: boolean;
   session?: string;
   connect?: string;
+  // Session creation flags (remote only)
+  proxies?: boolean;
+  advancedStealth?: boolean;
+  solveCaptchas?: boolean;
+  region?: string;
+  keepAlive?: boolean;
+  sessionTimeout?: number;
+  blockAds?: boolean;
 }
 
 function getSession(opts: GlobalOpts): string {
@@ -1811,6 +1844,31 @@ function getSession(opts: GlobalOpts): string {
 
 function isHeadless(opts: GlobalOpts): boolean {
   return opts.headless === true && opts.headed !== true;
+}
+
+function buildSessionParamsFromOpts(
+  opts: GlobalOpts,
+): Record<string, unknown> | null {
+  const params: Record<string, unknown> = {};
+  const browserSettings: Record<string, unknown> = {};
+
+  if (opts.proxies) params.proxies = true;
+  if (opts.region) params.region = opts.region;
+  if (opts.keepAlive) params.keepAlive = true;
+  if (opts.sessionTimeout !== undefined) params.timeout = opts.sessionTimeout;
+
+  if (opts.advancedStealth) browserSettings.advancedStealth = true;
+  if (opts.blockAds) browserSettings.blockAds = true;
+  if (opts.solveCaptchas !== undefined) {
+    browserSettings.solveCaptchas = opts.solveCaptchas;
+  }
+
+  if (Object.keys(browserSettings).length > 0) {
+    params.browserSettings = browserSettings;
+  }
+
+  if (Object.keys(params).length === 0) return null;
+  return params;
 }
 
 function output(data: unknown, json: boolean): void {
@@ -1874,6 +1932,35 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
     } catch {}
   }
 
+  // Handle session params flags (--proxies, --advanced-stealth, etc.)
+  const sessionParams = buildSessionParamsFromOpts(opts);
+  if (sessionParams) {
+    const desiredMode = await getDesiredMode(session);
+    if (desiredMode !== "browserbase") {
+      console.error(
+        JSON.stringify({
+          error:
+            "Session flags (--proxies, --advanced-stealth, etc.) are only supported in remote mode. Run 'browse env remote' first.",
+        }),
+      );
+      process.exit(1);
+    }
+
+    const paramsPath = getSessionParamsPath(session);
+    const newParamsJson = JSON.stringify(sessionParams);
+
+    let currentParamsJson = "";
+    try {
+      currentParamsJson = await fs.readFile(paramsPath, "utf-8");
+    } catch {}
+
+    await fs.writeFile(paramsPath, newParamsJson);
+
+    if (currentParamsJson !== newParamsJson && (await isDaemonRunning(session))) {
+      await stopDaemonAndCleanup(session);
+    }
+  }
+
   await ensureDaemon(session, headless);
   return sendCommand(session, command, args, headless);
 }
@@ -1896,6 +1983,24 @@ program
   .option(
     "--connect <session-id>",
     "Connect to an existing Browserbase session by ID",
+  )
+  .option("--proxies", "Enable Browserbase proxy (remote only)")
+  .option("--advanced-stealth", "Enable advanced stealth mode (remote only)")
+  .option("--solve-captchas", "Enable automatic CAPTCHA solving (remote only)")
+  .option(
+    "--no-solve-captchas",
+    "Disable automatic CAPTCHA solving (remote only)",
+  )
+  .option("--block-ads", "Enable ad blocking (remote only)")
+  .option(
+    "--region <region>",
+    "Session region: us-west-2, us-east-1, eu-central-1, ap-southeast-1 (remote only)",
+  )
+  .option("--keep-alive", "Keep session alive after disconnection (remote only)")
+  .option(
+    "--session-timeout <seconds>",
+    "Session timeout in seconds (remote only)",
+    parseInt,
   );
 
 // ==================== DAEMON COMMANDS ====================
@@ -1969,6 +2074,11 @@ program
         };
       }
     }
+    let sessionParams: Record<string, unknown> | null = null;
+    try {
+      const raw = await fs.readFile(getSessionParamsPath(session), "utf-8");
+      sessionParams = JSON.parse(raw);
+    } catch {}
     console.log(
       JSON.stringify({
         running,
@@ -1977,6 +2087,7 @@ program
         mode,
         browserbaseSessionId,
         ...localDetails,
+        ...(sessionParams ? { sessionParams } : {}),
       }),
     );
   });
