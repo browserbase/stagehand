@@ -168,6 +168,40 @@ function getLocalInfoPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.local-info`);
 }
 
+// ==================== CONTEXT LABEL RESOLUTION ====================
+
+/**
+ * Resolve a --context-id value that may be a named label (e.g. "latest", "work")
+ * rather than a raw UUID or ctx_-prefixed ID.
+ *
+ * Labels are stored as plain files by `bb sync --label`:
+ *   ~/.config/browserbase/contexts/<label>  →  raw UUID
+ *
+ * The base path respects BROWSERBASE_CONFIG_DIR env var.
+ */
+async function resolveContextLabel(value: string): Promise<string> {
+  // Raw UUIDs and ctx_ prefixes pass through
+  if (/^[0-9a-f-]{36}$/i.test(value) || value.startsWith("ctx_")) {
+    return value;
+  }
+  // Look up as a label file
+  const configDir =
+    process.env.BROWSERBASE_CONFIG_DIR ||
+    path.join(os.homedir(), ".config", "browserbase");
+  const labelPath = path.join(configDir, "contexts", value);
+  try {
+    const id = (await fs.readFile(labelPath, "utf-8")).trim();
+    if (id) {
+      console.error(`Resolved context "${value}" → ${id}`);
+      return id;
+    }
+  } catch {
+    // Label file doesn't exist – fall through
+  }
+  // Return as-is (might be a raw ID in a format we don't recognize)
+  return value;
+}
+
 // ==================== LOCAL STRATEGY CONFIG ====================
 
 type LocalStrategy = "auto" | "isolated" | "cdp";
@@ -2163,8 +2197,11 @@ program
           process.exit(1);
         }
 
+        // Resolve named labels (e.g. "latest", "work") to actual context IDs
+        const resolvedContextId = await resolveContextLabel(cmdOpts.contextId);
+
         const newConfig = JSON.stringify({
-          id: cmdOpts.contextId,
+          id: resolvedContextId,
           persist: cmdOpts.persist ?? false,
         });
 
