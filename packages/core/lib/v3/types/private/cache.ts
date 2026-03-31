@@ -87,6 +87,7 @@ export type AgentReplayStep =
   | AgentReplayActStep
   | AgentReplayFillFormStep
   | AgentReplayGotoStep
+  | AgentReplayUploadStep
   | AgentReplayScrollStep
   | AgentReplayWaitStep
   | AgentReplayNavBackStep
@@ -113,6 +114,13 @@ export interface AgentReplayGotoStep {
   type: "goto";
   url: string;
   waitUntil?: LoadState;
+}
+
+export interface AgentReplayUploadStep {
+  type: "upload";
+  target: string;
+  selector: string;
+  paths: string[];
 }
 
 export interface AgentReplayScrollStep {

@@ -38,6 +38,8 @@ export function mapToolResultToActions({
       return mapActToolResult(toolResult, args, reasoning);
     case "fillForm":
       return mapFillFormToolResult(toolResult, args, reasoning);
+    case "upload":
+      return [mapUploadToolResult(toolResult, args, reasoning)];
     default:
       return [createStandardAction(toolCallName, toolResult, args, reasoning)];
   }
@@ -109,6 +111,44 @@ function mapFillFormToolResult(
   }
 
   return actions;
+}
+
+function mapUploadToolResult(
+  toolResult: unknown,
+  args: Record<string, unknown>,
+  reasoning?: string,
+): AgentAction {
+  const action: AgentAction = {
+    type: "upload",
+    reasoning,
+    taskCompleted: false,
+    target: args.target,
+  };
+
+  if (!toolResult || typeof toolResult !== "object") {
+    return action;
+  }
+
+  const result = toolResult as Record<string, unknown>;
+  const output = (result.output as Record<string, unknown>) || result;
+
+  if (typeof output.selector === "string") {
+    action.selector = output.selector;
+  }
+  if (Array.isArray(output.files)) {
+    action.files = output.files;
+  }
+  if (typeof output.fileCount === "number") {
+    action.fileCount = output.fileCount;
+  }
+  if (typeof output.success === "boolean") {
+    action.success = output.success;
+  }
+  if (typeof output.error === "string") {
+    action.error = output.error;
+  }
+
+  return action;
 }
 
 function createStandardAction(

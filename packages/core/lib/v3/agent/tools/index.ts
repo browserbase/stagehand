@@ -16,6 +16,7 @@ import { fillFormVisionTool } from "./fillFormVision.js";
 import { thinkTool } from "./think.js";
 import { searchTool as browserbaseSearchTool } from "./browserbaseSearch.js";
 import { searchTool as braveSearchTool } from "./braveSearch.js";
+import { uploadTool } from "./upload.js";
 
 import type { ToolSet, InferUITools } from "ai";
 import type { V3 } from "../../v3.js";
@@ -33,7 +34,7 @@ export interface V3AgentToolOptions {
   logger?: (message: LogLine) => void;
   /**
    * Tool mode determines which set of tools are available.
-   * - 'dom' (default): Uses DOM-based tools (act, fillForm) - removes coordinate-based tools
+   * - 'dom' (default): Uses DOM-based tools (act, fillForm, upload) - removes coordinate-based tools
    * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, etc.) - removes fillForm
    */
   mode?: AgentToolMode;
@@ -156,6 +157,8 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     extract: "— try using a smaller or simpler schema",
     fillForm:
       "(it may continue executing in the background) — try filling fewer fields at once or use a different tool",
+    upload:
+      "— make sure the path exists locally and the target describes the actual file input element",
   };
 
   const unwrappedTools: ToolSet = {
@@ -173,6 +176,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     screenshot: screenshotTool(v3),
     scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
     type: typeTool(v3, provider, variables),
+    upload: uploadTool(v3, executionModel, variables, toolTimeout),
   };
 
   if (options?.useSearch && options.browserbaseApiKey) {
@@ -206,6 +210,33 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
 
 export type AgentTools = ReturnType<typeof createAgentTools>;
 
+export function createCuaAgentTools(
+  v3: V3,
+  tools: ToolSet = {},
+  options?: Pick<
+    V3AgentToolOptions,
+    "executionModel" | "toolTimeout" | "variables"
+  >,
+): ToolSet {
+  const builtInUploadTool = wrapToolWithTimeout(
+    uploadTool(
+      v3,
+      options?.executionModel,
+      options?.variables,
+      options?.toolTimeout,
+    ),
+    "upload()",
+    v3,
+    options?.toolTimeout,
+    "— make sure the path exists locally and the target describes the actual file input element",
+  );
+
+  return {
+    upload: builtInUploadTool,
+    ...tools,
+  };
+}
+
 /**
  * Type map of all agent tools for strong typing of tool calls and results.
  * Note: `search` is optional — enabled via useSearch: true (Browserbase) or BRAVE_API_KEY env var (legacy).
@@ -229,6 +260,7 @@ export type AgentToolTypesMap = {
     | ReturnType<typeof braveSearchTool>;
   think: ReturnType<typeof thinkTool>;
   type: ReturnType<typeof typeTool>;
+  upload: ReturnType<typeof uploadTool>;
   wait: ReturnType<typeof waitTool>;
 };
 

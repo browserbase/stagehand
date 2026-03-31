@@ -21,6 +21,7 @@ import { ObserveHandler } from "./handlers/observeHandler.js";
 import { V3AgentHandler } from "./handlers/v3AgentHandler.js";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler.js";
 import { CAPTCHA_CUA_SYSTEM_PROMPT_NOTE } from "./agent/utils/captchaSolver.js";
+import { createCuaAgentTools } from "./agent/tools/index.js";
 import { createBrowserbaseSession } from "./launch/browserbase.js";
 import { launchLocalChrome } from "./launch/local.js";
 import { LLMClient } from "./llm/LLMClient.js";
@@ -79,6 +80,9 @@ import {
   StagehandInitError,
   AgentStreamResult,
 } from "./types/public/index.js";
+
+const AGENT_UPLOAD_SYSTEM_PROMPT_NOTE =
+  "\nIf the task requires uploading a file and the user has provided a local file path, use the upload tool instead of clicking the visible upload button. Target the actual file input element.";
 import { V3Context } from "./understudy/context.js";
 import { Page } from "./understudy/page.js";
 import { resolveModel } from "../modelUtils.js";
@@ -1898,9 +1902,21 @@ export class V3 {
                   : null,
             });
 
-            const tools = options?.integrations
+            const resolvedUserTools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
               : (options?.tools ?? {});
+            const tools = createCuaAgentTools(this, resolvedUserTools, {
+              executionModel: options?.executionModel ?? options?.model,
+              variables:
+                typeof instructionOrOptions === "object"
+                  ? instructionOrOptions.variables
+                  : undefined,
+              toolTimeout:
+                typeof instructionOrOptions === "object"
+                  ? (instructionOrOptions.toolTimeout ??
+                    DEFAULT_AGENT_TOOL_TIMEOUT_MS)
+                  : DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+            });
 
             const handler = new V3CuaAgentHandler(
               this,
@@ -1911,6 +1927,7 @@ export class V3 {
                 userProvidedInstructions:
                   (options.systemPrompt ??
                     `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`) +
+                  AGENT_UPLOAD_SYSTEM_PROMPT_NOTE +
                   (this.isCaptchaAutoSolveEnabled
                     ? CAPTCHA_CUA_SYSTEM_PROMPT_NOTE
                     : ""),

@@ -61,6 +61,10 @@ await stagehand.act("type into search");
 // Good
 await stagehand.act("click the submit button");
 await stagehand.act("select 'Option 1' from dropdown");
+await stagehand.agent().execute({
+  instruction:
+    'Upload the file at "/Users/me/Documents/resume.pdf" to the resume file input',
+});
 
 // Bad
 await stagehand.act("click submit");
