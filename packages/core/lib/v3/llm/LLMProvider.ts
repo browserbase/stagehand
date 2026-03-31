@@ -182,6 +182,7 @@ export class LLMProvider {
       return new AISdkClient({
         model: languageModel,
         logger: this.logger,
+        clientOptions,
       });
     }
 
