@@ -115,7 +115,7 @@ jobs:
         if: steps.check.outputs.has_changesets == 'true'
         run: |
           cd packages/cli
-          npm publish --provenance --access public
+          pnpm publish --provenance --access public --no-git-checks
 
       - name: Commit version bump and tag
         if: steps.check.outputs.has_changesets == 'true'
