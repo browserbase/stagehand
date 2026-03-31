@@ -35,10 +35,6 @@ import { ollama, createOllama } from "ollama-ai-provider-v2";
 import { gateway, createGateway, wrapLanguageModel } from "ai";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model.js";
 
-import {
-  isGoogleCuaModel,
-  createGoogleCuaFetch,
-} from "../agent/tools/googleCua/googleCuaCustomFetch.js";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
@@ -111,19 +107,6 @@ export function getAISDKLanguageModel(
   clientOptions?: ClientOptions,
   middleware?: LanguageModelV2Middleware,
 ) {
-  if (subProvider === "google" && isGoogleCuaModel(subModelName)) {
-    const cuaFetch = createGoogleCuaFetch("ENVIRONMENT_BROWSER");
-    const provider = createGoogleGenerativeAI({
-      ...clientOptions,
-      fetch: cuaFetch,
-    });
-    const model = provider(subModelName);
-    if (middleware) {
-      return wrapLanguageModel({ model, middleware });
-    }
-    return model;
-  }
-
   const hasValidOptions =
     clientOptions &&
     Object.values(clientOptions).some((v) => v !== undefined && v !== null);
