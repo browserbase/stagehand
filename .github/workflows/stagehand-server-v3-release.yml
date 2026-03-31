@@ -44,33 +44,88 @@ jobs:
           set -euo pipefail
 
           latest_tag="$(git tag -l 'stagehand-server-v3/v*' --sort=-v:refname | head -n 1 || true)"
-          rm -f changeset-status.json
+          changed_files="$(mktemp)"
           if [ -n "${latest_tag}" ]; then
-            pnpm changeset status --since "${latest_tag}" --output changeset-status.json
+            git diff --name-only "${latest_tag}"..HEAD -- '.changeset/*.md' > "${changed_files}"
           else
-            pnpm changeset status --output changeset-status.json
+            find .changeset -maxdepth 1 -name '*.md' -print | sort > "${changed_files}"
           fi
 
-          node <<'NODE'
+          LATEST_TAG="${latest_tag}" CHANGED_CHANGESET_FILES="${changed_files}" node <<'NODE'
           const fs = require('fs');
+          const path = require('path');
 
-          const status = JSON.parse(fs.readFileSync('changeset-status.json', 'utf8'));
-          const changesets = Array.isArray(status.changesets) ? status.changesets : [];
-          const releases = Array.isArray(status.releases) ? status.releases : [];
+          const packageName = '@browserbasehq/stagehand-server-v3';
+          const latestTag = process.env.LATEST_TAG || '';
+          const changesetFiles = fs
+            .readFileSync(process.env.CHANGED_CHANGESET_FILES, 'utf8')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .filter((file) => path.basename(file) !== 'config.json');
 
-          const shouldRelease = changesets.some((cs) =>
-            (cs.releases || []).some((r) => r?.name === '@browserbasehq/stagehand-server-v3')
-          );
+          const releasePriority = { patch: 0, minor: 1, major: 2 };
+          let highestReleaseType = null;
 
-          const serverRelease = releases.find((r) => r?.name === '@browserbasehq/stagehand-server-v3');
-          if (shouldRelease && !serverRelease?.newVersion) {
-            throw new Error(
-              'Expected @browserbasehq/stagehand-server-v3 to have a computed newVersion in changeset-status.json.'
-            );
+          for (const file of changesetFiles) {
+            const content = fs.readFileSync(file, 'utf8');
+            const match = /^---\n([\s\S]*?)\n---/m.exec(content);
+            if (!match) {
+              continue;
+            }
+
+            for (const rawLine of match[1].split('\n')) {
+              const line = rawLine.trim();
+              if (!line || line.startsWith('#')) {
+                continue;
+              }
+
+              const releaseMatch = /^"([^"]+)"\s*:\s*(patch|minor|major)\s*$/.exec(line);
+              if (!releaseMatch) {
+                continue;
+              }
+
+              const [, releasePackage, releaseType] = releaseMatch;
+              if (releasePackage !== packageName) {
+                continue;
+              }
+
+              if (
+                highestReleaseType === null ||
+                releasePriority[releaseType] > releasePriority[highestReleaseType]
+              ) {
+                highestReleaseType = releaseType;
+              }
+            }
+          }
+
+          const shouldRelease = highestReleaseType !== null;
+          let version = '';
+
+          if (shouldRelease) {
+            const baseVersion = latestTag
+              ? latestTag.replace(/^stagehand-server-v3\/v/, '')
+              : '0.0.0';
+            const parts = baseVersion.split('.').map((part) => Number(part));
+            if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+              throw new Error(`Invalid latest stagehand-server-v3 tag: ${latestTag || '<none>'}`);
+            }
+
+            if (highestReleaseType === 'major') {
+              parts[0] += 1;
+              parts[1] = 0;
+              parts[2] = 0;
+            } else if (highestReleaseType === 'minor') {
+              parts[1] += 1;
+              parts[2] = 0;
+            } else {
+              parts[2] += 1;
+            }
+
+            version = parts.join('.');
           }
 
           const release = shouldRelease ? 'true' : 'false';
-          const version = shouldRelease ? serverRelease.newVersion : '';
           const tag = `stagehand-server-v3/v${version}`;
 
           const out = process.env.GITHUB_OUTPUT;
