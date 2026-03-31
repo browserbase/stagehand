@@ -50,14 +50,17 @@ jobs:
         if: github.ref == 'refs/heads/main'
         id: browse_cli
         run: |
-          if git diff --quiet HEAD^ HEAD -- packages/cli/package.json; then
+          # Restore working tree — changesets/action may have switched branches
+          git checkout ${{ github.sha }}
+
+          if git diff --quiet ${{ github.sha }}^ ${{ github.sha }} -- packages/cli/package.json; then
             echo "browse-cli version did not change on this push."
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          OLD_VERSION=$(git show HEAD^:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
-          NEW_VERSION=$(node -p "require('./packages/cli/package.json').version")
+          OLD_VERSION=$(git show ${{ github.sha }}^:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+          NEW_VERSION=$(git show ${{ github.sha }}:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
           echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
 
           if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
@@ -83,7 +86,7 @@ jobs:
           trap 'rm -rf "$PACK_DIR"' EXIT
 
           TARBALL=$(pnpm pack --json --pack-destination "$PACK_DIR" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).filename")
-          npm publish "$TARBALL" --provenance --access public
+          npm publish "$TARBALL" --provenance --access public --tag latest
 
       - name: Tag browse-cli release
         if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish == 'true'
@@ -98,6 +101,40 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag "$TAG"
           git push origin "$TAG"
+
+      - name: Publish browse-cli canary
+        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish != 'true'
+        run: |
+          # Skip if no browse-cli files changed in this push
+          if git diff --quiet ${{ github.sha }}^ ${{ github.sha }} -- packages/cli/; then
+            echo "No browse-cli changes in this push, skipping canary."
+            exit 0
+          fi
+
+          cd packages/cli
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          CANARY_VERSION="${BASE_VERSION}-alpha-${SHORT_SHA}"
+
+          if npm view "@browserbasehq/browse-cli@${CANARY_VERSION}" version >/dev/null 2>&1; then
+            echo "browse-cli canary ${CANARY_VERSION} is already published."
+            exit 0
+          fi
+
+          # Temporarily set canary version for pnpm pack
+          node -e "
+            const pkg = require('./package.json');
+            pkg.version = '${CANARY_VERSION}';
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          PACK_DIR=$(mktemp -d)
+          trap 'rm -rf "$PACK_DIR"' EXIT
+
+          TARBALL=$(pnpm pack --json --pack-destination "$PACK_DIR" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).filename")
+          npm publish "$TARBALL" --provenance --access public --tag alpha
+
+          echo "Published @browserbasehq/browse-cli@${CANARY_VERSION}"
 
       - name: Publish Canary
         if: github.ref == 'refs/heads/main'
