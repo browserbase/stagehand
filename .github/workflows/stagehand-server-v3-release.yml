@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - .changeset/**
+      - .github/workflows/stagehand-server-v3-release.yml
   workflow_dispatch:
 
 permissions:
