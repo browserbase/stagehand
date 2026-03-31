@@ -60,10 +60,11 @@ function hasInjectableDOM(url: string | undefined): boolean {
 }
 
 function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
-  return (
-    (info.type !== "page" && info.type !== "iframe") ||
-    !hasInjectableDOM(info.url)
-  );
+  // Top-level pages should always be tracked — the initial URL may be a
+  // non-web scheme (e.g. chrome://newtab/) but the user can navigate to
+  // web content, and the target identity stays the same.
+  if (info.type === "page") return false;
+  return info.type !== "iframe" || !hasInjectableDOM(info.url);
 }
 
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
