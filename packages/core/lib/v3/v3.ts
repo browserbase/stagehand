@@ -1,3 +1,4 @@
+import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -98,9 +99,10 @@ const DEFAULT_AGENT_TOOL_TIMEOUT_MS = 45000;
 type ResolvedModelConfiguration = {
   modelName: AvailableModel;
   clientOptions?: ClientOptions;
+  middleware?: LanguageModelV2Middleware;
 };
 
-function resolveModelConfiguration(
+export function resolveModelConfiguration(
   model?: V3Options["model"],
 ): ResolvedModelConfiguration {
   if (!model) {
@@ -112,7 +114,7 @@ function resolveModelConfiguration(
   }
 
   if (model && typeof model === "object") {
-    const { modelName, ...clientOptions } = model;
+    const { modelName, middleware, ...clientOptions } = model;
     if (!modelName) {
       throw new StagehandInvalidArgumentError(
         "model.modelName is required when providing client options.",
@@ -121,6 +123,7 @@ function resolveModelConfiguration(
     return {
       modelName,
       clientOptions: clientOptions as ClientOptions,
+      middleware,
     };
   }
 
@@ -323,11 +326,13 @@ export class V3 {
     } catch {
       // ignore
     }
-    const { modelName, clientOptions } = resolveModelConfiguration(opts.model);
+    const { modelName, clientOptions, middleware } = resolveModelConfiguration(
+      opts.model,
+    );
     this.modelName = modelName;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
-    this.llmProvider = new LLMProvider(this.logger);
+    this.llmProvider = new LLMProvider(this.logger, middleware);
     this.domSettleTimeoutMs = opts.domSettleTimeout;
     this.disableAPI = opts.disableAPI ?? false;
 
@@ -440,17 +445,20 @@ export class V3 {
 
     let modelName: AvailableModel | string;
     let clientOptions: ClientOptions | undefined;
+    let perCallMiddleware: LanguageModelV2Middleware | undefined;
 
     if (typeof model === "string") {
       modelName = model;
     } else {
-      const { modelName: overrideModelName, ...rest } = model;
+      const { modelName: overrideModelName, middleware, ...rest } = model;
       modelName = overrideModelName;
       clientOptions = rest as ClientOptions;
+      perCallMiddleware = middleware;
     }
 
     if (
       modelName === this.modelName &&
+      !perCallMiddleware &&
       (!clientOptions || Object.keys(clientOptions).length === 0)
     ) {
       return this.llmClient;
@@ -472,6 +480,18 @@ export class V3 {
       }
     }
 
+    if (perCallMiddleware) {
+      return this.llmProvider.getClient(
+        modelName as AvailableModel,
+        mergedOptions,
+        {
+          experimental: this.experimental,
+          disableAPI: this.disableAPI,
+          middleware: perCallMiddleware,
+        },
+      );
+    }
+
     const cacheKey = JSON.stringify({
       modelName,
       clientOptions: mergedOptions,
@@ -485,7 +505,10 @@ export class V3 {
     const client = this.llmProvider.getClient(
       modelName as AvailableModel,
       mergedOptions,
-      { experimental: this.experimental, disableAPI: this.disableAPI },
+      {
+        experimental: this.experimental,
+        disableAPI: this.disableAPI,
+      },
     );
 
     this.overrideLlmClients.set(cacheKey, client);
