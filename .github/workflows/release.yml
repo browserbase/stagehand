@@ -129,7 +129,7 @@ jobs:
           "
 
           PACK_DIR=$(mktemp -d)
-          trap 'rm -rf "$PACK_DIR"' EXIT
+          trap 'git checkout -- package.json; rm -rf "$PACK_DIR"' EXIT
 
           TARBALL=$(pnpm pack --json --pack-destination "$PACK_DIR" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).filename")
           npm publish "$TARBALL" --provenance --access public --tag alpha
