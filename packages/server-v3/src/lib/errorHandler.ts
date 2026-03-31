@@ -65,11 +65,7 @@ export function withErrorHandling<
           ? err.message
           : "An internal server error occurred";
 
-      return error(
-        reply,
-        message,
-        StatusCodes.INTERNAL_SERVER_ERROR,
-      );
+      return error(reply, message, StatusCodes.INTERNAL_SERVER_ERROR);
     }
   };
 }
