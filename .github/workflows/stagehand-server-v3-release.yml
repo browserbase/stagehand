@@ -49,47 +49,47 @@ jobs:
             | awk '{sub("refs/tags/", "", $2); print $2}' \
             > "${remote_tags}"
 
-          latest_tag="$(
-            REMOTE_TAGS_FILE="${remote_tags}" node <<'NODE'
-            const fs = require('fs');
+          latest_tag_file="$(mktemp)"
+          REMOTE_TAGS_FILE="${remote_tags}" LATEST_TAG_FILE="${latest_tag_file}" node <<'NODE'
+          const fs = require('fs');
 
-            const tags = fs
-              .readFileSync(process.env.REMOTE_TAGS_FILE, 'utf8')
-              .split('\n')
-              .map((line) => line.trim())
-              .filter(Boolean);
+          const tags = fs
+            .readFileSync(process.env.REMOTE_TAGS_FILE, 'utf8')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
 
-            const parseTag = (tag) => {
-              const match = /^stagehand-server-v3\/v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
-              if (!match) {
-                return null;
-              }
-              return match.slice(1).map((part) => Number(part));
-            };
+          const parseTag = (tag) => {
+            const match = /^stagehand-server-v3\/v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
+            if (!match) {
+              return null;
+            }
+            return match.slice(1).map((part) => Number(part));
+          };
 
-            const compareVersions = (left, right) => {
-              for (let i = 0; i < 3; i += 1) {
-                if (left[i] !== right[i]) {
-                  return left[i] - right[i];
-                }
-              }
-              return 0;
-            };
-
-            let best = null;
-            for (const tag of tags) {
-              const version = parseTag(tag);
-              if (!version) {
-                continue;
-              }
-              if (best === null || compareVersions(version, best.version) > 0) {
-                best = { tag, version };
+          const compareVersions = (left, right) => {
+            for (let i = 0; i < 3; i += 1) {
+              if (left[i] !== right[i]) {
+                return left[i] - right[i];
               }
             }
+            return 0;
+          };
 
-            process.stdout.write(best?.tag ?? '');
-            NODE
-          )"
+          let best = null;
+          for (const tag of tags) {
+            const version = parseTag(tag);
+            if (!version) {
+              continue;
+            }
+            if (best === null || compareVersions(version, best.version) > 0) {
+              best = { tag, version };
+            }
+          }
+
+          fs.writeFileSync(process.env.LATEST_TAG_FILE, best?.tag ?? '', 'utf8');
+          NODE
+          latest_tag="$(cat "${latest_tag_file}")"
 
           changed_files="$(mktemp)"
           if [ -n "${latest_tag}" ]; then
