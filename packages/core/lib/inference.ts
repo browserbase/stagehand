@@ -415,7 +415,7 @@ export async function act({
       .string()
       .regex(/^\d+-\d+$/)
       .describe(
-        "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'.",
+        "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'. for example, '0-76' or '16-21'",
       ),
     description: z
       .string()
