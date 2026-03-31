@@ -4,6 +4,7 @@ import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
+import { getFileUploadGuardError } from "../utils/fileUploadGuard.js";
 
 export const fillFormTool = (
   v3: V3,
@@ -30,6 +31,16 @@ export const fillFormTool = (
     }),
     execute: async ({ fields }) => {
       try {
+        const fileUploadGuardError = getFileUploadGuardError(
+          ...fields.map((field) => field.action),
+        );
+        if (fileUploadGuardError) {
+          return {
+            success: false,
+            error: fileUploadGuardError,
+          };
+        }
+
         v3.logger({
           category: "agent",
           message: `Agent calling tool: fillForm`,

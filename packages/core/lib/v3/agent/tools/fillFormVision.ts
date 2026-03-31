@@ -8,6 +8,7 @@ import type {
   Variables,
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
+import { getFileUploadGuardError } from "../utils/fileUploadGuard.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { substituteVariables } from "../utils/variables.js";
@@ -62,6 +63,16 @@ MANDATORY USE CASES (always use fillFormVision for these):
     }),
     execute: async ({ fields }): Promise<FillFormVisionToolResult> => {
       try {
+        const fileUploadGuardError = getFileUploadGuardError(
+          ...fields.flatMap((field) => [field.action, field.value]),
+        );
+        if (fileUploadGuardError) {
+          return {
+            success: false,
+            error: fileUploadGuardError,
+          };
+        }
+
         const page = await v3.context.awaitActivePage();
 
         // Process coordinates and substitute variables for each field

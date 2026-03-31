@@ -4,6 +4,7 @@ import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
+import { getFileUploadGuardError } from "../utils/fileUploadGuard.js";
 
 export const actTool = (
   v3: V3,
@@ -24,6 +25,14 @@ export const actTool = (
     }),
     execute: async ({ action }) => {
       try {
+        const fileUploadGuardError = getFileUploadGuardError(action);
+        if (fileUploadGuardError) {
+          return {
+            success: false,
+            error: fileUploadGuardError,
+          };
+        }
+
         v3.logger({
           category: "agent",
           message: `Agent calling tool: act`,
