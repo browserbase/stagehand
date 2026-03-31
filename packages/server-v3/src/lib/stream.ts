@@ -192,7 +192,7 @@ export async function createStreamingResponse<TV3>({
     const clientMessage =
       handlerError instanceof AppError
         ? handlerError.getClientMessage()
-        : `${operation ?? "operation"} failed`;
+        : handlerError.message;
 
     sendData("error", "system", { status: "error", error: clientMessage });
 
