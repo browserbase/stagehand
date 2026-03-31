@@ -1,5 +1,11 @@
 # @browserbasehq/browse-cli
 
+## 0.4.2
+
+### Patch Changes
+
+- [#1907](https://github.com/browserbase/stagehand/pull/1907) [`3917df4`](https://github.com/browserbase/stagehand/commit/3917df4851673792ecc2644e2a50dac8996bbeb0) Thanks [@derekmeegan](https://github.com/derekmeegan)! - Add `browse get markdown [selector]` command to convert page HTML to markdown. Defaults to body content, supports optional selector for specific elements. Uses node-html-markdown for high-quality conversion with links, tables, and code blocks preserved.
+
 ## 0.4.1
 
 ### Patch Changes
