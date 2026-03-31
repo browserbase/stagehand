@@ -1,5 +1,11 @@
 # @browserbasehq/browse-cli
 
+## 0.4.1
+
+### Patch Changes
+
+- [#1911](https://github.com/browserbase/stagehand/pull/1911) [`56d7b9f`](https://github.com/browserbase/stagehand/commit/56d7b9f5cc6a2d492f6d243818dc3024ef5f61d8) Thanks [@derekmeegan](https://github.com/derekmeegan)! - Fix invalid metadata key by using underscore instead of hyphen for browse_cli session metadata
+
 ## 0.4.0
 
 ### Minor Changes
