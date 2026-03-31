@@ -13,6 +13,7 @@ if (!wantsHelp && !wantsMan) {
   const build = spawnSync("pnpm", ["run", "build"], {
     stdio: "inherit",
     cwd: "../..",
+    shell: process.platform === "win32",
   });
   if (build.status !== 0) process.exit(build.status ?? 1);
 }
