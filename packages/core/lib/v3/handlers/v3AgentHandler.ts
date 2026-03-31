@@ -1,6 +1,7 @@
 import {
   createAgentTools,
   createGoogleCuaTools,
+  createAnthropicCuaTools,
 } from "../agent/tools/index.js";
 import { buildAgentSystemPrompt } from "../agent/prompts/agentSystemPrompt.js";
 import { LogLine } from "../types/public/logs.js";
@@ -119,6 +120,8 @@ export class V3AgentHandler {
       // Get the initial page URL first (needed for the system prompt)
       const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
 
+      const provider = this.llmClient?.getLanguageModel?.()?.provider;
+
       // Build the system prompt with mode-aware tool guidance
       const systemPrompt = buildAgentSystemPrompt({
         url: initialPageUrl,
@@ -129,6 +132,7 @@ export class V3AgentHandler {
         excludeTools: options.excludeTools,
         variables: options.variables,
         useSearch: options.useSearch,
+        provider,
       });
 
       if (options.useSearch) {
@@ -141,7 +145,7 @@ export class V3AgentHandler {
         }
       }
 
-      const tools = this.createTools(
+      const tools = await this.createTools(
         options.excludeTools,
         options.variables,
         options.toolTimeout,
@@ -650,13 +654,17 @@ export class V3AgentHandler {
     };
   }
 
-  private createTools(
+  private async createTools(
     excludeTools?: string[],
     variables?: Variables,
     toolTimeout?: number,
     useSearch?: boolean,
-  ) {
+  ): Promise<ToolSet> {
     if (this.mode === "cua") {
+      const provider = this.llmClient?.getLanguageModel?.()?.provider;
+      if (provider?.startsWith("anthropic")) {
+        return createAnthropicCuaTools(this.v3);
+      }
       return createGoogleCuaTools(this.v3);
     }
 

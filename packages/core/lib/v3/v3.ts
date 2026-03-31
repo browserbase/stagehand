@@ -1905,10 +1905,10 @@ export class V3 {
         throw new CuaModelRequiredError(AVAILABLE_CUA_MODELS);
       }
 
-      // Google CUA models use V3AgentHandler with AI SDK tools instead of V3CuaAgentHandler.
-      // Let them fall through to the default AISDK tools-based agent path below,
-      // which uses createGoogleCuaTools + custom fetch via LLMProvider.
-      if (provider !== "google") {
+      // Google and Anthropic CUA models use V3AgentHandler with AI SDK tools
+      // instead of V3CuaAgentHandler. Let them fall through to the default
+      // AISDK tools-based agent path below.
+      if (provider !== "google" && provider !== "anthropic") {
         const agentConfigSignature =
           this.agentCache.buildConfigSignature(options);
         const execute = async (
