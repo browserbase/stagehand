@@ -8,6 +8,7 @@ import zodToJsonSchema from "zod-to-json-schema";
 import type * as z3 from "zod/v3";
 import { createRequire } from "node:module";
 import { getCurrentFilePath } from "./runtimePaths.js";
+import { StagehandError } from "./types/public/sdkErrors.js";
 export type StagehandZodSchema = Zod4TypeAny | z3.ZodTypeAny;
 
 export type StagehandZodObject =
@@ -76,7 +77,7 @@ export function toJsonSchema(schema: StagehandZodSchema): JsonSchemaDocument {
     return v4Fallback(schema as Zod4TypeAny);
   }
 
-  throw new Error(
+  throw new StagehandError(
     "Zod v4 schema detected but toJSONSchema is unavailable. " +
       'Ensure your zod version exposes toJSONSchema on the root export or via "zod/v4".',
   );
