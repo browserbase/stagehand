@@ -118,9 +118,34 @@ function buildToolsSection(
   return `<tools>\n${toolLines}\n  </tools>`;
 }
 
+function buildCuaSystemPrompt(options: AgentSystemPromptOptions): string {
+  const { url, executionInstruction, systemInstructions } = options;
+  const today = new Date().toISOString().split("T")[0];
+
+  const customInstructions = systemInstructions
+    ? `\n\nAdditional instructions:\n${systemInstructions}`
+    : "";
+
+  return `You are a general-purpose browser agent whose job is to accomplish the user's goal.
+Today's date is ${today}.
+You have access to a set of browser interaction tools: click_at, type_text_at, key_combination, scroll_at, scroll_document, navigate, go_back, go_forward, hover_at, drag_and_drop, wait_5_seconds, and open_web_browser.
+All coordinate-based tools use a 0-1000 coordinate system that maps to the browser viewport.
+
+You will be given a goal and a screenshot of the current page after each action. Use the screenshot to understand what is on the page and decide your next action.
+
+When you are done with the task, call the done tool with a message summarizing what you accomplished.
+
+Current URL: ${url}
+Goal: ${executionInstruction}${customInstructions}`;
+}
+
 export function buildAgentSystemPrompt(
   options: AgentSystemPromptOptions,
 ): string {
+  if (options.mode === "cua") {
+    return buildCuaSystemPrompt(options);
+  }
+
   const {
     url,
     executionInstruction,

@@ -1,4 +1,7 @@
-import { createAgentTools } from "../agent/tools/index.js";
+import {
+  createAgentTools,
+  createGoogleCuaTools,
+} from "../agent/tools/index.js";
 import { buildAgentSystemPrompt } from "../agent/prompts/agentSystemPrompt.js";
 import { LogLine } from "../types/public/logs.js";
 import { V3 } from "../v3.js";
@@ -144,7 +147,8 @@ export class V3AgentHandler {
         options.toolTimeout,
         options.useSearch,
       );
-      const allTools: ToolSet = { ...tools, ...this.mcpTools };
+      const allTools: ToolSet =
+        this.mode === "cua" ? tools : { ...tools, ...this.mcpTools };
 
       // Use provided messages for continuation, or start fresh with the instruction
       const messages: ModelMessage[] = options.messages?.length
@@ -310,9 +314,9 @@ export class V3AgentHandler {
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
     const signal = options?.signal;
 
-    // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
-      options?.highlightCursor ?? this.mode === "hybrid";
+      options?.highlightCursor ??
+      (this.mode === "hybrid" || this.mode === "cua");
 
     const state: AgentState = {
       collectedReasoning: [],
@@ -336,8 +340,10 @@ export class V3AgentHandler {
         initialPageUrl,
       } = await this.prepareAgent(instructionOrOptions);
 
-      // Enable cursor overlay for hybrid mode (coordinate-based interactions)
-      if (shouldHighlightCursor && this.mode === "hybrid") {
+      if (
+        shouldHighlightCursor &&
+        (this.mode === "hybrid" || this.mode === "cua")
+      ) {
         const page = await this.v3.context.awaitActivePage();
         await page.enableCursorOverlay().catch(() => {});
       }
@@ -447,9 +453,9 @@ export class V3AgentHandler {
     const streamOptions =
       typeof instructionOrOptions === "object" ? instructionOrOptions : null;
 
-    // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
-      streamOptions?.highlightCursor ?? this.mode === "hybrid";
+      streamOptions?.highlightCursor ??
+      (this.mode === "hybrid" || this.mode === "cua");
 
     const {
       options,
@@ -461,8 +467,10 @@ export class V3AgentHandler {
       initialPageUrl,
     } = await this.prepareAgent(instructionOrOptions);
 
-    // Enable cursor overlay for hybrid mode (coordinate-based interactions)
-    if (shouldHighlightCursor && this.mode === "hybrid") {
+    if (
+      shouldHighlightCursor &&
+      (this.mode === "hybrid" || this.mode === "cua")
+    ) {
       const page = await this.v3.context.awaitActivePage();
       await page.enableCursorOverlay().catch(() => {});
     }
@@ -648,6 +656,10 @@ export class V3AgentHandler {
     toolTimeout?: number,
     useSearch?: boolean,
   ) {
+    if (this.mode === "cua") {
+      return createGoogleCuaTools(this.v3);
+    }
+
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,
