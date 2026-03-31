@@ -19,6 +19,7 @@ import * as readline from "readline";
 import type { Protocol } from "devtools-protocol";
 import { version as VERSION } from "../package.json";
 import { resolveWsTarget } from "./resolve-ws";
+import { NodeHtmlMarkdown } from "node-html-markdown";
 
 const program = new Command();
 
@@ -1231,6 +1232,11 @@ async function executeCommand(
               .deepLocator(resolveSelector(selector!))
               .isChecked(),
           };
+        case "markdown": {
+          const target = selector ? resolveSelector(selector) : "body";
+          const html = await page!.deepLocator(target).innerHtml();
+          return { markdown: NodeHtmlMarkdown.translate(html) };
+        }
         default:
           throw new Error(`Unknown get type: ${what}`);
       }
@@ -2465,7 +2471,7 @@ program
 program
   .command("get <what> [selector]")
   .description(
-    "Get page info: url, title, text, html, value, box, visible, checked",
+    "Get page info: url, title, text, html, markdown, value, box, visible, checked",
   )
   .action(async (what: string, selector?: string) => {
     const opts = program.opts<GlobalOpts>();
