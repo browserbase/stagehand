@@ -100,7 +100,7 @@ async function waitForWebSocketReady(
     }
   }
   throw new ConnectionTimeoutError(
-    `Timed out waiting for Lightpanda CDP websocket at ${wsUrl}${
+    `Timed out waiting for Lightpanda CDP websocket endpoint${
       lastErrMsg ? ` (last error: ${lastErrMsg})` : ""
     }`,
   );
