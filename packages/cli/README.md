@@ -173,22 +173,23 @@ browse env
 # Switch current session to Browserbase (restarts daemon if needed)
 browse env remote
 
-# Switch back to local Chrome (auto-discovers existing Chrome, falls back to isolated)
+# Switch back to local Chrome (clean isolated browser by default)
 browse env local
 ```
 
 #### Local Browser Strategies
 
-By default, `browse env local` auto-discovers an already-running Chrome with remote
-debugging enabled. This lets agents use your existing cookies, logins, and browser state.
-If no debuggable Chrome is found, it falls back to launching an isolated browser.
+By default, `browse env local` launches a clean isolated local browser.
+Use `browse env local --auto-connect` to opt into reusing an already-running
+Chrome with remote debugging enabled. If no debuggable Chrome is found, it
+falls back to launching an isolated browser.
 
 ```bash
-# Auto-discover local Chrome, fallback to isolated (default)
+# Use a clean isolated browser (default)
 browse env local
 
-# Force a clean isolated browser (no auto-discovery)
-browse env local --isolated
+# Auto-discover local Chrome, fallback to isolated
+browse env local --auto-connect
 
 # Attach to a specific CDP target (port or URL)
 browse env local 9222
@@ -210,7 +211,7 @@ Use `browse status` to see which strategy was resolved:
 
 ```bash
 browse status
-# {"running":true,"session":"default","mode":"local","localStrategy":"auto","localSource":"attached-existing","resolvedCdpUrl":"ws://..."}
+# {"running":true,"session":"default","mode":"local","localStrategy":"isolated","localSource":"isolated"}
 ```
 
 #### General Behavior
@@ -283,19 +284,19 @@ browse --session personal open https://twitter.com
 
 ## Direct CDP Connection
 
-Connect to an existing Chrome instance:
+Opt into using an existing Chrome instance:
 
 To make your Chrome discoverable:
 
 1. Open `chrome://inspect/#remote-debugging`
 2. Check the box **"Allow remote debugging for this browser instance"**
-3. Re-run the CLI and it will auto-connect!
+3. Re-run the CLI with auto-connect enabled.
 
 For more information, see the [Chrome DevTools docs](https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session).
 
 ```bash
 # Auto-discover Chrome with remote debugging enabled
-browse env local
+browse env local --auto-connect
 browse open https://example.com
 
 # Or target a specific port / WebSocket URL
