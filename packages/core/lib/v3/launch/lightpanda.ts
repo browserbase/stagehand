@@ -2,6 +2,25 @@ import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import WebSocket from "ws";
 import { ConnectionTimeoutError } from "../types/public/sdkErrors.js";
 
+interface ConnectLightpandaOptions {
+  cdpUrl: string;
+  connectTimeoutMs?: number;
+}
+
+/**
+ * Connects to an already-running Lightpanda browser instance via CDP.
+ */
+export async function connectLightpanda(
+  opts: ConnectLightpandaOptions,
+): Promise<{ ws: string }> {
+  const connectTimeoutMs = opts.connectTimeoutMs ?? 15_000;
+  const deadlineMs = Date.now() + connectTimeoutMs;
+
+  await waitForWebSocketReady(opts.cdpUrl, deadlineMs);
+
+  return { ws: opts.cdpUrl };
+}
+
 interface LaunchLightpandaOptions {
   executablePath: string;
   port?: number;
@@ -34,11 +53,32 @@ export async function launchLightpanda(
     stdio: ["ignore", "pipe", "pipe"],
   });
 
+  // Race the WebSocket readiness check against early process exit so we
+  // fail fast with a useful error instead of waiting the full timeout.
+  const earlyExit = new Promise<never>((_, reject) => {
+    let stderr = "";
+    childProcess.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    childProcess.on("error", (err) => {
+      reject(new Error(`Lightpanda process failed to start: ${err.message}`));
+    });
+    childProcess.on("exit", (code, signal) => {
+      const detail = stderr.trim();
+      reject(
+        new Error(
+          `Lightpanda process exited unexpectedly (code=${code ?? "null"}, signal=${signal ?? "null"})` +
+            (detail ? `\n${detail}` : ""),
+        ),
+      );
+    });
+  });
+
   const wsUrl = `ws://127.0.0.1:${port}`;
   const deadlineMs = Date.now() + connectTimeoutMs;
 
   try {
-    await waitForWebSocketReady(wsUrl, deadlineMs);
+    await Promise.race([waitForWebSocketReady(wsUrl, deadlineMs), earlyExit]);
     return { ws: wsUrl, process: childProcess };
   } catch (error) {
     try {

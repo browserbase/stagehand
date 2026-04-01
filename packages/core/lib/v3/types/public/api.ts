@@ -58,7 +58,15 @@ export const LocalBrowserLaunchOptionsSchema = z
 /** Launch options for Lightpanda headless browser */
 export const LightpandaLaunchOptionsSchema = z
   .object({
-    executablePath: z.string().meta({
+    cdpUrl: z
+      .string()
+      .optional()
+      .meta({
+        description:
+          "WebSocket URL of a running Lightpanda instance (e.g. ws://127.0.0.1:9222). " +
+          "When provided, Stagehand connects to the existing instance instead of launching one.",
+      }),
+    executablePath: z.string().optional().meta({
       description: "Path to the Lightpanda binary.",
     }),
     port: z.number().optional().meta({

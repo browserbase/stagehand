@@ -23,7 +23,7 @@ import { V3AgentHandler } from "./handlers/v3AgentHandler.js";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler.js";
 import { CAPTCHA_CUA_SYSTEM_PROMPT_NOTE } from "./agent/utils/captchaSolver.js";
 import { createBrowserbaseSession } from "./launch/browserbase.js";
-import { launchLightpanda } from "./launch/lightpanda.js";
+import { connectLightpanda, launchLightpanda } from "./launch/lightpanda.js";
 import { launchLocalChrome } from "./launch/local.js";
 import { LLMClient } from "./llm/LLMClient.js";
 import { LLMProvider } from "./llm/LLMProvider.js";
@@ -1057,35 +1057,50 @@ export class V3 {
         }
 
         if (this.opts.env === "LIGHTPANDA") {
-          const lpo = this.opts.lightpandaLaunchOptions;
-          if (!lpo?.executablePath) {
+          const lpo = this.opts.lightpandaLaunchOptions ?? {};
+
+          let ws: string;
+          let lpProcess:
+            | import("child_process").ChildProcessWithoutNullStreams
+            | undefined;
+
+          if (lpo.cdpUrl) {
+            // Connect to an already-running Lightpanda instance.
+            this.logger({
+              category: "init",
+              message: "Connecting to Lightpanda browser",
+              level: 1,
+            });
+            ({ ws } = await connectLightpanda({
+              cdpUrl: lpo.cdpUrl,
+              connectTimeoutMs: lpo.connectTimeoutMs,
+            }));
+          } else if (lpo.executablePath) {
+            // Launch Lightpanda from the provided binary.
+            this.logger({
+              category: "init",
+              message: "Launching Lightpanda browser",
+              level: 1,
+            });
+            const result = await launchLightpanda({
+              executablePath: lpo.executablePath,
+              port: lpo.port,
+              args: lpo.args,
+              connectTimeoutMs: lpo.connectTimeoutMs,
+            });
+            ws = result.ws;
+            lpProcess = result.process;
+          } else {
             throw new StagehandInitError(
-              "lightpandaLaunchOptions.executablePath is required when env is LIGHTPANDA. " +
+              "lightpandaLaunchOptions requires either cdpUrl or executablePath when env is LIGHTPANDA. " +
                 "Download the binary from https://github.com/lightpanda-io/browser/releases/",
             );
           }
 
-          this.logger({
-            category: "init",
-            message: "Launching Lightpanda browser",
-            level: 1,
-          });
-
-          const result = await launchLightpanda({
-            executablePath: lpo.executablePath,
-            port: lpo.port,
-            args: lpo.args,
-            connectTimeoutMs: lpo.connectTimeoutMs,
-          });
-
-          this.ctx = await V3Context.create(result.ws, { env: "LIGHTPANDA" });
+          this.ctx = await V3Context.create(ws, { env: "LIGHTPANDA" });
           this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
-          this.state = {
-            kind: "LIGHTPANDA",
-            ws: result.ws,
-            process: result.process,
-          };
+          this.state = { kind: "LIGHTPANDA", ws, process: lpProcess };
           this.resetBrowserbaseSessionMetadata();
           return;
         }
