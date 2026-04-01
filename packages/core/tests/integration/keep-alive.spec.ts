@@ -390,7 +390,7 @@ async function assertBrowserState(
   projectId?: string,
 ): Promise<Outcome> {
   const expected: Outcome["expected"] = shouldStayOpen ? "open" : "closed";
-  if (env === "LOCAL") {
+  if (env === "LOCAL" || env === "LIGHTPANDA") {
     if (shouldStayOpen) {
       const result = await assertStaysOpen(
         () => checkLocalAlive(info.connectURL),
@@ -645,7 +645,7 @@ export async function runKeepAliveCase(
       failure,
     );
     await stopChild(child);
-    if (testCase.env === "LOCAL" && info.connectURL) {
+    if ((testCase.env === "LOCAL" || testCase.env === "LIGHTPANDA") && info.connectURL) {
       await closeLocalBrowser(info.connectURL);
     }
     if (testCase.env === "BROWSERBASE" && info.sessionId) {
