@@ -43,6 +43,8 @@ async function cleanupSession(session: string): Promise<void> {
     `browse-${session}.chrome.pid`,
     `browse-${session}.mode`,
     `browse-${session}.mode-override`,
+    `browse-${session}.local-config`,
+    `browse-${session}.local-info`,
   ];
 
   for (const pattern of patterns) {
@@ -77,6 +79,21 @@ describe("Browse CLI env command", () => {
     expect(["local", "remote"]).toContain(data.desired);
   });
 
+  it("shows isolated local strategy by default when local is desired", async () => {
+    const result = await browse("env", {
+      env: {
+        ...process.env,
+        BROWSERBASE_API_KEY: "",
+      },
+    });
+    expect(result.exitCode).toBe(0);
+
+    const data = parseJson(result.stdout);
+    expect(data.mode).toBe("not running");
+    expect(data.desired).toBe("local");
+    expect(data.localStrategy).toBe("isolated");
+  });
+
   it("rejects unsupported env target", async () => {
     const result = await browse("env invalid-target");
     expect(result.exitCode).not.toBe(0);
@@ -92,5 +109,57 @@ describe("Browse CLI env command", () => {
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Remote mode requires BROWSERBASE_API_KEY");
+  });
+
+  it("defaults browse env local to isolated strategy", async () => {
+    const result = await browse("env local");
+    expect(result.exitCode).toBe(0);
+
+    const data = parseJson(result.stdout);
+    expect(data.mode).toBe("local");
+    expect(data.localStrategy).toBe("isolated");
+
+    const status = parseJson((await browse("status")).stdout);
+    expect(status.running).toBe(true);
+    expect(status.mode).toBe("local");
+    expect(status.localStrategy).toBe("isolated");
+  });
+
+  it("uses auto strategy only when --auto-connect is passed", async () => {
+    const result = await browse("env local --auto-connect");
+    expect(result.exitCode).toBe(0);
+
+    const data = parseJson(result.stdout);
+    expect(data.mode).toBe("local");
+    expect(data.localStrategy).toBe("auto");
+
+    const status = parseJson((await browse("status")).stdout);
+    expect(status.running).toBe(true);
+    expect(status.mode).toBe("local");
+    expect(status.localStrategy).toBe("auto");
+  });
+
+  it("stores explicit CDP strategy when a target is provided", async () => {
+    const result = await browse("env local 9222");
+    expect(result.exitCode).toBe(0);
+
+    const data = parseJson(result.stdout);
+    expect(data.mode).toBe("local");
+    expect(data.localStrategy).toBe("cdp");
+
+    const status = parseJson((await browse("status")).stdout);
+    expect(status.running).toBe(true);
+    expect(status.mode).toBe("local");
+    expect(status.localStrategy).toBe("cdp");
+  });
+
+  it("rejects conflicting local strategy options", async () => {
+    const withAlias = await browse("env local --auto-connect --isolated");
+    expect(withAlias.exitCode).not.toBe(0);
+    expect(withAlias.stderr).toContain("Use only one of");
+
+    const withTarget = await browse("env local --auto-connect 9222");
+    expect(withTarget.exitCode).not.toBe(0);
+    expect(withTarget.stderr).toContain("Use only one of");
   });
 });

@@ -62,6 +62,8 @@ async function cleanupSession(session: string): Promise<void> {
     `browse-${session}.chrome.pid`,
     `browse-${session}.mode`,
     `browse-${session}.mode-override`,
+    `browse-${session}.local-config`,
+    `browse-${session}.local-info`,
   ];
 
   for (const pattern of patterns) {

@@ -8,7 +8,7 @@
  * Multiple sessions can run simultaneously using --session <name> or BROWSE_SESSION env var.
  */
 
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { Stagehand, type Page as BrowsePage } from "@browserbasehq/stagehand";
 import { promises as fs } from "fs";
 import * as path from "path";
@@ -18,6 +18,14 @@ import { spawn } from "child_process";
 import * as readline from "readline";
 import type { Protocol } from "devtools-protocol";
 import { version as VERSION } from "../package.json";
+import {
+  DEFAULT_LOCAL_CONFIG,
+  type LocalBrowserLaunchOptions,
+  type LocalCdpDiscovery,
+  type LocalConfig,
+  type LocalInfo,
+  resolveLocalStrategy,
+} from "./local-strategy";
 import { resolveWsTarget } from "./resolve-ws";
 import { NodeHtmlMarkdown } from "node-html-markdown";
 
@@ -171,29 +179,12 @@ function getLocalInfoPath(session: string): string {
 
 // ==================== LOCAL STRATEGY CONFIG ====================
 
-type LocalStrategy = "auto" | "isolated" | "cdp";
-
-interface LocalConfig {
-  strategy: LocalStrategy;
-  cdpTarget?: string; // port number or URL
-}
-
-interface LocalInfo {
-  localSource:
-    | "attached-existing"
-    | "attached-explicit"
-    | "isolated"
-    | "isolated-fallback";
-  resolvedCdpUrl?: string;
-  fallbackReason?: string;
-}
-
 async function readLocalConfig(session: string): Promise<LocalConfig> {
   try {
     const raw = await fs.readFile(getLocalConfigPath(session), "utf-8");
     return JSON.parse(raw);
   } catch {
-    return { strategy: "auto" };
+    return { ...DEFAULT_LOCAL_CONFIG };
   }
 }
 
@@ -446,10 +437,7 @@ interface CdpCandidate {
  *
  * If multiple healthy candidates are found, returns null (ambiguity).
  */
-async function discoverLocalCdp(): Promise<{
-  wsUrl: string;
-  source: string;
-} | null> {
+async function discoverLocalCdp(): Promise<LocalCdpDiscovery | null> {
   const candidates: CdpCandidate[] = [];
 
   // Phase 1: Scan DevToolsActivePort files
@@ -648,40 +636,19 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
       } catch {}
 
       // Resolve local browser launch options based on strategy
-      let localLaunchOptions: Record<string, unknown> | undefined;
+      let localLaunchOptions: LocalBrowserLaunchOptions | undefined;
       let localInfo: LocalInfo | undefined;
 
       if (!useBrowserbase) {
-        const localConfig = await readLocalConfig(session);
-
-        if (localConfig.strategy === "isolated") {
-          localLaunchOptions = { headless, viewport: DEFAULT_VIEWPORT };
-          localInfo = { localSource: "isolated" };
-        } else if (localConfig.strategy === "cdp") {
-          // Explicit CDP target — resolve port or URL
-          const cdpUrl = await resolveWsTarget(localConfig.cdpTarget!);
-          localLaunchOptions = { cdpUrl };
-          localInfo = {
-            localSource: "attached-explicit",
-            resolvedCdpUrl: cdpUrl,
-          };
-        } else {
-          // strategy === "auto": try discovery, fall back to isolated
-          const discovered = await discoverLocalCdp();
-          if (discovered) {
-            localLaunchOptions = { cdpUrl: discovered.wsUrl };
-            localInfo = {
-              localSource: "attached-existing",
-              resolvedCdpUrl: discovered.wsUrl,
-            };
-          } else {
-            localLaunchOptions = { headless, viewport: DEFAULT_VIEWPORT };
-            localInfo = {
-              localSource: "isolated-fallback",
-              fallbackReason: "no debuggable local browser found",
-            };
-          }
-        }
+        const resolvedLocalStrategy = await resolveLocalStrategy({
+          localConfig: await readLocalConfig(session),
+          headless,
+          defaultViewport: DEFAULT_VIEWPORT,
+          discoverLocalCdp,
+          resolveWsTarget,
+        });
+        localLaunchOptions = resolvedLocalStrategy.localLaunchOptions;
+        localInfo = resolvedLocalStrategy.localInfo;
       }
 
       stagehand = new Stagehand({
@@ -1987,117 +1954,140 @@ program
     );
   });
 
-program
+const envUsage =
+  "Usage: browse env [local|remote]\n" +
+  "  browse env local [--auto-connect|<port|url>]";
+
+const envCommand = program
   .command("env [target] [cdpTarget]")
   .description(
     "Show or switch browser environment (local | remote)\n\n" +
-      "  browse env              Show current environment\n" +
-      "  browse env local        Auto-discover local Chrome, fallback to isolated\n" +
-      "  browse env local --isolated  Force clean isolated browser\n" +
-      "  browse env local <port|url>  Attach to specific CDP target\n" +
-      "  browse env remote       Use Browserbase (requires API key)",
+      "  browse env                    Show current environment\n" +
+      "  browse env local              Use clean isolated local browser (default)\n" +
+      "  browse env local --auto-connect  Auto-discover local Chrome, fallback to isolated\n" +
+      "  browse env local <port|url>   Attach to specific CDP target\n" +
+      "  browse env remote             Use Browserbase (requires API key)",
   )
-  .option("--isolated", "Force isolated local browser (no auto-discovery)")
-  .action(
-    async (
-      target: string | undefined,
-      cdpTarget: string | undefined,
-      cmdOpts: { isolated?: boolean },
-    ) => {
-      const opts = program.opts<GlobalOpts>();
-      const session = getSession(opts);
+  .option(
+    "--auto-connect",
+    "Auto-discover an existing local Chrome instance via CDP",
+  );
 
-      if (!target) {
-        let mode: string | null = null;
-        const desiredMode = await getDesiredMode(session);
-        const localConfig = await readLocalConfig(session);
-        const localInfo = await readLocalInfo(session);
-        if (await isDaemonRunning(session)) {
-          mode = toModeTarget((await readCurrentMode(session)) ?? desiredMode);
-        }
+envCommand.addOption(
+  new Option(
+    "--isolated",
+    "Deprecated alias for the default isolated local browser",
+  ).hideHelp(),
+);
+
+envCommand.action(
+  async (
+    target: string | undefined,
+    cdpTarget: string | undefined,
+    cmdOpts: { autoConnect?: boolean; isolated?: boolean },
+  ) => {
+    const opts = program.opts<GlobalOpts>();
+    const session = getSession(opts);
+
+    if (!target) {
+      let mode: string | null = null;
+      const desiredMode = await getDesiredMode(session);
+      const localConfig = await readLocalConfig(session);
+      const localInfo = await readLocalInfo(session);
+      if (await isDaemonRunning(session)) {
+        mode = toModeTarget((await readCurrentMode(session)) ?? desiredMode);
+      }
+      console.log(
+        JSON.stringify({
+          mode: mode ?? "not running",
+          desired: toModeTarget(desiredMode),
+          session,
+          ...(desiredMode === "local"
+            ? {
+                localStrategy: localConfig.strategy,
+                ...(localInfo ?? {}),
+              }
+            : {}),
+        }),
+      );
+      return;
+    }
+
+    const modeMap: Record<string, BrowseMode> = {
+      local: "local",
+      remote: "browserbase",
+    };
+    const mapped = modeMap[target];
+    if (!mapped) {
+      console.error(envUsage);
+      process.exit(1);
+    }
+
+    try {
+      assertModeSupported(mapped);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+
+    let localConfig: LocalConfig = { ...DEFAULT_LOCAL_CONFIG };
+    if (mapped === "local") {
+      const selectedLocalStrategies = [
+        Boolean(cmdOpts.autoConnect),
+        Boolean(cmdOpts.isolated),
+        Boolean(cdpTarget),
+      ].filter(Boolean);
+
+      if (selectedLocalStrategies.length > 1) {
+        console.error(envUsage);
+        console.error(
+          "Use only one of --auto-connect, --isolated, or <port|url>.",
+        );
+        process.exit(1);
+      }
+
+      if (cmdOpts.autoConnect) {
+        localConfig = { strategy: "auto" };
+      } else if (cdpTarget) {
+        localConfig = { strategy: "cdp", cdpTarget };
+      }
+
+      await writeLocalConfig(session, localConfig);
+    }
+
+    await fs.writeFile(getModeOverridePath(session), mapped);
+
+    // Always restart daemon when switching env to pick up new local config
+    if (await isDaemonRunning(session)) {
+      const currentMode = (await readCurrentMode(session)) ?? "local";
+      const needsRestart = currentMode !== mapped || mapped === "local"; // local always restarts to pick up strategy change
+      if (!needsRestart) {
+        // needsRestart is false only when currentMode === mapped && mapped !== "local"
+        // (local always restarts to pick up strategy changes)
         console.log(
           JSON.stringify({
-            mode: mode ?? "not running",
-            desired: toModeTarget(desiredMode),
+            mode: toModeTarget(mapped),
             session,
-            ...(desiredMode === "local"
-              ? {
-                  localStrategy: localConfig.strategy,
-                  ...(localInfo ?? {}),
-                }
-              : {}),
+            restarted: false,
           }),
         );
         return;
       }
+      await stopDaemonAndCleanup(session);
+    }
 
-      const modeMap: Record<string, BrowseMode> = {
-        local: "local",
-        remote: "browserbase",
-      };
-      const mapped = modeMap[target];
-      if (!mapped) {
-        console.error(
-          "Usage: browse env [local|remote]\n" +
-            "  browse env local [--isolated] [<port|url>]",
-        );
-        process.exit(1);
-      }
+    await ensureDaemon(session, isHeadless(opts));
 
-      try {
-        assertModeSupported(mapped);
-      } catch (err) {
-        console.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-
-      // Determine local strategy when target is "local"
-      let localConfig: LocalConfig = { strategy: "auto" };
-      if (mapped === "local") {
-        if (cmdOpts.isolated) {
-          localConfig = { strategy: "isolated" };
-        } else if (cdpTarget) {
-          localConfig = { strategy: "cdp", cdpTarget };
-        }
-        // else: auto (default)
-        await writeLocalConfig(session, localConfig);
-      }
-
-      await fs.writeFile(getModeOverridePath(session), mapped);
-
-      // Always restart daemon when switching env to pick up new local config
-      if (await isDaemonRunning(session)) {
-        const currentMode = (await readCurrentMode(session)) ?? "local";
-        const needsRestart = currentMode !== mapped || mapped === "local"; // local always restarts to pick up strategy change
-        if (!needsRestart) {
-          // needsRestart is false only when currentMode === mapped && mapped !== "local"
-          // (local always restarts to pick up strategy changes)
-          console.log(
-            JSON.stringify({
-              mode: toModeTarget(mapped),
-              session,
-              restarted: false,
-            }),
-          );
-          return;
-        }
-        await stopDaemonAndCleanup(session);
-      }
-
-      await ensureDaemon(session, isHeadless(opts));
-
-      console.log(
-        JSON.stringify({
-          mode: toModeTarget(mapped),
-          session,
-          restarted: true,
-          ...(mapped === "local"
-            ? { localStrategy: localConfig.strategy }
-            : {}),
-        }),
-      );
-    },
-  );
+    console.log(
+      JSON.stringify({
+        mode: toModeTarget(mapped),
+        session,
+        restarted: true,
+        ...(mapped === "local" ? { localStrategy: localConfig.strategy } : {}),
+      }),
+    );
+  },
+);
 
 program
   .command("refs")
