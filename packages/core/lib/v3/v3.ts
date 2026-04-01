@@ -23,10 +23,7 @@ import { V3AgentHandler } from "./handlers/v3AgentHandler.js";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler.js";
 import { CAPTCHA_CUA_SYSTEM_PROMPT_NOTE } from "./agent/utils/captchaSolver.js";
 import { createBrowserbaseSession } from "./launch/browserbase.js";
-import {
-  connectLightpanda,
-  launchLightpanda,
-} from "./launch/lightpanda.js";
+import { launchLightpanda } from "./launch/lightpanda.js";
 import { launchLocalChrome } from "./launch/local.js";
 import { LLMClient } from "./llm/LLMClient.js";
 import { LLMProvider } from "./llm/LLMProvider.js";
@@ -1060,50 +1057,35 @@ export class V3 {
         }
 
         if (this.opts.env === "LIGHTPANDA") {
-          const lpo: LightpandaLaunchOptions =
-            this.opts.lightpandaLaunchOptions ?? {};
-
-          let ws: string;
-          let lpProcess:
-            | import("child_process").ChildProcessWithoutNullStreams
-            | undefined;
-
-          if (lpo.cdpUrl) {
-            // Connect to an already-running Lightpanda instance.
-            this.logger({
-              category: "init",
-              message: "Connecting to Lightpanda browser",
-              level: 1,
-              auxiliary: {
-                cdpUrl: { value: lpo.cdpUrl, type: "string" },
-              },
-            });
-            ({ ws } = await connectLightpanda({
-              cdpUrl: lpo.cdpUrl,
-              connectTimeoutMs: lpo.connectTimeoutMs,
-            }));
-          } else {
-            // Auto-launch Lightpanda via @lightpanda/browser.
-            this.logger({
-              category: "init",
-              message: "Launching Lightpanda browser",
-              level: 1,
-            });
-            const result = await launchLightpanda({
-              host: lpo.host,
-              port: lpo.port,
-              executablePath: lpo.executablePath,
-              connectTimeoutMs: lpo.connectTimeoutMs,
-              proxy: lpo.proxy,
-            });
-            ws = result.ws;
-            lpProcess = result.process;
+          const lpo = this.opts.lightpandaLaunchOptions;
+          if (!lpo?.executablePath) {
+            throw new StagehandInitError(
+              "lightpandaLaunchOptions.executablePath is required when env is LIGHTPANDA. " +
+                "Download the binary from https://github.com/lightpanda-io/browser/releases/",
+            );
           }
 
-          this.ctx = await V3Context.create(ws, { env: "LIGHTPANDA" });
+          this.logger({
+            category: "init",
+            message: "Launching Lightpanda browser",
+            level: 1,
+          });
+
+          const result = await launchLightpanda({
+            executablePath: lpo.executablePath,
+            port: lpo.port,
+            args: lpo.args,
+            connectTimeoutMs: lpo.connectTimeoutMs,
+          });
+
+          this.ctx = await V3Context.create(result.ws, { env: "LIGHTPANDA" });
           this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
-          this.state = { kind: "LIGHTPANDA", ws, process: lpProcess };
+          this.state = {
+            kind: "LIGHTPANDA",
+            ws: result.ws,
+            process: result.process,
+          };
           this.resetBrowserbaseSessionMetadata();
           return;
         }
@@ -1546,7 +1528,11 @@ export class V3 {
       }
 
       // Kill Lightpanda child process if we auto-launched it
-      if (!keepAlive && this.state.kind === "LIGHTPANDA" && this.state.process) {
+      if (
+        !keepAlive &&
+        this.state.kind === "LIGHTPANDA" &&
+        this.state.process
+      ) {
         try {
           this.state.process.kill();
         } catch {

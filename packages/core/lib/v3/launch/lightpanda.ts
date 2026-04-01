@@ -1,89 +1,40 @@
-import type { ChildProcessWithoutNullStreams } from "child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import WebSocket from "ws";
 import { ConnectionTimeoutError } from "../types/public/sdkErrors.js";
 
-interface ConnectLightpandaOptions {
-  cdpUrl: string;
-  connectTimeoutMs?: number;
-}
-
-/**
- * Connects to an already-running Lightpanda browser instance via CDP.
- *
- * Lightpanda exposes a CDP-compatible WebSocket endpoint.
- * This function waits for the endpoint to become ready and returns the
- * WebSocket URL for use with CdpConnection.
- */
-export async function connectLightpanda(
-  opts: ConnectLightpandaOptions,
-): Promise<{ ws: string }> {
-  const connectTimeoutMs = opts.connectTimeoutMs ?? 15_000;
-  const deadlineMs = Date.now() + connectTimeoutMs;
-
-  await waitForWebSocketReady(opts.cdpUrl, deadlineMs);
-
-  return { ws: opts.cdpUrl };
-}
-
 interface LaunchLightpandaOptions {
-  host?: string;
+  executablePath: string;
   port?: number;
-  executablePath?: string;
+  args?: string[];
   connectTimeoutMs?: number;
-  proxy?: string;
 }
 
 /**
- * Auto-launches Lightpanda via the `@lightpanda/browser` npm package and
- * waits for the CDP WebSocket endpoint to become ready.
- *
- * Requires `@lightpanda/browser` to be installed as an optional dependency.
+ * Launches a Lightpanda browser process and waits for the CDP WebSocket
+ * endpoint to become ready.
  */
 export async function launchLightpanda(
   opts: LaunchLightpandaOptions,
 ): Promise<{ ws: string; process: ChildProcessWithoutNullStreams }> {
-  const host = opts.host ?? "127.0.0.1";
   const port = opts.port ?? 9222;
   const connectTimeoutMs = opts.connectTimeoutMs ?? 15_000;
 
-  // If a custom executable path is provided, set the env var that
-  // @lightpanda/browser reads to locate the binary.
-  if (opts.executablePath) {
-    process.env.LIGHTPANDA_EXECUTABLE_PATH = opts.executablePath;
-  }
+  const spawnArgs = [
+    "serve",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    String(port),
+    "--timeout",
+    "180", // 3 min before CDP inactivity timeout.
+    ...(opts.args ?? []),
+  ];
 
-  // Dynamic import so @lightpanda/browser is only loaded when needed.
-  let lightpanda: {
-    serve: (
-      opts: Record<string, unknown>,
-    ) => Promise<ChildProcessWithoutNullStreams>;
-  };
-  try {
-    const mod = await import("@lightpanda/browser");
-    lightpanda = mod.lightpanda;
-  } catch (err) {
-    const isModuleNotFound =
-      err instanceof Error &&
-      "code" in err &&
-      (err as NodeJS.ErrnoException).code === "MODULE_NOT_FOUND";
-    if (isModuleNotFound) {
-      throw new Error(
-        "@lightpanda/browser is required to auto-launch Lightpanda. " +
-          'Install it with: npm install @lightpanda/browser\n\n' +
-          "Alternatively, start Lightpanda manually and pass " +
-          "lightpandaLaunchOptions.cdpUrl to connect to it.",
-      );
-    }
-    throw err;
-  }
-
-  const childProcess = await lightpanda.serve({
-    host,
-    port,
-    ...(opts.proxy ? { httpProxy: opts.proxy } : {}),
+  const childProcess = spawn(opts.executablePath, spawnArgs, {
+    stdio: ["ignore", "pipe", "pipe"],
   });
 
-  const wsUrl = `ws://${host}:${port}`;
+  const wsUrl = `ws://127.0.0.1:${port}`;
   const deadlineMs = Date.now() + connectTimeoutMs;
 
   try {

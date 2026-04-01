@@ -104,8 +104,7 @@
     "patchright-core": "^1.55.2",
     "playwright": "^1.52.0",
     "playwright-core": "^1.54.1",
-    "puppeteer-core": "^22.8.0",
-    "@lightpanda/browser": ">=1.2.0"
+    "puppeteer-core": "^22.8.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.42.1",
