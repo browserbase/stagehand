@@ -178,6 +178,10 @@ function getLocalInfoPath(session: string): string {
   return path.join(SOCKET_DIR, `browse-${session}.local-info`);
 }
 
+// ==================== CONTEXT LABEL RESOLUTION ====================
+
+import { resolveContextLabel } from "./resolve-context";
+
 // ==================== LOCAL STRATEGY CONFIG ====================
 
 async function readLocalConfig(session: string): Promise<LocalConfig> {
@@ -2193,8 +2197,14 @@ program
           process.exit(1);
         }
 
+        // Resolve named labels (e.g. "latest", "work") to actual context IDs
+        const resolvedContextId = await resolveContextLabel(cmdOpts.contextId);
+        if (resolvedContextId !== cmdOpts.contextId) {
+          console.error(`Resolved context "${cmdOpts.contextId}" → ${resolvedContextId}`);
+        }
+
         const newConfig = JSON.stringify({
-          id: cmdOpts.contextId,
+          id: resolvedContextId,
           persist: cmdOpts.persist ?? false,
         });
 
