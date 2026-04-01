@@ -43,6 +43,8 @@ async function cleanupSession(session: string): Promise<void> {
     `browse-${session}.chrome.pid`,
     `browse-${session}.mode`,
     `browse-${session}.mode-override`,
+    `browse-${session}.local-config`,
+    `browse-${session}.local-info`,
   ];
 
   for (const pattern of patterns) {
@@ -77,6 +79,21 @@ describe("Browse CLI env command", () => {
     expect(["local", "remote"]).toContain(data.desired);
   });
 
+  it("shows isolated local strategy by default when local is desired", async () => {
+    const result = await browse("env", {
+      env: {
+        ...process.env,
+        BROWSERBASE_API_KEY: "",
+      },
+    });
+    expect(result.exitCode).toBe(0);
+
+    const data = parseJson(result.stdout);
+    expect(data.mode).toBe("not running");
+    expect(data.desired).toBe("local");
+    expect(data.localStrategy).toBe("isolated");
+  });
+
   it("rejects unsupported env target", async () => {
     const result = await browse("env invalid-target");
     expect(result.exitCode).not.toBe(0);
@@ -92,5 +109,90 @@ describe("Browse CLI env command", () => {
     });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Remote mode requires BROWSERBASE_API_KEY");
+  });
+
+  it("defaults browse env local to isolated strategy", async () => {
+    const result = await browse("env local");
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain("browse env local --auto-connect");
+
+    const data = parseJson(result.stdout);
+    expect(data.mode).toBe("local");
+    expect(data.localStrategy).toBe("isolated");
+
+    const statusResult = await browse("status");
+    expect(statusResult.stderr).toContain("browse env local --auto-connect");
+
+    const status = parseJson(statusResult.stdout);
+    expect(status.running).toBe(true);
+    expect(status.mode).toBe("local");
+    expect(status.localStrategy).toBe("isolated");
+  });
+
+  it("uses auto strategy only when --auto-connect is passed", async () => {
+    const result = await browse("env local --auto-connect");
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain("without `--auto-connect`");
+
+    const data = parseJson(result.stdout);
+    expect(data.mode).toBe("local");
+    expect(data.localStrategy).toBe("auto");
+
+    const statusResult = await browse("status");
+    expect(statusResult.stderr).toContain("without `--auto-connect`");
+
+    const status = parseJson(statusResult.stdout);
+    expect(status.running).toBe(true);
+    expect(status.mode).toBe("local");
+    expect(status.localStrategy).toBe("auto");
+  });
+
+  it("stores explicit CDP strategy when a target is provided", async () => {
+    const result = await browse("env local 9222");
+    expect(result.exitCode).toBe(0);
+
+    const data = parseJson(result.stdout);
+    expect(data.mode).toBe("local");
+    expect(data.localStrategy).toBe("cdp");
+
+    const status = parseJson((await browse("status")).stdout);
+    expect(status.running).toBe(true);
+    expect(status.mode).toBe("local");
+    expect(status.localStrategy).toBe("cdp");
+  });
+
+  it("shows an isolated-browser hint when status reports an attached existing browser", async () => {
+    await browse("env local");
+
+    const tmpDir = os.tmpdir();
+    await fs.writeFile(
+      path.join(tmpDir, `browse-${TEST_SESSION}.local-config`),
+      JSON.stringify({ strategy: "auto" }),
+    );
+    await fs.writeFile(
+      path.join(tmpDir, `browse-${TEST_SESSION}.local-info`),
+      JSON.stringify({
+        localSource: "attached-existing",
+        resolvedCdpUrl: "ws://127.0.0.1:9222/devtools/browser/abc123",
+      }),
+    );
+
+    const statusResult = await browse("status");
+    expect(statusResult.exitCode).toBe(0);
+    expect(statusResult.stderr).toContain("without `--auto-connect`");
+
+    const status = parseJson(statusResult.stdout);
+    expect(status.localStrategy).toBe("auto");
+    expect(status.localSource).toBe("attached-existing");
+  });
+
+  it("rejects conflicting local strategy options", async () => {
+    const withAlias = await browse("env local --auto-connect --isolated");
+    expect(withAlias.exitCode).not.toBe(0);
+    expect(withAlias.stderr).toContain("Use only one of");
+
+    const withTarget = await browse("env local --auto-connect 9222");
+    expect(withTarget.exitCode).not.toBe(0);
+    expect(withTarget.stderr).toContain("Use only one of");
   });
 });
