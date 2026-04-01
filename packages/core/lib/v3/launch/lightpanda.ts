@@ -86,9 +86,17 @@ export async function launchLightpanda(
   const wsUrl = `ws://${host}:${port}`;
   const deadlineMs = Date.now() + connectTimeoutMs;
 
-  await waitForWebSocketReady(wsUrl, deadlineMs);
-
-  return { ws: wsUrl, process: childProcess };
+  try {
+    await waitForWebSocketReady(wsUrl, deadlineMs);
+    return { ws: wsUrl, process: childProcess };
+  } catch (error) {
+    try {
+      childProcess.kill();
+    } catch {
+      // best-effort cleanup
+    }
+    throw error;
+  }
 }
 
 async function waitForWebSocketReady(
