@@ -1,5 +1,11 @@
 # @browserbasehq/browse-cli
 
+## 0.5.0
+
+### Minor Changes
+
+- [#1945](https://github.com/browserbase/stagehand/pull/1945) [`2df4b01`](https://github.com/browserbase/stagehand/commit/2df4b01cbbbb459d4495dfef0a5cc46993426278) Thanks [@shrey150](https://github.com/shrey150)! - Default `browse env local` back to an isolated browser, add `--auto-connect` as the opt-in path for attaching to an existing debuggable Chrome, and keep explicit CDP attach via `browse env local <port|url>`.
+
 ## 0.4.2
 
 ### Patch Changes
