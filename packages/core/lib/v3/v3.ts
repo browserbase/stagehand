@@ -1546,7 +1546,7 @@ export class V3 {
       }
 
       // Kill Lightpanda child process if we auto-launched it
-      if (this.state.kind === "LIGHTPANDA" && this.state.process) {
+      if (!keepAlive && this.state.kind === "LIGHTPANDA" && this.state.process) {
         try {
           this.state.process.kill();
         } catch {
