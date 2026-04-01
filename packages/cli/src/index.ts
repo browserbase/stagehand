@@ -718,18 +718,15 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
                           string,
                           unknown
                         >) || {};
-                      const {
-                        browserSettings: _bs,
-                        ...sessionParamsWithoutBS
-                      } = sessionParams;
+                      const { browserSettings: _, ...sessionParamsWithoutBS } =
+                        sessionParams;
+                      void _;
                       return {
                         userMetadata: { browse_cli: "true" },
                         ...sessionParamsWithoutBS,
                         browserSettings: {
                           ...sessionBrowserSettings,
-                          ...(contextConfig
-                            ? { context: contextConfig }
-                            : {}),
+                          ...(contextConfig ? { context: contextConfig } : {}),
                         },
                       };
                     })(),
@@ -1956,7 +1953,10 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
 
     await fs.writeFile(paramsPath, newParamsJson);
 
-    if (currentParamsJson !== newParamsJson && (await isDaemonRunning(session))) {
+    if (
+      currentParamsJson !== newParamsJson &&
+      (await isDaemonRunning(session))
+    ) {
       await stopDaemonAndCleanup(session);
     }
   }
@@ -1996,7 +1996,10 @@ program
     "--region <region>",
     "Session region: us-west-2, us-east-1, eu-central-1, ap-southeast-1 (remote only)",
   )
-  .option("--keep-alive", "Keep session alive after disconnection (remote only)")
+  .option(
+    "--keep-alive",
+    "Keep session alive after disconnection (remote only)",
+  )
   .option(
     "--session-timeout <seconds>",
     "Session timeout in seconds (remote only)",
