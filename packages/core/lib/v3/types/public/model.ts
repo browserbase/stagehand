@@ -146,9 +146,8 @@ export type ClientOptions = (
   reasoningEffort?: string;
 };
 
-export interface ModelConfigObject
-  extends ClientOptions,
-    Record<string, unknown> {
+export type ModelConfigObject = ClientOptions &
+  Record<string, unknown> & {
   modelName: AvailableModel;
   /**
    * Optional AI SDK middleware applied to every LanguageModelV2 created for this model.
@@ -157,6 +156,6 @@ export interface ModelConfigObject
    * Only effective when running locally (direct mode). Cannot be serialized over HTTP.
    */
   middleware?: LanguageModelV2Middleware;
-}
+};
 
 export type ModelConfiguration = AvailableModel | ModelConfigObject;

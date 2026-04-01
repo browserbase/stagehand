@@ -653,7 +653,8 @@ export class StagehandAPIClient {
       ...(this.toSessionStartModelClientOptions(model, model.modelName) ?? {}),
     };
 
-    if (!normalizedModel.apiKey) {
+    const normalizedApiKey = (normalizedModel as Record<string, unknown>).apiKey;
+    if (typeof normalizedApiKey !== "string" || !normalizedApiKey) {
       const provider = normalizedModel.modelName?.includes("/")
         ? normalizedModel.modelName.split("/")[0]
         : undefined;
