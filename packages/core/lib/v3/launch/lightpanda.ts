@@ -61,13 +61,20 @@ export async function launchLightpanda(
   try {
     const mod = await import("@lightpanda/browser");
     lightpanda = mod.lightpanda;
-  } catch {
-    throw new Error(
-      "@lightpanda/browser is required to auto-launch Lightpanda. " +
-        'Install it with: npm install @lightpanda/browser\n\n' +
-        "Alternatively, start Lightpanda manually and pass " +
-        "lightpandaLaunchOptions.cdpUrl to connect to it.",
-    );
+  } catch (err) {
+    const isModuleNotFound =
+      err instanceof Error &&
+      "code" in err &&
+      (err as NodeJS.ErrnoException).code === "MODULE_NOT_FOUND";
+    if (isModuleNotFound) {
+      throw new Error(
+        "@lightpanda/browser is required to auto-launch Lightpanda. " +
+          'Install it with: npm install @lightpanda/browser\n\n' +
+          "Alternatively, start Lightpanda manually and pass " +
+          "lightpandaLaunchOptions.cdpUrl to connect to it.",
+      );
+    }
+    throw err;
   }
 
   const childProcess = await lightpanda.serve({
