@@ -47,6 +47,37 @@ export interface ResolvedLocalStrategy {
 
 export const DEFAULT_LOCAL_CONFIG: LocalConfig = { strategy: "isolated" };
 
+const ISOLATED_MODE_HINT =
+  "Hint: Run `browse env local --auto-connect` to reuse your local browsing credentials and cookies.";
+const ATTACHED_EXISTING_HINT =
+  "Hint: Run `browse env local` without `--auto-connect` to switch back to an isolated Chromium browser.";
+
+export function getLocalModeHint(
+  localConfig: LocalConfig,
+  localInfo?: LocalInfo | null,
+): string | null {
+  if (localInfo?.localSource === "attached-existing") {
+    return ATTACHED_EXISTING_HINT;
+  }
+
+  if (localInfo?.localSource === "isolated-fallback") {
+    return null;
+  }
+
+  if (localConfig.strategy === "auto" && !localInfo) {
+    return ATTACHED_EXISTING_HINT;
+  }
+
+  if (
+    localInfo?.localSource === "isolated" ||
+    (localConfig.strategy === "isolated" && !localInfo)
+  ) {
+    return ISOLATED_MODE_HINT;
+  }
+
+  return null;
+}
+
 export async function resolveLocalStrategy({
   localConfig,
   headless,

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_LOCAL_CONFIG,
+  getLocalModeHint,
   resolveLocalStrategy,
 } from "../src/local-strategy";
 
@@ -101,5 +102,43 @@ describe("resolveLocalStrategy", () => {
     });
     expect(discoverLocalCdp).not.toHaveBeenCalled();
     expect(resolveWsTarget).toHaveBeenCalledWith("9229");
+  });
+});
+
+describe("getLocalModeHint", () => {
+  it("suggests auto-connect when using isolated local mode", () => {
+    expect(getLocalModeHint({ strategy: "isolated" })).toContain(
+      "browse env local --auto-connect",
+    );
+  });
+
+  it("suggests switching back to isolated when attached to an existing browser", () => {
+    expect(
+      getLocalModeHint(
+        { strategy: "auto" },
+        {
+          localSource: "attached-existing",
+          resolvedCdpUrl: "ws://127.0.0.1:9222/devtools/browser/abc123",
+        },
+      ),
+    ).toContain("without `--auto-connect`");
+  });
+
+  it("suggests switching back to isolated for auto-connect before local info is available", () => {
+    expect(getLocalModeHint({ strategy: "auto" })).toContain(
+      "without `--auto-connect`",
+    );
+  });
+
+  it("does not suggest auto-connect after an auto-connect fallback", () => {
+    expect(
+      getLocalModeHint(
+        { strategy: "auto" },
+        {
+          localSource: "isolated-fallback",
+          fallbackReason: "no debuggable local browser found",
+        },
+      ),
+    ).toBeNull();
   });
 });

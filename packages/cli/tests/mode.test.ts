@@ -114,12 +114,16 @@ describe("Browse CLI env command", () => {
   it("defaults browse env local to isolated strategy", async () => {
     const result = await browse("env local");
     expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain("browse env local --auto-connect");
 
     const data = parseJson(result.stdout);
     expect(data.mode).toBe("local");
     expect(data.localStrategy).toBe("isolated");
 
-    const status = parseJson((await browse("status")).stdout);
+    const statusResult = await browse("status");
+    expect(statusResult.stderr).toContain("browse env local --auto-connect");
+
+    const status = parseJson(statusResult.stdout);
     expect(status.running).toBe(true);
     expect(status.mode).toBe("local");
     expect(status.localStrategy).toBe("isolated");
@@ -128,12 +132,16 @@ describe("Browse CLI env command", () => {
   it("uses auto strategy only when --auto-connect is passed", async () => {
     const result = await browse("env local --auto-connect");
     expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain("without `--auto-connect`");
 
     const data = parseJson(result.stdout);
     expect(data.mode).toBe("local");
     expect(data.localStrategy).toBe("auto");
 
-    const status = parseJson((await browse("status")).stdout);
+    const statusResult = await browse("status");
+    expect(statusResult.stderr).toContain("without `--auto-connect`");
+
+    const status = parseJson(statusResult.stdout);
     expect(status.running).toBe(true);
     expect(status.mode).toBe("local");
     expect(status.localStrategy).toBe("auto");
@@ -151,6 +159,31 @@ describe("Browse CLI env command", () => {
     expect(status.running).toBe(true);
     expect(status.mode).toBe("local");
     expect(status.localStrategy).toBe("cdp");
+  });
+
+  it("shows an isolated-browser hint when status reports an attached existing browser", async () => {
+    await browse("env local");
+
+    const tmpDir = os.tmpdir();
+    await fs.writeFile(
+      path.join(tmpDir, `browse-${TEST_SESSION}.local-config`),
+      JSON.stringify({ strategy: "auto" }),
+    );
+    await fs.writeFile(
+      path.join(tmpDir, `browse-${TEST_SESSION}.local-info`),
+      JSON.stringify({
+        localSource: "attached-existing",
+        resolvedCdpUrl: "ws://127.0.0.1:9222/devtools/browser/abc123",
+      }),
+    );
+
+    const statusResult = await browse("status");
+    expect(statusResult.exitCode).toBe(0);
+    expect(statusResult.stderr).toContain("without `--auto-connect`");
+
+    const status = parseJson(statusResult.stdout);
+    expect(status.localStrategy).toBe("auto");
+    expect(status.localSource).toBe("attached-existing");
   });
 
   it("rejects conflicting local strategy options", async () => {

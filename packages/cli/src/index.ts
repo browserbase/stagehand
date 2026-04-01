@@ -20,6 +20,7 @@ import type { Protocol } from "devtools-protocol";
 import { version as VERSION } from "../package.json";
 import {
   DEFAULT_LOCAL_CONFIG,
+  getLocalModeHint,
   type LocalBrowserLaunchOptions,
   type LocalCdpDiscovery,
   type LocalConfig,
@@ -205,6 +206,33 @@ async function readLocalInfo(session: string): Promise<LocalInfo | null> {
     return JSON.parse(raw);
   } catch {
     return null;
+  }
+}
+
+async function waitForLocalInfo(
+  session: string,
+  timeoutMs: number = 1500,
+): Promise<LocalInfo | null> {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    const localInfo = await readLocalInfo(session);
+    if (localInfo) {
+      return localInfo;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  return readLocalInfo(session);
+}
+
+function logLocalModeHint(
+  localConfig: LocalConfig,
+  localInfo?: LocalInfo | null,
+): void {
+  const hint = getLocalModeHint(localConfig, localInfo);
+  if (hint) {
+    console.error(hint);
   }
 }
 
@@ -1935,7 +1963,9 @@ program
       } catch {}
       if (mode === "local") {
         const localConfig = await readLocalConfig(session);
-        const localInfo = await readLocalInfo(session);
+        const localInfo =
+          (await readLocalInfo(session)) ?? (await waitForLocalInfo(session));
+        logLocalModeHint(localConfig, localInfo);
         localDetails = {
           localStrategy: localConfig.strategy,
           ...(localInfo ?? {}),
@@ -2077,6 +2107,10 @@ envCommand.action(
     }
 
     await ensureDaemon(session, isHeadless(opts));
+
+    if (mapped === "local") {
+      logLocalModeHint(localConfig, await waitForLocalInfo(session));
+    }
 
     console.log(
       JSON.stringify({
