@@ -30,21 +30,17 @@ export const screenshotTool = (v3: V3) =>
         };
       }
     },
-    toModelOutput: (
-      {
-        output
-      }
-    ) => {
-      if (output.success === false || output.error !== undefined) {
+    toModelOutput: ({ output: result }) => {
+      if (result.success === false || result.error !== undefined) {
         return {
           type: "content",
-          value: [{ type: "text", text: JSON.stringify(output) }],
+          value: [{ type: "text", text: JSON.stringify(result) }],
         };
       }
 
       return {
         type: "content",
-        value: [{ type: "media", mediaType: "image/png", data: output.base64 }],
+        value: [{ type: "media", mediaType: "image/png", data: result.base64 }],
       };
     },
   });

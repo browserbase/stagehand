@@ -249,11 +249,10 @@ function createGenerateResult(
 ): LanguageModelV3GenerateResult {
   return {
     content: result.content,
-    finishReason:
-      result.finishReason ?? {
-        unified: "stop",
-        raw: "stop",
-      },
+    finishReason: result.finishReason ?? {
+      unified: "stop",
+      raw: "stop",
+    },
     usage: mergeUsage(result.usage),
     warnings: [],
   };

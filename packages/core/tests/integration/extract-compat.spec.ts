@@ -13,7 +13,9 @@ function encodeHtml(html: string): string {
 }
 
 async function createTestV3(options?: {
-  jsonResponses?: Parameters<typeof createScriptedAisdkTestLlmClient>[0]["jsonResponses"];
+  jsonResponses?: Parameters<
+    typeof createScriptedAisdkTestLlmClient
+  >[0]["jsonResponses"];
 }): Promise<V3> {
   const llmClient = createScriptedAisdkTestLlmClient({
     jsonResponses: {

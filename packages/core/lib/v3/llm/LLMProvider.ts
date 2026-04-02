@@ -34,7 +34,6 @@ import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama, createOllama } from "ollama-ai-provider-v2";
 import { gateway, createGateway, wrapLanguageModel } from "ai";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model.js";
-import { wrapLanguageModelV2 } from "./providerV2Compat.js";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
@@ -49,8 +48,7 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   mistral,
   deepseek,
   perplexity,
-  ollama: ((modelName: string) =>
-    wrapLanguageModelV2(ollama(modelName))) as AISDKProvider,
+  ollama,
   vertex,
   gateway,
 };
@@ -68,10 +66,7 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   mistral: createMistral,
   deepseek: createDeepSeek,
   perplexity: createPerplexity,
-  ollama: ((options?: ClientOptions) => {
-    const provider = createOllama(options);
-    return (modelName: string) => wrapLanguageModelV2(provider(modelName));
-  }) as AISDKCustomProvider,
+  ollama: createOllama as AISDKCustomProvider,
   gateway: createGateway,
 };
 

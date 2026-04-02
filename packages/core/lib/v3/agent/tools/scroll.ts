@@ -64,24 +64,20 @@ export const scrollTool = (v3: V3) =>
         scrolledPixels: scrollDistance,
       };
     },
-    toModelOutput: (
-      {
-        output
-      }
-    ) => {
-      if (output.success === false || output.error !== undefined) {
+    toModelOutput: ({ output: result }) => {
+      if (result.success === false || result.error !== undefined) {
         return {
           type: "content",
-          value: [{ type: "text", text: JSON.stringify(output) }],
+          value: [{ type: "text", text: JSON.stringify(result) }],
         };
       }
 
       return {
         type: "json",
         value: {
-          success: output.success,
-          message: output.message,
-          scrolledPixels: output.scrolledPixels,
+          success: result.success,
+          message: result.message,
+          scrolledPixels: result.scrolledPixels,
         },
       };
     },
@@ -173,15 +169,11 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
         screenshotBase64,
       };
     },
-    toModelOutput: (
-      {
-        output
-      }
-    ) => {
-      if (output.success === false || output.error !== undefined) {
+    toModelOutput: ({ output: result }) => {
+      if (result.success === false || result.error !== undefined) {
         return {
           type: "content",
-          value: [{ type: "text", text: JSON.stringify(output) }],
+          value: [{ type: "text", text: JSON.stringify(result) }],
         };
       }
 
@@ -189,17 +181,17 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
         {
           type: "text",
           text: JSON.stringify({
-            success: output.success,
-            message: output.message,
-            scrolledPixels: output.scrolledPixels,
+            success: result.success,
+            message: result.message,
+            scrolledPixels: result.scrolledPixels,
           }),
         },
       ];
-      if (output.screenshotBase64) {
+      if (result.screenshotBase64) {
         content.push({
           type: "media",
           mediaType: "image/png",
-          data: output.screenshotBase64,
+          data: result.screenshotBase64,
         });
       }
       return { type: "content", value: content };

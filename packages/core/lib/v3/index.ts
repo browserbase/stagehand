@@ -29,10 +29,7 @@ export { V3 } from "./v3.js";
 export { V3 as Stagehand } from "./v3.js";
 
 export * from "./types/public/index.js";
-export type {
-  LogLine,
-  Logger,
-} from "./types/public/logs.js";
+export type { LogLine, Logger } from "./types/public/logs.js";
 export type {
   Action,
   ActOptions,

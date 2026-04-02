@@ -209,8 +209,8 @@ importers:
         specifier: ^1.2.0
         version: 1.2.0
       ollama-ai-provider-v2:
-        specifier: ^1.5.0
-        version: 1.5.0(zod@4.2.1)
+        specifier: ^3.5.0
+        version: 3.5.0(ai@6.0.143(zod@4.2.1))(zod@4.2.1)
       patchright-core:
         specifier: ^1.55.2
         version: 1.55.2
@@ -5097,10 +5097,11 @@ packages:
   obug@2.1.1:
     resolution: {integrity: sha512-uTqF9MuPraAQ+IsnPf366RG4cP9RtUi7MLO1N3KEc+wb0a6yKpeL0lmk2IB1jY5KHPAlTc6T/JRdC/YqxHNwkQ==}
 
-  ollama-ai-provider-v2@1.5.0:
-    resolution: {integrity: sha512-o8nR80AaENpetYdCtlnZGEwO47N6Z6eEsBetitrh4nTXrbfWdRF4OWE5p5oHyo0R8sxg4zdxUsjmGVzPd3zBUQ==}
+  ollama-ai-provider-v2@3.5.0:
+    resolution: {integrity: sha512-+s/aYIYa91z2Vk3AkGAz3BaPAQ0flS2eFZD3BN2mD/N6W6YQbcookyu6pc2cbc8SP5VGpNB857WJ0eHDjKXsXw==}
     engines: {node: '>=18'}
     peerDependencies:
+      ai: ^5.0.0 || ^6.0.0
       zod: ^4.0.16
 
   on-exit-leak-free@2.1.2:
@@ -12371,10 +12372,11 @@ snapshots:
 
   obug@2.1.1: {}
 
-  ollama-ai-provider-v2@1.5.0(zod@4.2.1):
+  ollama-ai-provider-v2@3.5.0(ai@6.0.143(zod@4.2.1))(zod@4.2.1):
     dependencies:
-      '@ai-sdk/provider': 2.0.1
-      '@ai-sdk/provider-utils': 3.0.21(zod@4.2.1)
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.21(zod@4.2.1)
+      ai: 6.0.143(zod@4.2.1)
       zod: 4.2.1
     optional: true
 

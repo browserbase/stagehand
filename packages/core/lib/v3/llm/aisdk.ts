@@ -1,7 +1,13 @@
 import {
+  AssistantModelMessage,
   generateText,
+  ImagePart,
+  ModelMessage,
   NoObjectGeneratedError,
   Output,
+  SystemModelMessage,
+  TextPart,
+  UserModelMessage,
   type Tool,
   type ToolSet,
 } from "ai";
@@ -16,7 +22,46 @@ import {
   extractLlmPromptSummary,
 } from "../flowlogger/FlowLogger.js";
 import { toJsonSchema } from "../zodCompat.js";
-import { formatAiSdkMessages, toLLMUsage } from "./aiSdkCompat.js";
+
+function getReasoningTokens(
+  usage?: {
+    outputTokenDetails?: { reasoningTokens?: number };
+    reasoningTokens?: number;
+  } | null,
+): number {
+  return (
+    usage?.outputTokenDetails?.reasoningTokens ?? usage?.reasoningTokens ?? 0
+  );
+}
+
+function getCachedInputTokens(
+  usage?: {
+    inputTokenDetails?: { cacheReadTokens?: number };
+    cachedInputTokens?: number;
+  } | null,
+): number {
+  return (
+    usage?.inputTokenDetails?.cacheReadTokens ?? usage?.cachedInputTokens ?? 0
+  );
+}
+
+function toLLMUsage(usage?: {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  outputTokenDetails?: { reasoningTokens?: number };
+  reasoningTokens?: number;
+  inputTokenDetails?: { cacheReadTokens?: number };
+  cachedInputTokens?: number;
+}) {
+  return {
+    prompt_tokens: usage?.inputTokens ?? 0,
+    completion_tokens: usage?.outputTokens ?? 0,
+    reasoning_tokens: getReasoningTokens(usage),
+    cached_input_tokens: getCachedInputTokens(usage),
+    total_tokens: usage?.totalTokens ?? 0,
+  };
+}
 
 function buildOpenAiStructuredProviderOptions(options: {
   isGPT5: boolean;
@@ -101,7 +146,60 @@ export class AISdkClient extends LLMClient {
       },
     });
 
-    const formattedMessages = formatAiSdkMessages(options.messages);
+    const formattedMessages: ModelMessage[] = options.messages.map(
+      (message) => {
+        if (Array.isArray(message.content)) {
+          if (message.role === "system") {
+            const systemMessage: SystemModelMessage = {
+              role: "system",
+              content: message.content
+                .map((c) => ("text" in c ? c.text : ""))
+                .join("\n"),
+            };
+            return systemMessage;
+          }
+
+          const contentParts = message.content.map((content) => {
+            if ("image_url" in content) {
+              const imageContent: ImagePart = {
+                type: "image",
+                image: content.image_url.url,
+              };
+              return imageContent;
+            } else {
+              const textContent: TextPart = {
+                type: "text",
+                text: content.text,
+              };
+              return textContent;
+            }
+          });
+
+          if (message.role === "user") {
+            const userMessage: UserModelMessage = {
+              role: "user",
+              content: contentParts,
+            };
+            return userMessage;
+          } else {
+            const textOnlyParts = contentParts.map((part) => ({
+              type: "text" as const,
+              text: part.type === "image" ? "[Image]" : part.text,
+            }));
+            const assistantMessage: AssistantModelMessage = {
+              role: "assistant",
+              content: textOnlyParts,
+            };
+            return assistantMessage;
+          }
+        }
+
+        return {
+          role: message.role,
+          content: message.content,
+        };
+      },
+    );
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
     // Kimi models only support temperature=1

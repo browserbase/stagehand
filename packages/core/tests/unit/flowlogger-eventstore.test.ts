@@ -25,8 +25,6 @@ function createVerboseStoreHarness(): {
   bus: EventEmitterWithWildcardSupport;
   detachBus: () => void;
 } {
-  process.env.BROWSERBASE_FLOW_LOGS = "1";
-
   const writes: string[] = [];
   process.stderr.write = ((
     chunk: string,
@@ -46,16 +44,9 @@ function createVerboseStoreHarness(): {
 
 describe("flow logger event store", () => {
   const stderrWrite = process.stderr.write.bind(process.stderr);
-  const previousFlowLogs = process.env.BROWSERBASE_FLOW_LOGS;
 
   afterEach(() => {
     process.stderr.write = stderrWrite;
-
-    if (previousFlowLogs === undefined) {
-      delete process.env.BROWSERBASE_FLOW_LOGS;
-    } else {
-      process.env.BROWSERBASE_FLOW_LOGS = previousFlowLogs;
-    }
   });
 
   it("queries recent events from the default in-memory sink", async () => {

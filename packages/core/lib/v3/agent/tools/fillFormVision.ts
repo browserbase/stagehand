@@ -150,20 +150,16 @@ MANDATORY USE CASES (always use fillFormVision for these):
         };
       }
     },
-    toModelOutput: (
-      {
-        output
-      }
-    ) => {
-      if (output.success === false || output.error !== undefined) {
+    toModelOutput: ({ output: result }) => {
+      if (result.success === false || result.error !== undefined) {
         return {
           type: "content",
           value: [
             {
               type: "text",
               text: JSON.stringify({
-                success: output.success,
-                error: output.error,
+                success: result.success,
+                error: result.error,
               }),
             },
           ],
@@ -174,16 +170,16 @@ MANDATORY USE CASES (always use fillFormVision for these):
         {
           type: "text",
           text: JSON.stringify({
-            success: output.success,
-            fieldsCount: output.playwrightArguments?.length ?? 0,
+            success: result.success,
+            fieldsCount: result.playwrightArguments?.length ?? 0,
           }),
         },
       ];
-      if (output.screenshotBase64) {
+      if (result.screenshotBase64) {
         content.push({
           type: "media",
           mediaType: "image/png",
-          data: output.screenshotBase64,
+          data: result.screenshotBase64,
         });
       }
       return { type: "content", value: content };

@@ -17,10 +17,6 @@ import {
 import { StagehandZodObject } from "../zodCompat.js";
 import { processMessages } from "../agent/utils/messageProcessing.js";
 import { LLMClient } from "../llm/LLMClient.js";
-import {
-  getCachedInputTokens,
-  getReasoningTokens,
-} from "../llm/aiSdkCompat.js";
 import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import {
   AgentExecuteOptions,
@@ -52,6 +48,28 @@ import {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function getReasoningTokens(
+  usage?: Pick<
+    LanguageModelUsage,
+    "outputTokenDetails" | "reasoningTokens"
+  > | null,
+): number {
+  return (
+    usage?.outputTokenDetails?.reasoningTokens ?? usage?.reasoningTokens ?? 0
+  );
+}
+
+function getCachedInputTokens(
+  usage?: Pick<
+    LanguageModelUsage,
+    "inputTokenDetails" | "cachedInputTokens"
+  > | null,
+): number {
+  return (
+    usage?.inputTokenDetails?.cacheReadTokens ?? usage?.cachedInputTokens ?? 0
+  );
 }
 
 /**

@@ -41,6 +41,12 @@ describe("getAISDKLanguageModel", () => {
       });
       expect(model).toBeDefined();
     });
+
+    it("preserves the requested model id and exposes a specification version", () => {
+      const model = getAISDKLanguageModel("ollama", "llama3.2");
+      expect(model.modelId).toBe("llama3.2");
+      expect(typeof model.specificationVersion).toBe("string");
+    });
   });
 
   describe("providers with API keys", () => {

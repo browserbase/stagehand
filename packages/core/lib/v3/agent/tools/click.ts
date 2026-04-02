@@ -86,15 +86,11 @@ export const clickTool = (v3: V3, provider?: string) =>
         };
       }
     },
-    toModelOutput: (
-      {
-        output
-      }
-    ) => {
-      if (output.success === false || output.error !== undefined) {
+    toModelOutput: ({ output: result }) => {
+      if (result.success === false || result.error !== undefined) {
         return {
           type: "content",
-          value: [{ type: "text", text: JSON.stringify(output) }],
+          value: [{ type: "text", text: JSON.stringify(result) }],
         };
       }
 
@@ -102,17 +98,17 @@ export const clickTool = (v3: V3, provider?: string) =>
         {
           type: "text",
           text: JSON.stringify({
-            success: output.success,
-            describe: output.describe,
-            coordinates: output.coordinates,
+            success: result.success,
+            describe: result.describe,
+            coordinates: result.coordinates,
           }),
         },
       ];
-      if (output.screenshotBase64) {
+      if (result.screenshotBase64) {
         content.push({
           type: "media",
           mediaType: "image/png",
-          data: output.screenshotBase64,
+          data: result.screenshotBase64,
         });
       }
       return { type: "content", value: content };
