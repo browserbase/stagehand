@@ -1,8 +1,5 @@
 import {
-  CoreAssistantMessage,
   ModelMessage,
-  CoreSystemMessage,
-  CoreUserMessage,
   ImagePart,
   NoObjectGeneratedError,
   TextPart,
@@ -11,7 +8,7 @@ import {
 } from "ai";
 import * as ai from "ai";
 import { wrapAISDK } from "braintrust";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import {
   AvailableModel,
@@ -27,7 +24,7 @@ const { generateObject, generateText } = wrapAISDK(ai);
 
 export class AISdkClientWrapped extends LLMClient {
   public type = "aisdk" as const;
-  private model: LanguageModelV2;
+  private model: LanguageModelV3;
   private logger?: (message: LogLine) => void;
 
   constructor({
@@ -35,7 +32,7 @@ export class AISdkClientWrapped extends LLMClient {
     logger,
     clientOptions,
   }: {
-    model: LanguageModelV2;
+    model: LanguageModelV3;
     logger?: (message: LogLine) => void;
     clientOptions?: ClientOptions;
   }) {
@@ -47,8 +44,34 @@ export class AISdkClientWrapped extends LLMClient {
     }
   }
 
-  public getLanguageModel(): LanguageModelV2 {
+  public getLanguageModel(): LanguageModelV3 {
     return this.model;
+  }
+
+  private getReasoningTokens(
+    usage:
+      | {
+          reasoningTokens?: number;
+          outputTokenDetails?: { reasoningTokens?: number };
+        }
+      | undefined,
+  ): number {
+    return (
+      usage?.outputTokenDetails?.reasoningTokens ?? usage?.reasoningTokens ?? 0
+    );
+  }
+
+  private getCachedInputTokens(
+    usage:
+      | {
+          cachedInputTokens?: number;
+          inputTokenDetails?: { cacheReadTokens?: number };
+        }
+      | undefined,
+  ): number {
+    return (
+      usage?.inputTokenDetails?.cacheReadTokens ?? usage?.cachedInputTokens ?? 0
+    );
   }
 
   async createChatCompletion<T = ChatCompletion>({
@@ -87,7 +110,7 @@ export class AISdkClientWrapped extends LLMClient {
       (message) => {
         if (Array.isArray(message.content)) {
           if (message.role === "system") {
-            const systemMessage: CoreSystemMessage = {
+            const systemMessage: ModelMessage = {
               role: "system",
               content: message.content
                 .map((c) => ("text" in c ? c.text : ""))
@@ -113,7 +136,7 @@ export class AISdkClientWrapped extends LLMClient {
           });
 
           if (message.role === "user") {
-            const userMessage: CoreUserMessage = {
+            const userMessage: ModelMessage = {
               role: "user",
               content: contentParts,
             };
@@ -123,7 +146,7 @@ export class AISdkClientWrapped extends LLMClient {
               type: "text" as const,
               text: part.type === "image" ? "[Image]" : part.text,
             }));
-            const assistantMessage: CoreAssistantMessage = {
+            const assistantMessage: ModelMessage = {
               role: "assistant",
               content: textOnlyParts,
             };
@@ -225,8 +248,8 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         usage: {
           prompt_tokens: objectResponse.usage.inputTokens ?? 0,
           completion_tokens: objectResponse.usage.outputTokens ?? 0,
-          reasoning_tokens: objectResponse.usage.reasoningTokens ?? 0,
-          cached_input_tokens: objectResponse.usage.cachedInputTokens ?? 0,
+          reasoning_tokens: this.getReasoningTokens(objectResponse.usage),
+          cached_input_tokens: this.getCachedInputTokens(objectResponse.usage),
           total_tokens: objectResponse.usage.totalTokens ?? 0,
         },
       } as T;
@@ -313,8 +336,8 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       usage: {
         prompt_tokens: textResponse.usage.inputTokens ?? 0,
         completion_tokens: textResponse.usage.outputTokens ?? 0,
-        reasoning_tokens: textResponse.usage.reasoningTokens ?? 0,
-        cached_input_tokens: textResponse.usage.cachedInputTokens ?? 0,
+        reasoning_tokens: this.getReasoningTokens(textResponse.usage),
+        cached_input_tokens: this.getCachedInputTokens(textResponse.usage),
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;
