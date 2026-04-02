@@ -81,12 +81,22 @@ function writeToStream(stream: fs.WriteStream, value: string): Promise<void> {
 
 abstract class FileEventSink implements EventSink {
   private readonly streamPromise: Promise<fs.WriteStream | null>; // Lazily opens the one file stream owned by this sink when the session directory resolves.
+  private pendingWrite: Promise<void> = Promise.resolve();
+  private closed = false;
 
   // Creates a best-effort file sink bound to a single session directory.
   constructor(sessionDirPromise: Promise<string | null>, fileName: string) {
     this.streamPromise = sessionDirPromise.then((sessionDir) =>
       sessionDir
-        ? fs.createWriteStream(path.join(sessionDir, fileName), { flags: "a" })
+        ? (() => {
+            const stream = fs.createWriteStream(path.join(sessionDir, fileName), {
+              flags: "a",
+            });
+            stream.on("error", () => {
+              // best effort only
+            });
+            return stream;
+          })()
         : null,
     );
   }
@@ -96,6 +106,10 @@ abstract class FileEventSink implements EventSink {
   // Serializes and appends a single event. File sinks are intentionally best-effort and never allowed to affect library execution flow.
   async emit(event: FlowEvent): Promise<void> {
     try {
+      if (this.closed) {
+        return;
+      }
+
       const stream = await this.streamPromise;
       if (!isWritable(stream)) {
         return;
@@ -106,7 +120,19 @@ abstract class FileEventSink implements EventSink {
         return;
       }
 
-      await writeToStream(stream, serialized);
+      this.pendingWrite = this.pendingWrite
+        .catch(() => {
+          // best effort only
+        })
+        .then(async () => {
+          if (this.closed || !isWritable(stream)) {
+            return;
+          }
+
+          await writeToStream(stream, serialized);
+        });
+
+      await this.pendingWrite;
     } catch {
       // best effort only
     }
@@ -119,6 +145,12 @@ abstract class FileEventSink implements EventSink {
 
   // Closes the underlying file stream when the owning store shuts down.
   async destroy(): Promise<void> {
+    this.closed = true;
+
+    await this.pendingWrite.catch(() => {
+      // best effort cleanup
+    });
+
     const stream = await this.streamPromise.catch((): null => null);
     if (!isWritable(stream)) {
       return;

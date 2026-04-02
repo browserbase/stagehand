@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
-  LanguageModelV2,
-  LanguageModelV2Middleware,
+  LanguageModelV3,
+  LanguageModelV3Middleware,
 } from "@ai-sdk/provider";
 import {
   getAISDKLanguageModel,
@@ -21,7 +21,8 @@ function createRecordingMiddleware() {
     usage?: { inputTokens?: number; outputTokens?: number };
   }[] = [];
 
-  const middleware: LanguageModelV2Middleware = {
+  const middleware: LanguageModelV3Middleware = {
+    specificationVersion: "v3",
     wrapGenerate: async ({ doGenerate, model }) => {
       const result = await doGenerate();
       calls.push({
@@ -29,8 +30,8 @@ function createRecordingMiddleware() {
         modelId: model.modelId,
         provider: model.provider,
         usage: {
-          inputTokens: result.usage.inputTokens ?? undefined,
-          outputTokens: result.usage.outputTokens ?? undefined,
+          inputTokens: result.usage.inputTokens.total ?? undefined,
+          outputTokens: result.usage.outputTokens.total ?? undefined,
         },
       });
       return result;
@@ -50,23 +51,38 @@ function createRecordingMiddleware() {
 }
 
 /**
- * Creates a minimal mock LanguageModelV2 that returns canned results
+ * Creates a minimal mock LanguageModelV3 that returns canned results
  * without hitting any real provider. Useful for testing the wrapping
  * mechanics in isolation.
  */
 function createMockLanguageModel(
   modelId: string,
   provider: string,
-): LanguageModelV2 {
+): LanguageModelV3 {
   return {
-    specificationVersion: "v2",
+    specificationVersion: "v3",
     provider,
     modelId,
-    defaultObjectGenerationMode: "json",
+    supportedUrls: {},
     doGenerate: vi.fn().mockResolvedValue({
       content: [{ type: "text", text: "mock response" }],
-      finishReason: "stop",
-      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      finishReason: {
+        unified: "stop",
+        raw: "stop",
+      },
+      usage: {
+        inputTokens: {
+          total: 10,
+          noCache: 10,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+        outputTokens: {
+          total: 5,
+          text: 5,
+          reasoning: 0,
+        },
+      },
       warnings: [],
     }),
     doStream: vi.fn().mockResolvedValue({
@@ -74,14 +90,29 @@ function createMockLanguageModel(
         start(controller) {
           controller.enqueue({
             type: "finish",
-            finishReason: "stop",
-            usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+            finishReason: {
+              unified: "stop",
+              raw: "stop",
+            },
+            usage: {
+              inputTokens: {
+                total: 8,
+                noCache: 8,
+                cacheRead: 0,
+                cacheWrite: 0,
+              },
+              outputTokens: {
+                total: 3,
+                text: 3,
+                reasoning: 0,
+              },
+            },
           });
           controller.close();
         },
       }),
     }),
-  } as unknown as LanguageModelV2;
+  } as LanguageModelV3;
 }
 
 // ---------------------------------------------------------------------------
@@ -331,7 +362,8 @@ describe("middleware that tracks duration", () => {
   it("measures wall-clock time of doGenerate", async () => {
     const durations: number[] = [];
 
-    const timingMiddleware: LanguageModelV2Middleware = {
+    const timingMiddleware: LanguageModelV3Middleware = {
+      specificationVersion: "v3",
       wrapGenerate: async ({ doGenerate }) => {
         const start = performance.now();
         const result = await doGenerate();
@@ -361,11 +393,12 @@ describe("middleware that aggregates token usage", () => {
     let totalInput = 0;
     let totalOutput = 0;
 
-    const billingMiddleware: LanguageModelV2Middleware = {
+    const billingMiddleware: LanguageModelV3Middleware = {
+      specificationVersion: "v3",
       wrapGenerate: async ({ doGenerate }) => {
         const result = await doGenerate();
-        totalInput += result.usage.inputTokens ?? 0;
-        totalOutput += result.usage.outputTokens ?? 0;
+        totalInput += result.usage.inputTokens.total ?? 0;
+        totalOutput += result.usage.outputTokens.total ?? 0;
         return result;
       },
     };
@@ -402,7 +435,8 @@ describe("middleware that logs per-model call counts", () => {
   it("tracks which models were called and how many times", async () => {
     const modelCallCounts = new Map<string, number>();
 
-    const countingMiddleware: LanguageModelV2Middleware = {
+    const countingMiddleware: LanguageModelV3Middleware = {
+      specificationVersion: "v3",
       wrapGenerate: async ({ doGenerate, model }) => {
         const key = `${model.provider}/${model.modelId}`;
         modelCallCounts.set(key, (modelCallCounts.get(key) ?? 0) + 1);
@@ -451,7 +485,8 @@ describe("middleware that detects errors", () => {
   it("catches and re-throws errors from doGenerate while still recording the failure", async () => {
     const errors: Error[] = [];
 
-    const errorTrackingMiddleware: LanguageModelV2Middleware = {
+    const errorTrackingMiddleware: LanguageModelV3Middleware = {
+      specificationVersion: "v3",
       wrapGenerate: async ({ doGenerate }) => {
         try {
           return await doGenerate();
@@ -462,14 +497,14 @@ describe("middleware that detects errors", () => {
       },
     };
 
-    const failingModel: LanguageModelV2 = {
-      specificationVersion: "v2",
+    const failingModel: LanguageModelV3 = {
+      specificationVersion: "v3",
       provider: "openai.chat",
       modelId: "gpt-4o",
-      defaultObjectGenerationMode: "json",
+      supportedUrls: {},
       doGenerate: vi.fn().mockRejectedValue(new Error("rate limit exceeded")),
       doStream: vi.fn(),
-    } as unknown as LanguageModelV2;
+    } as unknown as LanguageModelV3;
 
     const { wrapLanguageModel } = await import("ai");
     const wrapped = wrapLanguageModel({
@@ -492,7 +527,8 @@ describe("chaining middleware across multiple wrapped models", () => {
   it("same middleware instance sees calls from different models", async () => {
     const seen: string[] = [];
 
-    const spyMiddleware: LanguageModelV2Middleware = {
+    const spyMiddleware: LanguageModelV3Middleware = {
+      specificationVersion: "v3",
       wrapGenerate: async ({ doGenerate, model }) => {
         seen.push(model.modelId);
         return doGenerate();
@@ -539,7 +575,8 @@ describe("chaining middleware across multiple wrapped models", () => {
 describe("middleware edge cases", () => {
   it("middleware that only implements wrapGenerate still works for doStream", async () => {
     const generateCalls: string[] = [];
-    const partialMiddleware: LanguageModelV2Middleware = {
+    const partialMiddleware: LanguageModelV3Middleware = {
+      specificationVersion: "v3",
       wrapGenerate: async ({ doGenerate, model }) => {
         generateCalls.push(model.modelId);
         return doGenerate();
@@ -574,10 +611,21 @@ describe("middleware edge cases", () => {
 
     expect(result.content).toEqual([{ type: "text", text: "mock response" }]);
     expect(result.usage).toEqual({
-      inputTokens: 10,
-      outputTokens: 5,
-      totalTokens: 15,
+      inputTokens: {
+        total: 10,
+        noCache: 10,
+        cacheRead: 0,
+        cacheWrite: 0,
+      },
+      outputTokens: {
+        total: 5,
+        text: 5,
+        reasoning: 0,
+      },
     });
-    expect(result.finishReason).toBe("stop");
+    expect(result.finishReason).toEqual({
+      unified: "stop",
+      raw: "stop",
+    });
   });
 });

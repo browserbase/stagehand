@@ -14,6 +14,7 @@ export interface ActHandlerParams {
 export interface ExtractHandlerParams<T extends StagehandZodSchema> {
   instruction?: string;
   schema?: T;
+  strictSchema?: boolean;
   model?: ModelConfiguration;
   timeout?: number;
   selector?: string;

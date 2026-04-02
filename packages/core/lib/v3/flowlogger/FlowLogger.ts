@@ -674,8 +674,9 @@ export class FlowLogger {
   // while leaving model execution behavior unchanged.
   static createLlmLoggingMiddleware(
     modelId: string,
-  ): Pick<LanguageModelMiddleware, "wrapGenerate"> {
+  ): Pick<LanguageModelMiddleware, "specificationVersion" | "wrapGenerate"> {
     return {
+      specificationVersion: "v3",
       wrapGenerate: async ({ doGenerate, params }) => {
         const llmRequestId = uuidv7();
         FlowLogger.logLlmRequest({
@@ -696,8 +697,8 @@ export class FlowLogger {
           requestId: llmRequestId,
           model: modelId,
           output: FlowLogger.buildMiddlewareOutputSummary(res),
-          inputTokens: result.usage?.inputTokens,
-          outputTokens: result.usage?.outputTokens,
+          inputTokens: result.usage?.inputTokens.total,
+          outputTokens: result.usage?.outputTokens.total,
         });
 
         return result;

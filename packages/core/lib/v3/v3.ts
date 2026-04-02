@@ -1,4 +1,4 @@
-import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
+import type { LanguageModelV3Middleware } from "@ai-sdk/provider";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -99,7 +99,7 @@ const DEFAULT_AGENT_TOOL_TIMEOUT_MS = 45000;
 type ResolvedModelConfiguration = {
   modelName: AvailableModel;
   clientOptions?: ClientOptions;
-  middleware?: LanguageModelV2Middleware;
+  middleware?: LanguageModelV3Middleware;
 };
 
 export function resolveModelConfiguration(
@@ -445,7 +445,7 @@ export class V3 {
 
     let modelName: AvailableModel | string;
     let clientOptions: ClientOptions | undefined;
-    let perCallMiddleware: LanguageModelV2Middleware | undefined;
+    let perCallMiddleware: LanguageModelV3Middleware | undefined;
 
     if (typeof model === "string") {
       modelName = model;
@@ -1329,6 +1329,7 @@ export class V3 {
       const handlerParams: ExtractHandlerParams<StagehandZodSchema> = {
         instruction,
         schema: effectiveSchema as StagehandZodSchema | undefined,
+        strictSchema: schema == null,
         model: options?.model,
         timeout: options?.timeout,
         selector: options?.selector,

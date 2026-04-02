@@ -10,7 +10,7 @@ import {
   streamObject,
   streamText,
 } from "ai";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import { LogLine } from "../types/public/logs.js";
 import { AvailableModel, ClientOptions } from "../types/public/model.js";
 import type { StagehandZodSchema } from "../zodCompat.js";
@@ -56,6 +56,7 @@ export interface ChatCompletionOptions {
   response_model?: {
     name: string;
     schema: StagehandZodSchema;
+    strict?: boolean;
   };
   tools?: LLMTool[];
   tool_choice?: "auto" | "none" | "required";
@@ -130,7 +131,11 @@ export abstract class LLMClient {
   abstract createChatCompletion<T>(
     options: CreateChatCompletionOptions & {
       options: {
-        response_model: { name: string; schema: StagehandZodSchema };
+        response_model: {
+          name: string;
+          schema: StagehandZodSchema;
+          strict?: boolean;
+        };
       };
     },
   ): Promise<LLMParsedResponse<T>>;
@@ -150,5 +155,5 @@ export abstract class LLMClient {
   public transcribe = experimental_transcribe;
   public generateSpeech = experimental_generateSpeech;
 
-  getLanguageModel?(): LanguageModelV2;
+  getLanguageModel?(): LanguageModelV3;
 }

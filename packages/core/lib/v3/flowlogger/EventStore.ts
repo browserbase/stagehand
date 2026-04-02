@@ -12,7 +12,6 @@ import { FlowEvent } from "./FlowLogger.js";
 
 const DEFAULT_IN_MEMORY_EVENT_LIMIT = 500; // Per-session ancestry window retained by the default shallow query sink.
 const CONFIG_DIR = process.env.BROWSERBASE_CONFIG_DIR || ""; // Base directory for session metadata + file-backed flow logs.
-const FLOW_LOGS_ENABLED = process.env.BROWSERBASE_FLOW_LOGS === "1"; // Force-enables the pretty stderr flow sink even when `verbose !== 2`.
 const SENSITIVE_KEYS =
   /key|secret|token|api-key|apikey|api_key|password|passwd|pwd|credential|auth/i; // Redacts obvious secrets before session options are written to disk.
 
@@ -57,6 +56,10 @@ function sanitizeOptions(options: V3Options): Record<string, unknown> {
 // Resolves the configured Browserbase config directory used by file sinks.
 export function getConfigDir(): string {
   return CONFIG_DIR ? path.resolve(CONFIG_DIR) : "";
+}
+
+function isFlowLogsEnabled(): boolean {
+  return process.env.BROWSERBASE_FLOW_LOGS === "1";
 }
 
 // Creates the per-session directory used by file sinks and writes best-effort metadata such as the sanitized `session.json` file and `latest` symlink.
@@ -144,7 +147,7 @@ export class EventStore implements EventStoreApi {
       this.registerSink(new PrettyLogFileEventSink(sessionDirPromise, this));
     }
 
-    if (FLOW_LOGS_ENABLED) {
+    if (isFlowLogsEnabled()) {
       this.registerSink(new PrettyStderrEventSink(this));
     }
   }

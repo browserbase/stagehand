@@ -34,6 +34,7 @@ export async function extract<T extends StagehandZodObject>({
   instruction,
   domElements,
   schema,
+  strictSchema = true,
   llmClient,
   logger,
   userProvidedInstructions,
@@ -42,6 +43,7 @@ export async function extract<T extends StagehandZodObject>({
   instruction: string;
   domElements: string;
   schema: T;
+  strictSchema?: boolean;
   llmClient: LLMClient;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
@@ -94,6 +96,7 @@ export async function extract<T extends StagehandZodObject>({
         response_model: {
           schema,
           name: "Extraction",
+          strict: strictSchema,
         },
         temperature: isGPT5 ? 1 : 0.1,
         top_p: 1,
@@ -161,6 +164,7 @@ export async function extract<T extends StagehandZodObject>({
         response_model: {
           name: "Metadata",
           schema: metadataSchema,
+          strict: true,
         },
         temperature: isGPT5 ? 1 : 0.1,
         top_p: 1,
@@ -330,6 +334,7 @@ export async function observe({
       response_model: {
         schema: observeSchema,
         name: "Observation",
+        strict: true,
       },
       temperature: isGPT5 ? 1 : 0.1,
       top_p: 1,
@@ -470,6 +475,7 @@ export async function act({
       response_model: {
         schema: actSchema,
         name: "act",
+        strict: true,
       },
       temperature: isGPT5 ? 1 : 0.1,
       top_p: 1,

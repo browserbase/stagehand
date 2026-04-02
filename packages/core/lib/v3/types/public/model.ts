@@ -1,8 +1,8 @@
 import type { ClientOptions as AnthropicClientOptionsBase } from "@anthropic-ai/sdk";
 import type { GoogleVertexProviderSettings as GoogleVertexProviderSettingsBase } from "@ai-sdk/google-vertex";
 import type {
-  LanguageModelV2,
-  LanguageModelV2Middleware,
+  LanguageModelV3,
+  LanguageModelV3Middleware,
 } from "@ai-sdk/provider";
 import type { ClientOptions as OpenAIClientOptionsBase } from "openai";
 import type { AgentProviderType } from "./agent.js";
@@ -58,7 +58,7 @@ export interface LLMTool {
   parameters: Record<string, unknown>;
 }
 
-export type AISDKProvider = (modelName: string) => LanguageModelV2;
+export type AISDKProvider = (modelName: string) => LanguageModelV3;
 // Represents a function that takes options (like apiKey) and returns an AISDKProvider
 export type AISDKCustomProvider = (options: ClientOptions) => AISDKProvider;
 
@@ -128,10 +128,10 @@ export type ModelConfiguration =
   | (ClientOptions & {
       modelName: AvailableModel;
       /**
-       * Optional AI SDK middleware applied to every LanguageModelV2 created for this model.
+       * Optional AI SDK middleware applied to every AI SDK language model created for this model.
        * Use this to intercept LLM calls for usage tracking, logging, request transforms, etc.
        *
        * Only effective when running locally (direct mode). Cannot be serialized over HTTP,
        */
-      middleware?: LanguageModelV2Middleware;
+      middleware?: LanguageModelV3Middleware;
     });

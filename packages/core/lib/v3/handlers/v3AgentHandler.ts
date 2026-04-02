@@ -17,6 +17,10 @@ import {
 import { StagehandZodObject } from "../zodCompat.js";
 import { processMessages } from "../agent/utils/messageProcessing.js";
 import { LLMClient } from "../llm/LLMClient.js";
+import {
+  getCachedInputTokens,
+  getReasoningTokens,
+} from "../llm/aiSdkCompat.js";
 import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import {
   AgentExecuteOptions,
@@ -613,15 +617,24 @@ export class V3AgentHandler {
     const endTime = Date.now();
     const inferenceTimeMs = endTime - startTime;
     if (result.totalUsage) {
+      const reasoningTokens = getReasoningTokens(result.totalUsage);
+      const cachedInputTokens = getCachedInputTokens(result.totalUsage);
       this.v3.updateMetrics(
         V3FunctionName.AGENT,
         result.totalUsage.inputTokens || 0,
         result.totalUsage.outputTokens || 0,
-        result.totalUsage.reasoningTokens || 0,
-        result.totalUsage.cachedInputTokens || 0,
+        reasoningTokens,
+        cachedInputTokens,
         inferenceTimeMs,
       );
     }
+
+    const reasoningTokens = result.totalUsage
+      ? getReasoningTokens(result.totalUsage)
+      : 0;
+    const cachedInputTokens = result.totalUsage
+      ? getCachedInputTokens(result.totalUsage)
+      : 0;
 
     return {
       success: state.completed,
@@ -633,8 +646,8 @@ export class V3AgentHandler {
         ? {
             input_tokens: result.totalUsage.inputTokens || 0,
             output_tokens: result.totalUsage.outputTokens || 0,
-            reasoning_tokens: result.totalUsage.reasoningTokens || 0,
-            cached_input_tokens: result.totalUsage.cachedInputTokens || 0,
+            reasoning_tokens: reasoningTokens,
+            cached_input_tokens: cachedInputTokens,
             inference_time_ms: inferenceTimeMs,
           }
         : undefined,

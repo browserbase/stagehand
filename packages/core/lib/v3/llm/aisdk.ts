@@ -1,17 +1,11 @@
 import {
-  CoreAssistantMessage,
-  ModelMessage,
-  CoreSystemMessage,
-  CoreUserMessage,
-  generateObject,
   generateText,
-  ImagePart,
   NoObjectGeneratedError,
-  TextPart,
-  ToolSet,
-  Tool,
+  Output,
+  type Tool,
+  type ToolSet,
 } from "ai";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs.js";
@@ -22,10 +16,36 @@ import {
   extractLlmPromptSummary,
 } from "../flowlogger/FlowLogger.js";
 import { toJsonSchema } from "../zodCompat.js";
+import { formatAiSdkMessages, toLLMUsage } from "./aiSdkCompat.js";
+
+function buildOpenAiStructuredProviderOptions(options: {
+  isGPT5: boolean;
+  isCodex: boolean;
+  reasoningEffort?: string;
+  strict: boolean;
+}) {
+  const openaiOptions: Record<string, string | boolean> = {};
+
+  if (options.isGPT5) {
+    openaiOptions.textVerbosity = options.isCodex ? "medium" : "low";
+  }
+
+  if (options.reasoningEffort) {
+    openaiOptions.reasoningEffort = options.reasoningEffort;
+  }
+
+  if (!options.strict) {
+    openaiOptions.strictJsonSchema = false;
+  }
+
+  return Object.keys(openaiOptions).length > 0
+    ? { openai: openaiOptions }
+    : undefined;
+}
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
-  private model: LanguageModelV2;
+  private model: LanguageModelV3;
   private logger?: (message: LogLine) => void;
 
   constructor({
@@ -33,7 +53,7 @@ export class AISdkClient extends LLMClient {
     logger,
     clientOptions,
   }: {
-    model: LanguageModelV2;
+    model: LanguageModelV3;
     logger?: (message: LogLine) => void;
     clientOptions?: ClientOptions;
   }) {
@@ -45,7 +65,7 @@ export class AISdkClient extends LLMClient {
     }
   }
 
-  public getLanguageModel(): LanguageModelV2 {
+  public getLanguageModel(): LanguageModelV3 {
     return this.model;
   }
 
@@ -81,62 +101,7 @@ export class AISdkClient extends LLMClient {
       },
     });
 
-    const formattedMessages: ModelMessage[] = options.messages.map(
-      (message) => {
-        if (Array.isArray(message.content)) {
-          if (message.role === "system") {
-            const systemMessage: CoreSystemMessage = {
-              role: "system",
-              content: message.content
-                .map((c) => ("text" in c ? c.text : ""))
-                .join("\n"),
-            };
-            return systemMessage;
-          }
-
-          const contentParts = message.content.map((content) => {
-            if ("image_url" in content) {
-              const imageContent: ImagePart = {
-                type: "image",
-                image: content.image_url.url,
-              };
-              return imageContent;
-            } else {
-              const textContent: TextPart = {
-                type: "text",
-                text: content.text,
-              };
-              return textContent;
-            }
-          });
-
-          if (message.role === "user") {
-            const userMessage: CoreUserMessage = {
-              role: "user",
-              content: contentParts,
-            };
-            return userMessage;
-          } else {
-            const textOnlyParts = contentParts.map((part) => ({
-              type: "text" as const,
-              text: part.type === "image" ? "[Image]" : part.text,
-            }));
-            const assistantMessage: CoreAssistantMessage = {
-              role: "assistant",
-              content: textOnlyParts,
-            };
-            return assistantMessage;
-          }
-        }
-
-        return {
-          role: message.role,
-          content: message.content,
-        };
-      },
-    );
-
-    let objectResponse: Awaited<ReturnType<typeof generateObject>>;
+    const formattedMessages = formatAiSdkMessages(options.messages);
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
     // Kimi models only support temperature=1
@@ -157,7 +122,6 @@ export class AISdkClient extends LLMClient {
     );
 
     if (options.response_model) {
-      // Log LLM request for generateObject (extract)
       const llmRequestId = uuidv7();
       const promptSummary = extractLlmPromptSummary(options.messages, {
         hasSchema: true,
@@ -168,7 +132,6 @@ export class AISdkClient extends LLMClient {
         prompt: promptSummary,
       });
 
-      // For models that don't support native structured outputs, add a prompt instruction
       if (needsPromptJsonFallback) {
         const parsedSchema = JSON.stringify(
           toJsonSchema(options.response_model.schema),
@@ -182,24 +145,61 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       }
 
       try {
-        objectResponse = await generateObject({
+        const response = await generateText({
           model: this.model,
           messages: formattedMessages,
-          schema: options.response_model.schema,
+          output: Output.object({
+            schema: options.response_model.schema,
+            name: options.response_model.name,
+          }),
           temperature,
-          providerOptions: resolvedReasoningEffort
-            ? {
-                openai: {
-                  ...(isGPT5
-                    ? { textVerbosity: isCodex ? "medium" : "low" }
-                    : {}),
-                  reasoningEffort: resolvedReasoningEffort,
-                },
-              }
-            : undefined,
+          maxOutputTokens: options.maxOutputTokens,
+          topP: options.top_p,
+          frequencyPenalty: options.frequency_penalty,
+          presencePenalty: options.presence_penalty,
+          providerOptions: buildOpenAiStructuredProviderOptions({
+            isGPT5,
+            isCodex,
+            reasoningEffort: resolvedReasoningEffort,
+            strict: options.response_model.strict ?? true,
+          }),
         });
+
+        const result = {
+          data: response.output,
+          usage: toLLMUsage(response.usage),
+        } as T;
+
+        FlowLogger.logLlmResponse({
+          requestId: llmRequestId,
+          model: this.model.modelId,
+          output: JSON.stringify(response.output),
+          inputTokens: response.usage.inputTokens,
+          outputTokens: response.usage.outputTokens,
+        });
+
+        this.logger?.({
+          category: "aisdk",
+          message: "response",
+          level: 1,
+          auxiliary: {
+            response: {
+              value: JSON.stringify({
+                output: response.output,
+                usage: response.usage,
+                finishReason: response.finishReason,
+              }),
+              type: "object",
+            },
+            requestId: {
+              value: options.requestId,
+              type: "string",
+            },
+          },
+        });
+
+        return result;
       } catch (err) {
-        // Log error response to maintain request/response pairing
         FlowLogger.logLlmResponse({
           requestId: llmRequestId,
           model: this.model.modelId,
@@ -238,54 +238,10 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
               },
             },
           });
-
-          throw err;
         }
+
         throw err;
       }
-
-      const result = {
-        data: objectResponse.object,
-        usage: {
-          prompt_tokens: objectResponse.usage.inputTokens ?? 0,
-          completion_tokens: objectResponse.usage.outputTokens ?? 0,
-          reasoning_tokens: objectResponse.usage.reasoningTokens ?? 0,
-          cached_input_tokens: objectResponse.usage.cachedInputTokens ?? 0,
-          total_tokens: objectResponse.usage.totalTokens ?? 0,
-        },
-      } as T;
-
-      // Log LLM response for generateObject
-      FlowLogger.logLlmResponse({
-        requestId: llmRequestId,
-        model: this.model.modelId,
-        output: JSON.stringify(objectResponse.object),
-        inputTokens: objectResponse.usage.inputTokens,
-        outputTokens: objectResponse.usage.outputTokens,
-      });
-
-      this.logger?.({
-        category: "aisdk",
-        message: "response",
-        level: 1,
-        auxiliary: {
-          response: {
-            value: JSON.stringify({
-              object: objectResponse.object,
-              usage: objectResponse.usage,
-              finishReason: objectResponse.finishReason,
-              // Omit request and response properties that might contain images
-            }),
-            type: "object",
-          },
-          requestId: {
-            value: options.requestId,
-            type: "string",
-          },
-        },
-      });
-
-      return result;
     }
 
     const tools: ToolSet = {};
@@ -298,7 +254,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       }
     }
 
-    // Log LLM request for generateText (act/observe)
     const llmRequestId = uuidv7();
     const toolCount = Object.keys(tools).length;
     const promptSummary = extractLlmPromptSummary(options.messages, {
@@ -310,14 +265,13 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       prompt: promptSummary,
     });
 
-    let textResponse: Awaited<ReturnType<typeof generateText>>;
     try {
-      textResponse = await generateText({
+      const textResponse = await generateText({
         model: this.model,
         messages: formattedMessages,
-        tools: Object.keys(tools).length > 0 ? tools : undefined,
+        tools: toolCount > 0 ? tools : undefined,
         toolChoice:
-          Object.keys(tools).length > 0
+          toolCount > 0
             ? options.tool_choice === "required"
               ? "required"
               : options.tool_choice === "none"
@@ -325,9 +279,78 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
                 : "auto"
             : undefined,
         temperature,
+        maxOutputTokens: options.maxOutputTokens,
+        topP: options.top_p,
+        frequencyPenalty: options.frequency_penalty,
+        presencePenalty: options.presence_penalty,
       });
+
+      const transformedToolCalls = (textResponse.toolCalls || []).map(
+        (toolCall) => ({
+          id:
+            toolCall.toolCallId ||
+            `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: "function",
+          function: {
+            name: toolCall.toolName,
+            arguments: JSON.stringify(toolCall.input),
+          },
+        }),
+      );
+
+      const result = {
+        id: `chatcmpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        object: "chat.completion",
+        created: Math.floor(Date.now() / 1000),
+        model: this.model.modelId,
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: textResponse.text || null,
+              tool_calls: transformedToolCalls,
+            },
+            finish_reason: textResponse.finishReason || "stop",
+          },
+        ],
+        usage: toLLMUsage(textResponse.usage),
+      } as T;
+
+      FlowLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.model.modelId,
+        output:
+          textResponse.text ||
+          (transformedToolCalls.length > 0
+            ? `[${transformedToolCalls.length} tool calls]`
+            : ""),
+        inputTokens: textResponse.usage.inputTokens,
+        outputTokens: textResponse.usage.outputTokens,
+      });
+
+      this.logger?.({
+        category: "aisdk",
+        message: "response",
+        level: 2,
+        auxiliary: {
+          response: {
+            value: JSON.stringify({
+              text: textResponse.text,
+              usage: textResponse.usage,
+              finishReason: textResponse.finishReason,
+            }),
+            type: "object",
+          },
+          requestId: {
+            value: options.requestId,
+            type: "string",
+          },
+        },
+      });
+
+      return result;
     } catch (err) {
-      // Log error response to maintain request/response pairing
       FlowLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.model.modelId,
@@ -335,80 +358,5 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       });
       throw err;
     }
-
-    // Transform AI SDK response to match LLMResponse format expected by operator handler
-    const transformedToolCalls = (textResponse.toolCalls || []).map(
-      (toolCall) => ({
-        id:
-          toolCall.toolCallId ||
-          `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: "function",
-        function: {
-          name: toolCall.toolName,
-          arguments: JSON.stringify(toolCall.input),
-        },
-      }),
-    );
-
-    const result = {
-      id: `chatcmpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      object: "chat.completion",
-      created: Math.floor(Date.now() / 1000),
-      model: this.model.modelId,
-      choices: [
-        {
-          index: 0,
-          message: {
-            role: "assistant",
-            content: textResponse.text || null,
-            tool_calls: transformedToolCalls,
-          },
-          finish_reason: textResponse.finishReason || "stop",
-        },
-      ],
-      usage: {
-        prompt_tokens: textResponse.usage.inputTokens ?? 0,
-        completion_tokens: textResponse.usage.outputTokens ?? 0,
-        reasoning_tokens: textResponse.usage.reasoningTokens ?? 0,
-        cached_input_tokens: textResponse.usage.cachedInputTokens ?? 0,
-        total_tokens: textResponse.usage.totalTokens ?? 0,
-      },
-    } as T;
-
-    // Log LLM response for generateText
-    FlowLogger.logLlmResponse({
-      requestId: llmRequestId,
-      model: this.model.modelId,
-      output:
-        textResponse.text ||
-        (transformedToolCalls.length > 0
-          ? `[${transformedToolCalls.length} tool calls]`
-          : ""),
-      inputTokens: textResponse.usage.inputTokens,
-      outputTokens: textResponse.usage.outputTokens,
-    });
-
-    this.logger?.({
-      category: "aisdk",
-      message: "response",
-      level: 2,
-      auxiliary: {
-        response: {
-          value: JSON.stringify({
-            text: textResponse.text,
-            usage: textResponse.usage,
-            finishReason: textResponse.finishReason,
-            // Omit request and response properties that might contain images
-          }),
-          type: "object",
-        },
-        requestId: {
-          value: options.requestId,
-          type: "string",
-        },
-      },
-    });
-
-    return result;
   }
 }

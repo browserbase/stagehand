@@ -5,6 +5,7 @@ import { z } from "zod";
 import { closeV3 } from "./testUtils.js";
 import type { LLMClient } from "../../lib/v3/llm/LLMClient.js";
 import { generateText } from "ai";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 
 type AgentToolNameWithTimeout =
   | "act"
@@ -22,24 +23,7 @@ type AgentToolNameWithTimeout =
   | "scroll"
   | "keys";
 
-type ToolTimeoutTestModel = {
-  provider: string;
-  modelId: string;
-  specificationVersion: "v2";
-  supportedUrls: Record<string, RegExp[]>;
-  doGenerate: () => Promise<{
-    content: Array<{
-      type: "tool-call";
-      toolCallId: string;
-      toolName: string;
-      input: string;
-    }>;
-    finishReason: "tool-calls";
-    usage: { inputTokens: number; outputTokens: number; totalTokens: number };
-    warnings: [];
-  }>;
-  doStream: (_options: unknown) => Promise<never>;
-};
+type ToolTimeoutTestModel = LanguageModelV3;
 
 type ToolTimeoutTestLLMClient = LLMClient & {
   model: ToolTimeoutTestModel;
@@ -61,7 +45,7 @@ function createToolTimeoutTestLlmClient(
   const model: ToolTimeoutTestModel = {
     provider: "mock",
     modelId: "mock/tool-timeout-test",
-    specificationVersion: "v2",
+    specificationVersion: "v3",
     supportedUrls: {},
     doGenerate: async () => {
       generateCallCount += 1;
@@ -75,8 +59,20 @@ function createToolTimeoutTestLlmClient(
               input: JSON.stringify(toolInput),
             },
           ],
-          finishReason: "tool-calls",
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          finishReason: { unified: "tool-calls", raw: "tool-calls" },
+          usage: {
+            inputTokens: {
+              total: 0,
+              noCache: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+            },
+            outputTokens: {
+              total: 0,
+              text: 0,
+              reasoning: 0,
+            },
+          },
           warnings: [],
         };
       }
@@ -90,8 +86,20 @@ function createToolTimeoutTestLlmClient(
             input: JSON.stringify({ reasoning: "done", taskComplete: true }),
           },
         ],
-        finishReason: "tool-calls",
-        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        finishReason: { unified: "tool-calls", raw: "tool-calls" },
+        usage: {
+          inputTokens: {
+            total: 0,
+            noCache: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+          },
+          outputTokens: {
+            total: 0,
+            text: 0,
+            reasoning: 0,
+          },
+        },
         warnings: [],
       };
     },

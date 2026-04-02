@@ -1,4 +1,4 @@
-import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
+import type { LanguageModelV3Middleware } from "@ai-sdk/provider";
 import {
   ExperimentalNotConfiguredError,
   UnsupportedAISDKModelProviderError,
@@ -34,6 +34,7 @@ import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama, createOllama } from "ollama-ai-provider-v2";
 import { gateway, createGateway, wrapLanguageModel } from "ai";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model.js";
+import { wrapLanguageModelV2 } from "./providerV2Compat.js";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
@@ -48,7 +49,8 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   mistral,
   deepseek,
   perplexity,
-  ollama,
+  ollama: ((modelName: string) =>
+    wrapLanguageModelV2(ollama(modelName))) as AISDKProvider,
   vertex,
   gateway,
 };
@@ -66,7 +68,10 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   mistral: createMistral,
   deepseek: createDeepSeek,
   perplexity: createPerplexity,
-  ollama: createOllama,
+  ollama: ((options?: ClientOptions) => {
+    const provider = createOllama(options);
+    return (modelName: string) => wrapLanguageModelV2(provider(modelName));
+  }) as AISDKCustomProvider,
   gateway: createGateway,
 };
 
@@ -104,7 +109,7 @@ export function getAISDKLanguageModel(
   subProvider: string,
   subModelName: string,
   clientOptions?: ClientOptions,
-  middleware?: LanguageModelV2Middleware,
+  middleware?: LanguageModelV3Middleware,
 ) {
   const hasValidOptions =
     clientOptions &&
@@ -140,11 +145,11 @@ export function getAISDKLanguageModel(
 
 export class LLMProvider {
   private logger: (message: LogLine) => void;
-  private middleware?: LanguageModelV2Middleware;
+  private middleware?: LanguageModelV3Middleware;
 
   constructor(
     logger: (message: LogLine) => void,
-    middleware?: LanguageModelV2Middleware,
+    middleware?: LanguageModelV3Middleware,
   ) {
     this.logger = logger;
     this.middleware = middleware;
@@ -156,7 +161,7 @@ export class LLMProvider {
     options?: {
       experimental?: boolean;
       disableAPI?: boolean;
-      middleware?: LanguageModelV2Middleware;
+      middleware?: LanguageModelV3Middleware;
     },
   ): LLMClient {
     if (modelName.includes("/")) {

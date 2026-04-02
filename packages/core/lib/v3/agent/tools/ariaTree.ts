@@ -47,18 +47,22 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
         };
       }
     },
-    toModelOutput: (result) => {
-      if (result.success === false || result.error !== undefined) {
+    toModelOutput: (
+      {
+        output
+      }
+    ) => {
+      if (output.success === false || output.error !== undefined) {
         return {
           type: "content",
-          value: [{ type: "text", text: JSON.stringify(result) }],
+          value: [{ type: "text", text: JSON.stringify(output) }],
         };
       }
 
       return {
         type: "content",
         value: [
-          { type: "text", text: `Accessibility Tree:\n${result.content}` },
+          { type: "text", text: `Accessibility Tree:\n${output.content}` },
         ],
       };
     },

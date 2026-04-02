@@ -1,10 +1,11 @@
 import type { V3 } from "../../lib/v3/v3.js";
 import type {
-  LanguageModelV2,
-  LanguageModelV2CallOptions,
-  LanguageModelV2Content,
-  LanguageModelV2FinishReason,
-  LanguageModelV2Usage,
+  LanguageModelV3,
+  LanguageModelV3CallOptions,
+  LanguageModelV3Content,
+  LanguageModelV3FinishReason,
+  LanguageModelV3GenerateResult,
+  LanguageModelV3Usage,
 } from "@ai-sdk/provider";
 import { AISdkClient } from "../../lib/v3/llm/aisdk.js";
 
@@ -66,45 +67,58 @@ type JsonResponseKey =
 
 type JsonResponseValue =
   | Record<string, unknown>
-  | ((options: LanguageModelV2CallOptions) => Record<string, unknown>);
+  | ((options: LanguageModelV3CallOptions) => Record<string, unknown>);
 
 type JsonResponseScript = JsonResponseValue | JsonResponseValue[];
 
 type GenerateResponseValue =
   | {
-      content: LanguageModelV2Content[];
-      finishReason?: LanguageModelV2FinishReason;
-      usage?: Partial<LanguageModelV2Usage>;
+      content: LanguageModelV3Content[];
+      finishReason?: LanguageModelV3FinishReason;
+      usage?: Partial<LanguageModelV3Usage>;
     }
-  | ((options: LanguageModelV2CallOptions) => {
-      content: LanguageModelV2Content[];
-      finishReason?: LanguageModelV2FinishReason;
-      usage?: Partial<LanguageModelV2Usage>;
+  | ((options: LanguageModelV3CallOptions) => {
+      content: LanguageModelV3Content[];
+      finishReason?: LanguageModelV3FinishReason;
+      usage?: Partial<LanguageModelV3Usage>;
     });
 
-type ScriptedLanguageModel = LanguageModelV2 & {
-  doGenerateCalls: LanguageModelV2CallOptions[];
+type ScriptedLanguageModel = LanguageModelV3 & {
+  doGenerateCalls: LanguageModelV3CallOptions[];
 };
 
 type ScriptedGenerateResult = {
-  content: LanguageModelV2Content[];
-  finishReason?: LanguageModelV2FinishReason;
-  usage?: Partial<LanguageModelV2Usage>;
+  content: LanguageModelV3Content[];
+  finishReason?: LanguageModelV3FinishReason;
+  usage?: Partial<LanguageModelV3Usage>;
 };
 
-const DEFAULT_USAGE: LanguageModelV2Usage = {
-  inputTokens: 1,
-  outputTokens: 1,
-  totalTokens: 2,
-  reasoningTokens: 0,
-  cachedInputTokens: 0,
+const DEFAULT_USAGE: LanguageModelV3Usage = {
+  inputTokens: {
+    total: 1,
+    noCache: 1,
+    cacheRead: 0,
+    cacheWrite: 0,
+  },
+  outputTokens: {
+    total: 1,
+    text: 1,
+    reasoning: 0,
+  },
 };
 
 const mergeUsage = (
-  usage?: Partial<LanguageModelV2Usage>,
-): LanguageModelV2Usage => ({
-  ...DEFAULT_USAGE,
-  ...(usage ?? {}),
+  usage?: Partial<LanguageModelV3Usage>,
+): LanguageModelV3Usage => ({
+  inputTokens: {
+    ...DEFAULT_USAGE.inputTokens,
+    ...(usage?.inputTokens ?? {}),
+  },
+  outputTokens: {
+    ...DEFAULT_USAGE.outputTokens,
+    ...(usage?.outputTokens ?? {}),
+  },
+  ...(usage?.raw ? { raw: usage.raw } : {}),
 });
 
 function consumeScriptValue<T>(value: T | T[] | undefined, fallback: T): T {
@@ -120,7 +134,7 @@ function consumeScriptValue<T>(value: T | T[] | undefined, fallback: T): T {
 }
 
 function resolveJsonResponseKey(
-  options: LanguageModelV2CallOptions,
+  options: LanguageModelV3CallOptions,
 ): JsonResponseKey {
   const responseFormat = options.responseFormat;
   if (!responseFormat || responseFormat.type !== "json") {
@@ -149,7 +163,7 @@ function resolveJsonResponseKey(
 }
 
 export function promptToText(
-  prompt: LanguageModelV2CallOptions["prompt"],
+  prompt: LanguageModelV3CallOptions["prompt"],
 ): string {
   return (prompt ?? [])
     .flatMap((message) => {
@@ -164,14 +178,14 @@ export function promptToText(
     .join("\n");
 }
 
-function findEncodedIds(options: LanguageModelV2CallOptions): string[] {
+function findEncodedIds(options: LanguageModelV3CallOptions): string[] {
   return [...promptToText(options.prompt).matchAll(/\b\d+-\d+\b/g)].map(
     (match) => match[0],
   );
 }
 
 export function findEncodedIdForText(
-  options: LanguageModelV2CallOptions,
+  options: LanguageModelV3CallOptions,
   text: string,
 ): string {
   const promptText = promptToText(options.prompt);
@@ -186,7 +200,7 @@ export function findEncodedIdForText(
   return match[0];
 }
 
-export function findLastEncodedId(options: LanguageModelV2CallOptions): string {
+export function findLastEncodedId(options: LanguageModelV3CallOptions): string {
   const matches = findEncodedIds(options);
   if (matches.length === 0) {
     throw new Error("Could not find any encoded ids in the prompt.");
@@ -200,9 +214,9 @@ export function toolCallResponse(
   input: Record<string, unknown>,
   toolCallId = `${toolName}-1`,
 ): {
-  content: LanguageModelV2Content[];
-  finishReason: LanguageModelV2FinishReason;
-  usage: LanguageModelV2Usage;
+  content: LanguageModelV3Content[];
+  finishReason: LanguageModelV3FinishReason;
+  usage: LanguageModelV3Usage;
 } {
   return {
     content: [
@@ -213,7 +227,7 @@ export function toolCallResponse(
         input: JSON.stringify(input),
       },
     ],
-    finishReason: "tool-calls",
+    finishReason: { unified: "tool-calls", raw: "tool-calls" },
     usage: DEFAULT_USAGE,
   };
 }
@@ -223,22 +237,23 @@ export function doneToolResponse(
   taskComplete = true,
   toolCallId = "done-1",
 ): {
-  content: LanguageModelV2Content[];
-  finishReason: LanguageModelV2FinishReason;
-  usage: LanguageModelV2Usage;
+  content: LanguageModelV3Content[];
+  finishReason: LanguageModelV3FinishReason;
+  usage: LanguageModelV3Usage;
 } {
   return toolCallResponse("done", { reasoning, taskComplete }, toolCallId);
 }
 
-function createGenerateResult(result: ScriptedGenerateResult): {
-  content: LanguageModelV2Content[];
-  finishReason: LanguageModelV2FinishReason;
-  usage: LanguageModelV2Usage;
-  warnings: [];
-} {
+function createGenerateResult(
+  result: ScriptedGenerateResult,
+): LanguageModelV3GenerateResult {
   return {
     content: result.content,
-    finishReason: result.finishReason ?? "stop",
+    finishReason:
+      result.finishReason ?? {
+        unified: "stop",
+        raw: "stop",
+      },
     usage: mergeUsage(result.usage),
     warnings: [],
   };
@@ -260,7 +275,7 @@ export function createScriptedAisdkTestLlmClient(options?: {
   const model: ScriptedLanguageModel = {
     provider: "mock",
     modelId: options?.modelId ?? "mock/stagehand-flow-logger",
-    specificationVersion: "v2",
+    specificationVersion: "v3",
     supportedUrls: {},
     doGenerateCalls: [],
     doGenerate: async (callOptions) => {

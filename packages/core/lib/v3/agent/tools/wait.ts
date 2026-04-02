@@ -40,11 +40,15 @@ export const waitTool = (v3: V3, mode?: AgentToolMode) =>
 
       return { success: true, waited: timeMs };
     },
-    toModelOutput: (result) => {
-      if (result.success === false || result.error !== undefined) {
+    toModelOutput: (
+      {
+        output
+      }
+    ) => {
+      if (output.success === false || output.error !== undefined) {
         return {
           type: "content",
-          value: [{ type: "text", text: JSON.stringify(result) }],
+          value: [{ type: "text", text: JSON.stringify(output) }],
         };
       }
 
@@ -52,16 +56,16 @@ export const waitTool = (v3: V3, mode?: AgentToolMode) =>
         {
           type: "text",
           text: JSON.stringify({
-            success: result.success,
-            waited: result.waited,
+            success: output.success,
+            waited: output.waited,
           }),
         },
       ];
-      if (result.screenshotBase64) {
+      if (output.screenshotBase64) {
         content.push({
           type: "media",
           mediaType: "image/png",
-          data: result.screenshotBase64,
+          data: output.screenshotBase64,
         });
       }
       return { type: "content", value: content };

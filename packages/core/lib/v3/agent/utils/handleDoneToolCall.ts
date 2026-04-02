@@ -89,6 +89,7 @@ Call the "done" tool with:
       ? "Complete the task with your assessment and the requested output data."
       : "Complete the task with your final assessment.",
     inputSchema: doneToolSchema,
+    strict: true,
     execute: async (params) => {
       return { success: true, ...params };
     },

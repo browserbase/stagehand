@@ -109,7 +109,15 @@ export class ExtractHandler {
   async extract<T extends StagehandZodSchema>(
     params: ExtractHandlerParams<T>,
   ): Promise<InferStagehandSchema<T> | { pageText: string }> {
-    const { instruction, schema, page, selector, timeout, model } = params;
+    const {
+      instruction,
+      schema,
+      page,
+      selector,
+      timeout,
+      model,
+      strictSchema,
+    } = params;
 
     const llmClient = this.resolveLlmClient(model);
 
@@ -180,6 +188,7 @@ export class ExtractHandler {
         instruction,
         domElements: combinedTree,
         schema: transformedSchema as StagehandZodObject,
+        strictSchema,
         llmClient,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
