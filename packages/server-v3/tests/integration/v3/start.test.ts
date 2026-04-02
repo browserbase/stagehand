@@ -679,6 +679,59 @@ describe("POST /v1/sessions/start - V3 format", () => {
     );
   });
 
+  it("should reject invalid Bedrock modelClientOptions on session start", async () => {
+    const url = getBaseUrl();
+    const bedrockModelName = "bedrock/us.amazon.nova-pro-v1:0";
+    const cases = [
+      {
+        name: "missing region",
+        modelClientOptions: {
+          apiKey: "bedrock-short-term-api-key",
+        },
+        errorSnippet: "providerOptions.region",
+      },
+      {
+        name: "mixed auth modes",
+        modelClientOptions: {
+          apiKey: "bedrock-short-term-api-key",
+          providerOptions: {
+            region: "us-east-1",
+            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+            secretAccessKey: "secret",
+          },
+        },
+        errorSnippet: "cannot mix apiKey auth",
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const ctx = await fetchWithContext<StartResponse>(
+        `${url}/v1/sessions/start`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            modelName: bedrockModelName,
+            modelClientOptions: testCase.modelClientOptions,
+            ...localBrowser,
+          }),
+        },
+      );
+
+      assertFetchStatus(
+        ctx,
+        HTTP_BAD_REQUEST,
+        `Request should fail with 400 for ${testCase.name}`,
+      );
+      assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+      assertFetchOk(
+        JSON.stringify(ctx.body).includes(testCase.errorSnippet),
+        `Error should reference ${testCase.errorSnippet} for ${testCase.name}`,
+        ctx,
+      );
+    }
+  });
+
   it("should start session with extended options (timeouts, verbose)", async () => {
     const url = getBaseUrl();
 
