@@ -697,8 +697,8 @@ export class FlowLogger {
           requestId: llmRequestId,
           model: modelId,
           output: FlowLogger.buildMiddlewareOutputSummary(res),
-          inputTokens: result.usage?.inputTokens.total,
-          outputTokens: result.usage?.outputTokens.total,
+          inputTokens: result.usage?.inputTokens?.total,
+          outputTokens: result.usage?.outputTokens?.total,
         });
 
         return result;
