@@ -11,7 +11,7 @@ import {
   type Tool,
   type ToolSet,
 } from "ai";
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type { LanguageModelV2, LanguageModelV3 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs.js";
@@ -90,7 +90,7 @@ function buildOpenAiStructuredProviderOptions(options: {
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
-  private model: LanguageModelV3;
+  private model: LanguageModelV2 | LanguageModelV3;
   private logger?: (message: LogLine) => void;
 
   constructor({
@@ -98,7 +98,7 @@ export class AISdkClient extends LLMClient {
     logger,
     clientOptions,
   }: {
-    model: LanguageModelV3;
+    model: LanguageModelV2 | LanguageModelV3;
     logger?: (message: LogLine) => void;
     clientOptions?: ClientOptions;
   }) {
@@ -110,7 +110,7 @@ export class AISdkClient extends LLMClient {
     }
   }
 
-  public getLanguageModel(): LanguageModelV3 {
+  public getLanguageModel(): LanguageModelV2 | LanguageModelV3 {
     return this.model;
   }
 

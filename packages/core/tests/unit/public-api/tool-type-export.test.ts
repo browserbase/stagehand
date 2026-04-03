@@ -31,4 +31,22 @@ describe("Tool exports from AI SDK", () => {
     expect(customTool).toBeDefined();
     expect(customTool.description).toBe("A test tool");
   });
+
+  it("tool function accepts the legacy toModelOutput signature", () => {
+    const customTool = Stagehand.tool({
+      description: "A tool with legacy toModelOutput",
+      inputSchema: z.object({
+        input: z.string(),
+      }),
+      execute: async ({ input }) => {
+        return { summary: `Processed: ${input}` };
+      },
+      toModelOutput: (result) => ({
+        type: "text",
+        value: result.summary,
+      }),
+    });
+
+    expect(customTool).toBeDefined();
+  });
 });

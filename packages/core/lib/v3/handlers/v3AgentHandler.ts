@@ -45,6 +45,7 @@ import {
   CAPTCHA_SOLVED_MSG,
   CAPTCHA_ERRORED_MSG,
 } from "../agent/utils/captchaSolver.js";
+import { asLanguageModelV3Compat } from "../llm/languageModelCompat.js";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -177,9 +178,10 @@ export class V3AgentHandler {
         throw new MissingLLMConfigurationError();
       }
       const baseModel = this.llmClient.getLanguageModel();
+      const middlewareModel = asLanguageModelV3Compat(baseModel);
       //to do - we likely do not need middleware anymore
       const wrappedModel = wrapLanguageModel({
-        model: baseModel,
+        model: middlewareModel,
         middleware: {
           ...FlowLogger.createLlmLoggingMiddleware(baseModel.modelId),
         },

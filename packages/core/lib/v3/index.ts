@@ -20,7 +20,7 @@ import {
 import { isZod4Schema, isZod3Schema, toJsonSchema } from "./zodCompat.js";
 import { connectToMCPServer } from "./mcp/connection.js";
 import { V3Evaluator } from "../v3Evaluator.js";
-import { tool } from "ai";
+import { tool } from "./toolCompat.js";
 import { getAISDKLanguageModel } from "./llm/LLMProvider.js";
 import { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
 import { maybeRunShutdownSupervisorFromArgv } from "./shutdown/supervisor.js";
@@ -80,7 +80,7 @@ export { isZod4Schema, isZod3Schema, toJsonSchema } from "./zodCompat.js";
 
 export { connectToMCPServer } from "./mcp/connection.js";
 export { V3Evaluator } from "../v3Evaluator.js";
-export { tool } from "ai";
+export { tool } from "./toolCompat.js";
 export { getAISDKLanguageModel } from "./llm/LLMProvider.js";
 export { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
 export { maybeRunShutdownSupervisorFromArgv as __internalMaybeRunShutdownSupervisorFromArgv } from "./shutdown/supervisor.js";

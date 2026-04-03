@@ -10,7 +10,7 @@ import {
   streamObject,
   streamText,
 } from "ai";
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type { LanguageModelV2, LanguageModelV3 } from "@ai-sdk/provider";
 import { LogLine } from "../types/public/logs.js";
 import { AvailableModel, ClientOptions } from "../types/public/model.js";
 import type { StagehandZodSchema } from "../zodCompat.js";
@@ -155,5 +155,5 @@ export abstract class LLMClient {
   public transcribe = experimental_transcribe;
   public generateSpeech = experimental_generateSpeech;
 
-  getLanguageModel?(): LanguageModelV3;
+  getLanguageModel?(): LanguageModelV2 | LanguageModelV3;
 }

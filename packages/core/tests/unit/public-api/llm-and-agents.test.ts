@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import * as Stagehand from "@browserbasehq/stagehand";
+import type { LanguageModelV2 } from "@ai-sdk/provider";
 
 describe("LLM and Agents public API types", () => {
   describe("ModelConfiguration", () => {
@@ -32,6 +33,14 @@ describe("LLM and Agents public API types", () => {
       // AISdkClient constructor takes { model: LanguageModelV2 }
       type CtorParams = ConstructorParameters<typeof Stagehand.AISdkClient>;
       expectTypeOf<CtorParams["length"]>().toEqualTypeOf<1>();
+    });
+
+    it("constructor accepts a LanguageModelV2", () => {
+      const model = {} as LanguageModelV2;
+
+      expectTypeOf<typeof Stagehand.AISdkClient>().toBeConstructibleWith({
+        model,
+      });
     });
   });
 

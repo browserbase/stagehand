@@ -9,7 +9,7 @@ import {
   UserModelMessage,
   type Tool,
 } from "ai";
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type { LanguageModelV2, LanguageModelV3 } from "@ai-sdk/provider";
 import { CreateChatCompletionOptions, LLMClient } from "../llm/LLMClient.js";
 import { AvailableModel } from "../types/public/index.js";
 import { ChatCompletion } from "openai/resources";
@@ -56,9 +56,9 @@ function toLLMUsage(usage?: {
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
-  private model: LanguageModelV3;
+  private model: LanguageModelV2 | LanguageModelV3;
 
-  constructor({ model }: { model: LanguageModelV3 }) {
+  constructor({ model }: { model: LanguageModelV2 | LanguageModelV3 }) {
     super(model.modelId as AvailableModel);
     this.model = model;
   }
