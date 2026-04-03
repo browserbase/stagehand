@@ -117,7 +117,7 @@ Close the active Browserbase session for the current MCP transport session.
 ## Local Command-Line Flags
 
 <Note>
-Command-line flags are only available when running the server locally (`npx @browserbasehq/mcp-server-browserbase` with flags or local development setup).
+Command-line flags are only available when running the server locally (`npx @browserbasehq/mcp` with flags or local development setup).
 </Note>
 
 | Flag | Description |
@@ -183,7 +183,7 @@ Go into your MCP Config JSON and add the Browserbase Server:
   "mcpServers": {
     "browserbase": {
       "command": "npx",
-      "args": ["@browserbasehq/mcp-server-browserbase"],
+      "args": ["@browserbasehq/mcp"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
         "GEMINI_API_KEY": "your_gemini_api_key"
