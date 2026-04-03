@@ -268,7 +268,7 @@ readme:
       type: request
       endpoint: post /v1/sessions/start
       params:
-        modelName: "openai/gpt-5-nano"
+        modelName: "anthropic/claude-4.5-opus"
     headline:
       type: request
       endpoint: post /v1/sessions/{id}/act
