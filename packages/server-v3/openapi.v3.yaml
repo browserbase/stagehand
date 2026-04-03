@@ -181,8 +181,8 @@ components:
             - microsoft
             - bedrock
         modelName:
-          description: Model name string with provider prefix (e.g., 'anthropic/claude-4.5-opus')
-          example: anthropic/claude-4.5-opus
+          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          example: anthropic/claude-4.6-opus
           type: string
         apiKey:
           description: API key for the model provider
@@ -441,7 +441,7 @@ components:
       properties:
         modelName:
           description: Model name to use for AI operations
-          example: openai/gpt-4o
+          example: anthropic/claude-4.6-opus
           type: string
         domSettleTimeoutMs:
           description: Timeout in ms to wait for DOM to settle
@@ -503,7 +503,7 @@ components:
       properties:
         model:
           description: Model configuration object or model name string (e.g.,
-            'anthropic/claude-4.5-opus')
+            'openai/gpt-5-nano')
           anyOf:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
@@ -582,7 +582,7 @@ components:
       properties:
         model:
           description: Model configuration object or model name string (e.g.,
-            'anthropic/claude-4.5-opus')
+            'openai/gpt-5-nano')
           anyOf:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
@@ -634,7 +634,7 @@ components:
       properties:
         model:
           description: Model configuration object or model name string (e.g.,
-            'anthropic/claude-4.5-opus')
+            'openai/gpt-5-nano')
           anyOf:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
@@ -691,7 +691,7 @@ components:
       type: object
       properties:
         provider:
-          description: "AI provider for the agent (legacy, use model: anthropic/claude-4.5-opus
+          description: "AI provider for the agent (legacy, use model: openai/gpt-5-nano
             instead)"
           example: openai
           type: string
@@ -703,7 +703,7 @@ components:
             - bedrock
         model:
           description: Model configuration object or model name string (e.g.,
-            'anthropic/claude-4.5-opus')
+            'openai/gpt-5-nano')
           anyOf:
             - $ref: "#/components/schemas/ModelConfig"
             - type: string
@@ -725,7 +725,7 @@ components:
             - cua
         executionModel:
           description: Model configuration object or model name string (e.g.,
-            'anthropic/claude-4.5-opus') for tool execution (observe/act calls within
+            'openai/gpt-5-nano') for tool execution (observe/act calls within
             agent tools). If not specified, inherits from the main model
             configuration.
           anyOf:
@@ -1220,8 +1220,8 @@ components:
             - microsoft
             - bedrock
         modelName:
-          description: Model name string with provider prefix (e.g., 'anthropic/claude-4.5-opus')
-          example: anthropic/claude-4.5-opus
+          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          example: anthropic/claude-4.6-opus
           type: string
         apiKey:
           description: API key for the model provider
@@ -1489,7 +1489,7 @@ components:
       properties:
         model:
           description: Model configuration object or model name string (e.g.,
-            'anthropic/claude-4.5-opus')
+            'openai/gpt-5-nano')
           anyOf:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
@@ -1549,7 +1549,7 @@ components:
       properties:
         model:
           description: Model configuration object or model name string (e.g.,
-            'anthropic/claude-4.5-opus')
+            'openai/gpt-5-nano')
           anyOf:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
@@ -1579,7 +1579,7 @@ components:
       properties:
         model:
           description: Model configuration object or model name string (e.g.,
-            'anthropic/claude-4.5-opus')
+            'openai/gpt-5-nano')
           anyOf:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
@@ -1620,7 +1620,7 @@ components:
       type: object
       properties:
         provider:
-          description: "AI provider for the agent (legacy, use model: anthropic/claude-4.5-opus
+          description: "AI provider for the agent (legacy, use model: openai/gpt-5-nano
             instead)"
           example: openai
           type: string
@@ -1632,7 +1632,7 @@ components:
             - bedrock
         model:
           description: Model configuration object or model name string (e.g.,
-            'anthropic/claude-4.5-opus')
+            'openai/gpt-5-nano')
           anyOf:
             - $ref: "#/components/schemas/ModelConfigOutput"
             - type: string
@@ -1654,7 +1654,7 @@ components:
             - cua
         executionModel:
           description: Model configuration object or model name string (e.g.,
-            'anthropic/claude-4.5-opus') for tool execution (observe/act calls within
+            'openai/gpt-5-nano') for tool execution (observe/act calls within
             agent tools). If not specified, inherits from the main model
             configuration.
           anyOf:
