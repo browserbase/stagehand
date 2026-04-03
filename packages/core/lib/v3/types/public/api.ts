@@ -69,7 +69,7 @@ export const ModelConfigObjectSchema = z
     modelName: z.string().meta({
       description:
         "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-      example: "anthropic/claude-4.6-opus",
+      example: "openai/gpt-5.4-mini",
     }),
     apiKey: z.string().optional().meta({
       description: "API key for the model provider",
@@ -313,7 +313,7 @@ export const SessionStartRequestSchema = z
   .object({
     modelName: z.string().meta({
       description: "Model name to use for AI operations",
-      example: "anthropic/claude-4.6-opus",
+      example: "openai/gpt-5.4-mini",
     }),
     domSettleTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms to wait for DOM to settle",

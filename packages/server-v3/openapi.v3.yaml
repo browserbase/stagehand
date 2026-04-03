@@ -182,7 +182,7 @@ components:
             - bedrock
         modelName:
           description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
-          example: anthropic/claude-4.6-opus
+          example: openai/gpt-5.4-mini
           type: string
         apiKey:
           description: API key for the model provider
@@ -441,7 +441,7 @@ components:
       properties:
         modelName:
           description: Model name to use for AI operations
-          example: anthropic/claude-4.6-opus
+          example: openai/gpt-5.4-mini
           type: string
         domSettleTimeoutMs:
           description: Timeout in ms to wait for DOM to settle
@@ -1221,7 +1221,7 @@ components:
             - bedrock
         modelName:
           description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
-          example: anthropic/claude-4.6-opus
+          example: openai/gpt-5.4-mini
           type: string
         apiKey:
           description: API key for the model provider
