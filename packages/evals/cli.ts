@@ -1,12 +1,20 @@
 import process from "process";
 import chalk from "chalk";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { spawn } from "child_process";
 import { getCurrentDirPath } from "./runtimePaths.js";
 
 const moduleDir = getCurrentDirPath();
 const CONFIG_PATH = path.join(moduleDir, "evals.config.json");
+
+const USER_CONFIG_DIR =
+  process.env.STAGEHAND_EVALS_CONFIG_OVERRIDE_DIR ??
+  path.join(os.homedir(), ".stagehand");
+const USER_DEFAULTS_PATH = process.env.STAGEHAND_EVALS_CONFIG_OVERRIDE_PATH
+  ? path.resolve(process.env.STAGEHAND_EVALS_CONFIG_OVERRIDE_PATH)
+  : path.join(USER_CONFIG_DIR, "evals.defaults.json");
 
 interface Config {
   defaults: {
@@ -28,12 +36,57 @@ interface Config {
   tasks: Array<{ name: string; categories: string[] }>;
 }
 
-function loadConfig(): Config {
+type Defaults = Config["defaults"];
+
+function loadBaseConfig(): Config {
   return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
 }
 
-function saveConfig(config: Config): void {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+function loadUserDefaults(baseDefaults: Defaults): Partial<Defaults> {
+  if (!fs.existsSync(USER_DEFAULTS_PATH)) {
+    return {};
+  }
+  try {
+    const raw = JSON.parse(
+      fs.readFileSync(USER_DEFAULTS_PATH, "utf-8"),
+    ) as Record<string, unknown>;
+    const defaultsCandidate =
+      raw && typeof raw === "object" && "defaults" in raw
+        ? (raw as { defaults: Record<string, unknown> }).defaults
+        : raw;
+    if (!defaultsCandidate || typeof defaultsCandidate !== "object") {
+      return {};
+    }
+    const allowed = new Set(Object.keys(baseDefaults));
+    const entries = Object.entries(defaultsCandidate).filter(([key]) =>
+      allowed.has(key),
+    );
+    return Object.fromEntries(entries) as Partial<Defaults>;
+  } catch {
+    console.warn(
+      chalk.yellow(
+        `Warning: Unable to read ${USER_DEFAULTS_PATH}. Using base defaults.`,
+      ),
+    );
+    return {};
+  }
+}
+
+function saveUserDefaults(defaults: Partial<Defaults>): void {
+  fs.mkdirSync(path.dirname(USER_DEFAULTS_PATH), { recursive: true });
+  fs.writeFileSync(
+    USER_DEFAULTS_PATH,
+    JSON.stringify(defaults, null, 2) + "\n",
+  );
+}
+
+function loadConfig(): Config {
+  const baseConfig = loadBaseConfig();
+  const userDefaults = loadUserDefaults(baseConfig.defaults);
+  return {
+    ...baseConfig,
+    defaults: { ...baseConfig.defaults, ...userDefaults },
+  };
 }
 
 function printHelp(): void {
@@ -106,7 +159,12 @@ function printHelp(): void {
 }
 
 function handleConfig(args: string[]): void {
-  const config = loadConfig();
+  const baseConfig = loadBaseConfig();
+  const userDefaults = loadUserDefaults(baseConfig.defaults);
+  const config = {
+    ...baseConfig,
+    defaults: { ...baseConfig.defaults, ...userDefaults },
+  };
 
   if (args.length === 0) {
     // Show current config
@@ -158,46 +216,41 @@ function handleConfig(args: string[]): void {
     } else if (key === "api") {
       config.defaults.api = parsedValue as boolean;
     }
-    saveConfig(config);
+    const nextUserDefaults = {
+      ...userDefaults,
+      [key]: parsedValue,
+    } as Partial<Defaults>;
+    const baseValue = baseConfig.defaults[key as keyof Defaults];
+    if (parsedValue === baseValue) {
+      delete nextUserDefaults[key as keyof Defaults];
+    }
+    saveUserDefaults(nextUserDefaults);
     console.log(chalk.green(`✓ Set ${key} to ${parsedValue}`));
   } else if (args[0] === "reset") {
-    const defaultConfig: Config["defaults"] = {
-      env: "local",
-      trials: 3,
-      concurrency: 3,
-      provider: null,
-      model: null,
-      api: false,
-    };
-
-    if (args[1] && args[1] in config.defaults) {
-      const key = args[1];
-      // Type-safe reset by key
-      if (key === "env") {
-        config.defaults.env = defaultConfig.env;
-      } else if (key === "trials") {
-        config.defaults.trials = defaultConfig.trials;
-      } else if (key === "concurrency") {
-        config.defaults.concurrency = defaultConfig.concurrency;
-      } else if (key === "provider") {
-        config.defaults.provider = defaultConfig.provider;
-      } else if (key === "model") {
-        config.defaults.model = defaultConfig.model;
-      } else if (key === "api") {
-        config.defaults.api = defaultConfig.api;
+    if (args[1] && args[1] in baseConfig.defaults) {
+      const key = args[1] as keyof Defaults;
+      const nextUserDefaults = { ...userDefaults } as Partial<Defaults>;
+      delete nextUserDefaults[key];
+      if (Object.keys(nextUserDefaults).length === 0) {
+        if (fs.existsSync(USER_DEFAULTS_PATH)) {
+          fs.rmSync(USER_DEFAULTS_PATH, { force: true });
+        }
+      } else {
+        saveUserDefaults(nextUserDefaults);
       }
-      saveConfig(config);
       console.log(chalk.green(`✓ Reset ${args[1]} to default`));
     } else if (!args[1]) {
-      config.defaults = defaultConfig;
-      saveConfig(config);
+      if (fs.existsSync(USER_DEFAULTS_PATH)) {
+        fs.rmSync(USER_DEFAULTS_PATH, { force: true });
+      }
       console.log(chalk.green("✓ Reset all settings to defaults"));
     } else {
       console.error(chalk.red(`Error: Unknown config key "${args[1]}"`));
       process.exit(1);
     }
   } else if (args[0] === "path") {
-    console.log(CONFIG_PATH);
+    console.log(`defaults: ${USER_DEFAULTS_PATH}`);
+    console.log(`base: ${CONFIG_PATH}`);
   } else {
     console.error(chalk.red("Error: Invalid config command"));
     console.log(

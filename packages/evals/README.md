@@ -160,13 +160,13 @@ Chrome browser automation tasks from the OSWorld benchmark.
 
 ## Configuration
 
-The CLI uses a configuration file at `evals/evals.config.json` which contains:
+The CLI ships with a base configuration file at `evals/evals.config.json` (or the packaged `dist/cli/evals.config.json`) which contains:
 
-- **defaults**: Default values for CLI options
+- **defaults**: Base default values for CLI options
 - **benchmarks**: Metadata for external benchmarks
 - **tasks**: Registry of all evaluation tasks
 
-You can modify defaults either through the `config` command or by editing the file directly.
+User overrides are stored separately in `~/.stagehand/evals.defaults.json` (override path with `STAGEHAND_EVALS_CONFIG_OVERRIDE_PATH`). You can override the directory with `STAGEHAND_EVALS_CONFIG_OVERRIDE_DIR`. The `config` command writes to this file so defaults persist across builds and reinstalls. You can still edit `evals.config.json` to add tasks or benchmarks.
 
 ## Environment Variables
 
