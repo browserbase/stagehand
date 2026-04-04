@@ -238,8 +238,9 @@ Hybrid mode uses both DOM-based and coordinate-based tools (act, click, type, dr
 
 **Recommended models for hybrid mode:**
 
-- `google/gemini-3-flash-preview`
-- `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
+- `google/gemini-3-flash-preview`, `google/gemini-3.1-flash-live-preview`, `google/gemini-3.1-pro-preview`
+- `openai/gpt-5.4`, `openai/gpt-5.4-mini`
+- Any `anthropic/claude-*` model
 
 ```typescript
 const stagehand = new Stagehand({

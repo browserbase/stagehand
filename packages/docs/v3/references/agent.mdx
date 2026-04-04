@@ -131,8 +131,9 @@ interface AgentInstance {
   
   <Warning>
   **Hybrid Mode Model Requirements:** Only use hybrid mode with models that can reliably perform coordinate-based actions:
-  - **Google:** `google/gemini-3-flash-preview`
-  - **Anthropic:** `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
+  - **Google:** `google/gemini-3-flash-preview`, `google/gemini-3.1-flash-live-preview`, `google/gemini-3.1-pro-preview`
+  - **OpenAI:** `openai/gpt-5.4`, `openai/gpt-5.4-mini`
+  - **Anthropic:** Any `anthropic/claude-*` model
   
   Requires `experimental: true` in Stagehand constructor.
   </Warning>

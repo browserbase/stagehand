@@ -166,6 +166,8 @@ export class V3AgentHandler {
       if (
         this.mode === "hybrid" &&
         !baseModel.modelId.includes("gemini-3-flash") &&
+        !baseModel.modelId.includes("gemini-3.1") &&
+        !baseModel.modelId.includes("gpt-5.4") &&
         !baseModel.modelId.includes("claude")
       ) {
         this.logger({
