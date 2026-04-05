@@ -17,6 +17,7 @@ import { CerebrasClient } from "./CerebrasClient.js";
 import { GoogleClient } from "./GoogleClient.js";
 import { GroqClient } from "./GroqClient.js";
 import { LLMClient } from "./LLMClient.js";
+import { MiniMaxClient } from "./MiniMaxClient.js";
 import { OpenAIClient } from "./OpenAIClient.js";
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { bedrock, createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
@@ -98,6 +99,10 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.0-flash": "google",
   "gemini-2.5-flash-preview-04-17": "google",
   "gemini-2.5-pro-preview-03-25": "google",
+  "minimax-MiniMax-M2.7": "minimax",
+  "minimax-MiniMax-M2.7-highspeed": "minimax",
+  "minimax-MiniMax-M2.5": "minimax",
+  "minimax-MiniMax-M2.5-highspeed": "minimax",
 };
 
 export function getAISDKLanguageModel(
@@ -163,6 +168,16 @@ export class LLMProvider {
       const firstSlashIndex = modelName.indexOf("/");
       const subProvider = modelName.substring(0, firstSlashIndex);
       const subModelName = modelName.substring(firstSlashIndex + 1);
+
+      // Handle MiniMax natively (no AI SDK provider available)
+      if (subProvider === "minimax") {
+        return new MiniMaxClient({
+          logger: this.logger,
+          modelName: modelName as AvailableModel,
+          clientOptions,
+        });
+      }
+
       if (
         subProvider === "vertex" &&
         !options?.disableAPI &&
@@ -230,6 +245,12 @@ export class LLMProvider {
           modelName: availableModel,
           clientOptions,
         });
+      case "minimax":
+        return new MiniMaxClient({
+          logger: this.logger,
+          modelName: availableModel,
+          clientOptions,
+        });
       default:
         // This default case handles unknown providers that exist in modelToProviderMap
         // but aren't implemented in the switch. This is an internal consistency issue.
@@ -243,6 +264,9 @@ export class LLMProvider {
     if (modelName.includes("/")) {
       const firstSlashIndex = modelName.indexOf("/");
       const subProvider = modelName.substring(0, firstSlashIndex);
+      if (subProvider === "minimax") {
+        return "minimax";
+      }
       if (AISDKProviders[subProvider]) {
         return "aisdk";
       }
