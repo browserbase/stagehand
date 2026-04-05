@@ -14,7 +14,7 @@ import { promises as fs } from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as net from "net";
-import { spawn } from "child_process";
+import { spawn, execFileSync, spawnSync } from "child_process";
 import * as readline from "readline";
 import type { Protocol } from "devtools-protocol";
 import { version as VERSION } from "../package.json";
@@ -2919,6 +2919,51 @@ networkCmd
       console.error("Error:", e instanceof Error ? e.message : e);
       process.exit(1);
     }
+  });
+
+// ==================== UPGRADE ====================
+
+program
+  .command("upgrade")
+  .description("Upgrade browse CLI to the latest version")
+  .action(async () => {
+    const pkg = "@browserbasehq/browse-cli@latest";
+
+    // Detect package manager
+    let pm: "npm" | "pnpm" | "bun" | "yarn" = "npm";
+    const userAgent = process.env.npm_config_user_agent ?? "";
+
+    if (userAgent.startsWith("pnpm")) {
+      pm = "pnpm";
+    } else if (userAgent.startsWith("bun")) {
+      pm = "bun";
+    } else if (userAgent.startsWith("yarn")) {
+      pm = "yarn";
+    } else {
+      // Fall back to checking which package managers are available
+      for (const candidate of ["pnpm", "bun", "yarn", "npm"] as const) {
+        try {
+          execFileSync("which", [candidate], { stdio: "ignore" });
+          pm = candidate;
+          break;
+        } catch {
+          // not found, try next
+        }
+      }
+    }
+
+    const commands: Record<string, string[]> = {
+      npm: ["npm", "install", "-g", pkg],
+      pnpm: ["pnpm", "add", "-g", pkg],
+      bun: ["bun", "add", "-g", pkg],
+      yarn: ["yarn", "global", "add", pkg],
+    };
+
+    const [cmd, ...args] = commands[pm];
+    console.log(`Running: ${cmd} ${args.join(" ")}`);
+
+    const result = spawnSync(cmd, args, { stdio: "inherit" });
+    process.exit(result.status ?? 1);
   });
 
 // ==================== RUN ====================
