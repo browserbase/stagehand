@@ -86,7 +86,6 @@ logging.basicConfig(level=logging.INFO)
 config = StagehandConfig(
     env="BROWSERBASE",
     api_key=os.getenv("BROWSERBASE_API_KEY"),
-    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
     headless=False,
     dom_settle_timeout_ms=3000,
     model_name="google/gemini-2.0-flash",
@@ -111,7 +110,6 @@ SDK_VERSION = "3.0.6"
 # Create the Stagehand API client
 client = Stagehand(
     browserbase_api_key=os.environ.get("BROWSERBASE_API_KEY"),
-    browserbase_project_id=os.environ.get("BROWSERBASE_PROJECT_ID"),
     model_api_key=os.environ.get("MODEL_API_KEY"),
 )
 
@@ -467,7 +465,6 @@ async def main():
     config = StagehandConfig(
         env="BROWSERBASE",
         api_key=os.getenv("BROWSERBASE_API_KEY"),
-        project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
         headless=False,
         model_name="google/gemini-2.0-flash",
         model_client_options={"apiKey": os.getenv("MODEL_API_KEY")},
@@ -529,7 +526,6 @@ def main():
     # Create Stagehand API client
     client = Stagehand(
         browserbase_api_key=os.environ.get("BROWSERBASE_API_KEY"),
-        browserbase_project_id=os.environ.get("BROWSERBASE_PROJECT_ID"),
         model_api_key=os.environ.get("MODEL_API_KEY"),
     )
 

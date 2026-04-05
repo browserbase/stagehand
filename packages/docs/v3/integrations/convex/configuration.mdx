@@ -44,7 +44,6 @@ Set the following environment variables in your [Convex Dashboard](https://dashb
 | Variable | Description |
 |----------|-------------|
 | `BROWSERBASE_API_KEY` | Your Browserbase API key |
-| `BROWSERBASE_PROJECT_ID` | Your Browserbase project ID |
 | `MODEL_API_KEY` | API key for your LLM provider (OpenAI, Anthropic, etc.) |
 
 ## Basic Usage
@@ -63,7 +62,6 @@ import { z } from "zod";
 
 const stagehand = new Stagehand(components.stagehand, {
   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
-  browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
   modelApiKey: process.env.MODEL_API_KEY!,
 });
 ```
@@ -188,7 +186,6 @@ The default model is `openai/gpt-4o`. You can configure alternative providers:
 ```typescript
 const stagehand = new Stagehand(components.stagehand, {
   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
-  browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
   modelApiKey: process.env.ANTHROPIC_API_KEY!,
   modelName: "anthropic/claude-sonnet-4-5-20250929",
 });

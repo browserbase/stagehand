@@ -37,9 +37,8 @@ require "stagehand"
 
 # Create a new Stagehand client with your credentials
 client = Stagehand::Client.new(
-  browserbase_api_key: ENV["BROWSERBASE_API_KEY"],      # defaults to ENV["BROWSERBASE_API_KEY"]
-  browserbase_project_id: ENV["BROWSERBASE_PROJECT_ID"], # defaults to ENV["BROWSERBASE_PROJECT_ID"]
-  model_api_key: ENV["MODEL_API_KEY"]                   # defaults to ENV["MODEL_API_KEY"]
+  browserbase_api_key: ENV["BROWSERBASE_API_KEY"], # defaults to ENV["BROWSERBASE_API_KEY"]
+  model_api_key: ENV["MODEL_API_KEY"]              # defaults to ENV["MODEL_API_KEY"]
 )
 
 # Start a new browser session
@@ -138,7 +137,6 @@ Set the required environment variables and run the example script:
 ```bash
 # Set your credentials
 export BROWSERBASE_API_KEY="your-browserbase-api-key"
-export BROWSERBASE_PROJECT_ID="your-browserbase-project-id"
 export MODEL_API_KEY="your-openai-api-key"
 
 # Install dependencies and run

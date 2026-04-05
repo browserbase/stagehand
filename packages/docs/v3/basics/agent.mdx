@@ -101,7 +101,7 @@ await agent.execute({
 const agent = stagehand.agent({
     mode: "cua",
     model: {
-        modelName: "anthropic/claude-sonnet-4-20250514",
+        modelName: "anthropic/claude-sonnet-4-6",
         apiKey: process.env.ANTHROPIC_API_KEY
     },
     systemPrompt: "You are a helpful assistant...",
@@ -138,7 +138,7 @@ Both DOM and CUA modes have their strengths and weaknesses. Hybrid mode combines
 <Warning>
 **Model Requirements:** Hybrid mode requires models that can reliably perform coordinate-based actions from screenshots. The following models are recommended:
 - **Google:** `google/gemini-3-flash-preview`
-- **Anthropic:** `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
+- **Anthropic:** `anthropic/claude-sonnet-4-6`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
 
 Other models may not reliably produce accurate coordinates for clicking and typing.
 
@@ -289,7 +289,7 @@ import { z } from "zod";
 
 const agent = stagehand.agent({
   mode: "cua",
-  model: "anthropic/claude-sonnet-4-20250514",
+  model: "anthropic/claude-sonnet-4-6",
   tools: {
     searchDatabase: tool({
       description: 'Search for records in the database',

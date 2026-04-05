@@ -42,7 +42,6 @@ interface V3Options {
 
   // Browserbase options (required when env = "BROWSERBASE")
   apiKey?: string;
-  projectId?: string;
   browserbaseSessionID?: string;
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
 
@@ -85,12 +84,6 @@ interface V3Options {
   Browserbase API key. Required when `env` is `"BROWSERBASE"`.
 
   Can also be set via `BROWSERBASE_API_KEY` environment variable.
-</ParamField>
-
-<ParamField path="projectId" type="string" optional>
-  Browserbase project ID. Required when `env` is `"BROWSERBASE"`.
-
-  Can also be set via `BROWSERBASE_PROJECT_ID` environment variable.
 </ParamField>
 
 <ParamField path="browserbaseSessionID" type="string" optional>
@@ -458,7 +451,6 @@ import { Stagehand } from "@browserbasehq/stagehand";
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
   model: "anthropic/claude-sonnet-4-6"
 });
 
@@ -637,7 +629,6 @@ try {
 Stagehand recognizes the following environment variables:
 
 - `BROWSERBASE_API_KEY` - Browserbase API key
-- `BROWSERBASE_PROJECT_ID` - Browserbase project ID
 - `OPENAI_API_KEY` - OpenAI API key
 - `ANTHROPIC_API_KEY` - Anthropic API key
 - `GOOGLE_API_KEY` - Google AI API key
