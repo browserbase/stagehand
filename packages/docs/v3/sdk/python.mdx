@@ -45,7 +45,6 @@ To run it, first export the required environment variables, then use Python:
 
 ```bash
 export BROWSERBASE_API_KEY="your-bb-api-key"
-export BROWSERBASE_PROJECT_ID="your-bb-project-uuid"
 export MODEL_API_KEY="sk-proj-your-llm-api-key"
 
 uv run python examples/full_example.py
@@ -114,7 +113,7 @@ from stagehand import AsyncStagehand
 
 async def main() -> None:
     # Create client using environment variables:
-    # BROWSERBASE_API_KEY, BROWSERBASE_PROJECT_ID, MODEL_API_KEY
+    # BROWSERBASE_API_KEY, MODEL_API_KEY
     client = AsyncStagehand()
 
     # Start a new browser session (returns a session helper bound to a session_id)
@@ -201,7 +200,6 @@ from stagehand import AsyncStagehand
 
 client = AsyncStagehand(
     browserbase_api_key="My Browserbase API Key",
-    browserbase_project_id="My Browserbase Project ID",
     model_api_key="My Model API Key",
 )
 ```
@@ -222,7 +220,6 @@ See this table for the available options:
 | Keyword argument         | Environment variable     | Required | Default value                             |
 | ------------------------ | ------------------------ | -------- | ----------------------------------------- |
 | `browserbase_api_key`    | `BROWSERBASE_API_KEY`    | true     | -                                         |
-| `browserbase_project_id` | `BROWSERBASE_PROJECT_ID` | true     | -                                         |
 | `model_api_key`          | `MODEL_API_KEY`          | true     | -                                         |
 | `base_url`               | `STAGEHAND_BASE_URL`     | false    | `"https://api.stagehand.browserbase.com"` |
 

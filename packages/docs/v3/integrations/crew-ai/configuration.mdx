@@ -22,14 +22,13 @@ pip install stagehand crewai crewai-tools
 
 You'll need API keys from three services:
 
-1. **Browserbase API Key and Project ID**: Get these from your [Browserbase dashboard](https://www.browserbase.com/)
+1. **Browserbase API Key**: Get this from your [Browserbase dashboard](https://www.browserbase.com/)
 2. **LLM API Key**: Get an API key from [OpenAI](https://platform.openai.com/api-keys) or [Anthropic](https://console.anthropic.com/)
 
 Store your API keys securely as environment variables:
 
 ```bash
 BROWSERBASE_API_KEY="your-browserbase-api-key"
-BROWSERBASE_PROJECT_ID="your-browserbase-project-id"
 OPENAI_API_KEY="your-openai-api-key"
 ANTHROPIC_API_KEY="your-anthropic-api-key"
 ```
@@ -46,13 +45,11 @@ from stagehand.schemas import AvailableModel
 
 # Get API keys from environment
 browserbase_api_key = os.environ.get("BROWSERBASE_API_KEY")
-browserbase_project_id = os.environ.get("BROWSERBASE_PROJECT_ID")
 model_api_key = os.environ.get("OPENAI_API_KEY")  # or ANTHROPIC_API_KEY
 
 # Initialize the StagehandTool
 stagehand_tool = StagehandTool(
     api_key=browserbase_api_key,
-    project_id=browserbase_project_id,
     model_api_key=model_api_key,
     model_name=AvailableModel.GPT_4O,  # or AvailableModel.CLAUDE_3_7_SONNET_LATEST
 )
@@ -108,7 +105,6 @@ Customize the StagehandTool behavior with additional parameters:
 ```python
 stagehand_tool = StagehandTool(
     api_key=browserbase_api_key,
-    project_id=browserbase_project_id,
     model_api_key=model_api_key,
     model_name=AvailableModel.CLAUDE_3_7_SONNET_LATEST,
     dom_settle_timeout_ms=5000,  # Wait longer for DOM to settle

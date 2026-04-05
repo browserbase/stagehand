@@ -57,9 +57,8 @@ import (
 func main() {
 	// Create a new Stagehand client with your credentials
 	client := stagehand.NewClient(
-		option.WithBrowserbaseAPIKey("My Browserbase API Key"),       // defaults to os.LookupEnv("BROWSERBASE_API_KEY")
-		option.WithBrowserbaseProjectID("My Browserbase Project ID"), // defaults to os.LookupEnv("BROWSERBASE_PROJECT_ID")
-		option.WithModelAPIKey("My Model API Key"),                   // defaults to os.LookupEnv("MODEL_API_KEY")
+		option.WithBrowserbaseAPIKey("My Browserbase API Key"), // defaults to os.LookupEnv("BROWSERBASE_API_KEY")
+		option.WithModelAPIKey("My Model API Key"),             // defaults to os.LookupEnv("MODEL_API_KEY")
 	)
 
 	// Start a new browser session
@@ -205,11 +204,10 @@ A complete working example is available in `examples/basic.go`. To run it:
 
 ```bash
 BROWSERBASE_API_KEY=your_browserbase_api_key
-BROWSERBASE_PROJECT_ID=your_browserbase_project_id
 MODEL_API_KEY=your_openai_api_key
 ```
 
-You can get your Browserbase API key and project ID from the [Browserbase dashboard](https://www.browserbase.com/).
+You can get your Browserbase API key from the [Browserbase dashboard](https://www.browserbase.com/).
 
 2. **Install dependencies**:
 
