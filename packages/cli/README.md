@@ -239,7 +239,6 @@ browse status
 |----------|-------------|
 | `BROWSE_SESSION` | Default session name (alternative to `--session`) |
 | `BROWSERBASE_API_KEY` | Browserbase API key (required for `browse env remote`) |
-| `BROWSERBASE_PROJECT_ID` | Browserbase project ID (optional, passed through if set) |
 
 ## Element References
 

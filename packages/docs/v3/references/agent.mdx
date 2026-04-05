@@ -63,7 +63,7 @@ interface AgentInstance {
 
 <ParamField path="model" type="string | AgentModelConfig" optional>
   The model to use for agent functionality. Can be either:
-  - A string in the format `"provider/model"` (e.g., `"openai/computer-use-preview"`, `"anthropic/claude-sonnet-4-20250514"`)
+  - A string in the format `"provider/model"` (e.g., `"openai/computer-use-preview"`, `"anthropic/claude-sonnet-4-6"`)
   - An object with `modelName` and additional provider-specific options
 
   **Available CUA Models:**
@@ -132,7 +132,7 @@ interface AgentInstance {
   <Warning>
   **Hybrid Mode Model Requirements:** Only use hybrid mode with models that can reliably perform coordinate-based actions:
   - **Google:** `google/gemini-3-flash-preview`
-  - **Anthropic:** `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
+  - **Anthropic:** `anthropic/claude-sonnet-4-6`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
   
   Requires `experimental: true` in Stagehand constructor.
   </Warning>
@@ -481,11 +481,11 @@ interface AgentStreamResult {
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
-// Initialize with Browserbase (API key and project ID from environment variables)
-// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+// Initialize with Browserbase (API key from environment variable)
+// Set BROWSERBASE_API_KEY in your environment
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
-  model: "anthropic/claude-sonnet-4-20250514"
+  model: "anthropic/claude-sonnet-4-6"
 });
 await stagehand.init();
 
@@ -532,7 +532,7 @@ const result = await agent.execute({
 // Using AgentModelConfig for advanced configuration
 const agent = stagehand.agent({
   model: {
-    modelName: "anthropic/claude-sonnet-4-20250514",
+    modelName: "anthropic/claude-sonnet-4-6",
     apiKey: process.env.ANTHROPIC_API_KEY,
     baseURL: "https://custom-proxy.com/v1"
   }
@@ -712,7 +712,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 // Create agent with MCP integrations
 const agent = stagehand.agent({
-  model: "anthropic/claude-sonnet-4-20250514",
+  model: "anthropic/claude-sonnet-4-6",
   integrations: [
     "https://mcp-server.example.com",  // MCP server URL
     mcpClientInstance  // Or pre-connected Client object

@@ -153,8 +153,8 @@ The returned object will be strictly typed according to your Zod schema definiti
 import { Stagehand } from "@browserbasehq/stagehand";
 import { z } from 'zod';
 
-// Initialize with Browserbase (API key and project ID from environment variables)
-// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+// Initialize with Browserbase (API key from environment variable)
+// Set BROWSERBASE_API_KEY in your environment
 const stagehand = new Stagehand({ env: "BROWSERBASE" });
 await stagehand.init();
 const page = stagehand.context.pages()[0];

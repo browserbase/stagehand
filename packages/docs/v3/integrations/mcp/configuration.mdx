@@ -20,16 +20,9 @@ Command-line flags are only available when running the server locally (`npx @bro
 
 Configure the essential Browserbase credentials and optional debugging settings:
 
-<CardGroup cols={2}>
 <Card title="BROWSERBASE_API_KEY" icon="key">
 Your Browserbase API key for authentication
 </Card>
-
-<Card title="BROWSERBASE_PROJECT_ID" icon="key">
-Your Browserbase project ID
-</Card>
-
-</CardGroup>
 
 ## Command-Line Flags
 
@@ -83,7 +76,6 @@ When using our remote hosted server, we provide the LLM costs for Gemini, the [b
       "args": ["@browserbasehq/mcp"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id",
         "GEMINI_API_KEY": "your_gemini_api_key"
       }
     }
@@ -101,7 +93,6 @@ When using our remote hosted server, we provide the LLM costs for Gemini, the [b
       "args": ["/path/to/mcp-server-browserbase/cli.js"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id",
         "GEMINI_API_KEY": "your_gemini_api_key"
       }
     }
@@ -123,7 +114,6 @@ node cli.js --port 8931
       "url": "http://localhost:8931/mcp",
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id",
         "GEMINI_API_KEY": "your_gemini_api_key"
       }
     }
@@ -151,7 +141,6 @@ Enable Browserbase proxies for IP rotation and geo-location testing.
       "args": ["@browserbasehq/mcp", "--proxies"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id",
         "GEMINI_API_KEY": "your_gemini_api_key"
       }
     }
@@ -177,7 +166,6 @@ Enable advanced anti-detection features for enhanced stealth browsing.
       "args": ["@browserbasehq/mcp", "--advancedStealth"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id",
         "GEMINI_API_KEY": "your_gemini_api_key"
       }
     }
@@ -200,8 +188,7 @@ Use persistent browser contexts to maintain authentication and state across sess
       "command": "npx",
       "args": ["@browserbasehq/mcp", "--contextId", "your_context_id"],
       "env": {
-        "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id"
+        "BROWSERBASE_API_KEY": "your_api_key"
       }
     }
   }
@@ -228,7 +215,6 @@ Customize browser window dimensions. Default is 1288x711. Recommended aspect rat
       ],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id",
         "GEMINI_API_KEY": "your_gemini_api_key"
       }
     }
@@ -285,8 +271,7 @@ When using any custom model (non-default), you must provide your own API key for
         "--modelApiKey", "your_openai_api_key"
       ],
       "env": {
-        "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id"
+        "BROWSERBASE_API_KEY": "your_api_key"
       }
     }
   }
@@ -304,8 +289,7 @@ When using any custom model (non-default), you must provide your own API key for
         "--modelApiKey", "your_anthropic_api_key"
       ],
       "env": {
-        "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id"
+        "BROWSERBASE_API_KEY": "your_api_key"
       }
     }
   }
@@ -333,7 +317,6 @@ Configure custom host and port for SHTTP transport.
       ],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
-        "BROWSERBASE_PROJECT_ID": "your_project_id",
         "GEMINI_API_KEY": "your_gemini_api_key"
       }
     }

@@ -55,7 +55,6 @@ const stagehand = new Stagehand({
     model: "google/gemini-2.5-flash",
   
     browserbaseSessionCreateParams: {
-      projectId: process.env.BROWSERBASE_PROJECT_ID!,
       browserSettings: {
 		blockAds: true,
         viewport: {
@@ -134,7 +133,7 @@ await page.goto("https://www.google.com/");
 const agent = stagehand.agent({
     mode: "cua",
     model: {
-        modelName: "anthropic/claude-sonnet-4-20250514",
+        modelName: "anthropic/claude-sonnet-4-6",
         apiKey: process.env.ANTHROPIC_API_KEY
     },
     systemPrompt: "You are a helpful assistant...",
@@ -175,7 +174,7 @@ const agent = stagehand.agent({
 ```typescript
 const agent = stagehand.agent({
     mode: "cua",
-    model: "anthropic/claude-sonnet-4-20250514",
+    model: "anthropic/claude-sonnet-4-6",
     // ANTHROPIC_API_KEY is auto-loaded - set in your .env
 });
 ```

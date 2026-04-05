@@ -65,7 +65,6 @@ If you'd like to add Stagehand to an existing Next.js project, you can do so by 
 Next, let's add the environment variables to a `.env` file.
 ```env
 BROWSERBASE_API_KEY=your-browserbase-api-key
-BROWSERBASE_PROJECT_ID=your-browserbase-project-id
 OPENAI_API_KEY=your-openai-api-key
 ```
 
@@ -114,7 +113,6 @@ export async function runStagehand(sessionId?: string) {
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
     apiKey: process.env.BROWSERBASE_API_KEY,
-    projectId: process.env.BROWSERBASE_PROJECT_ID,
     verbose: 1,
     logger: console.log,
     browserbaseSessionID: sessionId,
@@ -131,9 +129,7 @@ export async function runStagehand(sessionId?: string) {
  */
 export async function startBBSSession() {
   const browserbase = new Browserbase();
-  const session = await browserbase.sessions.create({
-    projectId: process.env.BROWSERBASE_PROJECT_ID!,
-  });
+  const session = await browserbase.sessions.create({});
   const debugUrl = await browserbase.sessions.debug(session.id);
   return {
     sessionId: session.id,

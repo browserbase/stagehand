@@ -40,9 +40,7 @@ const bb = new Browserbase({
 });
 
 // Create shared session
-const session = await bb.sessions.create({
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
-});
+const session = await bb.sessions.create({});
 
 console.log("Session created:", session.id);
 ```

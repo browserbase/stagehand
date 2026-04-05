@@ -78,12 +78,11 @@ Before getting started, set up the required environment variables:
 <CodeGroup>
 ```bash .env
 BROWSERBASE_API_KEY=your_api_key_here
-BROWSERBASE_PROJECT_ID=your_project_id_here
 ```
 </CodeGroup>
 
 <Tip>
-Get your API key and Project ID from the [Browserbase Dashboard](https://browserbase.com/overview)
+Get your API key from the [Browserbase Dashboard](https://browserbase.com/overview)
 </Tip>
 
 ### Using Stagehand with Browserbase
@@ -110,9 +109,8 @@ import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
-  // Optional: API Key and Project ID will be pulled directly from your environment
+  // Optional: API Key will be pulled directly from your environment
   apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
   browserbaseSessionCreateParams: {
     proxies: true,
     region: "us-west-2",
@@ -132,9 +130,7 @@ console.log("Session ID:", stagehand.sessionId);
 const stagehand = new Stagehand({
       env: "BROWSERBASE",
       apiKey: process.env.BROWSERBASE_API_KEY,
-      projectId: process.env.BROWSERBASE_PROJECT_ID,
       browserbaseSessionCreateParams: {
-        projectId: process.env.BROWSERBASE_PROJECT_ID!,
         proxies: true,
         region: "us-west-2",
         timeout: 3600, // 1 hour session timeout
@@ -170,7 +166,6 @@ const bb = new Browserbase({
 });
 
 const session = await bb.sessions.create({
-  projectId: process.env.BROWSERBASE_PROJECT_ID!,
   // Add configuration options here
 });
 ```
@@ -399,7 +394,7 @@ Setting `domSettleTimeout` too low may cause actions to fail on elements that ar
 
 <AccordionGroup>
 <Accordion title="Browserbase Authentication Errors">
-- Verify your `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` are set correctly
+- Verify your `BROWSERBASE_API_KEY` is set correctly
 - Check that your API key has the necessary permissions
 - Ensure your Browserbase account has sufficient credits
 </Accordion>
