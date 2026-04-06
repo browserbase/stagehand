@@ -1,17 +1,19 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../../lib/v3/v3.js";
 import { v3TestConfig } from "./v3.config.js";
+import { closeV3 } from "./testUtils.js";
 
 test.describe("Page.hover() - mouse hover at coordinates", () => {
+  test.describe.configure({ mode: "serial" });
   let v3: V3;
 
-  test.beforeEach(async () => {
+  test.beforeAll(async () => {
     v3 = new V3(v3TestConfig);
     await v3.init();
   });
 
-  test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+  test.afterAll(async () => {
+    await closeV3(v3);
   });
 
   test("hover triggers mouseover event at coordinates", async () => {

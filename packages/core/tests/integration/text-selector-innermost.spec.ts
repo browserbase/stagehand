@@ -5,14 +5,15 @@ import { v3DynamicTestConfig } from "./v3.dynamic.config.js";
 import { closeV3 } from "./testUtils.js";
 
 test.describe("Text selector innermost element matching", () => {
+  test.describe.configure({ mode: "serial" });
   let v3: V3;
 
-  test.beforeEach(async () => {
+  test.beforeAll(async () => {
     v3 = new V3(v3DynamicTestConfig);
     await v3.init();
   });
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeV3(v3);
   });
 

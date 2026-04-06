@@ -116,13 +116,41 @@ export class CdpConnection implements CDPSessionLike {
 
   static async connect(
     wsUrl: string,
-    options?: { headers?: Record<string, string> },
+    options?: { headers?: Record<string, string>; retryForMs?: number },
+  ): Promise<CdpConnection> {
+    const deadlineMs = options?.retryForMs
+      ? Date.now() + options.retryForMs
+      : undefined;
+    let lastError: unknown;
+
+    do {
+      try {
+        return await CdpConnection.connectOnce(wsUrl, options?.headers);
+      } catch (error) {
+        lastError = error;
+        if (
+          !deadlineMs ||
+          Date.now() >= deadlineMs ||
+          !isTransientConnectError(error)
+        ) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    } while (deadlineMs && Date.now() < deadlineMs);
+
+    throw lastError;
+  }
+
+  private static async connectOnce(
+    wsUrl: string,
+    userHeaders?: Record<string, string>,
   ): Promise<CdpConnection> {
     // Include User-Agent header for server-side observability and version tracking
     // Merge user-provided headers, letting them override defaults
     const headers = {
       "User-Agent": `Stagehand/${STAGEHAND_VERSION}`,
-      ...options?.headers,
+      ...userHeaders,
     };
     const ws = new WebSocket(wsUrl, { headers });
     await new Promise<void>((resolve, reject) => {
@@ -508,6 +536,25 @@ export class CdpConnection implements CDPSessionLike {
     const handlers = this.eventHandlers.get(key);
     if (handlers) for (const h of handlers) h(params);
   }
+}
+
+function isTransientConnectError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const code =
+    "code" in error && typeof error.code === "string" ? error.code : "";
+  const message =
+    "message" in error && typeof error.message === "string"
+      ? error.message
+      : "";
+
+  return (
+    code === "ECONNREFUSED" ||
+    code === "ECONNRESET" ||
+    code === "EPIPE" ||
+    code === "ETIMEDOUT" ||
+    /ECONNREFUSED|ECONNRESET|socket hang up|EPIPE|ETIMEDOUT/i.test(message)
+  );
 }
 
 export class CdpSession implements CDPSessionLike {

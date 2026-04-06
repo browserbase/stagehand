@@ -7,6 +7,7 @@ import {
   ExperimentalNotConfiguredError,
   StagehandInvalidArgumentError,
 } from "../../lib/v3/types/public/sdkErrors.js";
+import { closeV3 } from "./testUtils.js";
 
 // Define a mock custom tool for testing
 const mockCustomTool = tool({
@@ -28,11 +29,10 @@ test.describe("Stagehand agent experimental feature validation", () => {
         ...v3TestConfig,
         experimental: false,
       });
-      await v3.init();
     });
 
     test.afterEach(async () => {
-      await v3?.close?.().catch(() => {});
+      await closeV3(v3);
     });
 
     test("throws StagehandInvalidArgumentError when CUA and streaming are both enabled", async () => {
@@ -51,15 +51,11 @@ test.describe("Stagehand agent experimental feature validation", () => {
     });
 
     test("throws StagehandInvalidArgumentError for CUA + streaming even with experimental: true", async () => {
-      // Close the non-experimental instance
-      await v3.close();
-
       // Create an experimental instance
       const v3Experimental = new V3({
         ...v3TestConfig,
         experimental: true,
       });
-      await v3Experimental.init();
 
       try {
         v3Experimental.agent({
@@ -73,7 +69,7 @@ test.describe("Stagehand agent experimental feature validation", () => {
         expect((error as Error).message).toContain("streaming");
         expect((error as Error).message).toContain("not supported with CUA");
       } finally {
-        await v3Experimental.close();
+        await closeV3(v3Experimental);
       }
     });
   });
@@ -90,7 +86,7 @@ test.describe("Stagehand agent experimental feature validation", () => {
     });
 
     test.afterEach(async () => {
-      await v3?.close?.().catch(() => {});
+      await closeV3(v3);
     });
 
     test("throws ExperimentalNotConfiguredError for MCP integrations", async () => {
@@ -233,7 +229,7 @@ test.describe("Stagehand agent experimental feature validation", () => {
     });
 
     test.afterEach(async () => {
-      await v3?.close?.().catch(() => {});
+      await closeV3(v3);
     });
 
     test("throws ExperimentalNotConfiguredError for CUA with integrations", async () => {
@@ -317,7 +313,7 @@ test.describe("Stagehand agent experimental feature validation", () => {
 
     test("throws StagehandInvalidArgumentError for CUA unsupported features even with experimental: true", async () => {
       // Close the non-experimental instance
-      await v3.close();
+      await closeV3(v3);
 
       // Create an experimental instance
       const v3Experimental = new V3({
@@ -342,7 +338,7 @@ test.describe("Stagehand agent experimental feature validation", () => {
         expect(error).toBeInstanceOf(StagehandInvalidArgumentError);
         expect((error as Error).message).toContain("not supported with CUA");
       } finally {
-        await v3Experimental.close();
+        await closeV3(v3Experimental);
       }
     });
   });
@@ -355,11 +351,10 @@ test.describe("Stagehand agent experimental feature validation", () => {
         ...v3TestConfig,
         experimental: true,
       });
-      await v3.init();
     });
 
     test.afterEach(async () => {
-      await v3?.close?.().catch(() => {});
+      await closeV3(v3);
     });
 
     test("allows CUA without streaming", () => {
@@ -385,7 +380,6 @@ test.describe("Stagehand agent experimental feature validation", () => {
         ...v3TestConfig,
         experimental: false,
       });
-      await v3NonExperimental.init();
 
       try {
         // This should work - just creating a basic agent with no experimental features
@@ -395,7 +389,7 @@ test.describe("Stagehand agent experimental feature validation", () => {
           }),
         ).not.toThrow();
       } finally {
-        await v3NonExperimental.close();
+        await closeV3(v3NonExperimental);
       }
     });
   });

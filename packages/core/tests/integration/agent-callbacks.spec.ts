@@ -3,11 +3,13 @@ import { V3 } from "../../lib/v3/v3.js";
 import { v3TestConfig } from "./v3.config.js";
 import type { StepResult, ToolSet } from "ai";
 import { StreamingCallbacksInNonStreamingModeError } from "../../lib/v3/types/public/sdkErrors.js";
+import { closeV3 } from "./testUtils.js";
 
 test.describe("Stagehand agent callbacks behavior", () => {
+  test.describe.configure({ mode: "serial" });
   let v3: V3;
 
-  test.beforeEach(async () => {
+  test.beforeAll(async () => {
     v3 = new V3({
       ...v3TestConfig,
       experimental: true, // Required for callbacks and streaming
@@ -15,8 +17,8 @@ test.describe("Stagehand agent callbacks behavior", () => {
     await v3.init();
   });
 
-  test.afterEach(async () => {
-    await v3?.close?.().catch(() => {});
+  test.afterAll(async () => {
+    await closeV3(v3);
   });
 
   test.describe("Non-streaming callbacks (stream: false)", () => {

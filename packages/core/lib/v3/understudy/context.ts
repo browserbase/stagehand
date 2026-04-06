@@ -166,6 +166,9 @@ export class V3Context {
     const connectTask = async () => {
       const conn = await CdpConnection.connect(wsUrl, {
         headers: opts?.cdpHeaders,
+        // Local Chrome sometimes briefly refuses the first real CDP socket
+        // immediately after the readiness probe succeeds under CI load.
+        retryForMs: opts?.env === "LOCAL" ? 3_000 : undefined,
       });
       const ctx = new V3Context(
         conn,
