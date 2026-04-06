@@ -1,5 +1,5 @@
-import { Stagehand } from "../../lib/v3/index.js";
-import { v3Logger } from "../../lib/v3/logger.js";
+import { Stagehand } from "../lib/v3/index.js";
+import { v3Logger } from "../lib/v3/logger.js";
 
 async function runDemo(runNumber: number) {
   const startTime = Date.now();
@@ -12,7 +12,6 @@ async function runDemo(runNumber: number) {
 
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
-    disableAPI: false,
     verbose: 1,
     cacheDir: "cua-agent-cache",
   });

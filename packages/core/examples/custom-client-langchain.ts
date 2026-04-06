@@ -1,11 +1,12 @@
 /**
  * This example shows how to use the Langchain client with Stagehand.
  *
- * You will need to reference the Langchain Client in /external_clients/langchain.ts
+ * The LangchainClient is defined in ./langchain-client.ts as it is not
+ * part of the core Stagehand package.
  */
 import { z } from "zod";
 import { Stagehand } from "../lib/v3/index.js";
-import { LangchainClient } from "./external_clients/langchain.js";
+import { LangchainClient } from "./langchain-client.js";
 import { ChatOpenAI } from "@langchain/openai";
 
 async function example() {
@@ -14,7 +15,7 @@ async function example() {
     verbose: 1,
     llmClient: new LangchainClient(
       new ChatOpenAI({
-        model: "gpt-4o",
+        model: "gpt-4.1",
       }),
     ),
   });

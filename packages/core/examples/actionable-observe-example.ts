@@ -9,7 +9,7 @@
  * - Hiding sensitive information from LLMs
  *
  * For more on caching, see: https://docs.stagehand.dev/examples/caching
- * Also check out the form_filling_sensible.ts example for a more complex example of using observe() to fill out a form.
+ * Also check out the form-filling-sensible.ts example for a more complex example of using observe() to fill out a form.
  */
 
 import { Action, Stagehand } from "../lib/v3/index.js";

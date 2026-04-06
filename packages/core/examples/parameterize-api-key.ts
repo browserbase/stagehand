@@ -16,7 +16,7 @@ async function example() {
     env: "LOCAL",
     verbose: 1,
     model: {
-      modelName: "gpt-4o",
+      modelName: "gpt-4.1-mini",
       apiKey: process.env.USE_OPENAI_API_KEY,
     },
   });

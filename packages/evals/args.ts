@@ -90,7 +90,6 @@ const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
       "targeted_extract",
       "regression_llm_providers",
       "regression",
-      "llm_clients",
       "agent",
       "external_agent_benchmarks",
     ];

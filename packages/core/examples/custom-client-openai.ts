@@ -2,12 +2,9 @@
  * This example shows how to use a custom OpenAI client with Stagehand.
  *
  * The OpenAI API provides a simple, type-safe, and composable way to build AI applications.
- *
- * You will need to reference the Custom OpenAI Client in /external_clients/customOpenAI.ts
  */
-import { Stagehand } from "../lib/v3/index.js";
+import { CustomOpenAIClient, Stagehand } from "../lib/v3/index.js";
 import { z } from "zod";
-import { CustomOpenAIClient } from "./external_clients/customOpenAI.js";
 import OpenAI from "openai";
 
 async function example() {
@@ -15,7 +12,7 @@ async function example() {
     env: "BROWSERBASE",
     verbose: 1,
     llmClient: new CustomOpenAIClient({
-      modelName: "gpt-4o-mini",
+      modelName: "gpt-4.1-mini",
       client: new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       }),
