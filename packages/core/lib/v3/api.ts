@@ -102,8 +102,10 @@ interface StagehandAPIConstructorParams {
  * Wire format: Api.SessionStartRequest (modelApiKey sent via header, not body)
  */
 interface ClientSessionStartParams extends Api.SessionStartRequest {
-  /** Model API key - sent via x-model-api-key header, not in request body */
-  modelApiKey: string;
+  /** Model API key - sent via x-model-api-key header, not in request body.
+   *  Optional: when omitted, requests are sent without the x-model-api-key header
+   *  and the server is expected to handle model authentication on its own. */
+  modelApiKey?: string;
 }
 
 /**
@@ -176,7 +178,7 @@ export class StagehandAPIClient {
   private apiKey: string;
   private projectId?: string;
   private sessionId?: string;
-  private modelApiKey: string;
+  private modelApiKey?: string;
   private modelProvider?: string;
   private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
@@ -210,9 +212,6 @@ export class StagehandAPIClient {
     browserbaseSessionID,
     // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
-    if (!modelApiKey) {
-      throw new StagehandAPIError("modelApiKey is required");
-    }
     this.modelApiKey = modelApiKey;
     // Extract provider from modelName (e.g., "openai/gpt-5-nano" -> "openai")
     this.modelProvider = modelName?.includes("/")
@@ -607,7 +606,7 @@ export class StagehandAPIClient {
    */
   private prepareModelConfig(
     model: ModelConfiguration,
-  ): { modelName: string; apiKey: string } & Record<string, unknown> {
+  ): { modelName: string; apiKey?: string } & Record<string, unknown> {
     if (typeof model === "string") {
       // Extract provider from model string (e.g., "openai/gpt-5-nano" -> "openai")
       const provider = model.includes("/") ? model.split("/")[0] : undefined;
@@ -617,7 +616,7 @@ export class StagehandAPIClient {
           : this.modelApiKey;
       return {
         modelName: model,
-        apiKey,
+        ...(apiKey ? { apiKey } : {}),
       };
     }
 
@@ -631,7 +630,7 @@ export class StagehandAPIClient {
           : this.modelApiKey;
       return {
         ...model,
-        apiKey,
+        ...(apiKey ? { apiKey } : {}),
       };
     }
 
@@ -848,7 +847,7 @@ export class StagehandAPIClient {
       "x-bb-session-id": this.sessionId,
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
-      "x-model-api-key": this.modelApiKey,
+      ...(this.modelApiKey ? { "x-model-api-key": this.modelApiKey } : {}),
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
