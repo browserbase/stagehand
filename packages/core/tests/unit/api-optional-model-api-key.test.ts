@@ -56,9 +56,9 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
   });
 
   it("should NOT throw when modelApiKey is omitted", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      createSessionStartResponse("sess-123"),
-    );
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(createSessionStartResponse("sess-123"));
 
     const client = new StagehandAPIClient({
       apiKey: "test-api-key",
@@ -74,9 +74,9 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
   });
 
   it("should NOT throw when modelApiKey is undefined", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      createSessionStartResponse("sess-456"),
-    );
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(createSessionStartResponse("sess-456"));
 
     const client = new StagehandAPIClient({
       apiKey: "test-api-key",
@@ -92,9 +92,9 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
   });
 
   it("should send x-model-api-key header when modelApiKey IS provided", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(
-      createSessionStartResponse("sess-789"),
-    );
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(createSessionStartResponse("sess-789"));
     globalThis.fetch = fetchSpy;
 
     const client = new StagehandAPIClient({
@@ -113,9 +113,9 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
   });
 
   it("should NOT send x-model-api-key header when modelApiKey is omitted", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(
-      createSessionStartResponse("sess-012"),
-    );
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(createSessionStartResponse("sess-012"));
     globalThis.fetch = fetchSpy;
 
     const client = new StagehandAPIClient({
