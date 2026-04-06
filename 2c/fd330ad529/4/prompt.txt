@@ -1,0 +1,35 @@
+we're going to be getting the current pr across the line. It is a good starting point for consolidating code but there's one more thing we need to address. We should expose the reasoning_effort to the users via modelclientoptions if they wish to update, and probably default to reasoning 'none'
+
+---
+
+reasoning effort should apply to the 5. conditionals not base isgpt6
+
+---
+
+also update the aisdkclientwrapper in the evals package
+
+---
+
+Check if this issue is valid — if so, understand the root cause and fix it. At packages/core/lib/v3/llm/aisdk.ts, line 149:
+
+<comment>Add unit tests covering the new reasoningEffort resolution (user override vs GPT‑5.x default). Without coverage, changes to model-id matching can regress silently.
+
+(Based on your team's feedback about adding unit tests for new behavior.) </comment>
+
+<file context>
+@@ -134,12 +139,16 @@ export class AISdkClient extends LLMClient {
++    // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
++    const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
++    const userReasoningEffort = this.clientOptions?.reasoningEffort;
++    const resolvedReasoningEffort =
++      userReasoningEffort ?? (isGPT5SubModel ? "none" : undefined);
++
+</file context>
+
+---
+
+[Request interrupted by user]
+
+---
+
+first check if there are any existing unit tests for aisdkclient in packages/core

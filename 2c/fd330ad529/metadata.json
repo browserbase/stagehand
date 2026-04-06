@@ -3,7 +3,7 @@
   "checkpoint_id": "2cfd330ad529",
   "strategy": "manual-commit",
   "branch": "miguelgonzalez/stg-1772-model-gateway-docs-section-stagehand",
-  "checkpoints_count": 12,
+  "checkpoints_count": 16,
   "files_touched": [
     "packages/docs/v3/configuration/models.mdx"
   ],
@@ -35,13 +35,20 @@
       "context": "/2c/fd330ad529/3/context.md",
       "content_hash": "/2c/fd330ad529/3/content_hash.txt",
       "prompt": "/2c/fd330ad529/3/prompt.txt"
+    },
+    {
+      "metadata": "/2c/fd330ad529/4/metadata.json",
+      "transcript": "/2c/fd330ad529/4/full.jsonl",
+      "context": "/2c/fd330ad529/4/context.md",
+      "content_hash": "/2c/fd330ad529/4/content_hash.txt",
+      "prompt": "/2c/fd330ad529/4/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 336,
-    "cache_creation_tokens": 572469,
-    "cache_read_tokens": 15675053,
-    "output_tokens": 70582,
-    "api_call_count": 200
+    "input_tokens": 411,
+    "cache_creation_tokens": 859143,
+    "cache_read_tokens": 19899297,
+    "output_tokens": 89179,
+    "api_call_count": 265
   }
 }
