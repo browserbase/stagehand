@@ -112,10 +112,7 @@ You can pass additional options to configure the model, timeout, variables, and 
 ```typescript
 // Custom model configuration
 await stagehand.act("choose 'Peach' from the favorite color dropdown", {
-  model: {
-    modelName: "google/gemini-2.5-flash",
-    apiKey: process.env.GEMINI_API_KEY
-  },
+  model: "google/gemini-2.5-flash",
   timeout: 10000
 });
 ```
