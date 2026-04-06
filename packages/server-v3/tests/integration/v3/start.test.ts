@@ -505,7 +505,9 @@ describe("POST /v1/sessions/start - V3 format", () => {
 
     // Build headers without x-model-api-key to verify the server accepts
     // sessions when the client omits the model key (optional modelApiKey).
-    const { "x-model-api-key": _, ...headersWithoutModelKey } = headers;
+    const headersWithoutModelKey = Object.fromEntries(
+      Object.entries(headers).filter(([k]) => k !== "x-model-api-key"),
+    );
 
     const ctx = await fetchWithContext<StartResponse>(
       `${url}/v1/sessions/start`,
