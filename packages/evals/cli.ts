@@ -7,6 +7,10 @@ import { getCurrentDirPath } from "./runtimePaths.js";
 
 const moduleDir = getCurrentDirPath();
 const CONFIG_PATH = path.join(moduleDir, "evals.config.json");
+// When running from the bundled dist/cli/, resolve the package root for task discovery
+const packageRoot = fs.existsSync(path.join(moduleDir, "tasks"))
+  ? moduleDir
+  : path.resolve(moduleDir, "..", "..");
 
 interface Config {
   defaults: {
@@ -28,12 +32,166 @@ interface Config {
   tasks: Array<{ name: string; categories: string[] }>;
 }
 
+/**
+ * Recursively find all .ts/.js task files in a directory.
+ */
+function findTaskFiles(dir: string): string[] {
+  const results: string[] = [];
+  if (!fs.existsSync(dir)) return results;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...findTaskFiles(full));
+    } else if (
+      entry.isFile() &&
+      (entry.name.endsWith(".ts") || entry.name.endsWith(".js")) &&
+      !entry.name.endsWith(".d.ts")
+    ) {
+      results.push(full);
+    }
+  }
+  return results;
+}
+
+/**
+ * Cross-cutting categories preserved from the original evals.config.json.
+ * These are tags (not directories) that tasks may belong to in addition
+ * to their primary directory-based category.
+ */
+const EXTRA_CATEGORIES: Record<string, string[]> = {
+  instructions: ["regression"],
+  ionwave: ["regression"],
+  wichita: ["regression"],
+  extract_memorial_healthcare: ["regression"],
+  observe_github: ["regression"],
+  observe_vantechjournal: ["regression"],
+  observe_iframes1: ["regression"],
+  observe_iframes2: ["regression"],
+  extract_hamilton_weather: ["regression", "targeted_extract"],
+  scroll_50: ["regression"],
+  scroll_75: ["regression"],
+  next_chunk: ["regression"],
+  prev_chunk: ["regression"],
+  login: ["regression"],
+  no_js_click: ["regression"],
+  heal_simple_google_search: ["regression"],
+  extract_aigrant_companies: ["regression"],
+  extract_regulations_table: ["targeted_extract"],
+  extract_recipe: ["targeted_extract"],
+  extract_aigrant_targeted: ["targeted_extract"],
+  extract_aigrant_targeted_2: ["targeted_extract"],
+  extract_geniusee: ["targeted_extract"],
+  extract_geniusee_2: ["targeted_extract"],
+};
+
+const CATEGORY_OVERRIDES: Record<string, string[]> = {
+  "agent/gaia": ["external_agent_benchmarks"],
+  "agent/webvoyager": ["external_agent_benchmarks"],
+  "agent/onlineMind2Web": ["external_agent_benchmarks"],
+  "agent/webtailbench": ["external_agent_benchmarks"],
+};
+
+/**
+ * Build the tasks array from the filesystem (bench tier only).
+ * Core tier tasks are excluded because the legacy runner cannot execute them.
+ */
+function discoverTasksFromFS(): Array<{ name: string; categories: string[] }> {
+  const tasksDir = path.join(packageRoot, "tasks");
+  const tasks: Array<{ name: string; categories: string[] }> = [];
+
+  const benchDir = path.join(tasksDir, "bench");
+  if (!fs.existsSync(benchDir)) return tasks;
+
+  for (const catEntry of fs.readdirSync(benchDir, { withFileTypes: true })) {
+    if (!catEntry.isDirectory()) continue;
+    const category = catEntry.name;
+    const catDir = path.join(benchDir, category);
+
+    for (const filePath of findTaskFiles(catDir)) {
+      const baseName = path.basename(filePath).replace(/\.(ts|js)$/, "");
+      const name = category === "agent" ? `agent/${baseName}` : baseName;
+
+      const override = CATEGORY_OVERRIDES[name];
+      if (override) {
+        tasks.push({ name, categories: [...override] });
+        continue;
+      }
+
+      const taskCategories = [category];
+      const extras = EXTRA_CATEGORIES[name];
+      if (extras) {
+        for (const extra of extras) {
+          if (!taskCategories.includes(extra)) {
+            taskCategories.push(extra);
+          }
+        }
+      }
+
+      tasks.push({ name, categories: taskCategories });
+    }
+  }
+
+  return tasks;
+}
+
 function loadConfig(): Config {
-  return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+  const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+  // tasks are now auto-discovered from the filesystem instead of stored in config
+  if (!raw.tasks || raw.tasks.length === 0) {
+    raw.tasks = discoverTasksFromFS();
+  }
+  return raw;
 }
 
 function saveConfig(config: Config): void {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  // Only persist defaults and benchmarks — never write the discovered tasks
+  // back to the config file, as they are auto-discovered from the filesystem.
+  const { tasks: _tasks, ...persistable } = config;
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(persistable, null, 2));
+}
+
+/**
+ * Spawn the core tier runner (runCore.ts) as a child process.
+ * Mirrors the pattern used by handleRun for index.eval.ts.
+ */
+function runCoreEntry(env: Record<string, string | undefined>): void {
+  console.log(chalk.blue.bold("\nRunning core evals...\n"));
+
+  const sourceRunCorePath = path.resolve(packageRoot, "runCore.ts");
+
+  let tsxCliPath: string | undefined;
+  try {
+    tsxCliPath = require.resolve("tsx/dist/cli.js");
+  } catch {
+    // fall back to shell-resolved "tsx"
+  }
+
+  let child;
+  if (tsxCliPath) {
+    child = spawn(process.execPath, [tsxCliPath, sourceRunCorePath], {
+      env,
+      stdio: "inherit",
+      shell: true,
+    });
+  } else {
+    child = spawn("tsx", [sourceRunCorePath], {
+      env,
+      stdio: "inherit",
+      shell: true,
+    });
+  }
+
+  child.on("exit", (code) => {
+    process.exit(code || 0);
+  });
+
+  process.on("SIGINT", () => {
+    child.kill("SIGINT");
+    setTimeout(() => {
+      child.kill("SIGKILL");
+      process.exit(130);
+    }, 1000);
+  });
 }
 
 function printHelp(): void {
@@ -212,7 +370,42 @@ function handleList(args: string[]): void {
 
   console.log(chalk.blue.bold("\nAvailable Evals\n"));
 
-  // Group tasks by category
+  // Show core tier tasks (discovered from tasks/core/)
+  const coreTasksDir = path.join(packageRoot, "tasks", "core");
+  if (fs.existsSync(coreTasksDir)) {
+    const coreCategories = fs
+      .readdirSync(coreTasksDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+
+    const coreTasks: Array<{ name: string; category: string }> = [];
+    for (const cat of coreCategories) {
+      const files = findTaskFiles(path.join(coreTasksDir, cat));
+      for (const f of files) {
+        coreTasks.push({
+          name: path.basename(f).replace(/\.(ts|js)$/, ""),
+          category: cat,
+        });
+      }
+    }
+
+    if (coreTasks.length > 0) {
+      console.log(chalk.magenta.underline("Core (Deterministic)"));
+      const grouped = new Map<string, string[]>();
+      for (const t of coreTasks) {
+        if (!grouped.has(t.category)) grouped.set(t.category, []);
+        grouped.get(t.category)!.push(t.name);
+      }
+      for (const [cat, tasks] of grouped) {
+        console.log(
+          `  ${chalk.cyan(cat)} ${chalk.dim(`(${tasks.length} evals)`)}`,
+        );
+      }
+      console.log("");
+    }
+  }
+
+  // Group bench tasks by category
   const categories = new Map<string, string[]>();
   config.tasks.forEach((task) => {
     task.categories.forEach((cat) => {
@@ -223,8 +416,8 @@ function handleList(args: string[]): void {
     });
   });
 
-  // Show custom eval categories
-  console.log(chalk.magenta.underline("Custom Eval Categories"));
+  // Show bench eval categories
+  console.log(chalk.magenta.underline("Bench Eval Categories"));
   Array.from(categories.entries())
     .filter(([cat]) => !cat.includes("external_agent_benchmarks"))
     .forEach(([category, tasks]) => {
@@ -365,6 +558,35 @@ function handleRun(args: string[]): void {
 
   if (finalOptions.model) {
     env.EVAL_MODEL_OVERRIDE = finalOptions.model;
+  }
+
+  // Check if this is a core tier target — if so, delegate to runCore.ts
+  const CORE_CATEGORIES = new Set(["navigation", "actions", "forms", "page-info", "viewport", "tabs", "network"]);
+
+  // Also build a set of individual core task names for direct targeting
+  const coreTaskNames = new Set<string>();
+  const coreTasksDir = path.join(packageRoot, "tasks", "core");
+  if (fs.existsSync(coreTasksDir)) {
+    for (const catEntry of fs.readdirSync(coreTasksDir, { withFileTypes: true })) {
+      if (!catEntry.isDirectory()) continue;
+      for (const f of findTaskFiles(path.join(coreTasksDir, catEntry.name))) {
+        const baseName = path.basename(f).replace(/\.(ts|js)$/, "");
+        coreTaskNames.add(baseName);
+        coreTaskNames.add(`${catEntry.name}/${baseName}`);
+      }
+    }
+  }
+
+  const isCoreTarget =
+    target === "core" ||
+    (target && target.startsWith("core:")) ||
+    (target && CORE_CATEGORIES.has(target)) ||
+    (target && coreTaskNames.has(target));
+
+  if (isCoreTarget) {
+    env.EVAL_CORE_TARGET = target;
+    runCoreEntry(env);
+    return;
   }
 
   // Handle benchmark-specific options

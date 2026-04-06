@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import type { AgentToolMode, AvailableModel } from "@browserbasehq/stagehand";
 import type { LogLine } from "@browserbasehq/stagehand";
 import type { AgentInstance } from "@browserbasehq/stagehand";
 import type { EvalCase } from "braintrust";
@@ -43,6 +43,7 @@ export type EvalCategory = z.infer<typeof EvalCategorySchema>;
 export interface EvalInput {
   name: string;
   modelName: AvailableModel;
+  agentMode?: AgentToolMode;
   isCUA?: boolean;
   // Optional per-test parameters, used by data-driven tasks
   params?: Record<string, unknown>;
@@ -55,12 +56,24 @@ export interface Testcase
     {
       model: AvailableModel;
       test: string;
+      tier?: "core" | "bench";
+      task?: string;
       categories?: string[];
       category?: string;
       dataset?: string;
       task_id?: string;
       website?: string;
       difficulty?: string;
+      harness?: string;
+      environment?: "LOCAL" | "BROWSERBASE";
+      api?: boolean;
+      provider?: string;
+      toolSurface?: string;
+      startupProfile?: string;
+      toolCommand?: string;
+      browseCliVersion?: string;
+      browseCliEntrypoint?: string;
+      agentMode?: AgentToolMode;
     }
   > {
   input: EvalInput;
@@ -69,6 +82,8 @@ export interface Testcase
   metadata: {
     model: AvailableModel;
     test: string;
+    tier?: "core" | "bench";
+    task?: string;
     categories?: string[];
     category?: string;
     dataset?: string;
@@ -76,6 +91,16 @@ export interface Testcase
     website?: string;
     difficulty?: string;
     task_category?: string;
+    harness?: string;
+    environment?: "LOCAL" | "BROWSERBASE";
+    api?: boolean;
+    provider?: string;
+    toolSurface?: string;
+    startupProfile?: string;
+    toolCommand?: string;
+    browseCliVersion?: string;
+    browseCliEntrypoint?: string;
+    agentMode?: AgentToolMode;
   };
   expected: unknown;
 }
@@ -85,6 +110,7 @@ export interface SummaryResult {
   output: { _success: boolean };
   name: string;
   score: number;
+  categories?: string[];
 }
 
 export interface EvalArgs<TInput, TOutput, TExpected> {
@@ -105,5 +131,7 @@ export type LogLineEval = LogLine & {
 
 export type AgentModelEntry = {
   modelName: string;
+  mode: AgentToolMode;
+  /** @deprecated Use mode === "cua". */
   cua: boolean;
 };
