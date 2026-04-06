@@ -452,9 +452,10 @@ export class AnthropicCUAClient extends AgentClient {
         : this.modelName;
 
       // Check if this is a Claude 4.6+ model that supports adaptive thinking
-      const isAdaptiveThinkingModel =
-        modelBase.startsWith("claude-opus-4-6") ||
-        modelBase.startsWith("claude-sonnet-4-6");
+      const isAdaptiveThinkingModel = [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+      ].includes(modelBase);
 
       // claude-opus-4-5-20251101 uses the newer computer tool version but does
       // NOT support adaptive thinking — it still requires budget_tokens.
