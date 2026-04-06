@@ -238,7 +238,7 @@ Hybrid mode uses both DOM-based and coordinate-based tools (act, click, type, dr
 
 **Recommended models for hybrid mode:**
 
-- `google/gemini-3-flash-preview`, `google/gemini-3.1-flash-live-preview`, `google/gemini-3.1-pro-preview`
+- `google/gemini-3-flash-preview`, `google/gemini-3.1-flash-lite-preview`, `google/gemini-3.1-pro-preview`
 - `openai/gpt-5.4`, `openai/gpt-5.4-mini`
 - Any `anthropic/claude-*` model
 
