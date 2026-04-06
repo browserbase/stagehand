@@ -173,7 +173,9 @@ describe("AISdkClient compatibility", () => {
       content: [
         {
           type: "text",
-          text: JSON.stringify({ status: "ok" }),
+          text: JSON.stringify({
+            invalidResponseShape: "missing required title field",
+          }),
         },
       ],
     }));
