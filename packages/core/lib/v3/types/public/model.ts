@@ -97,12 +97,13 @@ export type ModelProvider =
 /**
  * Effort levels for Claude adaptive thinking.
  * Used with Claude 4.6+ models (claude-opus-4-6, claude-sonnet-4-6).
- * - "max": Claude always thinks with no constraints (Opus 4.6 only)
- * - "high": Claude always thinks with deep reasoning (default when adaptive is enabled)
- * - "medium": Claude uses moderate thinking, may skip for simple queries
+ * - "none": Disable adaptive thinking entirely
  * - "low": Claude minimizes thinking, skips for simple tasks
+ * - "medium": Claude uses moderate thinking, may skip for simple queries (default)
+ * - "high": Claude always thinks with deep reasoning
+ * - "max": Claude always thinks with no constraints (Opus 4.6 only)
  */
-export type ThinkingEffort = "low" | "medium" | "high" | "max";
+export type ThinkingEffort = "none" | "low" | "medium" | "high" | "max";
 
 export type ClientOptions = (
   | OpenAIClientOptions

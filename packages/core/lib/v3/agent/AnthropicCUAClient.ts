@@ -45,6 +45,7 @@ export class AnthropicCUAClient extends AgentClient {
   private actionHandler?: (action: AgentAction) => Promise<void>;
   private thinkingBudget: number | null = null;
   private thinkingEffort: ThinkingEffort | null = null;
+  private userTemperature: number | undefined;
   private tools?: ToolSet;
 
   constructor(
@@ -73,6 +74,9 @@ export class AnthropicCUAClient extends AgentClient {
     if (clientOptions?.thinkingEffort) {
       this.thinkingEffort = clientOptions.thinkingEffort;
     }
+
+    // Track user-specified temperature so we can warn if adaptive thinking overrides it
+    this.userTemperature = clientOptions?.temperature;
 
     // Store client options for reference
     this.clientOptions = {
@@ -240,7 +244,7 @@ export class AnthropicCUAClient extends AgentClient {
   }> {
     try {
       // Get response from the model
-      const result = await this.getAction(inputItems);
+      const result = await this.getAction(inputItems, logger);
       const content = result.content;
       const usage = {
         input_tokens: result.usage.input_tokens,
@@ -417,7 +421,10 @@ export class AnthropicCUAClient extends AgentClient {
     ];
   }
 
-  async getAction(inputItems: ResponseInputItem[]): Promise<{
+  async getAction(
+    inputItems: ResponseInputItem[],
+    logger?: (message: LogLine) => void,
+  ): Promise<{
     content: AnthropicContentBlock[];
     id: string;
     usage: Record<string, number>;
@@ -445,28 +452,42 @@ export class AnthropicCUAClient extends AgentClient {
         : this.modelName;
 
       // Check if this is a Claude 4.6+ model that supports adaptive thinking
-      const isAdaptiveThinkingModel = [
-        "claude-opus-4-6",
-        "claude-sonnet-4-6",
-      ].includes(modelBase);
+      const isAdaptiveThinkingModel =
+        modelBase.startsWith("claude-opus-4-6") ||
+        modelBase.startsWith("claude-sonnet-4-6");
 
+      // claude-opus-4-5-20251101 uses the newer computer tool version but does
+      // NOT support adaptive thinking — it still requires budget_tokens.
       const shouldUseNewToolVersion =
         isAdaptiveThinkingModel || modelBase === "claude-opus-4-5-20251101";
 
       // Configure thinking capability based on model version
       // - For 4.6 models: Use adaptive thinking with effort (recommended, defaults to "medium")
       // - For older models: Use enabled thinking with budget_tokens (deprecated)
-      let thinking: { type: "adaptive" } | { type: "enabled"; budget_tokens: number } | undefined;
-      let outputConfig: { effort: ThinkingEffort } | undefined;
+      let thinking:
+        | { type: "adaptive" }
+        | { type: "enabled"; budget_tokens: number }
+        | undefined;
+      let outputConfig: { effort: Exclude<ThinkingEffort, "none"> } | undefined;
       let useAdaptiveThinking = false;
 
       if (isAdaptiveThinkingModel) {
-        // Claude 4.6+ models use adaptive thinking with output_config.effort
-        // Default to "medium" effort if not explicitly specified
-        // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
-        thinking = { type: "adaptive" };
-        outputConfig = { effort: this.thinkingEffort || "medium" };
-        useAdaptiveThinking = true;
+        if (this.thinkingBudget) {
+          logger?.({
+            category: "agent",
+            message: `thinkingBudget is ignored for ${this.modelName}; use thinkingEffort instead`,
+            level: 2,
+          });
+        }
+
+        if (this.thinkingEffort !== "none") {
+          // Claude 4.6+ models use adaptive thinking with output_config.effort
+          // Default to "medium" effort if not explicitly specified
+          // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+          thinking = { type: "adaptive" };
+          outputConfig = { effort: this.thinkingEffort || "medium" };
+          useAdaptiveThinking = true;
+        }
       } else if (this.thinkingBudget) {
         // Older models use enabled thinking with budget_tokens (deprecated for 4.6)
         thinking = { type: "enabled", budget_tokens: this.thinkingBudget };
@@ -544,6 +565,13 @@ export class AnthropicCUAClient extends AgentClient {
       // Adaptive thinking requires temperature to be set to 1
       // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
       if (useAdaptiveThinking) {
+        if (this.userTemperature !== undefined && this.userTemperature !== 1) {
+          logger?.({
+            category: "agent",
+            message: `Adaptive thinking requires temperature=1; overriding user-specified temperature=${this.userTemperature}`,
+            level: 2,
+          });
+        }
         requestParams.temperature = 1;
       }
 

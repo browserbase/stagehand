@@ -198,6 +198,87 @@ describe("AnthropicCUAClient adaptive thinking", () => {
         }),
       );
     });
+
+    it("should disable adaptive thinking when thinkingEffort is 'none'", async () => {
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "claude-opus-4-6",
+        undefined,
+        {
+          apiKey: "test-key",
+          thinkingEffort: "none",
+        },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }]);
+
+      const callArgs = mockCreate.mock.calls[0][0];
+      expect(callArgs.thinking).toBeUndefined();
+      expect(callArgs.output_config).toBeUndefined();
+      expect(callArgs.temperature).toBeUndefined();
+    });
+
+    it("should log a debug warning when thinkingBudget is set on a 4.6 model", async () => {
+      const logger = vi.fn();
+
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "claude-opus-4-6",
+        undefined,
+        {
+          apiKey: "test-key",
+          thinkingBudget: 10000,
+        },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }], logger);
+
+      expect(logger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: "agent",
+          message: expect.stringContaining("thinkingBudget is ignored"),
+          level: 2,
+        }),
+      );
+
+      // Should still use adaptive thinking, not budget_tokens
+      const callArgs = mockCreate.mock.calls[0][0];
+      expect(callArgs.thinking).toEqual({ type: "adaptive" });
+    });
+
+    it("should log a debug warning when user-specified temperature is overridden", async () => {
+      const logger = vi.fn();
+
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "claude-opus-4-6",
+        undefined,
+        {
+          apiKey: "test-key",
+          thinkingEffort: "high",
+          temperature: 0.5,
+        },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }], logger);
+
+      expect(logger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: "agent",
+          message: expect.stringContaining(
+            "overriding user-specified temperature=0.5",
+          ),
+          level: 2,
+        }),
+      );
+
+      // Temperature should still be forced to 1
+      const callArgs = mockCreate.mock.calls[0][0];
+      expect(callArgs.temperature).toBe(1);
+    });
   });
 
   describe("older Claude models (budget_tokens - deprecated)", () => {
@@ -294,6 +375,42 @@ describe("AnthropicCUAClient adaptive thinking", () => {
         {
           apiKey: "test-key",
           thinkingEffort: "high",
+        },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }]);
+
+      const callArgs = mockCreate.mock.calls[0][0];
+      expect(callArgs.thinking.type).toBe("adaptive");
+    });
+
+    it("should detect dated variants like claude-opus-4-6-20260401 as 4.6 models", async () => {
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "claude-opus-4-6-20260401",
+        undefined,
+        {
+          apiKey: "test-key",
+          thinkingEffort: "high",
+        },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }]);
+
+      const callArgs = mockCreate.mock.calls[0][0];
+      expect(callArgs.thinking.type).toBe("adaptive");
+    });
+
+    it("should detect dated variants like claude-sonnet-4-6-20260401 as 4.6 models", async () => {
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "anthropic/claude-sonnet-4-6-20260401",
+        undefined,
+        {
+          apiKey: "test-key",
+          thinkingEffort: "medium",
         },
       );
       client.setViewport(1280, 720);
