@@ -206,7 +206,6 @@ export function buildActPrompt(
   General Instructions: 
     Provide an action for this element such as ${supportedActions.join(", ")}. Remember that to users, buttons and links look the same in most cases.
     When choosing non-left click actions, provide right or middle as the argument
-    The response must include a top-level boolean field named twoStep. Do not place twoStep inside the action object.
     If the action is completely unrelated to a potential action to be taken on the page, return an empty object. 
     ONLY return one action. If multiple actions are relevant, return the most relevant one. 
     If the user is asking to scroll to a position on the page, e.g., 'halfway' or 0.75, etc, you must return the argument formatted as the correct percentage, e.g., '50%' or '75%', etc.
