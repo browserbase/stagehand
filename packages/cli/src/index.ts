@@ -872,6 +872,18 @@ let networkCounter = 0;
 let networkSession: string | null = null;
 const pendingRequests = new Map<string, PendingRequest>();
 
+// ==================== DIALOG HANDLING STATE ====================
+
+type DialogMode = "accept" | "dismiss" | "off";
+let dialogMode: DialogMode = "off";
+const dialogInstalledSessions = new WeakSet<object>();
+const dialogHistory: Array<{
+  type: string;
+  message: string;
+  handled: DialogMode;
+  timestamp: string;
+}> = [];
+
 /** Sanitize a string for use in a filename */
 function sanitizeForFilename(str: string, maxLen: number = 30): string {
   return str
@@ -1610,6 +1622,51 @@ async function executeCommand(
           error: err instanceof Error ? err.message : String(err),
         };
       }
+    }
+
+    // Dialog handling
+    case "dialog": {
+      const [mode] = args as [DialogMode];
+      dialogMode = mode;
+
+      if (mode !== "off" && page) {
+        const cdpSession = page.mainFrame().session;
+        if (!dialogInstalledSessions.has(cdpSession)) {
+          cdpSession.on(
+            "Page.javascriptDialogOpening",
+            async (params: {
+              type: string;
+              message: string;
+              defaultPrompt?: string;
+            }) => {
+              if (dialogMode === "off") return;
+              dialogHistory.push({
+                type: params.type,
+                message: params.message,
+                handled: dialogMode,
+                timestamp: new Date().toISOString(),
+              });
+              try {
+                await cdpSession.send("Page.handleJavaScriptDialog", {
+                  accept: dialogMode === "accept",
+                  promptText:
+                    dialogMode === "accept"
+                      ? (params.defaultPrompt ?? "")
+                      : undefined,
+                });
+              } catch {
+                // Dialog may have been closed by navigation or externally
+              }
+            },
+          );
+          dialogInstalledSessions.add(cdpSession);
+        }
+      }
+
+      return { mode: dialogMode };
+    }
+    case "dialog_history": {
+      return { dialogs: dialogHistory };
     }
 
     // Daemon control
@@ -2914,6 +2971,68 @@ networkCmd
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("network_clear", []);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+// ==================== DIALOG HANDLING ====================
+
+const dialogCmd = program
+  .command("dialog")
+  .description("Dialog handling commands");
+
+dialogCmd
+  .command("accept")
+  .description("Auto-accept all dialogs (alerts, confirms, prompts)")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("dialog", ["accept"]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+dialogCmd
+  .command("dismiss")
+  .description("Auto-dismiss all dialogs")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("dialog", ["dismiss"]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+dialogCmd
+  .command("off")
+  .description("Disable automatic dialog handling")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("dialog", ["off"]);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+dialogCmd
+  .command("history")
+  .description("Show history of handled dialogs")
+  .action(async () => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const result = await runCommand("dialog_history", []);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
