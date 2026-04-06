@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "2cfd330ad529",
+  "strategy": "manual-commit",
+  "branch": "miguelgonzalez/stg-1772-model-gateway-docs-section-stagehand",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "packages/docs/v3/configuration/models.mdx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2c/fd330ad529/0/metadata.json",
+      "transcript": "/2c/fd330ad529/0/full.jsonl",
+      "context": "/2c/fd330ad529/0/context.md",
+      "content_hash": "/2c/fd330ad529/0/content_hash.txt",
+      "prompt": "/2c/fd330ad529/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 61,
+    "cache_creation_tokens": 178231,
+    "cache_read_tokens": 1793471,
+    "output_tokens": 16206,
+    "api_call_count": 51
+  }
+}
