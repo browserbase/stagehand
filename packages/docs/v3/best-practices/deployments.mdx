@@ -66,10 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       env: "BROWSERBASE",
       apiKey: process.env.BROWSERBASE_API_KEY!,
       disablePino: true,
-      model: {
-        modelName: "google/gemini-2.5-flash",
-        apiKey: process.env.GOOGLE_API_KEY!,
-      },
+      model: "google/gemini-2.5-flash",
       // optional session params
       browserbaseSessionCreateParams: {
         region: "us-west-2",
