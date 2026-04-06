@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { V3 } from "../../lib/v3/index.js";
+import { V3 } from "../lib/v3/index.js";
 
 const INSTRUCTION = "scroll down and click on the last hn story";
 

@@ -2,17 +2,23 @@ import { Stagehand } from "../lib/v3/index.js";
 import { z } from "zod";
 
 /**
- * This example shows how to use a model string with Stagehand.
+ * This example shows how to parameterize the API key for the LLM provider.
  *
- * When using env: "BROWSERBASE", the API key is automatically resolved
- * from environment variables, so you only need to specify the model name.
+ * In order to best demonstrate, unset the OPENAI_API_KEY environment variable and
+ * set the USE_OPENAI_API_KEY environment variable to your OpenAI API key.
+ *
+ * export USE_OPENAI_API_KEY=$OPENAI_API_KEY
+ * unset OPENAI_API_KEY
  */
 
 async function example() {
   const stagehand = new Stagehand({
-    env: "BROWSERBASE",
+    env: "LOCAL",
     verbose: 1,
-    model: "openai/gpt-4o",
+    model: {
+      modelName: "gpt-4.1-mini",
+      apiKey: process.env.USE_OPENAI_API_KEY,
+    },
   });
 
   await stagehand.init();

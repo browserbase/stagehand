@@ -37,8 +37,6 @@ async function example(stagehand: Stagehand) {
 (async () => {
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
-    apiKey: process.env.BROWSERBASE_API_KEY,
-    projectId: process.env.BROWSERBASE_PROJECT_ID,
     model: "openai/gpt-5",
     verbose: 2,
   });
