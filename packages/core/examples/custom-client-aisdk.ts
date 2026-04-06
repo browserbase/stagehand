@@ -1,12 +1,9 @@
 /**
  * This example shows how to use the Vercel AI SDK to power the Stagehand LLM Client.
  *
- * You will need to reference the AI SDK Client in /external_clients/aisdk.ts
- *
  * To learn more about the Vercel AI SDK, see: https://sdk.vercel.ai/docs
  */
-import { Stagehand } from "../lib/v3/index.js";
-import { AISdkClient } from "./external_clients/aisdk.js";
+import { AISdkClient, Stagehand } from "../lib/v3/index.js";
 import { z } from "zod";
 import { openai } from "@ai-sdk/openai";
 
@@ -15,7 +12,7 @@ async function example() {
     env: "BROWSERBASE",
     verbose: 1,
     llmClient: new AISdkClient({
-      model: openai("gpt-4o"),
+      model: openai("gpt-4.1"),
     }),
   });
 
