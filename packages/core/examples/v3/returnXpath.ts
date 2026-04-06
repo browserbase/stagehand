@@ -1,23 +1,19 @@
 import { Stagehand } from "../../lib/v3/index.js";
 
-async function example(stagehand: Stagehand) {
-  const page = stagehand.context.pages()[0];
-  await page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/",
-  );
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 0,
+  model: "openai/gpt-4.1",
+});
 
-  const xpath = await page.click(286, 628, { returnXpath: true });
+await stagehand.init();
 
-  // use the xpath that was returned from out coord click
-  await page.deepLocator(xpath).fill("hellooooooooo");
-}
+const page = stagehand.context.pages()[0];
+await page.goto(
+  "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/",
+);
 
-(async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 0,
-    model: "openai/gpt-4.1",
-  });
-  await stagehand.init();
-  await example(stagehand);
-})();
+const xpath = await page.click(286, 628, { returnXpath: true });
+
+// use the xpath that was returned from out coord click
+await page.deepLocator(xpath).fill("hellooooooooo");
