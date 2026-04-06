@@ -1,0 +1,119 @@
+we need to add tests for the current changes on this branch, and add some unit tests for the schema parsing? some with the "happy path" scenario, and then others with like deep recursion, random fields, etc
+
+---
+
+isn't there a pnpm command to run the tests
+
+---
+
+we broke ci with these changes . build:sea:esm: Start injection of NODE_SEA_BLOB in /home/runner/work/stagehand/stagehand/packages/server-v3/dist/sea/stagehand-server-v3-linux-x64...
+. gen:openapi: OpenAPI spec written to /home/runner/work/stagehand/stagehand/packages/server-v3/openapi.v3.yaml
+. gen:openapi: Done
+. build:sea:esm: warning: Can't find string offset for section name '.note.100'
+. build:sea:esm: warning: Can't find string offset for section name '.note.100'
+. build:sea:esm: warning: Can't find string offset for section name '.note.100'
+. build:sea:esm: warning: Can't find string offset for section name '.note.100'
+. build:sea:esm: warning: Can't find string offset for section name '.note.100'
+. build:sea:esm: warning: Can't find string offset for section name '.note'
+. build:sea:esm: warning: Can't find string offset for section name '.note.100'
+. build:sea:esm: warning: Can't find string offset for section name '.note.100'
+. build:sea:esm: warning: Can't find string offset for section name '.note.100'
+. build:sea:esm: 💉 Injection done!
+. build:sea:esm: Done
+Error: . build:esm-tests: packages/server-v3/src/lib/errorHandler.ts(8,23): error TS6059: File '/home/runner/work/stagehand/stagehand/packages/server-v3/src/lib/response.ts' is not under 'rootDir' '/home/runner/work/stagehand/stagehand/packages/server-v3/test'. 'rootDir' is expected to contain all source files.
+Error: . build:esm-tests: packages/server-v3/src/lib/utils.ts(5,45): error TS6059: File '/home/runner/work/stagehand/stagehand/packages/server-v3/src/types/model.ts' is not under 'rootDir' '/home/runner/work/stagehand/stagehand/packages/server-v3/test'. 'rootDir' is expected to contain all source files.
+Error: . build:esm-tests: packages/server-v3/src/lib/utils.ts(6,26): error TS6059: File '/home/runner/work/stagehand/stagehand/packages/server-v3/src/lib/errorHandler.ts' is not under 'rootDir' '/home/runner/work/stagehand/stagehand/packages/server-v3/test'. 'rootDir' is expected to contain all source files.
+Error: . build:esm-tests: packages/server-v3/test/it/jsonSchemaToZod.test.ts(4,33): error TS6059: File '/home/runner/work/stagehand/stagehand/packages/server-v3/src/lib/utils.ts' is not under 'rootDir' '/home/runner/work/stagehand/stagehand/packages/server-v3/test'. 'rootDir' is expected to contain all source files.
+. build:esm-tests: Failed
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @browserbasehq/stagehand-server-v3@3.6.1 build:esm-tests: `pnpm -w --dir ../.. exec tsc -p packages/server-v3/tsconfig.tests.json`
+Exit status 2
+ ELIFECYCLE  Command failed with exit code 2.
+Error:  command finished with error: command (/home/runner/work/stagehand/stagehand/packages/server-v3) /home/runner/setup-pnpm/node_modules/.bin/pnpm run build exited (2)
+@browserbasehq/stagehand-evals:build
+@browserbasehq/stagehand-server-v4:build
+
+---
+
+[Request interrupted by user]
+
+---
+
+we should match the build/runner structure of integration and other tests
+
+---
+
+[Request interrupted by user]
+
+---
+
+tests/test is weird, revert
+
+---
+
+[Request interrupted by user]
+
+---
+
+we should also build! what are our options here?
+
+---
+
+don't understand how we can't follow the existing pattern and or the one in ../core/apps/stagehand-api-v3/tests
+
+---
+
+[Request interrupted by user]
+
+---
+
+in @packages/server-v3/scripts/test-server.ts it says 
+ * Server unit + integration tests on dist/esm + SEA/local server targets.
+
+---
+
+explain why do we need to have /esm/test instead of what we had before /tests, and move /integration and unit into those
+
+---
+
+rerun build and all tests
+
+---
+
+what about integration
+
+---
+
+run the integration tests
+
+---
+
+i'm on a mac, what's the default chrome executable path
+
+---
+
+I have the envs in the root .env on the stagehand dir
+
+---
+
+did they pass?
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+we have a couple of conflicts now
+
+---
+
+/home/runner/work/stagehand/stagehand/packages/server-v3/tests/unit/jsonSchemaToZod.test.ts
+Error:   709:10  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any no anys
+
+---
+
+okay this branch is now approved. we need to replicate the changes (unit tests, not runner updates if unnecessary) in the cloud server in ../core/apps/stagehand-api-v3 (branch miguelgonzalez/stg-1647-parsing-issue-python-v3)
+
+---
+
+so both local and cloud now share the same implementation, test coverage, and everything (within the context of this pr)?
