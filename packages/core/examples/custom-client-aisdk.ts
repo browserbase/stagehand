@@ -12,7 +12,7 @@ async function example() {
     env: "BROWSERBASE",
     verbose: 1,
     llmClient: new AISdkClient({
-      model: openai("gpt-4o"),
+      model: openai("gpt-4.1"),
     }),
   });
 
