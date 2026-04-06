@@ -204,6 +204,8 @@ describe("ActHandler two-step timeout", () => {
       twoStep: true,
       prompt_tokens: 100,
       completion_tokens: 50,
+      reasoning_tokens: 0,
+      cached_input_tokens: 0,
       inference_time_ms: 500,
     } as ReturnType<typeof actInference> extends Promise<infer T> ? T : never);
 
@@ -287,6 +289,8 @@ describe("ActHandler self-heal timeout", () => {
       twoStep: false,
       prompt_tokens: 100,
       completion_tokens: 50,
+      reasoning_tokens: 0,
+      cached_input_tokens: 0,
       inference_time_ms: 500,
     } as ReturnType<typeof actInference> extends Promise<infer T> ? T : never);
 
@@ -358,6 +362,8 @@ describe("ActHandler self-heal timeout", () => {
       twoStep: false,
       prompt_tokens: 100,
       completion_tokens: 50,
+      reasoning_tokens: 0,
+      cached_input_tokens: 0,
       inference_time_ms: 500,
     } as ReturnType<typeof actInference> extends Promise<infer T> ? T : never);
 
@@ -856,6 +862,8 @@ describe("No-timeout success paths", () => {
         {
           elementId: "1-0",
           description: "Submit button",
+          method: "click",
+          arguments: [],
         },
       ],
       prompt_tokens: 150,
@@ -986,6 +994,8 @@ describe("No-timeout success paths", () => {
       twoStep: false,
       prompt_tokens: 100,
       completion_tokens: 50,
+      reasoning_tokens: 0,
+      cached_input_tokens: 0,
       inference_time_ms: 500,
     } as ReturnType<typeof actInference> extends Promise<infer T> ? T : never);
 
@@ -1043,6 +1053,8 @@ describe("No-timeout success paths", () => {
       twoStep: false,
       prompt_tokens: 100,
       completion_tokens: 50,
+      reasoning_tokens: 0,
+      cached_input_tokens: 0,
       inference_time_ms: 500,
     } as ReturnType<typeof actInference> extends Promise<infer T> ? T : never);
 

@@ -67,7 +67,6 @@ function buildOpenAiStructuredProviderOptions(options: {
   isGPT5: boolean;
   isCodex: boolean;
   reasoningEffort?: string;
-  strict: boolean;
 }) {
   const openaiOptions: Record<string, string | boolean> = {};
 
@@ -77,10 +76,6 @@ function buildOpenAiStructuredProviderOptions(options: {
 
   if (options.reasoningEffort) {
     openaiOptions.reasoningEffort = options.reasoningEffort;
-  }
-
-  if (!options.strict) {
-    openaiOptions.strictJsonSchema = false;
   }
 
   return Object.keys(openaiOptions).length > 0
@@ -259,7 +254,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             isGPT5,
             isCodex,
             reasoningEffort: resolvedReasoningEffort,
-            strict: options.response_model.strict ?? true,
           }),
         });
 

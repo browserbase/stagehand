@@ -8,7 +8,7 @@ import {
   createScriptedAisdkTestLlmClient,
   closeV3,
   doneToolResponse,
-  findLastEncodedId,
+  findLastElementRef,
   toolCallResponse,
 } from "./testUtils.js";
 import { getV3TestConfig } from "./v3.config.js";
@@ -213,10 +213,12 @@ test.describe("flow logger integration", () => {
     const llmClient = createScriptedAisdkTestLlmClient({
       jsonResponses: {
         act: (options) => ({
-          elementId: findLastEncodedId(options),
-          description: `click ${buttonText}`,
-          method: "click",
-          arguments: [],
+          action: {
+            target: findLastElementRef(options),
+            description: `click ${buttonText}`,
+            method: "click",
+            button: null,
+          },
           twoStep: false,
         }),
       },
@@ -298,10 +300,10 @@ test.describe("flow logger integration", () => {
         Observation: (options) => ({
           elements: [
             {
-              elementId: findLastEncodedId(options),
+              target: findLastElementRef(options),
               description: observeText,
               method: "click",
-              arguments: [],
+              button: null,
             },
           ],
         }),
@@ -435,10 +437,12 @@ test.describe("flow logger integration", () => {
     const llmClient = createScriptedAisdkTestLlmClient({
       jsonResponses: {
         act: (options) => ({
-          elementId: findLastEncodedId(options),
-          description: `click ${buttonText}`,
-          method: "click",
-          arguments: [],
+          action: {
+            target: findLastElementRef(options),
+            description: `click ${buttonText}`,
+            method: "click",
+            button: null,
+          },
           twoStep: false,
         }),
       },
@@ -538,10 +542,10 @@ test.describe("flow logger integration", () => {
         Observation: (options) => ({
           elements: [
             {
-              elementId: findLastEncodedId(options),
+              target: findLastElementRef(options),
               description: "name input",
               method: "fill",
-              arguments: ["hello"],
+              value: "hello",
             },
           ],
         }),

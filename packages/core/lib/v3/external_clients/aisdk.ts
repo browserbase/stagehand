@@ -134,10 +134,6 @@ export class AISdkClient extends LLMClient {
         topP: options.top_p,
         frequencyPenalty: options.frequency_penalty,
         presencePenalty: options.presence_penalty,
-        providerOptions:
-          options.response_model.strict === false
-            ? { openai: { strictJsonSchema: false } }
-            : undefined,
       });
 
       return {

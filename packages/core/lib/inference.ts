@@ -16,7 +16,14 @@ import type {
   InferStagehandSchema,
   StagehandZodObject,
 } from "./v3/zodCompat.js";
-import { SupportedUnderstudyAction } from "./v3/types/private/handlers.js";
+import {
+  ElementRef,
+  ModelAction,
+  ModelActResponse,
+  modelActionSchema,
+  modelActResponseSchema,
+} from "./v3/types/private/modelActions.js";
+import type { EncodedId } from "./v3/types/private/internal.js";
 import type { Variables } from "./v3/types/public/agent.js";
 
 // Re-export for backward compatibility
@@ -28,6 +35,81 @@ function withLlmTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
     getEnvTimeoutMs("LLM_MAX_MS"),
     `LLM ${operation}`,
   );
+}
+
+type LegacyInferenceAction = {
+  elementId: EncodedId;
+  description: string;
+  method: ModelAction["method"];
+  arguments: string[];
+};
+
+function encodeElementRef(ref: ElementRef): EncodedId {
+  return `${ref.frameOrdinal}-${ref.backendNodeId}`;
+}
+
+function toLegacyInferenceAction(action: ModelAction): LegacyInferenceAction {
+  switch (action.method) {
+    case "click":
+      return {
+        elementId: encodeElementRef(action.target),
+        description: action.description,
+        method: action.method,
+        arguments: action.button ? [action.button] : [],
+      };
+    case "fill":
+      return {
+        elementId: encodeElementRef(action.target),
+        description: action.description,
+        method: action.method,
+        arguments: [action.value],
+      };
+    case "type":
+      return {
+        elementId: encodeElementRef(action.target),
+        description: action.description,
+        method: action.method,
+        arguments: [action.text],
+      };
+    case "press":
+      return {
+        elementId: encodeElementRef(action.target),
+        description: action.description,
+        method: action.method,
+        arguments: [action.key],
+      };
+    case "scrollTo":
+      return {
+        elementId: encodeElementRef(action.target),
+        description: action.description,
+        method: action.method,
+        arguments: [action.position],
+      };
+    case "selectOptionFromDropdown":
+      return {
+        elementId: encodeElementRef(action.target),
+        description: action.description,
+        method: action.method,
+        arguments: [action.option],
+      };
+    case "dragAndDrop":
+      return {
+        elementId: encodeElementRef(action.target),
+        description: action.description,
+        method: action.method,
+        arguments: [encodeElementRef(action.destination)],
+      };
+    case "doubleClick":
+    case "hover":
+    case "nextChunk":
+    case "prevChunk":
+      return {
+        elementId: encodeElementRef(action.target),
+        description: action.description,
+        method: action.method,
+        arguments: [],
+      };
+  }
 }
 
 export async function extract<T extends StagehandZodObject>({
@@ -164,7 +246,6 @@ export async function extract<T extends StagehandZodObject>({
         response_model: {
           name: "Metadata",
           schema: metadataSchema,
-          strict: true,
         },
         temperature: isGPT5 ? 1 : 0.1,
         top_p: 1,
@@ -265,39 +346,7 @@ export async function observe({
 
   const observeSchema = z.object({
     elements: z
-      .array(
-        z.object({
-          elementId: z
-            .string()
-            .regex(/^\d+-\d+$/)
-            .describe(
-              "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'.",
-            ),
-          description: z
-            .string()
-            .describe(
-              "a description of the accessible element and its purpose",
-            ),
-          method: z
-            .enum(
-              // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
-              Object.values(SupportedUnderstudyAction) as unknown as readonly [
-                string,
-                ...string[],
-              ],
-            )
-            .describe(
-              `the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.`,
-            ),
-          arguments: z.array(
-            z
-              .string()
-              .describe(
-                "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
-              ),
-          ),
-        }),
-      )
+      .array(modelActionSchema)
       .describe("an array of accessible elements that match the instruction"),
   });
 
@@ -334,7 +383,6 @@ export async function observe({
       response_model: {
         schema: observeSchema,
         name: "Observation",
-        strict: true,
       },
       temperature: isGPT5 ? 1 : 0.1,
       top_p: 1,
@@ -379,13 +427,7 @@ export async function observe({
 
   const parsedElements =
     observeData.elements?.map((el) => {
-      const base = {
-        elementId: el.elementId,
-        description: String(el.description),
-        method: String(el.method),
-        arguments: el.arguments,
-      };
-      return base;
+      return toLegacyInferenceAction(el);
     }) ?? [];
 
   return {
@@ -415,38 +457,9 @@ export async function act({
 }) {
   const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
 
-  const actSchema = z.object({
-    elementId: z
-      .string()
-      .regex(/^\d+-\d+$/)
-      .describe(
-        "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'. for example, '0-76' or '16-21'",
-      ),
-    description: z
-      .string()
-      .describe("a description of the accessible element and its purpose"),
-    method: z
-      .enum(
-        // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
-        Object.values(SupportedUnderstudyAction) as unknown as readonly [
-          string,
-          ...string[],
-        ],
-      )
-      .describe(
-        "the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.",
-      ),
-    arguments: z.array(
-      z
-        .string()
-        .describe(
-          "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
-        ),
-    ),
-    twoStep: z.boolean(),
-  });
+  const actSchema = modelActResponseSchema;
 
-  type ActResponse = z.infer<typeof actSchema>;
+  type ActResponse = ModelActResponse;
 
   const messages: ChatMessage[] = [
     buildActSystemPrompt(userProvidedInstructions),
@@ -475,7 +488,6 @@ export async function act({
       response_model: {
         schema: actSchema,
         name: "act",
-        strict: true,
       },
       temperature: isGPT5 ? 1 : 0.1,
       top_p: 1,
@@ -518,12 +530,7 @@ export async function act({
     });
   }
 
-  const parsedElement = {
-    elementId: actData.elementId,
-    description: String(actData.description),
-    method: String(actData.method),
-    arguments: actData.arguments,
-  };
+  const parsedElement = toLegacyInferenceAction(actData.action);
 
   return {
     element: parsedElement,

@@ -147,7 +147,7 @@ function resolveJsonResponseKey(
   };
   const properties = schema?.properties ?? {};
 
-  if ("elementId" in properties && "twoStep" in properties) {
+  if ("action" in properties && "twoStep" in properties) {
     return "act";
   }
 
@@ -207,6 +207,38 @@ export function findLastEncodedId(options: LanguageModelV3CallOptions): string {
   }
 
   return matches[matches.length - 1];
+}
+
+function parseEncodedId(encodedId: string): {
+  frameOrdinal: number;
+  backendNodeId: number;
+} {
+  const match = encodedId.match(/^(\d+)-(\d+)$/);
+  if (!match) {
+    throw new Error(`Invalid encoded id: ${encodedId}`);
+  }
+
+  return {
+    frameOrdinal: Number(match[1]),
+    backendNodeId: Number(match[2]),
+  };
+}
+
+export function findLastElementRef(options: LanguageModelV3CallOptions): {
+  frameOrdinal: number;
+  backendNodeId: number;
+} {
+  return parseEncodedId(findLastEncodedId(options));
+}
+
+export function findElementRefForText(
+  options: LanguageModelV3CallOptions,
+  text: string,
+): {
+  frameOrdinal: number;
+  backendNodeId: number;
+} {
+  return parseEncodedId(findEncodedIdForText(options, text));
 }
 
 export function toolCallResponse(

@@ -56,6 +56,7 @@ export interface ChatCompletionOptions {
   response_model?: {
     name: string;
     schema: StagehandZodSchema;
+    // Defaults to strict structured output when omitted.
     strict?: boolean;
   };
   tools?: LLMTool[];
@@ -134,6 +135,7 @@ export abstract class LLMClient {
         response_model: {
           name: string;
           schema: StagehandZodSchema;
+          // Defaults to strict structured output when omitted.
           strict?: boolean;
         };
       };

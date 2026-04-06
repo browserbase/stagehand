@@ -124,10 +124,15 @@ function createToolTimeoutTestLlmClient(
       if (responseModelName === "act") {
         return {
           data: {
-            elementId: "1-0",
-            description: "click body",
-            method: "click",
-            arguments: [],
+            action: {
+              target: {
+                frameOrdinal: 1,
+                backendNodeId: 1,
+              },
+              description: "click body",
+              method: "click",
+              button: null,
+            },
             twoStep: false,
           },
           usage,

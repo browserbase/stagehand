@@ -2,6 +2,7 @@ import {
   ModelMessage,
   ImagePart,
   NoObjectGeneratedError,
+  Output,
   TextPart,
   ToolSet,
   Tool,
@@ -20,7 +21,7 @@ import {
 } from "@browserbasehq/stagehand";
 
 // Wrap AI SDK functions with Braintrust for tracing
-const { generateObject, generateText } = wrapAISDK(ai);
+const { generateText } = wrapAISDK(ai);
 
 export class AISdkClientWrapped extends LLMClient {
   public type = "aisdk" as const;
@@ -161,7 +162,6 @@ export class AISdkClientWrapped extends LLMClient {
       },
     );
 
-    let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
     const isDeepSeek = this.model.modelId.includes("deepseek");
@@ -175,6 +175,7 @@ export class AISdkClientWrapped extends LLMClient {
     const resolvedReasoningEffort =
       userReasoningEffort ?? (isGPT5SubModel ? "none" : undefined);
     if (options.response_model) {
+      let objectResponse: Awaited<ReturnType<typeof generateText>>;
       if (isDeepSeek || isKimi) {
         const parsedSchema = JSON.stringify(
           toJsonSchema(options.response_model.schema),
@@ -188,11 +189,18 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       }
 
       try {
-        objectResponse = await generateObject({
+        objectResponse = await generateText({
           model: this.model,
           messages: formattedMessages,
-          schema: options.response_model.schema,
+          output: Output.object({
+            schema: options.response_model.schema,
+            name: options.response_model.name,
+          }),
           temperature,
+          maxOutputTokens: options.maxOutputTokens,
+          topP: options.top_p,
+          frequencyPenalty: options.frequency_penalty,
+          presencePenalty: options.presence_penalty,
           providerOptions: resolvedReasoningEffort
             ? {
                 openai: {
@@ -244,7 +252,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       }
 
       const result = {
-        data: objectResponse.object,
+        data: objectResponse.output,
         usage: {
           prompt_tokens: objectResponse.usage.inputTokens ?? 0,
           completion_tokens: objectResponse.usage.outputTokens ?? 0,
@@ -261,7 +269,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         auxiliary: {
           response: {
             value: JSON.stringify({
-              object: objectResponse.object,
+              output: objectResponse.output,
               usage: objectResponse.usage,
               finishReason: objectResponse.finishReason,
               // Omit request and response properties that might contain images
