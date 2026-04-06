@@ -45,6 +45,7 @@ import {
   CAPTCHA_SOLVED_MSG,
   CAPTCHA_ERRORED_MSG,
 } from "../agent/utils/captchaSolver.js";
+import { supportsAdaptiveThinking } from "../agent/utils/adaptiveThinking.js";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -138,11 +139,25 @@ export class V3AgentHandler {
         }
       }
 
+      // Detect whether the model supports adaptive thinking (Claude 4.6+).
+      // When it does we enable native thinking and omit the custom think tool.
+      const modelId = this.llmClient?.getLanguageModel?.()?.modelId;
+      const useAdaptiveThinking = supportsAdaptiveThinking(modelId);
+
+      if (useAdaptiveThinking) {
+        this.logger({
+          category: "agent",
+          message: `Adaptive thinking enabled for model "${modelId}" — custom think tool will be omitted`,
+          level: 1,
+        });
+      }
+
       const tools = this.createTools(
         options.excludeTools,
         options.variables,
         options.toolTimeout,
         options.useSearch,
+        useAdaptiveThinking,
       );
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
@@ -183,6 +198,7 @@ export class V3AgentHandler {
         messages,
         wrappedModel,
         initialPageUrl,
+        useAdaptiveThinking,
       };
     } catch (error) {
       this.logger({
@@ -334,6 +350,7 @@ export class V3AgentHandler {
         messages: preparedMessages,
         wrappedModel,
         initialPageUrl,
+        useAdaptiveThinking,
       } = await this.prepareAgent(instructionOrOptions);
 
       // Enable cursor overlay for hybrid mode (coordinate-based interactions)
@@ -385,6 +402,15 @@ export class V3AgentHandler {
         providerOptions: {
           google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
           openai: { store: false },
+          // Enable extended thinking for Anthropic models that support it.
+          // The @ai-sdk/anthropic provider (v2.x) supports type: "enabled"
+          // with a budget; when the SDK adds type: "adaptive" support this
+          // should be migrated to { type: "adaptive" }.
+          ...(useAdaptiveThinking && {
+            anthropic: {
+              thinking: { type: "enabled", budgetTokens: 10024 },
+            },
+          }),
         },
       });
 
@@ -459,6 +485,7 @@ export class V3AgentHandler {
       messages,
       wrappedModel,
       initialPageUrl,
+      useAdaptiveThinking,
     } = await this.prepareAgent(instructionOrOptions);
 
     // Enable cursor overlay for hybrid mode (coordinate-based interactions)
@@ -570,6 +597,11 @@ export class V3AgentHandler {
         providerOptions: {
           google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
           openai: { store: false },
+          ...(useAdaptiveThinking && {
+            anthropic: {
+              thinking: { type: "enabled", budgetTokens: 10024 },
+            },
+          }),
         },
       });
     } catch (error) {
@@ -647,6 +679,7 @@ export class V3AgentHandler {
     variables?: Variables,
     toolTimeout?: number,
     useSearch?: boolean,
+    useAdaptiveThinking?: boolean,
   ) {
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
@@ -659,6 +692,7 @@ export class V3AgentHandler {
       toolTimeout,
       useSearch,
       browserbaseApiKey: useSearch ? this.v3.browserbaseApiKey : undefined,
+      useAdaptiveThinking,
     });
   }
 

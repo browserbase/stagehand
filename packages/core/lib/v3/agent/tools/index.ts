@@ -57,6 +57,13 @@ export interface V3AgentToolOptions {
    */
   toolTimeout?: number;
   /**
+   * When true, the custom `think` tool is excluded from the toolset because
+   * the model supports adaptive thinking natively (e.g. Claude 4.6 models).
+   *
+   * @see https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+   */
+  useAdaptiveThinking?: boolean;
+  /**
    * Whether to enable the Browserbase-powered web search tool.
    * Requires a valid Browserbase API key.
    */
@@ -184,6 +191,8 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     unwrappedTools.search = braveSearchTool(v3);
   }
 
+  const useAdaptiveThinking = options?.useAdaptiveThinking ?? false;
+
   const allTools: ToolSet = {
     ...Object.fromEntries(
       Object.entries(unwrappedTools).map(([name, t]) => [
@@ -197,7 +206,9 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
         ),
       ]),
     ),
-    think: thinkTool(),
+    // When adaptive thinking is enabled the model reasons natively between
+    // tool calls, so the custom think tool is redundant and should be omitted.
+    ...(useAdaptiveThinking ? {} : { think: thinkTool() }),
     wait: waitTool(v3, mode),
   };
 

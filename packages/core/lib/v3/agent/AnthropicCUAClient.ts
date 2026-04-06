@@ -27,6 +27,7 @@ import {
   extractLlmCuaResponseSummary,
 } from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
+import { supportsAdaptiveThinking } from "./utils/adaptiveThinking.js";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -432,10 +433,16 @@ export class AnthropicCUAClient extends AgentClient {
         // as they should already be properly wrapped in user messages
       }
 
-      // Configure thinking capability if available
-      const thinking = this.thinkingBudget
-        ? { type: "enabled" as const, budget_tokens: this.thinkingBudget }
-        : undefined;
+      // Configure thinking capability.
+      // Claude 4.6+ models support adaptive thinking which dynamically
+      // determines when and how much to reason. For older models, fall back
+      // to the explicit budget-based thinking configuration.
+      const useAdaptive = supportsAdaptiveThinking(this.modelName);
+      const thinking = useAdaptive
+        ? ({ type: "adaptive" } as Record<string, unknown>)
+        : this.thinkingBudget
+          ? { type: "enabled" as const, budget_tokens: this.thinkingBudget }
+          : undefined;
 
       // Claude 4.6+ models require the newer computer_20251124 tool version
       const modelBase = this.modelName.includes("/")
