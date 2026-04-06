@@ -12,7 +12,7 @@ async function example() {
     env: "BROWSERBASE",
     verbose: 1,
     llmClient: new CustomOpenAIClient({
-      modelName: "gpt-4o-mini",
+      modelName: "gpt-4.1-mini",
       client: new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       }),
