@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { NoObjectGeneratedError, tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
@@ -75,6 +75,9 @@ export const fillFormTool = (
         };
       } catch (error) {
         if (error instanceof TimeoutError) {
+          throw error;
+        }
+        if (NoObjectGeneratedError.isInstance(error)) {
           throw error;
         }
         return {

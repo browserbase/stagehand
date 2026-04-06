@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { NoObjectGeneratedError, tool } from "ai";
 import { z, ZodTypeAny } from "zod";
 import type { V3 } from "../../v3.js";
 import type { AgentModelConfig } from "../../types/public/agent.js";
@@ -101,6 +101,9 @@ export const extractTool = (
         return { success: true, result };
       } catch (error) {
         if (error instanceof TimeoutError) {
+          throw error;
+        }
+        if (NoObjectGeneratedError.isInstance(error)) {
           throw error;
         }
         return { success: false, error: error?.message ?? String(error) };

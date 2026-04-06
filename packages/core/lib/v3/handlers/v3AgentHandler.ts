@@ -8,6 +8,7 @@ import {
   wrapLanguageModel,
   stepCountIs,
   LanguageModel,
+  NoObjectGeneratedError,
   type LanguageModelUsage,
   type StepResult,
   type GenerateTextOnStepFinishCallback,
@@ -434,7 +435,8 @@ export class V3AgentHandler {
       // Re-throw validation errors that should propagate to the caller
       if (
         error instanceof StreamingCallbacksInNonStreamingModeError ||
-        error instanceof MissingEnvironmentVariableError
+        error instanceof MissingEnvironmentVariableError ||
+        NoObjectGeneratedError.isInstance(error)
       ) {
         throw error;
       }
