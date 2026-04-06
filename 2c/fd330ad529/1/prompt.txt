@@ -1,0 +1,116 @@
+in the models/ section of the docs, we need to add at the top the new 'Model Gateway'. Sharing here a blog post where we introduce it, and feel free to askusertool for any questions regarding what and how should go into the docs. Blog:
+## Introducing Model Gateway: use Stagehand without managing model keys
+
+TL;DR: Model Gateway reduces the friction of using LLMs in Stagehand. One API key, one bill, and access to top models without managing providers. You can switch models easily, avoid rate limits, and build without extra setup.
+
+---
+
+When I talk to developers evaluating [Stagehand](https://www.notion.REDACTED?pvs=21), the first point of friction usually isn’t usually browser automation itself. Instead, it’s choosing the right model, and **being able to change your mind later.**
+
+Different models are [better](https://www.stagehand.dev/evals) at different things. Some are faster, some are cheaper, some are more reliable. In practice, you end up wanting to switch between them constantly.
+
+![Screenshot 2026-03-31 at 1.44.52 PM.png](attachment:30cd8f0a-0bb4-4ff5-b383-6f44f44464ea:Screenshot_2026-03-31_at_1.44.52_PM.png)
+
+![Screenshot 2026-03-31 at 1.43.47 PM.png](attachment:c82ad3cd-124c-4864-b54d-253aaf381fa3:Screenshot_2026-03-31_at_1.43.47_PM.png)
+
+But switching models usually means new API keys, accounts, rate limits, and prompting strategies/configuration. That’s a lot of work, so many developers just don’t switch. They pick one model early and work around its limitations.
+
+We built the Browserbase Model Gateway to fix that.
+
+### Treat models like a runtime decision
+
+Model Gateway lets you use Stagehand without wiring up model providers yourself. Instead of integrating directly with OpenAI, Anthropic, or Gemini, you just use your Browserbase API key, and we handle the rest.
+
+![Browsers-mini.png](attachment:509f52ee-37e2-4eac-b171-bc873288c425:Browsers-mini.png)
+
+#### What this actually means
+
+Before Model Gateway, a typical Stagehand setup looked something like this:
+
+```tsx
+# before
+const stagehand = new Stagehand({
+   env: "BROWSERBASE",
+   apiKey: process.env.BROWSERBASE_API_KEY,
+   model: {
+      modelName: "openai/gpt-5",
+      apiKey: process.env.OPENAI_API_KEY,
+    },
+});
+```
+
+You had to manage your Browserbase account **and** your model provider account. Billing, access, and rate-limit behaviour is split. Another provider means another account, key, and code. 
+
+With Model Gateway, this setup gets simpler:
+
+```tsx
+# after
+const stagehand = new Stagehand({
+   apiKey: process.env.BROWSERBASE_API_KEY,
+   model: "openai/gpt-5", // or “anthropic/claude-sonnet-4-6” / “google/gemini-3-flash-preview”
+});
+```
+
+When you send a request through Stagehand actions and choose a supported model, Browserbase routes that request to the upstream provider for you. We handle the provider call, cover the upstream cost, and bill you downstream for tokens at **market price with no markup**.
+
+The value is a lot more than just *“one less env var.”* A whole category of setup and operational work also disappears. ;)
+
+Rather than the model being an infrastructure decision, model gateway makes models a more fluid runtime decision. 
+
+### Switching models should be normal
+
+Most teams don’t switch models as often as they should, because it’s operationally annoying. With Model Gateway, switching is just configuration. You can switch models without reworking your setup:
+
+```tsx
+const stagehand = Stagehand({
+    model: "openai/gpt-4.1"
+}
+
+// switching to anthropic 
+
+const stagehand = Stagehand({
+    model: "anthropic/claude-sonnet-4-6"
+}
+```
+
+You can experiment more freely (try a cheaper model, swap for higher quality, or add a fallback path) without thinking about credentials or access.
+
+And when things go wrong upstream (like hitting 429s or transient failures) you don’t need to build custom retry logic for every provider. Requests go through Browserbase, and we handle retries, backoff, and rate limits on your behalf.
+
+### Use better models without paying for repeated work
+
+Today, Stagehand supports managed action caching. In other words, we can reuse previously executed steps instead of re-running the same work.
+
+This is often more useful in practice than prompt-level caching, especially for browser workflows.
+
+With Model Gateway and by routing model usage through Browserbase, you’re running on the managed path, which is where caching applies. You don’t have to coordinate caching across providers or build your own layer for it.
+
+You can use better models and still benefit from caching and reuse. Instead of optimizing purely for cost or speed upfront, you can pick the best model for the job and let caching reduce redundant work over time.
+
+And when workflows fail or need to retry, Stagehand can pick back up without re-running everything from scratch, so you’re not paying for the same work twice.
+
+### One key → one bill
+
+LLM inference, browser infrastructure, and caching all run through your Browserbase API key. And best of all, you’re not paying extra for this abstraction.
+
+We charge market price for tokens, which is the same as going direct. It also removes the common tier gating pain point with provider APIs. 
+
+If you’ve used these APIs before, you’ve probably run into this when new models get released, but you can’t actually use them yet because your account hasn’t hit a certain spend threshold. When OpenAI released early previews of computer use models, access was limited to higher usage tiers. Even if you wanted to try them, you had to *“earn”* access first.
+
+With Model Gateway, you don’t have to think about any of that. You don’t have to hit spend thresholds to unlock models, manage account tiers, or build around provider-specific rate limits
+
+We’ll handle it for you. :)
+
+![image.png](attachment:e2340075-93b3-4248-8ecc-f226788186dc:7f09c096-c5eb-4b26-907d-769c1ca454a7.png)
+
+### Get started: `npx create-browser-app`
+
+Use the best models for the job, and switch whenever you want. 
+
+Model Gateway currently supports OpenAI, Anthropic, and Gemini.
+
+If you’re looking to use additional models or need support for a custom setup, [reach out!](https://www.browserbase.com/contact) We’re happy to work with teams on more advanced or high-scale use cases.
+
+---
+
+would love a custom callout before the model gateway header (example for a custom callout: <Callout icon="key" color="#FFC107" iconType="regular">This is a custom callout</Callout>) to make it more evident

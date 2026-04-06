@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "2cfd330ad529",
+  "session_id": "29faf33f-3da9-4f0d-adcd-2ba441778aec",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-06T17:56:26.826554Z",
+  "branch": "miguelgonzalez/stg-1772-model-gateway-docs-section-stagehand",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "packages/docs/v3/configuration/models.mdx"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "37c2cfe1453a",
+  "token_usage": {
+    "input_tokens": 19,
+    "cache_creation_tokens": 82598,
+    "cache_read_tokens": 383665,
+    "output_tokens": 5240,
+    "api_call_count": 13
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-06T17:56:26.748735Z",
+    "agent_lines": 67,
+    "human_added": 0,
+    "human_modified": 8,
+    "human_removed": 4,
+    "total_committed": 71,
+    "agent_percentage": 94.36619718309859
+  },
+  "transcript_path": ".claude/projects/-Users-miguel-browserbase-Documents-Browserbase-stagehand/29faf33f-3da9-4f0d-adcd-2ba441778aec.jsonl"
+}
