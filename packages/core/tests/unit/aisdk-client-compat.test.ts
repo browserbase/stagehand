@@ -7,6 +7,7 @@ import type {
   LanguageModelV3GenerateResult,
   LanguageModelV3Usage,
 } from "@ai-sdk/provider";
+import { NoObjectGeneratedError } from "ai";
 import { z } from "zod";
 import { AISdkClient } from "../../lib/v3/llm/aisdk.js";
 
@@ -165,6 +166,32 @@ describe("AISdkClient compatibility", () => {
     expect(result.usage).not.toHaveProperty("outputTokens");
     expect(result.usage).not.toHaveProperty("reasoningTokens");
     expect(result.usage).not.toHaveProperty("cachedInputTokens");
+  });
+
+  it("createChatCompletion() with response_model throws NoObjectGeneratedError for invalid structured output", async () => {
+    const model = createScriptedModel(() => ({
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ status: "ok" }),
+        },
+      ],
+    }));
+
+    const client = new AISdkClient({ model });
+
+    await expect(
+      client.createChatCompletion({
+        options: {
+          messages: [{ role: "user", content: "Return the extraction title." }],
+          response_model: {
+            name: "Extraction",
+            schema: z.object({ title: z.string() }),
+          },
+        },
+        logger: vi.fn(),
+      }),
+    ).rejects.toBeInstanceOf(NoObjectGeneratedError);
   });
 
   it("createChatCompletion() without response_model maps tool calls into legacy chat completion shape", async () => {
