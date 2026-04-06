@@ -1,14 +1,90 @@
 ---
 title: Models
 sidebarTitle: Models
-description: Use any LLM model with Stagehand for optimal performance
+description: Use any LLM model with Stagehand
 ---
 import { V3Banner } from '/snippets/v3-banner.mdx';
 
 <V3Banner />
 
 
-Understand web pages, plan actions, and interact with complex interfaces with Google, OpenAI, Anthropic, xAI, DeepSeek, Perplexity, Azure, Ollama, the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway), or any other LLM model from [the Vercel AI SDK](https://sdk.vercel.ai/providers).
+<Callout icon="sparkles" color="#FFC107" iconType="regular">
+  **(NEW) Model Gateway** — Use your Browserbase API key to access top models from OpenAI, Anthropic, and Google. One key, one bill, no provider accounts needed. [Read the blog](https://www.browserbase.com/blog/model-gateway)
+</Callout>
+
+## Model Gateway
+
+Model Gateway lets you use Stagehand without wiring up model providers yourself. Instead of managing separate API keys for each provider, just pass your Browserbase API key and pick a model. Browserbase routes the request to the upstream provider for you.
+
+### Setup
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "openai/gpt-5",
+});
+
+await stagehand.init();
+```
+
+When only a Browserbase API key is provided (without a provider-specific API key), Stagehand automatically routes model requests through Model Gateway. No additional configuration is needed.
+
+<Note>
+  Model Gateway requires Browserbase-hosted browsers. It does not work with `env: "LOCAL"`.
+</Note>
+
+### Switching models
+
+With Model Gateway, switching between providers is just a config change — no new accounts, API keys, or code rewiring required:
+
+<Tabs>
+<Tab title="OpenAI">
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "openai/gpt-5",
+});
+```
+</Tab>
+<Tab title="Anthropic">
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "anthropic/claude-sonnet-4-6",
+});
+```
+</Tab>
+<Tab title="Google">
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "google/gemini-3-flash-preview",
+});
+```
+</Tab>
+</Tabs>
+
+### Key benefits
+
+- **One key, one bill** — LLM inference, browser infrastructure, and caching all run through your Browserbase API key.
+- **Market-price tokens** — We charge the same price as going direct to the provider. No markup.
+- **Built-in reliability** — Retries, backoff, and rate limit handling are managed for you.
+- **No tier-gating** — Access new models immediately without hitting provider spend thresholds.
+- **Action caching** — Model Gateway works with Stagehand's [managed action caching](/v3/best-practices/caching), so repeated steps are reused instead of re-run.
+
+### Supported providers
+
+| Provider   | Example Model                  |
+| ---------- | ------------------------------ |
+| OpenAI     | `openai/gpt-5`                |
+| Anthropic  | `anthropic/claude-sonnet-4-6` |
+| Google     | `google/gemini-2.5-flash`     |
+
+<Tip>
+  Need a provider that isn't listed? [Reach out](https://www.browserbase.com/contact) — we're happy to work with teams on additional model support.
+</Tip>
 
 ---
 
@@ -848,6 +924,7 @@ The following models work without the `provider/` prefix in the model parameter 
 
 | Provider   | Environment Variable           |
 | ---------- | ------------------------------ |
+| Model Gateway | `BROWSERBASE_API_KEY` (no provider key needed) |
 | Google     | `GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY` |
 | Vertex | Service account credentials (see [setup](#first-class-models)) |
 | Anthropic  | `ANTHROPIC_API_KEY`            |
