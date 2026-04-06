@@ -26,7 +26,6 @@ const modelActionBaseSchema = z.strictObject({
   ),
   description: z
     .string()
-    .default("")
     .describe("A description of the accessible element and its purpose."),
 });
 
@@ -36,8 +35,6 @@ export const modelActionSchema = z.union([
     button: z
       .enum(["right", "middle"])
       .nullable()
-      .optional()
-      .default(null)
       .describe(
         "Mouse button override for click actions. Use null for the default left click.",
       ),
@@ -95,34 +92,7 @@ const modelActResponseSchemaInner = z.strictObject({
   twoStep: z.boolean(),
 });
 
-export const modelActResponseSchema = z.preprocess((input) => {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return input;
-  }
-
-  const raw = input as Record<string, unknown>;
-  const rawAction =
-    raw.action && typeof raw.action === "object" && !Array.isArray(raw.action)
-      ? ({ ...raw.action } as Record<string, unknown>)
-      : undefined;
-
-  if (!rawAction || "twoStep" in raw) {
-    return input;
-  }
-
-  const twoStep = rawAction.twoStep;
-  if (typeof twoStep !== "boolean") {
-    return input;
-  }
-
-  delete rawAction.twoStep;
-
-  return {
-    ...raw,
-    action: rawAction,
-    twoStep,
-  };
-}, modelActResponseSchemaInner);
+export const modelActResponseSchema = modelActResponseSchemaInner;
 
 export type ModelAction = z.infer<typeof modelActionSchema>;
 export type ModelActResponse = z.infer<typeof modelActResponseSchema>;

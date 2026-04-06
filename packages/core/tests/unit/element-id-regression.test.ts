@@ -124,7 +124,7 @@ describe("typed element reference regression", () => {
     });
   });
 
-  it("accepts act responses when twoStep is nested inside action", async () => {
+  it("rejects act responses when twoStep is nested inside action", async () => {
     const llmClient = buildSchemaValidatingLlmClient({
       act: {
         action: {
@@ -134,6 +134,7 @@ describe("typed element reference regression", () => {
           },
           description: "gear button",
           method: "click",
+          button: null,
           twoStep: false,
         },
       },
@@ -146,109 +147,7 @@ describe("typed element reference regression", () => {
         llmClient,
         logger: vi.fn(),
       }),
-    ).resolves.toMatchObject({
-      element: {
-        elementId: "0-9786",
-        description: "gear button",
-        method: "click",
-        arguments: [],
-      },
-      twoStep: false,
-    });
-  });
-
-  it("accepts click actions without an explicit button override", async () => {
-    const llmClient = buildSchemaValidatingLlmClient({
-      act: {
-        action: {
-          target: {
-            frameOrdinal: 0,
-            backendNodeId: 9786,
-          },
-          description: "gear button",
-          method: "click",
-        },
-        twoStep: false,
-      },
-      Observation: {
-        elements: [
-          {
-            target: {
-              frameOrdinal: 0,
-              backendNodeId: 9786,
-            },
-            description: "gear button",
-            method: "click",
-          },
-        ],
-      },
-    });
-
-    await expect(
-      runAct({
-        instruction: "click the gear button",
-        domElements: "[0-9786] button Gear",
-        llmClient,
-        logger: vi.fn(),
-      }),
-    ).resolves.toMatchObject({
-      element: {
-        elementId: "0-9786",
-        description: "gear button",
-        method: "click",
-        arguments: [],
-      },
-    });
-
-    await expect(
-      runObserve({
-        instruction: "find the gear button",
-        domElements: "[0-9786] button Gear",
-        llmClient,
-        logger: vi.fn(),
-      }),
-    ).resolves.toMatchObject({
-      elements: [
-        {
-          elementId: "0-9786",
-          description: "gear button",
-          method: "click",
-          arguments: [],
-        },
-      ],
-    });
-  });
-
-  it("fills missing descriptions with an empty string for upstream compatibility", async () => {
-    const llmClient = buildSchemaValidatingLlmClient({
-      act: {
-        action: {
-          target: {
-            frameOrdinal: 0,
-            backendNodeId: 9786,
-          },
-          method: "click",
-        },
-        twoStep: false,
-      },
-    });
-
-    await expect(
-      runAct({
-        instruction: "click the gear button",
-        domElements: "[0-9786] button Gear",
-        llmClient,
-        logger: vi.fn(),
-      }),
-    ).resolves.toMatchObject({
-      element: {
-        elementId: "0-9786",
-        description: "",
-        method: "click",
-        arguments: [],
-      },
-      twoStep: false,
-    });
+    ).rejects.toBeTruthy();
   });
 
   it("accepts structured observe element refs and re-encodes them for upstream callers", async () => {
