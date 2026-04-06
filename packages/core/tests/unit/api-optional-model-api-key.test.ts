@@ -17,22 +17,6 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
   // the header is conditionally included.
   let originalFetch: typeof globalThis.fetch;
 
-  function createSuccessResponse(sessionId: string) {
-    return new Response(
-      `data: ${JSON.stringify({
-        type: "system",
-        data: {
-          status: "finished",
-          result: { sessionId, available: true },
-        },
-      })}\n\n`,
-      {
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" },
-      },
-    );
-  }
-
   function createSessionStartResponse(sessionId: string) {
     return new Response(
       JSON.stringify({
@@ -69,7 +53,7 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
     await expect(
       client.init({
         modelName: "openai/gpt-4.1-mini",
-      } as any),
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -87,7 +71,7 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
       client.init({
         modelName: "openai/gpt-4.1-mini",
         modelApiKey: undefined,
-      } as any),
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -105,7 +89,7 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
     await client.init({
       modelName: "openai/gpt-4.1-mini",
       modelApiKey: "my-model-key",
-    } as any);
+    });
 
     // Verify the fetch was called with x-model-api-key header
     const [, requestInit] = fetchSpy.mock.calls[0];
@@ -125,7 +109,7 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
 
     await client.init({
       modelName: "openai/gpt-4.1-mini",
-    } as any);
+    });
 
     // Verify x-model-api-key header is NOT present
     const [, requestInit] = fetchSpy.mock.calls[0];
