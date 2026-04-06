@@ -1,4 +1,4 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
 /**
@@ -8,7 +8,7 @@ import { V3Evaluator } from "@browserbasehq/stagehand";
  * - Requires the agent to output a final answer in the form: "Final Answer: <value>"
  * - Marks success if such an answer string is present (exact matching against dataset can be layered later)
  */
-export const gaia: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/gaia" }, async ({
   v3,
   logger,
   debugUrl,
@@ -96,4 +96,4 @@ export const gaia: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   }
-};
+});

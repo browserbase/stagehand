@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
-export const github: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/github" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -53,4 +53,4 @@ export const github: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

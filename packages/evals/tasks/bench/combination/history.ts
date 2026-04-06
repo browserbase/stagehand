@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const history: EvalFunction = async ({
+export default defineBenchTask({ name: "history" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -56,4 +56,4 @@ export const history: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

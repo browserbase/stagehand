@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { compareStrings } from "../../../utils.js";
 import { z } from "zod";
 
-export const extract_baptist_health: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_baptist_health" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -103,4 +103,4 @@ export const extract_baptist_health: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

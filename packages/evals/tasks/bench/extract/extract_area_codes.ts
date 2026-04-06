@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 
-export const extract_area_codes: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_area_codes" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -158,4 +158,4 @@ export const extract_area_codes: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

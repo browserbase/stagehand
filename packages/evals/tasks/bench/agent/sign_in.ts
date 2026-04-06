@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const sign_in: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/sign_in" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -47,4 +47,4 @@ export const sign_in: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

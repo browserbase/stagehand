@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const csr_in_oopif: EvalFunction = async ({
+export default defineBenchTask({ name: "csr_in_oopif" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -49,4 +49,4 @@ export const csr_in_oopif: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const heal_simple_google_search: EvalFunction = async ({
+export default defineBenchTask({ name: "heal_simple_google_search" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -43,4 +43,4 @@ export const heal_simple_google_search: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

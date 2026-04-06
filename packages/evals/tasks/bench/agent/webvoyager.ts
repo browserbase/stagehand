@@ -1,9 +1,9 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
 import { imageResize } from "../../../utils/imageResize.js";
 
-export const webvoyager: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/webvoyager" }, async ({
   v3,
   logger,
   debugUrl,
@@ -106,4 +106,4 @@ export const webvoyager: EvalFunction = async ({
       }
     }
   }
-};
+});

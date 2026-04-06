@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const steam_games: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/steam_games" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -46,4 +46,4 @@ export const steam_games: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

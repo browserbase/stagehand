@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
 
-export const radiotimes_tv_schedule: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/radiotimes_tv_schedule" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -74,4 +74,4 @@ export const radiotimes_tv_schedule: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

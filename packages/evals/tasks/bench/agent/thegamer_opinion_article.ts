@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
 
-export const thegamer_opinion_article: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/thegamer_opinion_article" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -74,4 +74,4 @@ export const thegamer_opinion_article: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

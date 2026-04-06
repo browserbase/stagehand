@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { normalizeString } from "../../../utils.js";
 import { z } from "zod";
 
-export const extract_capacitor_info: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_capacitor_info" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -122,4 +122,4 @@ export const extract_capacitor_info: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

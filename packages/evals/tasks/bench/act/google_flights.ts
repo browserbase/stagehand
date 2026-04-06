@@ -1,4 +1,4 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { Action } from "@browserbasehq/stagehand";
 
 /**
@@ -11,7 +11,7 @@ import { Action } from "@browserbasehq/stagehand";
  * pass the actionability check.
  */
 
-export const google_flights: EvalFunction = async ({
+export default defineBenchTask({ name: "google_flights" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -65,4 +65,4 @@ export const google_flights: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

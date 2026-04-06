@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const observe_taxes: EvalFunction = async ({
+export default defineBenchTask({ name: "observe_taxes" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -79,4 +79,4 @@ export const observe_taxes: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

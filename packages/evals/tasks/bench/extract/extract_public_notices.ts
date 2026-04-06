@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 import { compareStrings } from "../../../utils.js";
 
-export const extract_public_notices: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_public_notices" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -177,4 +177,4 @@ export const extract_public_notices: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

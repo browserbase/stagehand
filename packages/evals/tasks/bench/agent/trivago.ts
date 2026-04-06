@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const trivago: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/trivago" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -51,4 +51,4 @@ export const trivago: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

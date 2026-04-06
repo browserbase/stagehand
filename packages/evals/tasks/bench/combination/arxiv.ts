@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 
-export const arxiv: EvalFunction = async ({
+export default defineBenchTask({ name: "arxiv" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -182,4 +182,4 @@ export const arxiv: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

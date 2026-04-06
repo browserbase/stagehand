@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 
-export const extract_github_commits: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_github_commits" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -56,4 +56,4 @@ export const extract_github_commits: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

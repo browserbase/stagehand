@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 
-export const imdb_movie_details: EvalFunction = async ({
+export default defineBenchTask({ name: "imdb_movie_details" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -103,4 +103,4 @@ export const imdb_movie_details: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

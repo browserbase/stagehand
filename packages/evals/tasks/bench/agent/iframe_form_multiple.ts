@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
 
-export const iframe_form_multiple: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/iframe_form_multiple" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -76,4 +76,4 @@ export const iframe_form_multiple: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

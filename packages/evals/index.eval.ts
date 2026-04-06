@@ -368,12 +368,25 @@ const generateFilteredTestcases = (): Testcase[] => {
 
           const taskModule = await import(pathToFileURL(taskModulePath).href);
 
-          // Extract the task function
+          // Extract the task function — supports both:
+          //   1. Legacy: named export matching filename (e.g., export const dropdown = ...)
+          //   2. New: default export from defineBenchTask (e.g., export default defineBenchTask(...))
           const taskName = input.name.includes("/")
             ? input.name.split("/").pop() // Get the last part of the path for nested tasks
             : input.name;
 
-          const taskFunction = taskModule[taskName];
+          let taskFunction = taskModule[taskName];
+
+          // Check for defineBenchTask default export
+          if (typeof taskFunction !== "function" && taskModule.default) {
+            const defaultExport = taskModule.default;
+            if (
+              defaultExport.__taskDefinition === true &&
+              typeof defaultExport.fn === "function"
+            ) {
+              taskFunction = defaultExport.fn;
+            }
+          }
 
           if (typeof taskFunction !== "function") {
             throw new StagehandEvalError(

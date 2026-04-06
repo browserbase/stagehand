@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 import { compareStrings } from "../../../utils.js";
 
-export const extract_hamilton_weather: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_hamilton_weather" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -81,4 +81,4 @@ export const extract_hamilton_weather: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

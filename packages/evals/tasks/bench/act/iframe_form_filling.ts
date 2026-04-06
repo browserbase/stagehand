@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const iframe_form_filling: EvalFunction = async ({
+export default defineBenchTask({ name: "iframe_form_filling" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -64,4 +64,4 @@ export const iframe_form_filling: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

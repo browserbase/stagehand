@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
-export const sf_library_card: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/sf_library_card" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -60,4 +60,4 @@ export const sf_library_card: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

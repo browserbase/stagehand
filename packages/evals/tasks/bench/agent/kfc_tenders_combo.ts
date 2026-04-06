@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
 
-export const kfc_tenders_combo: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/kfc_tenders_combo" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -74,4 +74,4 @@ export const kfc_tenders_combo: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

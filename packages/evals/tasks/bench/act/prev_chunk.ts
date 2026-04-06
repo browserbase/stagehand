@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const prev_chunk: EvalFunction = async ({
+export default defineBenchTask({ name: "prev_chunk" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -67,4 +67,4 @@ export const prev_chunk: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

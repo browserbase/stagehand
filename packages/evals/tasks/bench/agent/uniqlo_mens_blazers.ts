@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
 
-export const uniqlo_mens_blazers: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/uniqlo_mens_blazers" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -74,4 +74,4 @@ export const uniqlo_mens_blazers: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

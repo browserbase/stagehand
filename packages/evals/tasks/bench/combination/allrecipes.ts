@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 
-export const allrecipes: EvalFunction = async ({
+export default defineBenchTask({ name: "allrecipes" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -94,4 +94,4 @@ export const allrecipes: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

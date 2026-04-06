@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
 
-export const trailhead_superbadge: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/trailhead_superbadge" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -74,4 +74,4 @@ export const trailhead_superbadge: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

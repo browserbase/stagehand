@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const heal_custom_dropdown: EvalFunction = async ({
+export default defineBenchTask({ name: "heal_custom_dropdown" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -62,4 +62,4 @@ export const heal_custom_dropdown: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

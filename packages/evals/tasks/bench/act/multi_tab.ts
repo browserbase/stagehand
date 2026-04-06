@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const multi_tab: EvalFunction = async ({
+export default defineBenchTask({ name: "multi_tab" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -80,4 +80,4 @@ export const multi_tab: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

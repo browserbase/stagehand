@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const extract_aigrant_companies: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_aigrant_companies" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -132,4 +132,4 @@ export const extract_aigrant_companies: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

@@ -1,9 +1,9 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
 import { imageResize } from "../../../utils/imageResize.js";
 
-export const webtailbench: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/webtailbench" }, async ({
   v3,
   logger,
   debugUrl,
@@ -109,4 +109,4 @@ export const webtailbench: EvalFunction = async ({
       }
     }
   }
-};
+});

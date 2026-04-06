@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
-export const google_flights: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/google_flights" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -63,4 +63,4 @@ export const google_flights: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

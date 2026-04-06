@@ -1,8 +1,8 @@
 //this eval is expected to fail due to issues scrolling within the trade in dialog
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
-export const apple_trade_in: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/apple_trade_in" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -54,4 +54,4 @@ export const apple_trade_in: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

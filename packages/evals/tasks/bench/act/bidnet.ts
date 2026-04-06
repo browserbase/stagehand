@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const bidnet: EvalFunction = async ({
+export default defineBenchTask({ name: "bidnet" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -34,4 +34,4 @@ export const bidnet: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 
-export const extract_jstor_news: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_jstor_news" }, async ({
   logger,
 
   debugUrl,
@@ -145,4 +145,4 @@ export const extract_jstor_news: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

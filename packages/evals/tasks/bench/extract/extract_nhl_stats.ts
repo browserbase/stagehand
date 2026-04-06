@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { normalizeString } from "../../../utils.js";
 import { z } from "zod";
 
-export const extract_nhl_stats: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_nhl_stats" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -123,4 +123,4 @@ export const extract_nhl_stats: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

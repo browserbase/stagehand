@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 import { compareStrings } from "../../../utils.js";
 
-export const extract_memorial_healthcare: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_memorial_healthcare" }, async ({
   logger,
 
   debugUrl,
@@ -199,4 +199,4 @@ export const extract_memorial_healthcare: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

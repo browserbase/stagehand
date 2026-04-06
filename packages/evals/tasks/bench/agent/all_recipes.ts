@@ -1,7 +1,7 @@
 import { V3Evaluator } from "@browserbasehq/stagehand";
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const all_recipes: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/all_recipes" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -53,4 +53,4 @@ export const all_recipes: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

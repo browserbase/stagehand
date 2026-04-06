@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
 
-export const trustpilot_hr_companies: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/trustpilot_hr_companies" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -74,4 +74,4 @@ export const trustpilot_hr_companies: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

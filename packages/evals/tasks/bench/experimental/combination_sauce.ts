@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 
-export const combination_sauce: EvalFunction = async ({
+export default defineBenchTask({ name: "combination_sauce" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -50,4 +50,4 @@ export const combination_sauce: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

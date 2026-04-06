@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const panamcs: EvalFunction = async ({
+export default defineBenchTask({ name: "panamcs" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -71,4 +71,4 @@ export const panamcs: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

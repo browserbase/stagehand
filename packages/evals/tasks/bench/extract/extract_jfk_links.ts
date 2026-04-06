@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 
-export const extract_jfk_links: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_jfk_links" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -119,4 +119,4 @@ export const extract_jfk_links: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

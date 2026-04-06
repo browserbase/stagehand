@@ -66,7 +66,13 @@ runCore.ts          # Core tier entry point (spawned by cli.ts for `evals run co
 
 ### Cross-cutting categories (tags, not directories)
 
-`regression`, `targeted_extract`, `external_agent_benchmarks` — tasks live in their natural directory and are tagged via a static `CROSS_CUTTING_CATEGORIES` map in `taskConfig.ts` and `cli.ts`. Commands like `evals run regression` or `evals run targeted_extract` resolve correctly.
+`regression`, `targeted_extract`, `external_agent_benchmarks` — tasks live in their natural directory and are tagged via static maps in `taskConfig.ts` and `cli.ts`:
+- `EXTRA_CATEGORIES` — additional tags merged onto the directory category (e.g., `observe_github` gets `["regression"]`)
+- `CATEGORY_OVERRIDES` — full category replacement (e.g., `agent/gaia` becomes `["external_agent_benchmarks"]` only, NOT `["agent", "external_agent_benchmarks"]`)
+
+This ensures `evals run agent` excludes heavy benchmark suites and `evals run regression` still resolves correctly.
+
+Dead categories removed: `llm_clients` and `regression_llm_providers` (all files entirely commented out) were dropped from `EvalCategorySchema` and `DEFAULT_EVAL_CATEGORIES`.
 
 ### Target resolution
 
@@ -78,7 +84,8 @@ runCore.ts          # Core tier entry point (spawned by cli.ts for `evals run co
 | `evals run core:actions` | Tier-qualified category |
 | `evals run act` | Bench tier "act" category |
 | `evals run regression` | Cross-cutting: all tasks tagged "regression" |
-| `evals run dropdown` | Specific task by name |
+| `evals run dropdown` | Specific bench task by name |
+| `evals run open` | Specific core task by name (routes to core runner) |
 
 ---
 
@@ -108,8 +115,9 @@ runCore.ts          # Core tier entry point (spawned by cli.ts for `evals run co
 ### Core tier runner
 - `runCore.ts` — standalone entry point spawned by `cli.ts` when target resolves to core tasks
 - Runs through Braintrust `Eval()` with assertion-based scoring (no LLM)
-- `cli.ts` detects core targets via `CORE_CATEGORIES` set and delegates to `runCoreEntry()`
+- `cli.ts` detects core targets via `CORE_CATEGORIES` set + `coreTaskNames` set (individual task names) and delegates to `runCoreEntry()`
 - `evals list` shows core and bench sections separately
+- Individual core tasks are runnable by name (e.g., `evals run open`, `evals run click_coordinates`)
 
 ### Core tier tasks (18 tasks, all passing)
 | Category | Tasks | APIs tested |
@@ -139,11 +147,18 @@ runCore.ts          # Core tier entry point (spawned by cli.ts for `evals run co
 - Legacy `cli.ts` remains the entrypoint (`"evals": "./dist/cli/cli.js"`)
 - `pnpm build:cli` and `pnpm build` both work correctly
 
+### `defineBenchTask` migration (144 tasks)
+- All 144 bench tasks converted from `export const name: EvalFunction` → `export default defineBenchTask({ name }, async (ctx) => ...)`
+- `index.eval.ts` updated to handle both legacy named exports and new `defineBenchTask` default exports (checks `taskModule.default.__taskDefinition`)
+- Migration script: `scripts/migrate-to-defineBenchTask.ts`
+
 ### Files modified (from original codebase)
-- `packages/evals/cli.ts` — `discoverTasksFromFS()`, `CROSS_CUTTING_CATEGORIES`, `runCoreEntry()`, core-aware `handleList`
-- `packages/evals/index.eval.ts` — `resolveTaskModulePath()`, lazy `validateEvalName()`
-- `packages/evals/taskConfig.ts` — filesystem discovery, `CROSS_CUTTING_CATEGORIES`, `validateEvalName()` export
+- `packages/evals/cli.ts` — `discoverTasksFromFS()`, `EXTRA_CATEGORIES`/`CATEGORY_OVERRIDES`, `runCoreEntry()`, core-aware `handleList`, `coreTaskNames` for individual task routing
+- `packages/evals/index.eval.ts` — `resolveTaskModulePath()`, lazy `validateEvalName()`, `defineBenchTask` default export support
+- `packages/evals/taskConfig.ts` — filesystem discovery, `EXTRA_CATEGORIES`/`CATEGORY_OVERRIDES`, `validateEvalName()` export
 - `packages/evals/evals.config.json` — removed `tasks` array
+- `packages/evals/args.ts` — removed `llm_clients` and `regression_llm_providers` from `DEFAULT_EVAL_CATEGORIES`
+- `packages/evals/types/evals.ts` — removed dead categories from `EvalCategorySchema`
 - `turbo.json` — added `framework/**` to `build:cli` inputs
 
 ---
@@ -182,22 +197,43 @@ The TUI code exists in `tui/` but is **not the CLI entrypoint**. The legacy `cli
 
 ---
 
-## Future work
+## Next: Runner migration (Phase B)
 
-### `defineBenchTask` migration (optional, gradual)
-Existing 144 bench tasks use the legacy `EvalFunction` export pattern. They can be gradually migrated to `defineBenchTask()` for reduced boilerplate, but the framework supports both patterns indefinitely.
+Migrate the bench execution path from `index.eval.ts` to `framework/runner.ts`, making the framework runner the single execution engine for both tiers. This is the higher-risk migration that requires integration testing.
+
+### What changes
+- `cli.ts` `handleRun()` stops spawning `index.eval.ts` for bench tasks; instead spawns a unified entry that uses `framework/runner.ts`
+- `index.eval.ts` becomes a thin wrapper or is retired
+- Model selection, testcase generation, and Braintrust wiring move fully into the framework
+
+### Testing strategy
+- Run a small batch of bench tasks (e.g., `dropdown`, `extract_resistor_info`, `observe_github`, `agent/google_flights`) through both old and new runners
+- Compare Braintrust results for functional equivalence
+- Requires browser + LLM API keys (integration test, not unit)
+
+---
+
+## Future work
 
 ### Tier 2: interpret (not started)
 AI interpretability of CLI commands by coding agents. Architecture accommodates this — would add `tasks/interpret/` directory and a new context type.
+
+### TUI activation (Phase 2)
+Code exists in `tui/`, needs polish and wiring as entrypoint. See TUI section above.
+
+### Publishable standalone package
+Feasibility assessed — main blockers: `runtimePaths.ts` hardcodes monorepo layout, `workspace:*` dependency on stagehand, task files are source `.ts` requiring tsx at runtime. See conversation notes for full assessment.
 
 ---
 
 ## Key design decisions
 
-1. **Directory-based tiers, tag-based cross-cutting categories** — tasks live in one directory (primary category), cross-cutting tags preserved via static `CROSS_CUTTING_CATEGORIES` map
+1. **Directory-based tiers, tag-based cross-cutting categories** — tasks live in one directory (primary category), cross-cutting tags via `EXTRA_CATEGORIES` (additive) and `CATEGORY_OVERRIDES` (replacement) maps
 2. **Auto-discovery over config registration** — `evals.config.json` no longer lists tasks; filesystem is the source of truth; config only stores defaults + benchmark settings
 3. **Config save isolation** — `saveConfig()` strips the `tasks` key before writing, preventing stale snapshots from defeating auto-discovery
 4. **Core tasks hidden from legacy runner** — `taskConfig.ts` only scans `tasks/bench/`, not `tasks/core/`; core tasks run via separate `runCore.ts` entry point
-5. **Backward-compatible** — legacy `EvalFunction` exports still work; `index.eval.ts` searches both old flat and new nested paths
-6. **Package root resolution** — TUI uses `getPackageRootDir()`; CLI uses `path.resolve(moduleDir, "../..")` fallback from dist
-7. **Side-effect-free imports** — `taskConfig.ts` no longer triggers `process.exit` at import time; validation is lazy
+5. **Dual export support** — `index.eval.ts` handles both legacy named exports (`export const name: EvalFunction`) and new `defineBenchTask` default exports
+6. **External benchmarks isolated** — `CATEGORY_OVERRIDES` ensures `agent/gaia` etc. have `["external_agent_benchmarks"]` as sole category, not `["agent", ...]`
+7. **Package root resolution** — TUI uses `getPackageRootDir()`; CLI uses `path.resolve(moduleDir, "../..")` fallback from dist
+8. **Side-effect-free imports** — `taskConfig.ts` no longer triggers `process.exit` at import time; validation is lazy
+9. **Dead code cleanup** — `llm_clients` and `regression_llm_providers` removed from category schema (all underlying files are commented out)

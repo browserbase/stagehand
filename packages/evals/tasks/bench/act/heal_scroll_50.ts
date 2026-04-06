@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const heal_scroll_50: EvalFunction = async ({
+export default defineBenchTask({ name: "heal_scroll_50" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -58,4 +58,4 @@ export const heal_scroll_50: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

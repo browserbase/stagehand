@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
 
-export const costar: EvalFunction = async ({
+export default defineBenchTask({ name: "costar" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -73,4 +73,4 @@ export const costar: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

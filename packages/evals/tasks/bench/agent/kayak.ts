@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
-export const kayak: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/kayak" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -63,4 +63,4 @@ export const kayak: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

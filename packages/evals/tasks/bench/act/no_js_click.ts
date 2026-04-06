@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { Action } from "@browserbasehq/stagehand";
 
-export const no_js_click: EvalFunction = async ({
+export default defineBenchTask({ name: "no_js_click" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -54,4 +54,4 @@ export const no_js_click: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

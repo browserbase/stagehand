@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const extract_zillow: EvalFunction = async ({
+export default defineBenchTask({ name: "extract_zillow" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -70,4 +70,4 @@ export const extract_zillow: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

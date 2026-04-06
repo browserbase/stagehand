@@ -1,8 +1,8 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
 
-export const amazon_shoes_cart: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/amazon_shoes_cart" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -74,4 +74,4 @@ export const amazon_shoes_cart: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

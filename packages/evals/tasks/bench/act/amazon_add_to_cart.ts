@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const amazon_add_to_cart: EvalFunction = async ({
+export default defineBenchTask({ name: "amazon_add_to_cart" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -40,4 +40,4 @@ export const amazon_add_to_cart: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

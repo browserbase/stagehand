@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
-export const google_shopping: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/google_shopping" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -54,4 +54,4 @@ export const google_shopping: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

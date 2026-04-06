@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const radio_btn: EvalFunction = async ({
+export default defineBenchTask({ name: "radio_btn" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -36,4 +36,4 @@ export const radio_btn: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

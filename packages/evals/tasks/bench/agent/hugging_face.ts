@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { V3Evaluator } from "@browserbasehq/stagehand";
 
-export const hugging_face: EvalFunction = async ({
+export default defineBenchTask({ name: "agent/hugging_face" }, async ({
   debugUrl,
   sessionUrl,
   logger,
@@ -54,4 +54,4 @@ export const hugging_face: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

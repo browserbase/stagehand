@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const scroll_75: EvalFunction = async ({
+export default defineBenchTask({ name: "scroll_75" }, async ({
   logger,
   debugUrl,
   sessionUrl,
@@ -53,4 +53,4 @@ export const scroll_75: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const namespace_xpath: EvalFunction = async ({
+export default defineBenchTask({ name: "namespace_xpath" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -35,4 +35,4 @@ export const namespace_xpath: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});

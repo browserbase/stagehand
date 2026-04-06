@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../../types/evals.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const vanta_h: EvalFunction = async ({
+export default defineBenchTask({ name: "vanta_h" }, async ({
   debugUrl,
   sessionUrl,
   v3,
@@ -33,4 +33,4 @@ export const vanta_h: EvalFunction = async ({
   } finally {
     await v3.close();
   }
-};
+});
