@@ -1,11 +1,11 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "maple",
-  "name": "🤘 Stagehand",
+  "name": "Stagehand",
   "colors": {
-    "primary": "#B88100",
-    "light": "#FFC83C",
-    "dark": "#FFC83C"
+    "primary": "#00C851",
+    "light": "#00C851",
+    "dark": "#00C851"
   },
   "favicon": "/images/favicon.svg",
   "seo": {
