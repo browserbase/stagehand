@@ -202,6 +202,7 @@ export class LLMProvider {
         model: languageModel,
         logger: this.logger,
         clientOptions,
+        providerName: aisdkTarget.provider,
       });
     }
 

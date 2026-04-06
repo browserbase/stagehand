@@ -63,43 +63,81 @@ function toLLMUsage(usage?: {
   };
 }
 
-function buildOpenAiStructuredProviderOptions(options: {
+function buildStructuredProviderOptions(options: {
+  providerName?: string;
   isGPT5: boolean;
   isCodex: boolean;
   reasoningEffort?: string;
 }) {
-  const openaiOptions: Record<string, string | boolean> = {};
+  const providerOptions: Record<string, Record<string, string | boolean>> = {};
 
-  if (options.isGPT5) {
-    openaiOptions.textVerbosity = options.isCodex ? "medium" : "low";
+  switch (options.providerName) {
+    case "openai": {
+      const openaiOptions: Record<string, string | boolean> = {
+        strictJsonSchema: true,
+      };
+
+      if (options.isGPT5) {
+        openaiOptions.textVerbosity = options.isCodex ? "medium" : "low";
+      }
+
+      if (options.reasoningEffort) {
+        openaiOptions.reasoningEffort = options.reasoningEffort;
+      }
+
+      providerOptions.openai = openaiOptions;
+      break;
+    }
+    case "azure":
+      providerOptions.azure = { strictJsonSchema: true };
+      break;
+    case "google":
+      providerOptions.google = { structuredOutputs: true };
+      break;
+    case "vertex":
+      providerOptions.vertex = { structuredOutputs: true };
+      break;
+    case "anthropic":
+      providerOptions.anthropic = { structuredOutputMode: "auto" };
+      break;
+    case "groq":
+      providerOptions.groq = { structuredOutputs: true };
+      break;
+    case "cerebras":
+      providerOptions.cerebras = { strictJsonSchema: true };
+      break;
+    case "mistral":
+      providerOptions.mistral = {
+        structuredOutputs: true,
+        strictJsonSchema: true,
+      };
+      break;
   }
 
-  if (options.reasoningEffort) {
-    openaiOptions.reasoningEffort = options.reasoningEffort;
-  }
-
-  return Object.keys(openaiOptions).length > 0
-    ? { openai: openaiOptions }
-    : undefined;
+  return Object.keys(providerOptions).length > 0 ? providerOptions : undefined;
 }
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
   private model: LanguageModelV2 | LanguageModelV3;
   private logger?: (message: LogLine) => void;
+  private providerName?: string;
 
   constructor({
     model,
     logger,
     clientOptions,
+    providerName,
   }: {
     model: LanguageModelV2 | LanguageModelV3;
     logger?: (message: LogLine) => void;
     clientOptions?: ClientOptions;
+    providerName?: string;
   }) {
     super(model.modelId as AvailableModel);
     this.model = model;
     this.logger = logger;
+    this.providerName = providerName;
     if (clientOptions) {
       this.clientOptions = clientOptions;
     }
@@ -250,7 +288,8 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           topP: options.top_p,
           frequencyPenalty: options.frequency_penalty,
           presencePenalty: options.presence_penalty,
-          providerOptions: buildOpenAiStructuredProviderOptions({
+          providerOptions: buildStructuredProviderOptions({
+            providerName: this.providerName,
             isGPT5,
             isCodex,
             reasoningEffort: resolvedReasoningEffort,
