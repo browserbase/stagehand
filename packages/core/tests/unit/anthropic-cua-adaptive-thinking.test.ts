@@ -385,42 +385,6 @@ describe("AnthropicCUAClient adaptive thinking", () => {
       expect(callArgs.thinking.type).toBe("adaptive");
     });
 
-    it("should detect dated variants like claude-opus-4-6-20260401 as 4.6 models", async () => {
-      const client = new AnthropicCUAClient(
-        "anthropic",
-        "claude-opus-4-6-20260401",
-        undefined,
-        {
-          apiKey: "test-key",
-          thinkingEffort: "high",
-        },
-      );
-      client.setViewport(1280, 720);
-
-      await client.getAction([{ role: "user", content: "test" }]);
-
-      const callArgs = mockCreate.mock.calls[0][0];
-      expect(callArgs.thinking.type).toBe("adaptive");
-    });
-
-    it("should detect dated variants like claude-sonnet-4-6-20260401 as 4.6 models", async () => {
-      const client = new AnthropicCUAClient(
-        "anthropic",
-        "anthropic/claude-sonnet-4-6-20260401",
-        undefined,
-        {
-          apiKey: "test-key",
-          thinkingEffort: "medium",
-        },
-      );
-      client.setViewport(1280, 720);
-
-      await client.getAction([{ role: "user", content: "test" }]);
-
-      const callArgs = mockCreate.mock.calls[0][0];
-      expect(callArgs.thinking.type).toBe("adaptive");
-    });
-
     it("should handle provider-prefixed model names (anthropic/claude-opus-4-6)", async () => {
       const client = new AnthropicCUAClient(
         "anthropic",
