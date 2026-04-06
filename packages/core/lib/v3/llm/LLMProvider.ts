@@ -3,7 +3,6 @@ import {
   ExperimentalNotConfiguredError,
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
-  UnsupportedModelProviderError,
 } from "../types/public/sdkErrors.js";
 import { LogLine } from "../types/public/logs.js";
 import {
@@ -12,12 +11,7 @@ import {
   ModelProvider,
 } from "../types/public/model.js";
 import { AISdkClient } from "./aisdk.js";
-import { AnthropicClient } from "./AnthropicClient.js";
-import { CerebrasClient } from "./CerebrasClient.js";
-import { GoogleClient } from "./GoogleClient.js";
-import { GroqClient } from "./GroqClient.js";
 import { LLMClient } from "./LLMClient.js";
-import { OpenAIClient } from "./OpenAIClient.js";
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { bedrock, createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { vertex, createVertex } from "@ai-sdk/google-vertex";
@@ -100,6 +94,25 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.5-pro-preview-03-25": "google",
 };
 
+function getAISDKProviderModel(
+  modelName: AvailableModel,
+): { provider: string; model: string } | null {
+  if (modelName.includes("/")) {
+    const firstSlashIndex = modelName.indexOf("/");
+    return {
+      provider: modelName.substring(0, firstSlashIndex),
+      model: modelName.substring(firstSlashIndex + 1),
+    };
+  }
+
+  const provider = modelToProviderMap[modelName];
+  if (!provider || provider === "aisdk") {
+    return null;
+  }
+
+  return { provider, model: modelName };
+}
+
 export function getAISDKLanguageModel(
   subProvider: string,
   subModelName: string,
@@ -159,12 +172,10 @@ export class LLMProvider {
       middleware?: LanguageModelV3Middleware;
     },
   ): LLMClient {
-    if (modelName.includes("/")) {
-      const firstSlashIndex = modelName.indexOf("/");
-      const subProvider = modelName.substring(0, firstSlashIndex);
-      const subModelName = modelName.substring(firstSlashIndex + 1);
+    const aisdkTarget = getAISDKProviderModel(modelName);
+    if (aisdkTarget) {
       if (
-        subProvider === "vertex" &&
+        aisdkTarget.provider === "vertex" &&
         !options?.disableAPI &&
         !options?.experimental
       ) {
@@ -173,11 +184,19 @@ export class LLMProvider {
 
       const effectiveMiddleware = options?.middleware ?? this.middleware;
       const languageModel = getAISDKLanguageModel(
-        subProvider,
-        subModelName,
+        aisdkTarget.provider,
+        aisdkTarget.model,
         clientOptions,
         effectiveMiddleware,
       );
+
+      if (!modelName.includes("/")) {
+        this.logger({
+          category: "llm",
+          message: `Deprecation warning: Model format "${modelName}" is deprecated. Please use the provider/model format (e.g., "openai/gpt-5" or "anthropic/claude-sonnet-4").`,
+          level: 0,
+        });
+      }
 
       return new AISdkClient({
         model: languageModel,
@@ -186,57 +205,7 @@ export class LLMProvider {
       });
     }
 
-    // Model name doesn't include "/" - this format is deprecated
-    const provider = modelToProviderMap[modelName];
-    if (!provider) {
-      throw new UnsupportedModelError(Object.keys(modelToProviderMap));
-    }
-
-    this.logger({
-      category: "llm",
-      message: `Deprecation warning: Model format "${modelName}" is deprecated. Please use the provider/model format (e.g., "openai/gpt-5" or "anthropic/claude-sonnet-4").`,
-      level: 0,
-    });
-
-    const availableModel = modelName as AvailableModel;
-    switch (provider) {
-      case "openai":
-        return new OpenAIClient({
-          logger: this.logger,
-          modelName: availableModel,
-          clientOptions,
-        });
-      case "anthropic":
-        return new AnthropicClient({
-          logger: this.logger,
-          modelName: availableModel,
-          clientOptions,
-        });
-      case "cerebras":
-        return new CerebrasClient({
-          logger: this.logger,
-          modelName: availableModel,
-          clientOptions,
-        });
-      case "groq":
-        return new GroqClient({
-          logger: this.logger,
-          modelName: availableModel,
-          clientOptions,
-        });
-      case "google":
-        return new GoogleClient({
-          logger: this.logger,
-          modelName: availableModel,
-          clientOptions,
-        });
-      default:
-        // This default case handles unknown providers that exist in modelToProviderMap
-        // but aren't implemented in the switch. This is an internal consistency issue.
-        throw new UnsupportedModelProviderError([
-          ...new Set(Object.values(modelToProviderMap)),
-        ]);
-    }
+    throw new UnsupportedModelError(Object.keys(modelToProviderMap));
   }
 
   static getModelProvider(modelName: AvailableModel): ModelProvider {

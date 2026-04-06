@@ -85,7 +85,7 @@ describe("Model format deprecation", () => {
       expect(message).toContain("openai/gpt-5");
     });
 
-    it("returns OpenAIClient for legacy OpenAI model names", () => {
+    it("returns AISdkClient for legacy OpenAI model names", () => {
       const logs: LogLine[] = [];
       const logger = (line: LogLine) => logs.push(line);
       const provider = new LLMProvider(logger);
@@ -94,11 +94,11 @@ describe("Model format deprecation", () => {
 
       // Should return a client
       expect(client).toBeDefined();
-      // The client should be an OpenAIClient (check constructor name)
-      expect(client.constructor.name).toBe("OpenAIClient");
+      // Legacy bare model names should still normalize to the AI SDK path.
+      expect(client.constructor.name).toBe("AISdkClient");
     });
 
-    it("returns GoogleClient for legacy Google model names", () => {
+    it("returns AISdkClient for legacy Google model names", () => {
       const logs: LogLine[] = [];
       const logger = (line: LogLine) => logs.push(line);
       const provider = new LLMProvider(logger);
@@ -107,8 +107,7 @@ describe("Model format deprecation", () => {
 
       // Should return a client
       expect(client).toBeDefined();
-      // The client should be a GoogleClient
-      expect(client.constructor.name).toBe("GoogleClient");
+      expect(client.constructor.name).toBe("AISdkClient");
     });
   });
 
