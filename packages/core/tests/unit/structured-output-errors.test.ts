@@ -88,7 +88,7 @@ describe("structured output error propagation", () => {
     ).rejects.toBe(error);
   });
 
-  it("V3AgentHandler.execute() rethrows NoObjectGeneratedError", async () => {
+  it("V3AgentHandler.execute() preserves the failed AgentResult contract for NoObjectGeneratedError", async () => {
     const error = createNoObjectGeneratedError();
     const llmClient = {
       generateText: vi.fn().mockRejectedValue(error),
@@ -109,7 +109,12 @@ describe("structured output error propagation", () => {
       initialPageUrl: "https://example.com",
     });
 
-    await expect(handler.execute("describe the page")).rejects.toBe(error);
+    await expect(handler.execute("describe the page")).resolves.toMatchObject({
+      success: false,
+      completed: false,
+      message:
+        "Failed to execute task: Invalid structured output: missing required fields",
+    });
   });
 
   it("V3AgentHandler.execute() still returns a failed result for generic errors", async () => {
