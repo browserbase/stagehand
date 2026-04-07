@@ -81,6 +81,8 @@ export async function launchLocalChrome(
         },
       });
     }
+    await killLaunchedChrome(chrome);
+    chromeDiagnostics?.dispose();
     throw error;
   }
 }
@@ -283,6 +285,15 @@ async function emitLaunchFailureDiagnostics(params: {
   diagnostics?.dispose();
 }
 
+async function killLaunchedChrome(chrome?: LaunchedChrome): Promise<void> {
+  if (!chrome) return;
+  try {
+    await chrome.kill();
+  } catch {
+    // best-effort cleanup
+  }
+}
+
 async function captureDevtoolsSnapshots(port: number): Promise<{
   version: string;
   list: string;
@@ -293,7 +304,7 @@ async function captureDevtoolsSnapshots(port: number): Promise<{
       const response = await fetch(url);
       const body = await response.text();
       return truncateDiagnostic(
-        `${response.status} ${response.statusText} ${body}`,
+        `${response.status} ${response.statusText} ${sanitizeDevtoolsBody(body)}`,
       );
     } catch (error) {
       return truncateDiagnostic(
@@ -312,4 +323,32 @@ async function captureDevtoolsSnapshots(port: number): Promise<{
 
 function truncateDiagnostic(value: string, maxChars = 1_000): string {
   return value.length <= maxChars ? value : `${value.slice(0, maxChars)}…`;
+}
+
+function sanitizeDevtoolsBody(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    return JSON.stringify(redactWebSocketDebuggerUrl(parsed));
+  } catch {
+    return body;
+  }
+}
+
+function redactWebSocketDebuggerUrl(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(redactWebSocketDebuggerUrl);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => [
+        key,
+        key === "webSocketDebuggerUrl"
+          ? "<redacted>"
+          : redactWebSocketDebuggerUrl(entryValue),
+      ]),
+    );
+  }
+
+  return value;
 }
