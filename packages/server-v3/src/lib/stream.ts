@@ -9,7 +9,6 @@ import {
   getModelApiKey,
   getRequestModelConfigFromBody,
   getModelName,
-  getRequestModelConfig,
   getOptionalHeader,
   shouldRespondWithSSE,
 } from "./header.js";
