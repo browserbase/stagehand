@@ -11,7 +11,7 @@ import type {
 import {
   createScriptedAisdkTestLlmClient,
   doneToolResponse,
-  findElementRefForText,
+  findEncodedIdForText,
   toolCallResponse,
 } from "./testUtils.js";
 
@@ -24,21 +24,17 @@ function createSelfHealLlmClient() {
     jsonResponses: {
       act: [
         (options) => ({
-          action: {
-            target: findElementRefForText(options, "Launch self-heal"),
-            description: "launch self-heal button",
-            method: "click",
-            button: null,
-          },
+          elementId: findEncodedIdForText(options, "Launch self-heal"),
+          description: "launch self-heal button",
+          method: "click",
+          arguments: [],
           twoStep: false,
         }),
         (options) => ({
-          action: {
-            target: findElementRefForText(options, "Launch self-heal"),
-            description: "launch self-heal button",
-            method: "click",
-            button: null,
-          },
+          elementId: findEncodedIdForText(options, "Launch self-heal"),
+          description: "launch self-heal button",
+          method: "click",
+          arguments: [],
           twoStep: false,
         }),
       ],

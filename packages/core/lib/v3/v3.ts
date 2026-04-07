@@ -102,6 +102,46 @@ type ResolvedModelConfiguration = {
   middleware?: LanguageModelV2Middleware;
 };
 
+function isRetryableLocalInitError(error: unknown): boolean {
+  const err = error as NodeJS.ErrnoException | undefined;
+  const message = err?.message ?? String(error ?? "");
+  return (
+    err?.code === "ECONNREFUSED" ||
+    err?.code === "ECONNRESET" ||
+    message.includes("ECONNREFUSED") ||
+    message.includes("ECONNRESET") ||
+    message.includes("No browser context available after CDP connect") ||
+    message.includes("No page available after CDP connect")
+  );
+}
+
+async function cleanupFailedLocalInitAttempt(
+  ctx: V3Context | null,
+  chrome?: import("chrome-launcher").LaunchedChrome,
+  userDataDir?: string,
+  shouldDeleteProfile = false,
+): Promise<void> {
+  try {
+    await ctx?.close();
+  } catch {
+    // best-effort cleanup
+  }
+
+  try {
+    await chrome?.kill();
+  } catch {
+    // best-effort cleanup
+  }
+
+  if (shouldDeleteProfile && userDataDir) {
+    try {
+      fs.rmSync(userDataDir, { recursive: true, force: true });
+    } catch {
+      // best-effort cleanup
+    }
+  }
+}
+
 export function resolveModelConfiguration(
   model?: V3Options["model"],
 ): ResolvedModelConfiguration {
@@ -818,116 +858,160 @@ export class V3 {
             await this._applyPostConnectLocalOptions(lbo);
             return;
           }
-          this.logger({
-            category: "init",
-            message: "Launching local browser",
-            level: 1,
-          });
-
-          // Determine or create user data dir
-          let userDataDir = lbo.userDataDir;
-          let createdTemp = false;
-          if (!userDataDir) {
-            const base = path.join(os.tmpdir(), "stagehand-v3");
-            fs.mkdirSync(base, { recursive: true });
-            userDataDir = fs.mkdtempSync(path.join(base, "profile-"));
-            createdTemp = true;
-          }
-
-          // Build chrome flags
-          const defaults = [
-            "--remote-allow-origins=*",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--disable-dev-shm-usage",
-            "--site-per-process",
-          ];
-          let chromeFlags: string[];
-          const ignore = lbo.ignoreDefaultArgs;
-          if (ignore === true) {
-            // drop defaults
-            chromeFlags = [];
-          } else if (Array.isArray(ignore)) {
-            chromeFlags = defaults.filter(
-              (f) => !ignore.some((ex) => f.includes(ex)),
-            );
-          } else {
-            chromeFlags = [...defaults];
-          }
-
-          // headless handled by launchLocalChrome
-          if (lbo.devtools) chromeFlags.push("--auto-open-devtools-for-tabs");
-          if (lbo.locale) chromeFlags.push(`--lang=${lbo.locale}`);
-          if (!lbo.viewport) {
-            lbo.viewport = DEFAULT_VIEWPORT;
-          }
-          if (lbo.viewport?.width && lbo.viewport?.height) {
-            chromeFlags.push(
-              `--window-size=${lbo.viewport.width},${lbo.viewport.height + 87}`, // Added pixels to the window to account for the address bar
-            );
-          }
-          if (typeof lbo.deviceScaleFactor === "number") {
-            chromeFlags.push(
-              `--force-device-scale-factor=${Math.max(0.1, lbo.deviceScaleFactor)}`,
-            );
-          }
-          if (lbo.hasTouch) chromeFlags.push("--touch-events=enabled");
-          if (lbo.ignoreHTTPSErrors)
-            chromeFlags.push("--ignore-certificate-errors");
-          if (lbo.proxy?.server)
-            chromeFlags.push(`--proxy-server=${lbo.proxy.server}`);
-          if (lbo.proxy?.bypass)
-            chromeFlags.push(`--proxy-bypass-list=${lbo.proxy.bypass}`);
-
-          // add user-supplied args last
-          if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
-
           const keepAlive = this.keepAlive === true;
-          const { ws, chrome } = await launchLocalChrome({
-            chromePath: lbo.executablePath,
-            chromeFlags,
-            port: lbo.port,
-            headless: lbo.headless,
-            userDataDir,
-            connectTimeoutMs: lbo.connectTimeoutMs,
-            handleSIGINT: !keepAlive,
-          });
-          if (keepAlive) {
+          const maxLocalInitAttempts = process.env.CI ? 2 : 1;
+
+          for (let attempt = 1; attempt <= maxLocalInitAttempts; attempt++) {
+            let userDataDir = lbo.userDataDir;
+            let createdTemp = false;
+            let chrome: import("chrome-launcher").LaunchedChrome | undefined;
+            let attemptCtx: V3Context | null = null;
+
             try {
-              chrome.process?.unref?.();
-            } catch {
-              // best-effort: avoid keeping the event loop alive
+              this.logger({
+                category: "init",
+                message:
+                  maxLocalInitAttempts > 1
+                    ? `Launching local browser (attempt ${attempt}/${maxLocalInitAttempts})`
+                    : "Launching local browser",
+                level: 1,
+              });
+
+              if (!userDataDir) {
+                const base = path.join(os.tmpdir(), "stagehand-v3");
+                fs.mkdirSync(base, { recursive: true });
+                userDataDir = fs.mkdtempSync(path.join(base, "profile-"));
+                createdTemp = true;
+              }
+
+              const defaults = [
+                "--remote-allow-origins=*",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-dev-shm-usage",
+                "--site-per-process",
+              ];
+              let chromeFlags: string[];
+              const ignore = lbo.ignoreDefaultArgs;
+              if (ignore === true) {
+                chromeFlags = [];
+              } else if (Array.isArray(ignore)) {
+                chromeFlags = defaults.filter(
+                  (f) => !ignore.some((ex) => f.includes(ex)),
+                );
+              } else {
+                chromeFlags = [...defaults];
+              }
+
+              if (lbo.devtools)
+                chromeFlags.push("--auto-open-devtools-for-tabs");
+              if (lbo.locale) chromeFlags.push(`--lang=${lbo.locale}`);
+              if (!lbo.viewport) {
+                lbo.viewport = DEFAULT_VIEWPORT;
+              }
+              if (lbo.viewport?.width && lbo.viewport?.height) {
+                chromeFlags.push(
+                  `--window-size=${lbo.viewport.width},${lbo.viewport.height + 87}`,
+                );
+              }
+              if (typeof lbo.deviceScaleFactor === "number") {
+                chromeFlags.push(
+                  `--force-device-scale-factor=${Math.max(0.1, lbo.deviceScaleFactor)}`,
+                );
+              }
+              if (lbo.hasTouch) chromeFlags.push("--touch-events=enabled");
+              if (lbo.ignoreHTTPSErrors)
+                chromeFlags.push("--ignore-certificate-errors");
+              if (lbo.proxy?.server)
+                chromeFlags.push(`--proxy-server=${lbo.proxy.server}`);
+              if (lbo.proxy?.bypass)
+                chromeFlags.push(`--proxy-bypass-list=${lbo.proxy.bypass}`);
+              if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
+
+              const launched = await launchLocalChrome({
+                chromePath: lbo.executablePath,
+                chromeFlags,
+                port: lbo.port,
+                headless: lbo.headless,
+                userDataDir,
+                connectTimeoutMs: lbo.connectTimeoutMs,
+                handleSIGINT: !keepAlive,
+              });
+              chrome = launched.chrome;
+
+              if (keepAlive) {
+                try {
+                  chrome.process?.unref?.();
+                } catch {
+                  // best-effort: avoid keeping the event loop alive
+                }
+              }
+
+              attemptCtx = await V3Context.create(launched.ws, {
+                env: "LOCAL",
+                localBrowserLaunchOptions: lbo,
+              });
+              attemptCtx.conn.flowLoggerContext = this.flowLoggerContext;
+              attemptCtx.conn.onTransportClosed(this._onCdpClosed);
+              this.ctx = attemptCtx;
+              this.state = {
+                kind: "LOCAL",
+                chrome,
+                ws: launched.ws,
+                userDataDir,
+                createdTempProfile: createdTemp,
+                preserveUserDataDir: !!lbo.preserveUserDataDir,
+              };
+              this.resetBrowserbaseSessionMetadata();
+              const chromePid = chrome.process?.pid ?? chrome.pid;
+              if (!keepAlive && chromePid) {
+                this.startShutdownSupervisor({
+                  kind: "LOCAL",
+                  pid: chromePid,
+                  userDataDir,
+                  createdTempProfile: createdTemp,
+                  preserveUserDataDir: !!lbo.preserveUserDataDir,
+                });
+              }
+
+              await this._applyPostConnectLocalOptions(lbo);
+              return;
+            } catch (error) {
+              await cleanupFailedLocalInitAttempt(
+                attemptCtx,
+                chrome,
+                userDataDir,
+                createdTemp && !lbo.preserveUserDataDir,
+              );
+              this.ctx = null;
+              this.state = { kind: "UNINITIALIZED" };
+
+              if (
+                attempt >= maxLocalInitAttempts ||
+                !isRetryableLocalInitError(error)
+              ) {
+                throw error;
+              }
+
+              this.logger({
+                category: "init",
+                message:
+                  "Transient local browser startup error; retrying launch",
+                level: 1,
+                auxiliary: {
+                  attempt: { value: String(attempt), type: "integer" },
+                  error: {
+                    value:
+                      error instanceof Error ? error.message : String(error),
+                    type: "string",
+                  },
+                },
+              });
+              await new Promise((resolve) => setTimeout(resolve, 500));
             }
           }
-          this.ctx = await V3Context.create(ws, {
-            env: "LOCAL",
-            localBrowserLaunchOptions: lbo,
-          });
-          this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
-          this.ctx.conn.onTransportClosed(this._onCdpClosed);
-          this.state = {
-            kind: "LOCAL",
-            chrome,
-            ws,
-            userDataDir,
-            createdTempProfile: createdTemp,
-            preserveUserDataDir: !!lbo.preserveUserDataDir,
-          };
-          this.resetBrowserbaseSessionMetadata();
-          const chromePid = chrome.process?.pid ?? chrome.pid;
-          if (!keepAlive && chromePid) {
-            this.startShutdownSupervisor({
-              kind: "LOCAL",
-              pid: chromePid,
-              userDataDir,
-              createdTempProfile: createdTemp,
-              preserveUserDataDir: !!lbo.preserveUserDataDir,
-            });
-          }
 
-          // Post-connect settings (downloads and viewport) if provided
-          await this._applyPostConnectLocalOptions(lbo);
-          return;
+          throw new StagehandInitError("Failed to initialize local browser");
         }
 
         if (this.opts.env === "BROWSERBASE") {
