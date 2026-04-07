@@ -1411,15 +1411,13 @@ components:
             type: string
           additionalProperties:
             type: string
-        providerConfig:
-          description: Provider-specific configuration for model providers that require
+        providerOptions:
+          description: Provider-specific options for model providers that require
             extra constructor options.
           example:
-            provider: bedrock
-            options:
-              region: us-east-1
-              accessKeyId: AKIAIOSFODNN7EXAMPLE
-          $ref: "#/components/schemas/ProviderConfig"
+            region: us-east-1
+            accessKeyId: AKIAIOSFODNN7EXAMPLE
+          $ref: "#/components/schemas/ProviderOptions"
       required:
         - modelName
       additionalProperties: false
@@ -1446,15 +1444,13 @@ components:
             type: string
           additionalProperties:
             type: string
-        providerConfig:
-          description: Provider-specific configuration for model providers that require
+        providerOptions:
+          description: Provider-specific options for model providers that require
             extra constructor options.
           example:
-            provider: vertex
-            options:
-              project: my-gcp-project
-              location: us-central1
-          $ref: "#/components/schemas/ProviderConfig"
+            project: my-gcp-project
+            location: us-central1
+          $ref: "#/components/schemas/ProviderOptions"
       additionalProperties: false
     ActionOutput:
       description: Action object returned by observe and used by act
