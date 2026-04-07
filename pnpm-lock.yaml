@@ -90,6 +90,9 @@ importers:
       '@types/node':
         specifier: ^20.11.30
         version: 20.17.32
+      '@types/ws':
+        specifier: ^8.5.13
+        version: 8.18.1
       devtools-protocol:
         specifier: ^0.0.1464554
         version: 0.0.1464554
