@@ -613,7 +613,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     await endSession(ctx.body.data.sessionId, pythonHeaders);
   });
 
-  it("should accept typed providerConfig in modelClientOptions", async () => {
+  it("should accept typed providerOptions in modelClientOptions", async () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
@@ -624,11 +624,8 @@ describe("POST /v1/sessions/start - V3 format", () => {
         body: JSON.stringify({
           modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
           modelClientOptions: {
-            providerConfig: {
-              provider: "bedrock",
-              options: {
-                region: "us-east-1",
-              },
+            providerOptions: {
+              region: "us-east-1",
             },
           },
           ...localBrowser,
@@ -647,7 +644,7 @@ describe("POST /v1/sessions/start - V3 format", () => {
     await endSession(ctx.body.data.sessionId, headers);
   });
 
-  it("should reject mismatched providerConfig on session start", async () => {
+  it("should reject Bedrock providerOptions without region on session start", async () => {
     const url = getBaseUrl();
 
     const ctx = await fetchWithContext<StartResponse>(
@@ -658,11 +655,8 @@ describe("POST /v1/sessions/start - V3 format", () => {
         body: JSON.stringify({
           modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
           modelClientOptions: {
-            providerConfig: {
-              provider: "vertex",
-              options: {
-                project: "my-gcp-project",
-              },
+            providerOptions: {
+              project: "my-gcp-project",
             },
           },
           ...localBrowser,
@@ -673,8 +667,8 @@ describe("POST /v1/sessions/start - V3 format", () => {
     assertFetchStatus(ctx, HTTP_BAD_REQUEST, "Request should fail with 400");
     assertFetchOk(ctx.body !== null, "Should have response body", ctx);
     assertFetchOk(
-      JSON.stringify(ctx.body).includes("providerConfig.provider"),
-      "Error should reference providerConfig.provider",
+      JSON.stringify(ctx.body).includes("providerOptions.region"),
+      "Error should reference providerOptions.region",
       ctx,
     );
   });
