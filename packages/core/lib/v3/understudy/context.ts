@@ -166,7 +166,6 @@ export class V3Context {
     const connectTask = async () => {
       const conn = await CdpConnection.connect(wsUrl, {
         headers: opts?.cdpHeaders,
-        retryForMs: opts?.env === "LOCAL" ? 3_000 : undefined,
       });
       const ctx = new V3Context(
         conn,

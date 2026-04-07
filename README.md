@@ -107,8 +107,6 @@ const { author, title } = await stagehand.extract(
 
 Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.
 
-Stagehand is actively developed in the open by Browserbase and contributors.
-
 
 ### Build and Run from Source
 

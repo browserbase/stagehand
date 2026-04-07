@@ -445,40 +445,11 @@ jobs:
           test -f packages/server-v3/dist/sea/stagehand-server-v3-linux-x64-sourcemap
           chmod +x packages/server-v3/dist/sea/stagehand-server-v3-linux-x64-sourcemap
 
-      - name: Log runner diagnostics before server integration test
-        shell: bash
-        run: |
-          set -euxo pipefail
-          echo "=== runner diagnostics: before server integration test ==="
-          date
-          uname -a
-          nproc || true
-          free -h || true
-          df -h || true
-          ulimit -a || true
-          ps -eo pid,ppid,%cpu,%mem,rss,comm,args --sort=-%mem | head -n 25 || true
-
       - name: Run server integration test - ${{ matrix.test.name }}
         env:
           SEA_BINARY_NAME: stagehand-server-v3-linux-x64-sourcemap
         run: |
-          if [ -x /usr/bin/time ]; then
-            /usr/bin/time -v pnpm exec turbo run test:server --only --filter=@browserbasehq/stagehand-server-v3 -- "${{ matrix.test.path }}"
-          else
-            pnpm exec turbo run test:server --only --filter=@browserbasehq/stagehand-server-v3 -- "${{ matrix.test.path }}"
-          fi
-
-      - name: Log runner diagnostics after server integration test
-        if: always()
-        shell: bash
-        run: |
-          set -euxo pipefail
-          echo "=== runner diagnostics: after server integration test ==="
-          date
-          free -h || true
-          df -h || true
-          ps -eo pid,ppid,%cpu,%mem,rss,comm,args --sort=-%mem | head -n 25 || true
-
+          pnpm exec turbo run test:server --only --filter=@browserbasehq/stagehand-server-v3 -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -555,37 +526,9 @@ jobs:
 
       - uses: ./.github/actions/verify-chromium-launch
 
-      - name: Log runner diagnostics before local e2e test
-        shell: bash
-        run: |
-          set -euxo pipefail
-          echo "=== runner diagnostics: before local e2e test ==="
-          date
-          uname -a
-          nproc || true
-          free -h || true
-          df -h || true
-          ulimit -a || true
-          ps -eo pid,ppid,%cpu,%mem,rss,comm,args --sort=-%mem | head -n 25 || true
-
       - name: Run local E2E Tests - ${{ matrix.test.name }}
         run: |
-          if [ -x /usr/bin/time ]; then
-            /usr/bin/time -v pnpm exec turbo run test:e2e --only --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
-          else
-            pnpm exec turbo run test:e2e --only --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
-          fi
-
-      - name: Log runner diagnostics after local e2e test
-        if: always()
-        shell: bash
-        run: |
-          set -euxo pipefail
-          echo "=== runner diagnostics: after local e2e test ==="
-          date
-          free -h || true
-          df -h || true
-          ps -eo pid,ppid,%cpu,%mem,rss,comm,args --sort=-%mem | head -n 25 || true
+          pnpm exec turbo run test:e2e --only --filter=@browserbasehq/stagehand -- "${{ matrix.test.path }}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
