@@ -14,13 +14,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/browserbase/stagehand/tree/main?tab=MIT-1-ov-file#MIT-1-ov-file">
+  <a href="https://github.com/browserbase/stagehand/tree/main?tab=MIT-1-ov-file#MIT-1-ov-file" style="display: inline-block;">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="../../media/dark_license.svg" />
       <img alt="MIT License" src="../../media/light_license.svg" />
     </picture>
   </a>
-  <a href="https://stagehand.dev/discord">
+  <a href="https://stagehand.dev/discord" style="display: inline-block;">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="../../media/dark_discord.svg" />
       <img alt="Discord Community" src="../../media/light_discord.svg" />
