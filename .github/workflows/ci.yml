@@ -445,6 +445,8 @@ jobs:
           test -f packages/server-v3/dist/sea/stagehand-server-v3-linux-x64-sourcemap
           chmod +x packages/server-v3/dist/sea/stagehand-server-v3-linux-x64-sourcemap
 
+      - uses: ./.github/actions/verify-chromium-launch
+
       - name: Run server integration test - ${{ matrix.test.name }}
         env:
           SEA_BINARY_NAME: stagehand-server-v3-linux-x64-sourcemap
