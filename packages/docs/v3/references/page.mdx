@@ -342,6 +342,32 @@ await page.type(text: string, options?: TypeOptions): Promise<void>
   </Expandable>
 </ParamField>
 
+### keyPress()
+
+Press a single key or key combination (keyDown then keyUp). Supports named keys, printable characters, and modifier combinations.
+
+```typescript
+await page.keyPress(key: string, options?: KeyPressOptions): Promise<void>
+```
+
+<ParamField path="key" type="string" required>
+  The key or key combination to press. Supports printable characters (`"a"`, `"1"`), named keys (`"Enter"`, `"Tab"`, `"Escape"`, `"Backspace"`, `"ArrowDown"`, etc.), and modifier combinations using `+` (`"Cmd+A"`, `"Ctrl+C"`, `"Shift+Tab"`).
+
+  Common modifier aliases like `"Cmd"`, `"Ctrl"`, `"Alt"`, and `"Option"` are accepted. `"Cmd"` maps to Meta on Mac and Control elsewhere.
+</ParamField>
+
+<ParamField path="options" type="object" optional>
+  Optional key press configuration.
+
+  <Expandable title="properties">
+    <ParamField path="delay" type="number">
+      Delay in milliseconds between the keyDown and keyUp events.
+
+      Default: `0`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
 ### locator()
 
 Create a locator for querying elements.
@@ -885,6 +911,21 @@ await page.type("Hello, World!");
 
 // Type with delay between keystrokes
 await page.type("Slow typing", { delay: 100 });
+
+// Press a single key
+await page.keyPress("Enter");
+
+// Press a key combination (select all)
+await page.keyPress("Cmd+A");
+
+// Press with delay between keyDown and keyUp
+await page.keyPress("Escape", { delay: 100 });
+
+// Arrow key navigation
+await page.keyPress("ArrowDown");
+
+// Copy selection
+await page.keyPress("Ctrl+C");
 
 // Use locator for element interaction
 const button = page.locator("button.submit");
