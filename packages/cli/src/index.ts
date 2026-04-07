@@ -1612,6 +1612,52 @@ async function executeCommand(
       }
     }
 
+    // PDF
+    case "pdf": {
+      if (!page) {
+        return { error: "No page open. Navigate to a URL first." };
+      }
+      const [opts] = args as [
+        {
+          path?: string;
+          landscape?: boolean;
+          printBackground?: boolean;
+          scale?: number;
+          format?: string;
+        }?,
+      ];
+      const cdpSession = page.mainFrame().session;
+      const paperSizes: Record<string, { width: number; height: number }> = {
+        letter: { width: 8.5, height: 11 },
+        legal: { width: 8.5, height: 14 },
+        a4: { width: 8.27, height: 11.69 },
+        a3: { width: 11.69, height: 16.54 },
+      };
+      const paper =
+        paperSizes[(opts?.format ?? "letter").toLowerCase()] ??
+        paperSizes.letter;
+      const result = await cdpSession.send<{ data: string }>(
+        "Page.printToPDF",
+        {
+          landscape: opts?.landscape ?? false,
+          printBackground: opts?.printBackground ?? true,
+          scale: opts?.scale ?? 1,
+          paperWidth: paper.width,
+          paperHeight: paper.height,
+          marginTop: 0.4,
+          marginBottom: 0.4,
+          marginLeft: 0.4,
+          marginRight: 0.4,
+          preferCSSPageSize: true,
+        },
+      );
+      if (opts?.path) {
+        await fs.writeFile(opts.path, Buffer.from(result.data, "base64"));
+        return { saved: opts.path };
+      }
+      return { base64: result.data };
+    }
+
     // Daemon control
     case "stop": {
       process.nextTick(() => {
@@ -2914,6 +2960,46 @@ networkCmd
     const opts = program.opts<GlobalOpts>();
     try {
       const result = await runCommand("network_clear", []);
+      output(result, opts.json ?? false);
+    } catch (e) {
+      console.error("Error:", e instanceof Error ? e.message : e);
+      process.exit(1);
+    }
+  });
+
+// ==================== PDF ====================
+
+program
+  .command("pdf [path]")
+  .description("Save page as PDF")
+  .option("--landscape", "Landscape orientation")
+  .option("--no-background", "Omit background graphics")
+  .option("--scale <n>", "Scale factor (0.1-2)", "1")
+  .option("--format <format>", "Paper format: letter, legal, a4, a3", "letter")
+  .action(async (filePath: string | undefined, cmdOpts) => {
+    const opts = program.opts<GlobalOpts>();
+    try {
+      const scale = parseFloat(cmdOpts.scale);
+      if (isNaN(scale) || scale < 0.1 || scale > 2) {
+        console.error("Error: --scale must be a number between 0.1 and 2");
+        process.exit(1);
+      }
+      const validFormats = ["letter", "legal", "a4", "a3"];
+      if (!validFormats.includes(cmdOpts.format.toLowerCase())) {
+        console.error(
+          `Error: --format must be one of: ${validFormats.join(", ")}`,
+        );
+        process.exit(1);
+      }
+      const result = await runCommand("pdf", [
+        {
+          path: filePath,
+          landscape: cmdOpts.landscape,
+          printBackground: cmdOpts.background !== false,
+          scale,
+          format: cmdOpts.format,
+        },
+      ]);
       output(result, opts.json ?? false);
     } catch (e) {
       console.error("Error:", e instanceof Error ? e.message : e);
