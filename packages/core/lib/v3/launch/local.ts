@@ -278,11 +278,10 @@ async function emitLaunchFailureDiagnostics(params: {
       processError: snapshot?.processError || "<none>",
       jsonVersion: devtoolsSnapshots.version,
       jsonList: devtoolsSnapshots.list,
-      chromeStdout: snapshot?.stdout || "<empty>",
-      chromeStderr: snapshot?.stderr || "<empty>",
+      chromeStdout: sanitizeChromeProcessOutput(snapshot?.stdout || "<empty>"),
+      chromeStderr: sanitizeChromeProcessOutput(snapshot?.stderr || "<empty>"),
     },
   });
-  diagnostics?.dispose();
 }
 
 async function killLaunchedChrome(chrome?: LaunchedChrome): Promise<void> {
@@ -351,4 +350,11 @@ function redactWebSocketDebuggerUrl(value: unknown): unknown {
   }
 
   return value;
+}
+
+function sanitizeChromeProcessOutput(output: string): string {
+  return output.replace(
+    /\bws:\/\/[^\s]+\/devtools\/[^\s]+/g,
+    "<redacted-cdp-websocket-url>",
+  );
 }
