@@ -2,12 +2,53 @@ import { test, expect } from "@playwright/test";
 import fs from "fs/promises";
 import path from "path";
 import { V3 } from "../../lib/v3/v3.js";
-import { v3TestConfig } from "./v3.config.js";
+import { getV3TestConfig } from "./v3.config.js";
 import type {
   AgentReplayActStep,
   AgentReplayFillFormStep,
   CachedAgentEntry,
 } from "../../lib/v3/types/private/cache.js";
+import {
+  createScriptedAisdkTestLlmClient,
+  doneToolResponse,
+  findElementRefForText,
+  toolCallResponse,
+} from "./testUtils.js";
+
+function encodeHtml(html: string): string {
+  return `data:text/html,${encodeURIComponent(html)}`;
+}
+
+function createSelfHealLlmClient() {
+  return createScriptedAisdkTestLlmClient({
+    jsonResponses: {
+      act: [
+        (options) => ({
+          action: {
+            target: findElementRefForText(options, "Launch self-heal"),
+            description: "launch self-heal button",
+            method: "click",
+            button: null,
+          },
+          twoStep: false,
+        }),
+        (options) => ({
+          action: {
+            target: findElementRefForText(options, "Launch self-heal"),
+            description: "launch self-heal button",
+            method: "click",
+            button: null,
+          },
+          twoStep: false,
+        }),
+      ],
+    },
+    generateResponses: [
+      toolCallResponse("act", { action: "click the button" }),
+      doneToolResponse("Clicked the button successfully.", true),
+    ],
+  });
+}
 
 test.describe("Agent cache self-heal (e2e)", () => {
   let v3: V3;
@@ -18,7 +59,10 @@ test.describe("Agent cache self-heal (e2e)", () => {
     await fs.mkdir(testInfo.outputDir, { recursive: true });
     cacheDir = await fs.mkdtemp(path.join(testInfo.outputDir, "agent-cache-"));
     v3 = new V3({
-      ...v3TestConfig,
+      ...getV3TestConfig({
+        experimental: true,
+        llmClient: createSelfHealLlmClient(),
+      }),
       cacheDir,
       selfHeal: true,
     });
@@ -30,19 +74,32 @@ test.describe("Agent cache self-heal (e2e)", () => {
   });
 
   test("replays heal corrupted selectors", async () => {
-    test.setTimeout(120_000);
+    test.setTimeout(60_000);
 
-    const agent = v3.agent({
-      model: "anthropic/claude-haiku-4-5-20251001",
-    });
+    const agent = v3.agent();
     const page = v3.context.pages()[0];
-    const url =
-      "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/";
+    const url = encodeHtml(`
+      <!doctype html>
+      <html>
+        <body>
+          <button
+            id="launch"
+            onclick="document.getElementById('status').textContent = 'clicked';"
+          >
+            Launch self-heal
+          </button>
+          <div id="status">idle</div>
+        </body>
+      </html>
+    `);
     const instruction = "click the button";
 
-    await page.goto(url, { waitUntil: "networkidle" });
+    await page.goto(url, { waitUntil: "load" });
     const firstResult = await agent.execute({ instruction, maxSteps: 20 });
     expect(firstResult.success).toBe(true);
+    await expect
+      .poll(async () => page.evaluate(() => document.body.textContent ?? ""))
+      .toContain("clicked");
 
     const cachePath = await locateAgentCacheFile(cacheDir);
     const originalEntry = await readCacheEntry(cachePath);
@@ -62,9 +119,13 @@ test.describe("Agent cache self-heal (e2e)", () => {
     );
 
     // Second run should replay from cache, self-heal, and update the file.
-    await page.goto(url, { waitUntil: "networkidle" });
+    await page.goto(url, { waitUntil: "load" });
     const replayResult = await agent.execute({ instruction, maxSteps: 20 });
     expect(replayResult.success).toBe(true);
+    expect(replayResult.metadata?.cacheHit).toBe(true);
+    await expect
+      .poll(async () => page.evaluate(() => document.body.textContent ?? ""))
+      .toContain("clicked");
 
     const healedEntry = await readCacheEntry(cachePath);
     const healedActionStep = findFirstActionStep(healedEntry);

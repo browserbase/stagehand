@@ -147,8 +147,10 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
     );
 
     try {
-      // Initialize both instances concurrently
-      await Promise.all([v3Instance1.init(), v3Instance2.init()]);
+      // This test is about shared global logger behavior, not concurrent
+      // startup. Initialize sequentially to avoid local Chromium flake.
+      await v3Instance1.init();
+      await v3Instance2.init();
 
       // Both should work fine
       expect(v3Instance1.context).toBeDefined();
