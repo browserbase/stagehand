@@ -148,14 +148,14 @@ export type ClientOptions = (
 
 export type ModelConfigObject = ClientOptions &
   Record<string, unknown> & {
-  modelName: AvailableModel;
-  /**
-   * Optional AI SDK middleware applied to every LanguageModelV2 created for this model.
-   * Use this to intercept LLM calls for usage tracking, logging, request transforms, etc.
-   *
-   * Only effective when running locally (direct mode). Cannot be serialized over HTTP.
-   */
-  middleware?: LanguageModelV2Middleware;
-};
+    modelName: AvailableModel;
+    /**
+     * Optional AI SDK middleware applied to every LanguageModelV2 created for this model.
+     * Use this to intercept LLM calls for usage tracking, logging, request transforms, etc.
+     *
+     * Only effective when running locally (direct mode). Cannot be serialized over HTTP.
+     */
+    middleware?: LanguageModelV2Middleware;
+  };
 
 export type ModelConfiguration = AvailableModel | ModelConfigObject;

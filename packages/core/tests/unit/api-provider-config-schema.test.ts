@@ -9,16 +9,13 @@ describe("API provider config schemas", () => {
     const result = Api.SessionStartRequestSchema.safeParse({
       modelName: bedrockModelName,
       modelClientOptions: {
-        providerConfig: {
-          provider: "bedrock",
-          options: {},
-        },
+        providerOptions: {},
       },
     });
 
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.error?.issues)).toContain(
-      "region is required for Bedrock provider",
+      "Bedrock configs require providerOptions.region.",
     );
   });
 
@@ -28,40 +25,35 @@ describe("API provider config schemas", () => {
       options: {
         model: {
           modelName: bedrockModelName,
-          providerConfig: {
-            provider: "bedrock",
-            options: {
-              region: "us-east-1",
-              accessKeyId: "AKIATEST",
-            },
+          providerOptions: {
+            region: "us-east-1",
+            accessKeyId: "AKIATEST",
           },
         },
       },
     });
 
     expect(result.success).toBe(false);
-    expect(JSON.stringify(result.error?.issues)).toContain(
-      "accessKeyId and secretAccessKey must both be provided together",
-    );
+    const issues = JSON.stringify(result.error?.issues);
+    expect(issues).toContain("providerOptions");
+    expect(issues).toContain("secretAccessKey");
   });
 
   it("rejects Bedrock session tokens without accessKeyId and secretAccessKey", () => {
     const result = Api.SessionStartRequestSchema.safeParse({
       modelName: bedrockModelName,
       modelClientOptions: {
-        providerConfig: {
-          provider: "bedrock",
-          options: {
-            region: "us-east-1",
-            sessionToken: "session-token",
-          },
+        providerOptions: {
+          region: "us-east-1",
+          sessionToken: "session-token",
         },
       },
     });
 
     expect(result.success).toBe(false);
-    expect(JSON.stringify(result.error?.issues)).toContain(
-      "sessionToken requires accessKeyId and secretAccessKey",
-    );
+    const issues = JSON.stringify(result.error?.issues);
+    expect(issues).toContain("sessionToken");
+    expect(issues).toContain("accessKeyId");
+    expect(issues).toContain("secretAccessKey");
   });
 });

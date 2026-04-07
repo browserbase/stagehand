@@ -631,7 +631,7 @@ export class StagehandAPIClient {
    *
    * In API mode, we only attempt to load an API key from env vars when the
    * model provider differs from the one used to init the session.
-  */
+   */
   private prepareModelConfig(
     model: ModelConfiguration,
   ): { modelName: string } & Record<string, unknown> {
@@ -653,7 +653,8 @@ export class StagehandAPIClient {
       ...(this.toSessionStartModelClientOptions(model, model.modelName) ?? {}),
     };
 
-    const normalizedApiKey = (normalizedModel as Record<string, unknown>).apiKey;
+    const normalizedApiKey = (normalizedModel as Record<string, unknown>)
+      .apiKey;
     if (typeof normalizedApiKey !== "string" || !normalizedApiKey) {
       const provider = normalizedModel.modelName?.includes("/")
         ? normalizedModel.modelName.split("/")[0]

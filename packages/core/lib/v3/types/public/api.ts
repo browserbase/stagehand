@@ -10,6 +10,12 @@
  */
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
+import { VariablesSchema } from "./variables.js";
+export {
+  VariablePrimitiveSchema,
+  VariableValueSchema,
+  VariablesSchema,
+} from "./variables.js";
 
 // =============================================================================
 // Shared Components
@@ -685,13 +691,17 @@ export const ActOptionsSchema = z
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
     }),
-    variables: z
-      .record(z.string(), z.string())
-      .optional()
-      .meta({
-        description: "Variables to substitute in the action instruction",
-        example: { username: "john_doe" },
-      }),
+    variables: VariablesSchema.optional().meta({
+      description:
+        "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
+      example: {
+        username: "john_doe",
+        password: {
+          value: "secret123",
+          description: "The login password",
+        },
+      },
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the action",
       example: 30000,
@@ -819,6 +829,17 @@ export const ObserveOptionsSchema = z
     model: z.union([ModelConfigSchema, z.string()]).optional().meta({
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
+    variables: VariablesSchema.optional().meta({
+      description:
+        "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
+      example: {
+        username: {
+          value: "john@example.com",
+          description: "The login email",
+        },
+        rememberMe: true,
+      },
     }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
