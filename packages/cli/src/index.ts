@@ -17,6 +17,7 @@ import * as net from "net";
 import { spawn } from "child_process";
 import * as readline from "readline";
 import type { Protocol } from "devtools-protocol";
+import WebSocket from "ws";
 import { version as VERSION } from "../package.json";
 import {
   DEFAULT_LOCAL_CONFIG,
@@ -2920,6 +2921,261 @@ networkCmd
       process.exit(1);
     }
   });
+
+// ==================== CDP TAILING ====================
+
+interface CDPMessage {
+  id?: number;
+  method?: string;
+  params?: unknown;
+  result?: unknown;
+  error?: { code: number; message: string };
+  sessionId?: string;
+}
+
+const CDP_DEFAULT_DOMAINS = ["Network", "Console", "Runtime", "Log", "Page"];
+
+program
+  .command("cdp <url|port>")
+  .description(
+    "Attach to a CDP target and stream DevTools protocol events as NDJSON.\n" +
+      "Accepts a WebSocket URL (ws://...) or a bare port number (e.g. 9222).\n" +
+      "Output is one JSON object per line, suitable for piping to files or jq.",
+  )
+  .option(
+    "--domain <domains...>",
+    `CDP domains to enable (repeatable). Default: ${CDP_DEFAULT_DOMAINS.join(",")}`,
+  )
+  .option("--pretty", "Human-readable output instead of JSON")
+  .action(
+    async (
+      target: string,
+      cmdOpts: { domain?: string[]; pretty?: boolean },
+    ) => {
+      const wsUrl = await resolveWsTarget(target);
+      const domains = cmdOpts.domain ?? CDP_DEFAULT_DOMAINS;
+      const usePretty = cmdOpts.pretty ?? process.stdout.isTTY ?? false;
+
+      let messageId = 1;
+      const pendingIds = new Set<number>();
+      const targetSessionMap = new Map<string, string>();
+
+      function sendCDP(
+        ws: WebSocket,
+        method: string,
+        params: Record<string, unknown> = {},
+        sessionId?: string,
+      ): number {
+        const id = messageId++;
+        pendingIds.add(id);
+        const msg: Record<string, unknown> = { id, method, params };
+        if (sessionId) msg.sessionId = sessionId;
+        ws.send(JSON.stringify(msg));
+        return id;
+      }
+
+      function enableDomainsForSession(ws: WebSocket, sessionId: string): void {
+        for (const domain of domains) {
+          if (domain === "Network") {
+            sendCDP(
+              ws,
+              "Network.enable",
+              { maxTotalBufferSize: 1000000, maxResourceBufferSize: 100000 },
+              sessionId,
+            );
+          } else {
+            sendCDP(ws, `${domain}.enable`, {}, sessionId);
+          }
+        }
+      }
+
+      function writeEvent(message: CDPMessage): void {
+        try {
+          process.stdout.write(JSON.stringify(message) + "\n");
+        } catch (err: unknown) {
+          if ((err as NodeJS.ErrnoException).code === "EPIPE") process.exit(0);
+          throw err;
+        }
+      }
+
+      function writePrettyEvent(message: CDPMessage): void {
+        if (!message.method) return;
+        const params = message.params as Record<string, unknown> | undefined;
+        let line = `[${message.method}]`;
+
+        try {
+          switch (message.method) {
+            case "Network.requestWillBeSent": {
+              const req = params?.request as
+                | { method?: string; url?: string }
+                | undefined;
+              if (req) line += ` ${req.method ?? "?"} ${req.url ?? ""}`;
+              break;
+            }
+            case "Network.responseReceived": {
+              const resp = params?.response as
+                | { status?: number; url?: string }
+                | undefined;
+              if (resp) line += ` ${resp.status ?? "?"} ${resp.url ?? ""}`;
+              break;
+            }
+            case "Network.loadingFailed": {
+              const errorText =
+                (params?.errorText as string) ??
+                (params?.canceled ? "Canceled" : "Unknown");
+              line += ` ${errorText}`;
+              break;
+            }
+            case "Runtime.consoleAPICalled": {
+              const type = (params?.type as string) ?? "log";
+              const args =
+                (params?.args as Array<{
+                  value?: unknown;
+                  description?: string;
+                }>) ?? [];
+              const text = args
+                .map((a) => a.description ?? a.value ?? "")
+                .join(" ");
+              line += ` [${type}] ${text}`;
+              break;
+            }
+            case "Runtime.exceptionThrown": {
+              const detail = params?.exceptionDetails as
+                | {
+                    text?: string;
+                    exception?: { description?: string };
+                  }
+                | undefined;
+              line += ` ${detail?.exception?.description ?? detail?.text ?? "Unknown exception"}`;
+              break;
+            }
+            case "Page.frameNavigated": {
+              const url = (params?.frame as { url?: string })?.url ?? "";
+              if (url) line += ` ${url}`;
+              break;
+            }
+            case "Target.attachedToTarget": {
+              const info = params?.targetInfo as
+                | { type?: string; url?: string }
+                | undefined;
+              if (info) line += ` [${info.type ?? "?"}] ${info.url ?? ""}`;
+              break;
+            }
+            default:
+              break;
+          }
+        } catch {
+          // Formatting failed — use method name only
+        }
+
+        try {
+          process.stdout.write(line + "\n");
+        } catch (err: unknown) {
+          if ((err as NodeJS.ErrnoException).code === "EPIPE") process.exit(0);
+          throw err;
+        }
+      }
+
+      const emit = usePretty ? writePrettyEvent : writeEvent;
+
+      await new Promise<void>((resolve) => {
+        const ws = new WebSocket(wsUrl);
+        let closed = false;
+
+        function cleanup(): void {
+          if (closed) return;
+          closed = true;
+          if (
+            ws.readyState === WebSocket.OPEN ||
+            ws.readyState === WebSocket.CONNECTING
+          ) {
+            ws.close();
+          }
+          resolve();
+        }
+
+        process.on("SIGINT", cleanup);
+        process.on("SIGTERM", cleanup);
+
+        ws.on("open", () => {
+          if (usePretty) {
+            process.stderr.write(`Connected to ${wsUrl}\n`);
+          }
+
+          // Auto-attach to page targets
+          sendCDP(ws, "Target.setAutoAttach", {
+            autoAttach: true,
+            flatten: true,
+            waitForDebuggerOnStart: false,
+            filter: [{ type: "page" }],
+          });
+
+          sendCDP(ws, "Target.setDiscoverTargets", {
+            discover: true,
+            filter: [{ type: "page" }],
+          });
+        });
+
+        ws.on("message", (raw: WebSocket.RawData) => {
+          let data: CDPMessage;
+          try {
+            data = JSON.parse(raw.toString()) as CDPMessage;
+          } catch {
+            return;
+          }
+
+          // Filter out responses to our own commands
+          if (data.id !== undefined && pendingIds.has(data.id)) {
+            pendingIds.delete(data.id);
+            if (data.error) {
+              process.stderr.write(
+                `CDP error (id=${data.id}): ${data.error.message}\n`,
+              );
+            }
+            return;
+          }
+
+          // Track page targets and enable domains
+          if (data.method === "Target.attachedToTarget" && data.params) {
+            const p = data.params as {
+              sessionId: string;
+              targetInfo: { targetId: string; type: string };
+            };
+            if (p.targetInfo?.type === "page") {
+              targetSessionMap.set(p.targetInfo.targetId, p.sessionId);
+              enableDomainsForSession(ws, p.sessionId);
+            }
+          }
+
+          if (data.method === "Target.detachedFromTarget" && data.params) {
+            const p = data.params as {
+              sessionId: string;
+              targetId?: string;
+            };
+            const targetId =
+              p.targetId ??
+              [...targetSessionMap.entries()].find(
+                ([, sid]) => sid === p.sessionId,
+              )?.[0];
+            if (targetId) targetSessionMap.delete(targetId);
+          }
+
+          emit(data);
+        });
+
+        ws.on("error", (err: Error) => {
+          process.stderr.write(`Error: ${err.message}\n`);
+        });
+
+        ws.on("close", () => {
+          if (!closed && usePretty) {
+            process.stderr.write("Disconnected.\n");
+          }
+          cleanup();
+        });
+      });
+    },
+  );
 
 // ==================== RUN ====================
 

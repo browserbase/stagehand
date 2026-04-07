@@ -64,6 +64,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
+    "@types/ws": "^8.5.13",
     "devtools-protocol": "^0.0.1464554",
     "eslint": "^10.0.2",
     "tsup": "^8.2.1",
