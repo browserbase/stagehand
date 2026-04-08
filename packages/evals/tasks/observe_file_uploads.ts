@@ -23,14 +23,6 @@ export const observe_file_uploads: EvalFunction = async ({
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } else if (observations.length < 13) {
-      return {
-        _success: false,
-        observations,
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
     }
 
     const expectedLocator = `xpath=/html/body/input`;
