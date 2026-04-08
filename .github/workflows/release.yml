@@ -38,11 +38,55 @@ jobs:
       - name: Run Lint & Build
         run: pnpm exec turbo run lint && pnpm exec turbo run build
 
+      - name: Check for actionable changesets
+        id: check_changesets
+        run: |
+          # Read the ignore list from .changeset/config.json
+          IGNORED=$(node -e "
+            const config = require('./.changeset/config.json');
+            (config.ignore || []).forEach(p => console.log(p));
+          ")
+
+          HAS_ACTIONABLE=false
+          HAS_ANY=false
+          for f in .changeset/*.md; do
+            [ "$f" = ".changeset/README.md" ] && continue
+            [ ! -f "$f" ] && continue
+            HAS_ANY=true
+
+            # Extract package names from the changeset frontmatter
+            PACKAGES=$(sed -n '/^---$/,/^---$/{ /^---$/d; s/^"\(.*\)":.*/\1/p }' "$f")
+
+            for pkg in $PACKAGES; do
+              if ! echo "$IGNORED" | grep -qxF "$pkg"; then
+                HAS_ACTIONABLE=true
+                break 2
+              fi
+            done
+          done
+
+          # Skip only when ALL pending changesets target ignored packages.
+          # When there are no changesets at all, the action must still run
+          # so it can publish freshly-versioned packages.
+          if [ "$HAS_ANY" = "true" ] && [ "$HAS_ACTIONABLE" = "false" ]; then
+            echo "All pending changesets target ignored packages — skipping changesets action."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v1
+        if: steps.check_changesets.outputs.should_run == 'true'
         with:
           publish: pnpm run release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish already-versioned packages
+        if: steps.check_changesets.outputs.should_run != 'true'
+        run: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
