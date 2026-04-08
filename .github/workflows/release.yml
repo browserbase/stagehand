@@ -86,7 +86,7 @@ jobs:
 
       - name: Publish already-versioned packages
         if: steps.check_changesets.outputs.should_run != 'true'
-        run: pnpm exec changeset publish
+        run: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
