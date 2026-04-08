@@ -31,9 +31,7 @@ export function processCoordinates(
 ): { x: number; y: number } {
   if (isGoogleProvider(provider) && v3) {
     // Browserbase managed fingerprinting uses a fixed viewport fallback.
-    const viewport = v3.isVerified
-      ? STEALTH_VIEWPORT
-      : v3.configuredViewport;
+    const viewport = v3.isVerified ? STEALTH_VIEWPORT : v3.configuredViewport;
     return normalizeGoogleCoordinates(x, y, viewport);
   }
   return { x, y };
