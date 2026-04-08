@@ -1,26 +1,32 @@
 /**
- * Auto-discovery: scans tasks/{core,bench}/ directories and builds
- * an in-memory TaskRegistry. No manual evals.config.json registration needed.
+ * Auto-discovery: scans task directories and builds an in-memory TaskRegistry.
  *
  * Convention:
- *   tasks/<tier>/<category>/<taskName>.ts
+ *   core/tasks/<category>/<taskName>.ts
+ *   tasks/bench/<category>/<taskName>.ts
  *
  * Discovery checks for:
  *   1. Default export from defineTask() (new API)
  *   2. Named export matching the filename (legacy EvalFunction pattern)
  */
-
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type {
-  Tier,
+  BenchTaskMeta,
   DiscoveredTask,
-  TaskRegistry,
   TaskDefinition,
+  TaskRegistry,
+  Tier,
 } from "./types.js";
 
-const TIERS: Tier[] = ["core", "bench"];
+const TIERS = ["core", "bench"] as const satisfies readonly Tier[];
+
+type ParsedTaskPath = {
+  tier: Tier;
+  category: string;
+  name: string;
+};
 
 /**
  * Recursively find all .ts files in a directory, ignoring .d.ts files.
@@ -42,46 +48,54 @@ function walkDir(dir: string): string[] {
       results.push(fullPath);
     }
   }
+
   return results;
 }
 
+function getTierRoots(tasksRoot: string, tier: Tier): string[] {
+  if (tier === "bench") {
+    return [path.join(tasksRoot, "bench")];
+  }
+
+  const packageRoot = path.dirname(tasksRoot);
+  return [path.join(packageRoot, "core", "tasks")];
+}
+
 /**
- * Extract tier, category, and task name from a file path.
+ * Extract category and task name from a file path rooted at a tier directory.
  *
- * Given: /path/to/tasks/bench/act/dropdown.ts
- * Returns: { tier: "bench", category: "act", name: "dropdown" }
- *
- * For nested paths like tasks/bench/agent/gaia.ts:
- * Returns: { tier: "bench", category: "agent", name: "agent/gaia" }
+ * Given core/tasks/navigation/open.ts or tasks/bench/act/dropdown.ts:
+ * Returns tier/category/name using the provided tier.
  */
 function parseTaskPath(
   filePath: string,
-  tasksRoot: string,
-): { tier: Tier; category: string; name: string } | null {
-  const relative = path.relative(tasksRoot, filePath);
+  tierRoot: string,
+  tier: Tier,
+): ParsedTaskPath | null {
+  const relative = path.relative(tierRoot, filePath);
   const parts = relative.replace(/\\/g, "/").split("/");
 
-  // Minimum: <tier>/<category>/<file>.ts
-  if (parts.length < 3) return null;
+  // Minimum: <category>/<file>.ts
+  if (parts.length < 2) return null;
 
-  const tier = parts[0] as Tier;
-  if (!TIERS.includes(tier)) return null;
-
-  const category = parts[1];
+  const category = parts[0];
   const fileName = parts[parts.length - 1].replace(/\.(ts|js)$/, "");
 
   // For deeper nesting (e.g., bench/agent/subfolder/task.ts), include the
-  // intermediate path in the name for uniqueness
-  const nameParts = parts.slice(1, -1); // category onwards, excluding filename
+  // intermediate path in the name for uniqueness.
+  const nameParts = parts.slice(0, -1);
   const name =
     nameParts.length > 1
       ? `${nameParts.join("/")}/${fileName}`
       : `${category}/${fileName}`;
 
-  // If category === fileName (e.g., tasks/bench/act/act.ts), simplify to just the name
   const simpleName = category === fileName ? fileName : name;
 
-  return { tier, category, name: simpleName };
+  return {
+    tier,
+    category,
+    name: simpleName,
+  };
 }
 
 /**
@@ -96,18 +110,16 @@ async function loadTaskModule(
   const moduleUrl = pathToFileURL(filePath).href;
   const taskModule = await import(moduleUrl);
 
-  // Check for new-style default export (defineTask)
   const defaultExport = taskModule.default;
   if (defaultExport && defaultExport.__taskDefinition === true) {
-    return { isLegacy: false, definition: defaultExport };
+    return { isLegacy: false, definition: defaultExport as TaskDefinition };
   }
 
-  // Check for legacy named export matching the filename
   const baseName = expectedName.includes("/")
-    ? expectedName.split("/").pop()!
+    ? expectedName.split("/").pop()
     : expectedName;
 
-  if (typeof taskModule[baseName] === "function") {
+  if (baseName && typeof taskModule[baseName] === "function") {
     return { isLegacy: true };
   }
 
@@ -123,7 +135,7 @@ async function loadTaskModule(
  */
 export async function discoverTasks(
   tasksRoot: string,
-  eager: boolean = false,
+  eager = false,
 ): Promise<TaskRegistry> {
   const tasks: DiscoveredTask[] = [];
   const byName = new Map<string, DiscoveredTask>();
@@ -131,69 +143,71 @@ export async function discoverTasks(
   const byCategory = new Map<string, DiscoveredTask[]>();
 
   for (const tier of TIERS) {
-    const tierDir = path.join(tasksRoot, tier);
-    const files = walkDir(tierDir);
+    const tierRoots = getTierRoots(tasksRoot, tier);
 
-    for (const filePath of files) {
-      const parsed = parseTaskPath(filePath, tasksRoot);
-      if (!parsed) continue;
+    for (const tierRoot of tierRoots) {
+      const files = walkDir(tierRoot);
 
-      let isLegacy = true;
-      let extraCategories: string[] = [];
-      let tags: string[] = [];
-      let models: string[] | undefined;
-      let taskName = parsed.name;
+      for (const filePath of files) {
+        const parsed = parseTaskPath(filePath, tierRoot, tier);
+        if (!parsed) continue;
 
-      if (eager) {
-        try {
-          const result = await loadTaskModule(filePath, parsed.name);
-          isLegacy = result.isLegacy;
+        let isLegacy = true;
+        let extraCategories: string[] = [];
+        let tags: string[] = [];
+        let models: string[] | undefined;
+        let taskName = parsed.name;
 
-          if (result.definition) {
-            const meta = result.definition.meta;
-            if (meta.name) taskName = meta.name;
-            if (meta.categories) extraCategories = meta.categories;
-            if (meta.tags) tags = meta.tags;
-            if ("models" in meta && meta.models) {
-              models = meta.models as string[];
+        if (eager) {
+          try {
+            const result = await loadTaskModule(filePath, parsed.name);
+            isLegacy = result.isLegacy;
+
+            if (result.definition) {
+              const meta = result.definition.meta;
+              if (meta.name) taskName = meta.name;
+              if (meta.categories) extraCategories = meta.categories;
+              if (meta.tags) tags = meta.tags;
+              if ("models" in meta && (meta as BenchTaskMeta).models) {
+                models = (meta as BenchTaskMeta).models;
+              }
             }
+          } catch (err) {
+            console.warn(
+              `[discovery] Failed to load task module ${filePath}: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            );
+            continue;
           }
-        } catch (err) {
-          console.warn(
-            `[discovery] Failed to load task module ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-          continue;
         }
-      }
 
-      // Build the full categories list: primary category + extras
-      const categories = [
-        parsed.category,
-        ...extraCategories.filter((c) => c !== parsed.category),
-      ];
+        const categories = [
+          parsed.category,
+          ...extraCategories.filter((c) => c !== parsed.category),
+        ];
 
-      const task: DiscoveredTask = {
-        name: taskName,
-        tier: parsed.tier,
-        primaryCategory: parsed.category,
-        categories,
-        tags,
-        filePath,
-        isLegacy,
-        models,
-      };
+        const task: DiscoveredTask = {
+          name: taskName,
+          tier: parsed.tier,
+          primaryCategory: parsed.category,
+          categories,
+          tags,
+          filePath,
+          isLegacy,
+          models,
+        };
 
-      tasks.push(task);
-      byName.set(task.name, task);
+        tasks.push(task);
+        byName.set(task.name, task);
 
-      // Index by tier
-      if (!byTier.has(parsed.tier)) byTier.set(parsed.tier, []);
-      byTier.get(parsed.tier)!.push(task);
+        if (!byTier.has(parsed.tier)) byTier.set(parsed.tier, []);
+        byTier.get(parsed.tier)!.push(task);
 
-      // Index by each category
-      for (const cat of categories) {
-        if (!byCategory.has(cat)) byCategory.set(cat, []);
-        byCategory.get(cat)!.push(task);
+        for (const cat of categories) {
+          if (!byCategory.has(cat)) byCategory.set(cat, []);
+          byCategory.get(cat)!.push(task);
+        }
       }
     }
   }
@@ -215,31 +229,30 @@ export function resolveTarget(
   registry: TaskRegistry,
   target?: string,
 ): DiscoveredTask[] {
-  // No target → default to bench
   if (!target) {
     return registry.byTier.get("bench") ?? [];
   }
 
-  // Check for tier:category qualifier
   if (target.includes(":")) {
     const [tierPart, categoryPart] = target.split(":", 2);
     const tier = tierPart as Tier;
+
     if (!TIERS.includes(tier)) {
-      throw new Error(`Unknown tier "${tierPart}". Valid tiers: ${TIERS.join(", ")}`);
+      throw new Error(
+        `Unknown tier "${tierPart}". Valid tiers: ${TIERS.join(", ")}`,
+      );
     }
+
     const tierTasks = registry.byTier.get(tier) ?? [];
     return tierTasks.filter((t) => t.categories.includes(categoryPart));
   }
 
-  // Check if target is a tier name
   if (TIERS.includes(target as Tier)) {
     return registry.byTier.get(target as Tier) ?? [];
   }
 
-  // Check if target is a category name
   const categoryTasks = registry.byCategory.get(target);
   if (categoryTasks && categoryTasks.length > 0) {
-    // Check for ambiguity: does this category exist in multiple tiers?
     const tiers = new Set(categoryTasks.map((t) => t.tier));
     if (tiers.size > 1) {
       const tierList = [...tiers].map((t) => `${t}:${target}`).join(" or ");
@@ -250,13 +263,11 @@ export function resolveTarget(
     return categoryTasks;
   }
 
-  // Check if target is a specific task name
   const task = registry.byName.get(target);
   if (task) {
     return [task];
   }
 
-  // Try partial match on task name (e.g., "dropdown" matching "act/dropdown")
   const partial = registry.tasks.filter(
     (t) => t.name.endsWith(`/${target}`) || t.name === target,
   );

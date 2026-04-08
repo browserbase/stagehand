@@ -1,35 +1,17 @@
 /**
  * defineTask — the thin wrapper API for defining eval tasks.
  *
- * Usage (core tier):
- *   export default defineTask({ name: "snapshot" }, async ({ page, assert }) => {
- *     await page.goto("https://example.com");
- *     const title = await page.title();
- *     assert.equals(title, "Example Domain");
- *   });
- *
- * Usage (bench tier):
- *   export default defineTask({ name: "dropdown" }, async ({ v3, logger }) => {
- *     const page = v3.context.pages()[0];
- *     await page.goto("https://example.com");
- *     await v3.act("click the dropdown");
- *     return { _success: true, logs: logger.getLogs() };
- *   });
- *
  * The tier is NOT specified by the user — it's inferred from the directory
  * the file lives in during auto-discovery.
  */
-
 import type {
-  TaskMeta,
+  BenchTaskContext,
   BenchTaskMeta,
   CoreTaskContext,
-  BenchTaskContext,
-  TaskResult,
   TaskDefinition,
+  TaskMeta,
+  TaskResult,
 } from "./types.js";
-
-// Separate functions for each tier to preserve type inference on the callback.
 
 /**
  * Define a core tier task (deterministic, no LLM).
@@ -37,12 +19,12 @@ import type {
  */
 export function defineCoreTask(
   meta: TaskMeta,
-  fn: (ctx: CoreTaskContext) => Promise<void>,
+  fn: (ctx: CoreTaskContext) => Promise<void | TaskResult>,
 ): TaskDefinition {
   return {
     __taskDefinition: true,
     meta,
-    fn: fn as TaskDefinition["fn"],
+    fn,
   };
 }
 
@@ -52,12 +34,12 @@ export function defineCoreTask(
  */
 export function defineBenchTask(
   meta: BenchTaskMeta,
-  fn: (ctx: BenchTaskContext) => Promise<TaskResult>,
+  fn: (ctx: BenchTaskContext) => Promise<void | TaskResult>,
 ): TaskDefinition {
   return {
     __taskDefinition: true,
     meta,
-    fn: fn as TaskDefinition["fn"],
+    fn,
   };
 }
 
@@ -67,11 +49,13 @@ export function defineBenchTask(
  */
 export function defineTask(
   meta: TaskMeta | BenchTaskMeta,
-  fn: ((ctx: CoreTaskContext) => Promise<void>) | ((ctx: BenchTaskContext) => Promise<TaskResult>),
+  fn: (
+    ctx: CoreTaskContext | BenchTaskContext,
+  ) => Promise<void | TaskResult>,
 ): TaskDefinition {
   return {
     __taskDefinition: true,
     meta,
-    fn: fn as TaskDefinition["fn"],
+    fn,
   };
 }

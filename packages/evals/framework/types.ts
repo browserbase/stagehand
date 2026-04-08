@@ -7,27 +7,18 @@
  *
  * A third tier ("interpret") is planned but not yet implemented.
  */
-
 import type {
-  AvailableModel,
-  V3,
   AgentInstance,
+  AvailableModel,
   LogLine,
+  V3,
 } from "@browserbasehq/stagehand";
 import type { EvalLogger } from "../logger.js";
 
 /** Page type inferred from V3.context.pages()[0] */
 type Page = ReturnType<V3["context"]["pages"]>[number];
 
-// ---------------------------------------------------------------------------
-// Tier enum
-// ---------------------------------------------------------------------------
-
 export type Tier = "core" | "bench";
-
-// ---------------------------------------------------------------------------
-// Task metadata (what the user provides to defineTask)
-// ---------------------------------------------------------------------------
 
 export interface TaskMeta {
   /** Human-readable task name (e.g., "snapshot", "dropdown"). Inferred from filename if omitted. */
@@ -42,10 +33,6 @@ export interface BenchTaskMeta extends TaskMeta {
   /** Override the default model list for this specific task. */
   models?: string[];
 }
-
-// ---------------------------------------------------------------------------
-// Task contexts (what the task function receives)
-// ---------------------------------------------------------------------------
 
 /** Context provided to core (tier 1) tasks. */
 export interface CoreTaskContext {
@@ -84,10 +71,6 @@ export interface BenchTaskContext {
   sessionUrl: string;
 }
 
-// ---------------------------------------------------------------------------
-// Task result (what bench tasks return)
-// ---------------------------------------------------------------------------
-
 export interface TaskResult {
   _success: boolean;
   logs?: LogLine[];
@@ -96,10 +79,6 @@ export interface TaskResult {
   error?: unknown;
   [key: string]: unknown;
 }
-
-// ---------------------------------------------------------------------------
-// Assertion helpers (for core tier)
-// ---------------------------------------------------------------------------
 
 export interface AssertHelpers {
   /** Deep equality check. */
@@ -117,10 +96,6 @@ export interface AssertHelpers {
   greaterThan(actual: number, expected: number, message?: string): void;
 }
 
-// ---------------------------------------------------------------------------
-// Metrics collector (for core tier)
-// ---------------------------------------------------------------------------
-
 export interface MetricsCollector {
   /** Start a named timer. Returns a stop function that records the duration. */
   startTimer(name: string): () => number;
@@ -128,13 +103,9 @@ export interface MetricsCollector {
   record(name: string, value: number): void;
   /** Get all recorded metrics. */
   getAll(): Record<string, number[]>;
-  /** Get summary stats for all metrics. */
-  getSummary(): Record<string, { min: number; max: number; avg: number; p50: number; p99: number; count: number }>;
+  /** Get summary stats. Single measurements emit { value, count }; multiple emit full stats. */
+  getSummary(): Record<string, Record<string, number>>;
 }
-
-// ---------------------------------------------------------------------------
-// Task definition (what defineTask returns — internal)
-// ---------------------------------------------------------------------------
 
 export interface TaskDefinition {
   /** Marker to identify defineTask outputs during discovery. */
@@ -146,10 +117,6 @@ export interface TaskDefinition {
   /** Which tier this task was defined for (set during discovery from directory). */
   tier?: Tier;
 }
-
-// ---------------------------------------------------------------------------
-// Discovered task (after auto-discovery resolves everything)
-// ---------------------------------------------------------------------------
 
 export interface DiscoveredTask {
   /** Unique task identifier (e.g., "snapshot" or "agent/gaia"). */
@@ -169,10 +136,6 @@ export interface DiscoveredTask {
   /** Model overrides (bench tier only). */
   models?: string[];
 }
-
-// ---------------------------------------------------------------------------
-// Registry — the in-memory task index
-// ---------------------------------------------------------------------------
 
 export interface TaskRegistry {
   /** All discovered tasks. */

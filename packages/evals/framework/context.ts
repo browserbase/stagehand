@@ -4,21 +4,16 @@
  * - buildCoreContext(): starts a browser via V3 (headless), provides page + assert + metrics
  * - buildBenchContext(): full V3 init with model/agent support (wraps existing initV3)
  */
-
 import type {
   AvailableModel,
-  LLMClient,
   ClientOptions,
+  LLMClient,
 } from "@browserbasehq/stagehand";
-import type { CoreTaskContext, BenchTaskContext } from "./types.js";
+import { type V3InitResult, initV3 } from "../initV3.js";
+import { EvalLogger } from "../logger.js";
 import { createAssertHelpers } from "./assertions.js";
 import { createMetricsCollector } from "./metrics.js";
-import { initV3, type V3InitResult } from "../initV3.js";
-import { EvalLogger } from "../logger.js";
-
-// ---------------------------------------------------------------------------
-// Core tier context
-// ---------------------------------------------------------------------------
+import type { BenchTaskContext, CoreTaskContext } from "./types.js";
 
 export interface CoreContextOptions {
   logger?: EvalLogger;
@@ -45,14 +40,13 @@ export async function buildCoreContext(
   // V3 still requires a model to be specified at init time.
   const v3Result = await initV3({
     logger,
-    modelName: "openai/gpt-4.1-mini" as AvailableModel,
+    modelName: "openai/gpt-4.1-mini",
     configOverrides: {
       localBrowserLaunchOptions: { headless: true },
     },
   });
 
   const page = v3Result.v3.context.pages()[0];
-
   const ctx: CoreTaskContext = {
     page,
     assert: createAssertHelpers(),
@@ -62,10 +56,6 @@ export async function buildCoreContext(
 
   return { ctx, v3Result };
 }
-
-// ---------------------------------------------------------------------------
-// Bench tier context
-// ---------------------------------------------------------------------------
 
 export interface BenchContextOptions {
   modelName: AvailableModel;
@@ -98,7 +88,6 @@ export async function buildBenchContext(
   options: BenchContextOptions,
 ): Promise<BenchContextResult> {
   const logger = options.logger ?? new EvalLogger();
-
   const v3Result = await initV3({
     logger,
     modelName: options.modelName,
@@ -109,7 +98,6 @@ export async function buildBenchContext(
   });
 
   const page = v3Result.v3.context.pages()[0];
-
   const ctx: BenchTaskContext = {
     v3: v3Result.v3,
     agent: v3Result.agent,

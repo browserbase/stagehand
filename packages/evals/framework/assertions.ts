@@ -4,9 +4,8 @@
  * All assertions throw an AssertionError on failure, which the
  * framework catches and converts to a failed task result.
  */
-
-import type { AssertHelpers } from "./types.js";
 import { deepStrictEqual } from "node:assert";
+import type { AssertHelpers } from "./types.js";
 
 export class AssertionError extends Error {
   actual: unknown;
@@ -22,19 +21,19 @@ export class AssertionError extends Error {
 
 export function createAssertHelpers(): AssertHelpers {
   return {
-    equals(actual: unknown, expected: unknown, message?: string): void {
+    equals(actual, expected, message) {
       try {
         deepStrictEqual(actual, expected);
       } catch {
         throw new AssertionError(
-          message ?? `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+          message ??
+            `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
           actual,
           expected,
         );
       }
     },
-
-    matches(actual: string, pattern: RegExp, message?: string): void {
+    matches(actual, pattern, message) {
       if (!pattern.test(actual)) {
         throw new AssertionError(
           message ?? `Expected "${actual}" to match ${pattern}`,
@@ -43,8 +42,7 @@ export function createAssertHelpers(): AssertHelpers {
         );
       }
     },
-
-    includes(haystack: string, needle: string, message?: string): void {
+    includes(haystack, needle, message) {
       if (!haystack.includes(needle)) {
         throw new AssertionError(
           message ?? `Expected "${haystack}" to include "${needle}"`,
@@ -53,8 +51,7 @@ export function createAssertHelpers(): AssertHelpers {
         );
       }
     },
-
-    truthy(value: unknown, message?: string): void {
+    truthy(value, message) {
       if (!value) {
         throw new AssertionError(
           message ?? `Expected truthy value, got ${JSON.stringify(value)}`,
@@ -63,8 +60,7 @@ export function createAssertHelpers(): AssertHelpers {
         );
       }
     },
-
-    falsy(value: unknown, message?: string): void {
+    falsy(value, message) {
       if (value) {
         throw new AssertionError(
           message ?? `Expected falsy value, got ${JSON.stringify(value)}`,
@@ -73,8 +69,7 @@ export function createAssertHelpers(): AssertHelpers {
         );
       }
     },
-
-    lessThan(actual: number, expected: number, message?: string): void {
+    lessThan(actual, expected, message) {
       if (actual >= expected) {
         throw new AssertionError(
           message ?? `Expected ${actual} < ${expected}`,
@@ -83,8 +78,7 @@ export function createAssertHelpers(): AssertHelpers {
         );
       }
     },
-
-    greaterThan(actual: number, expected: number, message?: string): void {
+    greaterThan(actual, expected, message) {
       if (actual <= expected) {
         throw new AssertionError(
           message ?? `Expected ${actual} > ${expected}`,

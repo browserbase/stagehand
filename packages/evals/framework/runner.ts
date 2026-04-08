@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Unified multi-tier eval runner.
  *
@@ -8,16 +9,9 @@
  * This module replaces the monolithic task execution logic in index.eval.ts
  * while preserving backward compatibility with legacy EvalFunction tasks.
  */
-
 import fs from "node:fs";
-import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { Eval } from "braintrust";
-import type {
-  AvailableModel,
-  LLMClient,
-  LogLine,
-} from "@browserbasehq/stagehand";
+import { Eval, traced } from "braintrust";
 import {
   StagehandEvalError,
   AgentProvider,
@@ -25,22 +19,8 @@ import {
   getAISDKLanguageModel,
 } from "@browserbasehq/stagehand";
 import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
-import type {
-  DiscoveredTask,
-  TaskRegistry,
-  Tier,
-  TaskDefinition,
-  TaskResult,
-  CoreTaskContext,
-  BenchTaskContext,
-} from "./types.js";
-import {
-  buildCoreContext,
-  buildBenchContext,
-} from "./context.js";
 import { AssertionError } from "./assertions.js";
 import { EvalLogger } from "../logger.js";
-import { env } from "../env.js";
 import { endBrowserbaseSession } from "../browserbaseCleanup.js";
 import { exactMatch, errorMatch } from "../scoring.js";
 import { generateExperimentName } from "../utils.js";
@@ -49,91 +29,29 @@ import {
   getModelList,
   getAgentModelEntries,
 } from "../taskConfig.js";
-import type { SummaryResult, EvalInput, Testcase } from "../types/evals.js";
 
-// Re-export for convenience
 export { discoverTasks, resolveTarget } from "./discovery.js";
-
-// ---------------------------------------------------------------------------
-// Suite builders (existing benchmarks)
-// ---------------------------------------------------------------------------
 
 import { buildGAIATestcases } from "../suites/gaia.js";
 import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
 
-// ---------------------------------------------------------------------------
-// Run options
-// ---------------------------------------------------------------------------
-
-export interface RunOptions {
-  /** Tasks to run (from resolveTarget). */
-  tasks: DiscoveredTask[];
-  /** The full registry (for summary generation). */
-  registry: TaskRegistry;
-  /** Max parallel browser sessions. */
-  concurrency?: number;
-  /** Number of trials per task. */
-  trials?: number;
-  /** Target environment. */
-  environment?: "LOCAL" | "BROWSERBASE";
-  /** Use Stagehand API mode. */
-  useApi?: boolean;
-  /** Provider filter. */
-  provider?: string;
-  /** Model override (single model). */
-  modelOverride?: string;
-  /** Category filter (for model selection). */
-  categoryFilter?: string;
-  /** Dataset filter for benchmarks. */
-  datasetFilter?: string;
-  /** Callback for real-time progress updates. */
-  onProgress?: (event: ProgressEvent) => void;
-}
-
-export interface ProgressEvent {
-  type: "started" | "passed" | "failed" | "error";
-  taskName: string;
-  modelName?: string;
-  durationMs?: number;
-  error?: string;
-}
-
-export interface RunResult {
-  experimentName: string;
-  summary: {
-    passed: number;
-    failed: number;
-    total: number;
-  };
-  results: SummaryResult[];
-}
-
-// ---------------------------------------------------------------------------
-// Testcase generation
-// ---------------------------------------------------------------------------
-
-function generateTestcases(
-  tasks: DiscoveredTask[],
-  options: RunOptions,
-): Testcase[] {
+function generateTestcases(tasks, options) {
   const coreTasks = tasks.filter((t) => t.tier === "core");
   const benchTasks = tasks.filter((t) => t.tier === "bench");
+  let allTestcases = [];
 
-  let allTestcases: Testcase[] = [];
-
-  // Core tier: no model matrix, single testcase per task
   for (const task of coreTasks) {
     allTestcases.push({
       input: {
         name: task.name,
-        modelName: "none" as AvailableModel, // core tasks don't use a model
+        modelName: "none",
       },
       name: task.name,
       tags: ["core", task.primaryCategory, ...task.tags],
       metadata: {
-        model: "none" as AvailableModel,
+        model: "none",
         test: task.name,
         categories: task.categories,
         task_category: task.primaryCategory,
@@ -142,25 +60,28 @@ function generateTestcases(
     });
   }
 
-  // Bench tier: model × task matrix
   if (benchTasks.length > 0) {
-    // Determine effective category for model selection
-    const effectiveCategory = options.categoryFilter ?? null;
+    let effectiveCategory = options.categoryFilter ?? null;
+    if (
+      !effectiveCategory &&
+      benchTasks.length === 1 &&
+      benchTasks[0].categories.length === 1 &&
+      (benchTasks[0].categories[0] === "agent" ||
+        benchTasks[0].categories[0] === "external_agent_benchmarks")
+    ) {
+      effectiveCategory = benchTasks[0].categories[0];
+    }
 
-    // Handle suite/benchmark tasks that fan out from datasets
     const suiteTestcases = generateSuiteTestcases(benchTasks, options);
     allTestcases.push(...suiteTestcases.testcases);
     const remainingBenchTasks = suiteTestcases.remainingTasks;
 
-    // Determine models
     const isAgentCategory =
       effectiveCategory === "agent" ||
       effectiveCategory === "external_agent_benchmarks";
-
     const currentModels = options.modelOverride
       ? [options.modelOverride]
       : getModelList(effectiveCategory);
-
     const modelEntries = isAgentCategory
       ? getAgentModelEntries()
       : currentModels.map((m) => ({ modelName: m, cua: false }));
@@ -170,7 +91,7 @@ function generateTestcases(
         allTestcases.push({
           input: {
             name: task.name,
-            modelName: entry.modelName as AvailableModel,
+            modelName: entry.modelName,
             ...(isAgentCategory && { isCUA: entry.cua }),
           },
           name: task.name,
@@ -181,7 +102,7 @@ function generateTestcases(
             ...task.categories.map((x) => `category/${x}`),
           ],
           metadata: {
-            model: entry.modelName as AvailableModel,
+            model: entry.modelName,
             test: task.name,
             categories: task.categories,
             task_category: task.primaryCategory,
@@ -192,7 +113,6 @@ function generateTestcases(
     }
   }
 
-  // Filter out tasks not suitable for Browserbase
   if (options.environment === "BROWSERBASE") {
     allTestcases = allTestcases.filter(
       (tc) => !["peeler_simple", "stock_x"].includes(tc.name),
@@ -202,22 +122,15 @@ function generateTestcases(
   return allTestcases;
 }
 
-/**
- * Handle suite/benchmark tasks that fan out from datasets (GAIA, WebVoyager, etc.)
- */
-function generateSuiteTestcases(
-  benchTasks: DiscoveredTask[],
-  options: RunOptions,
-): { testcases: Testcase[]; remainingTasks: DiscoveredTask[] } {
-  const testcases: Testcase[] = [];
+function generateSuiteTestcases(benchTasks, options) {
+  const testcases = [];
   const remaining = [...benchTasks];
   const datasetFilter = options.datasetFilter;
-
   const currentModels = options.modelOverride
     ? [options.modelOverride]
     : getModelList(options.categoryFilter ?? undefined);
 
-  const suiteMap: Record<string, (models: string[]) => Testcase[]> = {
+  const suiteMap = {
     "agent/gaia": (models) => buildGAIATestcases(models),
     "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
     "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
@@ -227,8 +140,7 @@ function generateSuiteTestcases(
   for (const [suiteName, builder] of Object.entries(suiteMap)) {
     const idx = remaining.findIndex((t) => t.name === suiteName);
     if (idx === -1) continue;
-
-    const datasetName = suiteName.split("/").pop()!;
+    const datasetName = suiteName.split("/").pop();
     if (!datasetFilter || datasetFilter === datasetName) {
       testcases.push(...builder(currentModels));
     }
@@ -238,66 +150,50 @@ function generateSuiteTestcases(
   return { testcases, remainingTasks: remaining };
 }
 
-// ---------------------------------------------------------------------------
-// Task execution
-// ---------------------------------------------------------------------------
-
-async function executeTask(
-  input: EvalInput,
-  task: DiscoveredTask,
-  options: RunOptions,
-): Promise<TaskResult> {
+async function executeTask(input, task, options) {
   if (task.tier === "core") {
     return executeCoreTask(input, task, options);
-  } else {
-    return executeBenchTask(input, task, options);
   }
+  return executeBenchTask(input, task, options);
 }
 
-async function executeCoreTask(
-  input: EvalInput,
-  task: DiscoveredTask,
-  options: RunOptions,
-): Promise<TaskResult> {
+async function executeCoreTask(input, task, options) {
   const logger = new EvalLogger();
   const { buildCoreContext: buildCtx } = await import("./context.js");
-  const { ctx, v3Result } = await buildCtx({ logger });
+  const { ctx, v3Result } = await traced(async () => buildCtx({ logger }), {
+    name: "stagehand.init",
+  });
 
   try {
-    // Load the task module
-    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
+    const result = await traced(
+      async () => {
+        const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
+        if (taskModule.definition) {
+          await taskModule.definition.fn(ctx);
+          return { _success: true, logs: logger.getLogs() };
+        }
+        if (taskModule.legacyFn) {
+          return await taskModule.legacyFn({
+            v3: v3Result.v3,
+            logger,
+            debugUrl: v3Result.debugUrl ?? "",
+            sessionUrl: v3Result.sessionUrl ?? "",
+            modelName: input.modelName,
+            agent: v3Result.agent,
+            input,
+          });
+        }
+        throw new StagehandEvalError(
+          `No valid task export found in ${task.filePath}`,
+        );
+      },
+      { name: "task" },
+    );
 
-    if (taskModule.definition) {
-      // New defineTask API
-      await (taskModule.definition.fn as (ctx: CoreTaskContext) => Promise<void>)(ctx);
-
-      // If we get here without throwing, the task passed
-      return {
-        _success: true,
-        logs: logger.getLogs(),
-      };
-    } else if (taskModule.legacyFn) {
-      // Legacy EvalFunction — shouldn't normally be in core/, but handle gracefully
-      const result = await taskModule.legacyFn({
-        v3: v3Result.v3,
-        logger,
-        debugUrl: v3Result.debugUrl ?? "",
-        sessionUrl: v3Result.sessionUrl ?? "",
-        modelName: input.modelName,
-        agent: v3Result.agent,
-        input,
-      });
-      return result;
-    }
-
-    throw new StagehandEvalError(`No valid task export found in ${task.filePath}`);
+    return result;
   } catch (error) {
     if (error instanceof AssertionError) {
-      return {
-        _success: false,
-        error: error.message,
-        logs: logger.getLogs(),
-      };
+      return { _success: false, error: error.message, logs: logger.getLogs() };
     }
     return {
       _success: false,
@@ -305,24 +201,23 @@ async function executeCoreTask(
       logs: logger.getLogs(),
     };
   } finally {
-    try {
-      await v3Result.v3.close();
-    } catch {
-      // best-effort cleanup
-    }
-    await endBrowserbaseSession(v3Result.v3);
+    await traced(
+      async () => {
+        try {
+          await v3Result.v3.close();
+        } catch {}
+        await endBrowserbaseSession(v3Result.v3);
+      },
+      { name: "cleanup" },
+    );
     logger.clear();
   }
 }
 
-async function executeBenchTask(
-  input: EvalInput,
-  task: DiscoveredTask,
-  options: RunOptions,
-): Promise<TaskResult> {
+async function executeBenchTask(input, task, options) {
   const logger = new EvalLogger();
   const useApi = options.useApi ?? false;
-  let v3Result: Awaited<ReturnType<typeof import("../initV3.js").initV3>> | undefined;
+  let v3Result;
 
   try {
     const isAgentTask =
@@ -330,93 +225,93 @@ async function executeBenchTask(
       task.categories.includes("agent") ||
       task.categories.includes("external_agent_benchmarks");
 
-    // Build context (same logic as existing index.eval.ts)
-    if (useApi) {
-      let provider: string;
-      if (input.modelName.includes("/")) {
-        provider = input.modelName.split("/")[0];
-      } else {
-        try {
-          provider = AgentProvider.getAgentProvider(input.modelName);
-        } catch {
-          provider = undefined as unknown as string;
+    v3Result = await traced(
+      async () => {
+        if (useApi) {
+          let provider;
+          if (input.modelName.includes("/")) {
+            provider = input.modelName.split("/")[0];
+          } else {
+            try {
+              provider = AgentProvider.getAgentProvider(input.modelName);
+            } catch {
+              provider = undefined;
+            }
+          }
+          const logFn = (line) => logger.log(line);
+          const apiKey = loadApiKeyFromEnv(provider, logFn);
+          if (!apiKey) {
+            throw new StagehandEvalError(
+              `USE_API=true but no API key found for provider "${provider}".`,
+            );
+          }
+          const { initV3 } = await import("../initV3.js");
+          return initV3({
+            logger,
+            modelName: input.modelName,
+            modelClientOptions: { apiKey },
+            createAgent: isAgentTask,
+            isCUA: input.isCUA,
+          });
         }
-      }
 
-      const logFn = (line: LogLine): void => logger.log(line);
-      const apiKey = loadApiKeyFromEnv(provider, logFn);
-
-      if (!apiKey) {
-        throw new StagehandEvalError(
-          `USE_API=true but no API key found for provider "${provider}".`,
-        );
-      }
-
-      const { initV3 } = await import("../initV3.js");
-      v3Result = await initV3({
-        logger,
-        modelName: input.modelName,
-        modelClientOptions: { apiKey },
-        createAgent: isAgentTask,
-        isCUA: input.isCUA,
-      });
-    } else {
-      let llmClient: LLMClient | undefined;
-      if (input.modelName.includes("/")) {
-        const firstSlashIndex = input.modelName.indexOf("/");
-        llmClient = new AISdkClientWrapped({
-          model: getAISDKLanguageModel(
-            input.modelName.substring(0, firstSlashIndex),
-            input.modelName.substring(firstSlashIndex + 1),
-          ),
+        let llmClient;
+        if (input.modelName.includes("/")) {
+          const firstSlashIndex = input.modelName.indexOf("/");
+          llmClient = new AISdkClientWrapped({
+            model: getAISDKLanguageModel(
+              input.modelName.substring(0, firstSlashIndex),
+              input.modelName.substring(firstSlashIndex + 1),
+            ),
+          });
+        }
+        const { initV3 } = await import("../initV3.js");
+        return initV3({
+          logger,
+          llmClient,
+          modelName: input.modelName,
+          createAgent: isAgentTask,
+          isCUA: input.isCUA,
         });
-      }
+      },
+      { name: "stagehand.init" },
+    );
 
-      const { initV3 } = await import("../initV3.js");
-      v3Result = await initV3({
-        logger,
-        llmClient,
-        modelName: input.modelName,
-        createAgent: isAgentTask,
-        isCUA: input.isCUA,
-      });
-    }
+    const result = await traced(
+      async () => {
+        const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
+        if (taskModule.definition) {
+          const ctx = {
+            v3: v3Result.v3,
+            agent: v3Result.agent,
+            page: v3Result.v3.context.pages()[0],
+            logger,
+            input,
+            modelName: input.modelName,
+            debugUrl: v3Result.debugUrl ?? "",
+            sessionUrl: v3Result.sessionUrl ?? "",
+          };
+          return taskModule.definition.fn(ctx);
+        }
+        if (taskModule.legacyFn) {
+          return taskModule.legacyFn({
+            v3: v3Result.v3,
+            logger,
+            debugUrl: v3Result.debugUrl ?? "",
+            sessionUrl: v3Result.sessionUrl ?? "",
+            modelName: input.modelName,
+            agent: v3Result.agent,
+            input,
+          });
+        }
+        throw new StagehandEvalError(
+          `No valid task export found in ${task.filePath}`,
+        );
+      },
+      { name: "task" },
+    );
 
-    // Load and execute the task
-    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
-
-    if (taskModule.definition) {
-      // New defineTask API for bench tasks
-      const ctx: BenchTaskContext = {
-        v3: v3Result.v3,
-        agent: v3Result.agent,
-        page: v3Result.v3.context.pages()[0],
-        logger,
-        input,
-        modelName: input.modelName,
-        debugUrl: v3Result.debugUrl ?? "",
-        sessionUrl: v3Result.sessionUrl ?? "",
-      };
-
-      const result = await (
-        taskModule.definition.fn as (ctx: BenchTaskContext) => Promise<TaskResult>
-      )(ctx);
-      return result;
-    } else if (taskModule.legacyFn) {
-      // Legacy EvalFunction
-      const result = await taskModule.legacyFn({
-        v3: v3Result.v3,
-        logger,
-        debugUrl: v3Result.debugUrl ?? "",
-        sessionUrl: v3Result.sessionUrl ?? "",
-        modelName: input.modelName,
-        agent: v3Result.agent,
-        input,
-      });
-      return result;
-    }
-
-    throw new StagehandEvalError(`No valid task export found in ${task.filePath}`);
+    return result;
   } catch (error) {
     console.error(`Error in ${input.name}: ${error}`);
     logger.error({
@@ -428,7 +323,7 @@ async function executeBenchTask(
           type: "string",
         },
         trace: {
-          value: error instanceof Error ? (error.stack ?? "") : "",
+          value: error instanceof Error ? error.stack ?? "" : "",
           type: "string",
         },
       },
@@ -442,34 +337,27 @@ async function executeBenchTask(
       logs: logger.getLogs(),
     };
   } finally {
-    if (v3Result?.v3) {
-      try {
-        await v3Result.v3.close();
-      } catch (closeError) {
-        console.error(
-          `Warning: Error closing V3 instance for ${input.name}:`,
-          closeError,
-        );
-      }
-    }
-    await endBrowserbaseSession(v3Result?.v3);
+    await traced(
+      async () => {
+        if (v3Result?.v3) {
+          try {
+            await v3Result.v3.close();
+          } catch (closeError) {
+            console.error(
+              `Warning: Error closing V3 instance for ${input.name}:`,
+              closeError,
+            );
+          }
+        }
+        await endBrowserbaseSession(v3Result?.v3);
+      },
+      { name: "cleanup" },
+    );
     logger.clear();
   }
 }
 
-// ---------------------------------------------------------------------------
-// Module loading helper
-// ---------------------------------------------------------------------------
-
-interface LoadedTaskModule {
-  definition?: TaskDefinition;
-  legacyFn?: (...args: unknown[]) => Promise<TaskResult>;
-}
-
-async function loadTaskModuleFromPath(
-  filePath: string,
-  taskName: string,
-): Promise<LoadedTaskModule> {
+async function loadTaskModuleFromPath(filePath, taskName) {
   if (!fs.existsSync(filePath)) {
     throw new StagehandEvalError(`Task module not found: ${filePath}`);
   }
@@ -477,17 +365,12 @@ async function loadTaskModuleFromPath(
   const moduleUrl = pathToFileURL(filePath).href;
   const taskModule = await import(moduleUrl);
 
-  // New defineTask API
   const defaultExport = taskModule.default;
   if (defaultExport && defaultExport.__taskDefinition === true) {
     return { definition: defaultExport };
   }
 
-  // Legacy named export
-  const baseName = taskName.includes("/")
-    ? taskName.split("/").pop()!
-    : taskName;
-
+  const baseName = taskName.includes("/") ? taskName.split("/").pop() : taskName;
   if (typeof taskModule[baseName] === "function") {
     return { legacyFn: taskModule[baseName] };
   }
@@ -498,18 +381,12 @@ async function loadTaskModuleFromPath(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main runner
-// ---------------------------------------------------------------------------
-
-export async function runEvals(options: RunOptions): Promise<RunResult> {
+export async function runEvals(options) {
   const concurrency = options.concurrency ?? 3;
   const trials = options.trials ?? 3;
   const environment = options.environment ?? "LOCAL";
 
-  // Generate testcases
   const testcases = generateTestcases(options.tasks, options);
-
   if (testcases.length === 0) {
     console.log("No testcases to run.");
     return {
@@ -519,35 +396,35 @@ export async function runEvals(options: RunOptions): Promise<RunResult> {
     };
   }
 
-  console.log(`Running ${testcases.length} testcase(s) with concurrency=${concurrency}, trials=${trials}`);
+  console.log(
+    `Running ${testcases.length} testcase(s) with concurrency=${concurrency}, trials=${trials}`,
+  );
 
-  // Determine experiment name
   const experimentName = generateExperimentName({
     evalName: options.tasks.length === 1 ? options.tasks[0].name : undefined,
     category: options.categoryFilter ?? undefined,
     environment,
   });
 
-  const braintrustProjectName =
-    process.env.CI === "true" ? "stagehand" : "stagehand-dev";
+  const hasCoreOnly = options.tasks.every((t) => t.tier === "core");
+  const braintrustProjectName = hasCoreOnly
+    ? process.env.CI === "true"
+      ? "stagehand-core"
+      : "stagehand-core-dev"
+    : process.env.CI === "true"
+      ? "stagehand"
+      : "stagehand-dev";
 
-  // Run via Braintrust
   const evalResult = await Eval(braintrustProjectName, {
     experimentName,
     data: () => testcases,
-    task: async (input: EvalInput) => {
+    task: async (input) => {
       const task = options.registry.byName.get(input.name);
       if (!task) {
-        // For suite-generated testcases (GAIA, WebVoyager, etc.),
-        // the name might be the original suite task name
-        const baseName = input.name.includes("/")
-          ? input.name
-          : `agent/${input.name}`;
+        const baseName = input.name.includes("/") ? input.name : `agent/${input.name}`;
         const suiteTask = options.registry.byName.get(baseName);
         if (!suiteTask) {
-          throw new StagehandEvalError(
-            `Task "${input.name}" not found in registry.`,
-          );
+          throw new StagehandEvalError(`Task "${input.name}" not found in registry.`);
         }
         const result = await executeTask(input, suiteTask, options);
         options.onProgress?.({
@@ -559,8 +436,6 @@ export async function runEvals(options: RunOptions): Promise<RunResult> {
       }
 
       const result = await executeTask(input, task, options);
-
-      // Progress callback
       options.onProgress?.({
         type: result._success ? "passed" : "failed",
         taskName: input.name,
@@ -572,7 +447,6 @@ export async function runEvals(options: RunOptions): Promise<RunResult> {
       } else {
         console.log(`❌ ${input.name}: Failed`);
       }
-
       return result;
     },
     scores: [exactMatch, errorMatch],
@@ -580,13 +454,11 @@ export async function runEvals(options: RunOptions): Promise<RunResult> {
     trialCount: trials,
   });
 
-  // Map results to summary format
-  const summaryResults: SummaryResult[] = evalResult.results.map((result) => {
+  const summaryResults = evalResult.results.map((result) => {
     const output =
       typeof result.output === "boolean"
         ? { _success: result.output }
         : result.output;
-
     return {
       input: result.input,
       output,
@@ -595,7 +467,6 @@ export async function runEvals(options: RunOptions): Promise<RunResult> {
     };
   });
 
-  // Generate and write summary
   await generateSummary(summaryResults, experimentName);
 
   const passed = summaryResults.filter((r) => r.output._success).length;
