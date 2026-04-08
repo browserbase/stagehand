@@ -1,22 +1,24 @@
-import type { V3 } from "@browserbasehq/stagehand";
-import { endBrowserbaseSession } from "../../browserbaseCleanup.js";
-import { initV3, type V3InitResult } from "../../initV3.js";
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from "playwright";
+import { resolveLocalChromeExecutablePath } from "../targets/localChrome.js";
 import type {
+  CoreCapability,
   CoreLocatorHandle,
   CorePageHandle,
   CoreSession,
   CoreTool,
-  CoreCapability,
   StartupProfile,
   ToolStartInput,
   ToolStartResult,
 } from "../contracts/tool.js";
-import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
-
-type UnderstudyPage = ReturnType<V3["context"]["pages"]>[number];
-type UnderstudyLocator = ReturnType<UnderstudyPage["locator"]>;
+import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
 
 const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "session",
@@ -34,8 +36,15 @@ const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "representation",
 ];
 
-class UnderstudyLocatorHandle implements CoreLocatorHandle {
-  constructor(private readonly locatorHandle: UnderstudyLocator) {}
+function countAccessibilityNodes(node: unknown): number {
+  if (!node || typeof node !== "object") return 0;
+  const children =
+    "children" in node && Array.isArray(node.children) ? node.children : [];
+  return 1 + children.reduce((sum, child) => sum + countAccessibilityNodes(child), 0);
+}
+
+class PlaywrightLocatorHandle implements CoreLocatorHandle {
+  constructor(private readonly locatorHandle: Locator) {}
 
   async count(): Promise<number> {
     return this.locatorHandle.count();
@@ -70,38 +79,40 @@ class UnderstudyLocatorHandle implements CoreLocatorHandle {
   }
 }
 
-class UnderstudyPageHandle implements CorePageHandle {
-  readonly id: string;
-
+class PlaywrightPageHandle implements CorePageHandle {
   constructor(
-    private readonly page: UnderstudyPage,
-    private readonly activatePage?: () => void,
-  ) {
-    this.id = this.page.targetId();
-  }
-
-  raw(): UnderstudyPage {
-    return this.page;
-  }
+    private readonly page: Page,
+    readonly id: string,
+  ) {}
 
   async goto(
     url: string,
     opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
   ): Promise<void> {
-    await this.page.goto(url, opts);
+    await this.page.goto(url, {
+      waitUntil: opts?.waitUntil,
+      timeout: opts?.timeoutMs,
+    });
   }
 
   async reload(
     opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
   ): Promise<void> {
-    await this.page.reload(opts);
+    await this.page.reload({
+      waitUntil: opts?.waitUntil,
+      timeout: opts?.timeoutMs,
+    });
   }
 
   async back(
     opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
   ): Promise<boolean> {
-    this.activatePage?.();
-    return (await this.page.goBack(opts)) !== null;
+    return (
+      (await this.page.goBack({
+        waitUntil: opts?.waitUntil,
+        timeout: opts?.timeoutMs,
+      })) !== null
+    );
   }
 
   async goBack(
@@ -113,8 +124,12 @@ class UnderstudyPageHandle implements CorePageHandle {
   async forward(
     opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
   ): Promise<boolean> {
-    this.activatePage?.();
-    return (await this.page.goForward(opts)) !== null;
+    return (
+      (await this.page.goForward({
+        waitUntil: opts?.waitUntil,
+        timeout: opts?.timeoutMs,
+      })) !== null
+    );
   }
 
   async goForward(
@@ -135,7 +150,7 @@ class UnderstudyPageHandle implements CorePageHandle {
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
   ): Promise<R> {
-    return this.page.mainFrame().evaluate(pageFunctionOrExpression, arg);
+    return this.page.evaluate(pageFunctionOrExpression as never, arg);
   }
 
   async screenshot(opts?: {
@@ -147,11 +162,11 @@ class UnderstudyPageHandle implements CorePageHandle {
   }
 
   async setViewport(size: { width: number; height: number }): Promise<void> {
-    await this.page.setViewportSize(size.width, size.height);
+    await this.page.setViewportSize(size);
   }
 
   async setViewportSize(width: number, height: number): Promise<void> {
-    await this.page.setViewportSize(width, height);
+    await this.page.setViewportSize({ width, height });
   }
 
   async wait(spec: WaitSpec): Promise<void> {
@@ -166,7 +181,9 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.waitForTimeout(spec.timeoutMs);
         return;
       case "load_state":
-        await this.page.waitForLoadState(spec.state, spec.timeoutMs);
+        await this.page.waitForLoadState(spec.state, {
+          timeout: spec.timeoutMs,
+        });
         return;
       default: {
         const exhaustive: never = spec;
@@ -182,7 +199,8 @@ class UnderstudyPageHandle implements CorePageHandle {
       state?: "attached" | "detached" | "visible" | "hidden";
     },
   ): Promise<boolean> {
-    return this.page.waitForSelector(selector, opts);
+    await this.page.waitForSelector(selector, opts);
+    return true;
   }
 
   async waitForTimeout(ms: number): Promise<void> {
@@ -190,7 +208,17 @@ class UnderstudyPageHandle implements CorePageHandle {
   }
 
   locator(selector: string): CoreLocatorHandle {
-    return new UnderstudyLocatorHandle(this.page.locator(selector));
+    return new PlaywrightLocatorHandle(this.page.locator(selector));
+  }
+
+  private roleTarget(target: Extract<ActionTarget, { kind: "role_name" }>): Locator {
+    return this.page.getByRole(target.role as never, {
+      name: target.name,
+    });
+  }
+
+  private textTarget(target: Extract<ActionTarget, { kind: "text" }>): Locator {
+    return this.page.getByText(target.text);
   }
 
   async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
@@ -198,7 +226,7 @@ class UnderstudyPageHandle implements CorePageHandle {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
       }
-      await this.page.click(targetOrX, y);
+      await this.page.mouse.click(targetOrX, y);
       return;
     }
 
@@ -212,10 +240,16 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.locator(target.value).click();
         return;
       case "coords":
-        await this.page.click(target.x, target.y);
+        await this.page.mouse.click(target.x, target.y);
+        return;
+      case "role_name":
+        await this.roleTarget(target).click();
+        return;
+      case "text":
+        await this.textTarget(target).click();
         return;
       default:
-        throw new Error(`understudy_code does not support click target kind "${target.kind}" yet`);
+        throw new Error(`playwright_code does not support click target kind "${target.kind}" yet`);
     }
   }
 
@@ -224,7 +258,7 @@ class UnderstudyPageHandle implements CorePageHandle {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
       }
-      await this.page.hover(targetOrX, y);
+      await this.page.mouse.move(targetOrX, y);
       return;
     }
 
@@ -238,10 +272,16 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.locator(target.value).hover();
         return;
       case "coords":
-        await this.page.hover(target.x, target.y);
+        await this.page.mouse.move(target.x, target.y);
+        return;
+      case "role_name":
+        await this.roleTarget(target).hover();
+        return;
+      case "text":
+        await this.textTarget(target).hover();
         return;
       default:
-        throw new Error(`understudy_code does not support hover target kind "${target.kind}" yet`);
+        throw new Error(`playwright_code does not support hover target kind "${target.kind}" yet`);
     }
   }
 
@@ -251,7 +291,8 @@ class UnderstudyPageHandle implements CorePageHandle {
     deltaX: number,
     deltaY: number,
   ): Promise<void> {
-    await this.page.scroll(x, y, deltaX, deltaY);
+    await this.page.mouse.move(x, y);
+    await this.page.mouse.wheel(deltaX, deltaY);
   }
 
   async type(
@@ -259,7 +300,7 @@ class UnderstudyPageHandle implements CorePageHandle {
     text?: string,
   ): Promise<void> {
     if (typeof targetOrText === "string" && typeof text === "undefined") {
-      await this.page.type(targetOrText);
+      await this.page.keyboard.type(targetOrText);
       return;
     }
 
@@ -274,17 +315,24 @@ class UnderstudyPageHandle implements CorePageHandle {
 
     switch (target.kind) {
       case "focused":
-        await this.page.type(text);
+        await this.page.keyboard.type(text);
         return;
       case "selector":
         await this.page.locator(target.value).type(text);
         return;
       case "coords":
-        await this.page.click(target.x, target.y);
-        await this.page.type(text);
+        await this.page.mouse.click(target.x, target.y);
+        await this.page.keyboard.type(text);
+        return;
+      case "role_name":
+        await this.roleTarget(target).type(text);
+        return;
+      case "text":
+        await this.textTarget(target).click();
+        await this.page.keyboard.type(text);
         return;
       default:
-        throw new Error(`understudy_code does not support type target kind "${target.kind}" yet`);
+        throw new Error(`playwright_code does not support type target kind "${target.kind}" yet`);
     }
   }
 
@@ -293,7 +341,7 @@ class UnderstudyPageHandle implements CorePageHandle {
     key?: string,
   ): Promise<void> {
     if (typeof targetOrKey === "string" && typeof key === "undefined") {
-      await this.page.keyPress(targetOrKey);
+      await this.page.keyboard.press(targetOrKey);
       return;
     }
 
@@ -308,105 +356,144 @@ class UnderstudyPageHandle implements CorePageHandle {
 
     switch (target.kind) {
       case "focused":
-        await this.page.keyPress(key);
+        await this.page.keyboard.press(key);
         return;
       case "selector":
         await this.page.locator(target.value).click();
-        await this.page.keyPress(key);
+        await this.page.keyboard.press(key);
         return;
       case "coords":
-        await this.page.click(target.x, target.y);
-        await this.page.keyPress(key);
+        await this.page.mouse.click(target.x, target.y);
+        await this.page.keyboard.press(key);
+        return;
+      case "role_name":
+        await this.roleTarget(target).click();
+        await this.page.keyboard.press(key);
+        return;
+      case "text":
+        await this.textTarget(target).click();
+        await this.page.keyboard.press(key);
         return;
       default:
-        throw new Error(`understudy_code does not support press target kind "${target.kind}" yet`);
+        throw new Error(`playwright_code does not support press target kind "${target.kind}" yet`);
     }
   }
 
-  async represent(opts?: { includeIframes?: boolean }): Promise<PageRepresentation> {
-    const snapshot = await this.page.snapshot({
-      includeIframes: opts?.includeIframes,
+  async represent(): Promise<PageRepresentation> {
+    const snapshot = await this.page.accessibility.snapshot({
+      interestingOnly: false,
     });
-    const content = snapshot.formattedTree;
+    const content = JSON.stringify(snapshot, null, 2);
 
     return {
-      kind: "snapshot_refs",
+      kind: "accessibility_tree",
       content,
       metadata: {
         bytes: Buffer.byteLength(content, "utf8"),
         tokenEstimate: Math.ceil(content.length / 4),
-        refCount: Object.keys(snapshot.xpathMap ?? {}).length,
+        nodeCount: countAccessibilityNodes(snapshot),
       },
       raw: snapshot,
     };
   }
 }
 
-class UnderstudySession implements CoreSession {
-  private readonly handles = new Map<string, UnderstudyPageHandle>();
+class PlaywrightSession implements CoreSession {
+  private readonly handles = new WeakMap<Page, PlaywrightPageHandle>();
+  private readonly pageIds = new WeakMap<Page, string>();
+  private pageCounter = 0;
+  private activePageId: string | null = null;
   private closed = false;
 
-  constructor(private readonly v3Result: V3InitResult) {}
+  constructor(
+    private readonly browser: Browser,
+    private readonly context: BrowserContext,
+    initialPage?: Page,
+  ) {
+    if (initialPage) {
+      const handle = this.wrap(initialPage);
+      this.activePageId = handle.id;
+    }
+  }
 
-  private wrap(page: UnderstudyPage): UnderstudyPageHandle {
-    const id = page.targetId();
-    const existing = this.handles.get(id);
+  private nextPageId(): string {
+    this.pageCounter += 1;
+    return `page-${this.pageCounter}`;
+  }
+
+  private wrap(page: Page): PlaywrightPageHandle {
+    const existing = this.handles.get(page);
     if (existing) return existing;
-    const handle = new UnderstudyPageHandle(page, () => {
-      this.v3Result.v3.context.setActivePage(page);
-    });
-    this.handles.set(id, handle);
+
+    const id = this.pageIds.get(page) ?? this.nextPageId();
+    this.pageIds.set(page, id);
+
+    const handle = new PlaywrightPageHandle(page, id);
+    this.handles.set(page, handle);
     return handle;
   }
 
   async listPages(): Promise<CorePageHandle[]> {
-    return this.v3Result.v3.context.pages().map((page) => this.wrap(page));
+    return this.context.pages().map((page: Page) => this.wrap(page));
   }
 
   async activePage(): Promise<CorePageHandle> {
-    const page = this.v3Result.v3.context.activePage();
-    if (page) return this.wrap(page);
-    const pages = this.v3Result.v3.context.pages();
-    if (pages.length === 0) {
+    if (this.activePageId) {
+      const active = this.context
+        .pages()
+        .find((candidate: Page) => this.wrap(candidate).id === this.activePageId);
+      if (active) return this.wrap(active);
+    }
+
+    const page = this.context.pages()[0];
+    if (!page) {
       throw new Error("No active page available");
     }
-    return this.wrap(pages[0]);
+    const handle = this.wrap(page);
+    this.activePageId = handle.id;
+    return handle;
   }
 
   async newPage(url?: string): Promise<CorePageHandle> {
-    return this.wrap(await this.v3Result.v3.context.newPage(url));
+    const page = await this.context.newPage();
+    const handle = this.wrap(page);
+    this.activePageId = handle.id;
+    if (url) {
+      await page.goto(url);
+    }
+    return handle;
   }
 
   async selectPage(pageId: string): Promise<void> {
-    const page = this.v3Result.v3.context
+    const page = this.context
       .pages()
-      .find((candidate) => candidate.targetId() === pageId);
+      .find((candidate: Page) => this.wrap(candidate).id === pageId);
     if (!page) {
       throw new Error(`Unknown page id "${pageId}"`);
     }
-    this.v3Result.v3.context.setActivePage(page);
+    this.activePageId = pageId;
+    await page.bringToFront();
   }
 
   async closePage(pageId: string): Promise<void> {
-    const page = this.v3Result.v3.context
+    const page = this.context
       .pages()
-      .find((candidate) => candidate.targetId() === pageId);
+      .find((candidate: Page) => this.wrap(candidate).id === pageId);
     if (!page) {
       throw new Error(`Unknown page id "${pageId}"`);
     }
     await page.close();
-    this.handles.delete(pageId);
+    if (this.activePageId === pageId) {
+      this.activePageId = this.context.pages()[0]
+        ? this.wrap(this.context.pages()[0]).id
+        : null;
+    }
   }
 
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    try {
-      await this.v3Result.v3.close();
-    } catch {
-      // best-effort
-    }
-    await endBrowserbaseSession(this.v3Result.v3);
+    await this.browser.close();
   }
 
   async getArtifacts(): Promise<Artifact[]> {
@@ -415,8 +502,7 @@ class UnderstudySession implements CoreSession {
 
   async getRawMetrics(): Promise<Record<string, unknown>> {
     return {
-      browserbaseSessionId: this.v3Result.v3.browserbaseSessionID,
-      browserbaseSessionUrl: this.v3Result.v3.browserbaseSessionURL,
+      pageCount: this.context.pages().length,
     };
   }
 }
@@ -427,10 +513,6 @@ function connectionModeFromProfile(
 ): ConnectionMode {
   if (startupProfile === "tool_launch_local") {
     return "launch";
-  }
-
-  if (startupProfile === "tool_create_browserbase") {
-    return "browserbase_native";
   }
 
   if (
@@ -445,15 +527,15 @@ function connectionModeFromProfile(
   return "launch";
 }
 
-export class UnderstudyCodeTool implements CoreTool {
-  readonly id = "understudy_code";
+export class PlaywrightCodeTool implements CoreTool {
+  readonly id = "playwright_code";
   readonly surface = "code";
-  readonly family = "understudy";
+  readonly family = "playwright";
   readonly supportedStartupProfiles: StartupProfile[] = [
+    "tool_launch_local",
     "runner_provided_local_cdp",
     "runner_provided_browserbase_cdp",
-    "tool_launch_local",
-    "tool_create_browserbase",
+    "tool_attach_local_cdp",
     "tool_attach_browserbase",
   ];
   readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
@@ -461,46 +543,52 @@ export class UnderstudyCodeTool implements CoreTool {
     "selector",
     "coords",
     "focused",
+    "role_name",
+    "text",
   ];
 
   async start(input: ToolStartInput): Promise<ToolStartResult> {
-    if (input.startupProfile === "tool_attach_local_cdp") {
+    let browser: Browser;
+    let context: BrowserContext;
+    let initialPage: Page | undefined;
+
+    if (input.startupProfile === "tool_launch_local") {
+      const executablePath = resolveLocalChromeExecutablePath();
+      browser = await chromium.launch({
+        headless: true,
+        executablePath,
+        args: [
+          ...(process.env.CI ? ["--no-sandbox"] : []),
+          "--ignore-certificate-errors",
+        ],
+      });
+      context = await browser.newContext({
+        ignoreHTTPSErrors: true,
+      });
+      initialPage = await context.newPage();
+    } else if (
+      input.startupProfile === "runner_provided_local_cdp" ||
+      input.startupProfile === "runner_provided_browserbase_cdp" ||
+      input.startupProfile === "tool_attach_local_cdp" ||
+      input.startupProfile === "tool_attach_browserbase"
+    ) {
+      if (!input.providedEndpoint) {
+        throw new Error(
+          `playwright_code startup profile "${input.startupProfile}" requires a providedEndpoint`,
+        );
+      }
+      browser = await chromium.connectOverCDP(input.providedEndpoint.url, {
+        headers: input.providedEndpoint.headers,
+      });
+      context = browser.contexts()[0] ?? (await browser.newContext());
+      initialPage = context.pages()[0] ?? (await context.newPage());
+    } else {
       throw new Error(
-        `understudy_code does not support startup profile "${input.startupProfile}" yet`,
+        `playwright_code does not support startup profile "${input.startupProfile}" yet`,
       );
     }
 
-    const v3Result = await initV3({
-      logger: input.logger,
-      modelName: "openai/gpt-4.1-mini",
-      configOverrides: {
-        localBrowserLaunchOptions: {
-          headless: true,
-          ...(process.env.CHROME_PATH
-            ? { executablePath: process.env.CHROME_PATH }
-            : {}),
-          ...(input.providedEndpoint
-            ? {
-                cdpUrl: input.providedEndpoint.url,
-                cdpHeaders: input.providedEndpoint.headers,
-              }
-            : {}),
-        },
-        ...(input.startupProfile === "tool_attach_browserbase" &&
-        input.browserbase?.sessionId
-          ? { browserbaseSessionID: input.browserbase.sessionId }
-          : {}),
-        ...(input.startupProfile === "tool_create_browserbase" &&
-        input.browserbase?.sessionParams
-          ? {
-              browserbaseSessionCreateParams:
-                input.browserbase.sessionParams as never,
-            }
-          : {}),
-      },
-    });
-
-    const session = new UnderstudySession(v3Result);
+    const session = new PlaywrightSession(browser, context, initialPage);
 
     return {
       session,

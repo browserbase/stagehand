@@ -296,6 +296,9 @@ importers:
       openai:
         specifier: ^4.87.1
         version: 4.87.1(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)
+      playwright:
+        specifier: ^1.52.0
+        version: 1.52.0
       sharp:
         specifier: ^0.34.5
         version: 0.34.5

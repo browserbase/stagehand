@@ -13,6 +13,14 @@ import type {
   LogLine,
   V3,
 } from "@browserbasehq/stagehand";
+import type {
+  CorePageHandle,
+  CoreSession,
+  CoreTool,
+  StartupProfile,
+  ToolStartResult,
+  ToolSurface,
+} from "../core/contracts/tool.js";
 import type { EvalLogger } from "../logger.js";
 
 /** Page type inferred from V3.context.pages()[0] */
@@ -36,8 +44,19 @@ export interface BenchTaskMeta extends TaskMeta {
 
 /** Context provided to core (tier 1) tasks. */
 export interface CoreTaskContext {
-  /** Playwright page — browser already launched. */
-  page: Page;
+  /** Portable page handle for the selected core tool surface. */
+  page: CorePageHandle;
+  /** Core tool session backing this task run. */
+  tool: CoreSession;
+  /** Selected startup profile for this run. */
+  startupProfile: StartupProfile;
+  /** Tool surface metadata for reporting and conditional behavior. */
+  adapter: {
+    name: ToolSurface;
+    family: CoreTool["family"];
+    surface: CoreTool["surface"];
+    metadata: ToolStartResult["metadata"];
+  };
   /** Assertion helpers. Throws on failure. */
   assert: AssertHelpers;
   /** Performance metrics collector. */

@@ -1,7 +1,7 @@
 /**
  * Context builders for each tier.
  *
- * - buildCoreContext(): starts a browser via V3 (headless), provides page + assert + metrics
+ * - buildCoreContext(): starts a core tool surface, provides page + tool + assert + metrics
  * - buildBenchContext(): full V3 init with model/agent support (wraps existing initV3)
  */
 import type {
@@ -10,6 +10,11 @@ import type {
   LLMClient,
 } from "@browserbasehq/stagehand";
 import { type V3InitResult, initV3 } from "../initV3.js";
+import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import { coreFixtureRoutes } from "../core/fixtures/index.js";
+import { prepareCoreBrowserTarget } from "../core/targets/index.js";
+import { getCoreTool } from "../core/tools/registry.js";
+import { ensureCoreFixtureServer } from "../core/fixtures/server.js";
 import { EvalLogger } from "../logger.js";
 import { createAssertHelpers } from "./assertions.js";
 import { createMetricsCollector } from "./metrics.js";
@@ -17,44 +22,98 @@ import type { BenchTaskContext, CoreTaskContext } from "./types.js";
 
 export interface CoreContextOptions {
   logger?: EvalLogger;
+  environment?: "LOCAL" | "BROWSERBASE";
+  toolSurface?: ToolSurface;
+  startupProfile?: StartupProfile;
 }
 
 export interface CoreContextResult {
   ctx: CoreTaskContext;
-  /** The V3 instance — caller is responsible for closing it. */
-  v3Result: V3InitResult;
+  cleanup: () => Promise<void>;
+}
+
+export function resolveDefaultCoreStartupProfile(
+  toolSurface: ToolSurface,
+  environment: "LOCAL" | "BROWSERBASE",
+): StartupProfile {
+  switch (toolSurface) {
+    case "understudy_code":
+      return environment === "BROWSERBASE"
+        ? "tool_create_browserbase"
+        : "runner_provided_local_cdp";
+    case "playwright_code":
+      if (environment === "LOCAL") {
+        return "runner_provided_local_cdp";
+      }
+      break;
+    default:
+      break;
+  }
+
+  throw new Error(
+    `No default startup profile for tool "${toolSurface}" in environment "${environment}"`,
+  );
 }
 
 /**
  * Build a CoreTaskContext for deterministic (tier 1) tasks.
  *
- * Uses V3 to get a browser page but does NOT wire up an LLM —
+ * Starts the selected core tool surface but does NOT wire up an LLM —
  * core tasks should never call act/extract/observe.
  */
 export async function buildCoreContext(
   options: CoreContextOptions = {},
 ): Promise<CoreContextResult> {
   const logger = options.logger ?? new EvalLogger();
+  const environment = options.environment ?? "LOCAL";
+  const toolSurface = options.toolSurface ?? "understudy_code";
+  const tool = getCoreTool(toolSurface);
+  const startupProfile =
+    options.startupProfile ?? resolveDefaultCoreStartupProfile(toolSurface, environment);
 
-  // Use a cheap model placeholder — core tasks don't invoke the LLM.
-  // V3 still requires a model to be specified at init time.
-  const v3Result = await initV3({
-    logger,
-    modelName: "openai/gpt-4.1-mini",
-    configOverrides: {
-      localBrowserLaunchOptions: { headless: true },
-    },
+  if (environment === "LOCAL") {
+    await ensureCoreFixtureServer([...coreFixtureRoutes]);
+  }
+
+  const targetResult = await prepareCoreBrowserTarget({
+    environment,
+    toolSurface,
+    startupProfile,
   });
 
-  const page = v3Result.v3.context.pages()[0];
+  const toolResult = await tool.start({
+    logger,
+    environment,
+    startupProfile,
+    providedEndpoint: targetResult.providedEndpoint,
+  });
+
+  const page = await toolResult.session.activePage();
   const ctx: CoreTaskContext = {
     page,
+    tool: toolResult.session,
+    startupProfile,
+    adapter: {
+      name: tool.id,
+      family: tool.family,
+      surface: tool.surface,
+      metadata: toolResult.metadata,
+    },
     assert: createAssertHelpers(),
     metrics: createMetricsCollector(),
     logger,
   };
 
-  return { ctx, v3Result };
+  return {
+    ctx,
+    cleanup: async () => {
+      try {
+        await toolResult.cleanup();
+      } finally {
+        await targetResult.cleanup();
+      }
+    },
+  };
 }
 
 export interface BenchContextOptions {

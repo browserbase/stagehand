@@ -9,12 +9,18 @@ export const generateSummary = async (
   results: SummaryResult[],
   experimentName: string,
 ) => {
+  const resolveCategories = (taskName: string): string[] => {
+    const configured = tasksByName[taskName]?.categories;
+    if (configured) return configured;
+    return taskName.includes("/") ? [taskName.split("/")[0]] : [];
+  };
+
   const passed = results
     .filter((r) => r.output._success)
     .map((r) => ({
       eval: r.input.name,
       model: r.input.modelName,
-      categories: tasksByName[r.input.name].categories,
+      categories: resolveCategories(r.input.name),
     }));
 
   const failed = results
@@ -22,15 +28,16 @@ export const generateSummary = async (
     .map((r) => ({
       eval: r.input.name,
       model: r.input.modelName,
-      categories: tasksByName[r.input.name].categories,
+      categories: resolveCategories(r.input.name),
     }));
 
   const categorySuccessCounts: Record<
     string,
     { total: number; success: number }
   > = {};
-  for (const taskName of Object.keys(tasksByName)) {
-    const taskCategories = tasksByName[taskName].categories;
+  const taskNames = [...new Set(results.map((r) => r.input.name))];
+  for (const taskName of taskNames) {
+    const taskCategories = resolveCategories(taskName);
     const taskResults = results.filter((r) => r.input.name === taskName);
     const successCount = taskResults.filter((r) => r.output._success).length;
 

@@ -80,6 +80,26 @@ export function generateTimestamp(): string {
     .slice(0, 14);
 }
 
+function generateDisplayTimestamp(): string {
+  const now = new Date();
+  const month = now
+    .toLocaleString("en-US", { month: "short" })
+    .toLowerCase();
+  const day = String(now.getDate()).padStart(2, "0");
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  return `${month}${day}_${hours}${minutes}`;
+}
+
+function toSnakeToken(value: string): string {
+  return value
+    .replace(/[/:\s-]+/g, "_")
+    .replace(/[^a-zA-Z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+}
+
 /**
  * generateExperimentName:
  * Creates a unique name for the experiment based on optional evalName or category,
@@ -90,19 +110,25 @@ export function generateExperimentName({
   evalName,
   category,
   environment,
+  toolSurface,
+  startupProfile,
 }: {
   evalName?: string;
   category?: string;
   environment: string;
+  toolSurface?: string;
+  startupProfile?: string;
 }): string {
-  const timestamp = generateTimestamp();
-  if (evalName) {
-    return `${evalName}_${environment.toLowerCase()}_${timestamp}`;
-  }
-  if (category) {
-    return `${category}_${environment.toLowerCase()}_${timestamp}`;
-  }
-  return `all_${environment.toLowerCase()}_${timestamp}`;
+  const timestamp = generateDisplayTimestamp();
+  const parts = [
+    evalName ? toSnakeToken(evalName) : category ? toSnakeToken(category) : "all",
+    toSnakeToken(environment),
+    toolSurface ? toSnakeToken(toolSurface) : undefined,
+    startupProfile ? toSnakeToken(startupProfile) : undefined,
+    timestamp,
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.join("_");
 }
 
 export function logLineToString(logLine: LogLine): string {

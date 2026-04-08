@@ -22,7 +22,7 @@ import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
 import { AssertionError } from "./assertions.js";
 import { EvalLogger } from "../logger.js";
 import { endBrowserbaseSession } from "../browserbaseCleanup.js";
-import { exactMatch, errorMatch } from "../scoring.js";
+import { exactMatch, errorMatch, passRate } from "../scoring.js";
 import { generateExperimentName } from "../utils.js";
 import { generateSummary } from "../summary.js";
 import {
@@ -36,6 +36,7 @@ import { buildGAIATestcases } from "../suites/gaia.js";
 import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
+import { resolveDefaultCoreStartupProfile } from "./context.js";
 
 function generateTestcases(tasks, options) {
   const coreTasks = tasks.filter((t) => t.tier === "core");
@@ -160,28 +161,49 @@ async function executeTask(input, task, options) {
 async function executeCoreTask(input, task, options) {
   const logger = new EvalLogger();
   const { buildCoreContext: buildCtx } = await import("./context.js");
-  const { ctx, v3Result } = await traced(async () => buildCtx({ logger }), {
-    name: "stagehand.init",
-  });
-
+  let ctx;
+  let cleanup = async () => {};
+  let startupMs = 0;
+  let taskMs = 0;
+  let cleanupMs = 0;
+  let result;
+  let taskStart = 0;
   try {
-    const result = await traced(
+    const startupStart = performance.now();
+    const startupResult = await traced(
+      async () =>
+        buildCtx({
+          logger,
+          environment: options.environment,
+          toolSurface: options.coreToolSurface,
+          startupProfile: options.coreStartupProfile,
+        }),
+      {
+        name: "session.startup",
+      },
+    );
+    startupMs = performance.now() - startupStart;
+    ctx = startupResult.ctx;
+    cleanup = startupResult.cleanup;
+
+    taskStart = performance.now();
+    result = await traced(
       async () => {
         const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
         if (taskModule.definition) {
           await taskModule.definition.fn(ctx);
-          return { _success: true, logs: logger.getLogs() };
+          return {
+            _success: true,
+            logs: logger.getLogs(),
+            metrics: ctx.metrics.getSummary(),
+            rawMetrics: await ctx.tool.getRawMetrics(),
+            adapter: ctx.adapter,
+          };
         }
         if (taskModule.legacyFn) {
-          return await taskModule.legacyFn({
-            v3: v3Result.v3,
-            logger,
-            debugUrl: v3Result.debugUrl ?? "",
-            sessionUrl: v3Result.sessionUrl ?? "",
-            modelName: input.modelName,
-            agent: v3Result.agent,
-            input,
-          });
+          throw new StagehandEvalError(
+            `Legacy core task exports are not supported in the adapter-backed core runner: ${task.filePath}`,
+          );
         }
         throw new StagehandEvalError(
           `No valid task export found in ${task.filePath}`,
@@ -189,29 +211,53 @@ async function executeCoreTask(input, task, options) {
       },
       { name: "task" },
     );
-
-    return result;
+    taskMs = performance.now() - taskStart;
   } catch (error) {
-    if (error instanceof AssertionError) {
-      return { _success: false, error: error.message, logs: logger.getLogs() };
+    if (taskMs === 0 && taskStart > 0) {
+      // The task threw before the success path captured a duration.
+      taskMs = performance.now() - taskStart;
     }
-    return {
-      _success: false,
-      error: error instanceof Error ? error.message : String(error),
-      logs: logger.getLogs(),
-    };
+    if (error instanceof AssertionError) {
+      result = {
+        _success: false,
+        error: error.message,
+        logs: logger.getLogs(),
+        metrics: ctx ? ctx.metrics.getSummary() : {},
+        rawMetrics: ctx ? await ctx.tool.getRawMetrics() : {},
+        adapter: ctx?.adapter,
+      };
+    } else {
+      result = {
+        _success: false,
+        error: error instanceof Error ? error.message : String(error),
+        logs: logger.getLogs(),
+        metrics: ctx ? ctx.metrics.getSummary() : {},
+        rawMetrics: ctx ? await ctx.tool.getRawMetrics() : {},
+        adapter: ctx?.adapter,
+      };
+    }
   } finally {
+    const cleanupStart = performance.now();
     await traced(
       async () => {
-        try {
-          await v3Result.v3.close();
-        } catch {}
-        await endBrowserbaseSession(v3Result.v3);
+        await cleanup();
       },
       { name: "cleanup" },
     );
+    cleanupMs = performance.now() - cleanupStart;
     logger.clear();
   }
+
+  return {
+    ...result,
+    metrics: {
+      startup_ms: { value: startupMs, count: 1 },
+      task_ms: { value: taskMs, count: 1 },
+      cleanup_ms: { value: cleanupMs, count: 1 },
+      total_ms: { value: startupMs + taskMs + cleanupMs, count: 1 },
+      ...(result?.metrics ?? {}),
+    },
+  };
 }
 
 async function executeBenchTask(input, task, options) {
@@ -274,7 +320,7 @@ async function executeBenchTask(input, task, options) {
           isCUA: input.isCUA,
         });
       },
-      { name: "stagehand.init" },
+      { name: "session.startup" },
     );
 
     const result = await traced(
@@ -400,13 +446,23 @@ export async function runEvals(options) {
     `Running ${testcases.length} testcase(s) with concurrency=${concurrency}, trials=${trials}`,
   );
 
+  const hasCoreOnly = options.tasks.every((t) => t.tier === "core");
+  const effectiveCoreToolSurface = hasCoreOnly
+    ? options.coreToolSurface ?? "understudy_code"
+    : undefined;
+  const effectiveCoreStartupProfile =
+    hasCoreOnly && effectiveCoreToolSurface
+      ? options.coreStartupProfile ??
+        resolveDefaultCoreStartupProfile(effectiveCoreToolSurface, environment)
+      : undefined;
   const experimentName = generateExperimentName({
     evalName: options.tasks.length === 1 ? options.tasks[0].name : undefined,
     category: options.categoryFilter ?? undefined,
     environment,
+    toolSurface: effectiveCoreToolSurface,
+    startupProfile: effectiveCoreStartupProfile,
   });
 
-  const hasCoreOnly = options.tasks.every((t) => t.tier === "core");
   const braintrustProjectName = hasCoreOnly
     ? process.env.CI === "true"
       ? "stagehand-core"
@@ -414,6 +470,8 @@ export async function runEvals(options) {
     : process.env.CI === "true"
       ? "stagehand"
       : "stagehand-dev";
+
+  const scores = hasCoreOnly ? [passRate, errorMatch] : [exactMatch, errorMatch];
 
   const evalResult = await Eval(braintrustProjectName, {
     experimentName,
@@ -449,7 +507,7 @@ export async function runEvals(options) {
       }
       return result;
     },
-    scores: [exactMatch, errorMatch],
+    scores,
     maxConcurrency: concurrency,
     trialCount: trials,
   });

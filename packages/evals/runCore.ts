@@ -2,33 +2,19 @@
  * Entry point for running core tier (deterministic) tasks.
  *
  * Invoked by cli.ts when the target resolves to core tasks.
- * Uses the framework runner with Braintrust for tracing.
- *
- * Usage: tsx runCore.ts [options as env vars]
- *
- * Env vars read:
- *   EVAL_CORE_TARGET  — target string (e.g., "core", "core:navigation", "navigation")
- *   EVAL_ENV          — "LOCAL" or "BROWSERBASE"
- *   EVAL_TRIAL_COUNT  — number of trials
- *   EVAL_MAX_CONCURRENCY — max parallel sessions
+ * Delegates to the shared framework runner so core and bench use the same
+ * Braintrust execution path.
  */
 
 import path from "node:path";
 import dotenv from "dotenv";
 dotenv.config();
 
-import { discoverTasks, resolveTarget } from "./framework/discovery.js";
-import { buildCoreContext } from "./framework/context.js";
-import { AssertionError } from "./framework/assertions.js";
-import { EvalLogger } from "./logger.js";
-import { endBrowserbaseSession } from "./browserbaseCleanup.js";
-import { generateExperimentName } from "./utils.js";
+import { discoverTasks, resolveTarget, runEvals } from "./framework/runner.js";
+import { resolveDefaultCoreStartupProfile } from "./framework/context.js";
 import { env } from "./env.js";
 import { getCurrentDirPath } from "./runtimePaths.js";
-import type { CoreTaskContext, TaskDefinition, DiscoveredTask } from "./framework/types.js";
-import type { AvailableModel } from "@browserbasehq/stagehand";
-import { Eval } from "braintrust";
-import { pathToFileURL } from "node:url";
+import type { StartupProfile, ToolSurface } from "./core/contracts/tool.js";
 
 const moduleDir = getCurrentDirPath();
 const tasksRoot = path.join(moduleDir, "tasks");
@@ -40,156 +26,53 @@ const MAX_CONCURRENCY = process.env.EVAL_MAX_CONCURRENCY
 const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   ? parseInt(process.env.EVAL_TRIAL_COUNT, 10)
   : 3;
+const TOOL_SURFACE =
+  (process.env.EVAL_TOOL_SURFACE as ToolSurface | undefined) ??
+  "understudy_code";
+const STARTUP_PROFILE = (process.env.EVAL_STARTUP_PROFILE as
+  | StartupProfile
+  | undefined) ?? resolveDefaultCoreStartupProfile(TOOL_SURFACE, env);
 
-interface CoreTestcase {
-  input: { name: string; modelName: AvailableModel };
-  name: string;
-  tags: string[];
-  metadata: { model: AvailableModel; test: string; categories?: string[] };
-  expected: unknown;
-}
-
-async function loadCoreTaskFn(
-  task: DiscoveredTask,
-): Promise<TaskDefinition["fn"] | null> {
-  const moduleUrl = pathToFileURL(task.filePath).href;
-  const mod = await import(moduleUrl);
-
-  const defaultExport = mod.default;
-  if (defaultExport && defaultExport.__taskDefinition === true) {
-    return defaultExport.fn;
+function resolveCoreCategoryFilter(coreTarget: string): string | undefined {
+  if (coreTarget === "core") return undefined;
+  if (coreTarget.startsWith("core:")) {
+    return coreTarget.split(":", 2)[1];
   }
-
-  // Legacy named export fallback
-  const baseName = task.name.includes("/")
-    ? task.name.split("/").pop()!
-    : task.name;
-  if (typeof mod[baseName] === "function") {
-    return mod[baseName];
-  }
-
-  return null;
+  return coreTarget.includes("/") ? undefined : coreTarget;
 }
 
 (async () => {
   const registry = await discoverTasks(tasksRoot, false);
 
-  let tasks: DiscoveredTask[];
+  let tasks;
   try {
-    tasks = resolveTarget(registry, target);
-  } catch (err) {
-    console.error(`Error: ${(err as Error).message}`);
+    tasks = resolveTarget(registry, target).filter((task) => task.tier === "core");
+  } catch (error) {
+    console.error(`Error: ${(error as Error).message}`);
     process.exit(1);
   }
-
-  // Filter to core tier only
-  tasks = tasks.filter((t) => t.tier === "core");
 
   if (tasks.length === 0) {
     console.log("No core tasks match the given target.");
     process.exit(0);
   }
 
-  console.log(`Running ${tasks.length} core task(s) with concurrency=${MAX_CONCURRENCY}, trials=${TRIAL_COUNT}`);
-
-  const experimentName = generateExperimentName({
-    evalName: tasks.length === 1 ? tasks[0].name : undefined,
-    category: target !== "core" ? target : undefined,
-    environment: env,
-  });
-
-  const braintrustProjectName =
-    process.env.CI === "true" ? "stagehand" : "stagehand-dev";
-
-  const testcases: CoreTestcase[] = tasks.map((task) => ({
-    input: {
-      name: task.name,
-      modelName: "none" as AvailableModel,
-    },
-    name: task.name,
-    tags: ["core", task.primaryCategory, ...task.tags],
-    metadata: {
-      model: "none" as AvailableModel,
-      test: task.name,
-      categories: task.categories,
-    },
-    expected: true,
-  }));
-
   try {
-    const evalResult = await Eval(braintrustProjectName, {
-      experimentName,
-      data: () => testcases,
-      task: async (input: { name: string; modelName: AvailableModel }) => {
-        const task = registry.byName.get(input.name);
-        if (!task) {
-          return { _success: false, error: `Task "${input.name}" not found` };
-        }
-
-        const logger = new EvalLogger();
-        const { ctx, v3Result } = await buildCoreContext({ logger });
-
-        try {
-          const fn = await loadCoreTaskFn(task);
-          if (!fn) {
-            return {
-              _success: false,
-              error: `No task function found in ${task.filePath}`,
-              logs: logger.getLogs(),
-            };
-          }
-
-          await (fn as (ctx: CoreTaskContext) => Promise<void>)(ctx);
-
-          // If we get here without throwing, the task passed
-          console.log(`✅ ${input.name}: Passed`);
-          return {
-            _success: true,
-            logs: logger.getLogs(),
-            metrics: ctx.metrics.getSummary(),
-          };
-        } catch (error) {
-          const message =
-            error instanceof AssertionError
-              ? error.message
-              : error instanceof Error
-                ? error.message
-                : String(error);
-
-          console.log(`❌ ${input.name}: Failed — ${message}`);
-          return {
-            _success: false,
-            error: message,
-            logs: logger.getLogs(),
-          };
-        } finally {
-          try {
-            await v3Result.v3.close();
-          } catch {
-            // best-effort
-          }
-          await endBrowserbaseSession(v3Result.v3);
-          logger.clear();
-        }
-      },
-      scores: [
-        (args: { output: any }) => ({
-          name: "Pass",
-          score: args.output?._success ? 1 : 0,
-        }),
-      ],
-      maxConcurrency: MAX_CONCURRENCY,
-      trialCount: TRIAL_COUNT,
+    const result = await runEvals({
+      tasks,
+      registry,
+      concurrency: MAX_CONCURRENCY,
+      trials: TRIAL_COUNT,
+      environment: env,
+      categoryFilter: resolveCoreCategoryFilter(target),
+      coreToolSurface: TOOL_SURFACE,
+      coreStartupProfile: STARTUP_PROFILE,
     });
 
-    const passed = evalResult.results.filter(
-      (r: any) => r.output?._success,
-    ).length;
-    const failed = evalResult.results.length - passed;
     console.log(
-      `\nResults: ${passed} passed, ${failed} failed (${evalResult.results.length} total)`,
+      `\nResults: ${result.summary.passed} passed, ${result.summary.failed} failed (${result.summary.total} total)`,
     );
-    console.log(`Experiment: ${experimentName}`);
+    console.log(`Experiment: ${result.experimentName}`);
   } catch (error) {
     console.error("Error during core eval run:", error);
     process.exit(1);

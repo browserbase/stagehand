@@ -31,9 +31,7 @@ type InitV3Args = {
   createAgent?: boolean; // only create an agent for agent tasks
   isCUA?: boolean;
   configOverrides?: {
-    localBrowserLaunchOptions?: Partial<
-      Pick<LocalBrowserLaunchOptions, "headless" | "args">
-    >;
+    localBrowserLaunchOptions?: Partial<LocalBrowserLaunchOptions>;
     // Back-compat alias for args
     chromeFlags?: string[];
     browserbaseSessionCreateParams?: V3Options["browserbaseSessionCreateParams"];

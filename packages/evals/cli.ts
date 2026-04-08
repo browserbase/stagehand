@@ -253,6 +253,17 @@ function printHelp(): void {
   console.log(chalk.cyan("  -p, --provider".padEnd(20)) + "Provider override");
   console.log(chalk.cyan("  --api".padEnd(20)) + "Use Stagehand API\n");
 
+  console.log(chalk.dim("  Core-specific:"));
+  console.log(
+    chalk.cyan("  --tool".padEnd(20)) +
+      "Core tool surface (e.g. understudy_code, playwright_code)",
+  );
+  console.log(
+    chalk.cyan("  --startup".padEnd(20)) +
+      "Core startup profile override",
+  );
+  console.log("");
+
   console.log(chalk.dim("  Benchmark-specific:"));
   console.log(chalk.cyan("  -l, --limit".padEnd(20)) + "Max tasks to run");
   console.log(
@@ -370,8 +381,8 @@ function handleList(args: string[]): void {
 
   console.log(chalk.blue.bold("\nAvailable Evals\n"));
 
-  // Show core tier tasks (discovered from tasks/core/)
-  const coreTasksDir = path.join(packageRoot, "tasks", "core");
+  // Show core tier tasks (discovered from core/tasks/)
+  const coreTasksDir = path.join(packageRoot, "core", "tasks");
   if (fs.existsSync(coreTasksDir)) {
     const coreCategories = fs
       .readdirSync(coreTasksDir, { withFileTypes: true })
@@ -528,7 +539,10 @@ function handleRun(args: string[]): void {
   ) {
     options.env = stagehandTarget;
   }
-  const finalOptions = { ...config.defaults, ...options };
+  const finalOptions = {
+    ...config.defaults,
+    ...options,
+  } as typeof config.defaults & Record<string, string | number | boolean | null>;
 
   // Build environment variables
   const env = { ...process.env };
@@ -565,7 +579,7 @@ function handleRun(args: string[]): void {
 
   // Also build a set of individual core task names for direct targeting
   const coreTaskNames = new Set<string>();
-  const coreTasksDir = path.join(packageRoot, "tasks", "core");
+  const coreTasksDir = path.join(packageRoot, "core", "tasks");
   if (fs.existsSync(coreTasksDir)) {
     for (const catEntry of fs.readdirSync(coreTasksDir, { withFileTypes: true })) {
       if (!catEntry.isDirectory()) continue;
@@ -585,6 +599,12 @@ function handleRun(args: string[]): void {
 
   if (isCoreTarget) {
     env.EVAL_CORE_TARGET = target;
+    if (typeof finalOptions["tool"] === "string") {
+      env.EVAL_TOOL_SURFACE = finalOptions["tool"];
+    }
+    if (typeof finalOptions["startup"] === "string") {
+      env.EVAL_STARTUP_PROFILE = finalOptions["startup"];
+    }
     runCoreEntry(env);
     return;
   }

@@ -36,6 +36,27 @@ function formatTaskOutput(output: unknown): string {
   return value;
 }
 
+function scorePass(
+  args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
+): number {
+  console.log(
+    `Task "${args.input.name}" returned: ${formatTaskOutput(args.output)}`,
+  );
+
+  const expected = args.expected ?? true;
+  if (expected === true) {
+    return typeof args.output === "boolean"
+      ? args.output
+        ? 1
+        : 0
+      : args.output._success
+        ? 1
+        : 0;
+  }
+
+  return args.output === expected ? 1 : 0;
+}
+
 /**
  * Scoring function: exactMatch
  * Given the arguments (including input, output, and expected result),
@@ -48,30 +69,22 @@ function formatTaskOutput(output: unknown): string {
 export function exactMatch(
   args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
 ): EvalResult {
-  console.log(
-    `Task "${args.input.name}" returned: ${formatTaskOutput(args.output)}`,
-  );
-
-  const expected = args.expected ?? true;
-  if (expected === true) {
-    // If we expect a success (true), then we check the output's _success flag.
-    return {
-      name: "Exact match",
-      score:
-        typeof args.output === "boolean"
-          ? args.output
-            ? 1
-            : 0
-          : args.output._success
-            ? 1
-            : 0,
-    };
-  }
-
-  // If expected is not true, just directly compare the output to expected.
   return {
     name: "Exact match",
-    score: args.output === expected ? 1 : 0,
+    score: scorePass(args),
+  };
+}
+
+/**
+ * Scoring function: passRate
+ * Used by core deterministic tasks so Braintrust reports pass/fail rather than exact match.
+ */
+export function passRate(
+  args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
+): EvalResult {
+  return {
+    name: "Pass",
+    score: scorePass(args),
   };
 }
 

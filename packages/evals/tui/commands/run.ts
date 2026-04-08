@@ -11,6 +11,14 @@ import { env } from "../../env.js";
 import path from "node:path";
 import { getPackageRootDir } from "../../runtimePaths.js";
 
+type RunProgressEvent = {
+  type: "started" | "passed" | "failed" | "error";
+  taskName: string;
+  modelName?: string;
+  durationMs?: number;
+  error?: string;
+};
+
 export interface RunCommandOptions {
   target?: string;
   trials?: number;
@@ -72,7 +80,7 @@ export async function runCommand(
       useApi: options.useApi,
       modelOverride: options.model,
       categoryFilter: options.target,
-      onProgress: (event) => {
+      onProgress: (event: RunProgressEvent) => {
         if (event.type === "passed") {
           progress.onPass(event.taskName, event.modelName, event.durationMs);
         } else if (event.type === "failed") {
