@@ -1,5 +1,20 @@
 # @browserbasehq/stagehand-server-v3
 
+## 3.6.2
+
+### Patch Changes
+
+- [#1901](https://github.com/browserbase/stagehand/pull/1901) [`f5d1f1f`](https://github.com/browserbase/stagehand/commit/f5d1f1ff8072fa4acf979bc63f491c775a48991d) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - pass timeout as timeoutMs in goto()
+
+- [#1873](https://github.com/browserbase/stagehand/pull/1873) [`a98801a`](https://github.com/browserbase/stagehand/commit/a98801a17f8ab34580e819babb35b14bc814fce0) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix schema parsing bug for Pydantic `.model_json_schema()` on missing nested references
+
+- [#1858](https://github.com/browserbase/stagehand/pull/1858) [`8bf5db8`](https://github.com/browserbase/stagehand/commit/8bf5db8eb8c69ce46fb8467d4216befe3a247f5b) Thanks [@monadoid](https://github.com/monadoid)! - Add explicit SSE event names for local v3 streaming and update the generated SDK contract to match.
+
+- [#1937](https://github.com/browserbase/stagehand/pull/1937) [`249f5ed`](https://github.com/browserbase/stagehand/commit/249f5ed634857fc684ee7dc6a17157e2d2810f57) Thanks [@monadoid](https://github.com/monadoid)! - Improve server-v3 error passthrough for local operation failures
+
+- Updated dependencies [[`144e18e`](https://github.com/browserbase/stagehand/commit/144e18e9e0334ad3bc23aea6f4f7e181e0e6b9f0), [`d3c3736`](https://github.com/browserbase/stagehand/commit/d3c3736c579a78dfee8f7ad0ed4a299bfad70c41), [`5c889df`](https://github.com/browserbase/stagehand/commit/5c889dfef9659a1f57f4de641c2d4e79208a159a), [`a1ab39e`](https://github.com/browserbase/stagehand/commit/a1ab39e7aa805ac739d7bfa39dce9a2680bb1b17), [`f3fe7ce`](https://github.com/browserbase/stagehand/commit/f3fe7ce59743be8b5bdd070f749af7a9c6e84f19), [`5fb9785`](https://github.com/browserbase/stagehand/commit/5fb9785357fb724274bc615a226fe13c93d5ccb2), [`f5d1f1f`](https://github.com/browserbase/stagehand/commit/f5d1f1ff8072fa4acf979bc63f491c775a48991d), [`8bf5db8`](https://github.com/browserbase/stagehand/commit/8bf5db8eb8c69ce46fb8467d4216befe3a247f5b), [`6dc2276`](https://github.com/browserbase/stagehand/commit/6dc2276144ed48456a2b3e6525c5be47fa4eda18)]:
+  - @browserbasehq/stagehand@3.2.1
+
 ## 3.6.1
 
 ### Patch Changes
