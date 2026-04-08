@@ -156,7 +156,7 @@ jobs:
             const hasLabel = (name) => labelNames.includes(name);
 
             core.setOutput('pull_request_number', String(pr.number));
-            core.setOutput('is_internal_head', pr.head.repo.full_name === repoFullName ? 'true' : 'false');
+            core.setOutput('is_internal_head', pr.head.repo?.full_name === repoFullName ? 'true' : 'false');
             core.setOutput('skip_evals', hasLabel('skip-evals') ? 'true' : 'false');
             core.setOutput('skip_regression_evals', hasLabel('skip-regression-evals') ? 'true' : 'false');
             core.setOutput('label_combination', hasLabel('combination') ? 'true' : 'false');
