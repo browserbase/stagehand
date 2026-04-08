@@ -168,7 +168,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     fillForm: fillFormTool(v3, executionModel, variables, toolTimeout),
     fillFormVision: fillFormVisionTool(v3, provider, variables),
     goto: gotoTool(v3),
-    keys: keysTool(v3),
+    keys: keysTool(v3, variables),
     navback: navBackTool(v3),
     screenshot: screenshotTool(v3),
     scroll: mode === "hybrid" ? scrollVisionTool(v3, provider) : scrollTool(v3),
