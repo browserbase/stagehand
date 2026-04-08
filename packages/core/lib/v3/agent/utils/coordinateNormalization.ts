@@ -1,6 +1,6 @@
 import type { V3 } from "../../v3.js";
 
-// Default viewport for advancedStealth mode
+// Default viewport for Browserbase managed fingerprinting mode
 const STEALTH_VIEWPORT = { width: 1288, height: 711 };
 
 export function isGoogleProvider(provider?: string): boolean {
@@ -30,10 +30,8 @@ export function processCoordinates(
   v3?: V3,
 ): { x: number; y: number } {
   if (isGoogleProvider(provider) && v3) {
-    // advancedStealth uses fixed viewport, otherwise use configured viewport
-    const viewport = v3.isAdvancedStealth
-      ? STEALTH_VIEWPORT
-      : v3.configuredViewport;
+    // Browserbase managed fingerprinting uses a fixed viewport fallback.
+    const viewport = v3.isVerified ? STEALTH_VIEWPORT : v3.configuredViewport;
     return normalizeGoogleCoordinates(x, y, viewport);
   }
   return { x, y };

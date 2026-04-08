@@ -113,6 +113,27 @@ describe("browserbase accessors", () => {
       await v3.close().catch(() => {});
     }
   });
+
+  it("treats verified Browserbase sessions as managed fingerprinting mode", async () => {
+    const v3 = new V3({
+      env: "BROWSERBASE",
+      disableAPI: true,
+      verbose: 0,
+      browserbaseSessionCreateParams: {
+        browserSettings: {
+          verified: true,
+        },
+      },
+    });
+
+    try {
+      await v3.init();
+      expect(v3.isVerified).toBe(true);
+      expect(v3.isAdvancedStealth).toBe(true);
+    } finally {
+      await v3.close().catch(() => {});
+    }
+  });
 });
 
 describe("local accessors", () => {

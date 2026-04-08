@@ -565,6 +565,10 @@ components:
           type: boolean
         blockAds:
           type: boolean
+        captchaImageSelector:
+          type: string
+        captchaInputSelector:
+          type: string
         context:
           $ref: "#/components/schemas/BrowserbaseContext"
         extensionId:
@@ -573,9 +577,19 @@ components:
           $ref: "#/components/schemas/BrowserbaseFingerprint"
         logSession:
           type: boolean
+        os:
+          type: string
+          enum:
+            - windows
+            - mac
+            - linux
+            - mobile
+            - tablet
         recordSession:
           type: boolean
         solveCaptchas:
+          type: boolean
+        verified:
           type: boolean
         viewport:
           $ref: "#/components/schemas/BrowserbaseViewport"
@@ -1545,6 +1559,10 @@ components:
           type: boolean
         blockAds:
           type: boolean
+        captchaImageSelector:
+          type: string
+        captchaInputSelector:
+          type: string
         context:
           $ref: "#/components/schemas/BrowserbaseContextOutput"
         extensionId:
@@ -1553,9 +1571,19 @@ components:
           $ref: "#/components/schemas/BrowserbaseFingerprintOutput"
         logSession:
           type: boolean
+        os:
+          type: string
+          enum:
+            - windows
+            - mac
+            - linux
+            - mobile
+            - tablet
         recordSession:
           type: boolean
         solveCaptchas:
+          type: boolean
+        verified:
           type: boolean
         viewport:
           $ref: "#/components/schemas/BrowserbaseViewportOutput"

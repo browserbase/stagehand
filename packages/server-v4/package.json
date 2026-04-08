@@ -26,7 +26,7 @@
     "gen:openapi": "tsx scripts/gen-openapi.ts"
   },
   "dependencies": {
-    "@browserbasehq/sdk": "^2.7.0",
+    "@browserbasehq/sdk": "^2.10.0",
     "@browserbasehq/stagehand": "workspace:*",
     "@electric-sql/pglite": "0.4.2",
     "@fastify/cors": "^11.0.1",
