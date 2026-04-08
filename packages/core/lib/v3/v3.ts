@@ -198,13 +198,23 @@ export class V3 {
   }
 
   /**
-   * Returns true if advancedStealth is enabled in Browserbase settings.
+   * Returns true if Browserbase Verified mode is enabled in settings.
+   * Legacy `advancedStealth` is treated as equivalent for backwards compatibility.
+   */
+  public get isVerified(): boolean {
+    const browserSettings =
+      this.opts.browserbaseSessionCreateParams?.browserSettings;
+    return (
+      browserSettings?.verified === true ||
+      browserSettings?.advancedStealth === true
+    );
+  }
+
+  /**
+   * Backwards-compatible alias for Browserbase managed fingerprinting mode.
    */
   public get isAdvancedStealth(): boolean {
-    return (
-      this.opts.browserbaseSessionCreateParams?.browserSettings
-        ?.advancedStealth === true
-    );
+    return this.isVerified;
   }
 
   /**
