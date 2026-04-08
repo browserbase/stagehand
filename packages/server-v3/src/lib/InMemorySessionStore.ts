@@ -205,12 +205,43 @@ export class InMemorySessionStore implements SessionStore {
     loggerRef: { current?: (message: LogLine) => void },
   ): V3Options {
     const isBrowserbase = params.browserType === "browserbase";
+    const requestModelName =
+      typeof ctx.modelConfig?.modelName === "string"
+        ? ctx.modelConfig.modelName
+        : undefined;
+    const { ...requestModelClientOptions } = ctx.modelConfig ?? {};
+    delete (requestModelClientOptions as Record<string, unknown>).modelName;
+    const modelClientOptions = {
+      ...(params.modelClientOptions ?? {}),
+      ...requestModelClientOptions,
+    } as Record<string, unknown>;
+    const skipApiKeyFallback = modelClientOptions.skipApiKeyFallback === true;
+    delete modelClientOptions.skipApiKeyFallback;
+
+    const providerOptions =
+      modelClientOptions.providerOptions &&
+      typeof modelClientOptions.providerOptions === "object" &&
+      !Array.isArray(modelClientOptions.providerOptions)
+        ? (modelClientOptions.providerOptions as Record<string, unknown>)
+        : undefined;
+    const hasBedrockCredentials =
+      providerOptions?.accessKeyId !== undefined &&
+      providerOptions?.secretAccessKey !== undefined;
+
+    if (
+      ctx.modelApiKey &&
+      modelClientOptions.apiKey === undefined &&
+      !skipApiKeyFallback &&
+      !hasBedrockCredentials
+    ) {
+      modelClientOptions.apiKey = ctx.modelApiKey;
+    }
 
     const options: V3Options = {
       env: isBrowserbase ? "BROWSERBASE" : "LOCAL",
       model: {
-        modelName: params.modelName,
-        apiKey: ctx.modelApiKey,
+        ...modelClientOptions,
+        modelName: requestModelName ?? params.modelName,
       },
       verbose: params.verbose,
       systemPrompt: params.systemPrompt,

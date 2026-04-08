@@ -11536,3 +11536,5 @@ security:
   - BrowserbaseApiKey: []
     BrowserbaseProjectId: []
     ModelApiKey: []
+  - BrowserbaseApiKey: []
+    BrowserbaseProjectId: []

@@ -29,7 +29,11 @@ import type {
   SerializableResponse,
   AgentCacheTransferPayload,
 } from "./types/private/index.js";
-import type { ModelConfiguration } from "./types/public/model.js";
+import type {
+  ClientOptions,
+  ModelConfiguration,
+} from "./types/public/model.js";
+import { normalizeClientOptionsForModel } from "./providerConfig.js";
 import { toJsonSchema } from "./zodCompat.js";
 import type { StagehandZodSchema } from "./zodCompat.js";
 
@@ -101,11 +105,14 @@ interface StagehandAPIConstructorParams {
  *
  * Wire format: Api.SessionStartRequest (modelApiKey sent via header, not body)
  */
-interface ClientSessionStartParams extends Api.SessionStartRequest {
+interface ClientSessionStartParams
+  extends Omit<Api.SessionStartRequest, "modelClientOptions"> {
   /** Model API key - sent via x-model-api-key header, not in request body.
    *  Optional: when omitted, requests are sent without the x-model-api-key header
    *  and the server is expected to handle model authentication on its own. */
   modelApiKey?: string;
+  /** SDK model client options - serialized to the API wire format before send */
+  modelClientOptions?: ClientOptions;
 }
 
 /**
@@ -180,6 +187,8 @@ export class StagehandAPIClient {
   private sessionId?: string;
   private modelApiKey?: string;
   private modelProvider?: string;
+  /** Serialized session model config, resent on each request for hosted deployments */
+  private sessionModelConfig?: Api.ModelConfig;
   private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
@@ -204,6 +213,7 @@ export class StagehandAPIClient {
   async init({
     modelName,
     modelApiKey,
+    modelClientOptions,
     domSettleTimeoutMs,
     verbose,
     systemPrompt,
@@ -213,6 +223,20 @@ export class StagehandAPIClient {
     // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
     this.modelApiKey = modelApiKey;
+
+    // Store session model config to resend on each request (for hosted deployments
+    // that don't persist modelClientOptions server-side).
+    const serializedMco = this.toSessionStartModelClientOptions(
+      modelClientOptions,
+      modelName,
+    );
+    if (modelName && serializedMco && Object.keys(serializedMco).length > 0) {
+      this.sessionModelConfig = {
+        modelName,
+        ...serializedMco,
+      } as Api.ModelConfig;
+    }
+
     // Extract provider from modelName (e.g., "openai/gpt-5-nano" -> "openai")
     this.modelProvider = modelName?.includes("/")
       ? modelName.split("/")[0]
@@ -230,6 +254,7 @@ export class StagehandAPIClient {
     // Build wire-format request body (Api.SessionStartRequest shape)
     const requestBody: Api.SessionStartRequest = {
       modelName,
+      modelClientOptions: serializedMco,
       domSettleTimeoutMs,
       verbose,
       systemPrompt,
@@ -294,6 +319,7 @@ export class StagehandAPIClient {
         wireOptions = restOptions as unknown as Api.ActRequest["options"];
       }
     }
+    wireOptions = this.ensureModelConfig(wireOptions);
 
     // Build wire-format request body
     const requestBody: Api.ActRequest = {
@@ -332,6 +358,7 @@ export class StagehandAPIClient {
         wireOptions = restOptions as unknown as Api.ExtractRequest["options"];
       }
     }
+    wireOptions = this.ensureModelConfig(wireOptions);
 
     // Build wire-format request body
     const requestBody: Api.ExtractRequest = {
@@ -367,6 +394,7 @@ export class StagehandAPIClient {
         wireOptions = restOptions as unknown as Api.ObserveRequest["options"];
       }
     }
+    wireOptions = this.ensureModelConfig(wireOptions);
 
     // Build wire-format request body
     const requestBody: Api.ObserveRequest = {
@@ -424,7 +452,7 @@ export class StagehandAPIClient {
       cua: agentConfig.mode === undefined ? agentConfig.cua : undefined,
       model: agentConfig.model
         ? this.prepareModelConfig(agentConfig.model)
-        : undefined,
+        : this.sessionModelConfig,
       executionModel: agentConfig.executionModel
         ? this.prepareModelConfig(agentConfig.executionModel)
         : undefined,
@@ -606,7 +634,7 @@ export class StagehandAPIClient {
    */
   private prepareModelConfig(
     model: ModelConfiguration,
-  ): { modelName: string; apiKey?: string } & Record<string, unknown> {
+  ): { modelName: string } & Record<string, unknown> {
     if (typeof model === "string") {
       // Extract provider from model string (e.g., "openai/gpt-5-nano" -> "openai")
       const provider = model.includes("/") ? model.split("/")[0] : undefined;
@@ -620,24 +648,146 @@ export class StagehandAPIClient {
       };
     }
 
-    if (!model.apiKey) {
-      const provider = model.modelName?.includes("/")
-        ? model.modelName.split("/")[0]
+    const normalizedModel = {
+      modelName: model.modelName,
+      ...(this.toSessionStartModelClientOptions(model, model.modelName) ?? {}),
+    };
+
+    const normalizedApiKey = (normalizedModel as Record<string, unknown>)
+      .apiKey;
+    if (typeof normalizedApiKey !== "string" || !normalizedApiKey) {
+      const provider = normalizedModel.modelName?.includes("/")
+        ? normalizedModel.modelName.split("/")[0]
         : undefined;
       const apiKey =
         provider && provider !== this.modelProvider
           ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
           : this.modelApiKey;
-      return {
-        ...model,
-        ...(apiKey ? { apiKey } : {}),
-      };
+      if (apiKey) {
+        return {
+          ...normalizedModel,
+          apiKey,
+        };
+      }
     }
 
-    return model as { modelName: string; apiKey: string } & Record<
-      string,
-      unknown
-    >;
+    return normalizedModel as { modelName: string } & Record<string, unknown>;
+  }
+
+  /**
+   * If no model config is present in the wire options, inject the session
+   * defaults. This ensures hosted deployments (which don't persist
+   * modelClientOptions server-side) receive the model config on every request.
+   */
+  private ensureModelConfig<T extends { model?: unknown } | undefined>(
+    wireOptions: T,
+  ): T {
+    if (!this.sessionModelConfig) {
+      return wireOptions;
+    }
+    if (wireOptions?.model) {
+      return wireOptions;
+    }
+    return {
+      ...(wireOptions ?? {}),
+      model: this.sessionModelConfig,
+    } as T;
+  }
+
+  private toSessionStartModelClientOptions(
+    options?: ClientOptions,
+    modelName?: string,
+  ): Api.ModelClientOptions | undefined {
+    if (!options) {
+      return undefined;
+    }
+
+    const normalizedOptions = normalizeClientOptionsForModel(
+      options,
+      modelName,
+    );
+    if (!normalizedOptions) {
+      return undefined;
+    }
+
+    const requestOptions = {
+      ...normalizedOptions,
+      ...(normalizedOptions.providerConfig
+        ? {
+            providerConfig: {
+              ...normalizedOptions.providerConfig,
+              options: { ...normalizedOptions.providerConfig.options },
+            },
+          }
+        : {}),
+    } as Record<string, unknown>;
+    delete requestOptions.provider;
+    const providerOptions =
+      requestOptions.providerOptions &&
+      typeof requestOptions.providerOptions === "object"
+        ? (requestOptions.providerOptions as Record<string, unknown>)
+        : undefined;
+
+    // Hosted sessions may still receive a default x-model-api-key header on
+    // later requests. Mark non-API-key auth shapes so the server doesn't
+    // backfill that header into model.apiKey and override provider auth.
+    if (
+      requestOptions.apiKey === undefined &&
+      providerOptions &&
+      (providerOptions.accessKeyId !== undefined ||
+        providerOptions.secretAccessKey !== undefined ||
+        providerOptions.sessionToken !== undefined)
+    ) {
+      requestOptions.skipApiKeyFallback = true;
+    }
+
+    const toSerializableHeaders = (
+      headers: unknown,
+    ): Record<string, string> | undefined => {
+      if (typeof Headers !== "undefined" && headers instanceof Headers) {
+        return Object.fromEntries(headers.entries());
+      }
+
+      if (
+        headers === undefined ||
+        headers === null ||
+        typeof headers !== "object" ||
+        Array.isArray(headers) ||
+        "then" in headers ||
+        Object.values(headers as Record<string, unknown>).some(
+          (value) => typeof value !== "string",
+        )
+      ) {
+        return undefined;
+      }
+
+      return headers as Record<string, string>;
+    };
+
+    const normalizedHeaders = toSerializableHeaders(requestOptions.headers);
+    if (normalizedHeaders) {
+      requestOptions.headers = normalizedHeaders;
+    } else {
+      delete requestOptions.headers;
+    }
+
+    const providerConfig = requestOptions.providerConfig as
+      | {
+          options?: Record<string, unknown>;
+        }
+      | undefined;
+    const normalizedProviderHeaders = toSerializableHeaders(
+      providerConfig?.options?.headers,
+    );
+    if (providerConfig?.options) {
+      if (normalizedProviderHeaders) {
+        providerConfig.options.headers = normalizedProviderHeaders;
+      } else {
+        delete providerConfig.options.headers;
+      }
+    }
+
+    return requestOptions as Api.ModelClientOptions;
   }
 
   private consumeFinishedEventData<T>(): T | null {
@@ -847,10 +997,13 @@ export class StagehandAPIClient {
       "x-bb-session-id": this.sessionId,
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
-      ...(this.modelApiKey ? { "x-model-api-key": this.modelApiKey } : {}),
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
+
+    if (this.modelApiKey) {
+      defaultHeaders["x-model-api-key"] = this.modelApiKey;
+    }
 
     // Add cache bypass header if caching is disabled
     if (!this.shouldUseCache(serverCache)) {

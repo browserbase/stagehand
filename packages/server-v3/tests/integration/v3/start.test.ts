@@ -613,6 +613,119 @@ describe("POST /v1/sessions/start - V3 format", () => {
     await endSession(ctx.body.data.sessionId, pythonHeaders);
   });
 
+  it("should accept typed providerOptions in modelClientOptions", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
+          modelClientOptions: {
+            providerOptions: {
+              region: "us-east-1",
+            },
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+
+    await endSession(ctx.body.data.sessionId, headers);
+  });
+
+  it("should reject Bedrock providerOptions without region on session start", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
+          modelClientOptions: {
+            providerOptions: {
+              project: "my-gcp-project",
+            },
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_BAD_REQUEST, "Request should fail with 400");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      JSON.stringify(ctx.body).includes("providerOptions.region"),
+      "Error should reference providerOptions.region",
+      ctx,
+    );
+  });
+
+  it("should reject invalid Bedrock modelClientOptions on session start", async () => {
+    const url = getBaseUrl();
+    const bedrockModelName = "bedrock/us.amazon.nova-pro-v1:0";
+    const cases = [
+      {
+        name: "missing region",
+        modelClientOptions: {
+          apiKey: "bedrock-short-term-api-key",
+        },
+        errorSnippet: "providerOptions.region",
+      },
+      {
+        name: "mixed auth modes",
+        modelClientOptions: {
+          apiKey: "bedrock-short-term-api-key",
+          providerOptions: {
+            region: "us-east-1",
+            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+            secretAccessKey: "secret",
+          },
+        },
+        errorSnippet: "cannot mix apiKey auth",
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const ctx = await fetchWithContext<StartResponse>(
+        `${url}/v1/sessions/start`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            modelName: bedrockModelName,
+            modelClientOptions: testCase.modelClientOptions,
+            ...localBrowser,
+          }),
+        },
+      );
+
+      assertFetchStatus(
+        ctx,
+        HTTP_BAD_REQUEST,
+        `Request should fail with 400 for ${testCase.name}`,
+      );
+      assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+      assertFetchOk(
+        JSON.stringify(ctx.body).includes(testCase.errorSnippet),
+        `Error should reference ${testCase.errorSnippet} for ${testCase.name}`,
+        ctx,
+      );
+    }
+  });
+
   it("should start session with extended options (timeouts, verbose)", async () => {
     const url = getBaseUrl();
 
@@ -640,6 +753,73 @@ describe("POST /v1/sessions/start - V3 format", () => {
     );
     assertFetchOk(ctx.body.data.available, "Session should be available", ctx);
     assertFetchOk(!!ctx.body.data.sessionId, "Should have sessionId", ctx);
+
+    await endSession(ctx.body.data.sessionId, headers);
+  });
+
+  it("should start session with Bedrock API-key modelClientOptions", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "bedrock/amazon.nova-pro-v1:0",
+          modelClientOptions: {
+            apiKey: "bedrock-short-term-api-key",
+            providerOptions: {
+              region: "us-east-1",
+            },
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
+
+    await endSession(ctx.body.data.sessionId, headers);
+  });
+
+  it("should start session with Bedrock AWS credential modelClientOptions", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "bedrock/amazon.nova-pro-v1:0",
+          modelClientOptions: {
+            skipApiKeyFallback: true,
+            providerOptions: {
+              region: "us-east-1",
+              accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+              secretAccessKey: "secret",
+              sessionToken: "session-token",
+            },
+          },
+          ...localBrowser,
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "Request should succeed");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(
+      isSuccessResponse(ctx.body),
+      "Should be a success response",
+      ctx,
+    );
 
     await endSession(ctx.body.data.sessionId, headers);
   });
