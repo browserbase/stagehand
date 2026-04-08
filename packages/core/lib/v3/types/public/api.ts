@@ -503,12 +503,16 @@ export const BrowserbaseBrowserSettingsSchema = z
   .object({
     advancedStealth: z.boolean().optional(),
     blockAds: z.boolean().optional(),
+    captchaImageSelector: z.string().optional(),
+    captchaInputSelector: z.string().optional(),
     context: BrowserbaseContextSchema.optional(),
     extensionId: z.string().optional(),
     fingerprint: BrowserbaseFingerprintSchema.optional(),
     logSession: z.boolean().optional(),
+    os: z.enum(["windows", "mac", "linux", "mobile", "tablet"]).optional(),
     recordSession: z.boolean().optional(),
     solveCaptchas: z.boolean().optional(),
+    verified: z.boolean().optional(),
     viewport: BrowserbaseViewportSchema.optional(),
   })
   .meta({ id: "BrowserbaseBrowserSettings" });

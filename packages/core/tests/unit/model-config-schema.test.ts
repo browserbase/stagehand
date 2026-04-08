@@ -121,4 +121,20 @@ describe("SessionStartRequestSchema", () => {
 
     expect(result.success).toBe(true);
   });
+
+  it("accepts verified Browserbase session settings", () => {
+    const result = Api.SessionStartRequestSchema.safeParse({
+      modelName: "openai/gpt-5.4-mini",
+      browserbaseSessionCreateParams: {
+        browserSettings: {
+          verified: true,
+          os: "mac",
+          captchaImageSelector: "#captcha-image",
+          captchaInputSelector: "#captcha-input",
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
