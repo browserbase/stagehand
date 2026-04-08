@@ -42,6 +42,7 @@ export class AnthropicCUAClient extends AgentClient {
   private currentViewport = { width: 1288, height: 711 };
   private currentUrl?: string;
   private screenshotProvider?: () => Promise<string>;
+  private zoomedScreenshotProvider?: (region: number[]) => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
   private thinkingBudget: number | null = null;
   private tools?: ToolSet;
@@ -93,6 +94,10 @@ export class AnthropicCUAClient extends AgentClient {
 
   setScreenshotProvider(provider: () => Promise<string>): void {
     this.screenshotProvider = provider;
+  }
+
+  setZoomedScreenshotProvider(provider: (region: number[]) => Promise<string>): void {
+    this.zoomedScreenshotProvider = provider;
   }
 
   setActionHandler(handler: (action: AgentAction) => Promise<void>): void {
@@ -454,20 +459,27 @@ export class AnthropicCUAClient extends AgentClient {
         ? "computer-use-2025-11-24"
         : "computer-use-2025-01-24";
 
+      // Create the computer tool definition
+      // For models using computer_20251124, enable the zoom capability
+      const computerToolDef: Record<string, unknown> = {
+        type: computerToolType,
+        name: "computer",
+        display_width_px: this.currentViewport.width,
+        display_height_px: this.currentViewport.height,
+        display_number: 1,
+      };
+
+      // Enable zoom for models that support it (computer_20251124)
+      if (shouldUseNewToolVersion) {
+        computerToolDef.enable_zoom = true;
+      }
+
       // Create the request parameters
       const requestParams: Record<string, unknown> = {
         model: this.modelName,
         max_tokens: 4096,
         messages: messages,
-        tools: [
-          {
-            type: computerToolType,
-            name: "computer",
-            display_width_px: this.currentViewport.width,
-            display_height_px: this.currentViewport.height,
-            display_number: 1,
-          },
-        ],
+        tools: [computerToolDef],
         betas: [betaFlag],
       };
 
@@ -589,8 +601,20 @@ export class AnthropicCUAClient extends AgentClient {
             level: 2,
           });
 
-          // Capture a screenshot for the response
-          const screenshot = await this.captureScreenshot();
+          // For zoom action, capture a cropped screenshot of the specified region
+          // For other actions, capture a full screenshot
+          let screenshot: string;
+          if (action === "zoom" && item.input.region) {
+            const region = item.input.region as number[];
+            logger({
+              category: "agent",
+              message: `Zoom action requested for region: [${region.join(", ")}]`,
+              level: 2,
+            });
+            screenshot = await this.captureZoomedScreenshot(region);
+          } else {
+            screenshot = await this.captureScreenshot();
+          }
           logger({
             category: "agent",
             message: `Screenshot captured, length: ${screenshot.length}`,
@@ -916,6 +940,14 @@ export class AnthropicCUAClient extends AgentClient {
             type: "wait",
             ...input,
           };
+        } else if (action === "zoom") {
+          // Handle zoom action - returns a cropped region at full resolution
+          const region = input.region as number[] | undefined;
+          return {
+            type: "zoom",
+            region: region,
+            ...input,
+          };
         } else if (action === "left_click") {
           // Convert left_click to regular click
           const coordinates = input.coordinate as number[] | undefined;
@@ -978,5 +1010,33 @@ export class AnthropicCUAClient extends AgentClient {
       "`screenshotProvider` has not been set. " +
         "Please call `setScreenshotProvider()` with a valid function that returns a base64-encoded image",
     );
+  }
+
+  /**
+   * Capture a zoomed screenshot of a specific region at full resolution.
+   * The region is defined by [x1, y1, x2, y2] coordinates (top-left and bottom-right corners).
+   *
+   * @param region - Array of [x1, y1, x2, y2] coordinates defining the region to capture
+   * @returns A data URL with the base64-encoded image of the cropped region
+   */
+  async captureZoomedScreenshot(region: number[]): Promise<string> {
+    // Use the zoomed screenshot provider if available
+    if (this.zoomedScreenshotProvider) {
+      try {
+        const base64Image = await this.zoomedScreenshotProvider(region);
+        // Handle both raw base64 and data URLs
+        if (base64Image.startsWith("data:")) {
+          return base64Image;
+        }
+        return `data:image/png;base64,${base64Image}`;
+      } catch (error) {
+        console.error("Error capturing zoomed screenshot:", error);
+        throw error;
+      }
+    }
+
+    // Fall back to regular screenshot if no zoomed screenshot provider is set
+    // The caller should handle the zoom/crop on their end
+    return this.captureScreenshot();
   }
 }
