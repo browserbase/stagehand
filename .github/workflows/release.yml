@@ -84,6 +84,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Publish already-versioned packages
+        if: steps.check_changesets.outputs.should_run != 'true'
+        run: pnpm exec changeset publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Check if browse-cli publish is needed
         if: github.ref == 'refs/heads/main'
         id: browse_cli
