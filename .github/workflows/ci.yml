@@ -9,10 +9,17 @@ on:
       - unlabeled
     paths-ignore:
       - "packages/docs/**"
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Internal mirrored pull request number
+        required: true
+        type: string
 
 permissions:
   contents: read
   actions: write
+  pull-requests: read
 
 env:
   BROWSERBASE_FLOW_LOGS: "1"
@@ -107,8 +114,60 @@ jobs:
               - 'examples/**'
               - '!packages/**/*.md'
 
+  load-pr-context:
+    runs-on: ubuntu-latest
+    outputs:
+      pull_request_number: ${{ steps.load.outputs.pull_request_number }}
+      is_internal_head: ${{ steps.load.outputs.is_internal_head }}
+      skip_evals: ${{ steps.load.outputs.skip_evals }}
+      skip_regression_evals: ${{ steps.load.outputs.skip_regression_evals }}
+      label_combination: ${{ steps.load.outputs.label_combination }}
+      label_extract: ${{ steps.load.outputs.label_extract }}
+      label_act: ${{ steps.load.outputs.label_act }}
+      label_observe: ${{ steps.load.outputs.label_observe }}
+      label_targeted_extract: ${{ steps.load.outputs.label_targeted_extract }}
+      label_agent: ${{ steps.load.outputs.label_agent }}
+    steps:
+      - id: load
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const repoFullName = `${context.repo.owner}/${context.repo.repo}`;
+            let pr = context.payload.pull_request;
+
+            if (!pr) {
+              const prNumber = Number('${{ github.event.inputs.pull_request_number }}');
+              if (!prNumber) {
+                throw new Error('workflow_dispatch requires pull_request_number input');
+              }
+
+              const { data } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              });
+              pr = data;
+            }
+
+            const labelNames = (pr.labels || [])
+              .map((label) => typeof label === 'string' ? label : label.name)
+              .filter(Boolean);
+            const hasLabel = (name) => labelNames.includes(name);
+
+            core.setOutput('pull_request_number', String(pr.number));
+            core.setOutput('is_internal_head', pr.head.repo.full_name === repoFullName ? 'true' : 'false');
+            core.setOutput('skip_evals', hasLabel('skip-evals') ? 'true' : 'false');
+            core.setOutput('skip_regression_evals', hasLabel('skip-regression-evals') ? 'true' : 'false');
+            core.setOutput('label_combination', hasLabel('combination') ? 'true' : 'false');
+            core.setOutput('label_extract', hasLabel('extract') ? 'true' : 'false');
+            core.setOutput('label_act', hasLabel('act') ? 'true' : 'false');
+            core.setOutput('label_observe', hasLabel('observe') ? 'true' : 'false');
+            core.setOutput('label_targeted_extract', hasLabel('targeted-extract') ? 'true' : 'false');
+            core.setOutput('label_agent', hasLabel('agent') ? 'true' : 'false');
+
   determine-evals:
-    needs: [determine-changes]
+    needs: [determine-changes, load-pr-context]
     runs-on: ubuntu-latest
     outputs:
       skip-all-evals: ${{ steps.check-labels.outputs.skip-all-evals }}
@@ -137,7 +196,7 @@ jobs:
           }
 
           # Check if skip-evals label is present
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-evals') }}" == "true" ]]; then
+          if [[ "${{ needs.load-pr-context.outputs.skip_evals }}" == "true" ]]; then
             echo "skip-evals label found - skipping all evals"
             echo "skip-all-evals=true" >> $GITHUB_OUTPUT
             emit_categories
@@ -153,7 +212,7 @@ jobs:
           fi
 
           # Check for skip-regression-evals label
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-regression-evals') }}" == "true" ]]; then
+          if [[ "${{ needs.load-pr-context.outputs.skip_regression_evals }}" == "true" ]]; then
             echo "skip-regression-evals label found - regression evals will be skipped"
           else
             echo "Regression evals will run by default"
@@ -162,22 +221,22 @@ jobs:
 
           # Check for specific labels
           echo "skip-all-evals=false" >> $GITHUB_OUTPUT
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'combination') }}" == "true" ]]; then
+          if [[ "${{ needs.load-pr-context.outputs.label_combination }}" == "true" ]]; then
             add_category "combination"
           fi
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'extract') }}" == "true" ]]; then
+          if [[ "${{ needs.load-pr-context.outputs.label_extract }}" == "true" ]]; then
             add_category "extract"
           fi
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'act') }}" == "true" ]]; then
+          if [[ "${{ needs.load-pr-context.outputs.label_act }}" == "true" ]]; then
             add_category "act"
           fi
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" == "true" ]]; then
+          if [[ "${{ needs.load-pr-context.outputs.label_observe }}" == "true" ]]; then
             add_category "observe"
           fi
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'targeted-extract') }}" == "true" ]]; then
+          if [[ "${{ needs.load-pr-context.outputs.label_targeted_extract }}" == "true" ]]; then
             add_category "targeted_extract"
           fi
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'agent') }}" == "true" ]]; then
+          if [[ "${{ needs.load-pr-context.outputs.label_agent }}" == "true" ]]; then
             add_category "agent"
           fi
           emit_categories
@@ -510,12 +569,12 @@ jobs:
 
   run-e2e-local-tests:
     name: e2e/local/${{ matrix.test.name }}
-    needs: [run-build, discover-e2e-tests]
+    needs: [run-build, discover-e2e-tests, load-pr-context]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
       needs.discover-e2e-tests.outputs.has-e2e-tests == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      needs.load-pr-context.outputs.is_internal_head == 'true'
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -570,12 +629,12 @@ jobs:
 
   run-e2e-bb-tests:
     name: e2e/bb/${{ matrix.test.name }}
-    needs: [run-build, discover-e2e-tests]
+    needs: [run-build, discover-e2e-tests, load-pr-context]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
       needs.discover-e2e-tests.outputs.has-e2e-tests == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      needs.load-pr-context.outputs.is_internal_head == 'true'
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -732,6 +791,7 @@ jobs:
       - run-e2e-bb-tests
       - run-evals
       - server-integration-tests
+      - load-pr-context
     # if: always()
     if: false
     steps:
@@ -844,7 +904,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_ID: ${{ github.run_id }}
-          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          PULL_NUMBER: ${{ needs.load-pr-context.outputs.pull_request_number }}
           TESTS_FAILED: ${{ steps.coverage-status.outputs.tests_failed }}
           TOTAL_COVERAGE: ${{ steps.coverage-status.outputs.total_coverage }}
         run: |
