@@ -191,6 +191,7 @@ export class OpenAIClient extends LLMClient {
           json_schema: {
             name: options.response_model.name,
             schema: toJsonSchema(options.response_model.schema),
+            strict: true,
           },
         };
       }
