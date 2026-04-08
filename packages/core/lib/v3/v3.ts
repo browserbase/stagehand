@@ -212,6 +212,7 @@ export class V3 {
 
   /**
    * Backwards-compatible alias for Browserbase managed fingerprinting mode.
+   * @deprecated Use `isVerified` instead. This alias will be removed in a future version.
    */
   public get isAdvancedStealth(): boolean {
     return this.isVerified;
