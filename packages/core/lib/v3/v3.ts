@@ -891,19 +891,6 @@ export class V3 {
             userDataDir,
             connectTimeoutMs: lbo.connectTimeoutMs,
             handleSIGINT: !keepAlive,
-            onDiagnostic: ({ message, auxiliary }) => {
-              this.logger({
-                category: "init",
-                message,
-                level: 0,
-                auxiliary: Object.fromEntries(
-                  Object.entries(auxiliary ?? {}).map(([key, value]) => [
-                    key,
-                    { value, type: "string" as const },
-                  ]),
-                ),
-              });
-            },
           });
           if (keepAlive) {
             try {
