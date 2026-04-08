@@ -445,16 +445,7 @@ jobs:
           test -f packages/server-v3/dist/sea/stagehand-server-v3-linux-x64-sourcemap
           chmod +x packages/server-v3/dist/sea/stagehand-server-v3-linux-x64-sourcemap
 
-      - name: Install pinned Chrome for Testing
-        shell: bash
-        run: |
-          set -euo pipefail
-          chrome_path="$(pnpm dlx @puppeteer/browsers install chrome@146 --path "$RUNNER_TEMP/puppeteer-browsers" --format '{{path}}')"
-          echo "CHROME_PATH=$chrome_path" >> "$GITHUB_ENV"
-
       - uses: ./.github/actions/verify-chromium-launch
-        with:
-          chrome-path: ${{ env.CHROME_PATH }}
 
       - name: Run server integration test - ${{ matrix.test.name }}
         env:
