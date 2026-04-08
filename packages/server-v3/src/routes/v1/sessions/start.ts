@@ -67,6 +67,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     const body = request.body as Api.SessionStartRequest;
     const {
       modelName,
+      modelClientOptions,
       domSettleTimeoutMs,
       verbose,
       systemPrompt,
@@ -182,6 +183,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       browserbaseApiKey: bbApiKey,
       browserbaseProjectId: bbProjectId,
       modelName,
+      modelClientOptions,
       domSettleTimeoutMs,
       verbose,
       systemPrompt,

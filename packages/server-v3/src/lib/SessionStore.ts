@@ -23,6 +23,8 @@ export interface CreateSessionParams {
   browserType: "local" | "browserbase";
   /** Model name (e.g., "openai/gpt-4o") */
   modelName: string;
+  /** Optional provider-specific model settings to reuse for the session model */
+  modelClientOptions?: Record<string, unknown>;
   /** Verbosity level */
   verbose?: 0 | 1 | 2;
   /** Custom system prompt */
@@ -67,6 +69,8 @@ export interface CreateSessionParams {
 export interface RequestContext {
   /** Model API key (from x-model-api-key header) */
   modelApiKey?: string;
+  /** Model config from the current request body (for lazy init before first tool call) */
+  modelConfig?: Record<string, unknown>;
   /** Logger function for this request */
   logger?: (message: LogLine) => void;
 }
