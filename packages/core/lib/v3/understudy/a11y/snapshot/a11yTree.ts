@@ -130,6 +130,12 @@ export function decorateRoles(
         : `scrollable${role ? `, ${role}` : ""}`;
     }
 
+    // File inputs typically get role "button" from Chrome's AX tree;
+    // override so they appear as "input, file" in the outline.
+    if (tag === "input, file") {
+      role = tag;
+    }
+
     return {
       role,
       name: n.name?.value,

@@ -219,7 +219,7 @@ export async function domMapsForSession(
 
     if (node.backendNodeId) {
       const encId = encode(frameId, node.backendNodeId);
-      tagNameMap[encId] = String(node.nodeName).toLowerCase();
+      tagNameMap[encId] = enrichedTagName(node);
       xpathMap[encId] = xpath || "/";
       const isScrollable = node?.isScrollable === true;
       if (isScrollable) scrollableMap[encId] = true;
@@ -275,7 +275,7 @@ export async function buildSessionDomIndex(
     const { node, xp, docRootBe } = stack.pop()!;
     if (node.backendNodeId) {
       absByBe.set(node.backendNodeId, xp || "/");
-      tagByBe.set(node.backendNodeId, String(node.nodeName).toLowerCase());
+      tagByBe.set(node.backendNodeId, enrichedTagName(node));
       if (node?.isScrollable === true) scrollByBe.set(node.backendNodeId, true);
       docRootOf.set(node.backendNodeId, docRootBe);
     }
@@ -326,6 +326,31 @@ export function relativizeXPath(baseAbs: string, nodeAbs: string): string {
   }
   if (base === "/") return abs;
   return abs;
+}
+
+/**
+ * Extract an attribute value from a CDP DOM node's flat attributes array.
+ * Attributes are stored as [name1, value1, name2, value2, ...].
+ */
+function getAttr(
+  attrs: string[] | undefined,
+  name: string,
+): string | undefined {
+  if (!attrs) return undefined;
+  for (let i = 0; i < attrs.length; i += 2) {
+    if (attrs[i] === name) return attrs[i + 1];
+  }
+  return undefined;
+}
+
+/** Build an enriched tag name that includes the type attribute for inputs. */
+function enrichedTagName(node: Protocol.DOM.Node): string {
+  const tag = String(node.nodeName).toLowerCase();
+  if (tag === "input") {
+    const type = getAttr(node.attributes, "type");
+    if (type) return `input, ${type}`;
+  }
+  return tag;
 }
 
 /** Find a node by backendNodeId inside a DOM.getDocument tree. */

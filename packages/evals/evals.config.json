@@ -257,6 +257,10 @@
       "categories": ["regression", "observe"]
     },
     {
+      "name": "observe_file_uploads",
+      "categories": ["observe"]
+    },
+    {
       "name": "extract_hamilton_weather",
       "categories": ["targeted_extract", "regression"]
     },
