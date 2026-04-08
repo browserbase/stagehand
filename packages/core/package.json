@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "type": "module",
   "main": "./dist/cjs/index.js",
