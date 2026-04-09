@@ -59,21 +59,6 @@ function hasInjectableDOM(url: string | undefined): boolean {
   return false;
 }
 
-function hasSettledPopupUrl(url: string | undefined): boolean {
-  if (!url) return false;
-  const normalized = url.trim();
-  if (
-    !normalized ||
-    normalized === ":" ||
-    normalized === "about:blank" ||
-    normalized === "about:srcdoc" ||
-    normalized.startsWith("about:blank#")
-  ) {
-    return false;
-  }
-  return true;
-}
-
 function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
   // Top-level pages should always be tracked — the initial URL may be a
   // non-web scheme (e.g. chrome://newtab/) but the user can navigate to
@@ -1081,13 +1066,7 @@ export class V3Context {
       }
       if (newestTid) {
         const p = this.pagesByTarget.get(newestTid);
-        if (
-          p &&
-          newestTs >= this._lastPopupSignalAt &&
-          (hasSettledPopupUrl(p.url()) || Date.now() + 25 >= deadline)
-        ) {
-          return p;
-        }
+        if (p && newestTs >= this._lastPopupSignalAt) return p;
       }
       await new Promise((r) => setTimeout(r, 25));
     }

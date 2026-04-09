@@ -3,59 +3,17 @@ import * as Stagehand from "@browserbasehq/stagehand";
 
 describe("LLM and Agents public API types", () => {
   describe("ModelConfiguration", () => {
-    it("accepts legacy Vertex top-level settings in model config", () => {
+    it("accepts Vertex headers in model config", () => {
       const googleConfig = {
-        modelName: "vertex/gemini-3-flash-preview",
+        modelName: "google/gemini-3-flash-preview",
         project: "test-project",
         location: "global",
+        headers: {
+          "X-Goog-Priority": "high",
+        },
       } satisfies Stagehand.ModelConfiguration;
 
       void googleConfig;
-    });
-
-    it("accepts typed Vertex providerConfig in model config", () => {
-      const vertexConfig = {
-        modelName: "vertex/gemini-3-flash-preview",
-        providerConfig: {
-          provider: "vertex",
-          options: {
-            project: "test-project",
-            location: "global",
-          },
-        },
-      } satisfies Stagehand.ModelConfiguration;
-
-      void vertexConfig;
-    });
-
-    it("accepts Bedrock bearer token settings in model config", () => {
-      const bedrockConfig = {
-        modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-        apiKey: "bedrock-bearer-token",
-        providerConfig: {
-          provider: "bedrock",
-          options: { region: "us-east-1" },
-        },
-      } satisfies Stagehand.ModelConfiguration;
-
-      void bedrockConfig;
-    });
-
-    it("accepts Bedrock AWS credential settings in model config", () => {
-      const bedrockConfig = {
-        modelName: "bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0",
-        providerConfig: {
-          provider: "bedrock",
-          options: {
-            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-            secretAccessKey: "secret",
-            sessionToken: "session-token",
-            region: "us-east-1",
-          },
-        },
-      } satisfies Stagehand.ModelConfiguration;
-
-      void bedrockConfig;
     });
   });
 

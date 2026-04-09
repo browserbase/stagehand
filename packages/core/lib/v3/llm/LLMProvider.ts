@@ -34,7 +34,6 @@ import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama, createOllama } from "ollama-ai-provider-v2";
 import { gateway, createGateway, wrapLanguageModel } from "ai";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model.js";
-import { getProviderConstructorOptions } from "../providerConfig.js";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
@@ -120,9 +119,7 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProvidersWithAPIKey),
       );
     }
-    const provider = creator(
-      getProviderConstructorOptions(subProvider, clientOptions),
-    );
+    const provider = creator(clientOptions);
     model = provider(subModelName);
   } else {
     const provider = AISDKProviders[subProvider];
