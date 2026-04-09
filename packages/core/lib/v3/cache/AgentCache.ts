@@ -34,6 +34,7 @@ import {
   safeGetPageUrl,
   waitForCachedSelector,
 } from "./utils.js";
+import { substituteVariables } from "../agent/utils/variables.js";
 
 const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
 
@@ -660,7 +661,11 @@ export class AgentCache {
         await this.replayAgentNavBackStep(step as AgentReplayNavBackStep, ctx);
         return step;
       case "keys":
-        await this.replayAgentKeysStep(step as AgentReplayKeysStep, ctx);
+        await this.replayAgentKeysStep(
+          step as AgentReplayKeysStep,
+          ctx,
+          variables,
+        );
         return step;
       case "done":
       case "extract":
@@ -811,14 +816,16 @@ export class AgentCache {
   private async replayAgentKeysStep(
     step: AgentReplayKeysStep,
     ctx: V3Context,
+    variables?: Record<string, string>,
   ): Promise<void> {
     const page = await ctx.awaitActivePage();
     const { method, text, keys, times } = step.playwrightArguments;
     const repeatCount = Math.max(1, times ?? 1);
 
     if (method === "type" && text) {
+      const resolvedText = substituteVariables(text, variables);
       for (let i = 0; i < repeatCount; i++) {
-        await page.type(text, { delay: 100 });
+        await page.type(resolvedText, { delay: 100 });
       }
     } else if (method === "press" && keys) {
       for (let i = 0; i < repeatCount; i++) {
