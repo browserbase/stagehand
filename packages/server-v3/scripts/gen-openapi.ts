@@ -42,14 +42,8 @@ async function main() {
       BrowserbaseRegion: Api.BrowserbaseRegionSchema,
       // Shared components
       LocalBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema,
-      GoogleServiceAccountCredentials:
-        Api.GoogleServiceAccountCredentialsSchema,
-      VertexProviderOptions: Api.VertexProviderOptionsSchema,
-      BedrockProviderOptions: Api.BedrockProviderOptionsSchema,
-      ProviderConfig: Api.ProviderConfigSchema,
       ModelConfigObject: Api.ModelConfigObjectSchema,
       ModelConfig: Api.ModelConfigSchema,
-      ModelClientOptions: Api.ModelClientOptionsSchema,
       Action: Api.ActionSchema,
       VariablePrimitive: Api.VariablePrimitiveSchema,
       VariableValue: Api.VariableValueSchema,
@@ -153,7 +147,6 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
       },
       security: [
         { BrowserbaseApiKey: [], BrowserbaseProjectId: [], ModelApiKey: [] },
-        { BrowserbaseApiKey: [], BrowserbaseProjectId: [] },
       ],
     },
     ...fastifyZodOpenApiTransformers,

@@ -1,5 +1,4 @@
 import type { ClientOptions as AnthropicClientOptionsBase } from "@anthropic-ai/sdk";
-import type { AmazonBedrockProviderSettings as AmazonBedrockProviderSettingsBase } from "@ai-sdk/amazon-bedrock";
 import type { GoogleVertexProviderSettings as GoogleVertexProviderSettingsBase } from "@ai-sdk/google-vertex";
 import type {
   LanguageModelV2,
@@ -32,32 +31,14 @@ export interface GoogleServiceAccountCredentials {
   universe_domain?: string;
 }
 
-export type GoogleVertexProviderSettings = Omit<
-  Pick<GoogleVertexProviderSettingsBase, "project" | "location" | "headers">,
-  "headers"
+export type GoogleVertexProviderSettings = Pick<
+  GoogleVertexProviderSettingsBase,
+  "project" | "location" | "headers"
 > & {
-  headers?: Record<string, string>;
   googleAuthOptions?: {
     credentials?: GoogleServiceAccountCredentials;
   };
 };
-
-export type BedrockProviderOptions = Pick<
-  AmazonBedrockProviderSettingsBase,
-  "region" | "accessKeyId" | "secretAccessKey" | "sessionToken"
->;
-
-export interface BedrockProviderConfig {
-  provider: "bedrock";
-  options: BedrockProviderOptions;
-}
-
-export interface VertexProviderConfig {
-  provider: "vertex";
-  options: GoogleVertexProviderSettings;
-}
-
-export type ProviderConfig = BedrockProviderConfig | VertexProviderConfig;
 
 export type AnthropicJsonSchemaObject = {
   definitions?: {
@@ -114,8 +95,6 @@ export type ModelProvider =
   | "cerebras"
   | "groq"
   | "google"
-  | "vertex"
-  | "bedrock"
   | "aisdk";
 
 export type ClientOptions = (
@@ -126,8 +105,6 @@ export type ClientOptions = (
   apiKey?: string;
   provider?: AgentProviderType;
   baseURL?: string;
-  /** Provider-specific config normalized before calling the underlying AI SDK provider. */
-  providerConfig?: ProviderConfig;
   /** OpenAI organization ID */
   organization?: string;
   /** Delay between agent actions in ms */
@@ -146,16 +123,15 @@ export type ClientOptions = (
   reasoningEffort?: string;
 };
 
-export type ModelConfigObject = ClientOptions &
-  Record<string, unknown> & {
-    modelName: AvailableModel;
-    /**
-     * Optional AI SDK middleware applied to every LanguageModelV2 created for this model.
-     * Use this to intercept LLM calls for usage tracking, logging, request transforms, etc.
-     *
-     * Only effective when running locally (direct mode). Cannot be serialized over HTTP.
-     */
-    middleware?: LanguageModelV2Middleware;
-  };
-
-export type ModelConfiguration = AvailableModel | ModelConfigObject;
+export type ModelConfiguration =
+  | AvailableModel
+  | (ClientOptions & {
+      modelName: AvailableModel;
+      /**
+       * Optional AI SDK middleware applied to every LanguageModelV2 created for this model.
+       * Use this to intercept LLM calls for usage tracking, logging, request transforms, etc.
+       *
+       * Only effective when running locally (direct mode). Cannot be serialized over HTTP,
+       */
+      middleware?: LanguageModelV2Middleware;
+    });
