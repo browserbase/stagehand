@@ -57,21 +57,4 @@ export { default } from "./lib/v3/index.js";
 `,
 );
 
-fs.mkdirSync(`${repoRoot}/packages/core/dist/esm/lib/v3/dom/build`, {
-  recursive: true,
-});
-// DOM script bundles are generated artifacts (not TS emit); copy into dist/esm for runtime.
-if (fs.existsSync(`${repoRoot}/packages/core/lib/v3/dom/build`)) {
-  for (const file of fs.readdirSync(
-    `${repoRoot}/packages/core/lib/v3/dom/build`,
-  )) {
-    if (file.endsWith(".js")) {
-      fs.copyFileSync(
-        `${repoRoot}/packages/core/lib/v3/dom/build/${file}`,
-        `${repoRoot}/packages/core/dist/esm/lib/v3/dom/build/${file}`,
-      );
-    }
-  }
-}
-
 // Note: evals + server test outputs are built by their respective packages.
