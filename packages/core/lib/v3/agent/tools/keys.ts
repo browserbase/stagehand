@@ -1,9 +1,16 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import type { Variables } from "../../types/public/agent.js";
+import { substituteVariables } from "../utils/variables.js";
 
-export const keysTool = (v3: V3) =>
-  tool({
+export const keysTool = (v3: V3, variables?: Variables) => {
+  const hasVariables = variables && Object.keys(variables).length > 0;
+  const valueDescription = hasVariables
+    ? `The text to type, or the key/combo to press (Enter, Tab, Cmd+A). Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
+    : "The text to type, or the key/combo to press (Enter, Tab, Cmd+A)";
+
+  return tool({
     description: `Send keyboard input to the page without targeting a specific element. Unlike the type tool which clicks then types into coordinates, this sends keystrokes directly to wherever focus currently is.
 
 Use method="type" to enter text into the currently focused element. Preferred when: input is already focused, text needs to flow across multiple fields (e.g., verification codes)
@@ -11,11 +18,7 @@ Use method="type" to enter text into the currently focused element. Preferred wh
 Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) and keyboard shortcuts (Cmd+A, Ctrl+C, Shift+Tab).`,
     inputSchema: z.object({
       method: z.enum(["press", "type"]),
-      value: z
-        .string()
-        .describe(
-          "The text to type, or the key/combo to press (Enter, Tab, Cmd+A)",
-        ),
+      value: z.string().describe(valueDescription),
       repeat: z.number().optional(),
     }),
     execute: async ({ method, value, repeat }) => {
@@ -36,14 +39,17 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
         const times = Math.max(1, repeat ?? 1);
 
         if (method === "type") {
+          // Substitute any %variableName% tokens in the value
+          const actualValue = substituteVariables(value, variables);
           for (let i = 0; i < times; i++) {
-            await page.type(value, { delay: 100 });
+            await page.type(actualValue, { delay: 100 });
           }
           v3.recordAgentReplayStep({
             type: "keys",
             instruction: `type "${value}"`,
             playwrightArguments: { method, text: value, times },
           });
+          // Return original value (with %variableName% tokens) to avoid exposing sensitive values to LLM
           return { success: true, method, value, times };
         }
 
@@ -65,3 +71,4 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
       }
     },
   });
+};
