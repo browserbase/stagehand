@@ -1,7 +1,6 @@
 import type { RouteHandlerMethod, RouteOptions } from "fastify";
 import { StatusCodes } from "http-status-codes";
 import type { FastifyZodOpenApiSchema } from "fastify-zod-openapi";
-import type { ModelConfiguration } from "@browserbasehq/stagehand";
 import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
@@ -54,12 +53,12 @@ const agentExecuteRouteHandler: RouteHandlerMethod = withErrorHandling(
           ...agentConfig,
           model:
             typeof agentConfig.model === "string"
-              ? ({ modelName: agentConfig.model } as ModelConfiguration)
+              ? { modelName: agentConfig.model }
               : agentConfig.model
-                ? ({
+                ? {
                     ...agentConfig.model,
                     modelName: agentConfig.model.modelName ?? "gpt-4o",
-                  } as ModelConfiguration)
+                  }
                 : undefined,
         };
 

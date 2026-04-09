@@ -991,7 +991,6 @@ export class V3 {
             const { sessionId, available } = await this.apiClient.init({
               modelName: this.modelName,
               modelApiKey: this.modelClientOptions.apiKey,
-              modelClientOptions: this.modelClientOptions,
               domSettleTimeoutMs: this.domSettleTimeoutMs,
               verbose: this.verbose,
               systemPrompt: this.opts.systemPrompt,
