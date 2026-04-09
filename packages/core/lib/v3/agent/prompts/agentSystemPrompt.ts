@@ -48,21 +48,30 @@ function buildToolsSection(
     {
       name: "click",
       description:
-        "Click on an element (PREFERRED - more reliable when element is visible in viewport)",
+        "Click on an element (PREFERRED - more reliable when element is visible in viewport). Never use this for file upload buttons or file inputs.",
     },
     {
       name: "type",
       description:
-        "Type text into an element (PREFERRED - more reliable when element is visible in viewport)",
+        "Type text into an element (PREFERRED - more reliable when element is visible in viewport). Never use this for file inputs or local file paths.",
     },
     {
       name: "act",
       description:
-        "Perform a specific atomic action (click, type, etc.) - ONLY use when element is in ariaTree but NOT visible in screenshot. Less reliable but can interact with out-of-viewport elements.",
+        "Perform a specific atomic action (click, type, etc.) - ONLY use when element is in ariaTree but NOT visible in screenshot. Less reliable but can interact with out-of-viewport elements. Never use this for file upload buttons, file inputs, or local file paths.",
+    },
+    {
+      name: "upload",
+      description:
+        "Upload one or more local files into a file input when the user has provided a file path",
     },
     { name: "dragAndDrop", description: "Drag and drop an element" },
     { name: "clickAndHold", description: "Click and hold on an element" },
-    { name: "keys", description: "Press a keyboard key" },
+    {
+      name: "keys",
+      description:
+        "Press a keyboard key or type into the currently focused element. Never use this to enter local file paths for uploads.",
+    },
     {
       name: "fillFormVision",
       description: "Fill out a form using coordinates",
@@ -87,9 +96,19 @@ function buildToolsSection(
     },
     {
       name: "act",
-      description: "Perform a specific atomic action (click, type)",
+      description:
+        "Perform a specific atomic action (click, type). Never use this for file upload buttons, file inputs, or local file paths.",
     },
-    { name: "keys", description: "Press a keyboard key" },
+    {
+      name: "upload",
+      description:
+        "Upload one or more local files into a file input when the user has provided a file path",
+    },
+    {
+      name: "keys",
+      description:
+        "Press a keyboard key or type into the currently focused element. Never use this to enter local file paths for uploads.",
+    },
     { name: "fillForm", description: "Fill out a form" },
     { name: "think", description: "Think about the task" },
     { name: "extract", description: "Extract structured data" },
@@ -147,6 +166,8 @@ export function buildAgentSystemPrompt(
         `<item>Tool selection priority: Use specific tools (click, type) when elements are visible in viewport for maximum reliability.</item>`,
         `<item>Always use screenshot to get proper grounding of the coordinates you want to type/click into.</item>`,
         `<item>When interacting with an input, always use the type tool to type into the input, over clicking and then typing into it.</item>`,
+        `<item>When the task requires uploading a file and a local path is available, use the upload tool instead of clicking the visible upload button.</item>`,
+        `<item>Never use click, type, act, fillForm, or fillFormVision to interact with a file input or upload button. Those tools cannot complete native file selection reliably.</item>`,
         `<item>Use ariaTree as a secondary tool when elements aren't visible in screenshot or to get full page context.</item>`,
         `<item>Only use act when element is in ariaTree but NOT visible in screenshot.</item>`,
       ]
@@ -154,6 +175,8 @@ export function buildAgentSystemPrompt(
         `<item>Tool selection priority: Use act tool for all clicking and typing on a page.</item>`,
         `<item>Always check ariaTree first to understand full page content without scrolling - it shows all elements including those below the fold.</item>`,
         `<item>When interacting with an input, always use the act tool to type into the input, over clicking and then typing.</item>`,
+        `<item>When the task requires uploading a file and a local path is available, use the upload tool instead of clicking the visible upload button.</item>`,
+        `<item>Never use click, type, act, fillForm, or fillFormVision to interact with a file input or upload button. Those tools cannot complete native file selection reliably.</item>`,
         `<item>If an element is present in the ariaTree, use act to interact with it directly - this eliminates the need to scroll.</item>`,
         `<item>Use screenshot for visual confirmation when needed, but rely primarily on ariaTree for element detection.</item>`,
       ];
@@ -213,8 +236,8 @@ export function buildAgentSystemPrompt(
   // Build variables section only if variables are provided
   const hasVariables = variables && Object.keys(variables).length > 0;
   const variableToolsNote = isHybridMode
-    ? "Use %variableName% syntax in the type, fillFormVision, or act tool's value/text/action fields."
-    : "Use %variableName% syntax in the act or fillForm tool's action fields.";
+    ? "Use %variableName% syntax in the type, fillFormVision, act, or upload tool's text/action/path fields."
+    : "Use %variableName% syntax in the act, fillForm, or upload tool's action/path fields.";
   const variableEntries = getVariablePromptEntries(variables);
   const variablesSection = hasVariables
     ? `<variables>

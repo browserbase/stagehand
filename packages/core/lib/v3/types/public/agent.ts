@@ -308,6 +308,7 @@ export interface AgentExecuteOptionsBase {
    * **DOM mode (default):**
    * - `act` - Perform semantic actions (click, type, etc.)
    * - `fillForm` - Fill form fields using DOM selectors
+   * - `upload` - Upload local files into file inputs
    * - `ariaTree` - Get accessibility tree of the page
    * - `extract` - Extract structured data from page
    * - `goto` - Navigate to a URL
@@ -327,6 +328,7 @@ export interface AgentExecuteOptionsBase {
    * - `clickAndHold` - Click and hold at coordinates
    * - `fillFormVision` - Fill forms using vision/coordinates
    * - `act` - Perform semantic actions
+   * - `upload` - Upload local files into file inputs
    * - `ariaTree` - Get accessibility tree
    * - `extract` - Extract data from page
    * - `goto` - Navigate to URL
@@ -373,7 +375,7 @@ export interface AgentExecuteOptionsBase {
   /**
    * Variables that the agent can use when filling forms or typing text.
    * The agent will see variable names and descriptions in the system prompt,
-   * and can use them via `%variableName%` syntax in act/type/fillForm tool calls.
+   * and can use them via `%variableName%` syntax in act/type/fillForm/upload tool calls.
    *
    * Accepts both simple values and rich objects with descriptions (same type as `act`).
    *
@@ -397,7 +399,7 @@ export interface AgentExecuteOptionsBase {
    * Timeout in milliseconds for each agent tool call.
    * If a tool call exceeds this duration, it will be aborted and
    * reported back to the LLM as a timeout error so it can retry or adjust.
-   * For tools that call v3 methods (act, extract, fillForm, ariaTree), the
+   * For tools that call v3 methods (act, extract, fillForm, upload, ariaTree), the
    * timeout is also forwarded to the underlying v3 call for true cancellation.
    * @default 45000 (45 seconds)
    */
@@ -635,7 +637,7 @@ export type AgentModelConfig<TModelName extends string = string> = {
 
 /**
  * Agent tool mode determines which set of tools are available to the agent.
- * - 'dom': Uses DOM-based tools (act, fillForm) - better for structured page interactions
+ * - 'dom': Uses DOM-based tools (act, fillForm, upload) - better for structured page interactions
  * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, etc.) - better for visual/screenshot-based interactions
  * - 'cua': Uses Computer Use Agent (CUA) providers like Anthropic Claude or Google Gemini for screenshot-based automation
  */
@@ -677,7 +679,7 @@ export type AgentConfig = {
   stream?: boolean;
   /**
    * Tool mode for the agent. Determines which set of tools are available.
-   * - 'dom' (default): Uses DOM-based tools (act, fillForm) for structured interactions
+   * - 'dom' (default): Uses DOM-based tools (act, fillForm, upload) for structured interactions
    * - 'hybrid': Uses coordinate-based tools (click, type, dragAndDrop, clickAndHold, fillFormVision)
    *             for visual/screenshot-based interactions
    * - 'cua': Uses Computer Use Agent (CUA) providers for screenshot-based automation

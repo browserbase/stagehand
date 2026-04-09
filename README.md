@@ -92,6 +92,9 @@ await stagehand.act("click on the stagehand repo");
 // Use agent() for multi-step tasks
 const agent = stagehand.agent();
 await agent.execute("Get to the latest PR");
+await agent.execute(
+  'Upload the file at "/Users/me/Documents/resume.pdf" to the resume file input',
+);
 
 // Use extract() to get structured data from the page
 const { author, title } = await stagehand.extract(

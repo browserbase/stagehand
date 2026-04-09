@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import { getFileUploadGuardError } from "../utils/fileUploadGuard.js";
 
 export const keysTool = (v3: V3) =>
   tool({
@@ -8,7 +9,9 @@ export const keysTool = (v3: V3) =>
 
 Use method="type" to enter text into the currently focused element. Preferred when: input is already focused, text needs to flow across multiple fields (e.g., verification codes)
 
-Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) and keyboard shortcuts (Cmd+A, Ctrl+C, Shift+Tab).`,
+Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) and keyboard shortcuts (Cmd+A, Ctrl+C, Shift+Tab).
+
+Never use this tool to type local file paths for uploads. Use the upload tool instead.`,
     inputSchema: z.object({
       method: z.enum(["press", "type"]),
       value: z
@@ -20,6 +23,15 @@ Use method="press" for navigation keys (Enter, Tab, Escape, Backspace, arrows) a
     }),
     execute: async ({ method, value, repeat }) => {
       try {
+        const fileUploadGuardError =
+          method === "type" ? getFileUploadGuardError(value) : null;
+        if (fileUploadGuardError) {
+          return {
+            success: false,
+            error: fileUploadGuardError,
+          };
+        }
+
         const page = await v3.context.awaitActivePage();
         v3.logger({
           category: "agent",

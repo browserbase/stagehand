@@ -8,6 +8,7 @@ import type {
   Variables,
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
+import { getFileUploadGuardError } from "../utils/fileUploadGuard.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { substituteVariables } from "../utils/variables.js";
@@ -38,6 +39,14 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
       text,
     }): Promise<TypeToolResult> => {
       try {
+        const fileUploadGuardError = getFileUploadGuardError(describe, text);
+        if (fileUploadGuardError) {
+          return {
+            success: false,
+            error: fileUploadGuardError,
+          };
+        }
+
         const page = await v3.context.awaitActivePage();
         const processed = processCoordinates(
           coordinates[0],

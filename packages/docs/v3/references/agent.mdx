@@ -123,8 +123,8 @@ interface AgentInstance {
   Tool mode for the agent. Determines which set of tools are available to the agent.
   
   **Modes:**
-  - `"dom"` (default): Uses DOM-based tools (`act`, `fillForm`) for structured page interactions. Works with any model.
-  - `"hybrid"`: Uses both DOM-based and coordinate-based tools (`act`, `click`, `type`, `dragAndDrop`, `clickAndHold`, `fillForm`) for visual/screenshot-based interactions. Requires models with reliable coordinate-based action capabilities.
+  - `"dom"` (default): Uses DOM-based tools (`act`, `fillForm`, `upload`) for structured page interactions. Works with any model.
+  - `"hybrid"`: Uses both DOM-based and coordinate-based tools (`act`, `upload`, `click`, `type`, `dragAndDrop`, `clickAndHold`, `fillForm`) for visual/screenshot-based interactions. Requires models with reliable coordinate-based action capabilities.
   - `"cua"`: Uses Computer Use Agent (CUA) providers like Anthropic Claude, Google Gemini, or OpenAI for screenshot-based automation. This is the preferred way to enable CUA mode (replaces the deprecated `cua: true` option).
   
   **Default:** `"dom"`
@@ -253,9 +253,9 @@ interface AgentStreamCallbacks {
 
   **Available tools by mode:**
 
-  **DOM mode (default):** `act`, `fillForm`, `ariaTree`, `extract`, `goto`, `scroll`, `keys`, `navback`, `screenshot`, `think`, `wait`, `search`
+  **DOM mode (default):** `act`, `fillForm`, `upload`, `ariaTree`, `extract`, `goto`, `scroll`, `keys`, `navback`, `screenshot`, `think`, `wait`, `search`
 
-  **Hybrid mode:** `click`, `type`, `dragAndDrop`, `clickAndHold`, `fillFormVision`, `act`, `ariaTree`, `extract`, `goto`, `scroll`, `keys`, `navback`, `screenshot`, `think`, `wait`, `search`
+  **Hybrid mode:** `click`, `type`, `dragAndDrop`, `clickAndHold`, `fillFormVision`, `act`, `upload`, `ariaTree`, `extract`, `goto`, `scroll`, `keys`, `navback`, `screenshot`, `think`, `wait`, `search`
 
   <Warning>**Non-CUA agents only.** Requires `experimental: true`. Not available when `cua: true`.</Warning>
 </ParamField>

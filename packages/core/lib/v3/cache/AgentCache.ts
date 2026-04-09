@@ -9,6 +9,7 @@ import type {
   AgentReplayNavBackStep,
   AgentReplayScrollStep,
   AgentReplayStep,
+  AgentReplayUploadStep,
   AgentReplayWaitStep,
   CachedAgentEntry,
   SanitizedAgentExecuteOptions,
@@ -650,6 +651,9 @@ export class AgentCache {
       case "goto":
         await this.replayAgentGotoStep(step as AgentReplayGotoStep, ctx);
         return step;
+      case "upload":
+        await this.replayAgentUploadStep(step as AgentReplayUploadStep, ctx);
+        return step;
       case "scroll":
         await this.replayAgentScrollStep(step as AgentReplayScrollStep, ctx);
         return step;
@@ -769,6 +773,23 @@ export class AgentCache {
   ): Promise<void> {
     const page = await ctx.awaitActivePage();
     await page.goto(step.url, { waitUntil: step.waitUntil ?? "load" });
+  }
+
+  private async replayAgentUploadStep(
+    step: AgentReplayUploadStep,
+    ctx: V3Context,
+  ): Promise<void> {
+    const page = await ctx.awaitActivePage();
+    await waitForCachedSelector({
+      page,
+      selector: step.selector,
+      timeout: this.domSettleTimeoutMs,
+      logger: this.logger,
+      context: "upload",
+    });
+    const uploadValue =
+      step.paths.length === 1 ? (step.paths[0] ?? "") : step.paths;
+    await page.deepLocator(step.selector).setInputFiles(uploadValue);
   }
 
   private async replayAgentScrollStep(

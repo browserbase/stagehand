@@ -7,6 +7,7 @@ import type {
   ModelOutputContentItem,
 } from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
+import { getFileUploadGuardError } from "../utils/fileUploadGuard.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 
@@ -26,6 +27,14 @@ export const clickTool = (v3: V3, provider?: string) =>
     }),
     execute: async ({ describe, coordinates }): Promise<ClickToolResult> => {
       try {
+        const fileUploadGuardError = getFileUploadGuardError(describe);
+        if (fileUploadGuardError) {
+          return {
+            success: false,
+            error: fileUploadGuardError,
+          };
+        }
+
         const page = await v3.context.awaitActivePage();
         const processed = processCoordinates(
           coordinates[0],

@@ -44,6 +44,7 @@ Some advanced features are only available with certain agent modes:
 | Custom tools             | ✅  | ✅  | ✅     |
 | MCP integrations         | ✅  | ✅  | ✅     |
 | System prompt            | ✅  | ✅  | ✅     |
+| Native file uploads      | ✅  | ✅  | ✅     |
 | Variables                | ❌  | ✅  | ✅     |
 | Streaming                | ❌  | ✅  | ✅     |
 | Callbacks                | ❌  | ✅  | ✅     |
@@ -54,6 +55,22 @@ Some advanced features are only available with certain agent modes:
 | DOM-based actions        | ❌  | ✅  | ✅     |
 | Coordinate-based actions | ✅  | ❌  | ✅     |
 | Visual cursor highlight  | ✅  | ❌  | ✅     |
+
+### Native File Uploads
+
+When the user already knows the local file path, the agent can upload it natively as part of the workflow without manually calling `setInputFiles()`.
+
+```typescript
+const agent = stagehand.agent();
+
+await agent.execute({
+  instruction:
+    'Upload the file at "/Users/me/Documents/resume.pdf" to the resume file input, then continue the application flow.',
+  maxSteps: 10,
+});
+```
+
+Use the actual local path in the instruction. The agent will use its built-in `upload` tool instead of clicking the visible upload button.
 
 ### Computer Use Agents
 
@@ -408,6 +425,7 @@ The tools you can exclude depend on the agent mode:
 |------|-------------|
 | `act` | Perform semantic actions (click, type, etc.) |
 | `fillForm` | Fill form fields using DOM selectors |
+| `upload` | Upload local files into file inputs |
 | `ariaTree` | Get accessibility tree of the page |
 | `extract` | Extract structured data from page |
 | `goto` | Navigate to a URL |
@@ -431,6 +449,7 @@ The tools you can exclude depend on the agent mode:
 | `clickAndHold` | Click and hold at coordinates |
 | `fillFormVision` | Fill forms using vision/coordinates |
 | `act` | Perform semantic actions |
+| `upload` | Upload local files into file inputs |
 | `ariaTree` | Get accessibility tree |
 | `extract` | Extract data from page |
 | `goto` | Navigate to URL |
@@ -553,6 +572,7 @@ Variables work with the following agent tools:
 |------|-------|
 | `act` | Use `%variableName%` in the action description |
 | `fillForm` | Use `%variableName%` in field values |
+| `upload` | Use `%variableName%` in file paths |
 
 </Tab>
 
@@ -563,6 +583,7 @@ Variables work with the following agent tools:
 | `type` | Use `%variableName%` in the text to type |
 | `fillFormVision` | Use `%variableName%` in field values |
 | `act` | Use `%variableName%` in the action description |
+| `upload` | Use `%variableName%` in file paths |
 
 </Tab>
 </Tabs>

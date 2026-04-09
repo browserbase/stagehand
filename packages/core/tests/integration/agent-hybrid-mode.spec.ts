@@ -27,6 +27,7 @@ test.describe("Stagehand agent hybrid mode", () => {
       // DOM mode should have these tools
       expect(tools).toHaveProperty("act");
       expect(tools).toHaveProperty("fillForm");
+      expect(tools).toHaveProperty("upload");
       expect(tools).toHaveProperty("ariaTree");
       expect(tools).toHaveProperty("screenshot");
       expect(tools).toHaveProperty("extract");
@@ -57,6 +58,7 @@ test.describe("Stagehand agent hybrid mode", () => {
 
       // Hybrid mode should also have common tools
       expect(tools).toHaveProperty("act");
+      expect(tools).toHaveProperty("upload");
       expect(tools).toHaveProperty("ariaTree");
       expect(tools).toHaveProperty("screenshot");
       expect(tools).toHaveProperty("extract");
@@ -76,6 +78,7 @@ test.describe("Stagehand agent hybrid mode", () => {
 
       // Should behave like DOM mode
       expect(tools).toHaveProperty("fillForm");
+      expect(tools).toHaveProperty("upload");
       expect(tools).not.toHaveProperty("click");
       expect(tools).not.toHaveProperty("type");
     });
@@ -93,10 +96,12 @@ test.describe("Stagehand agent hybrid mode", () => {
       expect(prompt).toContain("ariaTree");
       expect(prompt).toContain("act");
       expect(prompt).toContain("fillForm");
+      expect(prompt).toContain("upload");
 
       // Should have DOM-specific strategy
       expect(prompt).toContain("Use act tool for all clicking and typing");
       expect(prompt).toContain("Always check ariaTree first");
+      expect(prompt).toContain("use the upload tool instead of clicking");
     });
 
     test("Hybrid mode system prompt emphasizes screenshot and coordinate tools", () => {
@@ -111,12 +116,14 @@ test.describe("Stagehand agent hybrid mode", () => {
       expect(prompt).toContain("type");
       expect(prompt).toContain("fillFormVision");
       expect(prompt).toContain("dragAndDrop");
+      expect(prompt).toContain("upload");
 
       // Should have hybrid-specific strategy
       expect(prompt).toContain(
         "Use specific tools (click, type) when elements are visible",
       );
       expect(prompt).toContain("Always use screenshot");
+      expect(prompt).toContain("use the upload tool instead of clicking");
     });
 
     test("System prompt includes custom instructions when provided", () => {

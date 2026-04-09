@@ -20,5 +20,6 @@ describe("buildAgentSystemPrompt variables", () => {
       '<variable name="username">The login email</variable>',
     );
     expect(prompt).toContain('<variable name="password" />');
+    expect(prompt).toContain("upload tool's");
   });
 });
