@@ -14,7 +14,7 @@ on:
       - completed
 
 permissions:
-  actions: read
+  actions: write
   contents: write
   pull-requests: write
   issues: write
@@ -297,7 +297,7 @@ env:
             issue_number: prNumber,
             body: `The latest approval by @${claimer} could not refresh the mirrored PR automatically (${refreshReason || 'unknown reason'}). The external PR stays open, and the mirrored PR should be updated manually before work continues.`,
           });
-          return;
+          return { claimed: false, ownedPrNumber: existingNumber || '' };
         }
 
         let ownedPr;
@@ -358,6 +358,8 @@ env:
         if (externalPr.state !== 'closed') {
           await github.rest.pulls.update({ owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber, state: 'closed' });
         }
+
+        return { claimed: true, ownedPrNumber: String(ownedPr.number) };
       }
 
       async function syncOwnedPr({ github, context }) {
@@ -562,13 +564,14 @@ jobs:
           refresh_reason="rebase-conflict"
 
       - name: Finalize approved claim
+        id: finalize-claim
         if: always() && steps.prepare-claim.outputs.should-claim == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const lib = eval(process.env.ECPR_LIB);
-            await lib.finalizeClaim({
+            const result = await lib.finalizeClaim({
               github,
               context,
               input: {
@@ -582,6 +585,24 @@ jobs:
                 existingMerged: '${{ steps.prepare-claim.outputs.owned-pr-merged }}' === 'true',
                 refreshStatus: ${{ toJson(steps.refresh-branch.outputs.refresh-status) }},
                 refreshReason: ${{ toJson(steps.refresh-branch.outputs.reason) }},
+              },
+            });
+            core.setOutput('claimed', result?.claimed ? 'true' : 'false');
+            core.setOutput('owned-pr-number', result?.ownedPrNumber || '');
+
+      - name: Trigger claimed PR CI
+        if: steps.finalize-claim.outputs.claimed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci.yml',
+              ref: ${{ toJson(steps.prepare-claim.outputs.branch) }},
+              inputs: {
+                pull_request_number: ${{ toJson(steps.finalize-claim.outputs.owned-pr-number) }},
               },
             });
 
