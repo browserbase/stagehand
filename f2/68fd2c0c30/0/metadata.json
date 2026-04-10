@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "f268fd2c0c30",
+  "session_id": "45197ab0-40a3-4e19-82c4-1655ff2dbd33",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-10T23:57:31.234402Z",
+  "branch": "evals-overhaul",
+  "checkpoints_count": 8,
+  "files_touched": [
+    ".gitignore"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "c45857c3f0fb",
+  "token_usage": {
+    "input_tokens": 142,
+    "cache_creation_tokens": 103210,
+    "cache_read_tokens": 5073118,
+    "output_tokens": 24714,
+    "api_call_count": 86
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-10T23:57:31.109715Z",
+    "agent_lines": 0,
+    "human_added": 27103,
+    "human_modified": 1300,
+    "human_removed": 0,
+    "total_committed": 27103,
+    "agent_percentage": 0
+  },
+  "transcript_path": ".claude/projects/-Users-miguel-browserbase-Documents-Browserbase-stagehand/45197ab0-40a3-4e19-82c4-1655ff2dbd33.jsonl"
+}

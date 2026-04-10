@@ -1,0 +1,59 @@
+we're fixing the accumulated inconsistencies around the @packages/core/examples/ directory. I went ahead and moved all examples inside v3 to top level examples, updated those that are env:BROWSERBASE (non-cua) to remove the need of having to pass a model api key and just pass the model as a string, but there are other things that need to be addressed:
+1. all example names should be highfin based (example-here.ts) 
+2. fix all imports if any failed to autoupdate
+3. remove the changelog
+4. billtest, loadapikeybug, visa, should remain untracked
+
+also, why do we have the external_clients directory just re-exporting? do we need tsconfig within the examples dir?
+
+---
+
+checkout the main version of the code in paramtetrizeapikey example
+
+---
+
+fix the mcp example imports
+
+---
+
+You are an expert code reviewer. Follow these steps:
+
+      1. If no PR number is provided in the args, run `gh pr list` to show open PRs
+      2. If a PR number is provided, run `gh pr view <number>` to get PR details
+      3. Run `gh pr diff <number>` to get the diff
+      4. Analyze the changes and provide a thorough code review that includes:
+         - Overview of what the PR does
+         - Analysis of code quality and style
+         - Specific suggestions for improvements
+         - Any potential issues or risks
+
+      Keep your review concise but thorough. Focus on:
+      - Code correctness
+      - Following project conventions
+      - Performance implications
+      - Test coverage
+      - Security considerations
+
+      Format your review with clear sections and bullet points.
+
+      PR number: all current changes
+
+---
+
+I fixed. the only thing we need to fix is the llm_clients in @packages/evals/ (were wrongfully commented out)
+
+---
+
+there's errors (tsc) on those 3 files hn_ custom openai langchain and aisdk
+
+---
+
+can I delete the entire dir then?
+
+---
+
+remove them
+
+---
+
+clean up properly
