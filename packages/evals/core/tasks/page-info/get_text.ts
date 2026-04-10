@@ -3,13 +3,19 @@ import { defineCoreTask } from "../../../framework/defineTask.js";
 
 export default defineCoreTask({ name: "get_text" }, async ({ page, assert, metrics }) => {
   await page.goto(dropdownFixture.url);
-  const button = page.locator("xpath=/html/body/div/div/button");
-  assert.truthy(await button.count(), "Button should exist");
+  await page.wait({
+    kind: "selector",
+    selector: dropdownFixture.selectors.button,
+    state: "visible",
+    timeoutMs: 5000,
+  });
 
   const stop = metrics.startTimer("text_ms");
-  const text = await button.textContent();
+  const text = await page.evaluate<string | null, string>(
+    (selector) => document.querySelector(selector)?.textContent ?? null,
+    dropdownFixture.selectors.button,
+  );
   stop();
 
-  assert.truthy(text, "Button should have text content");
-  assert.greaterThan(text.length, 0, "Text should not be empty");
+  assert.equals(text, dropdownFixture.expected.buttonText);
 });

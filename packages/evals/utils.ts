@@ -80,55 +80,24 @@ export function generateTimestamp(): string {
     .slice(0, 14);
 }
 
-function generateDisplayTimestamp(): string {
-  const now = new Date();
-  const month = now
-    .toLocaleString("en-US", { month: "short" })
-    .toLowerCase();
-  const day = String(now.getDate()).padStart(2, "0");
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  return `${month}${day}_${hours}${minutes}`;
-}
-
-function toSnakeToken(value: string): string {
-  return value
-    .replace(/[/:\s-]+/g, "_")
-    .replace(/[^a-zA-Z0-9_]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .toLowerCase();
-}
-
 /**
  * generateExperimentName:
- * Creates a unique name for the experiment based on optional evalName or category,
- * the environment (e.g., dev or CI), and the current timestamp.
- * This is used to label the output files and directories.
+ * Returns just the target label. Braintrust handles uniqueness via IDs.
+ * All context (env, tool, startup) goes into experiment metadata instead.
  */
 export function generateExperimentName({
   evalName,
   category,
-  environment,
-  toolSurface,
-  startupProfile,
 }: {
   evalName?: string;
   category?: string;
-  environment: string;
+  environment?: string;
   toolSurface?: string;
   startupProfile?: string;
 }): string {
-  const timestamp = generateDisplayTimestamp();
-  const parts = [
-    evalName ? toSnakeToken(evalName) : category ? toSnakeToken(category) : "all",
-    toSnakeToken(environment),
-    toolSurface ? toSnakeToken(toolSurface) : undefined,
-    startupProfile ? toSnakeToken(startupProfile) : undefined,
-    timestamp,
-  ].filter((part): part is string => Boolean(part));
-
-  return parts.join("_");
+  if (evalName) return evalName;
+  if (category) return category;
+  return "all";
 }
 
 export function logLineToString(logLine: LogLine): string {

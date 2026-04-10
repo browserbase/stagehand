@@ -5,10 +5,13 @@ export default defineCoreTask({ name: "set_viewport" }, async ({ page, assert, m
   await page.goto(dropdownFixture.url);
 
   const stop = metrics.startTimer("viewport_ms");
-  await page.setViewportSize(1920, 1080);
+  await page.setViewport({ width: 1440, height: 900 });
   stop();
 
-  const screenshot = await page.screenshot();
-  assert.truthy(screenshot, "Screenshot after viewport change should succeed");
-  assert.greaterThan(screenshot.byteLength, 0, "Screenshot should not be empty");
+  const viewport = await page.evaluate<{ width: number; height: number }>(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+  assert.equals(viewport.width, 1440);
+  assert.equals(viewport.height, 900);
 });

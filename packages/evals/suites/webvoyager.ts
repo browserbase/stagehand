@@ -1,11 +1,23 @@
 import path from "path";
-import type { Testcase, EvalInput } from "../types/evals.js";
+import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
 import { getCurrentDirPath } from "../runtimePaths.js";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
 
-export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
+function normalizeModelEntries(
+  models: string[] | AgentModelEntry[],
+): AgentModelEntry[] {
+  if (models.length === 0) return [];
+  if (typeof models[0] === "string") {
+    return (models as string[]).map((modelName) => ({ modelName, cua: false }));
+  }
+  return models as AgentModelEntry[];
+}
+
+export const buildWebVoyagerTestcases = (
+  models: string[] | AgentModelEntry[],
+): Testcase[] => {
   const moduleDir = getCurrentDirPath();
   const voyagerFilePath = path.join(
     moduleDir,
@@ -49,11 +61,12 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
   const rows = applySampling(candidates, sampleCount, maxCases);
 
   const allTestcases: Testcase[] = [];
-  for (const model of models) {
+  for (const modelEntry of normalizeModelEntries(models)) {
     for (const row of rows) {
       const input: EvalInput = {
         name: "agent/webvoyager",
-        modelName: model as AvailableModel,
+        modelName: modelEntry.modelName as AvailableModel,
+        ...(modelEntry.cua ? { isCUA: true } : {}),
         params: {
           id: row.id,
           web: row.web,
@@ -67,11 +80,12 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
         input,
         name: input.name,
         tags: [
-          model,
+          modelEntry.modelName,
+          modelEntry.cua ? "cua" : "agent",
           "webvoyager", // Simple dataset tag
         ],
         metadata: {
-          model: model as AvailableModel,
+          model: modelEntry.modelName as AvailableModel,
           test: `${input.name}:${row.id}`,
           category: taskCategories[0] || "agent",
           categories: taskCategories,

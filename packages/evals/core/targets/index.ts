@@ -1,4 +1,5 @@
 import type { StartupProfile, ToolSurface } from "../contracts/tool.js";
+import { launchRunnerProvidedBrowserbaseChrome } from "./browserbase.js";
 import { launchRunnerProvidedLocalChrome } from "./localChrome.js";
 
 export interface PreparedCoreBrowserTarget {
@@ -7,6 +8,7 @@ export interface PreparedCoreBrowserTarget {
     url: string;
     headers?: Record<string, string>;
   };
+  metadata?: Record<string, unknown>;
   cleanup: () => Promise<void>;
 }
 
@@ -29,9 +31,23 @@ export async function prepareCoreBrowserTarget(input: {
       };
     }
     case "runner_provided_browserbase_cdp":
-      throw new Error(
-        `Runner-provided Browserbase CDP is not implemented yet for "${input.toolSurface}"`,
-      );
+      {
+        const target = await launchRunnerProvidedBrowserbaseChrome();
+        return {
+          providedEndpoint: {
+            kind: "ws",
+            url: target.wsUrl,
+          },
+          metadata: {
+            browserbaseSessionId: target.sessionId,
+            browserbaseSessionUrl: target.sessionUrl,
+            ...(target.debugUrl
+              ? { browserbaseDebugUrl: target.debugUrl }
+              : {}),
+          },
+          cleanup: target.cleanup,
+        };
+      }
     default:
       return {
         cleanup: async () => {},

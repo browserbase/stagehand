@@ -53,7 +53,8 @@ describe("runner parity (integration)", () => {
     const output = stdout + stderr;
     // Should mention "new runner" or fail with "no tasks match"
     expect(
-      output.includes("new runner") ||
+      output.includes("Running bench evals with new runner") ||
+        output.includes("new runner") ||
         output.includes("No bench tasks") ||
         output.includes("No tasks found") ||
         output.includes("does not exist"),

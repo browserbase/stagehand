@@ -9,5 +9,5 @@ export default defineCoreTask({ name: "open" }, async ({ page, assert, metrics }
   const url = page.url();
   assert.includes(url, "dropdown");
   const title = await page.title();
-  assert.truthy(title, "Page should have a title");
+  assert.equals(title, dropdownFixture.expected.title);
 });

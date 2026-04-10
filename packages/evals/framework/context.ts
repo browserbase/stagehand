@@ -38,14 +38,13 @@ export function resolveDefaultCoreStartupProfile(
 ): StartupProfile {
   switch (toolSurface) {
     case "understudy_code":
-      return environment === "BROWSERBASE"
-        ? "tool_create_browserbase"
-        : "runner_provided_local_cdp";
     case "playwright_code":
-      if (environment === "LOCAL") {
-        return "runner_provided_local_cdp";
-      }
-      break;
+    case "cdp_code":
+    case "playwright_mcp":
+    case "chrome_devtools_mcp":
+      return environment === "BROWSERBASE"
+        ? "runner_provided_browserbase_cdp"
+        : "runner_provided_local_cdp";
     default:
       break;
   }
@@ -97,7 +96,10 @@ export async function buildCoreContext(
       name: tool.id,
       family: tool.family,
       surface: tool.surface,
-      metadata: toolResult.metadata,
+      metadata: {
+        ...toolResult.metadata,
+        ...(targetResult.metadata ?? {}),
+      },
     },
     assert: createAssertHelpers(),
     metrics: createMetricsCollector(),

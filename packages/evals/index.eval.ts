@@ -345,6 +345,13 @@ const generateFilteredTestcases = (): Testcase[] => {
     // Run the evaluations with the braintrust Eval function
     const evalResult = await Eval(braintrustProjectName, {
       experimentName,
+      metadata: {
+        environment: env,
+        tier: "bench",
+        ...(USE_API && { api: true }),
+        ...(process.env.EVAL_PROVIDER && { provider: process.env.EVAL_PROVIDER }),
+        ...(process.env.EVAL_MODEL_OVERRIDE && { model: process.env.EVAL_MODEL_OVERRIDE }),
+      },
       data: generateFilteredTestcases,
       // Each test is a function that runs the corresponding task module
       task: async (input: EvalInput) => {

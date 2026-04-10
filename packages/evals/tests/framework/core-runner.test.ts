@@ -8,6 +8,7 @@ import { createMetricsCollector } from "../../framework/metrics.js";
 const tempDirs: string[] = [];
 const tracedNames: string[] = [];
 const evalMock = vi.fn();
+const flushMock = vi.fn(async () => {});
 const generateSummaryMock = vi.fn(async () => {});
 const buildCoreContextMock = vi.fn();
 const resolveDefaultCoreStartupProfileMock = vi.fn(
@@ -15,10 +16,11 @@ const resolveDefaultCoreStartupProfileMock = vi.fn(
 );
 
 vi.mock("braintrust", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("braintrust")>();
+  const actual = (await importOriginal()) as typeof import("braintrust");
   return {
     ...actual,
     Eval: evalMock,
+    flush: flushMock,
     traced: async (fn: () => Promise<unknown>, meta: { name: string }) => {
       tracedNames.push(meta.name);
       return await fn();
@@ -61,6 +63,7 @@ function makeRegistry(tasks: DiscoveredTask[]): TaskRegistry {
 beforeEach(() => {
   tracedNames.length = 0;
   evalMock.mockReset();
+  flushMock.mockClear();
   generateSummaryMock.mockClear();
   buildCoreContextMock.mockReset();
   resolveDefaultCoreStartupProfileMock.mockClear();
@@ -100,7 +103,7 @@ describe("core runner", () => {
       isLegacy: false,
     };
 
-    buildCoreContextMock.mockImplementation(async ({ logger }) => ({
+    buildCoreContextMock.mockImplementation(async (options: { logger: unknown }) => ({
       ctx: {
         page: {},
         tool: {
@@ -120,7 +123,7 @@ describe("core runner", () => {
         },
         assert: {},
         metrics: createMetricsCollector(),
-        logger,
+        logger: options.logger,
       },
       cleanup: async () => {},
     }));
@@ -161,6 +164,7 @@ describe("core runner", () => {
       name: "Pass",
       score: 1,
     });
+    expect(flushMock).toHaveBeenCalledTimes(1);
     expect(tracedNames).toEqual(["session.startup", "task", "cleanup"]);
 
     const metrics = result.results[0].output.metrics;

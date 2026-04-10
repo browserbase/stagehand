@@ -77,12 +77,10 @@ describe("createMetricsCollector", () => {
       m.record("solo", 42);
 
       const summary = m.getSummary();
-      expect(summary.solo.min).toBe(42);
-      expect(summary.solo.max).toBe(42);
-      expect(summary.solo.avg).toBe(42);
-      expect(summary.solo.p50).toBe(42);
-      expect(summary.solo.p99).toBe(42);
-      expect(summary.solo.count).toBe(1);
+      expect(summary.solo).toEqual({
+        count: 1,
+        value: 42,
+      });
     });
   });
 });

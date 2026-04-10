@@ -73,15 +73,8 @@ class UnderstudyLocatorHandle implements CoreLocatorHandle {
 class UnderstudyPageHandle implements CorePageHandle {
   readonly id: string;
 
-  constructor(
-    private readonly page: UnderstudyPage,
-    private readonly activatePage?: () => void,
-  ) {
+  constructor(private readonly page: UnderstudyPage) {
     this.id = this.page.targetId();
-  }
-
-  raw(): UnderstudyPage {
-    return this.page;
   }
 
   async goto(
@@ -100,7 +93,6 @@ class UnderstudyPageHandle implements CorePageHandle {
   async back(
     opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
   ): Promise<boolean> {
-    this.activatePage?.();
     return (await this.page.goBack(opts)) !== null;
   }
 
@@ -113,7 +105,6 @@ class UnderstudyPageHandle implements CorePageHandle {
   async forward(
     opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
   ): Promise<boolean> {
-    this.activatePage?.();
     return (await this.page.goForward(opts)) !== null;
   }
 
@@ -352,9 +343,7 @@ class UnderstudySession implements CoreSession {
     const id = page.targetId();
     const existing = this.handles.get(id);
     if (existing) return existing;
-    const handle = new UnderstudyPageHandle(page, () => {
-      this.v3Result.v3.context.setActivePage(page);
-    });
+    const handle = new UnderstudyPageHandle(page);
     this.handles.set(id, handle);
     return handle;
   }

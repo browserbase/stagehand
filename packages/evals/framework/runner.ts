@@ -11,7 +11,7 @@
  */
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
-import { Eval, traced } from "braintrust";
+import { Eval, flush, traced } from "braintrust";
 import {
   StagehandEvalError,
   AgentProvider,
@@ -38,6 +38,50 @@ import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
 import { resolveDefaultCoreStartupProfile } from "./context.js";
 
+export function inferEffectiveBenchCategory(benchTasks, categoryFilter) {
+  let effectiveCategory = categoryFilter ?? null;
+  if (
+    !effectiveCategory &&
+    benchTasks.length === 1 &&
+    benchTasks[0].categories.length === 1 &&
+    (benchTasks[0].categories[0] === "agent" ||
+      benchTasks[0].categories[0] === "external_agent_benchmarks")
+  ) {
+    effectiveCategory = benchTasks[0].categories[0];
+  }
+
+  return effectiveCategory;
+}
+
+export function resolveBenchModelEntries(benchTasks, options) {
+  const effectiveCategory = inferEffectiveBenchCategory(
+    benchTasks,
+    options.categoryFilter,
+  );
+  const isAgentCategory =
+    effectiveCategory === "agent" ||
+    effectiveCategory === "external_agent_benchmarks";
+
+  if (options.modelOverride) {
+    return {
+      effectiveCategory,
+      isAgentCategory,
+      modelEntries: [{ modelName: options.modelOverride, cua: false }],
+    };
+  }
+
+  return {
+    effectiveCategory,
+    isAgentCategory,
+    modelEntries: isAgentCategory
+      ? getAgentModelEntries()
+      : getModelList(effectiveCategory).map((m) => ({
+          modelName: m,
+          cua: false,
+        })),
+  };
+}
+
 function generateTestcases(tasks, options) {
   const coreTasks = tasks.filter((t) => t.tier === "core");
   const benchTasks = tasks.filter((t) => t.tier === "bench");
@@ -62,30 +106,16 @@ function generateTestcases(tasks, options) {
   }
 
   if (benchTasks.length > 0) {
-    let effectiveCategory = options.categoryFilter ?? null;
-    if (
-      !effectiveCategory &&
-      benchTasks.length === 1 &&
-      benchTasks[0].categories.length === 1 &&
-      (benchTasks[0].categories[0] === "agent" ||
-        benchTasks[0].categories[0] === "external_agent_benchmarks")
-    ) {
-      effectiveCategory = benchTasks[0].categories[0];
-    }
+    const { effectiveCategory, isAgentCategory, modelEntries } =
+      resolveBenchModelEntries(benchTasks, options);
 
-    const suiteTestcases = generateSuiteTestcases(benchTasks, options);
+    const suiteTestcases = generateSuiteTestcases(
+      benchTasks,
+      options,
+      modelEntries,
+    );
     allTestcases.push(...suiteTestcases.testcases);
     const remainingBenchTasks = suiteTestcases.remainingTasks;
-
-    const isAgentCategory =
-      effectiveCategory === "agent" ||
-      effectiveCategory === "external_agent_benchmarks";
-    const currentModels = options.modelOverride
-      ? [options.modelOverride]
-      : getModelList(effectiveCategory);
-    const modelEntries = isAgentCategory
-      ? getAgentModelEntries()
-      : currentModels.map((m) => ({ modelName: m, cua: false }));
 
     for (const entry of modelEntries) {
       for (const task of remainingBenchTasks) {
@@ -123,13 +153,10 @@ function generateTestcases(tasks, options) {
   return allTestcases;
 }
 
-function generateSuiteTestcases(benchTasks, options) {
+function generateSuiteTestcases(benchTasks, options, modelEntries) {
   const testcases = [];
   const remaining = [...benchTasks];
   const datasetFilter = options.datasetFilter;
-  const currentModels = options.modelOverride
-    ? [options.modelOverride]
-    : getModelList(options.categoryFilter ?? undefined);
 
   const suiteMap = {
     "agent/gaia": (models) => buildGAIATestcases(models),
@@ -143,7 +170,7 @@ function generateSuiteTestcases(benchTasks, options) {
     if (idx === -1) continue;
     const datasetName = suiteName.split("/").pop();
     if (!datasetFilter || datasetFilter === datasetName) {
-      testcases.push(...builder(currentModels));
+      testcases.push(...builder(modelEntries));
     }
     remaining.splice(idx, 1);
   }
@@ -251,10 +278,22 @@ async function executeCoreTask(input, task, options) {
   return {
     ...result,
     metrics: {
-      startup_ms: { value: startupMs, count: 1 },
-      task_ms: { value: taskMs, count: 1 },
-      cleanup_ms: { value: cleanupMs, count: 1 },
-      total_ms: { value: startupMs + taskMs + cleanupMs, count: 1 },
+      startup_ms: {
+        count: 1,
+        value: startupMs,
+      },
+      task_ms: {
+        count: 1,
+        value: taskMs,
+      },
+      cleanup_ms: {
+        count: 1,
+        value: cleanupMs,
+      },
+      total_ms: {
+        count: 1,
+        value: startupMs + taskMs + cleanupMs,
+      },
       ...(result?.metrics ?? {}),
     },
   };
@@ -475,6 +514,15 @@ export async function runEvals(options) {
 
   const evalResult = await Eval(braintrustProjectName, {
     experimentName,
+    metadata: {
+      environment,
+      tier: hasCoreOnly ? "core" : "bench",
+      ...(effectiveCoreToolSurface && { toolSurface: effectiveCoreToolSurface }),
+      ...(effectiveCoreStartupProfile && { startupProfile: effectiveCoreStartupProfile }),
+      ...(options.provider && { provider: options.provider }),
+      ...(options.modelOverride && { model: options.modelOverride }),
+      ...(options.useApi && { api: true }),
+    },
     data: () => testcases,
     task: async (input) => {
       const task = options.registry.byName.get(input.name);
@@ -511,6 +559,8 @@ export async function runEvals(options) {
     maxConcurrency: concurrency,
     trialCount: trials,
   });
+
+  await flush();
 
   const summaryResults = evalResult.results.map((result) => {
     const output =

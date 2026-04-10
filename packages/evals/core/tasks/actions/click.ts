@@ -3,15 +3,28 @@ import { defineCoreTask } from "../../../framework/defineTask.js";
 
 export default defineCoreTask({ name: "click" }, async ({ page, assert, metrics }) => {
   await page.goto(dropdownFixture.url);
-  const button = page.locator("xpath=/html/body/div/div/button");
-  assert.truthy(await button.count(), "Dropdown button should exist");
+  await page.wait({
+    kind: "selector",
+    selector: dropdownFixture.selectors.button,
+    state: "visible",
+    timeoutMs: 5000,
+  });
 
   const stop = metrics.startTimer("click_ms");
-  await button.click();
+  await page.click(dropdownFixture.targets.button);
   stop();
 
-  await page.waitForTimeout(200);
-  const options = page.locator("xpath=/html/body/div/div/ul");
-  const isVisible = await options.isVisible();
-  assert.truthy(isVisible, "Dropdown options should be visible after click");
+  await page.wait({
+    kind: "selector",
+    selector: dropdownFixture.selectors.menu,
+    state: "visible",
+    timeoutMs: 1000,
+  });
+
+  const expanded = await page.evaluate<string | null, string>(
+    (selector) =>
+      document.querySelector(selector)?.getAttribute("aria-expanded") ?? null,
+    dropdownFixture.selectors.button,
+  );
+  assert.equals(expanded, "true", "Dropdown button should be expanded after click");
 });

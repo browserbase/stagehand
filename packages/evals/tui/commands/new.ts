@@ -81,7 +81,10 @@ export function scaffoldTask(args: string[]): void {
   }
 
   const packageRoot = getPackageRootDir();
-  const taskDir = path.join(packageRoot, "tasks", tier, category);
+  const taskDir =
+    tier === "core"
+      ? path.join(packageRoot, "core", "tasks", category)
+      : path.join(packageRoot, "tasks", tier, category);
   const taskFile = path.join(taskDir, `${name}.ts`);
 
   if (fs.existsSync(taskFile)) {
@@ -94,6 +97,10 @@ export function scaffoldTask(args: string[]): void {
   const content = tier === "core" ? CORE_TEMPLATE(name) : BENCH_TEMPLATE(name);
   fs.writeFileSync(taskFile, content);
 
-  console.log(green(`  Created: `) + cyan(`tasks/${tier}/${category}/${name}.ts`));
+  const displayPath =
+    tier === "core"
+      ? `core/tasks/${category}/${name}.ts`
+      : `tasks/${tier}/${category}/${name}.ts`;
+  console.log(green(`  Created: `) + cyan(displayPath));
   console.log(dim("  Task will be auto-discovered on next run."));
 }

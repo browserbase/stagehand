@@ -3,7 +3,7 @@ import chalk from "chalk";
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
-import { getCurrentDirPath } from "./runtimePaths.js";
+import { getCurrentDirPath, isMainModule } from "./runtimePaths.js";
 
 const moduleDir = getCurrentDirPath();
 const CONFIG_PATH = path.join(moduleDir, "evals.config.json");
@@ -158,7 +158,20 @@ function runCoreEntry(env: Record<string, string | undefined>): void {
   console.log(chalk.blue.bold("\nRunning core evals...\n"));
 
   const sourceRunCorePath = path.resolve(packageRoot, "runCore.ts");
+  spawnTsxEntry(sourceRunCorePath, env);
+}
 
+function runBenchEntry(env: Record<string, string | undefined>): void {
+  console.log(chalk.blue.bold("\nRunning bench evals with new runner...\n"));
+
+  const sourceRunBenchPath = path.resolve(packageRoot, "runBench.ts");
+  spawnTsxEntry(sourceRunBenchPath, env);
+}
+
+function spawnTsxEntry(
+  sourcePath: string,
+  env: Record<string, string | undefined>,
+): void {
   let tsxCliPath: string | undefined;
   try {
     tsxCliPath = require.resolve("tsx/dist/cli.js");
@@ -168,13 +181,13 @@ function runCoreEntry(env: Record<string, string | undefined>): void {
 
   let child;
   if (tsxCliPath) {
-    child = spawn(process.execPath, [tsxCliPath, sourceRunCorePath], {
+    child = spawn(process.execPath, [tsxCliPath, sourcePath], {
       env,
       stdio: "inherit",
       shell: true,
     });
   } else {
-    child = spawn("tsx", [sourceRunCorePath], {
+    child = spawn("tsx", [sourcePath], {
       env,
       stdio: "inherit",
       shell: true,
@@ -252,6 +265,11 @@ function printHelp(): void {
   console.log(chalk.cyan("  -m, --model".padEnd(20)) + "Model override");
   console.log(chalk.cyan("  -p, --provider".padEnd(20)) + "Provider override");
   console.log(chalk.cyan("  --api".padEnd(20)) + "Use Stagehand API\n");
+  console.log(
+    chalk.cyan("  --new-runner".padEnd(20)) +
+      "Run bench targets through framework/runBench.ts",
+  );
+  console.log("");
 
   console.log(chalk.dim("  Core-specific:"));
   console.log(
@@ -493,9 +511,10 @@ function parseArgs(rawArgs: string[]): {
       };
 
       const optionName = flagMap[flagName] || flagName;
+      const booleanFlags = new Set(["api", "new-runner"]);
 
-      if (optionName === "api") {
-        options.api = true;
+      if (booleanFlags.has(optionName)) {
+        options[optionName] = true;
       } else if (optionName === "filter") {
         // Parse filter as key=value
         const filterValue = rawArgs[++i];
@@ -681,6 +700,16 @@ function handleRun(args: string[]): void {
     }
   }
 
+  if (finalOptions["new-runner"]) {
+    if (evalName) {
+      env.EVAL_BENCH_TARGET = evalName;
+    } else if (categoryFilter) {
+      env.EVAL_BENCH_TARGET = categoryFilter;
+    }
+    runBenchEntry(env);
+    return;
+  }
+
   // Build the legacy command
   const legacyArgs: string[] = [];
 
@@ -825,4 +854,8 @@ function main(): void {
 }
 
 // Run the CLI
-main();
+if (isMainModule()) {
+  main();
+}
+
+export { parseArgs };

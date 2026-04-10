@@ -3,13 +3,23 @@ import { defineCoreTask } from "../../../framework/defineTask.js";
 
 export default defineCoreTask({ name: "type_input" }, async ({ page, assert, metrics }) => {
   await page.goto(dropdownFixture.url);
-  const input = page.locator("xpath=/html/body/div/input");
-  assert.truthy(await input.count(), "Input field should exist");
+  await page.wait({
+    kind: "selector",
+    selector: dropdownFixture.selectors.input,
+    state: "visible",
+    timeoutMs: 5000,
+  });
 
   const stop = metrics.startTimer("type_ms");
-  await input.fill("hello world");
+  await page.type(dropdownFixture.targets.input, "hello world");
   stop();
 
-  const value = await input.inputValue();
+  const value = await page.evaluate<string | null, string>(
+    (selector) => {
+      const input = document.querySelector(selector);
+      return input instanceof HTMLInputElement ? input.value : null;
+    },
+    dropdownFixture.selectors.input,
+  );
   assert.equals(value, "hello world");
 });

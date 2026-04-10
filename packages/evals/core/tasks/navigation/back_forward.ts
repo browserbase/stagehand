@@ -11,12 +11,12 @@ export default defineCoreTask({ name: "back_forward" }, async ({ page, assert, m
   assert.includes(secondUrl, "resistor");
 
   const stopBack = metrics.startTimer("goBack_ms");
-  await page.goBack();
+  await page.back();
   stopBack();
   assert.includes(page.url(), "dropdown");
 
   const stopForward = metrics.startTimer("goForward_ms");
-  await page.goForward();
+  await page.forward();
   stopForward();
   assert.includes(page.url(), "resistor");
 });

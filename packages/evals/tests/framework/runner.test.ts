@@ -1,6 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import { describe, it, expect, vi } from "vitest";
+import type { DiscoveredTask } from "../../framework/types.js";
+import { resolveBenchModelEntries } from "../../framework/runner.js";
+
+vi.mock("playwright", () => ({
+  chromium: {},
+}));
 
 /**
  * We can't import generateTestcases directly (it's not exported),
@@ -10,23 +14,6 @@ import type { AvailableModel } from "@browserbasehq/stagehand";
  * For now, test the behaviors we can observe: project name selection
  * and the agent model detection fix.
  */
-
-function buildMockRegistry(tasks: DiscoveredTask[]): TaskRegistry {
-  const byName = new Map(tasks.map((t) => [t.name, t]));
-  const byTier = new Map<"core" | "bench", DiscoveredTask[]>();
-  const byCategory = new Map<string, DiscoveredTask[]>();
-
-  for (const t of tasks) {
-    if (!byTier.has(t.tier)) byTier.set(t.tier, []);
-    byTier.get(t.tier)!.push(t);
-    for (const cat of t.categories) {
-      if (!byCategory.has(cat)) byCategory.set(cat, []);
-      byCategory.get(cat)!.push(t);
-    }
-  }
-
-  return { tasks, byName, byTier, byCategory };
-}
 
 function makeTask(overrides: Partial<DiscoveredTask>): DiscoveredTask {
   return {
@@ -170,5 +157,25 @@ describe("runner: single-task agent model detection", () => {
     }
 
     expect(effectiveCategory).toBeNull();
+  });
+
+  it("uses agent and CUA model entries for direct suite benchmarks", () => {
+    const benchTasks = [
+      makeTask({
+        name: "agent/gaia",
+        categories: ["external_agent_benchmarks"],
+        primaryCategory: "agent",
+      }),
+    ];
+
+    const resolved = resolveBenchModelEntries(benchTasks, {
+      categoryFilter: undefined,
+      modelOverride: undefined,
+    });
+
+    expect(resolved.effectiveCategory).toBe("external_agent_benchmarks");
+    expect(resolved.isAgentCategory).toBe(true);
+    expect(resolved.modelEntries.length).toBeGreaterThan(1);
+    expect(resolved.modelEntries.some((entry) => entry.cua)).toBe(true);
   });
 });

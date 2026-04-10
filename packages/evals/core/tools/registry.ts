@@ -1,5 +1,8 @@
 import type { CoreTool, ToolSurface } from "../contracts/tool.js";
+import { CdpCodeTool } from "./cdp_code.js";
+import { ChromeDevtoolsMcpTool } from "./chrome_devtools_mcp.js";
 import { PlaywrightCodeTool } from "./playwright_code.js";
+import { PlaywrightMcpTool } from "./playwright_mcp.js";
 import { UnderstudyCodeTool } from "./understudy_code.js";
 
 export function listCoreTools(): ToolSurface[] {
@@ -19,6 +22,12 @@ export function getCoreTool(toolSurface: ToolSurface): CoreTool {
       return new UnderstudyCodeTool();
     case "playwright_code":
       return new PlaywrightCodeTool();
+    case "cdp_code":
+      return new CdpCodeTool();
+    case "playwright_mcp":
+      return new PlaywrightMcpTool();
+    case "chrome_devtools_mcp":
+      return new ChromeDevtoolsMcpTool();
     default:
       throw new Error(
         `Tool surface "${toolSurface}" is not implemented yet`,

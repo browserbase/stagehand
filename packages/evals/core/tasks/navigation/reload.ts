@@ -10,4 +10,6 @@ export default defineCoreTask({ name: "reload" }, async ({ page, assert, metrics
 
   const url = page.url();
   assert.includes(url, "dropdown");
+  const title = await page.title();
+  assert.equals(title, dropdownFixture.expected.title);
 });

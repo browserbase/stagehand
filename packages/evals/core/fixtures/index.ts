@@ -11,6 +11,7 @@ export const dropdownHtml = `<!doctype html>
       #app { max-width: 640px; }
       #menu { display: none; margin-top: 8px; padding: 8px 16px; border: 1px solid #ccc; }
       #menu.open { display: block; }
+      #hover-status { margin-top: 12px; color: #444; }
       input { margin-top: 16px; width: 240px; padding: 8px; }
     </style>
   </head>
@@ -24,11 +25,19 @@ export const dropdownHtml = `<!doctype html>
           <li>Gamma</li>
         </ul>
       </div>
+      <p id="hover-status">idle</p>
       <input id="fixture-input" type="text" value="" />
     </div>
     <script>
       const button = document.getElementById("dropdown-button");
       const menu = document.getElementById("menu");
+      const hoverStatus = document.getElementById("hover-status");
+      button.addEventListener("mouseenter", () => {
+        hoverStatus.textContent = "hovered";
+      });
+      button.addEventListener("mouseleave", () => {
+        hoverStatus.textContent = "idle";
+      });
       button.addEventListener("click", () => {
         const open = menu.classList.toggle("open");
         button.setAttribute("aria-expanded", open ? "true" : "false");
@@ -75,14 +84,43 @@ function fixtureUrl(path: string, fallback: string): string {
   return baseUrl ? `${baseUrl}${path}` : fallback;
 }
 
+const dropdownSelectors = {
+  button: "#dropdown-button",
+  menu: "#menu",
+  hoverStatus: "#hover-status",
+  input: "#fixture-input",
+} as const;
+
+const resistorSelectors = {
+  header: "header",
+  heading: "h1",
+} as const;
+
 export const dropdownFixture = {
   get url() {
     return fixtureUrl("/dropdown", htmlFixtureUrl("dropdown", dropdownHtml));
+  },
+  selectors: dropdownSelectors,
+  targets: {
+    button: { kind: "selector", value: dropdownSelectors.button },
+    menu: { kind: "selector", value: dropdownSelectors.menu },
+    hoverStatus: { kind: "selector", value: dropdownSelectors.hoverStatus },
+    input: { kind: "selector", value: dropdownSelectors.input },
+  } as const,
+  expected: {
+    title: "Core Dropdown Fixture",
+    buttonText: "Open Menu",
+    hoverStatus: "hovered",
   },
 };
 
 export const resistorFixture = {
   get url() {
     return fixtureUrl("/resistor", htmlFixtureUrl("resistor", resistorHtml));
+  },
+  selectors: resistorSelectors,
+  expected: {
+    title: "Core Resistor Fixture",
+    headingText: "Resistor Color Codes",
   },
 };

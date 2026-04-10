@@ -8,6 +8,5 @@ export default defineCoreTask({ name: "get_title" }, async ({ page, assert, metr
   const title = await page.title();
   stop();
 
-  assert.truthy(title, "Page should have a non-empty title");
-  assert.matches(title, /./, "Title should be at least one character");
+  assert.equals(title, dropdownFixture.expected.title);
 });

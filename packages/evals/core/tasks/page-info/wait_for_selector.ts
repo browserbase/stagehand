@@ -5,10 +5,17 @@ export default defineCoreTask({ name: "wait_for_selector" }, async ({ page, asse
   await page.goto(dropdownFixture.url);
 
   const stop = metrics.startTimer("waitForSelector_ms");
-  const el = await page.waitForSelector("xpath=/html/body/div/div/button", {
-    timeout: 5000,
+  await page.wait({
+    kind: "selector",
+    selector: dropdownFixture.selectors.button,
+    state: "visible",
+    timeoutMs: 5000,
   });
   stop();
 
-  assert.truthy(el, "Should find the button element");
+  const buttonExists = await page.evaluate<boolean, string>(
+    (selector) => Boolean(document.querySelector(selector)),
+    dropdownFixture.selectors.button,
+  );
+  assert.truthy(buttonExists, "Should find the button element");
 });

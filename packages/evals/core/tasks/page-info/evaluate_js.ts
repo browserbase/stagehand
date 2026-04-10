@@ -14,7 +14,7 @@ export default defineCoreTask({ name: "evaluate_js" }, async ({ page, assert, me
   });
   stop();
 
-  assert.truthy(result.title, "Should return document title");
+  assert.equals(result.title, dropdownFixture.expected.title);
   assert.greaterThan(result.bodyChildren, 0, "Body should have children");
   assert.truthy(result.hasHead, "Document should have a head");
 });

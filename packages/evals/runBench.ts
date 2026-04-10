@@ -36,6 +36,14 @@ const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   : 3;
 const USE_API = (process.env.USE_API ?? "").toLowerCase() === "true";
 
+function resolveBenchCategoryFilter(
+  benchTarget?: string,
+): string | undefined {
+  if (!benchTarget || benchTarget === "all") return undefined;
+  if (benchTarget.includes("/") || benchTarget.includes("*")) return undefined;
+  return benchTarget;
+}
+
 (async () => {
   const registry = await discoverTasks(tasksRoot, false);
 
@@ -68,7 +76,7 @@ const USE_API = (process.env.USE_API ?? "").toLowerCase() === "true";
       provider: process.env.EVAL_PROVIDER,
       modelOverride: process.env.EVAL_MODEL_OVERRIDE,
       datasetFilter: process.env.EVAL_DATASET,
-      categoryFilter: target,
+      categoryFilter: resolveBenchCategoryFilter(target),
     });
 
     console.log(
