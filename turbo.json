@@ -175,7 +175,7 @@
         "lib/v3/dom/build/**"
       ],
       "inputs": [
-        "scripts/buildBrowserScripts.ts",
+        "scripts/build-dom-scripts.ts",
         "lib/v3/dom/**/*.ts",
         "!lib/v3/dom/build/**",
         "package.json",

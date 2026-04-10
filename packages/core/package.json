@@ -32,7 +32,7 @@
   },
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
-    "build-dom-scripts": "tsx scripts/buildBrowserScripts.ts",
+    "build-dom-scripts": "tsx scripts/build-dom-scripts.ts",
     "build:cjs": "tsx scripts/build-cjs.ts",
     "build:esm": "tsx scripts/build-esm.ts",
     "build": "pnpm --filter @browserbasehq/stagehand run --parallel \"/^build:(esm|cjs)$/\"",
