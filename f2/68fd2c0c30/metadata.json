@@ -3,11 +3,13 @@
   "checkpoint_id": "f268fd2c0c30",
   "strategy": "manual-commit",
   "branch": "evals-overhaul",
-  "checkpoints_count": 10,
+  "checkpoints_count": 14,
   "files_touched": [
     ".gitignore",
+    "packages/evals/bin/evals",
     "packages/evals/framework/runner.ts",
     "packages/evals/index.eval.ts",
+    "packages/evals/tests/core/task-portability.test.ts",
     "packages/evals/tests/framework/utils.test.ts",
     "packages/evals/utils.ts",
     "packages/evals/vitest.config.ts"
@@ -26,13 +28,20 @@
       "context": "/f2/68fd2c0c30/1/context.md",
       "content_hash": "/f2/68fd2c0c30/1/content_hash.txt",
       "prompt": "/f2/68fd2c0c30/1/prompt.txt"
+    },
+    {
+      "metadata": "/f2/68fd2c0c30/2/metadata.json",
+      "transcript": "/f2/68fd2c0c30/2/full.jsonl",
+      "context": "/f2/68fd2c0c30/2/context.md",
+      "content_hash": "/f2/68fd2c0c30/2/content_hash.txt",
+      "prompt": "/f2/68fd2c0c30/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 1823,
-    "cache_creation_tokens": 9243095,
-    "cache_read_tokens": 209398393,
-    "output_tokens": 248887,
-    "api_call_count": 803
+    "input_tokens": 1920,
+    "cache_creation_tokens": 9518697,
+    "cache_read_tokens": 213193320,
+    "output_tokens": 271906,
+    "api_call_count": 880
   }
 }

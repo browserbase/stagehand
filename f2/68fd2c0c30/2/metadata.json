@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "f268fd2c0c30",
+  "session_id": "cd2c0f1b-5ec1-442a-b723-40d9a361691c",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-10T23:57:35.575279Z",
+  "branch": "evals-overhaul",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "packages/evals/bin/evals",
+    "packages/evals/tests/core/task-portability.test.ts"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "fbc5a1dfa9bc",
+  "transcript_identifier_at_start": "13b49beb-7051-45be-8293-f26b159faf5e",
+  "token_usage": {
+    "input_tokens": 97,
+    "cache_creation_tokens": 275602,
+    "cache_read_tokens": 3794927,
+    "output_tokens": 23019,
+    "api_call_count": 77
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-10T23:57:35.297044Z",
+    "agent_lines": 0,
+    "human_added": 27539,
+    "human_modified": 800,
+    "human_removed": 0,
+    "total_committed": 28322,
+    "agent_percentage": 0
+  },
+  "transcript_path": ".claude/projects/-Users-miguel-browserbase-Documents-Browserbase-stagehand/cd2c0f1b-5ec1-442a-b723-40d9a361691c.jsonl"
+}
