@@ -221,17 +221,43 @@ export async function resolveObjectIdForXPath(
     JSON.stringify(xpath),
     "0",
   ]);
-  const { result, exceptionDetails } = await session.send<{
-    result: { objectId?: string | undefined };
-    exceptionDetails?: Protocol.Runtime.ExceptionDetails;
-  }>("Runtime.evaluate", {
-    expression: expr,
-    returnByValue: false,
-    contextId,
-    awaitPromise: true,
-  });
-  if (exceptionDetails) return null;
-  return result?.objectId ?? null;
+  try {
+    const { result, exceptionDetails } = await session.send<{
+      result: { objectId?: string | undefined };
+      exceptionDetails?: Protocol.Runtime.ExceptionDetails;
+    }>("Runtime.evaluate", {
+      expression: expr,
+      returnByValue: false,
+      contextId,
+      awaitPromise: true,
+    });
+    if (exceptionDetails) return null;
+    return result?.objectId ?? null;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (
+      !msg.includes("Cannot find context with specified id") ||
+      !frameId
+    )
+      return null;
+    const freshCtx =
+      executionContexts.getMainWorld(session, frameId) ?? undefined;
+    try {
+      const { result, exceptionDetails } = await session.send<{
+        result: { objectId?: string | undefined };
+        exceptionDetails?: Protocol.Runtime.ExceptionDetails;
+      }>("Runtime.evaluate", {
+        expression: expr,
+        returnByValue: false,
+        contextId: freshCtx,
+        awaitPromise: true,
+      });
+      if (exceptionDetails) return null;
+      return result?.objectId ?? null;
+    } catch {
+      return null;
+    }
+  }
 }
 
 /** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
@@ -262,17 +288,43 @@ export async function resolveObjectIdForCss(
   ]);
 
   const evaluate = async (expression: string): Promise<string | null> => {
-    const { result, exceptionDetails } = await session.send<{
-      result: { objectId?: string | undefined };
-      exceptionDetails?: Protocol.Runtime.ExceptionDetails;
-    }>("Runtime.evaluate", {
-      expression,
-      returnByValue: false,
-      contextId,
-      awaitPromise: true,
-    });
-    if (exceptionDetails) return null;
-    return result?.objectId ?? null;
+    try {
+      const { result, exceptionDetails } = await session.send<{
+        result: { objectId?: string | undefined };
+        exceptionDetails?: Protocol.Runtime.ExceptionDetails;
+      }>("Runtime.evaluate", {
+        expression,
+        returnByValue: false,
+        contextId,
+        awaitPromise: true,
+      });
+      if (exceptionDetails) return null;
+      return result?.objectId ?? null;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (
+        !msg.includes("Cannot find context with specified id") ||
+        !frameId
+      )
+        return null;
+      const freshCtx =
+        executionContexts.getMainWorld(session, frameId) ?? undefined;
+      try {
+        const { result, exceptionDetails } = await session.send<{
+          result: { objectId?: string | undefined };
+          exceptionDetails?: Protocol.Runtime.ExceptionDetails;
+        }>("Runtime.evaluate", {
+          expression,
+          returnByValue: false,
+          contextId: freshCtx,
+          awaitPromise: true,
+        });
+        if (exceptionDetails) return null;
+        return result?.objectId ?? null;
+      } catch {
+        return null;
+      }
+    }
   };
 
   const primary = await evaluate(primaryExpr);
