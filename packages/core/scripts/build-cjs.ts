@@ -66,19 +66,3 @@ fs.writeFileSync(
   `${repoRoot}/packages/core/dist/cjs/package.json`,
   '{\n  "type": "commonjs"\n}\n',
 );
-
-fs.mkdirSync(`${repoRoot}/packages/core/dist/cjs/lib/v3/dom/build`, {
-  recursive: true,
-});
-if (fs.existsSync(`${repoRoot}/packages/core/lib/v3/dom/build`)) {
-  for (const file of fs.readdirSync(
-    `${repoRoot}/packages/core/lib/v3/dom/build`,
-  )) {
-    if (file.endsWith(".js")) {
-      fs.copyFileSync(
-        `${repoRoot}/packages/core/lib/v3/dom/build/${file}`,
-        `${repoRoot}/packages/core/dist/cjs/lib/v3/dom/build/${file}`,
-      );
-    }
-  }
-}
