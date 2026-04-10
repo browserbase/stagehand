@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Fira+Code&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    color: #e0e0e0;
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .container {
+    max-width: 750px;
+    text-align: center;
+    padding: 40px;
+    position: relative;
+    z-index: 2;
+  }
+
+  h1 {
+    font-size: 52px;
+    background: linear-gradient(135deg, #f97316, #ef4444, #ec4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+    opacity: 0;
+    transform: translateY(-30px);
+    animation: dropIn 0.8s ease forwards;
+  }
+
+  .subtitle {
+    font-size: 18px;
+    color: #888;
+    margin-bottom: 40px;
+    opacity: 0;
+    animation: fadeIn 0.6s ease forwards 0.6s;
+    font-family: 'Fira Code', monospace;
+  }
+
+  .poem-line {
+    font-size: 22px;
+    line-height: 1.8;
+    opacity: 0;
+    transform: translateX(-20px);
+    color: #d4d4d4;
+  }
+
+  .poem-line.visible {
+    animation: slideIn 0.5s ease forwards;
+  }
+
+  .poem-line em {
+    color: #f97316;
+    font-style: normal;
+    font-weight: 700;
+  }
+
+  .poem-line .code {
+    font-family: 'Fira Code', monospace;
+    background: #1a1a2e;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 18px;
+    color: #22d3ee;
+  }
+
+  .stanza-break {
+    height: 24px;
+  }
+
+  .finale {
+    margin-top: 40px;
+    font-size: 28px;
+    opacity: 0;
+    font-weight: 700;
+  }
+
+  .finale.visible {
+    animation: popIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  }
+
+  .cake {
+    font-size: 80px;
+    opacity: 0;
+    margin-top: 20px;
+    display: inline-block;
+  }
+
+  .cake.visible {
+    animation: popIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  }
+
+  .floater {
+    position: fixed;
+    font-size: 30px;
+    opacity: 0;
+    z-index: 1;
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes dropIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeIn {
+    to { opacity: 1; }
+  }
+
+  @keyframes slideIn {
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes popIn {
+    0% { opacity: 0; transform: scale(0.3); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.15; }
+    50% { transform: translateY(-30px) rotate(10deg); opacity: 0.3; }
+  }
+
+  .confetti-piece {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    opacity: 0;
+    z-index: 10;
+  }
+
+  @keyframes confettiFall {
+    0% { opacity: 1; transform: translateY(-10vh) rotate(0deg); }
+    100% { opacity: 0; transform: translateY(110vh) rotate(720deg); }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Happy Birthday, Derek!</h1>
+  <div class="subtitle">// the man, the myth, the session.create()</div>
+
+  <div id="poem">
+    <div class="poem-line" data-delay="1400">Before you came along, we browsed like <em>animals</em>,</div>
+    <div class="poem-line" data-delay="2400">Spinning up Chromium with <span class="code">--no-sandbox</span> and <em>prayers</em>.</div>
+    <div class="stanza-break" data-delay="3200"></div>
+    <div class="poem-line" data-delay="3400">You looked at headless browsers and said <em>"I'll fix this."</em></div>
+    <div class="poem-line" data-delay="4400">And lo, Browserbase was born. The VCs wept.</div>
+    <div class="stanza-break" data-delay="5200"></div>
+    <div class="poem-line" data-delay="5400">You gave us <em>stealth mode</em> so good that Cloudflare</div>
+    <div class="poem-line" data-delay="6400">started having an existential crisis.</div>
+    <div class="stanza-break" data-delay="7200"></div>
+    <div class="poem-line" data-delay="7400">You built <em>proxies</em> that route through dimensions</div>
+    <div class="poem-line" data-delay="8400">mere mortals cannot perceive.</div>
+    <div class="stanza-break" data-delay="9200"></div>
+    <div class="poem-line" data-delay="9400">You made <em>captcha solving</em> automatic,</div>
+    <div class="poem-line" data-delay="10400">rendering "I am not a robot" a philosophical question.</div>
+    <div class="stanza-break" data-delay="11200"></div>
+    <div class="poem-line" data-delay="11400">Other founders move fast and break things.</div>
+    <div class="poem-line" data-delay="12400">You moved fast and made <span class="code">browser.contexts()[0]</span></div>
+    <div class="poem-line" data-delay="13400">the most important line of code in the game.</div>
+    <div class="stanza-break" data-delay="14200"></div>
+    <div class="poem-line" data-delay="14400">Happy birthday to the man who saw the internet</div>
+    <div class="poem-line" data-delay="15400">and thought <em>"I should put this in a container."</em></div>
+    <div class="stanza-break" data-delay="16200"></div>
+    <div class="poem-line" data-delay="16400">May your sessions never timeout,</div>
+    <div class="poem-line" data-delay="17400">your proxies never get banned,</div>
+    <div class="poem-line" data-delay="18400">and your <span class="code">HTTP 200</span>s be plentiful.</div>
+
+    <div class="finale" data-delay="19600">From all of us at Browserbase: we love you, boss.</div>
+    <div class="cake" data-delay="20400">&#127874;</div>
+  </div>
+</div>
+
+<script>
+  var emojis = ['\uD83C\uDF10', '\uD83D\uDDA5\uFE0F', '\uD83E\uDD16', '\uD83D\uDD12', '\uD83E\uDDE9', '\uD83D\uDE80', '\u26A1', '\uD83D\uDD25', '\uD83C\uDF89'];
+  for (var i = 0; i < 15; i++) {
+    var el = document.createElement('div');
+    el.className = 'floater';
+    el.textContent = emojis[i % emojis.length];
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.top = Math.random() * 100 + 'vh';
+    el.style.animationDelay = (Math.random() * 4) + 's';
+    el.style.animationDuration = (4 + Math.random() * 4) + 's';
+    document.body.appendChild(el);
+  }
+
+  document.querySelectorAll('.poem-line, .finale, .cake').forEach(function(el) {
+    var delay = parseInt(el.getAttribute('data-delay') || '0');
+    setTimeout(function() { el.classList.add('visible'); }, delay);
+  });
+
+  setTimeout(function() {
+    var colors = ['#f97316', '#ef4444', '#ec4899', '#22d3ee', '#a855f7', '#facc15'];
+    for (var i = 0; i < 60; i++) {
+      var piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random() * 100 + 'vw';
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      piece.style.width = (6 + Math.random() * 10) + 'px';
+      piece.style.height = (6 + Math.random() * 10) + 'px';
+      piece.style.animation = 'confettiFall ' + (2 + Math.random() * 3) + 's ease forwards';
+      piece.style.animationDelay = (Math.random() * 0.5) + 's';
+      document.body.appendChild(piece);
+    }
+  }, 20400);
+</script>
+
+</body>
+</html>
