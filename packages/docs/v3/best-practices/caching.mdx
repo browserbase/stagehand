@@ -77,26 +77,7 @@ console.log(actResult.cacheStatus); // "HIT" or "MISS"
 <AccordionGroup>
 
 <Accordion title="Wait for the page to finish loading">
-If you call a Stagehand method immediately after `page.goto()`, the page content may still be streaming in. This means the accessibility tree captured for the cache key is shorter than what the page will eventually render — so subsequent calls on the fully-loaded page will produce a different hash and miss the cache.
-
-**Avoid:**
-
-```typescript
-async function example(stagehand: Stagehand) {
-  const page = stagehand.context.pages()[0];
-  await page.goto("https://www.google.com/search?q=browserbase");
-
-  // A11y tree is still short — content hasn't finished loading
-  const result1 = await stagehand.observe("click the first search result");
-  // MISS
-
-  // A11y tree is now longer — different hash
-  const result2 = await stagehand.observe("click the first search result");
-  // MISS
-}
-```
-
-**Do:**
+If you call a Stagehand method immediately after `page.goto()`, the page content may still be streaming in. This means the accessibility tree captured for the cache key is shorter than what the page will eventually render — so subsequent calls on the fully-loaded page will produce a different hash and miss the cache. Call `page.waitForLoadState("networkidle")` first to ensure the full tree is stable before Stagehand snapshots it.
 
 ```typescript
 async function example(stagehand: Stagehand) {
@@ -105,7 +86,7 @@ async function example(stagehand: Stagehand) {
 
   await page.waitForLoadState("networkidle");
 
-  // All content is loaded — consistent hash
+  // All content is loaded — consistent hash across runs
   const result1 = await stagehand.observe("click the first search result");
   // MISS
 
@@ -149,7 +130,7 @@ async function example(stagehand: Stagehand) {
   // First run with alice@example.com → MISS (primes cache)
   // Any future run, regardless of email value → HIT
   await stagehand.act(
-    "type {{email}} into the Email address field",
+    "type %email% into the Email address field",
     { variables: { email: "alice@example.com" } },
   );
 }
