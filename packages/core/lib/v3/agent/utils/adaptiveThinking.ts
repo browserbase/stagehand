@@ -18,9 +18,7 @@ const ADAPTIVE_THINKING_MODEL_PATTERNS = [
  * that supports adaptive thinking (Claude Opus 4.6, Sonnet 4.6 and their
  * dated variants).
  */
-export function supportsAdaptiveThinking(
-  modelId: string | undefined,
-): boolean {
+export function supportsAdaptiveThinking(modelId: string | undefined): boolean {
   if (!modelId) return false;
 
   // Strip the provider prefix (e.g. "anthropic/claude-sonnet-4-6" → "claude-sonnet-4-6")
@@ -29,7 +27,6 @@ export function supportsAdaptiveThinking(
     : modelId;
 
   return ADAPTIVE_THINKING_MODEL_PATTERNS.some(
-    (pattern) =>
-      baseModel === pattern || baseModel.startsWith(`${pattern}-`),
+    (pattern) => baseModel === pattern || baseModel.startsWith(`${pattern}-`),
   );
 }

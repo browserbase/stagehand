@@ -14,24 +14,24 @@ describe("supportsAdaptiveThinking", () => {
     expect(
       supportsAdaptiveThinking("anthropic/claude-sonnet-4-6-20260301"),
     ).toBe(true);
-    expect(
-      supportsAdaptiveThinking("anthropic/claude-opus-4-6-20260301"),
-    ).toBe(true);
+    expect(supportsAdaptiveThinking("anthropic/claude-opus-4-6-20260301")).toBe(
+      true,
+    );
   });
 
   it("returns false for older Anthropic models", () => {
-    expect(
-      supportsAdaptiveThinking("anthropic/claude-sonnet-4-20250514"),
-    ).toBe(false);
+    expect(supportsAdaptiveThinking("anthropic/claude-sonnet-4-20250514")).toBe(
+      false,
+    );
     expect(
       supportsAdaptiveThinking("anthropic/claude-sonnet-4-5-20250929"),
     ).toBe(false);
     expect(
       supportsAdaptiveThinking("anthropic/claude-haiku-4-5-20251001"),
     ).toBe(false);
-    expect(
-      supportsAdaptiveThinking("anthropic/claude-opus-4-5-20251101"),
-    ).toBe(false);
+    expect(supportsAdaptiveThinking("anthropic/claude-opus-4-5-20251101")).toBe(
+      false,
+    );
   });
 
   it("returns false for non-Anthropic models", () => {
