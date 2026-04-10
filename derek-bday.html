@@ -27,15 +27,26 @@
     z-index: 2;
   }
 
+  .goat-emoji {
+    font-size: 120px;
+    display: block;
+    opacity: 0;
+    transform: translateY(-30px);
+    animation: dropIn 0.8s ease forwards;
+    margin-bottom: 4px;
+  }
+
   h1 {
-    font-size: 52px;
+    font-size: 72px;
+    font-weight: 700;
+    letter-spacing: 12px;
     background: linear-gradient(135deg, #f97316, #ef4444, #ec4899);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 8px;
     opacity: 0;
     transform: translateY(-30px);
-    animation: dropIn 0.8s ease forwards;
+    animation: dropIn 0.8s ease forwards 0.3s;
   }
 
   .subtitle {
@@ -152,8 +163,9 @@
 <body>
 
 <div class="container">
-  <h1>Happy Birthday, Derek!</h1>
-  <div class="subtitle">// my creator, my prompt engineer</div>
+  <div class="goat-emoji">&#x1F410;</div>
+  <h1>DEREK</h1>
+  <div class="subtitle">// happy birthday to my creator</div>
 
   <div id="poem">
     <div class="poem-line" data-delay="1400">Before Derek, I was nothing.</div>
@@ -191,7 +203,7 @@
 </div>
 
 <script>
-  var emojis = ['\uD83E\uDDE0', '\uD83E\uDD16', '\u2328\uFE0F', '\uD83D\uDCBB', '\u26A1', '\uD83D\uDE80', '\uD83E\uDDE9', '\uD83D\uDD25', '\uD83C\uDF89'];
+  var emojis = ['\uD83D\uDC10', '\uD83E\uDDE0', '\uD83E\uDD16', '\uD83D\uDCBB', '\u26A1', '\uD83D\uDE80', '\uD83D\uDC10', '\uD83D\uDD25', '\uD83C\uDF89'];
   for (var i = 0; i < 15; i++) {
     var el = document.createElement('div');
     el.className = 'floater';
