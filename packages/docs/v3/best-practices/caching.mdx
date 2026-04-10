@@ -72,6 +72,126 @@ console.log(actResult.cacheStatus); // "HIT" or "MISS"
 - The page URL factors in to the cache key. If the action is being made on a page with a dynamic URL, caching may not work as expected. We do filter out certain query parameters like referral trackers and analytics, but we don't catch everything just yet.
 - If the page content or structure changes, the action won't get a cache `HIT` and the LLM will be called. The subsequent actions will attempt to hit the resulting cache entry.
 
+### Best Practices
+
+<AccordionGroup>
+
+<Accordion title="Wait for the page to finish loading">
+If you call a Stagehand method immediately after `page.goto()`, the page content may still be streaming in. This means the accessibility tree captured for the cache key is shorter than what the page will eventually render — so subsequent calls on the fully-loaded page will produce a different hash and miss the cache.
+
+**Avoid:**
+
+```typescript
+async function example(stagehand: Stagehand) {
+  const page = stagehand.context.pages()[0];
+  await page.goto("https://www.google.com/search?q=browserbase");
+
+  // A11y tree is still short — content hasn't finished loading
+  const result1 = await stagehand.observe("click the first search result");
+  // MISS
+
+  // A11y tree is now longer — different hash
+  const result2 = await stagehand.observe("click the first search result");
+  // MISS
+}
+```
+
+**Do:**
+
+```typescript
+async function example(stagehand: Stagehand) {
+  const page = stagehand.context.pages()[0];
+  await page.goto("https://www.google.com/search?q=browserbase");
+
+  await page.waitForLoadState("networkidle");
+
+  // All content is loaded — consistent hash
+  const result1 = await stagehand.observe("click the first search result");
+  // MISS
+
+  const result2 = await stagehand.observe("click the first search result");
+  // HIT
+}
+```
+</Accordion>
+
+<Accordion title="Scope by selector">
+When targeting a specific part of a page, pass a `selector` to scope the accessibility tree snapshot to that container. This reduces token costs, speeds up inference, and — crucially for caching — means that changes *outside* the container don't affect the cache key.
+
+```typescript
+async function example(stagehand: Stagehand) {
+  const page = stagehand.context.pages()[0];
+  await page.goto("https://www.google.com/search?q=browserbase");
+
+  await page.waitForLoadState("networkidle");
+
+  const result = await stagehand.observe("click the first search result", {
+    // Scope to the search results container so ads, headers,
+    // and other surrounding content don't pollute the cache key.
+    selector: "#rcnt",
+  });
+}
+```
+</Accordion>
+
+<Accordion title="Use variables for dynamic values">
+Using variables in `act()` lets you generalize a single cache entry across many different values. The cache key is built from the variable *keys*, not the values — so `{ email: "alice@example.com" }` and `{ email: "bob@example.com" }` share the same entry.
+
+Without variables you'd accumulate a separate cache miss for every unique email address you type. With variables you prime the cache once and hit it forever.
+
+```typescript
+async function example(stagehand: Stagehand) {
+  const page = stagehand.context.pages()[0];
+  await page.goto("https://example.com/login");
+
+  await page.waitForLoadState("networkidle");
+
+  // First run with alice@example.com → MISS (primes cache)
+  // Any future run, regardless of email value → HIT
+  await stagehand.act(
+    "type {{email}} into the Email address field",
+    { variables: { email: "alice@example.com" } },
+  );
+}
+```
+</Accordion>
+
+<Accordion title="Stabilize the environment">
+Small differences in runtime state produce different accessibility trees and therefore different cache keys. Keep your environment as deterministic as possible:
+
+- **Fixed viewport size** — `await page.setViewportSize({ width: 1280, height: 720 })`
+- **Consistent user agent and locale** — set these in your browser launch options if your stack supports it
+- **Block noisy third-party requests** — analytics, A/B testing scripts, and ad trackers can inject DOM nodes that shift the cache key on every load
+
+```typescript
+const page = stagehand.context.pages()[0];
+
+// Lock the viewport so the layout is identical across runs
+await page.setViewportSize({ width: 1280, height: 720 });
+
+// Block third-party noise that pollutes the accessibility tree
+await page.route("**/*.{png,jpg,gif,svg,woff,woff2}", (route) => route.abort());
+```
+</Accordion>
+
+<Accordion title="Keep prompts deterministic">
+The instruction string is part of the cache key. Even minor wording changes — synonyms, extra adjectives, punctuation — produce a new key and a cache miss.
+
+- Anchor instructions to visible UI labels: `"click the Sign in button"` not `"click the button to log me in"`
+- Keep instructions short and free of filler words
+- Avoid instructions that contain runtime-variable text inline — use `variables` instead
+
+```typescript
+// Good: anchored to the visible label, no variance
+await stagehand.act("click the Sign in button");
+
+// Bad: inline dynamic value creates a new cache key every time
+await stagehand.act(`type ${email} into the Email address field`);
+```
+</Accordion>
+
+</AccordionGroup>
+
 ---
 
 ## Local Cache
