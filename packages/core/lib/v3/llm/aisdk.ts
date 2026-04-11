@@ -22,6 +22,7 @@ import {
   extractLlmPromptSummary,
 } from "../flowlogger/FlowLogger.js";
 import { toJsonSchema } from "../zodCompat.js";
+import { unwrapToolResponse } from "./unwrapToolResponse.js";
 
 type ProviderOptionValue = string | number | boolean | null;
 type ProviderOptionMap = Record<string, ProviderOptionValue>;
@@ -258,6 +259,58 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         });
 
         if (NoObjectGeneratedError.isInstance(err)) {
+          // Attempt to recover from tool parameter name wrapping.
+          // Some providers (e.g. Anthropic) wrap tool_use responses in a
+          // parameter name key like {"$PARAMETER_NAME": {actual data}}.
+          // The AI SDK's schema validation fails on the wrapper, but the
+          // actual data inside may be valid.
+          if (err.text) {
+            try {
+              const parsed = JSON.parse(err.text);
+              const unwrapped = unwrapToolResponse(parsed);
+              if (unwrapped !== parsed) {
+                // Validate unwrapped data against the schema
+                const validated =
+                  options.response_model.schema.safeParse(unwrapped);
+                if (validated.success) {
+                  this.logger?.({
+                    category: "aisdk",
+                    message:
+                      "recovered from tool parameter name wrapping in response",
+                    level: 1,
+                    auxiliary: {
+                      requestId: {
+                        value: options.requestId,
+                        type: "string",
+                      },
+                    },
+                  });
+
+                  FlowLogger.logLlmResponse({
+                    requestId: llmRequestId,
+                    model: this.model.modelId,
+                    output: JSON.stringify(validated.data),
+                    inputTokens: err.usage?.inputTokens,
+                    outputTokens: err.usage?.outputTokens,
+                  });
+
+                  return {
+                    data: validated.data,
+                    usage: {
+                      prompt_tokens: err.usage?.inputTokens ?? 0,
+                      completion_tokens: err.usage?.outputTokens ?? 0,
+                      reasoning_tokens: err.usage?.reasoningTokens ?? 0,
+                      cached_input_tokens: err.usage?.cachedInputTokens ?? 0,
+                      total_tokens: err.usage?.totalTokens ?? 0,
+                    },
+                  } as T;
+                }
+              }
+            } catch {
+              // JSON parse failed — fall through to original error
+            }
+          }
+
           this.logger?.({
             category: "AISDK error",
             message: err.message,
