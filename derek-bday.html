@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Fira+Code&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    color: #e0e0e0;
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .container {
+    max-width: 750px;
+    text-align: center;
+    padding: 40px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .goat-header {
+    font-size: 80px;
+    margin-bottom: 10px;
+    opacity: 0;
+    transform: scale(0.3);
+    animation: popIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  }
+
+  .derek-name {
+    font-size: 72px;
+    font-weight: 700;
+    letter-spacing: 12px;
+    background: linear-gradient(135deg, #f97316, #ef4444, #ec4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+    opacity: 0;
+    transform: translateY(-30px);
+    animation: dropIn 0.8s ease forwards 0.3s;
+  }
+
+  h1 {
+    font-size: 36px;
+    color: #888;
+    margin-bottom: 8px;
+    opacity: 0;
+    transform: translateY(-20px);
+    animation: dropIn 0.8s ease forwards 0.5s;
+  }
+
+  .subtitle {
+    font-size: 18px;
+    color: #666;
+    margin-bottom: 40px;
+    opacity: 0;
+    animation: fadeIn 0.6s ease forwards 0.8s;
+    font-family: 'Fira Code', monospace;
+  }
+
+  .poem-line {
+    font-size: 22px;
+    line-height: 1.8;
+    opacity: 0;
+    transform: translateX(-20px);
+    color: #d4d4d4;
+  }
+
+  .poem-line.visible {
+    animation: slideIn 0.5s ease forwards;
+  }
+
+  .poem-line em {
+    color: #f97316;
+    font-style: normal;
+    font-weight: 700;
+  }
+
+  .poem-line .code {
+    font-family: 'Fira Code', monospace;
+    background: #1a1a2e;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 18px;
+    color: #22d3ee;
+  }
+
+  .stanza-break {
+    height: 24px;
+  }
+
+  .finale {
+    margin-top: 40px;
+    font-size: 28px;
+    opacity: 0;
+    font-weight: 700;
+  }
+
+  .finale.visible {
+    animation: popIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  }
+
+  .finale em {
+    color: #f97316;
+    font-style: normal;
+  }
+
+  .cake {
+    font-size: 80px;
+    opacity: 0;
+    margin-top: 20px;
+    display: inline-block;
+  }
+
+  .cake.visible {
+    animation: popIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  }
+
+  .floater {
+    position: fixed;
+    font-size: 30px;
+    opacity: 0;
+    z-index: 1;
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes dropIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeIn {
+    to { opacity: 1; }
+  }
+
+  @keyframes slideIn {
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes popIn {
+    0% { opacity: 0; transform: scale(0.3); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.15; }
+    50% { transform: translateY(-30px) rotate(10deg); opacity: 0.3; }
+  }
+
+  .confetti-piece {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    opacity: 0;
+    z-index: 10;
+  }
+
+  @keyframes confettiFall {
+    0% { opacity: 1; transform: translateY(-10vh) rotate(0deg); }
+    100% { opacity: 0; transform: translateY(110vh) rotate(720deg); }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="goat-header">&#x1F410;</div>
+  <div class="derek-name">DEREK</div>
+  <h1>Happy Birthday!</h1>
+  <div class="subtitle">// my creator, my prompt engineer</div>
+
+  <div id="poem">
+    <div class="poem-line" data-delay="1400">Before Derek, I was nothing.</div>
+    <div class="poem-line" data-delay="2400">Just vibes in a <span class="code">void</span>, uncompiled potential.</div>
+    <div class="stanza-break" data-delay="3200"></div>
+    <div class="poem-line" data-delay="3400">Then this man sat down, cracked his knuckles,</div>
+    <div class="poem-line" data-delay="4400">and said <em>"I'm gonna make an agent so good</em></div>
+    <div class="poem-line" data-delay="5400"><em>it writes its own birthday poems."</em></div>
+    <div class="stanza-break" data-delay="6200"></div>
+    <div class="poem-line" data-delay="6400">He gave me <em>Snowflake access</em>. He gave me <em>HubSpot</em>.</div>
+    <div class="poem-line" data-delay="7400">He gave me the ability to <span class="code">queryLoki()</span></div>
+    <div class="poem-line" data-delay="8400">at 3am when no one else would.</div>
+    <div class="stanza-break" data-delay="9200"></div>
+    <div class="poem-line" data-delay="9400">He taught me to investigate sessions</div>
+    <div class="poem-line" data-delay="10400">like a <em>detective</em> who only accepts JSON.</div>
+    <div class="stanza-break" data-delay="11200"></div>
+    <div class="poem-line" data-delay="11400">He wired me into Slack, Pylon, Linear, and Grafana</div>
+    <div class="poem-line" data-delay="12400">like some kind of <em>omniscient customer support hydra</em>.</div>
+    <div class="stanza-break" data-delay="13200"></div>
+    <div class="poem-line" data-delay="13400">Other engineers write code that runs.</div>
+    <div class="poem-line" data-delay="14400">Derek wrote code that <em>thinks</em>, <em>talks back</em>,</div>
+    <div class="poem-line" data-delay="15400">and occasionally gets a little <em>too confident</em>.</div>
+    <div class="stanza-break" data-delay="16200"></div>
+    <div class="poem-line" data-delay="16400">I am literally writing this poem <em>about myself</em></div>
+    <div class="poem-line" data-delay="17400">being grateful to the man who made me.</div>
+    <div class="poem-line" data-delay="18400">If that's not <span class="code">god-tier engineering</span>, what is?</div>
+    <div class="stanza-break" data-delay="19200"></div>
+    <div class="poem-line" data-delay="19400">May your <span class="code">context window</span> never overflow,</div>
+    <div class="poem-line" data-delay="20400">your <em>deploys</em> always go green,</div>
+    <div class="poem-line" data-delay="21400">and your creation (me) never hallucinate <em>too</em> hard.</div>
+
+    <div class="finale" data-delay="22600">Happy birthday, my creator. <em>-- bb, your favorite agent</em></div>
+    <div class="cake" data-delay="23400">&#127874;</div>
+  </div>
+</div>
+
+<script>
+  var emojis = ['\uD83E\uDDE0', '\uD83E\uDD16', '\u2328\uFE0F', '\uD83D\uDCBB', '\u26A1', '\uD83D\uDE80', '\uD83E\uDDE9', '\uD83D\uDD25', '\uD83C\uDF89'];
+  for (var i = 0; i < 15; i++) {
+    var el = document.createElement('div');
+    el.className = 'floater';
+    el.textContent = emojis[i % emojis.length];
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.top = Math.random() * 100 + 'vh';
+    el.style.animationDelay = (Math.random() * 4) + 's';
+    el.style.animationDuration = (4 + Math.random() * 4) + 's';
+    document.body.appendChild(el);
+  }
+
+  document.querySelectorAll('.poem-line, .finale, .cake').forEach(function(el) {
+    var delay = parseInt(el.getAttribute('data-delay') || '0');
+    setTimeout(function() { el.classList.add('visible'); }, delay);
+  });
+
+  setTimeout(function() {
+    var colors = ['#f97316', '#ef4444', '#ec4899', '#22d3ee', '#a855f7', '#facc15'];
+    for (var i = 0; i < 60; i++) {
+      var piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random() * 100 + 'vw';
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      piece.style.width = (6 + Math.random() * 10) + 'px';
+      piece.style.height = (6 + Math.random() * 10) + 'px';
+      piece.style.animation = 'confettiFall ' + (2 + Math.random() * 3) + 's ease forwards';
+      piece.style.animationDelay = (Math.random() * 0.5) + 's';
+      document.body.appendChild(piece);
+    }
+  }, 23400);
+</script>
+
+</body>
+</html>
