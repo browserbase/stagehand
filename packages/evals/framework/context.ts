@@ -37,6 +37,10 @@ export function resolveDefaultCoreStartupProfile(
   environment: "LOCAL" | "BROWSERBASE",
 ): StartupProfile {
   switch (toolSurface) {
+    case "browse_cli":
+      return environment === "BROWSERBASE"
+        ? "tool_create_browserbase"
+        : "tool_launch_local";
     case "understudy_code":
     case "playwright_code":
     case "cdp_code":

@@ -174,7 +174,7 @@ function spawnTsxEntry(
 ): void {
   let tsxCliPath: string | undefined;
   try {
-    tsxCliPath = require.resolve("tsx/dist/cli.js");
+    tsxCliPath = require.resolve("tsx/cli");
   } catch {
     // fall back to shell-resolved "tsx"
   }
@@ -763,7 +763,7 @@ function handleRun(args: string[]): void {
       try {
         // Resolve the local tsx CLI entry within this package installation
         // This avoids requiring a globally installed tsx binary
-        tsxCliPath = require.resolve("tsx/dist/cli.js");
+        tsxCliPath = require.resolve("tsx/cli");
       } catch {
         // no-op; will fall back to shell-resolved "tsx" if not found
       }

@@ -20,6 +20,12 @@ describe("resolveDefaultCoreStartupProfile", () => {
     );
   });
 
+  it("uses tool launch for browse_cli in LOCAL", () => {
+    expect(resolveDefaultCoreStartupProfile("browse_cli", "LOCAL")).toBe(
+      "tool_launch_local",
+    );
+  });
+
   it("uses runner-provided Browserbase CDP for code surfaces in BROWSERBASE", () => {
     expect(resolveDefaultCoreStartupProfile("understudy_code", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
@@ -35,6 +41,12 @@ describe("resolveDefaultCoreStartupProfile", () => {
     );
     expect(resolveDefaultCoreStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
+    );
+  });
+
+  it("uses native Browserbase creation for browse_cli in BROWSERBASE", () => {
+    expect(resolveDefaultCoreStartupProfile("browse_cli", "BROWSERBASE")).toBe(
+      "tool_create_browserbase",
     );
   });
 });
