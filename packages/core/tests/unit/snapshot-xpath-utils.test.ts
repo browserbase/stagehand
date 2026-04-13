@@ -49,21 +49,21 @@ describe("relativizeXPath", () => {
 });
 
 describe("buildChildXPathSegments", () => {
-  it("produces positional selectors for each node type", () => {
-    const makeNode = (
-      nodeType: number,
-      nodeName: string,
-      override?: Partial<Protocol.DOM.Node>,
-    ): Protocol.DOM.Node => ({
-      nodeId: 1,
-      backendNodeId: 1,
-      localName: nodeName.toLowerCase(),
-      nodeValue: "",
-      ...override,
-      nodeType,
-      nodeName,
-    });
+  const makeNode = (
+    nodeType: number,
+    nodeName: string,
+    override?: Partial<Protocol.DOM.Node>,
+  ): Protocol.DOM.Node => ({
+    nodeId: 1,
+    backendNodeId: 1,
+    localName: nodeName.toLowerCase(),
+    nodeValue: "",
+    ...override,
+    nodeType,
+    nodeName,
+  });
 
+  it("produces positional selectors for each node type", () => {
     const nodes: Protocol.DOM.Node[] = [
       makeNode(1, "DIV"),
       makeNode(1, "DIV"),
@@ -78,6 +78,23 @@ describe("buildChildXPathSegments", () => {
       "*[name()='svg:path'][1]",
       "text()[1]",
       "comment()[1]",
+    ]);
+  });
+
+  it("returns null for CSS pseudo-elements (::before, ::after)", () => {
+    const nodes: Protocol.DOM.Node[] = [
+      makeNode(1, "DIV"),
+      makeNode(1, "::before"),
+      makeNode(1, "SPAN"),
+      makeNode(1, "::after"),
+      makeNode(1, "DIV"),
+    ];
+    expect(buildChildXPathSegments(nodes)).toEqual([
+      "div[1]",
+      null,
+      "span[1]",
+      null,
+      "div[2]",
     ]);
   });
 });

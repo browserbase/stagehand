@@ -87,11 +87,17 @@ export function normalizeXPath(x?: string): string {
 }
 
 /** Build per-sibling XPath steps for DOM traversal. */
-export function buildChildXPathSegments(kids: Protocol.DOM.Node[]): string[] {
-  const segs: string[] = [];
+export function buildChildXPathSegments(
+  kids: Protocol.DOM.Node[],
+): (string | null)[] {
+  const segs: (string | null)[] = [];
   const ctr: Record<string, number> = {};
   for (const child of kids) {
     const tag = String(child.nodeName).toLowerCase();
+    if (tag.startsWith("::")) {
+      segs.push(null);
+      continue;
+    }
     const key = `${child.nodeType}:${tag}`;
     const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
     if (child.nodeType === 3) {
