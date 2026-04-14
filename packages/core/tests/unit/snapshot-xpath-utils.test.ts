@@ -72,7 +72,7 @@ describe("buildChildXPathSegments", () => {
       makeNode(8, "#comment"),
     ];
 
-    expect(buildChildXPathSegments(nodes)).toEqual([
+    expect(buildChildXPathSegments(nodes).map((p) => p.segment)).toEqual([
       "div[1]",
       "div[2]",
       "*[name()='svg:path'][1]",
@@ -81,7 +81,7 @@ describe("buildChildXPathSegments", () => {
     ]);
   });
 
-  it("returns null for CSS pseudo-elements (::before, ::after)", () => {
+  it("skips CSS pseudo-elements (::before, ::after)", () => {
     const nodes: Protocol.DOM.Node[] = [
       makeNode(1, "DIV"),
       makeNode(1, "::before"),
@@ -89,12 +89,24 @@ describe("buildChildXPathSegments", () => {
       makeNode(1, "::after"),
       makeNode(1, "DIV"),
     ];
-    expect(buildChildXPathSegments(nodes)).toEqual([
+    const pairs = buildChildXPathSegments(nodes);
+    expect(pairs.map((p) => p.segment)).toEqual([
       "div[1]",
-      null,
       "span[1]",
-      null,
       "div[2]",
+    ]);
+    expect(pairs.map((p) => p.child.nodeName)).toEqual(["DIV", "SPAN", "DIV"]);
+  });
+
+  it("does not count pseudo-elements when indexing same-tag siblings", () => {
+    const nodes: Protocol.DOM.Node[] = [
+      makeNode(1, "SPAN"),
+      makeNode(1, "::before"),
+      makeNode(1, "SPAN"),
+    ];
+    expect(buildChildXPathSegments(nodes).map((p) => p.segment)).toEqual([
+      "span[1]",
+      "span[2]",
     ]);
   });
 });

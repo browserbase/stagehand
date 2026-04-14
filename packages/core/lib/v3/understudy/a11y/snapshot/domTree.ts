@@ -227,14 +227,12 @@ export async function domMapsForSession(
 
     const kids = node.children ?? [];
     if (kids.length) {
-      const segs = buildChildXPathSegments(kids);
-      for (let i = kids.length - 1; i >= 0; i--) {
-        const child = kids[i]!;
-        const step = segs[i];
-        if (step === null) continue;
+      const pairs = buildChildXPathSegments(kids);
+      for (let i = pairs.length - 1; i >= 0; i--) {
+        const { child, segment } = pairs[i]!;
         stack.push({
           node: child,
-          xpath: joinXPath(xpath, step),
+          xpath: joinXPath(xpath, segment),
         });
       }
     }
@@ -283,12 +281,10 @@ export async function buildSessionDomIndex(
 
     const kids = node.children ?? [];
     if (kids.length) {
-      const segs = buildChildXPathSegments(kids);
-      for (let i = kids.length - 1; i >= 0; i--) {
-        const child = kids[i]!;
-        const step = segs[i];
-        if (step === null) continue;
-        stack.push({ node: child, xp: joinXPath(xp, step), docRootBe });
+      const pairs = buildChildXPathSegments(kids);
+      for (let i = pairs.length - 1; i >= 0; i--) {
+        const { child, segment } = pairs[i]!;
+        stack.push({ node: child, xp: joinXPath(xp, segment), docRootBe });
       }
     }
 

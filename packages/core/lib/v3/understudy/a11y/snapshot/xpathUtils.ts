@@ -89,28 +89,29 @@ export function normalizeXPath(x?: string): string {
 /** Build per-sibling XPath steps for DOM traversal. */
 export function buildChildXPathSegments(
   kids: Protocol.DOM.Node[],
-): (string | null)[] {
-  const segs: (string | null)[] = [];
+): Array<{ child: Protocol.DOM.Node; segment: string }> {
+  const pairs: Array<{ child: Protocol.DOM.Node; segment: string }> = [];
   const ctr: Record<string, number> = {};
   for (const child of kids) {
     const tag = String(child.nodeName).toLowerCase();
-    if (tag.startsWith("::")) {
-      segs.push(null);
-      continue;
-    }
+    // CSS pseudo-elements (::before, ::after, ...) leak into node.children
+    // via CDP but have no XPath-addressable DOM position — skip them entirely.
+    if (tag.startsWith("::")) continue;
     const key = `${child.nodeType}:${tag}`;
     const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
+    let segment: string;
     if (child.nodeType === 3) {
-      segs.push(`text()[${idx}]`);
+      segment = `text()[${idx}]`;
     } else if (child.nodeType === 8) {
-      segs.push(`comment()[${idx}]`);
+      segment = `comment()[${idx}]`;
     } else {
-      segs.push(
-        tag.includes(":") ? `*[name()='${tag}'][${idx}]` : `${tag}[${idx}]`,
-      );
+      segment = tag.includes(":")
+        ? `*[name()='${tag}'][${idx}]`
+        : `${tag}[${idx}]`;
     }
+    pairs.push({ child, segment });
   }
-  return segs;
+  return pairs;
 }
 
 /** Join two XPath fragments while preserving special shadow-root hops. */
