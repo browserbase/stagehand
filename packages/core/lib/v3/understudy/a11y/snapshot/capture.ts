@@ -21,7 +21,7 @@ import {
   relativizeXPath,
 } from "./domTree.js";
 import { injectSubtrees } from "./treeFormatUtils.js";
-import { ownerSession, parentSession } from "./sessions.js";
+import { ownerSession, resolvedOwnerSession } from "./sessions.js";
 import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
 
 /**
@@ -168,11 +168,11 @@ export async function tryScopedSnapshot(
       absPrefix = cssHit.absPrefix;
     }
 
-    const owningSess = ownerSession(page, targetFrameId);
+    const owningSess = await resolvedOwnerSession(page, targetFrameId);
     const parentId = context.parentByFrame.get(targetFrameId);
     const sameSessionAsParent =
       !!parentId &&
-      ownerSession(page, parentId) === ownerSession(page, targetFrameId);
+      (await resolvedOwnerSession(page, parentId)) === owningSess;
     const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
       owningSess,
       targetFrameId,
@@ -280,7 +280,7 @@ export async function collectPerFrameMaps(
   const perFrameOutlines: Array<{ frameId: string; outline: string }> = [];
 
   for (const frameId of frameIds) {
-    const sess = ownerSession(page, frameId);
+    const sess = await resolvedOwnerSession(page, frameId);
     const sid = sess.id ?? "root";
     let idx = sessionToIndex.get(sid);
     if (!idx) {
@@ -290,7 +290,7 @@ export async function collectPerFrameMaps(
 
     const parentId = context.parentByFrame.get(frameId);
     const sameSessionAsParent =
-      !!parentId && ownerSession(page, parentId) === sess;
+      !!parentId && (await resolvedOwnerSession(page, parentId)) === sess;
     let docRootBe = idx.rootBackend;
     if (sameSessionAsParent) {
       try {
@@ -373,7 +373,10 @@ export async function computeFramePrefixes(
       if (context.parentByFrame.get(child) !== parent) continue;
       queue.push(child);
 
-      const parentSess = parentSession(page, context.parentByFrame, child);
+      const parentId = context.parentByFrame.get(child) ?? null;
+      const parentSess = parentId
+        ? await resolvedOwnerSession(page, parentId)
+        : await resolvedOwnerSession(page, child);
 
       const ownerBackendNodeId = await (async () => {
         try {

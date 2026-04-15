@@ -153,7 +153,7 @@ export class FrameRegistry {
     frameId: FrameId,
     reason: "remove" | "swap" | string = "remove",
   ): void {
-    if (reason === "swap") return;
+    if (reason === "swap" && frameId === this.rootFrameId) return;
 
     // Collect subtree starting from frameId.
     const toRemove: FrameId[] = [];
@@ -210,8 +210,12 @@ export class FrameRegistry {
 
   /**
    * Seed topology and ownership from an existing `Page.getFrameTree` snapshot, typically right after
-   * a session is attached. This is a best-effort: we record frames and set the provided `sessionId`
-   * as owner for the subtree **if** an owner isn't already set.
+   * a session is attached. The snapshot's emitting session is the source of truth for ownership of
+   * that subtree, so we always stamp the provided `sessionId` across the frames we seed.
+   *
+   * This is especially important for adopted OOPIF sessions: the parent session may have observed
+   * descendant frames first, but once the child session is attached those frame ids must migrate to
+   * the child session or later DOM calls will be sent to the wrong target.
    */
   seedFromFrameTree(
     sessionId: SessionId,
@@ -224,10 +228,8 @@ export class FrameRegistry {
       if (parent) this.frames.get(parent)!.children.add(tree.frame.id);
       // last-seen frame
       this.frames.get(tree.frame.id)!.lastSeen = tree.frame;
-      // ownership (only if unknown)
-      if (!this.frames.get(tree.frame.id)!.ownerSessionId) {
-        this.setOwnerSessionIdInternal(tree.frame.id, sessionId);
-      }
+      // Ownership follows the session whose frame tree we just seeded.
+      this.setOwnerSessionIdInternal(tree.frame.id, sessionId);
       for (const c of tree.childFrames ?? []) walk(c, tree.frame.id);
     };
     walk(frameTree, null);

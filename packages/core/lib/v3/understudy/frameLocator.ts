@@ -53,11 +53,27 @@ export class FrameLocator {
         { objectId },
       );
       const iframeBackendNodeId = desc.node.backendNodeId;
+      const describedFrameId = desc.node.frameId as string | undefined;
+
+      if (describedFrameId) {
+        await ensureChildFrameReady(
+          this.page,
+          parentFrame,
+          describedFrameId,
+          1200,
+        );
+        return resolveChildFrameHandle(
+          this.page,
+          parentFrame,
+          describedFrameId,
+          this.selector,
+        );
+      }
 
       // Find direct child frames under the parent by consulting the Page's registry
-      const childIds = await listDirectChildFrameIdsFromRegistry(
+      const childIds = await listDirectChildFrameIds(
         this.page,
-        parentFrame.frameId,
+        parentFrame,
         1000,
       );
 
@@ -70,7 +86,12 @@ export class FrameLocator {
           if (owner.backendNodeId === iframeBackendNodeId) {
             // Ensure child frame is ready (handles OOPIF adoption or same-process)
             await ensureChildFrameReady(this.page, parentFrame, fid, 1200);
-            return this.page.frameForId(fid);
+            return resolveChildFrameHandle(
+              this.page,
+              parentFrame,
+              fid,
+              this.selector,
+            );
           }
         } catch {
           // ignore and try next
@@ -175,16 +196,30 @@ export function frameLocatorFromFrame(
   return new FrameLocator(page, selector, undefined, root);
 }
 
-async function listDirectChildFrameIdsFromRegistry(
+async function listDirectChildFrameIds(
   page: Page,
-  parentFrameId: string,
+  parentFrame: Frame,
   timeoutMs: number,
 ): Promise<string[]> {
   const deadline = Date.now() + timeoutMs;
   while (true) {
     try {
+      await parentFrame.session.send("Page.enable").catch(() => {});
+      const { frameTree } =
+        await parentFrame.session.send<Protocol.Page.GetFrameTreeResponse>(
+          "Page.getFrameTree",
+        );
+      const liveNode = findFrameNode(frameTree, parentFrame.frameId);
+      const liveIds =
+        liveNode?.childFrames?.map((c) => c.frame.id as string) ?? [];
+      if (liveIds.length > 0) return liveIds;
+    } catch {
+      // fall through to registry fallback
+    }
+
+    try {
       const tree = page.getFullFrameTree();
-      const node = findFrameNode(tree, parentFrameId);
+      const node = findFrameNode(tree, parentFrame.frameId);
       const ids = node?.childFrames?.map((c) => c.frame.id as string) ?? [];
       if (ids.length > 0 || Date.now() >= deadline) return ids;
     } catch {
@@ -221,7 +256,7 @@ async function ensureChildFrameReady(
   const deadline = Date.now() + Math.max(0, budgetMs);
 
   // If already owned by a different session (OOPIF adopted), wait briefly there.
-  const owner = page.getSessionForFrame(childFrameId);
+  const owner = page.getKnownSessionForFrame(childFrameId);
   if (owner && owner !== parentSession) {
     try {
       await executionContexts.waitForMainWorld(owner, childFrameId, 600);
@@ -268,7 +303,7 @@ async function ensureChildFrameReady(
       }
       if (hasMainWorldOnParent()) return finish();
       try {
-        const nowOwner = page.getSessionForFrame(childFrameId);
+        const nowOwner = page.getKnownSessionForFrame(childFrameId);
         if (nowOwner && nowOwner !== parentSession) {
           const left = Math.max(150, deadline - Date.now());
           executionContexts
@@ -285,7 +320,7 @@ async function ensureChildFrameReady(
       if (done) return;
       if (hasMainWorldOnParent()) return finish();
       try {
-        const nowOwner = page.getSessionForFrame(childFrameId);
+        const nowOwner = page.getKnownSessionForFrame(childFrameId);
         if (nowOwner && nowOwner !== parentSession) {
           const left = Math.max(150, deadline - Date.now());
           executionContexts
@@ -301,4 +336,22 @@ async function ensureChildFrameReady(
     };
     tick();
   });
+}
+
+function resolveChildFrameHandle(
+  page: Page,
+  parentFrame: Frame,
+  childFrameId: string,
+  selector: string,
+): Frame {
+  const knownOwner = page.getKnownSessionForFrame(childFrameId);
+  if (knownOwner) {
+    return page.frameForId(childFrameId);
+  }
+
+  if (executionContexts.getMainWorld(parentFrame.session, childFrameId)) {
+    return page.frameForIdWithSession(childFrameId, parentFrame.session);
+  }
+
+  throw new ContentFrameNotFoundError(selector);
 }

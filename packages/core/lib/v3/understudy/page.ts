@@ -533,6 +533,17 @@ export class Page {
     return this.sessions.get(sid) ?? this.mainSession;
   }
 
+  /**
+   * Return the owning CDP session for a frameId only when ownership is known.
+   * Unlike getSessionForFrame(), this does not fall back to the main session.
+   */
+  public getKnownSessionForFrame(frameId: string): CDPSessionLike | null {
+    const sid = this.registry.getOwnerSessionId(frameId);
+    if (!sid) return null;
+    if (sid === "root") return this.mainSession;
+    return this.sessions.get(sid) ?? null;
+  }
+
   /** Always returns a Frame bound to the owning session */
   public frameForId(frameId: string): Frame {
     const hit = this.frameCache.get(frameId);
@@ -544,9 +555,29 @@ export class Page {
     return f;
   }
 
+  /**
+   * Create a Frame bound to a caller-provided session when ownership is not
+   * known yet. We intentionally avoid caching this fallback handle.
+   */
+  public frameForIdWithSession(frameId: string, session: CDPSessionLike): Frame {
+    const owned = this.getKnownSessionForFrame(frameId);
+    if (owned) return this.frameForId(frameId);
+    return new Frame(session, frameId, this.pageId, this.browserIsRemote);
+  }
+
   /** Expose a session by id (used by snapshot to resolve session id -> session) */
   public getSessionById(id: string): CDPSessionLike | undefined {
     return this.sessions.get(id);
+  }
+
+  /** Return every active CDP session for this page (main target + adopted children). */
+  public allSessions(): CDPSessionLike[] {
+    const sessions: CDPSessionLike[] = [this.mainSession];
+    for (const session of this.sessions.values()) {
+      if (session === this.mainSession) continue;
+      sessions.push(session);
+    }
+    return sessions;
   }
 
   public registerSessionForNetwork(session: CDPSessionLike): void {
