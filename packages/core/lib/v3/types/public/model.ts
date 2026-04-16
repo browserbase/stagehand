@@ -113,7 +113,7 @@ export type ClientOptions = (
   thinkingBudget?: number;
   /** Environment type for CUA agents (browser, mac, windows, ubuntu) */
   environment?: string;
-  /** Max images for Microsoft FARA agent */
+  /** Max images to keep in agent history (applies to Google CUA and Microsoft FARA agents) */
   maxImages?: number;
   /** Temperature for model inference */
   temperature?: number;
