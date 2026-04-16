@@ -1,0 +1,33 @@
+packages/core/lib/v3/llm/aisdk.ts
+  41d56869c591260e 152-154
+packages/core/examples/example.ts
+  h_1c843de575e6c3 40
+  41d56869c591260e 39
+packages/evals/lib/AISdkClientWrapped.ts
+  41d56869c591260e 147-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "db8e92b4ec9adcd9025d4f66e436c8dba31ba6d5",
+  "prompts": {
+    "41d56869c591260e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36711845-0cf2-40ef-9f05-737545d6869d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 11,
+      "accepted_lines": 7,
+      "overriden_lines": 5
+    }
+  },
+  "humans": {
+    "h_1c843de575e6c3": {
+      "author": "Filip Michalsky"
+    }
+  }
+}
