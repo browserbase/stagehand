@@ -36,7 +36,7 @@ function createEmptyMetrics(): StagehandMetrics {
 }
 
 describe("agent metrics accounting", () => {
-  it("merges API replay metrics with local agent usage fallback", async () => {
+  it("merges API replay metrics with a local agent usage fallback only", async () => {
     const remoteMetrics: StagehandMetrics = {
       ...createEmptyMetrics(),
       actPromptTokens: 40,
@@ -44,11 +44,26 @@ describe("agent metrics accounting", () => {
       actReasoningTokens: 2,
       actCachedInputTokens: 1,
       actInferenceTimeMs: 300,
-      totalPromptTokens: 40,
-      totalCompletionTokens: 6,
-      totalReasoningTokens: 2,
-      totalCachedInputTokens: 1,
-      totalInferenceTimeMs: 300,
+      extractPromptTokens: 10,
+      extractCompletionTokens: 3,
+      extractReasoningTokens: 1,
+      extractCachedInputTokens: 2,
+      extractInferenceTimeMs: 120,
+      observePromptTokens: 8,
+      observeCompletionTokens: 2,
+      observeReasoningTokens: 1,
+      observeCachedInputTokens: 0,
+      observeInferenceTimeMs: 90,
+      agentPromptTokens: 5,
+      agentCompletionTokens: 1,
+      agentReasoningTokens: 1,
+      agentCachedInputTokens: 0,
+      agentInferenceTimeMs: 30,
+      totalPromptTokens: 63,
+      totalCompletionTokens: 12,
+      totalReasoningTokens: 5,
+      totalCachedInputTokens: 3,
+      totalInferenceTimeMs: 540,
     };
 
     const stagehand = Object.create(V3.prototype) as TestStagehand;
@@ -64,16 +79,18 @@ describe("agent metrics accounting", () => {
     const metrics = await stagehand.metrics;
 
     expect(metrics.actPromptTokens).toBe(40);
+    expect(metrics.extractPromptTokens).toBe(10);
+    expect(metrics.observePromptTokens).toBe(8);
     expect(metrics.agentPromptTokens).toBe(25);
     expect(metrics.agentCompletionTokens).toBe(4);
     expect(metrics.agentReasoningTokens).toBe(3);
     expect(metrics.agentCachedInputTokens).toBe(2);
     expect(metrics.agentInferenceTimeMs).toBe(180);
-    expect(metrics.totalPromptTokens).toBe(65);
-    expect(metrics.totalCompletionTokens).toBe(10);
-    expect(metrics.totalReasoningTokens).toBe(5);
-    expect(metrics.totalCachedInputTokens).toBe(3);
-    expect(metrics.totalInferenceTimeMs).toBe(480);
+    expect(metrics.totalPromptTokens).toBe(83);
+    expect(metrics.totalCompletionTokens).toBe(15);
+    expect(metrics.totalReasoningTokens).toBe(7);
+    expect(metrics.totalCachedInputTokens).toBe(5);
+    expect(metrics.totalInferenceTimeMs).toBe(690);
   });
 
   it("records returned agent usage into local metrics totals", () => {

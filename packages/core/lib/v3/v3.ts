@@ -437,7 +437,7 @@ export class V3 {
       // Fetch metrics from the API
       return this.apiClient
         .getReplayMetrics()
-        .then((metrics) => this.mergeMetricsWithLocalFallback(metrics))
+        .then((metrics) => this.mergeAgentMetricsWithLocalFallback(metrics))
         .catch((error) => {
           this.logger({
             category: "metrics",
@@ -452,94 +452,39 @@ export class V3 {
     return Promise.resolve(this.stagehandMetrics);
   }
 
-  private mergeMetricField(remoteValue: number, localValue: number): number {
-    return Math.max(remoteValue, localValue);
-  }
-
-  private mergeMetricsWithLocalFallback(
+  private mergeAgentMetricsWithLocalFallback(
     remoteMetrics: StagehandMetrics,
   ): StagehandMetrics {
+    // In API mode, agent.execute() is the only path that returns trusted inline
+    // usage today, so only repair the agent bucket from local state.
+    const agentPromptTokens = Math.max(
+      remoteMetrics.agentPromptTokens,
+      this.stagehandMetrics.agentPromptTokens,
+    );
+    const agentCompletionTokens = Math.max(
+      remoteMetrics.agentCompletionTokens,
+      this.stagehandMetrics.agentCompletionTokens,
+    );
+    const agentReasoningTokens = Math.max(
+      remoteMetrics.agentReasoningTokens,
+      this.stagehandMetrics.agentReasoningTokens,
+    );
+    const agentCachedInputTokens = Math.max(
+      remoteMetrics.agentCachedInputTokens,
+      this.stagehandMetrics.agentCachedInputTokens,
+    );
+    const agentInferenceTimeMs = Math.max(
+      remoteMetrics.agentInferenceTimeMs,
+      this.stagehandMetrics.agentInferenceTimeMs,
+    );
+
     const metrics: StagehandMetrics = {
-      actPromptTokens: this.mergeMetricField(
-        remoteMetrics.actPromptTokens,
-        this.stagehandMetrics.actPromptTokens,
-      ),
-      actCompletionTokens: this.mergeMetricField(
-        remoteMetrics.actCompletionTokens,
-        this.stagehandMetrics.actCompletionTokens,
-      ),
-      actReasoningTokens: this.mergeMetricField(
-        remoteMetrics.actReasoningTokens,
-        this.stagehandMetrics.actReasoningTokens,
-      ),
-      actCachedInputTokens: this.mergeMetricField(
-        remoteMetrics.actCachedInputTokens,
-        this.stagehandMetrics.actCachedInputTokens,
-      ),
-      actInferenceTimeMs: this.mergeMetricField(
-        remoteMetrics.actInferenceTimeMs,
-        this.stagehandMetrics.actInferenceTimeMs,
-      ),
-      extractPromptTokens: this.mergeMetricField(
-        remoteMetrics.extractPromptTokens,
-        this.stagehandMetrics.extractPromptTokens,
-      ),
-      extractCompletionTokens: this.mergeMetricField(
-        remoteMetrics.extractCompletionTokens,
-        this.stagehandMetrics.extractCompletionTokens,
-      ),
-      extractReasoningTokens: this.mergeMetricField(
-        remoteMetrics.extractReasoningTokens,
-        this.stagehandMetrics.extractReasoningTokens,
-      ),
-      extractCachedInputTokens: this.mergeMetricField(
-        remoteMetrics.extractCachedInputTokens,
-        this.stagehandMetrics.extractCachedInputTokens,
-      ),
-      extractInferenceTimeMs: this.mergeMetricField(
-        remoteMetrics.extractInferenceTimeMs,
-        this.stagehandMetrics.extractInferenceTimeMs,
-      ),
-      observePromptTokens: this.mergeMetricField(
-        remoteMetrics.observePromptTokens,
-        this.stagehandMetrics.observePromptTokens,
-      ),
-      observeCompletionTokens: this.mergeMetricField(
-        remoteMetrics.observeCompletionTokens,
-        this.stagehandMetrics.observeCompletionTokens,
-      ),
-      observeReasoningTokens: this.mergeMetricField(
-        remoteMetrics.observeReasoningTokens,
-        this.stagehandMetrics.observeReasoningTokens,
-      ),
-      observeCachedInputTokens: this.mergeMetricField(
-        remoteMetrics.observeCachedInputTokens,
-        this.stagehandMetrics.observeCachedInputTokens,
-      ),
-      observeInferenceTimeMs: this.mergeMetricField(
-        remoteMetrics.observeInferenceTimeMs,
-        this.stagehandMetrics.observeInferenceTimeMs,
-      ),
-      agentPromptTokens: this.mergeMetricField(
-        remoteMetrics.agentPromptTokens,
-        this.stagehandMetrics.agentPromptTokens,
-      ),
-      agentCompletionTokens: this.mergeMetricField(
-        remoteMetrics.agentCompletionTokens,
-        this.stagehandMetrics.agentCompletionTokens,
-      ),
-      agentReasoningTokens: this.mergeMetricField(
-        remoteMetrics.agentReasoningTokens,
-        this.stagehandMetrics.agentReasoningTokens,
-      ),
-      agentCachedInputTokens: this.mergeMetricField(
-        remoteMetrics.agentCachedInputTokens,
-        this.stagehandMetrics.agentCachedInputTokens,
-      ),
-      agentInferenceTimeMs: this.mergeMetricField(
-        remoteMetrics.agentInferenceTimeMs,
-        this.stagehandMetrics.agentInferenceTimeMs,
-      ),
+      ...remoteMetrics,
+      agentPromptTokens,
+      agentCompletionTokens,
+      agentReasoningTokens,
+      agentCachedInputTokens,
+      agentInferenceTimeMs,
       totalPromptTokens: 0,
       totalCompletionTokens: 0,
       totalReasoningTokens: 0,
