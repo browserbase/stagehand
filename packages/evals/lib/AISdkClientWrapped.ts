@@ -144,7 +144,9 @@ export class AISdkClientWrapped extends LLMClient {
     const isDeepSeek = this.model.modelId.includes("deepseek");
     // Kimi models only support temperature=1
     const isKimi = this.model.modelId.includes("kimi");
-    const temperature = isKimi ? 1 : options.temperature;
+    // Claude Opus 4.7+ does not support the temperature parameter
+    const isOpus47 = this.model.modelId.includes("claude-opus-4-7");
+    const temperature = isOpus47 ? undefined : isKimi ? 1 : options.temperature;
 
     // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
     const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
