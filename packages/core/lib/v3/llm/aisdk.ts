@@ -147,11 +147,10 @@ export class AISdkClient extends LLMClient {
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
-    // Kimi models only support temperature=1
+    // Resolve temperature: user-configured > Kimi override (must be 1) > no default
     const isKimi = this.model.modelId.includes("kimi");
-    // Claude Opus 4.7+ does not support the temperature parameter
-    const isOpus47 = this.model.modelId.includes("claude-opus-4-7");
-    const temperature = isOpus47 ? undefined : isKimi ? 1 : options.temperature;
+    const userTemperature = this.clientOptions?.temperature;
+    const temperature = userTemperature ?? (isKimi ? 1 : undefined);
 
     // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
     const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
