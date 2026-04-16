@@ -1,0 +1,28 @@
+packages/core/examples/example.ts
+  h_1c843de575e6c3 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "197951eeac4f008816ab56df4c0446bdb681b0e8",
+  "prompts": {
+    "41d56869c591260e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36711845-0cf2-40ef-9f05-737545d6869d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_1c843de575e6c3": {
+      "author": "Filip Michalsky"
+    }
+  }
+}
