@@ -36,7 +36,7 @@ async function example(stagehand: Stagehand) {
 
 (async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env: "BROWSERBASE",
     model: "anthropic/claude-opus-4-7",
     verbose: 2,
   });
