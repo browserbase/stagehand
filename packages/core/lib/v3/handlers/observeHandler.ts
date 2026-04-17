@@ -206,13 +206,20 @@ export class ObserveHandler {
               selector: string;
             };
           }
-          // shadow-root fallback:
-          return {
-            description: "an element inside a shadow DOM",
-            method: "not-supported",
-            arguments: [],
-            selector: "not-supported",
-          };
+          // elementId didn't match the expected "number-number" format
+          // (e.g. LLM returned a single number). Filter it out.
+          v3Logger({
+            category: "observation",
+            message: "skipping element with invalid elementId format",
+            level: 1,
+            auxiliary: {
+              elementId: {
+                value: String(elementId),
+                type: "string",
+              },
+            },
+          });
+          return undefined;
         }),
       )
     ).filter(<T>(e: T | undefined): e is T => e !== undefined);
