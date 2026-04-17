@@ -1,0 +1,23 @@
+packages/core/lib/v3/understudy/context.ts
+  41d56869c591260e 1069-1073
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "ef32dd84e9e6e3252cfc09872c09c3f841675790",
+  "prompts": {
+    "41d56869c591260e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36711845-0cf2-40ef-9f05-737545d6869d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 1,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
