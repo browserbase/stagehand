@@ -435,18 +435,105 @@ export class V3 {
   public get metrics(): Promise<StagehandMetrics> {
     if (this.apiClient) {
       // Fetch metrics from the API
-      return this.apiClient.getReplayMetrics().catch((error) => {
-        this.logger({
-          category: "metrics",
-          message: `Failed to fetch metrics from API: ${error}`,
-          level: 0,
+      return this.apiClient
+        .getReplayMetrics()
+        .then((metrics) => this.mergeAgentMetricsWithLocalFallback(metrics))
+        .catch((error) => {
+          this.logger({
+            category: "metrics",
+            message: `Failed to fetch metrics from API: ${error}`,
+            level: 0,
+          });
+          // Fall back to local metrics on error
+          return this.stagehandMetrics;
         });
-        // Fall back to local metrics on error
-        return this.stagehandMetrics;
-      });
     }
     // Return local metrics wrapped in a Promise for consistency
     return Promise.resolve(this.stagehandMetrics);
+  }
+
+  private mergeAgentMetricsWithLocalFallback(
+    remoteMetrics: StagehandMetrics,
+  ): StagehandMetrics {
+    // In API mode, agent.execute() is the only path that returns trusted inline
+    // usage today, so only repair the agent bucket from local state.
+    const agentPromptTokens = Math.max(
+      remoteMetrics.agentPromptTokens,
+      this.stagehandMetrics.agentPromptTokens,
+    );
+    const agentCompletionTokens = Math.max(
+      remoteMetrics.agentCompletionTokens,
+      this.stagehandMetrics.agentCompletionTokens,
+    );
+    const agentReasoningTokens = Math.max(
+      remoteMetrics.agentReasoningTokens,
+      this.stagehandMetrics.agentReasoningTokens,
+    );
+    const agentCachedInputTokens = Math.max(
+      remoteMetrics.agentCachedInputTokens,
+      this.stagehandMetrics.agentCachedInputTokens,
+    );
+    const agentInferenceTimeMs = Math.max(
+      remoteMetrics.agentInferenceTimeMs,
+      this.stagehandMetrics.agentInferenceTimeMs,
+    );
+
+    const metrics: StagehandMetrics = {
+      ...remoteMetrics,
+      agentPromptTokens,
+      agentCompletionTokens,
+      agentReasoningTokens,
+      agentCachedInputTokens,
+      agentInferenceTimeMs,
+      totalPromptTokens: 0,
+      totalCompletionTokens: 0,
+      totalReasoningTokens: 0,
+      totalCachedInputTokens: 0,
+      totalInferenceTimeMs: 0,
+    };
+
+    metrics.totalPromptTokens =
+      metrics.actPromptTokens +
+      metrics.extractPromptTokens +
+      metrics.observePromptTokens +
+      metrics.agentPromptTokens;
+    metrics.totalCompletionTokens =
+      metrics.actCompletionTokens +
+      metrics.extractCompletionTokens +
+      metrics.observeCompletionTokens +
+      metrics.agentCompletionTokens;
+    metrics.totalReasoningTokens =
+      metrics.actReasoningTokens +
+      metrics.extractReasoningTokens +
+      metrics.observeReasoningTokens +
+      metrics.agentReasoningTokens;
+    metrics.totalCachedInputTokens =
+      metrics.actCachedInputTokens +
+      metrics.extractCachedInputTokens +
+      metrics.observeCachedInputTokens +
+      metrics.agentCachedInputTokens;
+    metrics.totalInferenceTimeMs =
+      metrics.actInferenceTimeMs +
+      metrics.extractInferenceTimeMs +
+      metrics.observeInferenceTimeMs +
+      metrics.agentInferenceTimeMs;
+
+    return metrics;
+  }
+
+  private updateAgentMetricsFromUsage(usage?: AgentResult["usage"]): void {
+    if (!usage) {
+      return;
+    }
+
+    this.updateMetrics(
+      V3FunctionName.AGENT,
+      usage.input_tokens,
+      usage.output_tokens,
+      usage.reasoning_tokens ?? 0,
+      usage.cached_input_tokens ?? 0,
+      usage.inference_time_ms,
+    );
   }
 
   private resolveLlmClient(model?: ModelConfiguration): LLMClient {
@@ -2011,6 +2098,7 @@ export class V3 {
                   page.mainFrameId(),
                   !!cacheContext,
                 );
+                this.updateAgentMetricsFromUsage(result.usage);
                 if (cacheContext) {
                   const transferredEntry =
                     this.apiClient.consumeLatestAgentCacheEntry();
@@ -2145,6 +2233,7 @@ export class V3 {
                 page.mainFrameId(),
                 !!cacheContext,
               );
+              this.updateAgentMetricsFromUsage(result.usage);
               if (cacheContext) {
                 const transferredEntry =
                   this.apiClient.consumeLatestAgentCacheEntry();
