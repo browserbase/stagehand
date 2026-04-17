@@ -43,6 +43,12 @@ describe("mcpUtils", () => {
     });
   });
 
+  it("preserves scalar strings that look like JSON scalars", () => {
+    expect(parseLooseJson<string>('### Result\n"true"')).toBe("true");
+    expect(parseLooseJson<string>('### Result\n"123"')).toBe("123");
+    expect(parseLooseJson<string>('### Result\n"null"')).toBe("null");
+  });
+
   it("parses list_pages output from markdown table rows", () => {
     const listed = parseChromeDevtoolsListedPages(`
 | pageId | title | url |

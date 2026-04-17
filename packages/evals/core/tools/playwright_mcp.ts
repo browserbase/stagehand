@@ -12,7 +12,7 @@ import type {
   ToolStartInput,
   ToolStartResult,
 } from "../contracts/tool.js";
-import { StdioMcpRuntime } from "./mcpUtils.js";
+import { extractMcpImage, resolvePnpmCommand, StdioMcpRuntime } from "./mcpUtils.js";
 
 const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "session",
@@ -33,6 +33,20 @@ const SUPPORTED_CAPABILITIES: CoreCapability[] = [
 type ListedPlaywrightPage = {
   index: number;
   url: string;
+  current: boolean;
+};
+
+type PlaywrightSnapshotEntry = {
+  ref: string;
+  role?: string;
+  name?: string;
+  text?: string;
+};
+
+type PlaywrightSnapshotQuery = {
+  role?: string;
+  name?: string;
+  text?: string;
 };
 
 function connectionModeFromProfile(
@@ -67,10 +81,6 @@ function selectorExpression(selector: string): string {
   return serialize(selector);
 }
 
-function actionTargetExpression(target: ActionTarget): string {
-  return serialize(target);
-}
-
 function buildPlaywrightSelectorResolver(selectorVar = "selector"): string {
   return `
     const selector = ${selectorVar};
@@ -79,6 +89,127 @@ function buildPlaywrightSelectorResolver(selectorVar = "selector"): string {
     }
     return page.locator(selector);
   `;
+}
+
+function normalizeText(value: string | undefined): string {
+  return value?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
+}
+
+function parsePlaywrightListedPages(text: string): ListedPlaywrightPage[] {
+  const pages: ListedPlaywrightPage[] = [];
+  const lines = text.split(/\r?\n/);
+
+  for (const line of lines) {
+    const match = line.match(
+      /^\s*-\s*(\d+):\s*(\(current\)\s*)?\[[^\]]*]\(([^)]+)\)/,
+    );
+    if (!match) continue;
+    pages.push({
+      index: Number(match[1]),
+      current: Boolean(match[2]),
+      url: match[3],
+    });
+  }
+
+  return pages.sort((left, right) => left.index - right.index);
+}
+
+function parsePlaywrightSnapshotEntries(text: string): PlaywrightSnapshotEntry[] {
+  const entries: PlaywrightSnapshotEntry[] = [];
+  const lines = text.split(/\r?\n/);
+
+  for (const line of lines) {
+    const refMatch = line.match(/\[ref=([^\]]+)\]/);
+    if (!refMatch) continue;
+
+    const withoutPrefix = line.replace(/^\s*-\s*/, "");
+    const beforeRef = withoutPrefix.replace(/\s*\[ref=[^\]]+\]/, "").trim();
+    const [content, trailingText] = beforeRef.split(/\s*:\s*/, 2);
+
+    let role = "";
+    let name = "";
+    const quotedMatch = content.match(/^([a-zA-Z0-9_-]+)\s+"([^"]+)"/);
+    if (quotedMatch) {
+      role = quotedMatch[1];
+      name = quotedMatch[2];
+    } else {
+      const roleMatch = content.match(/^([a-zA-Z0-9_-]+)/);
+      role = roleMatch?.[1] ?? "";
+    }
+
+    entries.push({
+      ref: refMatch[1],
+      role: role || undefined,
+      name: name || undefined,
+      text: trailingText?.trim() || undefined,
+    });
+  }
+
+  return entries;
+}
+
+function scorePlaywrightSnapshotEntry(
+  entry: PlaywrightSnapshotEntry,
+  query: PlaywrightSnapshotQuery,
+): number {
+  let score = 0;
+
+  if (query.role) {
+    if (normalizeText(entry.role) !== normalizeText(query.role)) {
+      return -1;
+    }
+    score += 3;
+  }
+
+  if (query.name) {
+    const expected = normalizeText(query.name);
+    const candidates = [entry.name, entry.text].map(normalizeText).filter(Boolean);
+    if (!candidates.length) {
+      return -1;
+    }
+    if (candidates.includes(expected)) {
+      score += 6;
+    } else if (candidates.some((candidate) => candidate.includes(expected))) {
+      score += 4;
+    } else {
+      return -1;
+    }
+  }
+
+  if (query.text) {
+    const expected = normalizeText(query.text);
+    const candidates = [entry.text, entry.name].map(normalizeText).filter(Boolean);
+    if (!candidates.length) {
+      return -1;
+    }
+    if (candidates.includes(expected)) {
+      score += 6;
+    } else if (candidates.some((candidate) => candidate.includes(expected))) {
+      score += 4;
+    } else {
+      return -1;
+    }
+  }
+
+  return score;
+}
+
+function findBestPlaywrightSnapshotEntry(
+  entries: PlaywrightSnapshotEntry[],
+  query: PlaywrightSnapshotQuery,
+): PlaywrightSnapshotEntry | null {
+  let bestEntry: PlaywrightSnapshotEntry | null = null;
+  let bestScore = -1;
+
+  for (const entry of entries) {
+    const score = scorePlaywrightSnapshotEntry(entry, query);
+    if (score > bestScore) {
+      bestEntry = entry;
+      bestScore = score;
+    }
+  }
+
+  return bestScore >= 0 ? bestEntry : null;
 }
 
 class PlaywrightMcpLocatorHandle implements CoreLocatorHandle {
@@ -166,6 +297,87 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
     return this.cachedUrl;
   }
 
+  private async snapshotText(): Promise<string> {
+    return this.runtime.callText("browser_snapshot", {});
+  }
+
+  private async describeSelectorTarget(
+    selector: string,
+  ): Promise<PlaywrightSnapshotQuery> {
+    return this.runCodeJson<PlaywrightSnapshotQuery>(`
+      async (page) => {
+        const selector = ${selectorExpression(selector)};
+        const locator = page.locator(selector).first();
+        await locator.waitFor({ state: "attached" });
+        const description = await locator.evaluate((node) => {
+          const read = (value) => typeof value === "string" ? value.trim() : "";
+          const roleFromTag = () => {
+            if (node instanceof HTMLButtonElement) return "button";
+            if (node instanceof HTMLAnchorElement && node.href) return "link";
+            if (node instanceof HTMLTextAreaElement) return "textbox";
+            if (node instanceof HTMLSelectElement) return "combobox";
+            if (node instanceof HTMLInputElement) {
+              const type = read(node.type).toLowerCase();
+              if (!type || ["text", "search", "email", "url", "tel", "password", "number"].includes(type)) {
+                return "textbox";
+              }
+              if (type === "checkbox") return "checkbox";
+              if (type === "radio") return "radio";
+              if (type === "button" || type === "submit" || type === "reset") return "button";
+            }
+            const tagName = read(node.nodeName).toLowerCase();
+            return tagName || "";
+          };
+
+          const textContent = node instanceof HTMLElement
+            ? read(node.innerText) || read(node.textContent)
+            : read(node.textContent);
+          const valueText =
+            node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement
+              ? read(node.value) || read(node.placeholder)
+              : "";
+          const description = {
+            role: read(node.getAttribute?.("role")) || roleFromTag() || undefined,
+            name:
+              read(node.getAttribute?.("aria-label")) ||
+              read(node.getAttribute?.("title")) ||
+              valueText ||
+              textContent ||
+              undefined,
+            text: textContent || valueText || undefined,
+          };
+
+          return JSON.stringify(description);
+        });
+
+        return JSON.stringify(description);
+      }
+    `);
+  }
+
+  private async resolveTargetRef(
+    target: string | Extract<ActionTarget, { kind: "selector" | "role_name" | "text" }>,
+  ): Promise<string> {
+    const query =
+      typeof target === "string"
+        ? await this.describeSelectorTarget(target)
+        : target.kind === "selector"
+          ? await this.describeSelectorTarget(target.value)
+          : target.kind === "role_name"
+            ? { role: target.role, name: target.name }
+            : { text: target.text };
+
+    const entries = parsePlaywrightSnapshotEntries(await this.snapshotText());
+    const match = findBestPlaywrightSnapshotEntry(entries, query);
+    if (!match) {
+      throw new Error(
+        `Unable to resolve Playwright MCP target from snapshot: ${JSON.stringify(query)}`,
+      );
+    }
+
+    return match.ref;
+  }
+
   async runCode(code: string): Promise<string> {
     const text = await this.runtime.callText("browser_run_code", {
       code,
@@ -208,7 +420,12 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
   async back(
     _opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
   ): Promise<boolean> {
-    await this.runtime.callTool("browser_navigate_back", {});
+    await this.runCode(`
+      async (page) => {
+        await page.goBack();
+        return JSON.stringify(page.url());
+      }
+    `);
     await this.refreshUrlFromPage();
     return true;
   }
@@ -275,15 +492,16 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
     type?: "png" | "jpeg";
     quality?: number;
   }): Promise<Buffer> {
-    const extension = opts?.type === "jpeg" ? "jpg" : "png";
-    const filename = `playwright-mcp-screenshot-${Date.now()}.${extension}`;
-    await this.runtime.callTool("browser_take_screenshot", {
+    const result = await this.runtime.callTool("browser_take_screenshot", {
       type: opts?.type ?? "png",
       fullPage: opts?.fullPage ?? false,
-      filename,
       ...(typeof opts?.quality === "number" ? { quality: opts.quality } : {}),
     });
-    return this.runtime.readArtifact(filename);
+    const image = extractMcpImage(result);
+    if (!image) {
+      throw new Error("playwright_mcp screenshot did not return image content");
+    }
+    return Buffer.from(image.data, "base64");
   }
 
   async setViewport(size: { width: number; height: number }): Promise<void> {
@@ -364,11 +582,10 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
 
     switch (normalized.kind) {
       case "selector":
-        await this.runCode(`
-          async (page) => {
-            await page.locator(${selectorExpression(normalized.value)})[${serialize(action)}]();
-          }
-        `);
+        await this.runtime.callTool(
+          action === "click" ? "browser_click" : "browser_hover",
+          { ref: await this.resolveTargetRef(normalized.value) },
+        );
         return;
       case "coords":
         await this.runCode(`
@@ -378,22 +595,16 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
         `);
         return;
       case "role_name":
-        await this.runCode(`
-          async (page) => {
-            const target = ${actionTargetExpression(normalized)};
-            const locator = page.getByRole(target.role, { name: target.name });
-            await locator.${action}();
-          }
-        `);
+        await this.runtime.callTool(
+          action === "click" ? "browser_click" : "browser_hover",
+          { ref: await this.resolveTargetRef(normalized) },
+        );
         return;
       case "text":
-        await this.runCode(`
-          async (page) => {
-            const target = ${actionTargetExpression(normalized)};
-            const locator = page.getByText(target.text);
-            await locator.${action}();
-          }
-        `);
+        await this.runtime.callTool(
+          action === "click" ? "browser_click" : "browser_hover",
+          { ref: await this.resolveTargetRef(normalized) },
+        );
         return;
       default:
         throw new Error(
@@ -409,7 +620,9 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
       }
       await this.runCode(`
         async (page) => {
-          await page.mouse.click(${targetOrX}, ${y});
+          await page.mouse.move(${targetOrX}, ${y});
+          await page.mouse.down();
+          await page.mouse.up();
         }
       `);
       return;
@@ -468,15 +681,17 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
 
     switch (target.kind) {
       case "focused":
-        await this.runtime.callTool("browser_press_key", { key: text });
-        return;
-      case "selector":
         await this.runCode(`
           async (page) => {
-            const locator = page.locator(${selectorExpression(target.value)});
-            await locator.fill(${serialize(text)});
+            await page.keyboard.type(${serialize(text)});
           }
         `);
+        return;
+      case "selector":
+        await this.runtime.callTool("browser_type", {
+          ref: await this.resolveTargetRef(target.value),
+          text,
+        });
         return;
       case "coords":
         await this.runCode(`
@@ -487,21 +702,16 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
         `);
         return;
       case "role_name":
-        await this.runCode(`
-          async (page) => {
-            const target = ${actionTargetExpression(target)};
-            await page.getByRole(target.role, { name: target.name }).fill(${serialize(text)});
-          }
-        `);
+        await this.runtime.callTool("browser_type", {
+          ref: await this.resolveTargetRef(target),
+          text,
+        });
         return;
       case "text":
-        await this.runCode(`
-          async (page) => {
-            const target = ${actionTargetExpression(target)};
-            await page.getByText(target.text).click();
-            await page.keyboard.type(${serialize(text)});
-          }
-        `);
+        await this.runtime.callTool("browser_type", {
+          ref: await this.resolveTargetRef(target),
+          text,
+        });
         return;
       default:
         throw new Error(`playwright_mcp does not support type target kind "${target.kind}" yet`);
@@ -531,12 +741,10 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
         await this.runtime.callTool("browser_press_key", { key });
         return;
       case "selector":
-        await this.runCode(`
-          async (page) => {
-            await page.locator(${selectorExpression(target.value)}).click();
-            await page.keyboard.press(${serialize(key)});
-          }
-        `);
+        await this.runtime.callTool("browser_click", {
+          ref: await this.resolveTargetRef(target.value),
+        });
+        await this.runtime.callTool("browser_press_key", { key });
         return;
       case "coords":
         await this.runCode(`
@@ -547,22 +755,16 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
         `);
         return;
       case "role_name":
-        await this.runCode(`
-          async (page) => {
-            const target = ${actionTargetExpression(target)};
-            await page.getByRole(target.role, { name: target.name }).click();
-            await page.keyboard.press(${serialize(key)});
-          }
-        `);
+        await this.runtime.callTool("browser_click", {
+          ref: await this.resolveTargetRef(target),
+        });
+        await this.runtime.callTool("browser_press_key", { key });
         return;
       case "text":
-        await this.runCode(`
-          async (page) => {
-            const target = ${actionTargetExpression(target)};
-            await page.getByText(target.text).click();
-            await page.keyboard.press(${serialize(key)});
-          }
-        `);
+        await this.runtime.callTool("browser_click", {
+          ref: await this.resolveTargetRef(target),
+        });
+        await this.runtime.callTool("browser_press_key", { key });
         return;
       default:
         throw new Error(`playwright_mcp does not support press target kind "${target.kind}" yet`);
@@ -570,9 +772,7 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
   }
 
   async represent(): Promise<PageRepresentation> {
-    const filename = `playwright-mcp-snapshot-${Date.now()}.md`;
-    await this.runtime.callTool("browser_snapshot", { filename });
-    const content = await this.runtime.readArtifactText(filename);
+    const content = await this.snapshotText();
 
     return {
       kind: "snapshot_refs",
@@ -624,17 +824,9 @@ class PlaywrightMcpSession implements CoreSession {
   }
 
   private async syncPages(): Promise<void> {
-    const listed = await this.runtime.callJson<ListedPlaywrightPage[]>("browser_run_code", {
-      code: `
-        async (page) => {
-          const pages = page.context().pages().map((candidate, index) => ({
-            index,
-            url: candidate.url(),
-          }));
-          return JSON.stringify(pages);
-        }
-      `,
-    });
+    const listed = parsePlaywrightListedPages(
+      await this.runtime.callText("browser_tabs", { action: "list" }),
+    );
 
     const seenIndexes = new Set<number>();
     for (const item of listed) {
@@ -649,6 +841,12 @@ class PlaywrightMcpSession implements CoreSession {
       if (this.activePageId === tracked.id) {
         this.activePageId = null;
       }
+    }
+
+    const current = listed.find((page) => page.current);
+    if (current) {
+      this.activePageId = this.findOrCreatePage(current.index, current.url).id;
+      return;
     }
 
     if (!this.activePageId && listed[0]) {
@@ -707,15 +905,8 @@ class PlaywrightMcpSession implements CoreSession {
       action: "select",
       index: tracked.index,
     });
+    await this.syncPages();
     this.activePageId = pageId;
-    await tracked.handle.evaluate("window.location.href");
-    tracked.handle.setCachedUrl(
-      await this.runtime.callJson<string>("browser_run_code", {
-        code: `
-          async (page) => JSON.stringify(page.url())
-        `,
-      }),
-    );
   }
 
   async closePage(pageId: string): Promise<void> {
@@ -813,7 +1004,7 @@ export class PlaywrightMcpTool implements CoreTool {
 
   async start(input: ToolStartInput): Promise<ToolStartResult> {
     const runtime = await StdioMcpRuntime.connect({
-      command: "pnpm",
+      command: resolvePnpmCommand(),
       args: buildPlaywrightMcpArgs(input),
     });
     const session = new PlaywrightMcpSession(runtime);

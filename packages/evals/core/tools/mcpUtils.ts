@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { accessSync, realpathSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { connectToMCPServer } from "@browserbasehq/stagehand";
 
@@ -37,6 +38,7 @@ export interface StdioMcpConnectionOptions {
   command: string;
   args: string[];
   env?: Record<string, string | undefined>;
+  artifactRootDir?: string;
 }
 
 export interface ParsedListedPage {
@@ -101,12 +103,34 @@ export function extractMcpText(result: McpToolResult): string {
   return parts.join("\n").trim();
 }
 
+export function extractMcpImage(
+  result: McpToolResult,
+): { data: string; mimeType?: string } | null {
+  for (const item of result.content ?? []) {
+    if (item.type === "image") {
+      return {
+        data: item.data,
+        mimeType: item.mimeType,
+      };
+    }
+  }
+
+  return null;
+}
+
 export function parseLooseJson<T>(text: string): T {
   const unwrap = (value: unknown): unknown => {
     let current = value;
     while (typeof current === "string") {
       const trimmed = current.trim();
       if (!trimmed) break;
+      if (
+        !trimmed.startsWith("{") &&
+        !trimmed.startsWith("[") &&
+        !trimmed.startsWith("\"")
+      ) {
+        break;
+      }
       try {
         current = JSON.parse(trimmed);
       } catch {
@@ -201,14 +225,52 @@ export function createPnpmDlxEnv(
         return typeof entry[1] === "string";
       }),
     ),
-    XDG_CACHE_HOME: "/tmp",
-    PNPM_HOME: "/tmp",
     ...Object.fromEntries(
       Object.entries(env).filter((entry): entry is [string, string] => {
         return typeof entry[1] === "string";
       }),
     ),
   };
+}
+
+export function resolvePnpmCommand(): string {
+  const explicitCandidates = [
+    process.env.PNPM_EXECUTABLE,
+    process.env.npm_execpath,
+    "/opt/homebrew/bin/pnpm",
+    "/usr/local/bin/pnpm",
+  ].filter((value): value is string => Boolean(value));
+
+  for (const candidate of explicitCandidates) {
+    try {
+      const resolved = realpathSync(candidate);
+      if (resolved.toLowerCase().includes("corepack")) {
+        continue;
+      }
+      accessSync(resolved);
+      return resolved;
+    } catch {
+      continue;
+    }
+  }
+
+  const pathValue = process.env.PATH ?? "";
+  for (const directory of pathValue.split(path.delimiter)) {
+    if (!directory) continue;
+    const candidate = path.join(directory, "pnpm");
+    try {
+      const resolved = realpathSync(candidate);
+      if (resolved.toLowerCase().includes("corepack")) {
+        continue;
+      }
+      accessSync(resolved);
+      return resolved;
+    } catch {
+      continue;
+    }
+  }
+
+  return process.env.npm_execpath ?? "pnpm";
 }
 
 export class StdioMcpRuntime {
@@ -223,7 +285,10 @@ export class StdioMcpRuntime {
       args: options.args,
       env: createPnpmDlxEnv(options.env),
     });
-    const artifactDir = await mkdtemp(path.join(os.tmpdir(), "stagehand-evals-mcp-"));
+    const artifactBaseDir = options.artifactRootDir ?? os.tmpdir();
+    const artifactDir = await mkdtemp(
+      path.join(artifactBaseDir, "stagehand-evals-mcp-"),
+    );
     return new StdioMcpRuntime(client, artifactDir);
   }
 

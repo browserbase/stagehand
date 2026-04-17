@@ -15,6 +15,7 @@ import { resolveLocalChromeExecutablePath } from "../targets/localChrome.js";
 import {
   parseChromeDevtoolsListedPages,
   parseLooseJson,
+  resolvePnpmCommand,
   StdioMcpRuntime,
 } from "./mcpUtils.js";
 
@@ -35,6 +36,19 @@ const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "tabs",
   "representation",
 ];
+
+type ChromeDevtoolsSnapshotEntry = {
+  uid: string;
+  role?: string;
+  name?: string;
+  text?: string;
+};
+
+type ChromeDevtoolsSnapshotQuery = {
+  role?: string;
+  name?: string;
+  text?: string;
+};
 
 function connectionModeFromProfile(
   startupProfile: StartupProfile,
@@ -98,6 +112,103 @@ function buildSelectorResolver(selectorVar = "selector"): string {
 
 function keyName(key: string): string {
   return key === " " ? "Space" : key;
+}
+
+function normalizeText(value: string | undefined): string {
+  return value?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
+}
+
+function parseChromeDevtoolsSnapshotEntries(
+  text: string,
+): ChromeDevtoolsSnapshotEntry[] {
+  const entries: ChromeDevtoolsSnapshotEntry[] = [];
+  const lines = text.split(/\r?\n/);
+
+  for (const line of lines) {
+    const match = line.match(/uid=([^\s]+)\s+(.+)$/);
+    if (!match) continue;
+
+    const content = match[2].trim();
+    const quotedMatch = content.match(/^([A-Za-z0-9_-]+)\s+"([^"]+)"/);
+    const roleMatch = content.match(/^([A-Za-z0-9_-]+)/);
+    const trailingText =
+      quotedMatch
+        ? content.slice(quotedMatch[0].length).trim()
+        : content.slice((roleMatch?.[0] ?? "").length).trim();
+
+    entries.push({
+      uid: match[1],
+      role: quotedMatch?.[1] ?? roleMatch?.[1] ?? undefined,
+      name: quotedMatch?.[2] ?? undefined,
+      text: trailingText || undefined,
+    });
+  }
+
+  return entries;
+}
+
+function scoreChromeDevtoolsSnapshotEntry(
+  entry: ChromeDevtoolsSnapshotEntry,
+  query: ChromeDevtoolsSnapshotQuery,
+): number {
+  let score = 0;
+
+  if (query.role) {
+    if (normalizeText(entry.role) !== normalizeText(query.role)) {
+      return -1;
+    }
+    score += 3;
+  }
+
+  if (query.name) {
+    const expected = normalizeText(query.name);
+    const candidates = [entry.name, entry.text].map(normalizeText).filter(Boolean);
+    if (!candidates.length) {
+      return -1;
+    }
+    if (candidates.includes(expected)) {
+      score += 6;
+    } else if (candidates.some((candidate) => candidate.includes(expected))) {
+      score += 4;
+    } else {
+      return -1;
+    }
+  }
+
+  if (query.text) {
+    const expected = normalizeText(query.text);
+    const candidates = [entry.text, entry.name].map(normalizeText).filter(Boolean);
+    if (!candidates.length) {
+      return -1;
+    }
+    if (candidates.includes(expected)) {
+      score += 6;
+    } else if (candidates.some((candidate) => candidate.includes(expected))) {
+      score += 4;
+    } else {
+      return -1;
+    }
+  }
+
+  return score;
+}
+
+function findBestChromeDevtoolsSnapshotEntry(
+  entries: ChromeDevtoolsSnapshotEntry[],
+  query: ChromeDevtoolsSnapshotQuery,
+): ChromeDevtoolsSnapshotEntry | null {
+  let bestEntry: ChromeDevtoolsSnapshotEntry | null = null;
+  let bestScore = -1;
+
+  for (const entry of entries) {
+    const score = scoreChromeDevtoolsSnapshotEntry(entry, query);
+    if (score > bestScore) {
+      bestEntry = entry;
+      bestScore = score;
+    }
+  }
+
+  return bestScore >= 0 ? bestEntry : null;
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -175,6 +286,84 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
     return this.cachedUrl;
   }
 
+  private async snapshotText(): Promise<string> {
+    return this.runtime.callText("take_snapshot", {});
+  }
+
+  private async describeSelectorTarget(
+    selector: string,
+  ): Promise<ChromeDevtoolsSnapshotQuery> {
+    return this.runtime.callJson<ChromeDevtoolsSnapshotQuery>("evaluate_script", {
+      function: `() => {
+        ${buildSelectorResolver(serialize(selector))}
+        if (!(first instanceof Element)) {
+          throw new Error("Selector not found: ${escapeTemplateLiteral(selector)}");
+        }
+
+        const read = (value) => typeof value === "string" ? value.trim() : "";
+        const roleFromTag = () => {
+          if (first instanceof HTMLButtonElement) return "button";
+          if (first instanceof HTMLAnchorElement && first.href) return "link";
+          if (first instanceof HTMLTextAreaElement) return "textbox";
+          if (first instanceof HTMLSelectElement) return "combobox";
+          if (first instanceof HTMLInputElement) {
+            const type = read(first.type).toLowerCase();
+            if (!type || ["text", "search", "email", "url", "tel", "password", "number"].includes(type)) {
+              return "textbox";
+            }
+            if (type === "checkbox") return "checkbox";
+            if (type === "radio") return "radio";
+            if (type === "button" || type === "submit" || type === "reset") return "button";
+          }
+          const tagName = read(first.nodeName).toLowerCase();
+          return tagName || "";
+        };
+
+        const textContent = first instanceof HTMLElement
+          ? read(first.innerText) || read(first.textContent)
+          : read(first.textContent);
+        const valueText =
+          first instanceof HTMLInputElement || first instanceof HTMLTextAreaElement
+            ? read(first.value) || read(first.placeholder)
+            : "";
+
+        return JSON.stringify({
+          role: read(first.getAttribute("role")) || roleFromTag() || undefined,
+          name:
+            read(first.getAttribute("aria-label")) ||
+            read(first.getAttribute("title")) ||
+            valueText ||
+            textContent ||
+            undefined,
+          text: textContent || valueText || undefined,
+        });
+      }`,
+    });
+  }
+
+  private async resolveTargetUid(
+    target: string | Extract<ActionTarget, { kind: "selector" | "role_name" | "text" }>,
+  ): Promise<string> {
+    const query =
+      typeof target === "string"
+        ? await this.describeSelectorTarget(target)
+        : target.kind === "selector"
+          ? await this.describeSelectorTarget(target.value)
+          : target.kind === "role_name"
+            ? { role: target.role, name: target.name }
+            : { text: target.text };
+
+    const entries = parseChromeDevtoolsSnapshotEntries(await this.snapshotText());
+    const match = findBestChromeDevtoolsSnapshotEntry(entries, query);
+    if (!match) {
+      throw new Error(
+        `Unable to resolve Chrome DevTools MCP target from snapshot: ${JSON.stringify(query)}`,
+      );
+    }
+
+    return match.uid;
+  }
+
   private async evaluateJson<R>(body: string): Promise<R> {
     const text = await this.runtime.callText("evaluate_script", {
       function: `() => { ${body} }`,
@@ -192,20 +381,9 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
   }
 
   async fillSelector(selector: string, value: string): Promise<void> {
-    await this.runtime.callTool("evaluate_script", {
-      function: `() => {
-        ${buildSelectorResolver(serialize(selector))}
-        if (!first) throw new Error("Selector not found: ${escapeTemplateLiteral(selector)}");
-        if (first instanceof HTMLElement) first.focus();
-        if ("value" in first) {
-          first.value = ${serialize(value)};
-          first.dispatchEvent(new Event("input", { bubbles: true }));
-          first.dispatchEvent(new Event("change", { bubbles: true }));
-        } else {
-          throw new Error("Selector is not fillable: ${escapeTemplateLiteral(selector)}");
-        }
-        return JSON.stringify(true);
-      }`,
+    await this.runtime.callTool("fill", {
+      uid: await this.resolveTargetUid(selector),
+      value,
     });
   }
 
@@ -303,10 +481,11 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
   }): Promise<Buffer> {
     const extension = opts?.type === "jpeg" ? "jpg" : "png";
     const filename = `chrome-devtools-mcp-screenshot-${Date.now()}.${extension}`;
+    const artifactPath = this.runtime.artifactPath(filename);
     await this.runtime.callTool("take_screenshot", {
       format: opts?.type ?? "png",
       fullPage: opts?.fullPage ?? false,
-      filePath: filename,
+      filePath: artifactPath,
       ...(typeof opts?.quality === "number" ? { quality: opts.quality } : {}),
     });
     return this.runtime.readArtifact(filename);
@@ -314,6 +493,20 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
 
   async setViewport(size: { width: number; height: number }): Promise<void> {
     await this.runtime.callTool("resize_page", size);
+
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline) {
+      const viewport = await this.evaluateJson<{ width: number; height: number }>(`
+        return JSON.stringify({
+          width: window.innerWidth,
+          height: window.innerHeight,
+        });
+      `);
+      if (viewport.width === size.width && viewport.height === size.height) {
+        return;
+      }
+      await sleep(100);
+    }
   }
 
   async setViewportSize(width: number, height: number): Promise<void> {
@@ -446,59 +639,21 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
 
     switch (target.kind) {
       case "selector":
-        await this.runtime.callTool("evaluate_script", {
-          function: `() => {
-            ${buildSelectorResolver(serialize(target.value))}
-            if (!first) throw new Error("Selector not found: ${escapeTemplateLiteral(target.value)}");
-            if (first instanceof HTMLElement) first.focus();
-            first.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
-            first.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
-            first.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-            if (typeof first.click === "function") first.click();
-            return JSON.stringify(true);
-          }`,
+        await this.runtime.callTool("click", {
+          uid: await this.resolveTargetUid(target.value),
         });
         return;
       case "coords":
         await this.click(target.x, target.y);
         return;
       case "text":
-        await this.runtime.callTool("wait_for", { text: [target.text] });
-        await this.runtime.callTool("evaluate_script", {
-          function: `() => {
-            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
-            let match = null;
-            while (walker.nextNode()) {
-              const candidate = walker.currentNode;
-              if (candidate instanceof HTMLElement && candidate.innerText?.includes(${serialize(target.text)})) {
-                match = candidate;
-                break;
-              }
-            }
-            if (!match) throw new Error("Text target not found");
-            match.focus?.();
-            match.click?.();
-            return JSON.stringify(true);
-          }`,
+        await this.runtime.callTool("click", {
+          uid: await this.resolveTargetUid(target),
         });
         return;
       case "role_name":
-        await this.runtime.callTool("evaluate_script", {
-          function: `() => {
-            const role = ${serialize(target.role)};
-            const name = ${serialize(target.name ?? "")};
-            const candidates = Array.from(document.querySelectorAll('[role]')).filter(
-              (node) => node.getAttribute('role') === role,
-            );
-            const match = candidates.find((node) => {
-              const label = node.getAttribute('aria-label') || node.textContent || '';
-              return !name || label.includes(name);
-            });
-            if (!(match instanceof HTMLElement)) throw new Error("Role target not found");
-            match.focus();
-            match.click();
-            return JSON.stringify(true);
-          }`,
+        await this.runtime.callTool("click", {
+          uid: await this.resolveTargetUid(target),
         });
         return;
       default:
@@ -524,23 +679,22 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
 
     switch (target.kind) {
       case "selector":
-        await this.runtime.callTool("evaluate_script", {
-          function: `() => {
-            ${buildSelectorResolver(serialize(target.value))}
-            if (!first) throw new Error("Selector not found: ${escapeTemplateLiteral(target.value)}");
-            for (const name of ["mousemove", "mouseover", "mouseenter"]) {
-              first.dispatchEvent(new MouseEvent(name, { bubbles: true, cancelable: true, view: window }));
-            }
-            return JSON.stringify(true);
-          }`,
+        await this.runtime.callTool("hover", {
+          uid: await this.resolveTargetUid(target.value),
         });
         return;
       case "coords":
         await this.hover(target.x, target.y);
         return;
       case "text":
+        await this.runtime.callTool("hover", {
+          uid: await this.resolveTargetUid(target),
+        });
+        return;
       case "role_name":
-        await this.click(target as ActionTarget);
+        await this.runtime.callTool("hover", {
+          uid: await this.resolveTargetUid(target),
+        });
         return;
       default:
         throw new Error(
@@ -639,9 +793,7 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
   }
 
   async represent(): Promise<PageRepresentation> {
-    const filename = `chrome-devtools-mcp-snapshot-${Date.now()}.md`;
-    await this.runtime.callTool("take_snapshot", { filePath: filename });
-    const content = await this.runtime.readArtifactText(filename);
+    const content = await this.snapshotText();
 
     return {
       kind: "snapshot_refs",
@@ -895,7 +1047,7 @@ export class ChromeDevtoolsMcpTool implements CoreTool {
 
   async start(input: ToolStartInput): Promise<ToolStartResult> {
     const runtime = await StdioMcpRuntime.connect({
-      command: "pnpm",
+      command: resolvePnpmCommand(),
       args: buildChromeDevtoolsMcpArgs(input),
     });
     const session = new ChromeDevtoolsMcpSession(runtime);
