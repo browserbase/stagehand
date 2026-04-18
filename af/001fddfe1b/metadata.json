@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "af001fddfe1b",
+  "strategy": "manual-commit",
+  "branch": "evals-overhaul",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "packages/evals/package.json",
+    "packages/evals/scripts/render-braintrust-core-report.ts",
+    "packages/evals/spec.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/af/001fddfe1b/0/metadata.json",
+      "transcript": "/af/001fddfe1b/0/full.jsonl",
+      "context": "/af/001fddfe1b/0/context.md",
+      "content_hash": "/af/001fddfe1b/0/content_hash.txt",
+      "prompt": "/af/001fddfe1b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 171,
+    "cache_creation_tokens": 2524922,
+    "cache_read_tokens": 88666343,
+    "output_tokens": 160555,
+    "api_call_count": 111
+  }
+}
