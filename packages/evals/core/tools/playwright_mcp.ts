@@ -81,6 +81,12 @@ function selectorExpression(selector: string): string {
   return serialize(selector);
 }
 
+function historyWaitUntil(
+  waitUntil?: "load" | "domcontentloaded" | "networkidle",
+): "load" | "domcontentloaded" | "networkidle" {
+  return waitUntil ?? "domcontentloaded";
+}
+
 function buildPlaywrightSelectorResolver(selectorVar = "selector"): string {
   return `
     const selector = ${selectorVar};
@@ -391,6 +397,36 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
     });
   }
 
+  private async waitForHistoryNavigation(
+    previousUrl: string,
+    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
+  ): Promise<boolean> {
+    const deadline = Date.now() + (opts?.timeoutMs ?? 30_000);
+    while (Date.now() < deadline) {
+      await this.refreshUrlFromPage();
+      if (this.cachedUrl !== previousUrl) {
+        const desiredState = historyWaitUntil(opts?.waitUntil);
+        while (Date.now() < deadline) {
+          const readyState = await this.runCodeJson<"loading" | "interactive" | "complete">(`
+            async (page) => JSON.stringify(await page.evaluate(() => document.readyState))
+          `);
+          if (
+            desiredState === "domcontentloaded"
+              ? readyState !== "loading"
+              : readyState === "complete"
+          ) {
+            return true;
+          }
+          await this.waitForTimeout(100);
+        }
+        break;
+      }
+      await this.waitForTimeout(100);
+    }
+
+    return false;
+  }
+
   private async refreshUrlFromPage(): Promise<void> {
     this.cachedUrl = await this.runCodeJson<string>(`
       async (page) => JSON.stringify(page.url())
@@ -418,29 +454,29 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
   }
 
   async back(
-    _opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
+    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
   ): Promise<boolean> {
+    const previousUrl = this.cachedUrl;
     await this.runCode(`
       async (page) => {
-        await page.goBack();
-        return JSON.stringify(page.url());
+        await page.evaluate(() => history.back());
+        return JSON.stringify(true);
       }
     `);
-    await this.refreshUrlFromPage();
-    return true;
+    return this.waitForHistoryNavigation(previousUrl, opts);
   }
 
   async forward(
-    _opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
+    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
   ): Promise<boolean> {
+    const previousUrl = this.cachedUrl;
     await this.runCode(`
       async (page) => {
-        await page.goForward();
-        return JSON.stringify(page.url());
+        await page.evaluate(() => history.forward());
+        return JSON.stringify(true);
       }
     `);
-    await this.refreshUrlFromPage();
-    return true;
+    return this.waitForHistoryNavigation(previousUrl, opts);
   }
 
   async goBack(

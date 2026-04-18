@@ -16,6 +16,7 @@
     "test": "pnpm -w --dir ../.. exec turbo run test:evals --filter=@browserbasehq/stagehand-evals --",
     "test:unit": "vitest run",
     "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
+    "report:core": "tsx scripts/render-braintrust-core-report.ts",
     "lint": "pnpm -w --dir ../.. exec prettier --check packages/evals && pnpm -w --dir ../.. exec eslint packages/evals && pnpm run typecheck",
     "format": "prettier --write ."
   },

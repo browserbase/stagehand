@@ -497,3 +497,74 @@ Main blockers: `runtimePaths.ts` monorepo layout, `workspace:*` dependency, sour
 11. **Fixture-first authoring** — tasks use typed fixture targets for portability; raw selectors are the exception
 12. **Side-effect-free imports** — lazy validation, no `process.exit` at import time
 13. **Dual export support** — `index.eval.ts` handles both `EvalFunction` and `defineBenchTask` exports
+
+---
+
+## Appendix: Implemented status notes
+
+This appendix is additive and records what has actually landed so far in the current overhaul branch. It does not replace the earlier phase-oriented sections above.
+
+### Landed surfaces and startup behavior
+
+- Implemented tool surfaces now include:
+  - `understudy_code`
+  - `playwright_code`
+  - `cdp_code`
+  - `playwright_mcp`
+  - `chrome_devtools_mcp`
+  - `browse_cli`
+- `browse_cli` now supports:
+  - `tool_launch_local` in `LOCAL`
+  - `tool_create_browserbase` in `BROWSERBASE`
+- Runner-provided Browserbase CDP startup is no longer deferred. It is part of the active core matrix for code and MCP surfaces that support it.
+
+### Fixtures and task source of truth
+
+- Core fixtures are no longer hosted-only. They are served locally when the eval fixture server is present, with inline `data:` fallbacks when it is not.
+- Deterministic core tasks live under `packages/evals/core/tasks/`.
+- The current code category name is still `page-info`, even though the conceptual category in this spec is `inspection`.
+
+### MCP implementation rule now enforced in code
+
+- The MCP adapters are now implemented as native-tool-first adapters.
+- `playwright_mcp` prefers:
+  - `browser_tabs`
+  - `browser_snapshot`
+  - `browser_click`
+  - `browser_hover`
+  - `browser_type`
+  - `browser_press_key`
+- `chrome_devtools_mcp` prefers:
+  - `list_pages`
+  - `take_snapshot`
+  - `click`
+  - `hover`
+  - `fill`
+  - `type_text`
+  - `press_key`
+  - `resize_page`
+- Code execution is now reserved for the remaining real gaps, such as:
+  - selector-to-ref / selector-to-uid bridging
+  - coordinate actions
+  - selector waits
+  - generic page evaluation
+  - Playwright MCP history navigation
+
+### Shared MCP runtime notes
+
+- MCP artifact handling now uses the runtime-managed artifact directory instead of leaving generated files in the repo.
+- The MCP runtime no longer forces `XDG_CACHE_HOME` / `PNPM_HOME` to `/tmp`, because that broke Corepack-managed `pnpm` resolution for spawned MCP servers.
+- Loose JSON parsing now preserves scalar strings like `"true"` instead of coercing them into booleans. This matters for DOM attribute reads returned through MCP wrappers.
+
+### Current parity snapshot
+
+These are implementation notes, not normative guarantees:
+
+- `playwright_code`, `cdp_code`, and `browse_cli` are proven across the current full core suite in `BROWSERBASE`.
+- `browse_cli` is proven across the current full core suite in `LOCAL`.
+- `chrome_devtools_mcp` is currently green across the full one-trial core suite in `LOCAL`.
+- `playwright_mcp` is currently green across the full one-trial core suite in `BROWSERBASE`.
+- The remaining known parity gaps are:
+  - `playwright_mcp` local `navigation/back_forward`
+  - `chrome_devtools_mcp` Browserbase `viewport/set_viewport`
+  - `understudy_code` Browserbase `navigation/back_forward`

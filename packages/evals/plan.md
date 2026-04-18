@@ -31,12 +31,15 @@ Landed:
   - `understudy_code`
   - `playwright_code`
   - `browse_cli`
+  - `chrome_devtools_mcp`
 - full current core suite passes in `BROWSERBASE` for:
   - `playwright_code`
   - `cdp_code`
   - `browse_cli`
-- `navigation/open` smoke passes in `LOCAL` for:
   - `playwright_mcp`
+- one-trial current core suite passes in `BROWSERBASE` for:
+  - `playwright_mcp`
+- one-trial current core suite passes in `LOCAL` for:
   - `chrome_devtools_mcp`
 - experiment naming now includes tool surface and startup profile
 - core runs now land in `stagehand-core-dev` / `stagehand-core`
@@ -67,20 +70,20 @@ Descoped for this sprint:
 
 - representation task design and implementation
 
-That changes the immediate focus from “prove the abstraction exists” to “finish Browserbase parity on the remaining remote surfaces, then close the highest-value spec/code gaps.”
+That changes the immediate focus from “prove the abstraction exists” to “close the last real parity gaps, then bring the docs/spec back in line with the implementation and return representation to scope.”
 
 ## Active Priorities
 
-### 1. Finish Browserbase Parity On The Remaining Surfaces
+### 1. Close The Remaining Real Parity Gaps
 
-- fix the remaining real remote-surface failures:
+- fix the remaining real failures:
   - `understudy_code`: flaky `navigation/back_forward` in `BROWSERBASE`
-  - `playwright_mcp`: screenshot artifact path bug and click parity in `BROWSERBASE`
-  - `chrome_devtools_mcp`: screenshot artifact path bug, click parity, and viewport parity in `BROWSERBASE`
+  - `playwright_mcp`: `navigation/back_forward` in `LOCAL`
+  - `chrome_devtools_mcp`: `viewport/set_viewport` in `BROWSERBASE`
 - keep these fixes inside the actual tool surfaces or runtimes, not the eval adapters
 - continue validating with full core-suite runs in both `LOCAL` and `BROWSERBASE`
 
-This is now the highest-value work. The eval layer is thin enough that the remaining failures are product signals, not adapter scaffolding issues.
+This is now the highest-value work. The MCP adapters are thin enough that the remaining failures are product signals or runtime semantics, not scaffolding debt.
 
 ### 2. Keep The Core Contract Honest
 
@@ -94,12 +97,15 @@ Today:
 
 - `browse_cli` is now proven across the full core suite in both `LOCAL` and `BROWSERBASE`
 - `playwright_code` and `cdp_code` are proven in `BROWSERBASE`
-- the remaining parity gaps are concentrated in `understudy_code`, `playwright_mcp`, and `chrome_devtools_mcp`
+- `playwright_mcp` is now proven across the one-trial full core suite in `BROWSERBASE`
+- `chrome_devtools_mcp` is now proven across the full core suite in `LOCAL`
+- the remaining parity gaps are concentrated in `understudy_code`, `playwright_mcp` local history navigation, and `chrome_devtools_mcp` Browserbase viewport sizing
 
 ### 3. Reconcile Spec And Current Core Shape
 
-- decide whether the category should be renamed from `page-info` to `inspection` to match the spec
+- decide whether the category should be renamed from `page-info` to `inspection` to match the spec, or whether the spec should explicitly note the current code name
 - document the intended startup-profile matrix per tool surface now that `browse_cli` supports native Browserbase creation
+- document the MCP implementation rule that native tool calls are preferred over code tunneling
 - decide whether the spec should stay slightly idealized or be updated to reflect the current `CorePageHandle` shape exactly
 
 The biggest spec drift today is not architectural; it is naming and documentation shape.
@@ -130,15 +136,15 @@ This should come back once the remaining remote parity issues are closed.
 
 ## Immediate Sequence
 
-1. Fix the MCP screenshot artifact path bug in the shared MCP runtime/tool layer.
-2. Run and harden `playwright_mcp` against the full core suite in `LOCAL` and `BROWSERBASE`.
-3. Run and harden `chrome_devtools_mcp` against the full core suite in `LOCAL` and `BROWSERBASE`.
-4. Investigate and fix the real `understudy_code` Browserbase `navigation/back_forward` failure in Understudy core, not in the eval adapter.
-5. Reconcile spec naming/docs:
+1. Fix `playwright_mcp` local `navigation/back_forward`.
+2. Fix `chrome_devtools_mcp` Browserbase `viewport/set_viewport`.
+3. Investigate and fix the real `understudy_code` Browserbase `navigation/back_forward` failure in Understudy core, not in the eval adapter.
+4. Reconcile spec naming/docs:
    - `inspection` vs `page-info`
    - startup-profile matrix by surface
+   - native-first MCP adapter rule
    - any remaining contract-shape drift worth fixing now
-6. Start the representation task/scoring pass described in `spec.md`.
+5. Start the representation task/scoring pass described in `spec.md`.
 
 ## Deferred
 
