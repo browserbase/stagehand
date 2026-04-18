@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "674f064a1270",
+  "strategy": "manual-commit",
+  "branch": "evals-overhaul",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "packages/evals/spec.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/67/4f064a1270/0/metadata.json",
+      "transcript": "/67/4f064a1270/0/full.jsonl",
+      "context": "/67/4f064a1270/0/context.md",
+      "content_hash": "/67/4f064a1270/0/content_hash.txt",
+      "prompt": "/67/4f064a1270/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1902,
+    "cache_creation_tokens": 11700325,
+    "cache_read_tokens": 325948448,
+    "output_tokens": 404284,
+    "api_call_count": 863
+  }
+}

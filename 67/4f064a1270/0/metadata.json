@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "674f064a1270",
+  "session_id": "8ff0a860-912c-4ae4-84d1-bb5f136c7e07",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-18T23:58:20.646523Z",
+  "branch": "evals-overhaul",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "packages/evals/spec.md"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "b16f6234d3ac",
+  "transcript_identifier_at_start": "a28e9b4f-b9dd-41a4-be54-fe11d119a498",
+  "token_usage": {
+    "input_tokens": 1902,
+    "cache_creation_tokens": 11700325,
+    "cache_read_tokens": 325948448,
+    "output_tokens": 404284,
+    "api_call_count": 863
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-18T23:58:18.936122Z",
+    "agent_lines": 0,
+    "human_added": 0,
+    "human_modified": 165,
+    "human_removed": 406,
+    "total_committed": 0,
+    "agent_percentage": 0
+  },
+  "transcript_path": ".claude/projects/-Users-miguel-browserbase-Documents-Browserbase-stagehand/8ff0a860-912c-4ae4-84d1-bb5f136c7e07.jsonl"
+}
