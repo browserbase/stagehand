@@ -3,9 +3,11 @@
   "checkpoint_id": "af001fddfe1b",
   "strategy": "manual-commit",
   "branch": "evals-overhaul",
-  "checkpoints_count": 8,
+  "checkpoints_count": 9,
   "files_touched": [
+    "packages/evals/core/tools/playwright_mcp.ts",
     "packages/evals/package.json",
+    "packages/evals/plan.md",
     "packages/evals/scripts/render-braintrust-core-report.ts",
     "packages/evals/spec.md"
   ],
@@ -16,6 +18,13 @@
       "context": "/af/001fddfe1b/0/context.md",
       "content_hash": "/af/001fddfe1b/0/content_hash.txt",
       "prompt": "/af/001fddfe1b/0/prompt.txt"
+    },
+    {
+      "metadata": "/af/001fddfe1b/1/metadata.json",
+      "transcript": "/af/001fddfe1b/1/full.jsonl",
+      "context": "",
+      "content_hash": "/af/001fddfe1b/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {

@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "af001fddfe1b",
+  "session_id": "ca064e17-91c4-446c-9ec5-ff09d622d962",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-18T22:56:07.9591Z",
+  "branch": "evals-overhaul",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "packages/evals/core/tools/playwright_mcp.ts",
+    "packages/evals/package.json",
+    "packages/evals/plan.md",
+    "packages/evals/scripts/render-braintrust-core-report.ts",
+    "packages/evals/spec.md"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "362df35217a2",
+  "initial_attribution": {
+    "calculated_at": "2026-04-18T22:56:07.9585Z",
+    "agent_lines": 2749,
+    "human_added": 39118,
+    "human_modified": 133,
+    "human_removed": 0,
+    "total_committed": 42000,
+    "agent_percentage": 6.545238095238096
+  },
+  "transcript_path": ".claude/projects/-Users-miguel-browserbase-Documents-Browserbase-stagehand/ca064e17-91c4-446c-9ec5-ff09d622d962.jsonl"
+}
