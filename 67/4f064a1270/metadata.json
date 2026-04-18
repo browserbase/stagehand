@@ -3,8 +3,10 @@
   "checkpoint_id": "674f064a1270",
   "strategy": "manual-commit",
   "branch": "evals-overhaul",
-  "checkpoints_count": 3,
+  "checkpoints_count": 4,
   "files_touched": [
+    "packages/core/examples/visa.ts",
+    "packages/evals/plan.md",
     "packages/evals/spec.md"
   ],
   "sessions": [
@@ -14,6 +16,13 @@
       "context": "/67/4f064a1270/0/context.md",
       "content_hash": "/67/4f064a1270/0/content_hash.txt",
       "prompt": "/67/4f064a1270/0/prompt.txt"
+    },
+    {
+      "metadata": "/67/4f064a1270/1/metadata.json",
+      "transcript": "/67/4f064a1270/1/full.jsonl",
+      "context": "",
+      "content_hash": "/67/4f064a1270/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
