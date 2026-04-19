@@ -3,7 +3,9 @@ import type { ActHandler } from "../handlers/actHandler.js";
 import type { LLMClient } from "../llm/LLMClient.js";
 import type {
   AgentReplayActStep,
+  AgentReplayBackStep,
   AgentReplayFillFormStep,
+  AgentReplayForwardStep,
   AgentReplayGotoStep,
   AgentReplayKeysStep,
   AgentReplayNavBackStep,
@@ -660,6 +662,12 @@ export class AgentCache {
       case "navback":
         await this.replayAgentNavBackStep(step as AgentReplayNavBackStep, ctx);
         return step;
+      case "back":
+        await this.replayAgentBackStep(step as AgentReplayBackStep, ctx);
+        return step;
+      case "forward":
+        await this.replayAgentForwardStep(step as AgentReplayForwardStep, ctx);
+        return step;
       case "keys":
         await this.replayAgentKeysStep(
           step as AgentReplayKeysStep,
@@ -811,6 +819,22 @@ export class AgentCache {
   ): Promise<void> {
     const page = await ctx.awaitActivePage();
     await page.goBack({ waitUntil: step.waitUntil ?? "domcontentloaded" });
+  }
+
+  private async replayAgentBackStep(
+    step: AgentReplayBackStep,
+    ctx: V3Context,
+  ): Promise<void> {
+    const page = await ctx.awaitActivePage();
+    await page.goBack({ waitUntil: step.waitUntil ?? "domcontentloaded" });
+  }
+
+  private async replayAgentForwardStep(
+    step: AgentReplayForwardStep,
+    ctx: V3Context,
+  ): Promise<void> {
+    const page = await ctx.awaitActivePage();
+    await page.goForward({ waitUntil: step.waitUntil ?? "domcontentloaded" });
   }
 
   private async replayAgentKeysStep(
