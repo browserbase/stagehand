@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import { tasksByName } from "./taskConfig.js";
 import type { SummaryResult } from "./types/evals.js";
 import { getRepoRootDir } from "./runtimePaths.js";
@@ -73,5 +74,5 @@ export const generateSummary = async (
 
   const summaryPath = `${repoRoot}/eval-summary.json`;
   fs.writeFileSync(summaryPath, JSON.stringify(formattedSummary, null, 2));
-  console.log(`Evaluation summary written to ${summaryPath}`);
+  console.log(`Summary JSON: ${path.relative(repoRoot, summaryPath)}`);
 };

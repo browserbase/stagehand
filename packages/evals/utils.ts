@@ -100,6 +100,27 @@ export function generateExperimentName({
   return "all";
 }
 
+function clipLogLine(line: string): string {
+  const terminalWidth = process.stdout.columns;
+  const maxWidth =
+    typeof terminalWidth === "number" && terminalWidth > 8
+      ? terminalWidth - 1
+      : 119;
+
+  if (line.length <= maxWidth) {
+    return line;
+  }
+
+  return `${line.slice(0, maxWidth - 1)}…`;
+}
+
+function clipLogOutput(output: string): string {
+  return output
+    .split("\n")
+    .map((line) => clipLogLine(line))
+    .join("\n");
+}
+
 export function logLineToString(logLine: LogLine): string {
   try {
     const timestamp = logLine.timestamp || new Date().toISOString();
@@ -107,11 +128,15 @@ export function logLineToString(logLine: LogLine): string {
       const errorValue = logLine.auxiliary.error?.value ?? "";
       const traceValue = logLine.auxiliary.trace?.value ?? "";
       const traceSuffix = traceValue ? `\n ${traceValue}` : "";
-      return `${timestamp}::[stagehand:${logLine.category}] ${logLine.message}\n ${errorValue}${traceSuffix}`;
+      return clipLogOutput(
+        `${timestamp}::[stagehand:${logLine.category}] ${logLine.message}\n ${errorValue}${traceSuffix}`,
+      );
     }
-    return `${timestamp}::[stagehand:${logLine.category}] ${logLine.message} ${
-      logLine.auxiliary ? JSON.stringify(logLine.auxiliary) : ""
-    }`;
+    return clipLogOutput(
+      `${timestamp}::[stagehand:${logLine.category}] ${logLine.message} ${
+        logLine.auxiliary ? JSON.stringify(logLine.auxiliary) : ""
+      }`,
+    );
   } catch (error) {
     console.error(`Error logging line:`, error);
     return "error logging line";

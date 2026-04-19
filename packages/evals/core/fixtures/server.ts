@@ -46,6 +46,12 @@ export async function ensureCoreFixtureServer(
           return;
         }
 
+        // Don't keep the process alive when the CLI is done running tasks.
+        // Pre-change this lived in a tsx child process that exited after
+        // each run; now runs are in-process, so we have to opt out of
+        // holding the event loop open ourselves.
+        server.unref();
+
         const baseUrl = `http://${FIXTURE_HOST}:${address.port}`;
         process.env[BASE_URL_ENV] = baseUrl;
         resolve(baseUrl);

@@ -43,7 +43,8 @@ import {
   getAISDKLanguageModel,
 } from "@browserbasehq/stagehand";
 import { AISdkClientWrapped } from "./lib/AISdkClientWrapped.js";
-import { env } from "./env.js";
+import { getEnv } from "./env.js";
+const env = getEnv();
 import { initV3 } from "./initV3.js";
 import { generateSummary } from "./summary.js";
 import { buildGAIATestcases } from "./suites/gaia.js";

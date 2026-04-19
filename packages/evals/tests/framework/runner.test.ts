@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import type { DiscoveredTask } from "../../framework/types.js";
-import { resolveBenchModelEntries } from "../../framework/runner.js";
+import {
+  resolveBenchModelEntries,
+  type RunEvalsOptions,
+} from "../../framework/runner.js";
 
 vi.mock("playwright", () => ({
   chromium: {},
@@ -171,7 +174,7 @@ describe("runner: single-task agent model detection", () => {
     const resolved = resolveBenchModelEntries(benchTasks, {
       categoryFilter: undefined,
       modelOverride: undefined,
-    });
+    } as RunEvalsOptions);
 
     expect(resolved.effectiveCategory).toBe("external_agent_benchmarks");
     expect(resolved.isAgentCategory).toBe(true);

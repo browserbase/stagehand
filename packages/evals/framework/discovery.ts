@@ -22,6 +22,49 @@ import type {
 
 const TIERS = ["core", "bench"] as const satisfies readonly Tier[];
 
+/**
+ * Category tags applied to specific bench tasks during non-eager discovery
+ * so filters like `evals run regression` work without importing every task
+ * module. Sourced from the legacy cli.ts. Long-term these belong in each
+ * task's `meta.tags` — that migration is a separate cleanup.
+ */
+const EXTRA_CATEGORIES: Record<string, string[]> = {
+  instructions: ["regression"],
+  ionwave: ["regression"],
+  wichita: ["regression"],
+  extract_memorial_healthcare: ["regression"],
+  observe_github: ["regression"],
+  observe_vantechjournal: ["regression"],
+  observe_iframes1: ["regression"],
+  observe_iframes2: ["regression"],
+  extract_hamilton_weather: ["regression", "targeted_extract"],
+  scroll_50: ["regression"],
+  scroll_75: ["regression"],
+  next_chunk: ["regression"],
+  prev_chunk: ["regression"],
+  login: ["regression"],
+  no_js_click: ["regression"],
+  heal_simple_google_search: ["regression"],
+  extract_aigrant_companies: ["regression"],
+  extract_regulations_table: ["targeted_extract"],
+  extract_recipe: ["targeted_extract"],
+  extract_aigrant_targeted: ["targeted_extract"],
+  extract_aigrant_targeted_2: ["targeted_extract"],
+  extract_geniusee: ["targeted_extract"],
+  extract_geniusee_2: ["targeted_extract"],
+};
+
+/**
+ * Tasks whose primary category should be replaced entirely (not
+ * augmented) during discovery. External agent benchmarks are grouped here.
+ */
+const CATEGORY_OVERRIDES: Record<string, string[]> = {
+  "agent/gaia": ["external_agent_benchmarks"],
+  "agent/webvoyager": ["external_agent_benchmarks"],
+  "agent/onlineMind2Web": ["external_agent_benchmarks"],
+  "agent/webtailbench": ["external_agent_benchmarks"],
+};
+
 type ParsedTaskPath = {
   tier: Tier;
   category: string;
@@ -182,15 +225,24 @@ export async function discoverTasks(
           }
         }
 
-        const categories = [
-          parsed.category,
-          ...extraCategories.filter((c) => c !== parsed.category),
-        ];
+        const override = CATEGORY_OVERRIDES[taskName];
+        const baseCategories = override
+          ? [...override]
+          : [
+              parsed.category,
+              ...extraCategories.filter((c) => c !== parsed.category),
+            ];
+
+        const hardcodedExtras = EXTRA_CATEGORIES[taskName] ?? [];
+        const categories = [...baseCategories];
+        for (const extra of hardcodedExtras) {
+          if (!categories.includes(extra)) categories.push(extra);
+        }
 
         const task: DiscoveredTask = {
           name: taskName,
           tier: parsed.tier,
-          primaryCategory: parsed.category,
+          primaryCategory: override ? override[0] : parsed.category,
           categories,
           tags,
           filePath,

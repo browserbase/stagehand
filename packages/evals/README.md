@@ -111,14 +111,14 @@ pnpm evals run extract --api
 ### Running Benchmarks
 
 ```bash
-# WebBench with filters
-pnpm evals run b:webbench -l 10 -f difficulty=easy -f category=READ
-
 # GAIA with sampling
 pnpm evals run b:gaia -s 100 -l 25 -f level=1
 
 # WebVoyager with limit
 pnpm evals run b:webvoyager -l 50
+
+# WebTailBench
+pnpm evals run b:webtailbench -l 25
 ```
 
 ## Available Benchmarks
@@ -139,24 +139,9 @@ General AI Assistant benchmark for complex reasoning.
 
 Web navigation and task completion benchmark.
 
-### WebBench (`b:webbench`)
+### WebTailBench (`b:webtailbench`)
 
-Real-world web automation tasks across live websites.
-
-**Filters:**
-
-- `difficulty`: easy, hard
-- `category`: READ, CREATE, UPDATE, DELETE, FILE_MANIPULATION
-- `use_hitl`: true/false
-
-### OSWorld (`b:osworld`)
-
-Chrome browser automation tasks from the OSWorld benchmark.
-
-**Filters:**
-
-- `source`: Mind2Web, test_task_1, etc.
-- `evaluation_type`: url_match, string_match, dom_state, custom
+Long-tail web automation tasks.
 
 ## Configuration
 

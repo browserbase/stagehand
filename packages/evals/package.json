@@ -16,6 +16,7 @@
     "test": "pnpm -w --dir ../.. exec turbo run test:evals --filter=@browserbasehq/stagehand-evals --",
     "test:unit": "vitest run",
     "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
+    "evals:old": "tsx cli-legacy.ts",
     "report:core": "tsx scripts/render-braintrust-core-report.ts",
     "lint": "pnpm -w --dir ../.. exec prettier --check packages/evals && pnpm -w --dir ../.. exec eslint packages/evals && pnpm run typecheck",
     "format": "prettier --write ."
@@ -28,13 +29,13 @@
     "openai": "^4.87.1",
     "playwright": "^1.52.0",
     "sharp": "^0.34.5",
+    "tsx": "*",
     "zod": "^4.2.1"
   },
   "devDependencies": {
     "braintrust": "^0.4.7",
     "chalk": "^5.4.1",
     "string-comparison": "^1.3.0",
-    "tsx": "*",
     "vitest": "^3.2.1"
   }
 }

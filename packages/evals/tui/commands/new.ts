@@ -26,38 +26,36 @@ export default defineCoreTask(
 );
 `;
 
-const BENCH_TEMPLATE = (name: string) => `import { EvalFunction } from "../../../types/evals.js";
+const BENCH_TEMPLATE = (
+  name: string,
+) => `import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export const ${name}: EvalFunction = async ({
-  debugUrl,
-  sessionUrl,
-  v3,
-  logger,
-}) => {
-  try {
-    const page = v3.context.pages()[0];
-    await page.goto("https://example.com");
+export default defineBenchTask(
+  { name: "${name}" },
+  async ({ v3, logger, debugUrl, sessionUrl }) => {
+    try {
+      const page = v3.context.pages()[0];
+      await page.goto("https://example.com");
 
-    // TODO: implement eval logic
+      // TODO: implement eval logic
 
-    return {
-      _success: true,
-      logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
-    };
-  } catch (error) {
-    return {
-      _success: false,
-      error,
-      debugUrl,
-      sessionUrl,
-      logs: logger.getLogs(),
-    };
-  } finally {
-    await v3.close();
-  }
-};
+      return {
+        _success: true,
+        logs: logger.getLogs(),
+        debugUrl,
+        sessionUrl,
+      };
+    } catch (error) {
+      return {
+        _success: false,
+        error,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
+  },
+);
 `;
 
 export function scaffoldTask(args: string[]): void {

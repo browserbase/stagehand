@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Unified multi-tier eval runner.
  *
@@ -17,6 +16,9 @@ import {
   AgentProvider,
   loadApiKeyFromEnv,
   getAISDKLanguageModel,
+  type AvailableModel,
+  type LLMClient,
+  type LogLine,
 } from "@browserbasehq/stagehand";
 import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
 import { AssertionError } from "./assertions.js";
@@ -25,10 +27,22 @@ import { endBrowserbaseSession } from "../browserbaseCleanup.js";
 import { exactMatch, errorMatch, passRate } from "../scoring.js";
 import { generateExperimentName } from "../utils.js";
 import { generateSummary } from "../summary.js";
+import type { V3InitResult } from "../initV3.js";
 import {
   getModelList,
   getAgentModelEntries,
+  type AgentModelEntry,
 } from "../taskConfig.js";
+import type {
+  StartupProfile,
+  ToolSurface,
+} from "../core/contracts/tool.js";
+import type {
+  DiscoveredTask,
+  TaskRegistry,
+  TaskResult,
+} from "./types.js";
+import type { Testcase, EvalInput } from "../types/evals.js";
 
 export { discoverTasks, resolveTarget } from "./discovery.js";
 
@@ -38,7 +52,52 @@ import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
 import { resolveDefaultCoreStartupProfile } from "./context.js";
 
-export function inferEffectiveBenchCategory(benchTasks, categoryFilter) {
+export interface RunProgressEvent {
+  type: "started" | "passed" | "failed" | "error";
+  taskName: string;
+  modelName?: string;
+  durationMs?: number;
+  error?: string;
+}
+
+export interface RunEvalsOptions {
+  tasks: DiscoveredTask[];
+  registry: TaskRegistry;
+  concurrency?: number;
+  trials?: number;
+  environment?: "LOCAL" | "BROWSERBASE";
+  useApi?: boolean;
+  modelOverride?: string;
+  provider?: string;
+  categoryFilter?: string;
+  datasetFilter?: string;
+  coreToolSurface?: ToolSurface;
+  coreStartupProfile?: StartupProfile;
+  onProgress?: (event: RunProgressEvent) => void;
+  verbose?: boolean;
+}
+
+const silentBraintrustProgress = {
+  start: (_name: string, _total: number): void => {},
+  increment: (_name: string): void => {},
+  stop: (): void => {},
+};
+
+const silentBraintrustReporter = {
+  name: "stagehand-evals-silent-reporter",
+  async reportEval(): Promise<boolean> {
+    return true;
+  },
+  async reportRun(): Promise<boolean> {
+    return true;
+  },
+};
+
+
+export function inferEffectiveBenchCategory(
+  benchTasks: DiscoveredTask[],
+  categoryFilter?: string | null,
+): string | null {
   let effectiveCategory = categoryFilter ?? null;
   if (
     !effectiveCategory &&
@@ -53,7 +112,14 @@ export function inferEffectiveBenchCategory(benchTasks, categoryFilter) {
   return effectiveCategory;
 }
 
-export function resolveBenchModelEntries(benchTasks, options) {
+export function resolveBenchModelEntries(
+  benchTasks: DiscoveredTask[],
+  options: RunEvalsOptions,
+): {
+  effectiveCategory: string | null;
+  isAgentCategory: boolean;
+  modelEntries: AgentModelEntry[];
+} {
   const effectiveCategory = inferEffectiveBenchCategory(
     benchTasks,
     options.categoryFilter,
@@ -82,21 +148,24 @@ export function resolveBenchModelEntries(benchTasks, options) {
   };
 }
 
-function generateTestcases(tasks, options) {
+function generateTestcases(
+  tasks: DiscoveredTask[],
+  options: RunEvalsOptions,
+): Testcase[] {
   const coreTasks = tasks.filter((t) => t.tier === "core");
   const benchTasks = tasks.filter((t) => t.tier === "bench");
-  let allTestcases = [];
+  let allTestcases: Testcase[] = [];
 
   for (const task of coreTasks) {
     allTestcases.push({
       input: {
         name: task.name,
-        modelName: "none",
+        modelName: "none" as AvailableModel,
       },
       name: task.name,
       tags: ["core", task.primaryCategory, ...task.tags],
       metadata: {
-        model: "none",
+        model: "none" as AvailableModel,
         test: task.name,
         categories: task.categories,
         task_category: task.primaryCategory,
@@ -122,7 +191,7 @@ function generateTestcases(tasks, options) {
         allTestcases.push({
           input: {
             name: task.name,
-            modelName: entry.modelName,
+            modelName: entry.modelName as AvailableModel,
             ...(isAgentCategory && { isCUA: entry.cua }),
           },
           name: task.name,
@@ -133,7 +202,7 @@ function generateTestcases(tasks, options) {
             ...task.categories.map((x) => `category/${x}`),
           ],
           metadata: {
-            model: entry.modelName,
+            model: entry.modelName as AvailableModel,
             test: task.name,
             categories: task.categories,
             task_category: task.primaryCategory,
@@ -153,12 +222,16 @@ function generateTestcases(tasks, options) {
   return allTestcases;
 }
 
-function generateSuiteTestcases(benchTasks, options, modelEntries) {
-  const testcases = [];
+function generateSuiteTestcases(
+  benchTasks: DiscoveredTask[],
+  options: RunEvalsOptions,
+  modelEntries: AgentModelEntry[],
+): { testcases: Testcase[]; remainingTasks: DiscoveredTask[] } {
+  const testcases: Testcase[] = [];
   const remaining = [...benchTasks];
   const datasetFilter = options.datasetFilter;
 
-  const suiteMap = {
+  const suiteMap: Record<string, (models: AgentModelEntry[]) => Testcase[]> = {
     "agent/gaia": (models) => buildGAIATestcases(models),
     "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
     "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
@@ -178,22 +251,30 @@ function generateSuiteTestcases(benchTasks, options, modelEntries) {
   return { testcases, remainingTasks: remaining };
 }
 
-async function executeTask(input, task, options) {
+async function executeTask(
+  input: EvalInput,
+  task: DiscoveredTask,
+  options: RunEvalsOptions,
+): Promise<TaskResult> {
   if (task.tier === "core") {
     return executeCoreTask(input, task, options);
   }
   return executeBenchTask(input, task, options);
 }
 
-async function executeCoreTask(input, task, options) {
-  const logger = new EvalLogger();
+async function executeCoreTask(
+  _input: EvalInput,
+  task: DiscoveredTask,
+  options: RunEvalsOptions,
+): Promise<TaskResult> {
+  const logger = new EvalLogger(Boolean(options.verbose));
   const { buildCoreContext: buildCtx } = await import("./context.js");
-  let ctx;
-  let cleanup = async () => {};
+  let ctx: Awaited<ReturnType<typeof buildCtx>>["ctx"] | undefined;
+  let cleanup: () => Promise<void> = async () => {};
   let startupMs = 0;
   let taskMs = 0;
   let cleanupMs = 0;
-  let result;
+  let result: TaskResult;
   let taskStart = 0;
   try {
     const startupStart = performance.now();
@@ -214,17 +295,21 @@ async function executeCoreTask(input, task, options) {
     cleanup = startupResult.cleanup;
 
     taskStart = performance.now();
+    const ctxLocal = ctx!;
     result = await traced(
-      async () => {
-        const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
+      async (): Promise<TaskResult> => {
+        const taskModule = await loadTaskModuleFromPath(
+          task.filePath,
+          task.name,
+        );
         if (taskModule.definition) {
-          await taskModule.definition.fn(ctx);
+          await taskModule.definition.fn(ctxLocal);
           return {
             _success: true,
             logs: logger.getLogs(),
-            metrics: ctx.metrics.getSummary(),
-            rawMetrics: await ctx.tool.getRawMetrics(),
-            adapter: ctx.adapter,
+            metrics: ctxLocal.metrics.getSummary(),
+            rawMetrics: await ctxLocal.tool.getRawMetrics(),
+            adapter: ctxLocal.adapter,
           };
         }
         if (taskModule.legacyFn) {
@@ -294,15 +379,19 @@ async function executeCoreTask(input, task, options) {
         count: 1,
         value: startupMs + taskMs + cleanupMs,
       },
-      ...(result?.metrics ?? {}),
+      ...((result.metrics ?? {}) as Record<string, unknown>),
     },
   };
 }
 
-async function executeBenchTask(input, task, options) {
-  const logger = new EvalLogger();
+async function executeBenchTask(
+  input: EvalInput,
+  task: DiscoveredTask,
+  options: RunEvalsOptions,
+): Promise<TaskResult> {
+  const logger = new EvalLogger(Boolean(options.verbose));
   const useApi = options.useApi ?? false;
-  let v3Result;
+  let v3Result: V3InitResult | undefined;
 
   try {
     const isAgentTask =
@@ -313,7 +402,7 @@ async function executeBenchTask(input, task, options) {
     v3Result = await traced(
       async () => {
         if (useApi) {
-          let provider;
+          let provider: string | undefined;
           if (input.modelName.includes("/")) {
             provider = input.modelName.split("/")[0];
           } else {
@@ -323,7 +412,7 @@ async function executeBenchTask(input, task, options) {
               provider = undefined;
             }
           }
-          const logFn = (line) => logger.log(line);
+          const logFn = (line: LogLine) => logger.log(line);
           const apiKey = loadApiKeyFromEnv(provider, logFn);
           if (!apiKey) {
             throw new StagehandEvalError(
@@ -337,10 +426,12 @@ async function executeBenchTask(input, task, options) {
             modelClientOptions: { apiKey },
             createAgent: isAgentTask,
             isCUA: input.isCUA,
+            verbose: options.verbose,
+            configOverrides: { env: options.environment ?? "LOCAL" },
           });
         }
 
-        let llmClient;
+        let llmClient: LLMClient | undefined;
         if (input.modelName.includes("/")) {
           const firstSlashIndex = input.modelName.indexOf("/");
           llmClient = new AISdkClientWrapped({
@@ -357,35 +448,41 @@ async function executeBenchTask(input, task, options) {
           modelName: input.modelName,
           createAgent: isAgentTask,
           isCUA: input.isCUA,
+          verbose: options.verbose,
+          configOverrides: { env: options.environment ?? "LOCAL" },
         });
       },
       { name: "session.startup" },
     );
 
+    const v3 = v3Result;
     const result = await traced(
-      async () => {
-        const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
+      async (): Promise<TaskResult> => {
+        const taskModule = await loadTaskModuleFromPath(
+          task.filePath,
+          task.name,
+        );
         if (taskModule.definition) {
           const ctx = {
-            v3: v3Result.v3,
-            agent: v3Result.agent,
-            page: v3Result.v3.context.pages()[0],
+            v3: v3.v3,
+            agent: v3.agent,
+            page: v3.v3.context.pages()[0],
             logger,
             input,
             modelName: input.modelName,
-            debugUrl: v3Result.debugUrl ?? "",
-            sessionUrl: v3Result.sessionUrl ?? "",
+            debugUrl: v3.debugUrl ?? "",
+            sessionUrl: v3.sessionUrl ?? "",
           };
-          return taskModule.definition.fn(ctx);
+          return (await taskModule.definition.fn(ctx)) as TaskResult;
         }
         if (taskModule.legacyFn) {
           return taskModule.legacyFn({
-            v3: v3Result.v3,
+            v3: v3.v3,
             logger,
-            debugUrl: v3Result.debugUrl ?? "",
-            sessionUrl: v3Result.sessionUrl ?? "",
+            debugUrl: v3.debugUrl ?? "",
+            sessionUrl: v3.sessionUrl ?? "",
             modelName: input.modelName,
-            agent: v3Result.agent,
+            agent: v3.agent,
             input,
           });
         }
@@ -442,22 +539,42 @@ async function executeBenchTask(input, task, options) {
   }
 }
 
-async function loadTaskModuleFromPath(filePath, taskName) {
+interface LoadedTaskDefinition {
+  __taskDefinition: true;
+  meta: unknown;
+  fn: (ctx: unknown) => Promise<unknown>;
+}
+
+type LegacyTaskFn = (ctx: unknown) => Promise<TaskResult>;
+
+interface LoadedTaskModule {
+  definition?: LoadedTaskDefinition;
+  legacyFn?: LegacyTaskFn;
+}
+
+async function loadTaskModuleFromPath(
+  filePath: string,
+  taskName: string,
+): Promise<LoadedTaskModule> {
   if (!fs.existsSync(filePath)) {
     throw new StagehandEvalError(`Task module not found: ${filePath}`);
   }
 
   const moduleUrl = pathToFileURL(filePath).href;
-  const taskModule = await import(moduleUrl);
+  const taskModule = (await import(moduleUrl)) as Record<string, unknown>;
 
-  const defaultExport = taskModule.default;
+  const defaultExport = taskModule.default as
+    | Partial<LoadedTaskDefinition>
+    | undefined;
   if (defaultExport && defaultExport.__taskDefinition === true) {
-    return { definition: defaultExport };
+    return { definition: defaultExport as LoadedTaskDefinition };
   }
 
-  const baseName = taskName.includes("/") ? taskName.split("/").pop() : taskName;
+  const baseName = taskName.includes("/")
+    ? (taskName.split("/").pop() as string)
+    : taskName;
   if (typeof taskModule[baseName] === "function") {
-    return { legacyFn: taskModule[baseName] };
+    return { legacyFn: taskModule[baseName] as LegacyTaskFn };
   }
 
   throw new StagehandEvalError(
@@ -466,7 +583,32 @@ async function loadTaskModuleFromPath(filePath, taskName) {
   );
 }
 
-export async function runEvals(options) {
+export interface RunEvalsResult {
+  experimentName: string;
+  summary: { passed: number; failed: number; total: number };
+  results: Array<{
+    input: EvalInput;
+    output: { _success: boolean; [key: string]: unknown };
+    name: string;
+    score: number;
+  }>;
+}
+
+function formatProgressError(error: unknown): string | undefined {
+  if (error === undefined || error === null) return undefined;
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+export async function runEvals(
+  options: RunEvalsOptions,
+): Promise<RunEvalsResult> {
   const concurrency = options.concurrency ?? 3;
   const trials = options.trials ?? 3;
   const environment = options.environment ?? "LOCAL";
@@ -481,11 +623,7 @@ export async function runEvals(options) {
     };
   }
 
-  console.log(
-    `Running ${testcases.length} testcase(s) with concurrency=${concurrency}, trials=${trials}`,
-  );
-
-  const hasCoreOnly = options.tasks.every((t) => t.tier === "core");
+  const hasCoreOnly = options.tasks.every((t: DiscoveredTask) => t.tier === "core");
   const effectiveCoreToolSurface = hasCoreOnly
     ? options.coreToolSurface ?? "understudy_code"
     : undefined;
@@ -524,40 +662,42 @@ export async function runEvals(options) {
       ...(options.useApi && { api: true }),
     },
     data: () => testcases,
-    task: async (input) => {
-      const task = options.registry.byName.get(input.name);
-      if (!task) {
-        const baseName = input.name.includes("/") ? input.name : `agent/${input.name}`;
-        const suiteTask = options.registry.byName.get(baseName);
-        if (!suiteTask) {
-          throw new StagehandEvalError(`Task "${input.name}" not found in registry.`);
-        }
-        const result = await executeTask(input, suiteTask, options);
-        options.onProgress?.({
-          type: result._success ? "passed" : "failed",
-          taskName: input.name,
-          modelName: input.modelName,
-        });
-        return result;
+    task: async (input: EvalInput): Promise<TaskResult> => {
+      const resolvedTask =
+        options.registry.byName.get(input.name) ??
+        (input.name.includes("/")
+          ? undefined
+          : options.registry.byName.get(`agent/${input.name}`));
+
+      if (!resolvedTask) {
+        throw new StagehandEvalError(
+          `Task "${input.name}" not found in registry.`,
+        );
       }
 
-      const result = await executeTask(input, task, options);
       options.onProgress?.({
-        type: result._success ? "passed" : "failed",
+        type: "started",
         taskName: input.name,
         modelName: input.modelName,
       });
 
-      if (result._success) {
-        console.log(`✅ ${input.name}: Passed`);
-      } else {
-        console.log(`❌ ${input.name}: Failed`);
-      }
+      const result = await executeTask(input, resolvedTask, options);
+
+      options.onProgress?.({
+        type: result._success ? "passed" : "failed",
+        taskName: input.name,
+        modelName: input.modelName,
+        error: result._success ? undefined : formatProgressError(result.error),
+      });
+
       return result;
     },
-    scores,
+    scores: scores as unknown as never,
     maxConcurrency: concurrency,
     trialCount: trials,
+  }, {
+    progress: silentBraintrustProgress,
+    reporter: silentBraintrustReporter,
   });
 
   await flush();

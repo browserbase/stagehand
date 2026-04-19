@@ -20,7 +20,7 @@ import {
   modelToAgentProviderMap,
   V3,
 } from "@browserbasehq/stagehand";
-import { env } from "./env.js";
+import { getEnv } from "./env.js";
 import { EvalLogger } from "./logger.js";
 
 type InitV3Args = {
@@ -41,6 +41,7 @@ type InitV3Args = {
   };
   actTimeoutMs?: number; // retained for parity (v3 agent tools don't use this globally)
   modelName: AvailableModel;
+  verbose?: boolean;
 };
 
 export type V3InitResult = {
@@ -60,6 +61,7 @@ export async function initV3({
   modelName,
   createAgent,
   isCUA,
+  verbose = false,
 }: InitV3Args): Promise<V3InitResult> {
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
@@ -88,7 +90,7 @@ export async function initV3({
       : internalModel;
 
   const v3Options: V3Options = {
-    env: configOverrides?.env ?? env,
+    env: configOverrides?.env ?? getEnv(),
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
     localBrowserLaunchOptions: {
@@ -103,7 +105,7 @@ export async function initV3({
       typeof configOverrides?.experimental === "boolean"
         ? configOverrides.experimental && process.env.USE_API !== "true" // experimental only when not using API
         : false,
-    verbose: 2,
+    verbose: verbose ? 2 : 0,
     browserbaseSessionCreateParams:
       configOverrides?.browserbaseSessionCreateParams,
     browserbaseSessionID: configOverrides?.browserbaseSessionID,

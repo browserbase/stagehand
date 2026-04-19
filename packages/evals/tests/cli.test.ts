@@ -1,111 +1,224 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import path from "node:path";
 import fs from "node:fs";
+import path from "node:path";
 
 const exec = promisify(execFile);
-
-// Path to the built CLI binary
-const CLI_PATH = path.resolve(
-  __dirname,
-  "..",
-  "dist",
-  "cli",
-  "cli.js",
+const repoRoot = path.resolve(__dirname, "..", "..", "..");
+const CLI_PATH = path.join(repoRoot, "packages", "evals", "cli.ts");
+const SOURCE_CONFIG = path.join(
+  repoRoot,
+  "packages",
+  "evals",
+  "evals.config.json",
 );
 
-/**
- * Run the evals CLI with given args, return stdout/stderr.
- */
-async function evals(
+async function runCli(
   args: string[],
-): Promise<{ stdout: string; stderr: string }> {
+): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
-    const { stdout, stderr } = await exec("node", [CLI_PATH, ...args], {
-      timeout: 10_000,
-      env: { ...process.env, NODE_NO_WARNINGS: "1" },
-    });
-    return { stdout, stderr };
+    const { stdout, stderr } = await exec(
+      process.execPath,
+      ["--import", "tsx", CLI_PATH, ...args],
+      {
+        cwd: repoRoot,
+        timeout: 15_000,
+        env: { ...process.env, NODE_NO_WARNINGS: "1" },
+      },
+    );
+    return { stdout, stderr, code: 0 };
   } catch (err: any) {
-    // execFile throws on non-zero exit — return the output anyway
-    return { stdout: err.stdout ?? "", stderr: err.stderr ?? "" };
+    return {
+      stdout: err.stdout ?? "",
+      stderr: err.stderr ?? "",
+      code: err.code ?? 1,
+    };
   }
 }
 
 describe("CLI entrypoint", () => {
+  it("shows help", async () => {
+    const { stdout, code } = await runCli(["-h"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Commands:");
+    expect(stdout).toContain("run");
+    expect(stdout).toContain("list");
+    expect(stdout).toContain("config");
+  });
+
+  it("exports resolved bench flags into env overrides during dry-run", async () => {
+    const { stdout, code } = await runCli([
+      "run",
+      "act",
+      "--dry-run",
+      "-e",
+      "browserbase",
+      "--api",
+      "-p",
+      "openai",
+    ]);
+
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout);
+    expect(payload.normalizedTarget).toBe("act");
+    expect(payload.envOverrides.EVAL_ENV).toBe("BROWSERBASE");
+    expect(payload.envOverrides.USE_API).toBe("true");
+    expect(payload.envOverrides.EVAL_PROVIDER).toBe("openai");
+    expect(payload.runOptions.verbose).toBe(false);
+  });
+
+  it("fails fast on unknown flags instead of consuming the target", async () => {
+    const { stdout, stderr, code } = await runCli([
+      "run",
+      "--envr",
+      "browserbase",
+      "act",
+      "--dry-run",
+    ]);
+
+    expect(code).toBe(1);
+    expect(stdout + stderr).toContain('Unknown option "--envr"');
+  });
+
+  it("returns a non-zero exit code for invalid targets", async () => {
+    const { stdout, stderr, code } = await runCli([
+      "run",
+      "nonexistent_eval_xyz",
+    ]);
+
+    expect(code).toBe(1);
+    expect(stdout + stderr).toContain('No tasks found matching "nonexistent_eval_xyz"');
+  });
+
+  it("prints the source config path in source mode", async () => {
+    const { stdout, code } = await runCli(["config", "path"]);
+    expect(code).toBe(0);
+    expect(stdout.trim()).toBe(
+      path.join(repoRoot, "packages", "evals", "evals.config.json"),
+    );
+  });
+});
+
+describe("core config", () => {
+  // Tests mutate packages/evals/evals.config.json. Snapshot beforeAll,
+  // reset to snapshot before each test, restore afterAll.
+  let snapshot: string;
+
   beforeAll(() => {
-    if (!fs.existsSync(CLI_PATH)) {
-      throw new Error(
-        `CLI not built at ${CLI_PATH}. Run 'pnpm build:cli' first.`,
-      );
-    }
+    snapshot = fs.readFileSync(SOURCE_CONFIG, "utf-8");
   });
 
-  describe("help", () => {
-    it("shows help with -h", async () => {
-      const { stdout } = await evals(["-h"]);
-      expect(stdout).toContain("Stagehand Evals CLI");
-      expect(stdout).toContain("Commands");
-      expect(stdout).toContain("run");
-      expect(stdout).toContain("list");
-      expect(stdout).toContain("config");
-    });
-
-    it("shows help with help command", async () => {
-      const { stdout } = await evals(["help"]);
-      expect(stdout).toContain("Stagehand Evals CLI");
-    });
+  afterAll(() => {
+    fs.writeFileSync(SOURCE_CONFIG, snapshot);
   });
 
-  describe("list", () => {
-    it("shows categories", async () => {
-      const { stdout } = await evals(["list"]);
-      expect(stdout).toContain("Available Evals");
-      expect(stdout).toContain("act");
-      expect(stdout).toContain("extract");
-      expect(stdout).toContain("observe");
-      expect(stdout).toContain("agent");
-    });
+  function resetConfig(): void {
+    fs.writeFileSync(SOURCE_CONFIG, snapshot);
+  }
 
-    it("shows detailed tasks with --detailed", async () => {
-      const { stdout } = await evals(["list", "--detailed"]);
-      expect(stdout).toContain("Detailed Task List");
-      // Should list actual task names
-      expect(stdout).toContain("dropdown");
-    });
-
-    it("shows benchmarks", async () => {
-      const { stdout } = await evals(["list"]);
-      expect(stdout).toContain("Benchmarks");
-      expect(stdout).toContain("gaia");
-      expect(stdout).toContain("webvoyager");
-    });
+  it("prints placeholder when no core section exists", async () => {
+    resetConfig();
+    const { stdout, code } = await runCli(["config", "core"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Core configuration");
+    expect(stdout).toContain("runner default: understudy_code");
   });
 
-  describe("config", () => {
-    it("shows current config", async () => {
-      const { stdout } = await evals(["config"]);
-      expect(stdout).toContain("Current Configuration");
-      expect(stdout).toContain("env:");
-      expect(stdout).toContain("trials:");
-      expect(stdout).toContain("concurrency:");
-    });
+  it("persists tool via `config core set tool`", async () => {
+    resetConfig();
+    const setResult = await runCli([
+      "config", "core", "set", "tool", "understudy_code",
+    ]);
+    expect(setResult.code).toBe(0);
+    expect(setResult.stdout).toContain("Set core.tool to understudy_code");
 
-    it("shows config path", async () => {
-      const { stdout } = await evals(["config", "path"]);
-      expect(stdout).toContain("evals.config.json");
-    });
+    const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+    expect(saved.core?.tool).toBe("understudy_code");
   });
 
-  describe("run target validation", () => {
-    it("rejects unknown eval name", async () => {
-      const { stdout, stderr } = await evals([
-        "run",
-        "nonexistent_eval_xyz",
+  it("flows persisted core.tool into run dry-run output", async () => {
+    resetConfig();
+    await runCli(["config", "core", "set", "tool", "understudy_code"]);
+
+    const { stdout, code } = await runCli([
+      "run",
+      "navigation/open",
+      "--dry-run",
+    ]);
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout);
+    expect(payload.runOptions.coreToolSurface).toBe("understudy_code");
+  });
+
+  it("rejects unknown tool", async () => {
+    resetConfig();
+    const { stdout, stderr, code } = await runCli([
+      "config", "core", "set", "tool", "not_a_real_tool",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout + stderr).toContain('Invalid tool "not_a_real_tool"');
+  });
+
+  it("rejects setting startup without a tool", async () => {
+    resetConfig();
+    const { stdout, stderr, code } = await runCli([
+      "config", "core", "set", "startup", "tool_launch_local",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout + stderr).toContain("Cannot set startup without a tool");
+  });
+
+  it(
+    "rejects startup unsupported by the chosen tool",
+    async () => {
+      resetConfig();
+      // cdp_code does not support tool_create_browserbase.
+      await runCli(["config", "core", "set", "tool", "cdp_code"]);
+      const { stdout, stderr, code } = await runCli([
+        "config", "core", "set", "startup", "tool_create_browserbase",
       ]);
-      const output = stdout + stderr;
-      expect(output).toContain("does not exist");
-    });
-  });
+      expect(code).toBe(1);
+      expect(stdout + stderr).toContain(
+        'Tool "cdp_code" does not support startup',
+      );
+    },
+    30_000,
+  );
+
+  it(
+    "auto-resets startup when a tool change invalidates it",
+    async () => {
+      resetConfig();
+      // understudy_code supports tool_attach_browserbase; browse_cli does not.
+      await runCli(["config", "core", "set", "tool", "understudy_code"]);
+      await runCli([
+        "config", "core", "set", "startup", "tool_attach_browserbase",
+      ]);
+      const { stdout, code } = await runCli([
+        "config", "core", "set", "tool", "browse_cli",
+      ]);
+      expect(code).toBe(0);
+      expect(stdout).toContain("Resetting startup");
+
+      const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+      expect(saved.core?.tool).toBe("browse_cli");
+      expect(saved.core?.startup).toBeUndefined();
+    },
+    30_000,
+  );
+
+  it(
+    "reset clears the whole core section",
+    async () => {
+      resetConfig();
+      await runCli(["config", "core", "set", "tool", "understudy_code"]);
+      const { code } = await runCli(["config", "core", "reset"]);
+      expect(code).toBe(0);
+
+      const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+      expect(saved.core).toBeUndefined();
+    },
+    15_000,
+  );
 });

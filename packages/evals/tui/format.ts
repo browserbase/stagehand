@@ -10,6 +10,7 @@
 // ---------------------------------------------------------------------------
 
 const ESC = "\x1b[";
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
 
 export const c = {
   reset: `${ESC}0m`,
@@ -111,10 +112,9 @@ export function statusBadge(status: TaskStatus): string {
 // ---------------------------------------------------------------------------
 
 export function padRight(s: string, width: number): string {
-  // Strip ANSI when measuring length
-  const visible = s.replace(/\x1b\[[0-9;]*m/g, "");
-  const padding = Math.max(0, width - visible.length);
-  return s + " ".repeat(padding);
+  const fitted = truncateText(s, width);
+  const padding = Math.max(0, width - visibleLength(fitted));
+  return fitted + " ".repeat(padding);
 }
 
 export function formatMs(ms: number): string {
@@ -126,6 +126,57 @@ export function header(text: string): string {
   return `${c.bold}${c.underline}${text}${c.reset}`;
 }
 
+export function coolSilverHeader(text: string): string {
+  return `${ESC}1m${ESC}38;2;224;229;236m${text}${c.reset}`;
+}
+
+export function warmStoneHeader(text: string): string {
+  return `${ESC}1m${ESC}38;2;214;197;167m${text}${c.reset}`;
+}
+
+export function dustyCyanHeader(text: string): string {
+  return `${ESC}1m${ESC}38;2;137;189;194m${text}${c.reset}`;
+}
+
+export function stripAnsi(s: string): string {
+  return s.replace(ANSI_PATTERN, "");
+}
+
+export function visibleLength(s: string): number {
+  return stripAnsi(s).length;
+}
+
+export function truncateText(s: string, width: number): string {
+  if (width <= 0) return "";
+
+  const plain = stripAnsi(s);
+  if (plain.length <= width) {
+    return plain;
+  }
+
+  if (width === 1) {
+    return "…";
+  }
+
+  return `${plain.slice(0, width - 1).trimEnd()}…`;
+}
+
+export function getTerminalWidth(fallback = 100): number {
+  const columns = process.stdout.columns;
+  if (typeof columns !== "number" || !Number.isFinite(columns) || columns <= 0) {
+    return fallback;
+  }
+  return Math.max(60, columns);
+}
+
 export function separator(): string {
-  return gray("─".repeat(60));
+  return gray("─".repeat(Math.max(20, getTerminalWidth() - 2)));
+}
+
+export function writeRaw(s: string): void {
+  process.stdout.write(s);
+}
+
+export function writeLine(s = ""): void {
+  writeRaw(`${s}\n`);
 }

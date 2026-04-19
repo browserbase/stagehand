@@ -14,8 +14,14 @@ import {
   formatMs,
   padRight,
   separator,
+  getTerminalWidth,
+  truncateText,
+  visibleLength,
+  writeLine,
+  writeRaw,
   type TaskStatus,
 } from "./format.js";
+import readline from "node:readline";
 
 interface TaskProgress {
   name: string;
@@ -25,49 +31,302 @@ interface TaskProgress {
   error?: string;
 }
 
+type ProgressRendererOptions = {
+  animated?: boolean;
+};
+
+const DOTS2_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
+
 export class ProgressRenderer {
   private tasks = new Map<string, TaskProgress>();
   private started = 0;
   private passed = 0;
   private failed = 0;
+  private animated: boolean;
+  private frameIndex = 0;
+  private timer?: NodeJS.Timeout;
+  private renderedLines = 0;
+  private cursorHidden = false;
+  private blockInitialized = false;
+
+  constructor(options: ProgressRendererOptions = {}) {
+    this.animated = options.animated ?? false;
+  }
 
   onStart(taskName: string, model?: string): void {
     const key = model ? `${taskName}:${model}` : taskName;
     this.tasks.set(key, { name: taskName, model, status: "running" });
     this.started++;
-    console.log(`  ${blue("●")} ${padRight(taskName, 40)} ${dim(model ?? "")}  ${gray("running...")}`);
+    if (this.animated) {
+      this.startTicker();
+      this.renderAnimated();
+      return;
+    }
+    this.printRow(blue("●"), taskName, model, gray("running"));
   }
 
   onPass(taskName: string, model?: string, durationMs?: number): void {
     const key = model ? `${taskName}:${model}` : taskName;
     this.tasks.set(key, { name: taskName, model, status: "passed", durationMs });
     this.passed++;
-    const ms = durationMs !== undefined ? dim(formatMs(durationMs)) : "";
-    console.log(`  ${green("✓")} ${padRight(taskName, 40)} ${dim(model ?? "")}  ${green("passed")}  ${ms}`);
+    if (this.animated) {
+      this.renderAnimated();
+      this.stopTickerIfIdle();
+      return;
+    }
+    this.printRow(
+      green("✓"),
+      taskName,
+      model,
+      green("passed"),
+      durationMs !== undefined ? dim(formatMs(durationMs)) : undefined,
+    );
   }
 
   onFail(taskName: string, model?: string, error?: string): void {
     const key = model ? `${taskName}:${model}` : taskName;
     this.tasks.set(key, { name: taskName, model, status: "failed", error });
     this.failed++;
-    console.log(`  ${red("✗")} ${padRight(taskName, 40)} ${dim(model ?? "")}  ${red("failed")}`);
+    if (this.animated) {
+      this.renderAnimated();
+      this.stopTickerIfIdle();
+      return;
+    }
+    this.printRow(red("✗"), taskName, model, red("failed"));
     if (error) {
-      console.log(`    ${dim("→")} ${gray(error.slice(0, 120))}`);
+      const available = Math.max(24, getTerminalWidth() - 10);
+      writeLine(`    ${dim("→")} ${gray(truncateText(error, available))}`);
     }
   }
 
   printSummary(): void {
-    console.log("");
-    console.log(separator());
+    this.stopTicker();
+    if (this.animated) {
+      this.flushAnimatedBlock();
+      writeLine("");
+    } else {
+      writeLine("");
+    }
+    writeLine(separator());
     const total = this.passed + this.failed;
-    console.log(
+    writeLine(
       `  ${bold("Results:")} ${green(`${this.passed} passed`)}, ${red(`${this.failed} failed`)} ${dim(`(${total} total)`)}`,
     );
     if (total > 0) {
       const pct = Math.round((this.passed / total) * 100);
-      console.log(`  ${bold("Pass rate:")} ${pct >= 80 ? green(`${pct}%`) : pct >= 50 ? `${pct}%` : red(`${pct}%`)}`);
+      writeLine(`  ${bold("Pass rate:")} ${pct >= 80 ? green(`${pct}%`) : pct >= 50 ? `${pct}%` : red(`${pct}%`)}`);
     }
-    console.log(separator());
-    console.log("");
+    writeLine(separator());
+    writeLine("");
+  }
+
+  dispose(): void {
+    this.stopTicker();
+    if (this.animated && this.blockInitialized) {
+      this.moveToBlockStart();
+      readline.clearScreenDown(process.stdout);
+      this.blockInitialized = false;
+    }
+    if (this.animated && this.renderedLines > 0) {
+      writeLine("");
+    }
+  }
+
+  private printRow(
+    icon: string,
+    taskName: string,
+    model: string | undefined,
+    status: string,
+    duration?: string,
+  ): void {
+    const width = getTerminalWidth();
+    const contentWidth = Math.max(32, width - 6);
+    const hasModel = Boolean(model);
+    const statusWidth = Math.max(7, visibleLength(status));
+    const durationWidth = duration ? visibleLength(duration) + 1 : 0;
+    let modelWidth = hasModel
+      ? Math.min(30, Math.max(12, Math.floor(contentWidth * 0.28)))
+      : 0;
+    let taskWidth =
+      contentWidth -
+      statusWidth -
+      durationWidth -
+      (hasModel ? modelWidth + 1 : 0) -
+      1;
+
+    if (hasModel && taskWidth < 18) {
+      const deficit = 18 - taskWidth;
+      modelWidth = Math.max(10, modelWidth - deficit);
+      taskWidth =
+        contentWidth -
+        statusWidth -
+        durationWidth -
+        modelWidth -
+        2;
+    }
+
+    if (hasModel && taskWidth < 18) {
+      modelWidth = 0;
+      taskWidth = contentWidth - statusWidth - durationWidth - 1;
+    }
+
+    const taskCell = padRight(taskName, Math.max(18, taskWidth));
+    const modelCell =
+      modelWidth > 0 && model ? ` ${dim(padRight(model, modelWidth))}` : "";
+    const durationCell = duration ? ` ${duration}` : "";
+    writeLine(`  ${icon} ${taskCell}${modelCell} ${status}${durationCell}`);
+  }
+
+  private renderAnimated(): void {
+    const rows = [...this.tasks.values()].map((task) => this.formatAnimatedRow(task));
+    if (rows.length === 0) {
+      return;
+    }
+
+    if (!this.blockInitialized) {
+      for (let i = 0; i < rows.length; i++) {
+        writeLine("");
+      }
+      this.blockInitialized = true;
+      this.renderedLines = rows.length;
+    }
+
+    this.moveToBlockStart();
+    readline.clearScreenDown(process.stdout);
+
+    for (const row of rows) {
+      writeLine(row);
+    }
+    this.renderedLines = rows.length;
+  }
+
+  private flushAnimatedBlock(): void {
+    if (!this.blockInitialized) {
+      this.renderAnimated();
+      return;
+    }
+
+    this.moveToBlockStart();
+    readline.clearScreenDown(process.stdout);
+    const rows = [...this.tasks.values()].map((task) => this.formatAnimatedRow(task));
+    for (const row of rows) {
+      writeLine(row);
+    }
+    this.blockInitialized = false;
+    this.renderedLines = rows.length;
+  }
+
+  private formatAnimatedRow(task: TaskProgress): string {
+    switch (task.status) {
+      case "running":
+        return this.buildRow(
+          blue(DOTS2_FRAMES[this.frameIndex % DOTS2_FRAMES.length]),
+          task.name,
+          task.model,
+          gray("running"),
+        );
+      case "passed":
+        return this.buildRow(
+          green("✓"),
+          task.name,
+          task.model,
+          green("passed"),
+          task.durationMs !== undefined ? dim(formatMs(task.durationMs)) : undefined,
+        );
+      case "failed":
+      case "error":
+        return this.buildRow(
+          red("✗"),
+          task.name,
+          task.model,
+          red("failed"),
+          task.error ? gray(truncateText(task.error, 18)) : undefined,
+        );
+      case "pending":
+      default:
+        return this.buildRow(gray("⠁"), task.name, task.model, gray("pending"));
+    }
+  }
+
+  private buildRow(
+    icon: string,
+    taskName: string,
+    model: string | undefined,
+    status: string,
+    duration?: string,
+  ): string {
+    const width = getTerminalWidth();
+    const contentWidth = Math.max(32, width - 6);
+    const hasModel = Boolean(model);
+    const statusWidth = Math.max(7, visibleLength(status));
+    const durationWidth = duration ? visibleLength(duration) + 1 : 0;
+    let modelWidth = hasModel
+      ? Math.min(30, Math.max(12, Math.floor(contentWidth * 0.28)))
+      : 0;
+    let taskWidth =
+      contentWidth -
+      statusWidth -
+      durationWidth -
+      (hasModel ? modelWidth + 1 : 0) -
+      1;
+
+    if (hasModel && taskWidth < 18) {
+      const deficit = 18 - taskWidth;
+      modelWidth = Math.max(10, modelWidth - deficit);
+      taskWidth =
+        contentWidth -
+        statusWidth -
+        durationWidth -
+        modelWidth -
+        2;
+    }
+
+    if (hasModel && taskWidth < 18) {
+      modelWidth = 0;
+      taskWidth = contentWidth - statusWidth - durationWidth - 1;
+    }
+
+    const taskCell = padRight(taskName, Math.max(18, taskWidth));
+    const modelCell =
+      modelWidth > 0 && model ? ` ${dim(padRight(model, modelWidth))}` : "";
+    const durationCell = duration ? ` ${duration}` : "";
+    return `  ${icon} ${taskCell}${modelCell} ${status}${durationCell}`;
+  }
+
+  private startTicker(): void {
+    if (!this.animated || this.timer) return;
+    if (!this.cursorHidden) {
+      writeRaw("\x1b[?25l");
+      this.cursorHidden = true;
+    }
+    this.timer = setInterval(() => {
+      this.frameIndex = (this.frameIndex + 1) % DOTS2_FRAMES.length;
+      this.renderAnimated();
+    }, 80);
+  }
+
+  private stopTickerIfIdle(): void {
+    if ([...this.tasks.values()].some((task) => task.status === "running")) {
+      return;
+    }
+    this.stopTicker();
+  }
+
+  private stopTicker(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = undefined;
+    }
+    if (this.cursorHidden) {
+      writeRaw("\x1b[?25h");
+      this.cursorHidden = false;
+    }
+  }
+
+  private moveToBlockStart(): void {
+    if (this.renderedLines > 0) {
+      readline.moveCursor(process.stdout, 0, -this.renderedLines);
+      readline.cursorTo(process.stdout, 0);
+    }
   }
 }

@@ -11,6 +11,7 @@ import {
   gray,
   separator,
   padRight,
+  getTerminalWidth,
 } from "./format.js";
 import type { SummaryResult } from "../types/evals.js";
 
@@ -28,17 +29,28 @@ export function printResultsTable(results: SummaryResult[]): void {
     byTask.set(r.name, existing);
   }
 
+  const { taskWidth, modelWidth, resultWidth, summaryWidth } =
+    getResultsLayout();
+
   console.log(separator());
   console.log(
-    `  ${bold(padRight("Task", 35))} ${bold(padRight("Model", 30))} ${bold("Result")}`,
+    `  ${bold(padRight("Task", taskWidth))} ${bold(padRight("Model", modelWidth))} ${bold(
+      padRight("Result", resultWidth),
+    )}`,
   );
   console.log(separator());
 
   for (const [name, taskResults] of byTask) {
     for (const r of taskResults) {
-      const result = r.output._success ? green("✓ pass") : red("✗ fail");
+      const resultLabel = padRight(
+        r.output._success ? "✓ pass" : "✗ fail",
+        resultWidth,
+      );
+      const result = r.output._success
+        ? green(resultLabel)
+        : red(resultLabel);
       console.log(
-        `  ${padRight(name, 35)} ${padRight(dim(r.input.modelName), 30)} ${result}`,
+        `  ${padRight(name, taskWidth)} ${dim(padRight(r.input.modelName, modelWidth))} ${result}`,
       );
     }
   }
@@ -60,9 +72,34 @@ export function printResultsTable(results: SummaryResult[]): void {
       const pct = Math.round((stats.passed / stats.total) * 100);
       const color = pct >= 80 ? green : pct >= 50 ? cyan : red;
       console.log(
-        `    ${padRight(model, 40)} ${color(`${pct}%`)} ${gray(`(${stats.passed}/${stats.total})`)}`,
+        `    ${padRight(model, summaryWidth)} ${color(`${pct}%`)} ${gray(`(${stats.passed}/${stats.total})`)}`,
       );
     }
     console.log("");
   }
+}
+
+function getResultsLayout(): {
+  taskWidth: number;
+  modelWidth: number;
+  resultWidth: number;
+  summaryWidth: number;
+} {
+  const width = getTerminalWidth();
+  const contentWidth = Math.max(44, width - 6);
+  const resultWidth = 10;
+  let taskWidth = Math.max(18, Math.floor(contentWidth * 0.45));
+  let modelWidth = contentWidth - taskWidth - resultWidth - 2;
+
+  if (modelWidth < 16) {
+    modelWidth = 16;
+    taskWidth = Math.max(18, contentWidth - modelWidth - resultWidth - 2);
+  }
+
+  return {
+    taskWidth,
+    modelWidth,
+    resultWidth,
+    summaryWidth: Math.max(18, contentWidth - 12),
+  };
 }

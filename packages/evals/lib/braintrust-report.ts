@@ -203,8 +203,9 @@ export function isRootEvent(event: ExperimentEvent): boolean {
 }
 
 /**
- * Our framework (packages/evals/runCore.ts) writes per-task timing metrics
- * onto `output.metrics`. This returns that object if present.
+ * Our framework (packages/evals/framework/runner.ts, core path) writes
+ * per-task timing metrics onto `output.metrics`. This returns that object
+ * if present.
  */
 export function getTaskMetrics(
   event: ExperimentEvent,

@@ -1,78 +1,155 @@
-import { bold, dim, cyan, gray } from "../format.js";
+import {
+  bold,
+  dim,
+  cyan,
+  gray,
+  padRight,
+  dustyCyanHeader,
+} from "../format.js";
+
+const HELP_COL_WIDTH = 34;
+
+function row(left: string, right: string, width = HELP_COL_WIDTH): string {
+  return `    ${padRight(left, width)} ${right}`;
+}
+
+function print(lines: string[]): void {
+  console.log(lines.join("\n"));
+}
 
 export function printHelp(): void {
-  console.log(`
-  ${bold("Commands:")}
-
-    ${cyan("run")} ${dim("[target] [options]")}    Run evals
-    ${cyan("list")} ${dim("[tier]")}               List tasks and categories
-    ${cyan("config")}                    Show current configuration
-    ${cyan("new")} ${dim("<tier> <cat> <name>")}   Scaffold a new task
-    ${cyan("help")}                      Show this help
-    ${cyan("clear")}                     Clear the screen
-    ${cyan("exit")}                      Exit the REPL
-
-  ${dim("Use")} ${cyan("<command> --help")} ${dim("for details on a specific command.")}
-`);
+  print([
+    "",
+    `  ${dustyCyanHeader("Commands:")}`,
+    "",
+    row(`${cyan("run")} ${dim("[target] [options]")}`, "Run evals"),
+    row(`${cyan("list")} ${dim("[tier] [--detailed]")}`, "List tasks and categories"),
+    row(`${cyan("config")} ${dim("[subcommand]")}`, "Get/set default run configuration"),
+    row(`${cyan("new")} ${dim("<tier> <cat> <name>")}`, "Scaffold a new task"),
+    row(cyan("help"), "Show this help"),
+    row(cyan("clear"), "Clear the screen"),
+    row(cyan("exit"), "Exit the REPL"),
+    "",
+    `  ${dim("Use")} ${cyan("<command> --help")} ${dim("for details on a specific command.")}`,
+    "",
+  ]);
 }
 
 export function printRunHelp(): void {
-  console.log(`
-  ${bold("evals run")} ${dim("[target] [options]")}
-
-  ${bold("Targets:")}
-
-    ${dim("(none)")}                     All bench tasks ${dim("(default)")}
-    ${cyan("core")}                      All core tier tasks
-    ${cyan("act")}                       Category name ${dim("(searched across tiers)")}
-    ${cyan("core:navigation")}           Tier-qualified category
-    ${cyan("dropdown")}                  Specific task by name
-
-  ${bold("Options:")}
-
-    ${cyan("-t, --trials")} ${dim("<n>")}          Number of trials per task
-    ${cyan("-c, --concurrency")} ${dim("<n>")}     Max parallel sessions
-    ${cyan("-e, --env")} ${dim("<env>")}           Environment: ${gray("local | browserbase")}
-    ${cyan("-m, --model")} ${dim("<model>")}       Model override
-    ${cyan("-p, --provider")} ${dim("<name>")}     Provider: ${gray("openai | anthropic | google | ...")}
-    ${cyan("--api")}                     Use Stagehand API mode
-`);
+  print([
+    "",
+    `  ${dustyCyanHeader("evals run")} ${dim("[target] [options]")}`,
+    "",
+    `  ${bold("Targets:")}`,
+    "",
+    row(`${dim("(none)")} / ${cyan("all")}`, "All bench tasks"),
+    row(`${cyan("core")} / ${cyan("bench")}`, "Entire tier"),
+    row(cyan("core:navigation"), "Tier-qualified category"),
+    row(`${cyan("act")} / ${cyan("extract")} / ${cyan("agent")}`, "Category (searched across tiers)"),
+    row(cyan("dropdown"), "Specific task name"),
+    row(cyan("navigation/open"), "Task with its category prefix"),
+    row(`${cyan("b:gaia")} / ${cyan("benchmark:gaia")}`, "Benchmark suite shorthand"),
+    "",
+    `  ${bold("Options:")}`,
+    "",
+    row(`${cyan("-t, --trials")} ${dim("<n>")}`, "Number of trials per task"),
+    row(`${cyan("-c, --concurrency")} ${dim("<n>")}`, "Max parallel sessions"),
+    row(`${cyan("-e, --env")} ${dim("<env>")}`, `Environment: ${gray("local | browserbase")}`),
+    row(`${cyan("-m, --model")} ${dim("<model>")}`, "Model override"),
+    row(`${cyan("-p, --provider")} ${dim("<name>")}`, `Provider: ${gray("openai | anthropic | google | ...")}`),
+    row(cyan("--api"), "Use Stagehand API mode"),
+    "",
+    `  ${bold("Core options:")}`,
+    "",
+    row(`${cyan("--tool")} ${dim("<surface>")}`, `Core tool surface ${gray("(understudy_code, playwright_code, ...)")}`),
+    row(`${cyan("--startup")} ${dim("<profile>")}`, "Core startup profile"),
+    "",
+    `  ${bold("Benchmark options:")}`,
+    "",
+    row(`${cyan("-l, --limit")} ${dim("<n>")}`, "Max cases to run"),
+    row(`${cyan("-s, --sample")} ${dim("<n>")}`, "Random sample before limit"),
+    row(`${cyan("-f, --filter")} ${dim("key=value")}`, `Benchmark-specific filter ${gray("(repeatable)")}`),
+    "",
+    `  ${bold("Escape hatch:")}`,
+    "",
+    row(cyan("--legacy"), `Spawn the pre-refactor ${dim("index.eval.ts")} runner ${gray("(argv only)")}`),
+    "",
+    `  ${bold("Examples:")}`,
+    "",
+    `    ${dim("$")} evals run act -t 3 -c 5`,
+    `    ${dim("$")} evals run navigation/open --tool understudy_code`,
+    `    ${dim("$")} evals run b:webvoyager -l 10`,
+    `    ${dim("$")} evals run b:gaia -l 25 -f level=1`,
+    "",
+  ]);
 }
 
 export function printListHelp(): void {
-  console.log(`
-  ${bold("evals list")} ${dim("[filter]")}
-
-  ${bold("Filters:")}
-
-    ${dim("(none)")}                     All tasks across all tiers
-    ${cyan("core")}                      Core tier tasks only
-    ${cyan("bench")}                     Bench tier tasks only
-`);
+  print([
+    "",
+    `  ${bold("evals list")} ${dim("[tier] [--detailed|-d]")}`,
+    "",
+    `  ${bold("Filters:")}`,
+    "",
+    row(dim("(none)"), "All tasks across all tiers"),
+    row(cyan("core"), "Core tier tasks only"),
+    row(cyan("bench"), "Bench tier tasks only"),
+    "",
+    `  ${bold("Options:")}`,
+    "",
+    row(cyan("--detailed, -d"), "Show every task name (not just counts)"),
+    "",
+  ]);
 }
 
 export function printNewHelp(): void {
-  console.log(`
-  ${bold("evals new")} ${dim("<tier> <category> <name>")}
-
-  ${bold("Arguments:")}
-
-    ${cyan("tier")}                      ${gray("core")} or ${gray("bench")}
-    ${cyan("category")}                  Subdirectory name ${dim("(e.g. navigation, act)")}
-    ${cyan("name")}                      Task name ${dim("(lowercase, underscores)")}
-
-  ${bold("Examples:")}
-
-    ${dim("$")} evals new core navigation back
-    ${dim("$")} evals new bench act my_new_eval
-`);
+  print([
+    "",
+    `  ${bold("evals new")} ${dim("<tier> <category> <name>")}`,
+    "",
+    `  ${bold("Arguments:")}`,
+    "",
+    row(cyan("tier"), `${gray("core")} or ${gray("bench")}`),
+    row(cyan("category"), `Subdirectory name ${dim("(e.g. navigation, act)")}`),
+    row(cyan("name"), `Task name ${dim("(lowercase, underscores)")}`),
+    "",
+    `  ${bold("Examples:")}`,
+    "",
+    `    ${dim("$")} evals new core navigation back`,
+    `    ${dim("$")} evals new bench act my_new_eval`,
+    "",
+  ]);
 }
 
 export function printConfigHelp(): void {
-  console.log(`
-  ${bold("evals config")}
-
-  Shows the current configuration from ${dim("evals.config.json")} defaults
-  and any active environment variable overrides.
-`);
+  print([
+    "",
+    `  ${dustyCyanHeader("evals config")} ${dim("[subcommand]")}`,
+    "",
+    `  ${bold("Subcommands:")}`,
+    "",
+    row(dim("(none)"), "Print current defaults + env overrides"),
+    row(cyan("path"), "Print the evals.config.json file path"),
+    row(`${cyan("set")} ${dim("<key> <value>")}`, `Set a default ${gray("(env/trials/concurrency/provider/model/api/verbose)")}`),
+    row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or all defaults"),
+    row(`${cyan("core")} ${dim("[...]")}`, "Configure core tier tool + startup defaults"),
+    "",
+    `  ${bold("Core subcommands:")} ${dim("(under `evals config core`)")}`,
+    "",
+    row(dim("(none)"), "Print current core configuration"),
+    row(cyan("path"), "Print the config file path"),
+    row(`${cyan("set")} ${dim("<tool|startup> <value>")}`, `Set core ${cyan("tool")} or ${cyan("startup")}`),
+    row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole core section"),
+    row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
+    "",
+    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    "",
+    `  ${bold("Examples:")}`,
+    "",
+    `    ${dim("$")} evals config set trials 5`,
+    `    ${dim("$")} evals config core set tool understudy_code`,
+    `    ${dim("$")} evals config core set startup tool_launch_local`,
+    `    ${dim("$")} evals config core reset`,
+    "",
+  ]);
 }

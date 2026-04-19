@@ -1,8 +1,8 @@
 /**
  * Interactive REPL for the evals CLI.
  *
- * Modeled after the agents dev-cli REPL: readline-based, command dispatch,
- * supports quoted strings for multi-word arguments.
+ * Shares all parsing + dispatch with the single-shot argv path in
+ * cli.ts via tui/commands/parse.ts and tui/commands/*.
  */
 
 import * as readline from "node:readline";
@@ -16,18 +16,15 @@ import {
   printConfigHelp,
 } from "./commands/help.js";
 import { printList } from "./commands/list.js";
-import { printConfig } from "./commands/config.js";
+import { handleConfig } from "./commands/config.js";
 import { runCommand } from "./commands/run.js";
 import { scaffoldTask } from "./commands/new.js";
+import { parseRunArgs, resolveRunOptions } from "./commands/parse.js";
+import { readConfig } from "./commands/config.js";
 import { discoverTasks } from "../framework/discovery.js";
 import type { TaskRegistry } from "../framework/types.js";
-import path from "node:path";
-import { getPackageRootDir } from "../runtimePaths.js";
+import { getRuntimeTasksRoot } from "../runtimePaths.js";
 
-/**
- * Tokenize a command string, respecting quoted strings.
- * "run agent "my prompt"" → ["run", "agent", "my prompt"]
- */
 function tokenize(input: string): string[] {
   const tokens: string[] = [];
   let current = "";
@@ -55,53 +52,18 @@ function tokenize(input: string): string[] {
   return tokens;
 }
 
-/**
- * Parse options from tokens.
- * Supports: -t 3, --trials 3, -e browserbase, --env local, -m model, -c 5
- */
-function parseOptions(
-  tokens: string[],
-): { target?: string; trials?: number; concurrency?: number; env?: string; model?: string } {
-  const result: Record<string, string | undefined> = {};
-  let target: string | undefined;
-  let i = 0;
-
-  while (i < tokens.length) {
-    const tok = tokens[i];
-    if (tok === "-t" || tok === "--trials") {
-      result.trials = tokens[++i];
-    } else if (tok === "-c" || tok === "--concurrency") {
-      result.concurrency = tokens[++i];
-    } else if (tok === "-e" || tok === "--env") {
-      result.env = tokens[++i];
-    } else if (tok === "-m" || tok === "--model") {
-      result.model = tokens[++i];
-    } else if (!tok.startsWith("-")) {
-      target = tok;
-    }
-    i++;
-  }
-
-  return {
-    target,
-    trials: result.trials ? parseInt(result.trials, 10) : undefined,
-    concurrency: result.concurrency ? parseInt(result.concurrency, 10) : undefined,
-    env: result.env,
-    model: result.model,
-  };
-}
-
-export async function startRepl(): Promise<void> {
+export async function startRepl(entryDir: string): Promise<void> {
   printBanner();
 
-  // Always resolve from the package root, not the built dist directory
-  const resolvedTasksRoot = path.join(getPackageRootDir(), "tasks");
+  const resolvedTasksRoot = getRuntimeTasksRoot();
   let registry: TaskRegistry;
   try {
     registry = await discoverTasks(resolvedTasksRoot, false);
     console.log(dim(`  Discovered ${registry.tasks.length} tasks\n`));
   } catch (err) {
-    console.error(red(`  Failed to discover tasks: ${(err as Error).message}`));
+    console.error(
+      red(`  Failed to discover tasks: ${(err as Error).message}`),
+    );
     process.exit(1);
   }
 
@@ -123,47 +85,54 @@ export async function startRepl(): Promise<void> {
     const tokens = tokenize(trimmed);
     const command = tokens[0].toLowerCase();
     const args = tokens.slice(1);
-
     const wantsHelp = args.includes("--help") || args.includes("-h");
 
     try {
       switch (command) {
         case "run": {
-          if (wantsHelp) { printRunHelp(); break; }
-          const opts = parseOptions(args);
-          const environment = opts.env?.toLowerCase() === "browserbase"
-            ? "BROWSERBASE" as const
-            : "LOCAL" as const;
-          await runCommand(
-            {
-              target: opts.target,
-              trials: opts.trials,
-              concurrency: opts.concurrency,
-              environment,
-              model: opts.model,
-            },
-            registry,
+          if (wantsHelp) {
+            printRunHelp();
+            break;
+          }
+          const flags = parseRunArgs(args);
+          const configFile = readConfig(entryDir);
+          const resolved = resolveRunOptions(
+            flags,
+            configFile.defaults,
+            process.env,
+            configFile.core,
           );
+          await runCommand(resolved, registry);
           break;
         }
 
         case "list": {
-          if (wantsHelp) { printListHelp(); break; }
-          const tierFilter = args[0];
-          printList(registry, tierFilter);
+          if (wantsHelp) {
+            printListHelp();
+            break;
+          }
+          const detailed =
+            args.includes("--detailed") || args.includes("-d");
+          const tierFilter = args.find((a) => !a.startsWith("-"));
+          printList(registry, tierFilter, detailed);
           break;
         }
 
         case "config": {
-          if (wantsHelp) { printConfigHelp(); break; }
-          printConfig();
+          if (wantsHelp) {
+            printConfigHelp();
+            break;
+          }
+          await handleConfig(args, entryDir);
           break;
         }
 
         case "new":
-          if (wantsHelp) { printNewHelp(); break; }
+          if (wantsHelp) {
+            printNewHelp();
+            break;
+          }
           scaffoldTask(args);
-          // Re-discover after scaffold
           registry = await discoverTasks(resolvedTasksRoot, false);
           break;
 
@@ -182,8 +151,19 @@ export async function startRepl(): Promise<void> {
           process.exit(0);
           break;
 
-        default:
-          console.log(red(`  Unknown command: ${command}`) + dim("  Type 'help' for commands."));
+        default: {
+          // Treat unknown first token as a run target
+          const flags = parseRunArgs(tokens);
+          const configFile = readConfig(entryDir);
+          const resolved = resolveRunOptions(
+            flags,
+            configFile.defaults,
+            process.env,
+            configFile.core,
+          );
+          await runCommand(resolved, registry);
+          break;
+        }
       }
     } catch (err) {
       console.error(red(`  Error: ${(err as Error).message}`));

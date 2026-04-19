@@ -103,46 +103,53 @@ describe("core runner", () => {
       isLegacy: false,
     };
 
-    buildCoreContextMock.mockImplementation(async (options: { logger: unknown }) => ({
-      ctx: {
-        page: {},
-        tool: {
-          getRawMetrics: async () => ({ pageCount: 1 }),
-        },
-        startupProfile: "runner_provided_local_cdp",
-        adapter: {
-          name: "understudy_code",
-          family: "understudy",
-          surface: "code",
-          metadata: {
-            environment: "local",
-            browserOwnership: "runner",
-            connectionMode: "attach_ws",
-            startupProfile: "runner_provided_local_cdp",
+    buildCoreContextMock.mockImplementation(
+      async (options: { logger: unknown }) => ({
+        ctx: {
+          page: {},
+          tool: {
+            getRawMetrics: async () => ({ pageCount: 1 }),
           },
+          startupProfile: "runner_provided_local_cdp",
+          adapter: {
+            name: "understudy_code",
+            family: "understudy",
+            surface: "code",
+            metadata: {
+              environment: "local",
+              browserOwnership: "runner",
+              connectionMode: "attach_ws",
+              startupProfile: "runner_provided_local_cdp",
+            },
+          },
+          assert: {},
+          metrics: createMetricsCollector(),
+          logger: options.logger,
         },
-        assert: {},
-        metrics: createMetricsCollector(),
-        logger: options.logger,
-      },
-      cleanup: async () => {},
-    }));
+        cleanup: async () => {},
+      }),
+    );
 
     let capturedProject = "";
-    let capturedScores: Array<(args: any) => { name: string; score: number }> = [];
-    evalMock.mockImplementation(async (projectName: string, config: any) => {
-      capturedProject = projectName;
-      capturedScores = config.scores;
-      const data = await config.data();
-      const results = [];
-      for (const testcase of data) {
-        results.push({
-          input: testcase.input,
-          output: await config.task(testcase.input),
-        });
-      }
-      return { results };
-    });
+    let capturedScores: Array<(args: any) => { name: string; score: number }> =
+      [];
+    let capturedEvalOptions: any;
+    evalMock.mockImplementation(
+      async (projectName: string, config: any, evalOptions: any) => {
+        capturedProject = projectName;
+        capturedScores = config.scores;
+        capturedEvalOptions = evalOptions;
+        const data = await config.data();
+        const results = [];
+        for (const testcase of data) {
+          results.push({
+            input: testcase.input,
+            output: await config.task(testcase.input),
+          });
+        }
+        return { results };
+      },
+    );
 
     const { runEvals } = await import("../../framework/runner.js");
     const result = await runEvals({
@@ -165,9 +172,18 @@ describe("core runner", () => {
       score: 1,
     });
     expect(flushMock).toHaveBeenCalledTimes(1);
+    expect(capturedEvalOptions.reporter.name).toBe(
+      "stagehand-evals-silent-reporter",
+    );
+    expect(typeof capturedEvalOptions.progress.start).toBe("function");
+    expect(typeof capturedEvalOptions.progress.increment).toBe("function");
+    expect(typeof capturedEvalOptions.progress.stop).toBe("function");
     expect(tracedNames).toEqual(["session.startup", "task", "cleanup"]);
 
-    const metrics = result.results[0].output.metrics;
+    const metrics = result.results[0].output.metrics as Record<
+      string,
+      { value: number }
+    >;
     expect(metrics.custom_ms.value).toBe(7);
     expect(metrics.startup_ms.value).toBeTypeOf("number");
     expect(metrics.task_ms.value).toBeTypeOf("number");
