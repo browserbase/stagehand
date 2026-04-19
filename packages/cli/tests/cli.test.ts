@@ -314,6 +314,22 @@ describe("Browse CLI", () => {
       expect(data.typed).toBe(true);
     });
 
+    it("should select multiple values in a multi-select element", async () => {
+      const html = `<!doctype html><html><body><select multiple><option value="red">Red</option><option value="blue">Blue</option><option value="green">Green</option></select></body></html>`;
+      const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
+
+      await browse(`open "${dataUrl}"`);
+      const result = await browse("select select red blue");
+      const data = parseJson<{ selected: string[] }>(result.stdout);
+      expect(data.selected).toEqual(["red", "blue"]);
+
+      const selectedResult = await browse(
+        'eval "Array.from(document.querySelector(\\"select\\").selectedOptions).map(o=>o.value).join(\\\",\\\")"',
+      );
+      const selectedData = parseJson<{ result: string }>(selectedResult.stdout);
+      expect(selectedData.result).toBe("red,blue");
+    });
+
     it("should press keys", async () => {
       await browse("open https://example.com");
       const result = await browse("press Tab");
