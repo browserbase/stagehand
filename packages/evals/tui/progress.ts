@@ -178,7 +178,7 @@ export class ProgressRenderer {
   }
 
   private renderAnimated(): void {
-    const rows = [...this.tasks.values()].map((task) => this.formatAnimatedRow(task));
+    const rows = this.getAnimatedRows();
     if (rows.length === 0) {
       return;
     }
@@ -208,12 +208,20 @@ export class ProgressRenderer {
 
     this.moveToBlockStart();
     readline.clearScreenDown(process.stdout);
-    const rows = [...this.tasks.values()].map((task) => this.formatAnimatedRow(task));
+    const rows = this.getAnimatedRows();
     for (const row of rows) {
       writeLine(row);
     }
     this.blockInitialized = false;
     this.renderedLines = rows.length;
+  }
+
+  private getAnimatedRows(): string[] {
+    const tasks = [...this.tasks.values()];
+    if (tasks.length === 0) {
+      return [];
+    }
+    return [this.buildHeaderRow(), ...tasks.map((task) => this.formatAnimatedRow(task))];
   }
 
   private formatAnimatedRow(task: TaskProgress): string {
@@ -255,9 +263,37 @@ export class ProgressRenderer {
     status: string,
     duration?: string,
   ): string {
+    const { taskWidth, modelWidth } = this.getRowLayout(
+      Boolean(model),
+      status,
+      duration,
+    );
+
+    const taskCell = padRight(taskName, Math.max(18, taskWidth));
+    const modelCell =
+      modelWidth > 0 && model ? ` ${dim(padRight(model, modelWidth))}` : "";
+    const durationCell = duration ? ` ${duration}` : "";
+    return `  ${icon} ${taskCell}${modelCell} ${status}${durationCell}`;
+  }
+
+  private buildHeaderRow(): string {
+    const { taskWidth, modelWidth, statusWidth } = this.getRowLayout(
+      true,
+      "Result",
+    );
+    const taskCell = bold(padRight("Task", Math.max(18, taskWidth)));
+    const modelCell = ` ${bold(padRight("Model", modelWidth))}`;
+    const statusCell = bold(padRight("Result", statusWidth));
+    return `    ${taskCell}${modelCell} ${statusCell}`;
+  }
+
+  private getRowLayout(
+    hasModel: boolean,
+    status: string,
+    duration?: string,
+  ): { taskWidth: number; modelWidth: number; statusWidth: number } {
     const width = getTerminalWidth();
     const contentWidth = Math.max(32, width - 6);
-    const hasModel = Boolean(model);
     const statusWidth = Math.max(7, visibleLength(status));
     const durationWidth = duration ? visibleLength(duration) + 1 : 0;
     let modelWidth = hasModel
@@ -286,11 +322,7 @@ export class ProgressRenderer {
       taskWidth = contentWidth - statusWidth - durationWidth - 1;
     }
 
-    const taskCell = padRight(taskName, Math.max(18, taskWidth));
-    const modelCell =
-      modelWidth > 0 && model ? ` ${dim(padRight(model, modelWidth))}` : "";
-    const durationCell = duration ? ` ${duration}` : "";
-    return `  ${icon} ${taskCell}${modelCell} ${status}${durationCell}`;
+    return { taskWidth, modelWidth, statusWidth };
   }
 
   private startTicker(): void {

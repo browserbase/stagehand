@@ -9,7 +9,7 @@
 
 import { bold, dim, cyan, separator } from "../format.js";
 import { ProgressRenderer } from "../progress.js";
-import { printResultsTable } from "../results.js";
+import { printModelSummary, printResultsTable } from "../results.js";
 import {
   discoverTasks,
   resolveTarget,
@@ -120,8 +120,10 @@ export async function runCommand(
 
       progress.printSummary();
 
-      if (result.results.length > 0) {
+      if (result.results.length > 0 && options.verbose) {
         printResultsTable(result.results);
+      } else if (result.results.length > 0) {
+        printModelSummary(result.results);
       }
 
       console.log(dim(`  Experiment: ${result.experimentName}`));

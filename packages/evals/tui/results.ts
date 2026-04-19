@@ -57,26 +57,33 @@ export function printResultsTable(results: SummaryResult[]): void {
 
   console.log(separator());
 
-  // Model summary
-  const modelStats = new Map<string, { passed: number; total: number }>();
-  for (const r of results) {
-    const stats = modelStats.get(r.input.modelName) ?? { passed: 0, total: 0 };
-    stats.total++;
-    if (r.output._success) stats.passed++;
-    modelStats.set(r.input.modelName, stats);
+  printModelSummary(results, true);
+}
+
+export function printModelSummary(
+  results: SummaryResult[],
+  leadingBlankLine = false,
+): void {
+  const { summaryWidth } = getResultsLayout();
+  const modelStats = getModelStats(results);
+
+  if (modelStats.size <= 1) {
+    return;
   }
 
-  if (modelStats.size > 1) {
-    console.log(`\n  ${bold("By model:")}`);
-    for (const [model, stats] of modelStats) {
-      const pct = Math.round((stats.passed / stats.total) * 100);
-      const color = pct >= 80 ? green : pct >= 50 ? cyan : red;
-      console.log(
-        `    ${padRight(model, summaryWidth)} ${color(`${pct}%`)} ${gray(`(${stats.passed}/${stats.total})`)}`,
-      );
-    }
+  if (leadingBlankLine) {
     console.log("");
   }
+
+  console.log(`  ${bold("By model:")}`);
+  for (const [model, stats] of modelStats) {
+    const pct = Math.round((stats.passed / stats.total) * 100);
+    const color = pct >= 80 ? green : pct >= 50 ? cyan : red;
+    console.log(
+      `    ${padRight(model, summaryWidth)} ${color(`${pct}%`)} ${gray(`(${stats.passed}/${stats.total})`)}`,
+    );
+  }
+  console.log("");
 }
 
 function getResultsLayout(): {
@@ -102,4 +109,21 @@ function getResultsLayout(): {
     resultWidth,
     summaryWidth: Math.max(18, contentWidth - 12),
   };
+}
+
+function getModelStats(
+  results: SummaryResult[],
+): Map<string, { passed: number; total: number }> {
+  const modelStats = new Map<string, { passed: number; total: number }>();
+
+  for (const r of results) {
+    const stats = modelStats.get(r.input.modelName) ?? { passed: 0, total: 0 };
+    stats.total++;
+    if (r.output._success) {
+      stats.passed++;
+    }
+    modelStats.set(r.input.modelName, stats);
+  }
+
+  return modelStats;
 }
