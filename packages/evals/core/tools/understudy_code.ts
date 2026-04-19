@@ -463,6 +463,10 @@ export class UnderstudyCodeTool implements CoreTool {
       logger: input.logger,
       modelName: "openai/gpt-4.1-mini",
       configOverrides: {
+        env: input.startupProfile.startsWith("runner_provided") ||
+          input.startupProfile === "tool_attach_browserbase"
+          ? "LOCAL"
+          : input.environment,
         localBrowserLaunchOptions: {
           headless: true,
           ...(process.env.CHROME_PATH

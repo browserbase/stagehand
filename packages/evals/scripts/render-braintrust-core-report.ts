@@ -1,15 +1,15 @@
-import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import dotenv from "dotenv";
-import { loginToState, init as initExperiment } from "braintrust";
-
-type ExperimentInput = {
-  label: string;
-  experiment: string;
-};
+import {
+  fetchManyExperimentData,
+  findLeaderIndex,
+  sharedMetricKeys,
+  sharedTaskNames,
+  type ExperimentData,
+  type ExperimentInput,
+  type TaskRow,
+} from "../lib/braintrust-report.js";
 
 type ParsedArgs = {
   project: string;
@@ -19,106 +19,11 @@ type ParsedArgs = {
   openAfter: boolean;
 };
 
-type BraintrustExperimentRow = {
-  id: string;
-  name: string;
-};
-
-type ScoreSummary = {
-  name: string;
-  score: number;
-  diff?: number;
-  improvements: number;
-  regressions: number;
-};
-
-type MetricSummary = {
-  name: string;
-  metric: number;
-  unit: string;
-  diff?: number;
-  improvements: number;
-  regressions: number;
-};
-
-type ExperimentComparison = {
-  scores: Record<string, ScoreSummary>;
-  metrics: Record<string, MetricSummary>;
-};
-
-type EventMetric =
-  | number
-  | {
-      value?: number;
-      count?: number;
-      avg?: number;
-      min?: number;
-      max?: number;
-      p50?: number;
-      p99?: number;
-    }
-  | null
-  | undefined;
-
-type ExperimentEvent = {
-  id?: string;
-  span_parents?: string[] | null;
-  is_root?: boolean;
-  input?: { name?: string; [key: string]: unknown } | string | null;
-  output?:
-    | {
-        _success?: boolean;
-        error?: unknown;
-        metrics?: Record<string, EventMetric>;
-        [key: string]: unknown;
-      }
-    | null;
-  scores?: Record<string, number | null | undefined>;
-  metrics?: Record<string, EventMetric>;
-  metadata?: Record<string, unknown>;
-};
-
-type MetricAggregate = {
-  mean: number;
-  min: number;
-  max: number;
-  count: number;
-};
-
-type TaskRow = {
-  name: string;
-  success: boolean;
-  totalMs?: number;
-};
-
-type ExperimentData = {
-  label: string;
-  experimentName: string;
-  experimentId: string;
-  experimentUrl: string;
-  passScore: number;
-  totalTasks: number;
-  passedTasks: number;
-  durationSeconds: number;
-  errorsMetric: number;
-  raw: ExperimentComparison;
-  taskMetrics: Record<string, MetricAggregate>;
-  tasks: TaskRow[];
-};
-
 const DEFAULT_PROJECT = "stagehand-core-dev";
 const DEFAULT_TITLE = "Experiment Comparison";
 const PHASE_METRICS = ["startup_ms", "task_ms", "cleanup_ms"] as const;
 const MAX_EXPERIMENTS = 8; // practical layout limit
 const SIDE_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
-
-function scriptDir(): string {
-  return path.dirname(fileURLToPath(import.meta.url));
-}
-
-function packageRoot(): string {
-  return path.resolve(scriptDir(), "..");
-}
 
 function defaultOutputPath(): string {
   return "/tmp/stagehand-core-braintrust-report.html";
@@ -256,18 +161,6 @@ function openInBrowser(filePath: string): void {
   }
 }
 
-function loadBraintrustApiKey(): string {
-  const envPath = path.join(packageRoot(), ".env");
-  const parsed = dotenv.parse(fs.readFileSync(envPath, "utf8"));
-  const apiKey = parsed.BRAINTRUST_API_KEY;
-  if (!apiKey) throw new Error(`BRAINTRUST_API_KEY is missing from ${envPath}`);
-  return apiKey;
-}
-
-function numberOrZero(value: number | undefined): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -297,227 +190,12 @@ function formatPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function extractMetricValue(raw: unknown): number | undefined {
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (raw && typeof raw === "object") {
-    const obj = raw as Record<string, number | undefined>;
-    if (typeof obj.value === "number" && Number.isFinite(obj.value)) return obj.value;
-    if (typeof obj.avg === "number" && Number.isFinite(obj.avg)) return obj.avg;
-    if (typeof obj.p50 === "number" && Number.isFinite(obj.p50)) return obj.p50;
-  }
-  return undefined;
-}
-
-function isRootEvent(event: ExperimentEvent): boolean {
-  if (event.is_root === true) return true;
-  if (event.is_root === false) return false;
-  return !event.span_parents || event.span_parents.length === 0;
-}
-
-function getTaskMetrics(event: ExperimentEvent): Record<string, EventMetric> | undefined {
-  const output = event.output;
-  if (output && typeof output === "object" && output.metrics && typeof output.metrics === "object") {
-    return output.metrics;
-  }
-  return undefined;
-}
-
-function aggregateMetrics(events: ExperimentEvent[]): Record<string, MetricAggregate> {
-  const buckets: Record<string, number[]> = {};
-  for (const event of events) {
-    if (!isRootEvent(event)) continue;
-    const metrics = getTaskMetrics(event);
-    if (!metrics) continue;
-    for (const [key, payload] of Object.entries(metrics)) {
-      const value = extractMetricValue(payload);
-      if (value === undefined) continue;
-      if (!buckets[key]) buckets[key] = [];
-      buckets[key].push(value);
-    }
-  }
-  const result: Record<string, MetricAggregate> = {};
-  for (const [key, values] of Object.entries(buckets)) {
-    if (values.length === 0) continue;
-    const sum = values.reduce((a, b) => a + b, 0);
-    result[key] = {
-      mean: sum / values.length,
-      min: Math.min(...values),
-      max: Math.max(...values),
-      count: values.length,
-    };
-  }
-  return result;
-}
-
-function extractTasks(events: ExperimentEvent[]): TaskRow[] {
-  const tasks: TaskRow[] = [];
-  for (const event of events) {
-    if (!isRootEvent(event)) continue;
-    let name = "";
-    if (typeof event.input === "string") {
-      name = event.input;
-    } else if (event.input && typeof event.input === "object") {
-      const rec = event.input as Record<string, unknown>;
-      if (typeof rec.name === "string") name = rec.name;
-    }
-    if (!name && event.metadata && typeof event.metadata.test === "string") {
-      name = event.metadata.test as string;
-    }
-    if (!name) continue;
-
-    const out = event.output as Record<string, unknown> | null | undefined;
-    const success = !!(out && out._success === true);
-    const taskMetrics = getTaskMetrics(event);
-    const totalMs = taskMetrics ? extractMetricValue(taskMetrics.total_ms) : undefined;
-    tasks.push({ name, success, totalMs });
-  }
-  const seen = new Set<string>();
-  const deduped: TaskRow[] = [];
-  for (const t of tasks) {
-    if (seen.has(t.name)) continue;
-    seen.add(t.name);
-    deduped.push(t);
-  }
-  deduped.sort((a, b) => a.name.localeCompare(b.name));
-  return deduped;
-}
-
-async function fetchExperimentEvents(
-  project: string,
-  experimentName: string,
-  apiKey: string,
-): Promise<ExperimentEvent[]> {
-  try {
-    const experiment = initExperiment(project, {
-      experiment: experimentName,
-      open: true,
-      apiKey,
-    });
-    const data = await experiment.fetchedData();
-    return data as unknown as ExperimentEvent[];
-  } catch (err) {
-    console.warn(
-      `Could not fetch events for "${experimentName}": ${err instanceof Error ? err.message : err}`,
-    );
-    return [];
-  }
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-async function fetchExperimentData(
-  project: string,
-  input: ExperimentInput,
-): Promise<ExperimentData> {
-  const apiKey = loadBraintrustApiKey();
-  const state = await loginToState({ apiKey });
-
-  let experiment: BraintrustExperimentRow;
-  if (UUID_RE.test(input.experiment)) {
-    // Lookup by ID via the REST API
-    const info = (await state
-      .apiConn()
-      .get_json(`/v1/experiment/${input.experiment}`)) as { id: string; name: string };
-    if (!info?.id || !info?.name) {
-      throw new Error(`Experiment id "${input.experiment}" not found`);
-    }
-    experiment = { id: info.id, name: info.name };
-  } else {
-    // Lookup by name via the app API
-    const matches = (await state.appConn().post_json("api/experiment/get", {
-      project_name: project,
-      org_name: state.orgName,
-      experiment_name: input.experiment,
-    })) as BraintrustExperimentRow[];
-
-    if (matches.length === 0) {
-      throw new Error(
-        `Experiment "${input.experiment}" not found in project "${project}"`,
-      );
-    }
-    experiment = matches[0];
-  }
-
-  const [comparison, events] = await Promise.all([
-    state.apiConn().get_json("/experiment-comparison2", { experiment_id: experiment.id }) as Promise<ExperimentComparison>,
-    fetchExperimentEvents(project, experiment.name, apiKey),
-  ]);
-
-  const passScore = numberOrZero(comparison.scores.Pass?.score);
-  const durationSeconds = numberOrZero(comparison.metrics.duration?.metric);
-  const errorsMetric = numberOrZero(comparison.metrics.errors?.metric);
-
-  const taskMetrics = aggregateMetrics(events);
-  const tasks = extractTasks(events);
-  const passedTasks = tasks.filter((t) => t.success).length;
-
-  const experimentUrl = `${state.appPublicUrl}/app/${encodeURIComponent(
-    state.orgName ?? "Browserbase",
-  )}/p/${encodeURIComponent(project)}/experiments/${encodeURIComponent(experiment.name)}`;
-
-  return {
-    label: input.label,
-    experimentName: experiment.name,
-    experimentId: experiment.id,
-    experimentUrl,
-    passScore,
-    totalTasks: tasks.length,
-    passedTasks,
-    durationSeconds,
-    errorsMetric,
-    raw: comparison,
-    taskMetrics,
-    tasks,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Comparison helpers (N-way)
-// ---------------------------------------------------------------------------
-
-function sharedTaskNames(rows: ExperimentData[]): string[] {
-  if (rows.length === 0) return [];
-  const [first, ...rest] = rows;
-  const initial = new Set(first.tasks.map((t) => t.name));
-  for (const r of rest) {
-    const names = new Set(r.tasks.map((t) => t.name));
-    for (const name of [...initial]) {
-      if (!names.has(name)) initial.delete(name);
-    }
-  }
-  return [...initial].sort();
-}
-
-function sharedMetricKeys(rows: ExperimentData[]): string[] {
-  if (rows.length === 0) return [];
-  const [first, ...rest] = rows;
-  const initial = new Set(Object.keys(first.taskMetrics));
-  for (const r of rest) {
-    const keys = new Set(Object.keys(r.taskMetrics));
-    for (const k of [...initial]) {
-      if (!keys.has(k)) initial.delete(k);
-    }
-  }
-  return [...initial].sort();
-}
-
 // ---------------------------------------------------------------------------
 // HTML rendering — N-way comparison, shadcn-inspired
 // ---------------------------------------------------------------------------
 
 function sideLetter(i: number): string {
   return SIDE_LETTERS[i] ?? `#${i + 1}`;
-}
-
-function findLeaderIndex(rows: ExperimentData[]): number {
-  let best = 0;
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    const b = rows[best];
-    if (r.passScore > b.passScore) best = i;
-    else if (r.passScore === b.passScore && r.durationSeconds < b.durationSeconds) best = i;
-  }
-  return best;
 }
 
 function buildSummary(rows: ExperimentData[], shared: number, sharedTimers: number): string {
@@ -1386,8 +1064,9 @@ function buildHtml(title: string, rows: ExperimentData[]): string {
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
 
-  const rows = await Promise.all(
-    options.experiments.map((e) => fetchExperimentData(options.project, e)),
+  const rows = await fetchManyExperimentData(
+    options.project,
+    options.experiments,
   );
 
   const html = buildHtml(options.title, rows);

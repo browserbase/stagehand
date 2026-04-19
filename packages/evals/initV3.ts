@@ -31,6 +31,7 @@ type InitV3Args = {
   createAgent?: boolean; // only create an agent for agent tasks
   isCUA?: boolean;
   configOverrides?: {
+    env?: "LOCAL" | "BROWSERBASE";
     localBrowserLaunchOptions?: Partial<LocalBrowserLaunchOptions>;
     // Back-compat alias for args
     chromeFlags?: string[];
@@ -87,10 +88,11 @@ export async function initV3({
       : internalModel;
 
   const v3Options: V3Options = {
-    env,
+    env: configOverrides?.env ?? env,
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
     localBrowserLaunchOptions: {
+      ...(configOverrides?.localBrowserLaunchOptions ?? {}),
       headless: configOverrides?.localBrowserLaunchOptions?.headless ?? false,
       args:
         configOverrides?.localBrowserLaunchOptions?.args ??

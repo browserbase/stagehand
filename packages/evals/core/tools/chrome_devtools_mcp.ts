@@ -492,7 +492,9 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
   }
 
   async setViewport(size: { width: number; height: number }): Promise<void> {
-    await this.runtime.callTool("resize_page", size);
+    await this.runtime.callTool("emulate", {
+      viewport: `${size.width}x${size.height}x1`,
+    });
 
     const deadline = Date.now() + 2_000;
     while (Date.now() < deadline) {
