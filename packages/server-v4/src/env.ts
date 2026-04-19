@@ -26,7 +26,7 @@ export const parseEnvironment = (runtimeEnv: NodeJS.ProcessEnv) => {
         .default("development"),
       PORT: z.coerce.number().int().positive().default(3000),
       STAGEHAND_DB_MODE: z.enum(["postgres", "pglite"]).default("pglite"),
-      DATABASE_URL: z.url().default(constants.urls.defaultDatabaseUrl),
+      DATABASE_URL: z.url().optional(),
     },
     runtimeEnvStrict: {
       BROWSERBASE_CONFIG_DIR: runtimeEnv.BROWSERBASE_CONFIG_DIR,
@@ -38,10 +38,7 @@ export const parseEnvironment = (runtimeEnv: NodeJS.ProcessEnv) => {
     emptyStringAsUndefined: true,
   });
 
-  if (
-    parsedEnv.STAGEHAND_DB_MODE === "postgres" &&
-    parsedEnv.DATABASE_URL === constants.urls.defaultDatabaseUrl
-  ) {
+  if (parsedEnv.STAGEHAND_DB_MODE === "postgres" && !parsedEnv.DATABASE_URL) {
     throw new Error("DATABASE_URL must be set when STAGEHAND_DB_MODE=postgres");
   }
 

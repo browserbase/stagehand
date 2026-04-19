@@ -30,7 +30,8 @@ pnpm install
 cp .env.example .env
 ```
 
-4. Configure your `.env` file with the environment variables required by `src/lib/env.ts` (BB environment, API base URLs, etc.).
+4. Configure your `.env` file with the environment variables required by `src/env.ts` (BB environment, API base URLs, etc.).
+   - `DATABASE_URL` is required only when `STAGEHAND_DB_MODE=postgres`; omit it for `pglite` (the default).
 
 5. `pnpm dev`
 

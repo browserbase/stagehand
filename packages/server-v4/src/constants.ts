@@ -29,11 +29,4 @@ export const constants = {
      */
     pgliteDataDirSegments: ["db", "stagehand-v4"] as const,
   },
-  urls: {
-    /**
-     * TODO: Replace this placeholder once the real v4 database URL has been provisioned.
-     * @constant
-     */
-    defaultDatabaseUrl: "postgresql://example.com/stagehand_v4",
-  },
 } as const;

@@ -16,13 +16,17 @@ describe("environment parsing", () => {
     );
   });
 
-  it("ignores DATABASE_URL in pglite mode", () => {
+  it("allows DATABASE_URL in pglite mode", () => {
     const env = parseEnvironment({
       STAGEHAND_DB_MODE: "pglite",
       DATABASE_URL: "postgres://user:pass@localhost:5432/stagehand",
     });
 
     assert.equal(env.STAGEHAND_DB_MODE, "pglite");
+    assert.equal(
+      env.DATABASE_URL,
+      "postgres://user:pass@localhost:5432/stagehand",
+    );
   });
 
   it("defaults BROWSERBASE_CONFIG_DIR from the user home directory", () => {
@@ -48,12 +52,12 @@ describe("environment parsing", () => {
     );
   });
 
-  it("defaults DATABASE_URL to the placeholder in pglite mode", () => {
+  it("leaves DATABASE_URL undefined in pglite mode by default", () => {
     const env = parseEnvironment({
       STAGEHAND_DB_MODE: "pglite",
     });
 
-    assert.equal(env.DATABASE_URL, "postgresql://example.com/stagehand_v4");
+    assert.equal(env.DATABASE_URL, undefined);
   });
 
   it("defaults PORT and NODE_ENV", () => {

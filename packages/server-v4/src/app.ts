@@ -58,7 +58,8 @@ export const buildApp = async () => {
       env.STAGEHAND_DB_MODE === "postgres"
         ? {
             mode: "postgres",
-            databaseUrl: env.DATABASE_URL,
+            // parseEnvironment enforces DATABASE_URL when postgres mode is selected.
+            databaseUrl: env.DATABASE_URL!,
           }
         : {
             mode: "pglite",
