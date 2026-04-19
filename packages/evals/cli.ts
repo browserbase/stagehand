@@ -6,6 +6,7 @@
  *   - `evals run <target> …`     → single-shot run with rich progress
  *   - `evals list [tier]`        → list discovered tasks
  *   - `evals config [sub]`       → print / get / set defaults
+ *   - `evals experiments [sub]`  → inspect / compare Braintrust runs
  *   - `evals new <tier> <cat> <name>` → scaffold a task file
  *   - `evals help` / `-h`        → help
  *
@@ -70,9 +71,11 @@ const args = process.argv.slice(2);
     printListHelp,
     printNewHelp,
     printConfigHelp,
+    printExperimentsHelp,
   } = await import("./tui/commands/help.js");
   const { printList } = await import("./tui/commands/list.js");
   const { handleConfig, readConfig } = await import("./tui/commands/config.js");
+  const { handleExperiments } = await import("./tui/commands/experiments.js");
   const { runCommand } = await import("./tui/commands/run.js");
   const { scaffoldTask } = await import("./tui/commands/new.js");
   const { parseRunArgs, resolveRunOptions } = await import(
@@ -159,6 +162,15 @@ const args = process.argv.slice(2);
           return;
         }
         await handleConfig(subArgs, ENTRY_DIR);
+        return;
+      }
+
+      case "experiments": {
+        if (wantsHelp && subArgs.length === 0) {
+          printExperimentsHelp();
+          return;
+        }
+        await handleExperiments(subArgs);
         return;
       }
 

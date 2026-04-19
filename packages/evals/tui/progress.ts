@@ -36,6 +36,8 @@ type ProgressRendererOptions = {
 };
 
 const DOTS2_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
+const FALLBACK_TERMINAL_ROWS = 24;
+const RESERVED_TERMINAL_ROWS = 10;
 
 export class ProgressRenderer {
   private tasks = new Map<string, TaskProgress>();
@@ -221,7 +223,27 @@ export class ProgressRenderer {
     if (tasks.length === 0) {
       return [];
     }
-    return [this.buildHeaderRow(), ...tasks.map((task) => this.formatAnimatedRow(task))];
+
+    const maxRows = Math.max(
+      8,
+      this.getTerminalRows() - RESERVED_TERMINAL_ROWS,
+    );
+    const includeOverflowRow = tasks.length + 1 > maxRows;
+    const visibleTaskRows = Math.max(
+      1,
+      maxRows - 1 - (includeOverflowRow ? 1 : 0),
+    );
+    const hiddenCount = Math.max(0, tasks.length - visibleTaskRows);
+    const visibleTasks =
+      hiddenCount > 0 ? tasks.slice(-visibleTaskRows) : tasks;
+
+    return [
+      this.buildHeaderRow(),
+      ...(hiddenCount > 0
+        ? [this.buildOverflowRow(hiddenCount, tasks.length)]
+        : []),
+      ...visibleTasks.map((task) => this.formatAnimatedRow(task)),
+    ];
   }
 
   private formatAnimatedRow(task: TaskProgress): string {
@@ -285,6 +307,10 @@ export class ProgressRenderer {
     const modelCell = ` ${bold(padRight("Model", modelWidth))}`;
     const statusCell = bold(padRight("Result", statusWidth));
     return `    ${taskCell}${modelCell} ${statusCell}`;
+  }
+
+  private buildOverflowRow(hiddenCount: number, total: number): string {
+    return `  ${dim(`… ${hiddenCount} earlier task${hiddenCount === 1 ? "" : "s"} hidden (${total} total)`)}`;
   }
 
   private getRowLayout(
@@ -360,5 +386,13 @@ export class ProgressRenderer {
       readline.moveCursor(process.stdout, 0, -this.renderedLines);
       readline.cursorTo(process.stdout, 0);
     }
+  }
+
+  private getTerminalRows(): number {
+    const rows = process.stdout.rows;
+    if (typeof rows !== "number" || !Number.isFinite(rows) || rows <= 0) {
+      return FALLBACK_TERMINAL_ROWS;
+    }
+    return Math.max(FALLBACK_TERMINAL_ROWS, rows);
   }
 }

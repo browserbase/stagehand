@@ -14,9 +14,11 @@ import {
   printListHelp,
   printNewHelp,
   printConfigHelp,
+  printExperimentsHelp,
 } from "./commands/help.js";
 import { printList } from "./commands/list.js";
 import { handleConfig } from "./commands/config.js";
+import { handleExperiments } from "./commands/experiments.js";
 import { runCommand } from "./commands/run.js";
 import { scaffoldTask } from "./commands/new.js";
 import { parseRunArgs, resolveRunOptions } from "./commands/parse.js";
@@ -124,6 +126,15 @@ export async function startRepl(entryDir: string): Promise<void> {
             break;
           }
           await handleConfig(args, entryDir);
+          break;
+        }
+
+        case "experiments": {
+          if (wantsHelp && args.length === 0) {
+            printExperimentsHelp();
+            break;
+          }
+          await handleExperiments(args);
           break;
         }
 

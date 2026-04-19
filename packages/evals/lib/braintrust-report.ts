@@ -34,6 +34,12 @@ export type ExperimentInput = {
 export type BraintrustExperimentRow = {
   id: string;
   name: string;
+  project_id?: string;
+  created?: string;
+};
+
+export type BraintrustExperimentListItem = BraintrustExperimentRow & {
+  project: string;
 };
 
 export type ScoreSummary = {
@@ -113,6 +119,8 @@ export type ExperimentData = {
   experimentName: string;
   experimentId: string;
   experimentUrl: string;
+  projectName: string;
+  createdAt?: string;
   passScore: number;
   totalTasks: number;
   passedTasks: number;
@@ -124,6 +132,22 @@ export type ExperimentData = {
   taskMetrics: Record<string, MetricAggregate>;
   /** Individual task runs with pass/fail + total duration. */
   tasks: TaskRow[];
+};
+
+export type RecentExperimentData = {
+  experimentName: string;
+  experimentId: string;
+  experimentUrl: string;
+  projectName: string;
+  createdAt?: string;
+  passScore?: number;
+  durationSeconds?: number;
+};
+
+export type ResolvedExperimentProject = {
+  projectName: string;
+  experimentId: string;
+  experimentName: string;
 };
 
 export type FetchOptions = {
@@ -173,6 +197,18 @@ export function resolveApiKey(apiKey?: string): string {
 
 function numberOrZero(value: number | undefined): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function extractPrimaryScore(
+  comparison: ExperimentComparison,
+): number | undefined {
+  for (const key of ["Pass", "Exact match", "Corrected"]) {
+    const score = comparison.scores[key]?.score;
+    if (typeof score === "number" && Number.isFinite(score)) {
+      return score;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -318,45 +354,43 @@ async function fetchExperimentEventsInternal(
   }
 }
 
-/**
- * Fetch a single experiment's aggregate scores, per-task events, and computed
- * metric aggregates. Accepts either a Braintrust experiment name or UUID.
- */
-export async function fetchExperimentData(
+function buildExperimentUrl(
+  appPublicUrl: string,
+  orgName: string,
   project: string,
-  input: ExperimentInput,
-  options: FetchOptions = {},
+  experimentName: string,
+): string {
+  return `${appPublicUrl}/app/${encodeURIComponent(
+    orgName ?? "Browserbase",
+  )}/p/${encodeURIComponent(project)}/experiments/${encodeURIComponent(
+    experimentName,
+  )}`;
+}
+
+async function lookupExperiment(
+  state: Awaited<ReturnType<typeof loginToState>>,
+  project: string,
+  input: string,
+): Promise<BraintrustExperimentRow | null> {
+  const response = (await state.apiConn().get_json("/v1/experiment", {
+    project_name: project,
+    org_name: state.orgName,
+    limit: "1",
+    ...(UUID_RE.test(input)
+      ? { ids: [input] }
+      : { experiment_name: input }),
+  })) as { objects?: BraintrustExperimentRow[] };
+
+  return response.objects?.[0] ?? null;
+}
+
+async function fetchExperimentDataForRow(
+  state: Awaited<ReturnType<typeof loginToState>>,
+  project: string,
+  experiment: BraintrustExperimentRow,
+  label: string,
+  apiKey: string,
 ): Promise<ExperimentData> {
-  const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginToState({ apiKey });
-
-  let experiment: BraintrustExperimentRow;
-  if (UUID_RE.test(input.experiment)) {
-    const info = (await state
-      .apiConn()
-      .get_json(`/v1/experiment/${input.experiment}`)) as {
-      id: string;
-      name: string;
-    };
-    if (!info?.id || !info?.name) {
-      throw new Error(`Experiment id "${input.experiment}" not found`);
-    }
-    experiment = { id: info.id, name: info.name };
-  } else {
-    const matches = (await state.appConn().post_json("api/experiment/get", {
-      project_name: project,
-      org_name: state.orgName,
-      experiment_name: input.experiment,
-    })) as BraintrustExperimentRow[];
-
-    if (matches.length === 0) {
-      throw new Error(
-        `Experiment "${input.experiment}" not found in project "${project}"`,
-      );
-    }
-    experiment = matches[0];
-  }
-
   const [comparison, events] = await Promise.all([
     state.apiConn().get_json("/experiment-comparison2", {
       experiment_id: experiment.id,
@@ -364,7 +398,7 @@ export async function fetchExperimentData(
     fetchExperimentEventsInternal(project, experiment.name, apiKey),
   ]);
 
-  const passScore = numberOrZero(comparison.scores.Pass?.score);
+  const passScore = numberOrZero(extractPrimaryScore(comparison));
   const durationSeconds = numberOrZero(comparison.metrics.duration?.metric);
   const errorsMetric = numberOrZero(comparison.metrics.errors?.metric);
 
@@ -372,17 +406,20 @@ export async function fetchExperimentData(
   const tasks = extractTasks(events);
   const passedTasks = tasks.filter((t) => t.success).length;
 
-  const experimentUrl = `${state.appPublicUrl}/app/${encodeURIComponent(
+  const experimentUrl = buildExperimentUrl(
+    state.appPublicUrl,
     state.orgName ?? "Browserbase",
-  )}/p/${encodeURIComponent(project)}/experiments/${encodeURIComponent(
+    project,
     experiment.name,
-  )}`;
+  );
 
   return {
-    label: input.label,
+    label,
     experimentName: experiment.name,
     experimentId: experiment.id,
     experimentUrl,
+    projectName: project,
+    createdAt: experiment.created,
     passScore,
     totalTasks: tasks.length,
     passedTasks,
@@ -394,6 +431,63 @@ export async function fetchExperimentData(
   };
 }
 
+async function fetchRecentExperimentDataForRow(
+  state: Awaited<ReturnType<typeof loginToState>>,
+  project: string,
+  experiment: BraintrustExperimentRow,
+): Promise<RecentExperimentData> {
+  let comparison: ExperimentComparison | null = null;
+
+  try {
+    comparison = (await state.apiConn().get_json("/experiment-comparison2", {
+      experiment_id: experiment.id,
+    })) as ExperimentComparison;
+  } catch {
+    comparison = null;
+  }
+
+  return {
+    experimentName: experiment.name,
+    experimentId: experiment.id,
+    experimentUrl: buildExperimentUrl(
+      state.appPublicUrl,
+      state.orgName ?? "Browserbase",
+      project,
+      experiment.name,
+    ),
+    projectName: project,
+    createdAt: experiment.created,
+    passScore:
+      comparison !== null
+        ? numberOrZero(extractPrimaryScore(comparison))
+        : undefined,
+    durationSeconds:
+      comparison !== null
+        ? numberOrZero(comparison.metrics.duration?.metric)
+        : undefined,
+  };
+}
+
+/**
+ * Fetch a single experiment's aggregate scores, per-task events, and computed
+ * metric aggregates. Accepts either a Braintrust experiment name or UUID.
+ */
+export async function fetchExperimentData(
+  project: string,
+  input: ExperimentInput,
+  options: FetchOptions = {},
+): Promise<ExperimentData> {
+  const apiKey = resolveApiKey(options.apiKey);
+  const state = await loginToState({ apiKey });
+  const experiment = await lookupExperiment(state, project, input.experiment);
+  if (!experiment) {
+    throw new Error(
+      `Experiment "${input.experiment}" not found in project "${project}"`,
+    );
+  }
+  return fetchExperimentDataForRow(state, project, experiment, input.label, apiKey);
+}
+
 /**
  * Fetch many experiments in parallel.
  */
@@ -402,7 +496,108 @@ export async function fetchManyExperimentData(
   inputs: ExperimentInput[],
   options: FetchOptions = {},
 ): Promise<ExperimentData[]> {
-  return Promise.all(inputs.map((i) => fetchExperimentData(project, i, options)));
+  const apiKey = resolveApiKey(options.apiKey);
+  const state = await loginToState({ apiKey });
+  return Promise.all(
+    inputs.map(async (input) => {
+      const experiment = await lookupExperiment(state, project, input.experiment);
+      if (!experiment) {
+        throw new Error(
+          `Experiment "${input.experiment}" not found in project "${project}"`,
+        );
+      }
+      return fetchExperimentDataForRow(
+        state,
+        project,
+        experiment,
+        input.label,
+        apiKey,
+      );
+    }),
+  );
+}
+
+export async function listRecentExperiments(
+  project: string,
+  limit = 5,
+  options: FetchOptions = {},
+): Promise<RecentExperimentData[]> {
+  const apiKey = resolveApiKey(options.apiKey);
+  const state = await loginToState({ apiKey });
+  const response = (await state.apiConn().get_json("/v1/experiment", {
+    project_name: project,
+    org_name: state.orgName,
+    limit: String(limit),
+  })) as { objects?: BraintrustExperimentRow[] };
+
+  return Promise.all(
+    (response.objects ?? []).slice(0, limit).map((experiment) =>
+      fetchRecentExperimentDataForRow(state, project, experiment),
+    ),
+  );
+}
+
+export async function resolveExperimentAcrossProjects(
+  projects: string[],
+  experiment: string,
+  options: FetchOptions = {},
+): Promise<ExperimentData> {
+  const apiKey = resolveApiKey(options.apiKey);
+  const state = await loginToState({ apiKey });
+  const matches: ExperimentData[] = [];
+
+  for (const project of projects) {
+    const found = await lookupExperiment(state, project, experiment);
+    if (!found) continue;
+    matches.push(
+      await fetchExperimentDataForRow(state, project, found, found.name, apiKey),
+    );
+  }
+
+  if (matches.length === 0) {
+    throw new Error(
+      `Experiment "${experiment}" not found in ${projects.join(", ")}.`,
+    );
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `Experiment "${experiment}" is ambiguous across ${projects.join(", ")}. Pass --project.`,
+    );
+  }
+  return matches[0];
+}
+
+export async function resolveExperimentProjectAcrossProjects(
+  projects: string[],
+  experiment: string,
+  options: FetchOptions = {},
+): Promise<ResolvedExperimentProject> {
+  const apiKey = resolveApiKey(options.apiKey);
+  const state = await loginToState({ apiKey });
+  const matches: ResolvedExperimentProject[] = [];
+
+  for (const project of projects) {
+    const found = await lookupExperiment(state, project, experiment);
+    if (!found) continue;
+    matches.push({
+      projectName: project,
+      experimentId: found.id,
+      experimentName: found.name,
+    });
+  }
+
+  if (matches.length === 0) {
+    throw new Error(
+      `Experiment "${experiment}" not found in ${projects.join(", ")}.`,
+    );
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `Experiment "${experiment}" is ambiguous across ${projects.join(", ")}. Pass --project.`,
+    );
+  }
+
+  return matches[0];
 }
 
 // ---------------------------------------------------------------------------

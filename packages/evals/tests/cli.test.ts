@@ -45,6 +45,25 @@ describe("CLI entrypoint", () => {
     expect(stdout).toContain("run");
     expect(stdout).toContain("list");
     expect(stdout).toContain("config");
+    expect(stdout).toContain("experiments");
+  });
+
+  it("shows experiments overview help", async () => {
+    const { stdout, code } = await runCli(["experiments"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("evals experiments");
+    expect(stdout).toContain("list");
+    expect(stdout).toContain("show");
+    expect(stdout).toContain("open");
+    expect(stdout).toContain("compare");
+  });
+
+  it("shows experiments compare help", async () => {
+    const { stdout, code } = await runCli(["experiments", "compare", "-h"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("evals experiments compare");
+    expect(stdout).toContain("--project");
+    expect(stdout).toContain("--out");
   });
 
   it("exports resolved bench flags into env overrides during dry-run", async () => {

@@ -25,6 +25,7 @@ export function printHelp(): void {
     row(`${cyan("run")} ${dim("[target] [options]")}`, "Run evals"),
     row(`${cyan("list")} ${dim("[tier] [--detailed]")}`, "List tasks and categories"),
     row(`${cyan("config")} ${dim("[subcommand]")}`, "Get/set default run configuration"),
+    row(`${cyan("experiments")} ${dim("[subcommand]")}`, "Inspect and compare Braintrust experiment runs"),
     row(`${cyan("new")} ${dim("<tier> <cat> <name>")}`, "Scaffold a new task"),
     row(cyan("help"), "Show this help"),
     row(cyan("clear"), "Clear the screen"),
@@ -150,6 +151,109 @@ export function printConfigHelp(): void {
     `    ${dim("$")} evals config core set tool understudy_code`,
     `    ${dim("$")} evals config core set startup tool_launch_local`,
     `    ${dim("$")} evals config core reset`,
+    "",
+  ]);
+}
+
+export function printExperimentsHelp(
+  subcommand?: "list" | "show" | "open" | "compare",
+): void {
+  if (subcommand === "list") {
+    print([
+      "",
+      `  ${dustyCyanHeader("evals experiments list")}`,
+      "",
+      "  Show recent Braintrust experiment runs.",
+      "",
+      `  ${bold("Options:")}`,
+      "",
+      row(`${cyan("--project")} ${dim("<name>")}`, "Restrict to one project"),
+      row(`${cyan("--limit")} ${dim("<n>")}`, "Number of recent runs to fetch"),
+      row(cyan("--json"), "Emit machine-readable JSON"),
+      "",
+      `  ${bold("Defaults:")}`,
+      "",
+      `    ${gray("Projects:")} stagehand-dev, stagehand-core-dev`,
+      `    ${gray("Limit:")}    5 per project`,
+      "",
+    ]);
+    return;
+  }
+
+  if (subcommand === "show") {
+    print([
+      "",
+      `  ${dustyCyanHeader("evals experiments show")} ${dim("<experiment>")}`,
+      "",
+      "  Show one Braintrust experiment in detail.",
+      "",
+      `  ${bold("Options:")}`,
+      "",
+      row(`${cyan("--project")} ${dim("<name>")}`, "Restrict lookup to one project"),
+      row(cyan("--json"), "Emit machine-readable JSON"),
+      "",
+    ]);
+    return;
+  }
+
+  if (subcommand === "open") {
+    print([
+      "",
+      `  ${dustyCyanHeader("evals experiments open")} ${dim("<experiment>")}`,
+      "",
+      "  Open one Braintrust experiment in the browser.",
+      "",
+      `  ${bold("Options:")}`,
+      "",
+      row(`${cyan("--project")} ${dim("<name>")}`, "Restrict lookup to one project"),
+      "",
+    ]);
+    return;
+  }
+
+  if (subcommand === "compare") {
+    print([
+      "",
+      `  ${dustyCyanHeader("evals experiments compare")} ${dim("<exp1> <exp2> [exp3 ...]")}`,
+      "",
+      "  Generate an HTML comparison report.",
+      "",
+      `  ${bold("Options:")}`,
+      "",
+      row(`${cyan("--project")} ${dim("<name>")}`, "Braintrust project"),
+      row(`${cyan("--title")} ${dim("<text>")}`, "Report title"),
+      row(`${cyan("--out")} ${dim("<path>")}`, "Output HTML path"),
+      row(cyan("--headless"), "Emit a small JSON result instead of opening the report"),
+      "",
+      `  ${bold("Project resolution:")} ${gray("If omitted, inferred across stagehand-dev and stagehand-core-dev")}`,
+      "",
+    ]);
+    return;
+  }
+
+  print([
+    "",
+    `  ${dustyCyanHeader("evals experiments")} ${dim("[subcommand]")}`,
+    "",
+    "  Inspect and compare Braintrust experiment runs for evals.",
+    "",
+    `  ${bold("Subcommands:")}`,
+    "",
+    row(cyan("list"), "Show recent runs"),
+    row(`${cyan("show")} ${dim("<experiment>")}`, "Show one experiment"),
+    row(`${cyan("open")} ${dim("<experiment>")}`, "Open one experiment in the browser"),
+    row(`${cyan("compare")} ${dim("<exp1> <exp2> [exp3 ...]")}`, "Generate an HTML comparison report"),
+    "",
+    `  ${bold("Defaults:")}`,
+    "",
+    `    ${gray("list searches")} stagehand-dev ${gray("and")} stagehand-core-dev`,
+    "",
+    `  ${bold("Examples:")}`,
+    "",
+    `    ${dim("$")} evals experiments list`,
+    `    ${dim("$")} evals experiments show observe-90b34916`,
+    `    ${dim("$")} evals experiments open extract-a12c91de`,
+    `    ${dim("$")} evals experiments compare exp1 exp2 --project stagehand-core-dev`,
     "",
   ]);
 }
