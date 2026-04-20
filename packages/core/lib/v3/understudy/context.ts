@@ -1066,11 +1066,7 @@ export class V3Context {
       }
       if (newestTid) {
         const p = this.pagesByTarget.get(newestTid);
-        if (p && newestTs >= this._lastPopupSignalAt) {
-          // Wait until the page has a real URL (not blank/initial state)
-          const url = p.url();
-          if (url && url !== "about:blank" && url !== ":") return p;
-        }
+        if (p && newestTs >= this._lastPopupSignalAt) return p;
       }
       await new Promise((r) => setTimeout(r, 25));
     }
