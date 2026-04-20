@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NoObjectGeneratedError } from "ai";
 import { ActHandler } from "../../lib/v3/handlers/actHandler.js";
 import { ExtractHandler } from "../../lib/v3/handlers/extractHandler.js";
 import { ObserveHandler } from "../../lib/v3/handlers/observeHandler.js";
@@ -248,6 +249,96 @@ describe("ActHandler two-step timeout", () => {
     expect(performUnderstudyMethodMock).toHaveBeenCalledTimes(1);
     // Step 2 LLM call should NOT have happened
     expect(actInferenceMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ActHandler LLM action selection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns no action found when structured output validation produces no object", async () => {
+    const waitForDomNetworkQuietMock = vi.mocked(waitForDomNetworkQuiet);
+    waitForDomNetworkQuietMock.mockResolvedValue(undefined);
+
+    const captureHybridSnapshotMock = vi.mocked(captureHybridSnapshot);
+    captureHybridSnapshotMock.mockResolvedValue({
+      combinedTree: "tree content",
+      combinedXpathMap: {},
+      combinedUrlMap: {},
+    });
+
+    vi.mocked(createTimeoutGuard).mockImplementation(() => vi.fn());
+
+    vi.mocked(actInference).mockRejectedValueOnce(
+      new NoObjectGeneratedError({
+        message: "No object generated: response did not match schema",
+        text: '{"elementId":""}',
+        response: {
+          id: "response-id",
+          timestamp: new Date(0),
+          modelId: "google/gemini-2.5-flash",
+        },
+        usage: {
+          inputTokens: 1,
+          outputTokens: 1,
+          totalTokens: 2,
+        },
+        finishReason: "stop",
+      }),
+    );
+
+    const { performUnderstudyMethod } = await import(
+      "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
+    );
+    const performUnderstudyMethodMock = vi.mocked(performUnderstudyMethod);
+
+    const handler = buildActHandler();
+    const fakePage = {
+      mainFrame: vi.fn().mockReturnValue({}),
+    } as unknown as Page;
+
+    const result = await handler.act({
+      instruction: "click the button",
+      page: fakePage,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: "Failed to perform act: No action found",
+      actionDescription: "click the button",
+      actions: [],
+    });
+    expect(performUnderstudyMethodMock).not.toHaveBeenCalled();
+  });
+
+  it("rethrows non-structured-output LLM errors", async () => {
+    const waitForDomNetworkQuietMock = vi.mocked(waitForDomNetworkQuiet);
+    waitForDomNetworkQuietMock.mockResolvedValue(undefined);
+
+    const captureHybridSnapshotMock = vi.mocked(captureHybridSnapshot);
+    captureHybridSnapshotMock.mockResolvedValue({
+      combinedTree: "tree content",
+      combinedXpathMap: {},
+      combinedUrlMap: {},
+    });
+
+    vi.mocked(createTimeoutGuard).mockImplementation(() => vi.fn());
+
+    const llmError = new Error("provider unavailable");
+    vi.mocked(actInference).mockRejectedValueOnce(llmError);
+
+    const handler = buildActHandler();
+    const fakePage = {
+      mainFrame: vi.fn().mockReturnValue({}),
+    } as unknown as Page;
+
+    await expect(
+      handler.act({
+        instruction: "click the button",
+        page: fakePage,
+      }),
+    ).rejects.toThrow("provider unavailable");
   });
 });
 

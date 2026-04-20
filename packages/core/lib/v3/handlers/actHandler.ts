@@ -1,5 +1,6 @@
 // lib/v3/handlers/actHandler.ts
 import { act as actInference } from "../../inference.js";
+import { NoObjectGeneratedError } from "ai";
 import { buildActPrompt, buildStepTwoPrompt } from "../../prompt.js";
 import { trimTrailingTextNode } from "../../utils.js";
 import { v3Logger } from "../logger.js";
@@ -35,6 +36,10 @@ type ActInferenceElement = {
 };
 
 type ActInferenceResponse = Awaited<ReturnType<typeof actInference>>;
+type ActInferenceResult = {
+  action?: Action;
+  response?: ActInferenceResponse;
+};
 
 export class ActHandler {
   private readonly llmClient: LLMClient;
@@ -106,15 +111,29 @@ export class ActHandler {
     xpathMap: Record<string, string>;
     llmClient: LLMClient;
     requireMethodAndArguments?: boolean;
-  }): Promise<{ action?: Action; response: ActInferenceResponse }> {
-    const response = await actInference({
-      instruction,
-      domElements,
-      llmClient,
-      userProvidedInstructions: this.systemPrompt,
-      logger: v3Logger,
-      logInferenceToFile: this.logInferenceToFile,
-    });
+  }): Promise<ActInferenceResult> {
+    let response: ActInferenceResponse;
+    try {
+      response = await actInference({
+        instruction,
+        domElements,
+        llmClient,
+        userProvidedInstructions: this.systemPrompt,
+        logger: v3Logger,
+        logInferenceToFile: this.logInferenceToFile,
+      });
+    } catch (error) {
+      if (NoObjectGeneratedError.isInstance(error)) {
+        v3Logger({
+          category: "action",
+          message: "act inference did not produce a schema-valid action",
+          level: 1,
+        });
+        return {};
+      }
+
+      throw error;
+    }
 
     this.recordActMetrics(response);
 
