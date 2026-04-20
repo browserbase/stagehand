@@ -1,0 +1,25 @@
+packages/core/tests/unit/aisdk-clients.test.ts
+  c5c6ee111cfe0393 2,12,17,26-36,40,51-62,106-221
+packages/core/lib/v3/llm/aisdk.ts
+  c5c6ee111cfe0393 150-151,153-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "93dc9a1a5be1e468f90338d8d7d98e4ac3874fe9",
+  "prompts": {
+    "c5c6ee111cfe0393": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dabfc-2a44-7793-8204-1611809c6957",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 152,
+      "total_deletions": 4,
+      "accepted_lines": 152,
+      "overriden_lines": 0
+    }
+  }
+}
