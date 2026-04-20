@@ -147,10 +147,12 @@ export class AISdkClient extends LLMClient {
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
-    // Resolve temperature: user-configured > Kimi override (must be 1) > no default
+    // Kimi models require temperature=1; other models prefer per-call overrides,
+    // then fall back to a client-level default.
     const isKimi = this.model.modelId.includes("kimi");
-    const userTemperature = this.clientOptions?.temperature;
-    const temperature = userTemperature ?? (isKimi ? 1 : undefined);
+    const requestedTemperature =
+      options.temperature ?? this.clientOptions?.temperature;
+    const temperature = isKimi ? 1 : requestedTemperature;
 
     // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
     const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
