@@ -305,7 +305,7 @@ export class OpenAICUAClient extends AgentClient {
             stepActions.push(action);
             logger({
               category: "agent",
-              message: `Found computer_call action: ${action.type}, call_id: ${item.call_id}`,
+              message: `Found computer_call action: ${action.type}, payload: ${JSON.stringify(action)}, call_id: ${item.call_id}`,
               level: 2,
             });
           }
@@ -636,7 +636,9 @@ export class OpenAICUAClient extends AgentClient {
             output: {
               type: outputType,
               image_url: screenshot,
-              ...(this.usesNewComputerTool ? { detail: "original" as const } : {}),
+              ...(this.usesNewComputerTool
+                ? { detail: "original" as const }
+                : {}),
             },
           } as ResponseInputItem;
 
@@ -713,7 +715,9 @@ export class OpenAICUAClient extends AgentClient {
                 type: outputType,
                 image_url: screenshot,
                 error: errorMessage,
-                ...(this.usesNewComputerTool ? { detail: "original" as const } : {}),
+                ...(this.usesNewComputerTool
+                  ? { detail: "original" as const }
+                  : {}),
               },
             } as ResponseInputItem;
 
@@ -907,9 +911,7 @@ export class OpenAICUAClient extends AgentClient {
     }
   }
 
-  private convertComputerCallToActions(
-    call: ComputerCallItem,
-  ): AgentAction[] {
+  private convertComputerCallToActions(call: ComputerCallItem): AgentAction[] {
     if (call.actions && Array.isArray(call.actions)) {
       return call.actions.map((action) => ({
         type: action.type as string,
