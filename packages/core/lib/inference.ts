@@ -331,7 +331,7 @@ export async function observe({
         schema: observeSchema,
         name: "Observation",
       },
-      temperature: isGPT5 ? 1 : 0.1,
+      temperature: isGPT5 ? 1 : undefined,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
