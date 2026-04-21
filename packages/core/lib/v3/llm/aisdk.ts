@@ -147,6 +147,7 @@ export class AISdkClient extends LLMClient {
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
+
     // Kimi models only support temperature=1
     const isKimi = this.model.modelId.includes("kimi");
     const temperature = isKimi ? 1 : options.temperature;
