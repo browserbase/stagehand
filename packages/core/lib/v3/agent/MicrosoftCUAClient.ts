@@ -11,6 +11,12 @@ import { AgentClient } from "./AgentClient.js";
 import { AgentScreenshotProviderError } from "../types/public/sdkErrors.js";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping.js";
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import {
+  FlowLogger,
+  extractLlmCuaPromptSummary,
+  extractLlmCuaResponseSummary,
+} from "../flowlogger/FlowLogger.js";
+import { v7 as uuidv7 } from "uuid";
 
 /**
  * Message types for FARA agent
@@ -714,6 +720,13 @@ For each function call, return a json object with function name and arguments wi
       level: 2,
     });
 
+    const llmRequestId = uuidv7();
+    FlowLogger.logLlmRequest({
+      requestId: llmRequestId,
+      model: this.modelName,
+      prompt: extractLlmCuaPromptSummary(history),
+    });
+
     const startTime = Date.now();
     let response;
     try {
@@ -744,6 +757,14 @@ For each function call, return a json object with function name and arguments wi
       completion_tokens: 0,
       total_tokens: 0,
     };
+
+    FlowLogger.logLlmResponse({
+      requestId: llmRequestId,
+      model: this.modelName,
+      output: extractLlmCuaResponseSummary([{ text: content }]),
+      inputTokens: usage.prompt_tokens,
+      outputTokens: usage.completion_tokens,
+    });
 
     // Add assistant response to both histories
     const assistantMsg: FaraMessage = {
