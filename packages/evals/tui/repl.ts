@@ -20,7 +20,12 @@ import { printList } from "./commands/list.js";
 import { handleConfig } from "./commands/config.js";
 import { handleExperiments } from "./commands/experiments.js";
 import { runCommand } from "./commands/run.js";
-import { scaffoldTask } from "./commands/new.js";
+import {
+  applyScaffoldEdit,
+  formatScaffoldPreview,
+  scaffoldTask,
+  type ScaffoldedTask,
+} from "./commands/new.js";
 import { parseRunArgs, resolveRunOptions } from "./commands/parse.js";
 import { readConfig } from "./commands/config.js";
 import { discoverTasks } from "../framework/discovery.js";
@@ -74,11 +79,39 @@ export async function startRepl(entryDir: string): Promise<void> {
     output: process.stdout,
     prompt: `${bb("evals")} ${dim(">")} `,
   });
+  const defaultPrompt = `${bb("evals")} ${dim(">")} `;
+  const editPrompt = `${bb("edit")} ${dim(">")} `;
+  let editSession: { task: ScaffoldedTask; lines: string[] } | null = null;
 
   rl.prompt();
 
   rl.on("line", async (line) => {
     const trimmed = line.trim();
+    if (editSession) {
+      try {
+        if (trimmed === ".") {
+          editSession.task = applyScaffoldEdit(editSession.task, editSession.lines);
+          console.log(formatScaffoldPreview(editSession.task));
+          registry = await discoverTasks(resolvedTasksRoot, false);
+          rl.setPrompt(defaultPrompt);
+          editSession = null;
+        } else if (trimmed === "/skip") {
+          console.log(dim(`  Kept scaffolded editable section in ${editSession.task.displayPath}.`));
+          registry = await discoverTasks(resolvedTasksRoot, false);
+          rl.setPrompt(defaultPrompt);
+          editSession = null;
+        } else {
+          editSession.lines.push(line);
+        }
+      } catch (err) {
+        console.error(red(`  Error: ${(err as Error).message}`));
+        rl.setPrompt(defaultPrompt);
+        editSession = null;
+      }
+      rl.prompt();
+      return;
+    }
+
     if (!trimmed) {
       rl.prompt();
       return;
@@ -143,8 +176,14 @@ export async function startRepl(entryDir: string): Promise<void> {
             printNewHelp();
             break;
           }
-          scaffoldTask(args);
-          registry = await discoverTasks(resolvedTasksRoot, false);
+          {
+            const task = scaffoldTask(args);
+            if (task) {
+              console.log(formatScaffoldPreview(task));
+              editSession = { task, lines: [] };
+              rl.setPrompt(editPrompt);
+            }
+          }
           break;
 
         case "help":

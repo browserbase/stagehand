@@ -33,24 +33,62 @@ describe("scaffoldTask", () => {
   it("creates core tasks under core/tasks so discovery can find them", async () => {
     const { scaffoldTask } = await import("../../tui/commands/new.js");
 
-    scaffoldTask(["core", "navigation", "my_task"]);
+    const task = scaffoldTask(["core", "navigation", "my_task"]);
 
     expect(
       fs.existsSync(
         path.join(packageRoot, "core", "tasks", "navigation", "my_task.ts"),
       ),
     ).toBe(true);
+    expect(task?.displayPath).toBe("core/tasks/navigation/my_task.ts");
   });
 
   it("keeps bench tasks under tasks/bench", async () => {
     const { scaffoldTask } = await import("../../tui/commands/new.js");
 
-    scaffoldTask(["bench", "act", "my_task"]);
+    const task = scaffoldTask(["bench", "act", "my_task"]);
 
     expect(
       fs.existsSync(
         path.join(packageRoot, "tasks", "bench", "act", "my_task.ts"),
       ),
     ).toBe(true);
+    expect(task?.displayPath).toBe("tasks/bench/act/my_task.ts");
+  });
+
+  it("formats a preview with the generated task code", async () => {
+    const { scaffoldTask, formatScaffoldPreview } = await import(
+      "../../tui/commands/new.js"
+    );
+
+    const task = scaffoldTask(["bench", "observe", "test"]);
+    expect(task).toBeTruthy();
+
+    const preview = formatScaffoldPreview(task!);
+    expect(preview).toContain("Generated task:");
+    expect(preview).toContain("tasks/bench/observe/test.ts");
+    expect(preview).toContain('await page.goto("https://example.com");');
+    expect(preview).toContain("// TODO: implement eval logic");
+    expect(preview).not.toContain('defineBenchTask');
+  });
+
+  it("inserts repl-authored code after the TODO comment with task indentation", async () => {
+    const { applyScaffoldEdit, formatScaffoldPreview, scaffoldTask } = await import(
+      "../../tui/commands/new.js"
+    );
+
+    const task = scaffoldTask(["bench", "observe", "test"]);
+    expect(task).toBeTruthy();
+
+    const updated = applyScaffoldEdit(task!, [
+      'const result = await page.title();',
+      'logger.log({ result });',
+    ]);
+
+    expect(updated.content).toContain("      // TODO: implement eval logic\n      const result = await page.title();\n      logger.log({ result });");
+
+    const preview = formatScaffoldPreview(updated);
+    expect(preview).toContain("const result = await page.title();");
+    expect(preview).toContain("logger.log({ result });");
   });
 });
