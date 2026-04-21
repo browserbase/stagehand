@@ -1,0 +1,25 @@
+packages/evals/index.eval.ts
+  c5c6ee111cfe0393 15
+packages/cli/src/index.ts
+  c5c6ee111cfe0393 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "d9d2102661180e31c068b52efec63d39468a89e3",
+  "prompts": {
+    "c5c6ee111cfe0393": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dabfc-2a44-7793-8204-1611809c6957",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 0,
+      "accepted_lines": 255,
+      "overriden_lines": 0
+    }
+  }
+}
