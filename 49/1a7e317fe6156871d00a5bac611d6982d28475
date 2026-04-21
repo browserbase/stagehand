@@ -1,0 +1,31 @@
+packages/core/lib/v3/llm/LLMProvider.ts
+  c5c6ee111cfe0393 1-6,78-79,110-223,257,259-266
+packages/core/tests/unit/llm-provider.test.ts
+  c5c6ee111cfe0393 1-5,8-30,32-56,117-238
+packages/core/tests/unit/aisdk-clients.test.ts
+  c5c6ee111cfe0393 2,12,17,26-41,44-45,55-69,91,111-290
+packages/evals/lib/AISdkClientWrapped.ts
+  c5c6ee111cfe0393 28-53,171-172,174-176,263-268,357
+packages/core/lib/v3/llm/aisdk.ts
+  c5c6ee111cfe0393 34-59,176-177,179-181,338-343,464
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "491a7e317fe6156871d00a5bac611d6982d28475",
+  "prompts": {
+    "c5c6ee111cfe0393": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dabfc-2a44-7793-8204-1611809c6957",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 991,
+      "total_deletions": 24,
+      "accepted_lines": 985,
+      "overriden_lines": 0
+    }
+  }
+}
