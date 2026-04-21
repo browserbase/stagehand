@@ -1,0 +1,23 @@
+packages/core/lib/inference.ts
+  9df85d675a10fb7e 334
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "6f869f4470b9d6f7d018f8e538670bf840133e27",
+  "prompts": {
+    "9df85d675a10fb7e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "656b64f8-6f85-45a4-943f-18498d18fbb7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
