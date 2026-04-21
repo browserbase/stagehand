@@ -711,6 +711,49 @@ describe("POST /v1/sessions/start - V3 format", () => {
     await endSession(ctx.body.data.sessionId, headers);
   });
 
+  it("should reject cdpUrl without browser.type set to 'local'", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartErrorResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "gpt-4.1-nano",
+          browser: { cdpUrl: "ws://localhost:9222/devtools/browser/test" },
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_BAD_REQUEST, "Request should fail with 400");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(!ctx.body.success, "Should be an error response", ctx);
+  });
+
+  it("should reject cdpUrl with browser.type explicitly set to 'browserbase'", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<StartErrorResponse>(
+      `${url}/v1/sessions/start`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          modelName: "gpt-4.1-nano",
+          browser: {
+            type: "browserbase",
+            cdpUrl: "ws://localhost:9222/devtools/browser/test",
+          },
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_BAD_REQUEST, "Request should fail with 400");
+    assertFetchOk(ctx.body !== null, "Should have response body", ctx);
+    assertFetchOk(!ctx.body.success, "Should be an error response", ctx);
+  });
+
   it("should return error for browserbase requests without API key", async () => {
     const url = getBaseUrl();
 
