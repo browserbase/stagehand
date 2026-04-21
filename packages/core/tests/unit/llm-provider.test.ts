@@ -116,10 +116,10 @@ describe("getAISDKLanguageModel", () => {
   });
 
   describe("anthropic opus 4.7 temperature handling", () => {
-    it("strips temperature and appends a warning for generate calls", async () => {
+    it("strips temperature for generate calls", async () => {
       const model = getAISDKLanguageModel("anthropic", "claude-opus-4-7");
 
-      const result = await model.doGenerate({
+      await model.doGenerate({
         prompt: [
           {
             role: "user",
@@ -134,14 +134,6 @@ describe("getAISDKLanguageModel", () => {
           temperature: undefined,
         }),
       );
-      expect(result.warnings).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            type: "unsupported-setting",
-            setting: "temperature",
-          }),
-        ]),
-      );
     });
 
     it("keeps temperature intact for other anthropic models", async () => {
@@ -150,7 +142,7 @@ describe("getAISDKLanguageModel", () => {
         "claude-sonnet-4-20250514",
       );
 
-      const result = await model.doGenerate({
+      await model.doGenerate({
         prompt: [
           {
             role: "user",
@@ -165,7 +157,6 @@ describe("getAISDKLanguageModel", () => {
           temperature: 0.2,
         }),
       );
-      expect(result.warnings).toEqual([]);
     });
 
     it("keeps caller middleware composed after the temperature strip", async () => {
@@ -203,10 +194,10 @@ describe("getAISDKLanguageModel", () => {
       expect(seenTemperatures).toEqual([undefined]);
     });
 
-    it("emits stream-start warnings when temperature is stripped", async () => {
+    it("strips temperature for stream calls", async () => {
       const model = getAISDKLanguageModel("anthropic", "claude-opus-4-7");
 
-      const result = await model.doStream({
+      await model.doStream({
         prompt: [
           {
             role: "user",
@@ -219,21 +210,6 @@ describe("getAISDKLanguageModel", () => {
       expect(anthropicDoStream).toHaveBeenCalledWith(
         expect.objectContaining({
           temperature: undefined,
-        }),
-      );
-
-      const reader = result.stream.getReader();
-      const firstChunk = await reader.read();
-
-      expect(firstChunk.value).toEqual(
-        expect.objectContaining({
-          type: "stream-start",
-          warnings: expect.arrayContaining([
-            expect.objectContaining({
-              type: "unsupported-setting",
-              setting: "temperature",
-            }),
-          ]),
         }),
       );
     });

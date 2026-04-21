@@ -31,32 +31,6 @@ function inferProviderName(modelId: string): string | undefined {
   return providerName || undefined;
 }
 
-function logProviderWarnings(
-  logger: ((message: LogLine) => void) | undefined,
-  warnings: unknown,
-  requestId: string | undefined,
-) {
-  if (!Array.isArray(warnings) || warnings.length === 0) {
-    return;
-  }
-
-  logger?.({
-    category: "aisdk",
-    message: "provider warnings",
-    level: 1,
-    auxiliary: {
-      warnings: {
-        value: JSON.stringify(warnings),
-        type: "object",
-      },
-      requestId: {
-        value: requestId,
-        type: "string",
-      },
-    },
-  });
-}
-
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
   private model: LanguageModelV2;
@@ -335,12 +309,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         },
       } as T;
 
-      logProviderWarnings(
-        this.logger,
-        objectResponse.warnings,
-        options.requestId,
-      );
-
       // Log LLM response for generateObject
       FlowLogger.logLlmResponse({
         requestId: llmRequestId,
@@ -460,8 +428,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;
-
-    logProviderWarnings(this.logger, textResponse.warnings, options.requestId);
 
     // Log LLM response for generateText
     FlowLogger.logLlmResponse({

@@ -25,32 +25,6 @@ import {
 // Wrap AI SDK functions with Braintrust for tracing
 const { generateObject, generateText } = wrapAISDK(ai);
 
-function logProviderWarnings(
-  logger: ((message: LogLine) => void) | undefined,
-  warnings: unknown,
-  requestId: string | undefined,
-) {
-  if (!Array.isArray(warnings) || warnings.length === 0) {
-    return;
-  }
-
-  logger?.({
-    category: "aisdk",
-    message: "provider warnings",
-    level: 1,
-    auxiliary: {
-      warnings: {
-        value: JSON.stringify(warnings),
-        type: "object",
-      },
-      requestId: {
-        value: requestId,
-        type: "string",
-      },
-    },
-  });
-}
-
 export class AISdkClientWrapped extends LLMClient {
   public type = "aisdk" as const;
   private model: LanguageModelV2;
@@ -260,12 +234,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         },
       } as T;
 
-      logProviderWarnings(
-        this.logger,
-        objectResponse.warnings,
-        options.requestId,
-      );
-
       this.logger?.({
         category: "aisdk",
         message: "response",
@@ -353,8 +321,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;
-
-    logProviderWarnings(this.logger, textResponse.warnings, options.requestId);
 
     this.logger?.({
       category: "aisdk",
