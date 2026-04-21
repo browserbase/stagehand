@@ -37,6 +37,7 @@ describe("LLM and Agents public API types", () => {
 
   describe("AVAILABLE_CUA_MODELS", () => {
     const expectedModels = [
+      "openai/gpt-5.4-2026-03-05",
       "openai/computer-use-preview",
       "openai/computer-use-preview-2025-03-11",
       "anthropic/claude-opus-4-5-20251101",
