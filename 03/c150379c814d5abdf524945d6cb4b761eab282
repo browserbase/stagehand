@@ -1,0 +1,25 @@
+packages/core/lib/v3/llm/LLMProvider.ts
+  c5c6ee111cfe0393 117,173
+packages/core/tests/unit/llm-provider.test.ts
+  c5c6ee111cfe0393 119,122,145,197,200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "03c150379c814d5abdf524945d6cb4b761eab282",
+  "prompts": {
+    "c5c6ee111cfe0393": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dabfc-2a44-7793-8204-1611809c6957",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 334,
+      "accepted_lines": 299,
+      "overriden_lines": 0
+    }
+  }
+}
