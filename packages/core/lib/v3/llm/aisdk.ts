@@ -152,7 +152,8 @@ export class AISdkClient extends LLMClient {
       this.model.modelId === "claude-opus-4-7";
     // Kimi models only support temperature=1
     const isKimi = this.model.modelId.includes("kimi");
-    const temperature = isKimi ? 1 : isOpus47 ? undefined : options.temperature;
+    const requestedTemperature = options.temperature ?? this.clientOptions?.temperature;
+    const temperature = isKimi ? 1 : isOpus47 ? undefined : requestedTemperature;
 
     // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
     const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
