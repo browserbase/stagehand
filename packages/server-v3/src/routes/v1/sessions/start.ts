@@ -29,12 +29,21 @@ const startBodySchema = z
     return value;
   }, Api.SessionStartRequestSchema)
   .superRefine((value, ctx) => {
+    if (value.browser?.cdpUrl && value.browser.type !== "local") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["browser", "type"],
+        message:
+          'browser.cdpUrl was provided but browser.type is not "local". ' +
+          'To connect to your own browser via CDP, set browser.type to "local".',
+      });
+    }
     if (value.browser?.type === "local") {
       const hasConnect = Boolean(value.browser.cdpUrl);
       const hasLaunch = Boolean(value.browser.launchOptions);
       if (!hasConnect && !hasLaunch) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["browser"],
           message:
             "When browser.type is 'local', provide either browser.cdpUrl or browser.launchOptions.",
