@@ -22,6 +22,21 @@ export function getVariableDescription(v: VariableValue): string | undefined {
   return undefined;
 }
 
+export interface VariablePromptEntry {
+  name: string;
+  description?: string;
+}
+
+export function getVariablePromptEntries(
+  variables?: Variables,
+): VariablePromptEntry[] {
+  if (!variables) return [];
+  return Object.entries(variables).map(([name, value]) => ({
+    name,
+    description: getVariableDescription(value),
+  }));
+}
+
 /**
  * Substitutes %variableName% tokens in text with resolved variable values.
  * Works with both simple and rich variable formats.

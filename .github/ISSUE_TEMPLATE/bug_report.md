@@ -24,7 +24,7 @@ Please provide the following information to help us reproduce and resolve your i
 **AI Provider:**
 
 - Provider: [e.g., OpenAI, Anthropic, Azure OpenAI]
-- Model: [e.g., gpt-4o, claude-3-7-sonnet-latest]
+- Model: [e.g., gpt-4o, claude-sonnet-4-6]
 
 ## Issue Description
 

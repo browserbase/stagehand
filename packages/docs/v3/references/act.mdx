@@ -48,6 +48,7 @@ interface ActOptions {
   variables?: Record<string, VariableValue>;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  serverCache?: boolean;
 }
 
 // VariableValue can be a simple primitive or a rich object:
@@ -59,7 +60,7 @@ type VariableValue =
 
 // ModelConfiguration can be either a string or an object
 type ModelConfiguration =
-  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022")
+  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-6")
   | {
       modelName: string;  // The model name
       apiKey?: string;    // Optional: API key override
@@ -149,6 +150,14 @@ type ModelConfiguration =
   If not specified, defaults to the current "active" page in your Stagehand instance.
 </ParamField>
 
+<ParamField path="serverCache" type="boolean" optional>
+  Override the instance-level `serverCache` setting for this request. When `true`, enables server-side caching. When `false`, disables it.
+
+  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments.</Note>
+
+  Defaults to the value set on the Stagehand constructor (which itself defaults to `true`).
+</ParamField>
+
 ### Returns `Promise<ActResult>`
 
 <ResponseField name="success" type="boolean" required>
@@ -182,6 +191,13 @@ type ModelConfiguration =
   </Expandable>
 </ResponseField>
 
+<ResponseField name="cacheStatus" type='"HIT" | "MISS"' optional>
+  Indicates whether the result was served from the server-side cache. Only present when running with `env: "BROWSERBASE"` and server-side caching is enabled.
+
+  - **`"HIT"`** - Result was served from cache; no LLM tokens were consumed
+  - **`"MISS"`** - Result was computed fresh and cached for future calls
+</ResponseField>
+
 **Example Response:**
 ```json
 {
@@ -213,8 +229,8 @@ type ModelConfiguration =
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
-// Initialize with Browserbase (API key and project ID from environment variables)
-// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+// Initialize with Browserbase (API key from environment variable)
+// Set BROWSERBASE_API_KEY in your environment
 const stagehand = new Stagehand({ env: "BROWSERBASE" });
 await stagehand.init();
 const page = stagehand.context.pages()[0];

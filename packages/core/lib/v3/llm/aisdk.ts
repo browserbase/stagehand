@@ -15,10 +15,21 @@ import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs.js";
-import { AvailableModel } from "../types/public/model.js";
+import { AvailableModel, ClientOptions } from "../types/public/model.js";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
-import { SessionFileLogger, formatLlmPromptPreview } from "../flowLogger.js";
+import {
+  FlowLogger,
+  extractLlmPromptSummary,
+} from "../flowlogger/FlowLogger.js";
 import { toJsonSchema } from "../zodCompat.js";
+
+type ProviderOptionValue = string | number | boolean | null;
+type ProviderOptionMap = Record<string, ProviderOptionValue>;
+
+function inferProviderName(modelId: string): string | undefined {
+  const [providerName] = modelId.split("/");
+  return providerName || undefined;
+}
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -28,13 +39,18 @@ export class AISdkClient extends LLMClient {
   constructor({
     model,
     logger,
+    clientOptions,
   }: {
     model: LanguageModelV2;
     logger?: (message: LogLine) => void;
+    clientOptions?: ClientOptions;
   }) {
     super(model.modelId as AvailableModel);
     this.model = model;
     this.logger = logger;
+    if (clientOptions) {
+      this.clientOptions = clientOptions;
+    }
   }
 
   public getLanguageModel(): LanguageModelV2 {
@@ -131,13 +147,16 @@ export class AISdkClient extends LLMClient {
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
-    const usesLowReasoningEffort =
-      (this.model.modelId.includes("gpt-5.1") ||
-        this.model.modelId.includes("gpt-5.2")) &&
-      !isCodex;
     // Kimi models only support temperature=1
     const isKimi = this.model.modelId.includes("kimi");
     const temperature = isKimi ? 1 : options.temperature;
+
+    // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
+    const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
+    const userReasoningEffort = this.clientOptions?.reasoningEffort;
+    const resolvedReasoningEffort =
+      userReasoningEffort ?? (isGPT5SubModel ? "none" : undefined);
+    const providerName = inferProviderName(this.model.modelId);
 
     // Models that lack native structured-output support need a prompt-based
     // JSON fallback instead of response_format: { type: "json_schema" }.
@@ -146,17 +165,65 @@ export class AISdkClient extends LLMClient {
       this.model.modelId.includes(p),
     );
 
+    const providerOptions: Record<string, ProviderOptionMap> = {};
+    switch (providerName) {
+      case "openai":
+        providerOptions.openai = {
+          strictJsonSchema: true,
+          ...(isGPT5 ? { textVerbosity: isCodex ? "medium" : "low" } : {}),
+          ...(resolvedReasoningEffort
+            ? { reasoningEffort: resolvedReasoningEffort }
+            : {}),
+        };
+        break;
+      case "azure":
+        providerOptions.azure = {
+          strictJsonSchema: true,
+        };
+        break;
+      case "google":
+        providerOptions.google = {
+          structuredOutputs: true,
+        };
+        break;
+      case "vertex":
+        providerOptions.vertex = {
+          structuredOutputs: true,
+        };
+        break;
+      case "anthropic":
+        providerOptions.anthropic = {
+          structuredOutputMode: "auto",
+        };
+        break;
+      case "groq":
+        providerOptions.groq = {
+          structuredOutputs: true,
+        };
+        break;
+      case "cerebras":
+        providerOptions.cerebras = {
+          strictJsonSchema: true,
+        };
+        break;
+      case "mistral":
+        providerOptions.mistral = {
+          structuredOutputs: true,
+          strictJsonSchema: true,
+        };
+        break;
+    }
+
     if (options.response_model) {
       // Log LLM request for generateObject (extract)
       const llmRequestId = uuidv7();
-      const promptPreview = formatLlmPromptPreview(options.messages, {
+      const promptSummary = extractLlmPromptSummary(options.messages, {
         hasSchema: true,
       });
-      SessionFileLogger.logLlmRequest({
+      FlowLogger.logLlmRequest({
         requestId: llmRequestId,
         model: this.model.modelId,
-        operation: "generateObject",
-        prompt: promptPreview,
+        prompt: promptSummary,
       });
 
       // For models that don't support native structured outputs, add a prompt instruction
@@ -178,25 +245,15 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           messages: formattedMessages,
           schema: options.response_model.schema,
           temperature,
-          providerOptions: isGPT5
-            ? {
-                openai: {
-                  textVerbosity: isCodex ? "medium" : "low", // codex models only support 'medium'
-                  reasoningEffort: isCodex
-                    ? "medium"
-                    : usesLowReasoningEffort
-                      ? "low"
-                      : "minimal",
-                },
-              }
-            : undefined,
+          ...(Object.keys(providerOptions).length > 0
+            ? { providerOptions }
+            : {}),
         });
       } catch (err) {
         // Log error response to maintain request/response pairing
-        SessionFileLogger.logLlmResponse({
+        FlowLogger.logLlmResponse({
           requestId: llmRequestId,
           model: this.model.modelId,
-          operation: "generateObject",
           output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
         });
 
@@ -250,10 +307,9 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       } as T;
 
       // Log LLM response for generateObject
-      SessionFileLogger.logLlmResponse({
+      FlowLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.model.modelId,
-        operation: "generateObject",
         output: JSON.stringify(objectResponse.object),
         inputTokens: objectResponse.usage.inputTokens,
         outputTokens: objectResponse.usage.outputTokens,
@@ -296,14 +352,13 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
     // Log LLM request for generateText (act/observe)
     const llmRequestId = uuidv7();
     const toolCount = Object.keys(tools).length;
-    const promptPreview = formatLlmPromptPreview(options.messages, {
+    const promptSummary = extractLlmPromptSummary(options.messages, {
       toolCount,
     });
-    SessionFileLogger.logLlmRequest({
+    FlowLogger.logLlmRequest({
       requestId: llmRequestId,
       model: this.model.modelId,
-      operation: "generateText",
-      prompt: promptPreview,
+      prompt: promptSummary,
     });
 
     let textResponse: Awaited<ReturnType<typeof generateText>>;
@@ -324,10 +379,9 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       });
     } catch (err) {
       // Log error response to maintain request/response pairing
-      SessionFileLogger.logLlmResponse({
+      FlowLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.model.modelId,
-        operation: "generateText",
         output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
       });
       throw err;
@@ -373,10 +427,9 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
     } as T;
 
     // Log LLM response for generateText
-    SessionFileLogger.logLlmResponse({
+    FlowLogger.logLlmResponse({
       requestId: llmRequestId,
       model: this.model.modelId,
-      operation: "generateText",
       output:
         textResponse.text ||
         (transformedToolCalls.length > 0

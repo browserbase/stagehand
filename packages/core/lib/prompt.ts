@@ -1,5 +1,6 @@
 import { ChatMessage } from "./v3/llm/LLMClient.js";
 import type { Variables } from "./v3/types/public/agent.js";
+import { getVariablePromptEntries } from "./v3/agent/utils/variables.js";
 
 export function buildUserInstructionsString(
   userProvidedInstructions?: string,
@@ -112,9 +113,20 @@ Extracted content: ${JSON.stringify(extractionResponse, null, 2)}`,
 export function buildObserveSystemPrompt(
   userProvidedInstructions?: string,
   supportedActions?: string[],
+  variables?: Variables,
 ): ChatMessage {
   const actionsString = supportedActions?.length
     ? `\n\nSupported actions: ${supportedActions.join(", ")}`
+    : "";
+  const variableEntries = getVariablePromptEntries(variables);
+  const variablesString = variableEntries.length
+    ? `\n\nAvailable variables: ${variableEntries
+        .map(({ name, description }) => {
+          return description ? `%${name}% (${description})` : `%${name}%`;
+        })
+        .join(
+          ", ",
+        )}. When an action needs a dynamic or sensitive value, return the matching %variableName% placeholder in the action arguments instead of a literal value`
     : "";
 
   const observeSystemPrompt = `
@@ -125,7 +137,7 @@ You will be given:
 2. a hierarchical accessibility tree showing the semantic structure of the page. The tree is a hybrid of the DOM and the accessibility tree.
 
 Return an array of elements that match the instruction if they exist, otherwise return an empty array.
-When returning elements, include the appropriate method from the supported actions list.${actionsString}. When choosing non-left click actions, provide right or middle as the argument.`;
+When returning elements, include the appropriate method from the supported actions list.${actionsString}${variablesString}. When choosing non-left click actions, provide right or middle as the argument.`;
   const content = observeSystemPrompt.replace(/\s+/g, " ");
 
   return {
@@ -168,6 +180,20 @@ Return the element that matches the instruction if it exists. Otherwise, return 
   };
 }
 
+function buildActVariablesPrompt(variables?: Variables): string {
+  if (!variables || Object.keys(variables).length === 0) {
+    return "";
+  }
+
+  const variableNames = Object.keys(variables)
+    .map((key) => `%${key}%`)
+    .join(", ");
+
+  return ` The user has provided the following variables to be used in the action: ${variableNames} \n
+    Note that these are the variable names/keys, and not the actual variable values. \n
+    To use the variables in the action, you must respond with the variable name inside the 'arguments' array. The variable name must be wrapped in percentage signs (eg, %variableNameHere%) so that it can be replaced with the actual variable value before the action is taken. \n`;
+}
+
 export function buildActPrompt(
   action: string,
   supportedActions: string[],
@@ -200,14 +226,7 @@ export function buildActPrompt(
         - set twoStep to true.
   `;
 
-  // Add variable names (not values) to the instruction if any
-  if (variables && Object.keys(variables).length > 0) {
-    const variableNames = Object.keys(variables)
-      .map((key) => `%${key}%`)
-      .join(", ");
-    const variablesPrompt = `The following variables are available to use in the action: ${variableNames}. Fill the argument variables with the variable name.`;
-    instruction += ` ${variablesPrompt}`;
-  }
+  instruction += buildActVariablesPrompt(variables);
 
   return instruction;
 }
@@ -234,14 +253,7 @@ export function buildStepTwoPrompt(
   If the action implies a key press, e.g., 'press enter', 'press a', 'press space', etc., always choose the press method with the appropriate key as argument — e.g. 'a', 'Enter', 'Space'. Do not choose a click action on an on-screen keyboard. Capitalize the first character like 'Enter', 'Tab', 'Escape' only for special keys. 
   `;
 
-  // Add variable names (not values) to the instruction if any
-  if (variables && Object.keys(variables).length > 0) {
-    const variableNames = Object.keys(variables)
-      .map((key) => `%${key}%`)
-      .join(", ");
-    const variablesPrompt = `The following variables are available to use in the action: ${variableNames}. Fill the argument variables with the variable name.`;
-    instruction += ` ${variablesPrompt}`;
-  }
+  instruction += buildActVariablesPrompt(variables);
 
   return instruction;
 }

@@ -29,7 +29,11 @@
       ]
     },
     "@browserbasehq/stagehand#build": {
-      "dependsOn": ["^build", "gen-version", "build-dom-scripts"],
+      "dependsOn": [
+        "^build",
+        "gen-version",
+        "build-dom-scripts"
+      ],
       "outputs": [
         "dist/**"
       ],
@@ -45,7 +49,7 @@
         "!dist/**"
       ]
     },
-    "@browserbasehq/stagehand-server#build": {
+    "@browserbasehq/stagehand-server-v3#build": {
       "dependsOn": ["^build"],
       "outputs": [
         "dist/**",
@@ -61,8 +65,65 @@
         "!openapi.v3.yaml"
       ]
     },
+    "@browserbasehq/stagehand-server-v3#build:esm-tests": {
+      "dependsOn": ["^build:esm"],
+      "outputs": ["dist/tests/**", "dist/src/**"],
+      "inputs": [
+        "tests/**/*.ts",
+        "src/**/*.ts",
+        "package.json",
+        "tsconfig.tests.json",
+        "!dist/tests/**"
+      ]
+    },
+    "@browserbasehq/stagehand-server-v4#build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        "dist/**",
+        "openapi.v4.yaml"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!dist/**",
+        "!openapi.v4.yaml"
+      ]
+    },
+    "@browserbasehq/browse-cli#build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        "dist/**"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.js",
+        "package.json",
+        "tsconfig.json",
+        "tsup.config.ts",
+        "!dist/**"
+      ]
+    },
+    "@browserbasehq/stagehand-server-v4#gen:openapi": {
+      "dependsOn": ["^build:esm"],
+      "outputs": ["openapi.v4.yaml"],
+      "inputs": [
+        "src/**/*.ts",
+        "scripts/gen-openapi.ts",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "!openapi.v4.yaml"
+      ]
+    },
     "@browserbasehq/stagehand#build:esm": {
-      "dependsOn": ["^build:esm", "gen-version", "build-dom-scripts"],
+      "dependsOn": [
+        "^build:esm",
+        "gen-version",
+        "build-dom-scripts"
+      ],
       "outputs": [
         "dist/esm/**"
       ],
@@ -79,7 +140,11 @@
       ]
     },
     "@browserbasehq/stagehand#build:cjs": {
-      "dependsOn": ["^build:cjs", "gen-version", "build-dom-scripts"],
+      "dependsOn": [
+        "^build:cjs",
+        "gen-version",
+        "build-dom-scripts"
+      ],
       "outputs": [
         "dist/cjs/**"
       ],
@@ -107,12 +172,11 @@
     },
     "build-dom-scripts": {
       "outputs": [
-        "lib/dom/build/**",
         "lib/v3/dom/build/**"
       ],
       "inputs": [
+        "scripts/build-dom-scripts.ts",
         "lib/v3/dom/**/*.ts",
-        "!lib/dom/build/**",
         "!lib/v3/dom/build/**",
         "package.json",
         "tsconfig.json",
@@ -131,17 +195,6 @@
         "tsconfig.json",
         "tsconfig.*.json",
         "!dist/esm/**"
-      ]
-    },
-    "build:esm-tests": {
-      "dependsOn": ["^build:esm"],
-      "outputs": ["dist/tests/**"],
-      "inputs": [
-        "test/**/*.ts",
-        "package.json",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "!dist/tests/**"
       ]
     },
     "build:server:dist": {
@@ -284,6 +337,7 @@
       "outputs": [],
       "cache": false,
       "env": [
+        "BROWSERBASE_FLOW_LOGS",
         "VITEST_CONSOLE_REPORTER"
       ],
       "inputs": [
@@ -405,7 +459,7 @@
       ]
     },
     "test:server": {
-      "dependsOn": ["build:sea:esm", "build:esm-tests"],
+      "dependsOn": ["build:server:dist", "build:sea:esm", "build:esm-tests"],
       "outputs": [],
       "cache": false,
       "env": [
@@ -444,6 +498,18 @@
         "package.json",
         "tsconfig.json",
         "tsconfig.*.json"
+      ]
+    },
+    "test:cli": {
+      "dependsOn": ["build"],
+      "outputs": [],
+      "cache": false,
+      "inputs": [
+        "tests/**/*.ts",
+        "src/**/*.ts",
+        "package.json",
+        "tsconfig.json",
+        "vitest.config.ts"
       ]
     },
     "docs": {

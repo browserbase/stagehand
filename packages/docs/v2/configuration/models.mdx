@@ -48,7 +48,7 @@ Stagehand supports major LLM providers with structured output capabilities:
 | Provider | Best Models | Strengths | Use Case |
 |----------|-------------|-----------|----------|
 | **OpenAI** | `gpt-4.1`, `gpt-4.1-mini` | High accuracy, reliable | Production, complex sites |
-| **Anthropic** | `claude-3-7-sonnet-latest` | Excellent reasoning | Complex automation tasks |
+| **Anthropic** | `claude-sonnet-4-6` | Excellent reasoning | Complex automation tasks |
 | **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | Fast, cost-effective | High-volume automation |
 
 ### Additional Providers
@@ -75,7 +75,7 @@ Stagehand uses the format `provider/model-name` for model specification.
 
 **Examples:**
 - OpenAI: `openai/gpt-4.1`
-- Anthropic: `anthropic/claude-3-7-sonnet-latest`
+- Anthropic: `anthropic/claude-sonnet-4-6`
 - Google: `google/gemini-2.5-flash` (Recommended)
 
 ### Quick Start Examples
@@ -134,7 +134,7 @@ stagehand = Stagehand(
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
-  modelName: "anthropic/claude-3-7-sonnet-latest",
+  modelName: "anthropic/claude-sonnet-4-6",
   modelClientOptions: {
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
@@ -145,7 +145,7 @@ import os
 from stagehand import Stagehand
 
 stagehand = Stagehand(
-    model_name="anthropic/claude-3-7-sonnet-latest",
+    model_name="anthropic/claude-sonnet-4-6",
     model_api_key=os.getenv("ANTHROPIC_API_KEY")
 )
 ```
@@ -200,7 +200,7 @@ import { AISdkClient } from "./external_clients/aisdk";
 
 const stagehand = new Stagehand({
   llmClient: new AISdkClient({
-	model: bedrock("anthropic.claude-3-7-sonnet-20250219-v1:0"),
+	model: bedrock("anthropic.claude-sonnet-4-6-v1:0"),
   }),
 });
 ```

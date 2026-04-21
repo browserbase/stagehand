@@ -318,7 +318,7 @@ export interface AgentExecuteOptionsBase {
    * - `think` - Agent reasoning/planning step
    * - `wait` - Wait for time or condition
    * - `done` - Mark task as complete
-   * - `search` - Web search (requires BRAVE_API_KEY)
+   * - `search` - Web search (requires useSearch: true and BROWSERBASE_API_KEY)
    *
    * **Hybrid mode:**
    * - `click` - Click at specific coordinates
@@ -337,7 +337,7 @@ export interface AgentExecuteOptionsBase {
    * - `think` - Agent reasoning step
    * - `wait` - Wait for time/condition
    * - `done` - Mark task complete
-   * - `search` - Web search (requires BRAVE_API_KEY)
+   * - `search` - Web search (requires useSearch: true and BROWSERBASE_API_KEY)
    *
    * @experimental
    * @example
@@ -393,6 +393,29 @@ export interface AgentExecuteOptionsBase {
    * ```
    */
   variables?: Variables;
+  /**
+   * Timeout in milliseconds for each agent tool call.
+   * If a tool call exceeds this duration, it will be aborted and
+   * reported back to the LLM as a timeout error so it can retry or adjust.
+   * For tools that call v3 methods (act, extract, fillForm, ariaTree), the
+   * timeout is also forwarded to the underlying v3 call for true cancellation.
+   * @default 45000 (45 seconds)
+   */
+  toolTimeout?: number;
+  /**
+   * Enable the web search tool powered by Browserbase Search API.
+   * Requires a valid Browserbase API key (BROWSERBASE_API_KEY).
+   * When set to true, the agent gains access to a `search` tool for web searches.
+   *
+   * @example
+   * ```typescript
+   * const result = await agent.execute({
+   *   instruction: "Find the latest news about AI",
+   *   useSearch: true,
+   * });
+   * ```
+   */
+  useSearch?: boolean;
 }
 
 /**
@@ -418,12 +441,16 @@ export interface AgentStreamExecuteOptions extends AgentExecuteOptionsBase {
    */
   callbacks?: AgentStreamCallbacks;
 }
-export type AgentType = "openai" | "anthropic" | "google" | "microsoft";
+export type AgentType =
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "microsoft"
+  | "bedrock";
 
 export const AVAILABLE_CUA_MODELS = [
   "openai/computer-use-preview",
   "openai/computer-use-preview-2025-03-11",
-  "anthropic/claude-3-7-sonnet-latest",
   "anthropic/claude-opus-4-5-20251101",
   "anthropic/claude-opus-4-6",
   "anthropic/claude-sonnet-4-6",
@@ -732,6 +759,7 @@ export interface ScrollToolResult {
   success: boolean;
   message: string;
   scrolledPixels: number;
+  error?: string;
 }
 
 export interface ScrollVisionToolResult extends ScrollToolResult {
@@ -742,4 +770,5 @@ export interface WaitToolResult {
   success: boolean;
   waited: number;
   screenshotBase64?: string;
+  error?: string;
 }

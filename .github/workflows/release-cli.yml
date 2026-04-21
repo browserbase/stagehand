@@ -1,0 +1,157 @@
+name: Prepare CLI Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release-cli:
+    name: Prepare browse-cli release PR
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - name: Check for browse-cli changesets
+        id: check
+        run: |
+          # Only look at changeset markdown files (skip config, README, etc.)
+          CLI_CHANGESETS=""
+          for f in .changeset/*.md; do
+            [ "$f" = ".changeset/README.md" ] && continue
+            if grep -q "@browserbasehq/browse-cli" "$f" 2>/dev/null; then
+              CLI_CHANGESETS="${CLI_CHANGESETS} ${f}"
+            fi
+          done
+
+          if [ -z "$CLI_CHANGESETS" ]; then
+            echo "No pending browse-cli changesets found."
+            echo "has_changesets=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Found browse-cli changesets:${CLI_CHANGESETS}"
+          echo "has_changesets=true" >> "$GITHUB_OUTPUT"
+
+          # Fail if any changeset references browse-cli AND another package.
+          # Mixed changesets must be split so both release flows get their bumps.
+          for f in $CLI_CHANGESETS; do
+            if grep -qE '"@browserbasehq/(stagehand|stagehand-server-v3|stagehand-server-v4|stagehand-evals|stagehand-docs)"' "$f"; then
+              echo "::error::Mixed changeset found: $f references browse-cli AND other packages. Split it into separate changesets so both release workflows can consume their respective bumps."
+              exit 1
+            fi
+          done
+
+      - name: Version browse-cli
+        if: steps.check.outputs.has_changesets == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Back up config and package.json
+          cp .changeset/config.json .changeset/config.json.bak
+          cp packages/cli/package.json packages/cli/package.json.bak
+
+          # Temporarily strip the workspace dep on stagehand so changesets
+          # doesn't see a dependency edge (it validates that non-ignored
+          # packages can't depend on ignored ones). The dep is bundled by
+          # tsup at build time so it's not needed for versioning.
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('packages/cli/package.json', 'utf8'));
+            delete pkg.dependencies['@browserbasehq/stagehand'];
+            if (pkg.devDependencies) delete pkg.devDependencies['@browserbasehq/stagehand'];
+            fs.writeFileSync('packages/cli/package.json', JSON.stringify(pkg, null, 2) + '\n');
+
+            const config = JSON.parse(fs.readFileSync('.changeset/config.json', 'utf8'));
+            config.ignore = [
+              '@browserbasehq/stagehand',
+              '@browserbasehq/stagehand-server-v3',
+              '@browserbasehq/stagehand-server-v4',
+              '@browserbasehq/stagehand-evals',
+              '@browserbasehq/stagehand-docs'
+            ];
+            fs.writeFileSync('.changeset/config.json', JSON.stringify(config, null, 2) + '\n');
+          "
+
+          # Version only browse-cli (consumes CLI-only changesets)
+          pnpm changeset version
+
+          # Restore config and merge the version bump into the original package.json
+          node -e "
+            const fs = require('fs');
+            const bumped = JSON.parse(fs.readFileSync('packages/cli/package.json', 'utf8'));
+            const backup = JSON.parse(fs.readFileSync('packages/cli/package.json.bak', 'utf8'));
+            backup.version = bumped.version;
+            fs.writeFileSync('packages/cli/package.json', JSON.stringify(backup, null, 2) + '\n');
+          "
+          mv .changeset/config.json.bak .changeset/config.json
+          rm packages/cli/package.json.bak
+
+      - name: Create or update release pull request
+        if: steps.check.outputs.has_changesets == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          VERSION=$(node -p "require('./packages/cli/package.json').version")
+          BRANCH="release/browse-cli"
+          PR_TITLE="Release @browserbasehq/browse-cli@${VERSION}"
+          PR_BODY_FILE=$(mktemp)
+          cat > "$PR_BODY_FILE" <<EOF
+          Prepare the next browse-cli release by versioning the package on \`main\`.
+
+          What this PR does:
+          - bumps \`packages/cli/package.json\` to \`${VERSION}\`
+          - updates the browse-cli changelog
+          - consumes the pending browse-cli changesets
+
+          After this PR merges, the \`Release\` workflow on \`main\` will publish \`@browserbasehq/browse-cli@${VERSION}\` from that exact commit using \`pnpm pack\` + \`npm publish --provenance\`.
+          EOF
+
+          git checkout -B "$BRANCH"
+          git add packages/cli/package.json packages/cli/CHANGELOG.md .changeset/
+          if git diff --cached --quiet; then
+            echo "No release metadata changes to publish."
+            exit 0
+          fi
+
+          git commit -m "$PR_TITLE"
+          git push --force-with-lease origin "$BRANCH"
+
+          PR_NUMBER=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$BRANCH" \
+            --base main \
+            --state open \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            gh pr edit "$PR_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$PR_TITLE" \
+              --body-file "$PR_BODY_FILE"
+            echo "Updated existing release PR: #$PR_NUMBER"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$BRANCH" \
+            --title "$PR_TITLE" \
+            --body-file "$PR_BODY_FILE"

@@ -10,6 +10,12 @@
  */
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
+import { VariablesSchema } from "./variables.js";
+export {
+  VariablePrimitiveSchema,
+  VariableValueSchema,
+  VariablesSchema,
+} from "./variables.js";
 
 // =============================================================================
 // Shared Components
@@ -41,6 +47,7 @@ export const LocalBrowserLaunchOptionsSchema = z
     hasTouch: z.boolean().optional(),
     ignoreHTTPSErrors: z.boolean().optional(),
     cdpUrl: z.string().optional(),
+    cdpHeaders: z.record(z.string(), z.string()).optional(),
     connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),
@@ -52,7 +59,7 @@ export const LocalBrowserLaunchOptionsSchema = z
 export const ModelConfigObjectSchema = z
   .object({
     provider: z
-      .enum(["openai", "anthropic", "google", "microsoft"])
+      .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
       .optional()
       .meta({
         description:
@@ -62,7 +69,7 @@ export const ModelConfigObjectSchema = z
     modelName: z.string().meta({
       description:
         "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-      example: "openai/gpt-5-nano",
+      example: "openai/gpt-5.4-mini",
     }),
     apiKey: z.string().optional().meta({
       description: "API key for the model provider",
@@ -71,6 +78,10 @@ export const ModelConfigObjectSchema = z
     baseURL: z.string().url().optional().meta({
       description: "Base URL for the model provider",
       example: "https://api.openai.com/v1",
+    }),
+    headers: z.record(z.string(), z.string()).optional().meta({
+      description:
+        "Custom headers sent with every request to the model provider",
     }),
   })
   .meta({ id: "ModelConfigObject" });
@@ -228,12 +239,16 @@ export const BrowserbaseBrowserSettingsSchema = z
   .object({
     advancedStealth: z.boolean().optional(),
     blockAds: z.boolean().optional(),
+    captchaImageSelector: z.string().optional(),
+    captchaInputSelector: z.string().optional(),
     context: BrowserbaseContextSchema.optional(),
     extensionId: z.string().optional(),
     fingerprint: BrowserbaseFingerprintSchema.optional(),
     logSession: z.boolean().optional(),
+    os: z.enum(["windows", "mac", "linux", "mobile", "tablet"]).optional(),
     recordSession: z.boolean().optional(),
     solveCaptchas: z.boolean().optional(),
+    verified: z.boolean().optional(),
     viewport: BrowserbaseViewportSchema.optional(),
   })
   .meta({ id: "BrowserbaseBrowserSettings" });
@@ -302,7 +317,7 @@ export const SessionStartRequestSchema = z
   .object({
     modelName: z.string().meta({
       description: "Model name to use for AI operations",
-      example: "openai/gpt-4o",
+      example: "openai/gpt-5.4-mini",
     }),
     domSettleTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms to wait for DOM to settle",
@@ -404,13 +419,17 @@ export const ActOptionsSchema = z
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
     }),
-    variables: z
-      .record(z.string(), z.string())
-      .optional()
-      .meta({
-        description: "Variables to substitute in the action instruction",
-        example: { username: "john_doe" },
-      }),
+    variables: VariablesSchema.optional().meta({
+      description:
+        "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
+      example: {
+        username: "john_doe",
+        password: {
+          value: "secret123",
+          description: "The login password",
+        },
+      },
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the action",
       example: 30000,
@@ -539,6 +558,17 @@ export const ObserveOptionsSchema = z
       description:
         "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
     }),
+    variables: VariablesSchema.optional().meta({
+      description:
+        "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
+      example: {
+        username: {
+          value: "john@example.com",
+          description: "The login email",
+        },
+        rememberMe: true,
+      },
+    }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the observation",
       example: 30000,
@@ -589,7 +619,7 @@ export const ObserveResponseSchema = wrapResponse(
 export const AgentConfigSchema = z
   .object({
     provider: z // cloud accepts provider: at the top level for legacy reasons, in the future we should remove it
-      .enum(["openai", "anthropic", "google", "microsoft"])
+      .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
       .optional()
       .meta({
         description:
@@ -700,6 +730,15 @@ export const AgentExecuteOptionsSchema = z
     highlightCursor: z.boolean().optional().meta({
       description: "Whether to visually highlight the cursor during execution",
       example: true,
+    }),
+    useSearch: z.boolean().optional().meta({
+      description:
+        "Whether to enable the web search tool powered by Browserbase Search API",
+      example: true,
+    }),
+    toolTimeout: z.number().optional().meta({
+      description: "Timeout in milliseconds for each agent tool call",
+      example: 30000,
     }),
   })
   .meta({ id: "AgentExecuteOptions" });
@@ -900,11 +939,9 @@ export const StreamEventLogDataSchema = z
 /**
  * SSE stream event sent during streaming responses.
  *
- * IMPORTANT: Key ordering matters for Stainless SDK generation.
- * The `data` field MUST be serialized first, with `status` as the first key within it.
- * This allows Stainless to use `data_starts_with: '{"data":{"status":"finished"'` for event handling.
- *
- * Expected serialization order: {"data":{"status":...},"type":...,"id":...}
+ * The SSE wire format includes an `event:` line that mirrors the stream status
+ * (`starting`, `connected`, `running`, `finished`, or `error`) followed by a
+ * JSON `data:` line containing the typed payload below.
  */
 export const StreamEventSchema = z
   .object({
@@ -918,7 +955,7 @@ export const StreamEventSchema = z
   .meta({
     id: "StreamEvent",
     description:
-      "Server-Sent Event emitted during streaming responses. Events are sent as `data: <JSON>\\n\\n`. Key order: data (with status first), type, id.",
+      "Server-Sent Event emitted during streaming responses. Events are sent as `event: <status>\\ndata: <JSON>\\n\\n`, where the JSON payload has the shape `{ data, type, id }`.",
   });
 
 // =============================================================================

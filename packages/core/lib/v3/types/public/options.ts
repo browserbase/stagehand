@@ -19,6 +19,13 @@ export type LocalBrowserLaunchOptions = z.infer<
 /** Constructor options for V3 */
 export interface V3Options {
   env: V3Env;
+  /**
+   * Optional external session identifier to use for flow logging/event storage.
+   * When omitted, Stagehand falls back to its internal instance id.
+   * This currently ends up 1:1 with the Browserbase session id when one exists,
+   * but callers should not rely on that remaining a permanent invariant.
+   */
+  sessionId?: string;
   // Browserbase (required when env = "BROWSERBASE")
   apiKey?: string;
   projectId?: string;
@@ -54,4 +61,11 @@ export interface V3Options {
   cacheDir?: string;
   domSettleTimeout?: number;
   disableAPI?: boolean;
+  /**
+   * When true, enables server-side caching for API requests.
+   * When false, disables server-side caching.
+   * Defaults to true (caching enabled).
+   * Can be overridden per-method in act(), extract(), and observe() options.
+   */
+  serverCache?: boolean;
 }

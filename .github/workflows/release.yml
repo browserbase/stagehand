@@ -38,13 +38,147 @@ jobs:
       - name: Run Lint & Build
         run: pnpm exec turbo run lint && pnpm exec turbo run build
 
+      - name: Check for actionable changesets
+        id: check_changesets
+        run: |
+          # Read the ignore list from .changeset/config.json
+          IGNORED=$(node -e "
+            const config = require('./.changeset/config.json');
+            (config.ignore || []).forEach(p => console.log(p));
+          ")
+
+          HAS_ACTIONABLE=false
+          HAS_ANY=false
+          for f in .changeset/*.md; do
+            [ "$f" = ".changeset/README.md" ] && continue
+            [ ! -f "$f" ] && continue
+            HAS_ANY=true
+
+            # Extract package names from the changeset frontmatter
+            PACKAGES=$(sed -n '/^---$/,/^---$/{ /^---$/d; s/^"\(.*\)":.*/\1/p }' "$f")
+
+            for pkg in $PACKAGES; do
+              if ! echo "$IGNORED" | grep -qxF "$pkg"; then
+                HAS_ACTIONABLE=true
+                break 2
+              fi
+            done
+          done
+
+          # Skip only when ALL pending changesets target ignored packages.
+          # When there are no changesets at all, the action must still run
+          # so it can publish freshly-versioned packages.
+          if [ "$HAS_ANY" = "true" ] && [ "$HAS_ACTIONABLE" = "false" ]; then
+            echo "All pending changesets target ignored packages — skipping changesets action."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v1
+        if: steps.check_changesets.outputs.should_run == 'true'
         with:
           publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish already-versioned packages
+        if: steps.check_changesets.outputs.should_run != 'true'
+        run: pnpm run release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if browse-cli publish is needed
+        if: github.ref == 'refs/heads/main'
+        id: browse_cli
+        run: |
+          # Restore working tree — changesets/action may have switched branches
+          git checkout ${{ github.sha }}
+
+          if git diff --quiet ${{ github.sha }}^ ${{ github.sha }} -- packages/cli/package.json; then
+            echo "browse-cli version did not change on this push."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          OLD_VERSION=$(git show ${{ github.sha }}^:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+          NEW_VERSION=$(git show ${{ github.sha }}:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "browse-cli version did not change on this push."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+
+          if npm view "@browserbasehq/browse-cli@${NEW_VERSION}" version >/dev/null 2>&1; then
+            echo "browse-cli ${NEW_VERSION} is already published."
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish browse-cli to npm
+        if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        run: |
+          cd packages/cli
+          PACK_DIR=$(mktemp -d)
+          trap 'rm -rf "$PACK_DIR"' EXIT
+
+          TARBALL=$(pnpm pack --json --pack-destination "$PACK_DIR" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).filename")
+          npm publish "$TARBALL" --provenance --access public --tag latest
+
+      - name: Tag browse-cli release
+        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish == 'true'
+        run: |
+          TAG="@browserbasehq/browse-cli@${{ steps.browse_cli.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Publish browse-cli canary
+        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish != 'true'
+        run: |
+          # Skip if no browse-cli files changed in this push
+          if git diff --quiet ${{ github.sha }}^ ${{ github.sha }} -- packages/cli/; then
+            echo "No browse-cli changes in this push, skipping canary."
+            exit 0
+          fi
+
+          cd packages/cli
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          CANARY_VERSION="${BASE_VERSION}-alpha-${SHORT_SHA}"
+
+          if npm view "@browserbasehq/browse-cli@${CANARY_VERSION}" version >/dev/null 2>&1; then
+            echo "browse-cli canary ${CANARY_VERSION} is already published."
+            exit 0
+          fi
+
+          # Temporarily set canary version for pnpm pack
+          node -e "
+            const pkg = require('./package.json');
+            pkg.version = '${CANARY_VERSION}';
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          PACK_DIR=$(mktemp -d)
+          trap 'git checkout -- package.json; rm -rf "$PACK_DIR"' EXIT
+
+          TARBALL=$(pnpm pack --json --pack-destination "$PACK_DIR" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).filename")
+          npm publish "$TARBALL" --provenance --access public --tag alpha
+
+          echo "Published @browserbasehq/browse-cli@${CANARY_VERSION}"
 
       - name: Publish Canary
         if: github.ref == 'refs/heads/main'

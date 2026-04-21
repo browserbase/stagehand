@@ -368,7 +368,7 @@ export class FrameSelectorResolver {
     objectId: Protocol.Runtime.RemoteObjectId,
   ): Promise<ResolvedNode | null> {
     const session = this.frame.session;
-    let nodeId: Protocol.DOM.NodeId | null = null;
+    let nodeId: Protocol.DOM.NodeId | null;
     try {
       const rn = await session.send<{ nodeId: Protocol.DOM.NodeId }>(
         "DOM.requestNode",

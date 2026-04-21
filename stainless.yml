@@ -33,14 +33,16 @@ targets:
     package_name: stagehand
     production_repo: browserbase/stagehand-java
     publish:
-      maven: true
+      maven:
+        sonatype_platform: portal
   kotlin:
     edition: kotlin.2025-10-08
     reverse_domain: com.browserbase.api
     package_name: stagehand
     production_repo: browserbase/stagehand-kotlin
     publish:
-      maven: true
+      maven:
+        sonatype_platform: portal
   ruby:
     edition: ruby.2025-10-08
     gem_name: stagehand
@@ -81,7 +83,7 @@ environments:
   # local: http://stagehand-api.localhost
 
 # OpenAPI transforms applied by Stainless during SDK generation.
-# This keeps the generated `packages/server/openapi.v3.yaml` faithful to the Fastify+Zod source,
+# This keeps the generated `packages/server-v3/openapi.v3.yaml` faithful to the Fastify+Zod source,
 # while still producing a Stainless-compatible spec for codegen.
 openapi:
   code_samples: mintlify
@@ -199,11 +201,9 @@ resources:
 
 streaming:
   on_event:
-    - data_starts_with: '{"data":{"status":"finished"'
-      handle: done
-    - data_starts_with: error
+    - event_type: error
       handle: error
-    - event_type: null
+    - event_type: [starting, connected, running, finished]
       handle: yield
 
 settings:
@@ -268,7 +268,7 @@ readme:
       type: request
       endpoint: post /v1/sessions/start
       params:
-        modelName: "openai/gpt-5-nano"
+        modelName: "openai/gpt-5.4-mini"
     headline:
       type: request
       endpoint: post /v1/sessions/{id}/act

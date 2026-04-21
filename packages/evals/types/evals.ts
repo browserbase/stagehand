@@ -35,7 +35,6 @@ export const EvalCategorySchema = z.enum([
   "targeted_extract",
   "regression",
   "regression_llm_providers",
-  "llm_clients",
   "agent",
   "external_agent_benchmarks",
 ]);

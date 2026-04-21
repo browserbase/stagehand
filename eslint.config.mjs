@@ -12,7 +12,14 @@ export default [
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["packages/server/scripts/**/*.{js,cjs,mjs,ts}"],
+    files: [
+      "packages/server-v3/scripts/**/*.{js,cjs,mjs,ts}",
+      "packages/server-v4/scripts/**/*.{js,cjs,mjs,ts}",
+    ],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    files: ["packages/cli/**/*.{js,cjs,mjs,ts}"],
     languageOptions: { globals: globals.node },
   },
   {
@@ -21,6 +28,7 @@ export default [
       "**/node_modules/**",
       "packages/core/lib/dom/build/**",
       "packages/core/lib/v3/dom/build/**",
+      "packages/core/lib/v4/dom/build/**",
       "packages/core/scripts/prepare.js",
       "**/*.config.js",
       "**/*.config.mjs",
@@ -28,7 +36,8 @@ export default [
       "**/.browserbase/**",
       "**/*.json",
       "stainless.yml",
-      "packages/server/openapi.v3.yaml",
+      "packages/server-v3/openapi.v3.yaml",
+      "packages/server-v4/openapi.v4.yaml",
     ],
   },
   pluginJs.configs.recommended,
@@ -42,6 +51,7 @@ export default [
       "no-implied-eval": "error",
       "no-new-func": "error",
       "security/detect-eval-with-expression": "error",
+      "preserve-caught-error": "error",
       "no-restricted-syntax": [
         "error",
         {
@@ -65,6 +75,12 @@ export default [
             "Dynamic function construction via globalThis.Function is prohibited.",
         },
       ],
+    },
+  },
+  {
+    files: ["packages/cli/**/*.{js,cjs,mjs,ts}"],
+    rules: {
+      "no-empty": ["error", { allowEmptyCatch: true }],
     },
   },
 ];

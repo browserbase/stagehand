@@ -2,6 +2,21 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import * as Stagehand from "@browserbasehq/stagehand";
 
 describe("LLM and Agents public API types", () => {
+  describe("ModelConfiguration", () => {
+    it("accepts Vertex headers in model config", () => {
+      const googleConfig = {
+        modelName: "google/gemini-3-flash-preview",
+        project: "test-project",
+        location: "global",
+        headers: {
+          "X-Goog-Priority": "high",
+        },
+      } satisfies Stagehand.ModelConfiguration;
+
+      void googleConfig;
+    });
+  });
+
   describe("AISdkClient", () => {
     type AISdkClientInstance = InstanceType<typeof Stagehand.AISdkClient>;
 
@@ -24,7 +39,6 @@ describe("LLM and Agents public API types", () => {
     const expectedModels = [
       "openai/computer-use-preview",
       "openai/computer-use-preview-2025-03-11",
-      "anthropic/claude-3-7-sonnet-latest",
       "anthropic/claude-opus-4-5-20251101",
       "anthropic/claude-opus-4-6",
       "anthropic/claude-sonnet-4-6",

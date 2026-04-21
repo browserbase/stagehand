@@ -14,6 +14,7 @@ import {
   type RawIndexMap,
   type RawSourceMap,
 } from "source-map";
+import { getRepoRootDir, isMainModule } from "../lib/v3/runtimePaths.js";
 
 type CoverageRange = {
   startOffset: number;
@@ -413,11 +414,7 @@ const normalizeCoverageDir = async (options: NormalizerOptions) => {
 };
 
 export const normalizeV8Coverage = async (coverageDir: string) => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const repoRoot = value.split("/packages/core/")[0];
-  if (repoRoot === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
+  const repoRoot = getRepoRootDir();
   const resolvedDir = path.isAbsolute(coverageDir)
     ? coverageDir
     : path.resolve(repoRoot, coverageDir);
@@ -441,7 +438,7 @@ const main = async () => {
   await normalizeV8Coverage(coverageDir);
 };
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule()) {
   main().catch((error) => {
     console.error(error);
     process.exit(1);

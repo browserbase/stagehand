@@ -64,14 +64,12 @@ export class ObserveHandler {
   }
 
   async observe(params: ObserveHandlerParams): Promise<Action[]> {
-    const { instruction, page, timeout, selector, model } = params;
+    const { instruction, page, timeout, selector, model, variables } = params;
 
     const llmClient = this.resolveLlmClient(model);
 
-    const effectiveTimeoutMs =
-      typeof timeout === "number" && timeout > 0 ? timeout : undefined;
     const ensureTimeRemaining = createTimeoutGuard(
-      effectiveTimeoutMs,
+      timeout,
       (ms) => new ObserveTimeoutError(ms),
     );
 
@@ -118,6 +116,7 @@ export class ObserveHandler {
       logger: v3Logger,
       logInferenceToFile: this.logInferenceToFile,
       supportedActions: Object.values(SupportedUnderstudyAction),
+      variables,
     });
 
     const {

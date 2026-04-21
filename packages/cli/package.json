@@ -1,0 +1,75 @@
+{
+  "name": "@browserbasehq/browse-cli",
+  "version": "0.5.0",
+  "description": "Browser automation CLI for AI agents, built on Stagehand",
+  "type": "commonjs",
+  "license": "MIT",
+  "author": "Browserbase <support@browserbase.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",
+  "keywords": [
+    "browser",
+    "automation",
+    "cli",
+    "ai",
+    "agent",
+    "chrome",
+    "cdp",
+    "web-scraping",
+    "testing",
+    "stagehand"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "bin": {
+    "browse": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/index.ts",
+    "browse": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "eslint": "eslint .",
+    "lint": "cd ../.. && prettier --check packages/cli && cd packages/cli && pnpm run eslint && pnpm run typecheck",
+    "test": "vitest run",
+    "test:cli": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "workspace:*",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.5",
+    "node-html-markdown": "^1.3.0",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/ws": "^8.5.13",
+    "devtools-protocol": "^0.0.1464554",
+    "eslint": "^10.0.2",
+    "tsup": "^8.2.1",
+    "tsx": "^4.10.5",
+    "typescript": "5.8.3",
+    "vitest": "^4.0.8"
+  }
+}

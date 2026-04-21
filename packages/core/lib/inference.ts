@@ -17,14 +17,17 @@ import type {
   StagehandZodObject,
 } from "./v3/zodCompat.js";
 import { SupportedUnderstudyAction } from "./v3/types/private/handlers.js";
+import type { Variables } from "./v3/types/public/agent.js";
 
 // Re-export for backward compatibility
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient.js";
 
 function withLlmTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
-  const timeoutMs = getEnvTimeoutMs("LLM_MAX_MS");
-  if (!timeoutMs) return promise;
-  return withTimeout(promise, timeoutMs, `LLM ${operation}`);
+  return withTimeout(
+    promise,
+    getEnvTimeoutMs("LLM_MAX_MS"),
+    `LLM ${operation}`,
+  );
 }
 
 export async function extract<T extends StagehandZodObject>({
@@ -105,7 +108,7 @@ export async function extract<T extends StagehandZodObject>({
 
   const { data: extractedData, usage: extractUsage } = extractionResponse;
 
-  let extractResponseFile = "";
+  let extractResponseFile: string;
   if (logInferenceToFile) {
     const { fileName } = writeTimestampedTxtFile(
       "extract_summary",
@@ -178,7 +181,7 @@ export async function extract<T extends StagehandZodObject>({
     usage: metadataResponseUsage,
   } = metadataResponse;
 
-  let metadataResponseFile = "";
+  let metadataResponseFile: string;
   if (logInferenceToFile) {
     const { fileName } = writeTimestampedTxtFile(
       "extract_summary",
@@ -243,6 +246,7 @@ export async function observe({
   logger,
   logInferenceToFile = false,
   supportedActions,
+  variables,
 }: {
   instruction: string;
   domElements: string;
@@ -251,6 +255,7 @@ export async function observe({
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
   supportedActions?: string[];
+  variables?: Variables;
 }) {
   const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
 
@@ -295,7 +300,11 @@ export async function observe({
   type ObserveResponse = z.infer<typeof observeSchema>;
 
   const messages: ChatMessage[] = [
-    buildObserveSystemPrompt(userProvidedInstructions, supportedActions),
+    buildObserveSystemPrompt(
+      userProvidedInstructions,
+      supportedActions,
+      variables,
+    ),
     buildObserveUserMessage(instruction, domElements),
   ];
 
@@ -338,7 +347,7 @@ export async function observe({
   const reasoningTokens = observeUsage?.reasoning_tokens ?? 0;
   const cachedInputTokens = observeUsage?.cached_input_tokens ?? 0;
 
-  let responseFile = "";
+  let responseFile: string;
   if (logInferenceToFile) {
     const { fileName: responseFileName } = writeTimestampedTxtFile(
       `observe_summary`,
@@ -406,7 +415,7 @@ export async function act({
       .string()
       .regex(/^\d+-\d+$/)
       .describe(
-        "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'.",
+        "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'. for example, '0-76' or '16-21'",
       ),
     description: z
       .string()
@@ -478,7 +487,7 @@ export async function act({
   const reasoningTokens = actUsage?.reasoning_tokens ?? 0;
   const cachedInputTokens = actUsage?.cached_input_tokens ?? 0;
 
-  let responseFile = "";
+  let responseFile: string;
   if (logInferenceToFile) {
     const { fileName: responseFileName } = writeTimestampedTxtFile(
       `act_summary`,

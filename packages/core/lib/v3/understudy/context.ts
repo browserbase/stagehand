@@ -60,10 +60,11 @@ function hasInjectableDOM(url: string | undefined): boolean {
 }
 
 function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
-  return (
-    (info.type !== "page" && info.type !== "iframe") ||
-    !hasInjectableDOM(info.url)
-  );
+  // Top-level pages should always be tracked — the initial URL may be a
+  // non-web scheme (e.g. chrome://newtab/) but the user can navigate to
+  // web content, and the target identity stays the same.
+  if (info.type === "page") return false;
+  return info.type !== "iframe" || !hasInjectableDOM(info.url);
 }
 
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
@@ -75,6 +76,8 @@ const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
 const CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 30000;
 const FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV =
   "STAGEHAND_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS";
+const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION =
+  "waitForFirstTopLevelPage (no top-level Page)";
 
 function getFirstTopLevelPageTimeoutMs(): number {
   return (
@@ -157,10 +160,13 @@ export class V3Context {
       env?: "LOCAL" | "BROWSERBASE";
       apiClient?: StagehandAPIClient | null;
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
+      cdpHeaders?: Record<string, string>;
     },
   ): Promise<V3Context> {
     const connectTask = async () => {
-      const conn = await CdpConnection.connect(wsUrl);
+      const conn = await CdpConnection.connect(wsUrl, {
+        headers: opts?.cdpHeaders,
+      });
       const ctx = new V3Context(
         conn,
         opts?.env ?? "LOCAL",
@@ -168,7 +174,7 @@ export class V3Context {
         opts?.localBrowserLaunchOptions ?? null,
       );
       await ctx.bootstrap();
-      await ctx.waitForFirstTopLevelPage(getFirstTopLevelPageTimeoutMs());
+      await ctx.ensureFirstTopLevelPage(getFirstTopLevelPageTimeoutMs());
       return ctx;
     };
 
@@ -199,6 +205,36 @@ export class V3Context {
     return await connectTask();
   }
 
+  private hasTopLevelPage(): boolean {
+    for (const [targetId, targetType] of this.typeByTarget) {
+      if (targetType === "page" && this.pagesByTarget.has(targetId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async ensureFirstTopLevelPage(timeoutMs: number): Promise<void> {
+    if (this.hasTopLevelPage()) return;
+
+    try {
+      await this.waitForFirstTopLevelPage(timeoutMs);
+      return;
+    } catch (err) {
+      if (!(err instanceof TimeoutError)) {
+        throw err;
+      }
+      v3Logger({
+        category: "ctx",
+        message:
+          "No open browser pages found after connect; creating an initial about:blank page",
+        level: 1,
+      });
+    }
+
+    await this.newPage("about:blank");
+  }
+
   /**
    * Wait until at least one top-level Page has been created and registered.
    * We poll internal maps that bootstrap/onAttachedToTarget populate.
@@ -216,10 +252,7 @@ export class V3Context {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
-    throw new TimeoutError(
-      "waitForFirstTopLevelPage (no top-level Page)",
-      timeoutMs,
-    );
+    throw new TimeoutError(WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION, timeoutMs);
   }
 
   private async waitForInitialTopLevelTargets(
@@ -589,93 +622,190 @@ export class V3Context {
       await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
     };
 
-    // Install any context-level init scripts as early as possible on this session.
-    // If this throws, we still resume the target but avoid re-installing later.
-    let scriptsInstalled = true;
-    let piercerPreRegistered = false;
-    const installPromises: Array<Promise<unknown>> = [];
-    try {
-      const send = (method: string, params?: object) =>
-        session.send(method, params).catch(() => {});
-      // make sure init scripts land before any subframe work.
-      installPromises.push(send("Page.enable"));
-      installPromises.push(send("Runtime.enable"));
-      installPromises.push(
-        session
-          .send("Target.setAutoAttach", {
-            autoAttach: true,
-            waitForDebuggerOnStart: true,
-            flatten: true,
-          })
-          .catch(() => {}),
+    // Attach lifecycle (per target session):
+    // 1) while paused, enable domains + child auto-attach and register init scripts;
+    // 2) resume target execution;
+    // 3) build/adopt Page ownership and frame bridges.
+    // Some CDP backends defer *.enable() responses until after resume, so we
+    // cannot await those responses before resuming. Instead we:
+    // - wait for transport-level dispatch of required pre-resume commands;
+    // - then dispatch resume;
+    // - then await responses.
+    const queuePreResume = (
+      method: string,
+      params?: object,
+      match?: (sentParams?: object) => boolean,
+    ) => {
+      const dispatched = this.conn
+        .waitForSessionDispatch(sessionId, method, match)
+        .then(() => true)
+        .catch(() => false);
+      const response = session
+        .send(method, params)
+        .then(() => true)
+        .catch(() => false);
+      return { dispatched, response };
+    };
+    const initScriptOps: Array<{
+      dispatched: Promise<boolean>;
+      response: Promise<boolean>;
+    }> = [];
+    // Pre-resume ordering matters:
+    // - enable domains;
+    // - enable child auto-attach with waitForDebuggerOnStart;
+    // - register init scripts.
+    // Commands are sent in-order on the same session before resume.
+    const corePreResumeOps = [
+      queuePreResume("Page.enable"),
+      queuePreResume("Runtime.enable"),
+      queuePreResume("Target.setAutoAttach", {
+        autoAttach: true,
+        waitForDebuggerOnStart: true,
+        flatten: true,
+      }),
+    ];
+    const headerPreResumeOps: Array<{
+      dispatched: Promise<boolean>;
+      response: Promise<boolean>;
+    }> = [];
+    if (this.extraHttpHeaders) {
+      const headers = { ...this.extraHttpHeaders };
+      headerPreResumeOps.push(queuePreResume("Network.enable"));
+      headerPreResumeOps.push(
+        queuePreResume("Network.setExtraHTTPHeaders", { headers }),
       );
-      if (this.extraHttpHeaders) {
-        const headers = { ...this.extraHttpHeaders };
-        installPromises.push(send("Network.enable"));
-        installPromises.push(send("Network.setExtraHTTPHeaders", { headers }));
-      }
-      // Send init scripts only after auto-attach has been issued.
-      if (this.initScripts.length) {
-        for (const source of this.initScripts) {
-          installPromises.push(
-            session.send("Page.addScriptToEvaluateOnNewDocument", {
+    }
+    // Send init scripts only after auto-attach has been queued.
+    if (this.initScripts.length) {
+      for (const source of this.initScripts) {
+        initScriptOps.push(
+          queuePreResume(
+            "Page.addScriptToEvaluateOnNewDocument",
+            {
               source,
               runImmediately: true,
-            }),
-          );
-        }
-      }
-      // register piercer (shadow-DOM hook) before resume so it runs
-      // before page scripts
-      installPromises.push(
-        session
-          .send("Page.addScriptToEvaluateOnNewDocument", {
-            source: v3ScriptContent,
-            runImmediately: true,
-          })
-          .then(() => {
-            piercerPreRegistered = true;
-          })
-          .catch(() => {}),
-      );
-      installPromises.push(resume());
-    } catch {
-      scriptsInstalled = false;
-    }
-    if (installPromises.length) {
-      const results = await Promise.allSettled(installPromises);
-      if (results.some((r) => r.status === "rejected")) {
-        scriptsInstalled = false;
+            },
+            (sentParams) =>
+              (sentParams as { source?: string } | undefined)?.source ===
+              source,
+          ),
+        );
       }
     }
-
-    // Only mark the piercer as installed when the pre-registration actually
-    // succeeded.  This lets ensurePiercer() short-circuit (avoiding sequential
-    // CDP round-trips that delay Page.create / installFrameEventBridges and
-    // cause same-process iframe frame-events to be missed) while still falling
-    // back to the full install path when registration failed.
-    if (piercerPreRegistered) {
-      this._piercerInstalled.add(sessionId);
+    const piercerPreloadOp = queuePreResume(
+      "Page.addScriptToEvaluateOnNewDocument",
+      {
+        source: v3ScriptContent,
+        runImmediately: true,
+      },
+      (sentParams) =>
+        (sentParams as { source?: string } | undefined)?.source ===
+        v3ScriptContent,
+    );
+    const preResumeDispatched = (
+      await Promise.all([
+        ...corePreResumeOps.map((op) => op.dispatched),
+        ...headerPreResumeOps.map((op) => op.dispatched),
+        ...initScriptOps.map((op) => op.dispatched),
+        piercerPreloadOp.dispatched,
+      ])
+    ).every(Boolean);
+    // Dispatch resume only after pre-resume setup has actually been sent.
+    const resumeOp = queuePreResume("Runtime.runIfWaitingForDebugger");
+    const [resumedDispatched, resumedOk] = await Promise.all([
+      resumeOp.dispatched,
+      resumeOp.response,
+    ]);
+    const [
+      coreResults,
+      headerResults,
+      initScriptResults,
+      piercerPreRegistered,
+    ] = await Promise.all([
+      Promise.all(corePreResumeOps.map((op) => op.response)),
+      Promise.all(headerPreResumeOps.map((op) => op.response)),
+      Promise.all(initScriptOps.map((op) => op.response)),
+      piercerPreloadOp.response,
+    ]);
+    // Header propagation is independent of init-script determinism but still
+    // part of pre-resume attach setup; awaited above for ordering/lifecycle.
+    void headerResults;
+    if (!preResumeDispatched || !resumedDispatched || !resumedOk) {
+      // Short-lived child targets can detach before resume is acknowledged.
+      // Keep this noisy only for top-level pages where missing attach is fatal.
+      if (isTopLevelPage(info)) {
+        v3Logger({
+          category: "ctx",
+          message: "Failed target pre-resume setup ordering",
+          level: 2,
+          auxiliary: {
+            targetId: { value: String(info.targetId), type: "string" },
+            targetType: { value: String(info.type), type: "string" },
+            preResumeDispatched: {
+              value: String(preResumeDispatched),
+              type: "string",
+            },
+            resumedDispatched: {
+              value: String(resumedDispatched),
+              type: "string",
+            },
+            resumedOk: { value: String(resumedOk), type: "string" },
+          },
+        });
+      }
+      return;
     }
+    resumed = true;
+    const scriptsInstalled =
+      coreResults.every(Boolean) && initScriptResults.every(Boolean);
 
     try {
-      const piercerReady = await this.ensurePiercer(session);
-      if (!piercerReady) return;
-
-      await session
+      // Best-effort lifecycle events; do not block top-level page registration
+      // on this optional signal stream.
+      void session
         .send("Page.setLifecycleEventsEnabled", { enabled: true })
         .catch(() => {});
 
       // Top-level handling
       if (isTopLevelPage(info)) {
-        const page = await Page.create(
-          this.conn,
-          session,
-          info.targetId,
-          this.apiClient,
-          this.localBrowserLaunchOptions,
-          this.env === "BROWSERBASE",
-        );
+        let page: Page | null = null;
+        let createError: unknown;
+        // Deterministic contract: never drop a newly attached top-level target
+        // because an arbitrary local timeout fired. We wait for Page.create and
+        // let it finish regardless of CDP call latency.
+        try {
+          page = await Page.create(
+            this.conn,
+            session,
+            info.targetId,
+            this.apiClient,
+            this.localBrowserLaunchOptions,
+            this.env === "BROWSERBASE",
+          );
+        } catch (error) {
+          createError = error;
+        }
+        if (!page) {
+          v3Logger({
+            category: "ctx",
+            message: "Failed to create top-level Page",
+            level: 2,
+            auxiliary: {
+              targetId: { value: String(info.targetId), type: "string" },
+              targetType: { value: String(info.type), type: "string" },
+              targetUrl: { value: String(info.url ?? ""), type: "string" },
+              error: {
+                value: String(
+                  createError instanceof Error
+                    ? createError.message
+                    : createError,
+                ),
+                type: "string",
+              },
+            },
+          });
+          return;
+        }
         this.wireSessionToOwnerPage(sessionId, page);
         this.pagesByTarget.set(info.targetId, page);
         this.mainFrameToTarget.set(page.mainFrameId(), info.targetId);
@@ -690,14 +820,23 @@ export class V3Context {
         page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
         this._pushActive(info.targetId);
         this.installFrameEventBridges(sessionId, page);
+        if (piercerPreRegistered) {
+          this._piercerInstalled.add(sessionId);
+        }
         // If we already installed scripts at the session level, only seed the
         // Page's registry to avoid double-installing DOMContentLoaded handlers.
         await this.applyInitScriptsToPage(page, {
           seedOnly: scriptsInstalled,
         });
+        if (!piercerPreRegistered) {
+          void this.ensurePiercer(session).catch(() => {});
+        }
 
         return;
       }
+
+      const piercerReady = await this.ensurePiercer(session).catch(() => false);
+      if (!piercerReady) return;
 
       // Child (iframe / OOPIF)
       try {

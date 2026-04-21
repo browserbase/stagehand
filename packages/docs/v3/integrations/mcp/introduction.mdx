@@ -7,13 +7,16 @@ import { V3Banner } from '/snippets/v3-banner.mdx';
 
 <V3Banner />
 
-
 ## Overview
 
-The Browserbase MCP Server brings powerful browser automation capabilities to Claude through the Model Context Protocol (MCP). Built on top of [Stagehand](https://docs.stagehand.dev/), this integration provides AI-powered web automation using natural language commands.
+The Browserbase MCP Server brings powerful browser automation capabilities to MCP clients through the Model Context Protocol (MCP). Built on top of [Stagehand](https://docs.stagehand.dev/), this integration provides AI-powered web automation using natural language commands.
 
 <Info>
-This server enables Claude to control browsers, navigate websites, interact with web elements, and extract data—all through simple conversational commands.
+  The hosted [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http)
+  endpoint is served on Browserbase infrastructure.
+  You can also run the MCP server locally with STDIO, but we recommend the
+  hosted [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http)
+  endpoint for most users.
 </Info>
 
 ## Key Features
@@ -24,16 +27,15 @@ Control browsers using plain English commands like "click the login button" or "
 </Card>
 
 <Card title="Web Interaction" icon="browser">
-Navigate, click, and fill forms with ease
+  Navigate, click, and fill forms with ease
 </Card>
 
 <Card title="Data Extraction" icon="download">
-Extract structured data from any website automatically
-
+  Extract structured data from any website automatically
 </Card>
 
-<Card title="Screenshot Capture" icon="camera">
-Capture and analyze webpage screenshots programmatically
+<Card title="Session Lifecycle" icon="route">
+  Create, reuse, and close browser sessions with explicit MCP tools
 </Card>
 
 </CardGroup>
@@ -48,7 +50,7 @@ No need to learn complex selectors or automation syntax. Simply describe what yo
 </Card>
 
 <Card title="Quick Setup" icon="rocket">
-Get started in minutes with our NPM package or our remote hosted URL.
+  Get started in minutes with either hosted [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) or local STDIO.
 </Card>
 
 <Card title="Smart Automation" icon="brain">
@@ -64,11 +66,11 @@ Navigate, click, type, scroll, and interact with any web element.
 </Card>
 
 <Card title="Data Intelligence" icon="chart-line">
-Extract structured information from complex web pages automatically.
+  Extract structured information from complex web pages automatically.
 </Card>
 
 <Card title="Session Persistence" icon="cookie-bite">
-Maintain authentication states and context across multiple interactions.
+Maintain authentication states and cookies across multiple interactions.
 </Card>
 </CardGroup>
 </Tab>
@@ -76,15 +78,15 @@ Maintain authentication states and context across multiple interactions.
 <Tab title="Enterprise Ready">
 <CardGroup cols={2}>
 <Card title="Reliable Infrastructure" icon="server">
-Built on Browserbase's cloud browser platform for consistent performance.
+Hosted [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) runs on Browserbase infrastructure for consistent performance.
 </Card>
 
 <Card title="Scalable Architecture" icon="arrows-up-to-line">
-Handle multiple concurrent sessions and high-volume automation tasks.
+  Handle multiple concurrent sessions and high-volume automation tasks.
 </Card>
 
 <Card title="Security Features" icon="shield-check">
-Stealth mode, proxy support, and advanced anti-detection capabilities.
+  Stealth mode, proxy support, and advanced anti-detection capabilities.
 </Card>
 
 <Card title="Comprehensive Logging" icon="file-lines">
@@ -104,11 +106,11 @@ Track product prices, availability, and competitor information
 </Card>
 
 <Card title="Market Research" icon="chart-bar">
-Gather data from multiple sources for analysis and reporting
+  Gather data from multiple sources for analysis and reporting
 </Card>
 
 <Card title="Content Aggregation" icon="newspaper">
-Collect articles, posts, and media from various websites
+  Collect articles, posts, and media from various websites
 </Card>
 
 <Card title="Lead Generation" icon="users">
@@ -123,8 +125,12 @@ Extract contact information and business data from directories
 Create comprehensive test suites for web applications
 </Card>
 
+<Card title="Cross-Browser Validation" icon="browsers">
+  Test functionality across different browser environments
+</Card>
+
 <Card title="User Journey Testing" icon="route">
-Simulate real user interactions and workflows
+  Simulate real user interactions and workflows
 </Card>
 
 <Card title="Performance Monitoring" icon="gauge">
@@ -140,11 +146,11 @@ Automatically fill and submit complex web forms
 </Card>
 
 <Card title="Report Generation" icon="chart-line">
-Extract data and generate automated reports
+  Extract data and generate automated reports
 </Card>
 
 <Card title="Social Media Management" icon="share-nodes">
-Schedule posts and monitor engagement across platforms
+  Schedule posts and monitor engagement across platforms
 </Card>
 
 <Card title="Administrative Tasks" icon="clipboard-check">
@@ -158,35 +164,35 @@ Automate repetitive web-based business processes
 
 <Steps>
 <Step title="Install the MCP Server">
-Choose from NPM installation, remote hosted URL, or local development based on your needs.
+Choose hosted [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) (recommended) or local STDIO based on your needs.
 </Step>
 
 <Step title="Configure Authentication">
-Set up your Browserbase API credentials in the MCP configuration. 
-Get your API keys from the [Browserbase Dashboard](https://www.browserbase.com/overview).
+  Set up your Browserbase API credentials in MCP configuration. Get API keys
+  from the [Browserbase Dashboard](https://www.browserbase.com/overview).
 </Step>
 
 <Step title="Start Automating">
-Begin using natural language commands to control browsers through Claude.
+Begin using natural language commands to control browsers through your MCP client.
 </Step>
 </Steps>
 
 <Tip>
-Ready to get started? Check out our [Setup Guide](/integrations/mcp/setup) for detailed installation instructions.
+  Ready to get started? Check out the [Setup Guide](/v3/integrations/mcp/setup).
 </Tip>
 
 ## Further Reading
 
 <CardGroup cols={3}>
-<Card title="Setup Guide" icon="rocket" href="/integrations/mcp/setup">
+<Card title="Setup Guide" icon="rocket" href="/v3/integrations/mcp/setup">
 Get started with installation and configuration
 </Card>
 
-<Card title="Available Tools" icon="wrench" href="/integrations/mcp/tools">
-Explore all available automation tools
+<Card title="MCP Docs" icon="book" href="https://modelcontextprotocol.io/introduction">
+Learn more about the MCP protocol
 </Card>
 
-<Card title="Configuration Options" icon="gear" href="/integrations/mcp/configuration">
-Customize your browser automation setup
+<Card title="Browserbase Docs" icon="globe" href="https://docs.browserbase.com">
+Explore Browserbase features and capabilities
 </Card>
 </CardGroup>

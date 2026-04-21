@@ -6,7 +6,8 @@ import { MouseButton } from "../../types/public/locator.js";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import { v3Logger } from "../../logger.js";
-import { SessionFileLogger } from "../../flowLogger.js";
+import { FlowLogger } from "../../flowlogger/FlowLogger.js";
+import { toTitleCase } from "../../../utils.js";
 import {
   StagehandClickError,
   UnderstudyCommandException,
@@ -40,74 +41,62 @@ export async function performUnderstudyMethod(
   domSettleTimeoutMs?: number,
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
-  // Unified resolver: supports '>>' hops and XPath across iframes
-  const locator: Locator = await resolveLocatorWithHops(
-    page,
-    frame,
-    selectorRaw,
-  );
-
-  const initialUrl = await getFrameUrl(frame);
-
-  v3Logger({
-    category: "action",
-    message: "performing understudy method",
-    level: 2,
-    auxiliary: {
-      xpath: { value: selectorRaw, type: "string" },
-      method: { value: method, type: "string" },
-      url: { value: initialUrl, type: "string" },
-    },
-  });
-
-  const ctx: UnderstudyMethodHandlerContext = {
-    method,
-    locator,
-    xpath: selectorRaw,
-    args: args.map((a) => (a == null ? "" : String(a))),
-    frame,
-    page,
-    initialUrl,
-    domSettleTimeoutMs,
-  };
-
-  SessionFileLogger.logUnderstudyActionEvent({
-    actionType: `Understudy.${method}`,
-    target: selectorRaw,
-    args: Array.from(args),
-  });
 
   try {
-    const handler = METHOD_HANDLER_MAP[method] ?? null;
+    await FlowLogger.runWithLogging(
+      {
+        eventType: `Understudy${toTitleCase(method)}`, // e.g. "UnderstudyClick"
+        data: {
+          target: selectorRaw,
+        },
+      },
+      async () => {
+        // Unified resolver: supports '>>' hops and XPath across iframes.
+        const locator: Locator = await resolveLocatorWithHops(
+          page,
+          frame,
+          selectorRaw,
+        );
+        const initialUrl = await getFrameUrl(frame);
 
-    if (handler) {
-      await handler(ctx);
-    } else {
-      // Accept a few common locator method aliases
-      switch (method) {
-        case "click":
-          await clickElement(ctx);
-          break;
-        case "fill":
-          await fillOrType(ctx);
-          break;
-        case "type":
-          await typeText(ctx);
-          break;
-        default:
-          v3Logger({
-            category: "action",
-            message: "chosen method is invalid",
-            level: 1,
-            auxiliary: { method: { value: method, type: "string" } },
-          });
-          throw new UnderstudyCommandException(
-            `Method ${method} not supported`,
-          );
-      }
-    }
+        v3Logger({
+          category: "action",
+          message: "performing understudy method",
+          level: 2,
+          auxiliary: {
+            xpath: { value: selectorRaw, type: "string" },
+            method: { value: method, type: "string" },
+            url: { value: initialUrl, type: "string" },
+          },
+        });
 
-    await handlePossibleNavigation("action", selectorRaw, initialUrl, frame);
+        const ctx: UnderstudyMethodHandlerContext = {
+          method,
+          locator,
+          xpath: selectorRaw,
+          args: args.map((a) => (a == null ? "" : String(a))),
+          frame,
+          page,
+          initialUrl,
+          domSettleTimeoutMs,
+        };
+        const handler = METHOD_HANDLER_MAP[method] ?? null;
+
+        if (handler) {
+          await handler(ctx);
+          return;
+        }
+
+        v3Logger({
+          category: "action",
+          message: "chosen method is invalid",
+          level: 1,
+          auxiliary: { method: { value: method, type: "string" } },
+        });
+        throw new UnderstudyCommandException(`Method ${method} not supported`);
+      },
+      args,
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -127,8 +116,6 @@ export async function performUnderstudyMethod(
       throw e;
     }
     throw new UnderstudyCommandException(msg, e);
-  } finally {
-    SessionFileLogger.logUnderstudyActionCompleted();
   }
 }
 
@@ -694,37 +681,4 @@ export async function waitForDomNetworkQuiet(
       resolve();
     };
   });
-}
-
-async function handlePossibleNavigation(
-  actionDescription: string,
-  xpath: string,
-  initialUrl: string,
-  frame: Frame,
-): Promise<void> {
-  v3Logger({
-    category: "action",
-    message: `${actionDescription}, checking for page navigation`,
-    level: 1,
-    auxiliary: { xpath: { value: xpath, type: "string" } },
-  });
-
-  // We only have a frame-scoped session, so detect navigation by URL change.
-  const afterUrl = await getFrameUrl(frame);
-
-  if (afterUrl !== initialUrl) {
-    v3Logger({
-      category: "action",
-      message: "new page (frame) URL detected",
-      level: 1,
-      auxiliary: { url: { value: afterUrl, type: "string" } },
-    });
-  } else {
-    v3Logger({
-      category: "action",
-      message: "no new (frame) URL detected",
-      level: 1,
-      auxiliary: { url: { value: afterUrl, type: "string" } },
-    });
-  }
 }

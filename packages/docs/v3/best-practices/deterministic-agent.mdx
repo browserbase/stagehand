@@ -62,10 +62,7 @@ await page.goto("https://example.com");
 
 const agent = stagehand.agent({
   mode: "cua",
-  model: {
-    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
-  },
+  model: "google/gemini-3-flash-preview",
   systemPrompt: "You are a helpful assistant that can use a web browser.",
 });
 
@@ -127,10 +124,7 @@ await page.goto("https://github.com");
 
 const agent = stagehand.agent({
   mode: "cua",
-  model: {
-    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
-  },
+  model: "google/gemini-3-flash-preview",
   systemPrompt: "You are a helpful assistant that can use a web browser.",
 });
 
@@ -174,10 +168,7 @@ await page.goto("https://github.com");
 
 const agent = stagehand.agent({
   mode: "cua",
-  model: {
-    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
-  },
+  model: "google/gemini-3-flash-preview",
   systemPrompt: "You are a helpful assistant that can use a web browser.",
 });
 
@@ -222,10 +213,7 @@ await page.goto("https://example.com");
 
 const agent = stagehand.agent({
   mode: "cua",
-  model: {
-    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
-  },
+  model: "google/gemini-3-flash-preview",
   systemPrompt: "You are a helpful assistant that can use a web browser.",
 });
 
@@ -324,7 +312,7 @@ async function executeWithFallback() {
   await page.goto("https://example.com");
 
   const agent = stagehand.agent({
-    model: "anthropic/claude-sonnet-4-20250514"
+    model: "anthropic/claude-sonnet-4-6"
   });
 
   try {

@@ -58,22 +58,17 @@ touch api/run.ts package.json vercel.json tsconfig.json
 // api/run.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Stagehand } from "@browserbasehq/stagehand";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   try {
     const stagehand = new Stagehand({
       env: "BROWSERBASE",
       apiKey: process.env.BROWSERBASE_API_KEY!,
-      projectId: process.env.BROWSERBASE_PROJECT_ID!,
       disablePino: true,
-      model: {
-        modelName: "google/gemini-2.5-flash",
-        apiKey: process.env.GOOGLE_API_KEY!,
-      },
+      model: "google/gemini-2.5-flash",
       // optional session params
       browserbaseSessionCreateParams: {
-        projectId: process.env.BROWSERBASE_PROJECT_ID!,
         region: "us-west-2",
         browserSettings: {
           blockAds: true,
@@ -169,7 +164,6 @@ Do not commit `.env` in production. Add variables via Vercel CLI:
 
 ```bash
 vercel env add BROWSERBASE_API_KEY
-vercel env add BROWSERBASE_PROJECT_ID
 # (and your model key if needed)
 vercel env add GOOGLE_API_KEY
 ```

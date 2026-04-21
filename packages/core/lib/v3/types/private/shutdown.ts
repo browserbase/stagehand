@@ -14,7 +14,7 @@ export type ShutdownSupervisorConfig =
       kind: "STAGEHAND_API";
       sessionId: string;
       apiKey: string;
-      projectId: string;
+      projectId?: string;
     };
 
 export interface ShutdownSupervisorHandle {

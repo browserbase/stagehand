@@ -78,12 +78,11 @@ Before getting started, set up the required environment variables:
 <CodeGroup>
 ```bash .env
 BROWSERBASE_API_KEY=your_api_key_here
-BROWSERBASE_PROJECT_ID=your_project_id_here
 ```
 </CodeGroup>
 
 <Tip>
-Get your API key and Project ID from the [Browserbase Dashboard](https://browserbase.com/overview)
+Get your API key from the [Browserbase Dashboard](https://browserbase.com/overview)
 </Tip>
 
 ### Using Stagehand with Browserbase
@@ -110,9 +109,8 @@ import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
-  // Optional: API Key and Project ID will be pulled directly from your environment
+  // Optional: API Key will be pulled directly from your environment
   apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
   browserbaseSessionCreateParams: {
     proxies: true,
     region: "us-west-2",
@@ -132,9 +130,7 @@ console.log("Session ID:", stagehand.sessionId);
 const stagehand = new Stagehand({
       env: "BROWSERBASE",
       apiKey: process.env.BROWSERBASE_API_KEY,
-      projectId: process.env.BROWSERBASE_PROJECT_ID,
       browserbaseSessionCreateParams: {
-        projectId: process.env.BROWSERBASE_PROJECT_ID!,
         proxies: true,
         region: "us-west-2",
         timeout: 3600, // 1 hour session timeout
@@ -170,7 +166,6 @@ const bb = new Browserbase({
 });
 
 const session = await bb.sessions.create({
-  projectId: process.env.BROWSERBASE_PROJECT_ID!,
   // Add configuration options here
 });
 ```
@@ -265,6 +260,70 @@ await stagehand.init();
 
 ## Advanced Configuration
 
+### Keep Alive
+
+The `keepAlive` option controls whether the browser remains running after `stagehand.close()` is called or when the parent process exits unexpectedly (e.g., crash, `SIGTERM`, `SIGINT`).
+
+By default, Stagehand terminates the browser and cleans up all resources when it shuts down. Setting `keepAlive: true` keeps the browser running independently so you can reconnect to it later.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  keepAlive: true,
+});
+
+await stagehand.init();
+
+// The browser session continues running after close()
+await stagehand.close();
+
+// Later, reconnect to the same session
+const stagehand2 = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionID: stagehand.browserbaseSessionID,
+});
+await stagehand2.init();
+```
+
+#### Behavior by Environment
+
+| Behavior | `keepAlive: true` | `keepAlive: false` (default) |
+| --- | --- | --- |
+| **Browserbase** | Session stays active after `close()` | Session is terminated via API |
+| **Local** | Chrome process continues running | Chrome process is killed and temp profile is removed |
+| **On crash/signal** | Browser is left running | Browser is automatically cleaned up |
+
+#### Local Environment
+
+When running locally with `keepAlive: true`, the Chrome process is detached from the Node.js event loop, allowing your script to exit while the browser stays open. This is useful for debugging or for handing off a browser session to another process.
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  keepAlive: true,
+  localBrowserLaunchOptions: {
+    headless: false,
+  },
+});
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+// Browser window stays open after the script exits
+await stagehand.close();
+```
+
+#### Browserbase Environment
+
+On Browserbase, `keepAlive: true` keeps the cloud session active so you can reconnect later using `browserbaseSessionID`. This is useful for long-running workflows that span multiple script executions.
+
+<Note>
+The top-level `keepAlive` option overrides `browserbaseSessionCreateParams.keepAlive` when both are provided.
+</Note>
+
 ### Fixed CDP Debugging Port
 
 Specify a fixed Chrome DevTools Protocol (CDP) debugging port instead of using a randomly assigned one.
@@ -335,7 +394,7 @@ Setting `domSettleTimeout` too low may cause actions to fail on elements that ar
 
 <AccordionGroup>
 <Accordion title="Browserbase Authentication Errors">
-- Verify your `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` are set correctly
+- Verify your `BROWSERBASE_API_KEY` is set correctly
 - Check that your API key has the necessary permissions
 - Ensure your Browserbase account has sufficient credits
 </Accordion>

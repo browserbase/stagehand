@@ -8,22 +8,39 @@ export const screenshotTool = (v3: V3) =>
       "Takes a screenshot (PNG) of the current page. Use this to quickly verify page state.",
     inputSchema: z.object({}),
     execute: async () => {
-      v3.logger({
-        category: "agent",
-        message: `Agent calling tool: screenshot`,
-        level: 1,
-      });
-      const page = await v3.context.awaitActivePage();
-      const buffer = await page.screenshot({ fullPage: false });
-      const pageUrl = page.url();
+      try {
+        v3.logger({
+          category: "agent",
+          message: `Agent calling tool: screenshot`,
+          level: 1,
+        });
+        const page = await v3.context.awaitActivePage();
+        const buffer = await page.screenshot({ fullPage: false });
+        const pageUrl = page.url();
+        return {
+          success: true,
+          base64: buffer.toString("base64"),
+          timestamp: Date.now(),
+          pageUrl,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: `Error taking screenshot: ${(error as Error).message}`,
+        };
+      }
+    },
+    toModelOutput: (result) => {
+      if (result.success === false || result.error !== undefined) {
+        return {
+          type: "content",
+          value: [{ type: "text", text: JSON.stringify(result) }],
+        };
+      }
+
       return {
-        base64: buffer.toString("base64"),
-        timestamp: Date.now(),
-        pageUrl,
+        type: "content",
+        value: [{ type: "media", mediaType: "image/png", data: result.base64 }],
       };
     },
-    toModelOutput: (result) => ({
-      type: "content",
-      value: [{ type: "media", mediaType: "image/png", data: result.base64 }],
-    }),
   });

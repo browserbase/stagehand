@@ -42,4 +42,20 @@ export abstract class AgentClient {
   abstract setActionHandler(
     handler: (action: AgentAction) => Promise<void>,
   ): void;
+
+  /** Optional hook called at the top of every step in the agent loop. */
+  protected preStepHook?: () => Promise<void>;
+
+  setPreStepHook(handler: () => Promise<void>): void {
+    this.preStepHook = handler;
+  }
+
+  /**
+   * Optional ephemeral context note that should be sent to the next model turn.
+   * Clients that do not support this can ignore it.
+   */
+  addContextNote(note: string): void {
+    void note;
+    // no-op by default
+  }
 }

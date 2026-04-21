@@ -1,4 +1,4 @@
-import { EventEmitter } from "events";
+import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -21,6 +21,7 @@ import { ExtractHandler } from "./handlers/extractHandler.js";
 import { ObserveHandler } from "./handlers/observeHandler.js";
 import { V3AgentHandler } from "./handlers/v3AgentHandler.js";
 import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler.js";
+import { CAPTCHA_CUA_SYSTEM_PROMPT_NOTE } from "./agent/utils/captchaSolver.js";
 import { createBrowserbaseSession } from "./launch/browserbase.js";
 import { launchLocalChrome } from "./launch/local.js";
 import { LLMClient } from "./llm/LLMClient.js";
@@ -85,19 +86,23 @@ import { resolveModel } from "../modelUtils.js";
 import { StagehandAPIClient } from "./api.js";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
 import { flattenVariables } from "./agent/utils/variables.js";
-import { SessionFileLogger, logStagehandStep } from "./flowLogger.js";
+import { FlowLogger, type FlowLoggerContext } from "./flowlogger/FlowLogger.js";
+import { EventEmitterWithWildcardSupport } from "./flowlogger/EventEmitter.js";
+import { EventStore } from "./flowlogger/EventStore.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
+const DEFAULT_AGENT_TOOL_TIMEOUT_MS = 45000;
 
 type ResolvedModelConfiguration = {
   modelName: AvailableModel;
   clientOptions?: ClientOptions;
+  middleware?: LanguageModelV2Middleware;
 };
 
-function resolveModelConfiguration(
+export function resolveModelConfiguration(
   model?: V3Options["model"],
 ): ResolvedModelConfiguration {
   if (!model) {
@@ -109,7 +114,7 @@ function resolveModelConfiguration(
   }
 
   if (model && typeof model === "object") {
-    const { modelName, ...clientOptions } = model;
+    const { modelName, middleware, ...clientOptions } = model;
     if (!modelName) {
       throw new StagehandInvalidArgumentError(
         "model.modelName is required when providing client options.",
@@ -118,6 +123,7 @@ function resolveModelConfiguration(
     return {
       modelName,
       clientOptions: clientOptions as ClientOptions,
+      middleware,
     };
   }
 
@@ -152,7 +158,8 @@ export class V3 {
    * Event bus for internal communication.
    * Emits events like 'screenshot' when screenshots are captured during agent execution.
    */
-  public readonly bus: EventEmitter = new EventEmitter();
+  public readonly bus: EventEmitterWithWildcardSupport =
+    new EventEmitterWithWildcardSupport();
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions;
   private llmProvider: LLMProvider;
@@ -179,13 +186,36 @@ export class V3 {
   }
 
   /**
-   * Returns true if advancedStealth is enabled in Browserbase settings.
+   * Returns true if captcha auto-solving is enabled on Browserbase.
+   * Defaults to true when not explicitly set to false.
+   */
+  public get isCaptchaAutoSolveEnabled(): boolean {
+    return (
+      this.isBrowserbase &&
+      this.opts.browserbaseSessionCreateParams?.browserSettings
+        ?.solveCaptchas !== false
+    );
+  }
+
+  /**
+   * Returns true if Browserbase Verified mode is enabled in settings.
+   * Legacy `advancedStealth` is treated as equivalent for backwards compatibility.
+   */
+  public get isVerified(): boolean {
+    const browserSettings =
+      this.opts.browserbaseSessionCreateParams?.browserSettings;
+    return (
+      browserSettings?.verified === true ||
+      browserSettings?.advancedStealth === true
+    );
+  }
+
+  /**
+   * Backwards-compatible alias for Browserbase managed fingerprinting mode.
+   * @deprecated Use `isVerified` instead. This alias will be removed in a future version.
    */
   public get isAdvancedStealth(): boolean {
-    return (
-      this.opts.browserbaseSessionCreateParams?.browserSettings
-        ?.advancedStealth === true
-    );
+    return this.isVerified;
   }
 
   /**
@@ -229,6 +259,9 @@ export class V3 {
   private stagehandLogger: StagehandLogger;
   private _history: Array<HistoryEntry> = [];
   private readonly instanceId: string;
+  private readonly sessionId: string;
+  public readonly eventStore: EventStore;
+  public readonly flowLoggerContext: FlowLoggerContext;
   private static _processGuardsInstalled = false;
   private static _instances: Set<V3> = new Set();
   private cacheStorage: CacheStorage;
@@ -270,6 +303,7 @@ export class V3 {
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
     this.instanceId = uuidv7();
+    this.sessionId = opts.sessionId ?? this.instanceId;
     this.keepAlive =
       opts.keepAlive ?? opts.browserbaseSessionCreateParams?.keepAlive;
 
@@ -303,11 +337,13 @@ export class V3 {
     } catch {
       // ignore
     }
-    const { modelName, clientOptions } = resolveModelConfiguration(opts.model);
+    const { modelName, clientOptions, middleware } = resolveModelConfiguration(
+      opts.model,
+    );
     this.modelName = modelName;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
-    this.llmProvider = new LLMProvider(this.logger);
+    this.llmProvider = new LLMProvider(this.logger, middleware);
     this.domSettleTimeoutMs = opts.domSettleTimeout;
     this.disableAPI = opts.disableAPI ?? false;
 
@@ -373,13 +409,25 @@ export class V3 {
 
     this.opts = opts;
 
-    // Initialize session file logger
-    SessionFileLogger.init(this.instanceId, opts);
+    // FlowLogger always gets a per-instance session context and shared event
+    // bus. The attached EventStore decides which sinks are active:
+    // `BROWSERBASE_FLOW_LOGS=1` enables pretty stderr output,
+    // and `BROWSERBASE_CONFIG_DIR` enables the pretty/jsonl file sinks for this session.
+    this.eventStore = new EventStore(this.sessionId, opts);
+    this.flowLoggerContext = FlowLogger.init(this.sessionId, this.bus);
+    // Flow event pipeline:
+    // FlowLogger -> this.bus -> this.eventStore -> configured sinks/query history.
+    // V3 owns the bus for this session. EventStore is not another bus; it just
+    // receives already-emitted FlowEvents here, then fans them out to sinks and
+    // keeps the queryable per-session history used by /v4/log, parent/ancestor lookups, and tests.
+    // `on()` stores a strong reference to the handler, so the EventStore
+    // stays alive until this bus is garbage-collected with the rest of the V3
+    // object graph.
+    this.bus.on("*", this.eventStore.emit);
 
     // Track instance for global process guard handling
     V3._instances.add(this);
   }
-
   /**
    * Async property for metrics so callers can `await v3.metrics`.
    * When using API mode, fetches metrics from the API. Otherwise returns local metrics.
@@ -387,18 +435,105 @@ export class V3 {
   public get metrics(): Promise<StagehandMetrics> {
     if (this.apiClient) {
       // Fetch metrics from the API
-      return this.apiClient.getReplayMetrics().catch((error) => {
-        this.logger({
-          category: "metrics",
-          message: `Failed to fetch metrics from API: ${error}`,
-          level: 0,
+      return this.apiClient
+        .getReplayMetrics()
+        .then((metrics) => this.mergeAgentMetricsWithLocalFallback(metrics))
+        .catch((error) => {
+          this.logger({
+            category: "metrics",
+            message: `Failed to fetch metrics from API: ${error}`,
+            level: 0,
+          });
+          // Fall back to local metrics on error
+          return this.stagehandMetrics;
         });
-        // Fall back to local metrics on error
-        return this.stagehandMetrics;
-      });
     }
     // Return local metrics wrapped in a Promise for consistency
     return Promise.resolve(this.stagehandMetrics);
+  }
+
+  private mergeAgentMetricsWithLocalFallback(
+    remoteMetrics: StagehandMetrics,
+  ): StagehandMetrics {
+    // In API mode, agent.execute() is the only path that returns trusted inline
+    // usage today, so only repair the agent bucket from local state.
+    const agentPromptTokens = Math.max(
+      remoteMetrics.agentPromptTokens,
+      this.stagehandMetrics.agentPromptTokens,
+    );
+    const agentCompletionTokens = Math.max(
+      remoteMetrics.agentCompletionTokens,
+      this.stagehandMetrics.agentCompletionTokens,
+    );
+    const agentReasoningTokens = Math.max(
+      remoteMetrics.agentReasoningTokens,
+      this.stagehandMetrics.agentReasoningTokens,
+    );
+    const agentCachedInputTokens = Math.max(
+      remoteMetrics.agentCachedInputTokens,
+      this.stagehandMetrics.agentCachedInputTokens,
+    );
+    const agentInferenceTimeMs = Math.max(
+      remoteMetrics.agentInferenceTimeMs,
+      this.stagehandMetrics.agentInferenceTimeMs,
+    );
+
+    const metrics: StagehandMetrics = {
+      ...remoteMetrics,
+      agentPromptTokens,
+      agentCompletionTokens,
+      agentReasoningTokens,
+      agentCachedInputTokens,
+      agentInferenceTimeMs,
+      totalPromptTokens: 0,
+      totalCompletionTokens: 0,
+      totalReasoningTokens: 0,
+      totalCachedInputTokens: 0,
+      totalInferenceTimeMs: 0,
+    };
+
+    metrics.totalPromptTokens =
+      metrics.actPromptTokens +
+      metrics.extractPromptTokens +
+      metrics.observePromptTokens +
+      metrics.agentPromptTokens;
+    metrics.totalCompletionTokens =
+      metrics.actCompletionTokens +
+      metrics.extractCompletionTokens +
+      metrics.observeCompletionTokens +
+      metrics.agentCompletionTokens;
+    metrics.totalReasoningTokens =
+      metrics.actReasoningTokens +
+      metrics.extractReasoningTokens +
+      metrics.observeReasoningTokens +
+      metrics.agentReasoningTokens;
+    metrics.totalCachedInputTokens =
+      metrics.actCachedInputTokens +
+      metrics.extractCachedInputTokens +
+      metrics.observeCachedInputTokens +
+      metrics.agentCachedInputTokens;
+    metrics.totalInferenceTimeMs =
+      metrics.actInferenceTimeMs +
+      metrics.extractInferenceTimeMs +
+      metrics.observeInferenceTimeMs +
+      metrics.agentInferenceTimeMs;
+
+    return metrics;
+  }
+
+  private updateAgentMetricsFromUsage(usage?: AgentResult["usage"]): void {
+    if (!usage) {
+      return;
+    }
+
+    this.updateMetrics(
+      V3FunctionName.AGENT,
+      usage.input_tokens,
+      usage.output_tokens,
+      usage.reasoning_tokens ?? 0,
+      usage.cached_input_tokens ?? 0,
+      usage.inference_time_ms,
+    );
   }
 
   private resolveLlmClient(model?: ModelConfiguration): LLMClient {
@@ -408,17 +543,20 @@ export class V3 {
 
     let modelName: AvailableModel | string;
     let clientOptions: ClientOptions | undefined;
+    let perCallMiddleware: LanguageModelV2Middleware | undefined;
 
     if (typeof model === "string") {
       modelName = model;
     } else {
-      const { modelName: overrideModelName, ...rest } = model;
+      const { modelName: overrideModelName, middleware, ...rest } = model;
       modelName = overrideModelName;
       clientOptions = rest as ClientOptions;
+      perCallMiddleware = middleware;
     }
 
     if (
       modelName === this.modelName &&
+      !perCallMiddleware &&
       (!clientOptions || Object.keys(clientOptions).length === 0)
     ) {
       return this.llmClient;
@@ -440,6 +578,18 @@ export class V3 {
       }
     }
 
+    if (perCallMiddleware) {
+      return this.llmProvider.getClient(
+        modelName as AvailableModel,
+        mergedOptions,
+        {
+          experimental: this.experimental,
+          disableAPI: this.disableAPI,
+          middleware: perCallMiddleware,
+        },
+      );
+    }
+
     const cacheKey = JSON.stringify({
       modelName,
       clientOptions: mergedOptions,
@@ -453,7 +603,10 @@ export class V3 {
     const client = this.llmProvider.getClient(
       modelName as AvailableModel,
       mergedOptions,
-      { experimental: this.experimental, disableAPI: this.disableAPI },
+      {
+        experimental: this.experimental,
+        disableAPI: this.disableAPI,
+      },
     );
 
     this.overrideLlmClients.set(cacheKey, client);
@@ -728,6 +881,15 @@ export class V3 {
           const lbo: LocalBrowserLaunchOptions =
             this.opts.localBrowserLaunchOptions ?? {};
 
+          if (lbo.cdpHeaders && !lbo.cdpUrl) {
+            this.logger({
+              category: "init",
+              message:
+                "`cdpHeaders` was provided but `cdpUrl` is not set — cdpHeaders will be ignored. Set `cdpUrl` to connect to an existing browser via CDP.",
+              level: 2,
+            });
+          }
+
           // If a CDP URL is provided, attach instead of launching.
           if (lbo.cdpUrl) {
             this.logger({
@@ -737,12 +899,9 @@ export class V3 {
             });
             this.ctx = await V3Context.create(lbo.cdpUrl, {
               env: "LOCAL",
+              cdpHeaders: lbo.cdpHeaders,
             });
-            const logCtx = SessionFileLogger.getContext();
-            this.ctx.conn.cdpLogger = (info) =>
-              SessionFileLogger.logCdpCallEvent(info, logCtx);
-            this.ctx.conn.cdpEventLogger = (info) =>
-              SessionFileLogger.logCdpMessageEvent(info, logCtx);
+            this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
             this.state = {
               kind: "LOCAL",
@@ -781,7 +940,7 @@ export class V3 {
             "--disable-dev-shm-usage",
             "--site-per-process",
           ];
-          let chromeFlags: string[] = [];
+          let chromeFlags: string[];
           const ignore = lbo.ignoreDefaultArgs;
           if (ignore === true) {
             // drop defaults
@@ -842,11 +1001,7 @@ export class V3 {
             env: "LOCAL",
             localBrowserLaunchOptions: lbo,
           });
-          const logCtx = SessionFileLogger.getContext();
-          this.ctx.conn.cdpLogger = (info) =>
-            SessionFileLogger.logCdpCallEvent(info, logCtx);
-          this.ctx.conn.cdpEventLogger = (info) =>
-            SessionFileLogger.logCdpMessageEvent(info, logCtx);
+          this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = {
             kind: "LOCAL",
@@ -875,12 +1030,6 @@ export class V3 {
 
         if (this.opts.env === "BROWSERBASE") {
           const { apiKey, projectId } = this.requireBrowserbaseCreds();
-          if (!apiKey || !projectId) {
-            throw new MissingEnvironmentVariableError(
-              "BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID",
-              "Browserbase environment",
-            );
-          }
           this.logger({
             category: "init",
             message: "Starting browserbase session",
@@ -890,28 +1039,39 @@ export class V3 {
             this.opts.browserbaseSessionCreateParams ?? {};
           const resolvedKeepAlive = this.keepAlive;
           const keepAlive = this.keepAlive === true;
-          const effectiveSessionParams =
-            resolvedKeepAlive !== undefined
-              ? { ...baseSessionParams, keepAlive: resolvedKeepAlive }
-              : baseSessionParams;
+          let effectiveSessionParams = baseSessionParams;
+          if (resolvedKeepAlive !== undefined) {
+            effectiveSessionParams = {
+              ...baseSessionParams,
+              keepAlive: resolvedKeepAlive,
+            };
+          }
           if (!this.disableAPI && !this.experimental) {
             this.apiClient = new StagehandAPIClient({
               apiKey,
               projectId,
               logger: this.logger,
+              serverCache: this.opts.serverCache,
             });
+            const {
+              projectId: overrideProjectId,
+              browserSettings,
+              userMetadata,
+              ...restSessionParams
+            } = effectiveSessionParams;
+            const resolvedProjectId = overrideProjectId ?? projectId;
             const createSessionPayload = {
-              projectId: effectiveSessionParams.projectId ?? projectId,
-              ...effectiveSessionParams,
+              ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
+              ...restSessionParams,
               browserSettings: {
-                ...(effectiveSessionParams.browserSettings ?? {}),
-                viewport: effectiveSessionParams.browserSettings?.viewport ?? {
+                ...(browserSettings ?? {}),
+                viewport: browserSettings?.viewport ?? {
                   width: 1288,
                   height: 711,
                 },
               },
               userMetadata: {
-                ...(effectiveSessionParams.userMetadata ?? {}),
+                ...(userMetadata ?? {}),
                 stagehand: "true",
               },
             };
@@ -940,11 +1100,7 @@ export class V3 {
             env: "BROWSERBASE",
             apiClient: this.apiClient,
           });
-          const logCtx = SessionFileLogger.getContext();
-          this.ctx.conn.cdpLogger = (info) =>
-            SessionFileLogger.logCdpCallEvent(info, logCtx);
-          this.ctx.conn.cdpEventLogger = (info) =>
-            SessionFileLogger.logCdpMessageEvent(info, logCtx);
+          this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
           this.browserbaseSessionId = sessionId;
@@ -1063,7 +1219,9 @@ export class V3 {
   async act(instruction: string, options?: ActOptions): Promise<ActResult>;
   async act(action: Action, options?: ActOptions): Promise<ActResult>;
 
-  @logStagehandStep("Stagehand.act", "ACT")
+  @FlowLogger.wrapWithLogging({
+    eventType: "StagehandAct",
+  })
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.actHandler) throw new StagehandNotInitializedError("act()");
@@ -1083,12 +1241,8 @@ export class V3 {
             frameId: v3Page.mainFrameId(),
           });
         } else {
-          const effectiveTimeoutMs =
-            typeof options?.timeout === "number" && options.timeout > 0
-              ? options.timeout
-              : undefined;
           const ensureTimeRemaining = createTimeoutGuard(
-            effectiveTimeoutMs,
+            options?.timeout,
             (ms) => new ActTimeoutError(ms),
           );
           actResult = await this.actHandler.takeDeterministicAction(
@@ -1221,7 +1375,9 @@ export class V3 {
     options?: ExtractOptions,
   ): Promise<InferStagehandSchema<T>>;
 
-  @logStagehandStep("Stagehand.extract", "EXTRACT")
+  @FlowLogger.wrapWithLogging({
+    eventType: "StagehandExtract",
+  })
   async extract(
     a?: string | ExtractOptions,
     b?: StagehandZodSchema | ExtractOptions,
@@ -1315,7 +1471,9 @@ export class V3 {
     instruction: string,
     options?: ObserveOptions,
   ): Promise<Action[]>;
-  @logStagehandStep("Stagehand.observe", "OBSERVE")
+  @FlowLogger.wrapWithLogging({
+    eventType: "StagehandObserve",
+  })
   async observe(
     a?: string | ObserveOptions,
     b?: ObserveOptions,
@@ -1341,6 +1499,7 @@ export class V3 {
       const handlerParams: ObserveHandlerParams = {
         instruction,
         model: options?.model,
+        variables: options?.variables,
         timeout: options?.timeout,
         selector: options?.selector,
         page: page!,
@@ -1363,6 +1522,7 @@ export class V3 {
         "observe",
         {
           instruction,
+          variables: options?.variables,
           timeout: options?.timeout,
         },
         results,
@@ -1417,7 +1577,7 @@ export class V3 {
     try {
       // Close session file logger
       try {
-        await SessionFileLogger.close();
+        await FlowLogger.close(this.flowLoggerContext);
       } catch {
         // ignore
       }
@@ -1453,6 +1613,11 @@ export class V3 {
         // ignore
       }
       try {
+        await this.eventStore.destroy();
+      } catch {
+        // ignore
+      }
+      try {
         this.bus.removeAllListeners();
       } catch {
         // ignore
@@ -1465,8 +1630,19 @@ export class V3 {
     }
   }
 
+  /**
+   * Resolves the Browserbase API key from options or environment variables.
+   * Returns undefined if no key is found (does not throw).
+   */
+  public get browserbaseApiKey(): string | undefined {
+    return this.opts.apiKey || process.env.BROWSERBASE_API_KEY;
+  }
+
   /** Guard: ensure Browserbase credentials exist in options. */
-  private requireBrowserbaseCreds(): { apiKey: string; projectId: string } {
+  private requireBrowserbaseCreds(): {
+    apiKey: string;
+    projectId?: string;
+  } {
     let { apiKey, projectId } = this.opts;
 
     // Fall back to environment variables if not explicitly provided
@@ -1476,19 +1652,16 @@ export class V3 {
       projectId =
         process.env.BROWSERBASE_PROJECT_ID ?? process.env.BB_PROJECT_ID;
 
-    if (!apiKey || !projectId) {
-      const missing: string[] = [];
-      if (!apiKey) missing.push("BROWSERBASE_API_KEY");
-      if (!projectId) missing.push("BROWSERBASE_PROJECT_ID");
+    if (!apiKey) {
       throw new MissingEnvironmentVariableError(
-        missing.join(", "),
+        "BROWSERBASE_API_KEY",
         "Browserbase",
       );
     }
 
     // Cache resolved values back into opts for consistency
     this.opts.apiKey = apiKey;
-    this.opts.projectId = projectId;
+    if (projectId) this.opts.projectId = projectId;
 
     // Informational log
     this.logger({
@@ -1690,12 +1863,20 @@ export class V3 {
       options?.systemPrompt,
       tools,
       options?.mode,
+      this.isCaptchaAutoSolveEnabled,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =
       typeof instructionOrOptions === "string"
-        ? { instruction: instructionOrOptions }
-        : instructionOrOptions;
+        ? {
+            instruction: instructionOrOptions,
+            toolTimeout: DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+          }
+        : {
+            ...instructionOrOptions,
+            toolTimeout:
+              instructionOrOptions.toolTimeout ?? DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+          };
 
     const callbacksWithSafety = resolvedOptions.callbacks as
       | AgentExecuteCallbacks
@@ -1823,9 +2004,12 @@ export class V3 {
 
       const agentConfigSignature =
         this.agentCache.buildConfigSignature(options);
-      return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
-          withInstanceLogContext(this.instanceId, async () => {
+      const execute = async (
+        instructionOrOptions: string | AgentExecuteOptions,
+      ): Promise<AgentResult> =>
+        withInstanceLogContext(
+          this.instanceId,
+          async (): Promise<AgentResult> => {
             validateExperimentalFeatures({
               isExperimental: this.experimental,
               agentConfig: options,
@@ -1835,10 +2019,6 @@ export class V3 {
                   : null,
             });
 
-            SessionFileLogger.logAgentTaskStarted({
-              invocation: "Agent.execute",
-              args: [instructionOrOptions],
-            });
             const tools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
               : (options?.tools ?? {});
@@ -1850,16 +2030,27 @@ export class V3 {
                 modelName,
                 clientOptions,
                 userProvidedInstructions:
-                  options.systemPrompt ??
-                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+                  (options.systemPrompt ??
+                    `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`) +
+                  (this.isCaptchaAutoSolveEnabled
+                    ? CAPTCHA_CUA_SYSTEM_PROMPT_NOTE
+                    : ""),
               },
               tools,
             );
 
             const resolvedOptions: AgentExecuteOptions =
               typeof instructionOrOptions === "string"
-                ? { instruction: instructionOrOptions }
-                : instructionOrOptions;
+                ? {
+                    instruction: instructionOrOptions,
+                    toolTimeout: DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+                  }
+                : {
+                    ...instructionOrOptions,
+                    toolTimeout:
+                      instructionOrOptions.toolTimeout ??
+                      DEFAULT_AGENT_TOOL_TIMEOUT_MS,
+                  };
             if (resolvedOptions.page) {
               const normalizedPage = await this.normalizeToV3Page(
                 resolvedOptions.page,
@@ -1885,7 +2076,6 @@ export class V3 {
               if (cacheContext) {
                 const replayed = await this.agentCache.tryReplay(cacheContext);
                 if (replayed) {
-                  SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                   return replayed;
                 }
               }
@@ -1908,6 +2098,7 @@ export class V3 {
                   page.mainFrameId(),
                   !!cacheContext,
                 );
+                this.updateAgentMetricsFromUsage(result.usage);
                 if (cacheContext) {
                   const transferredEntry =
                     this.apiClient.consumeLatestAgentCacheEntry();
@@ -1937,24 +2128,29 @@ export class V3 {
               if (shouldRecordLocally) {
                 this.discardAgentReplayRecording();
               }
-              SessionFileLogger.logAgentTaskCompleted();
             }
-          }),
+          },
+        );
+      return {
+        execute: FlowLogger.wrapWithLogging({
+          eventType: "AgentExecute",
+          context: this.flowLoggerContext,
+        })(execute),
       };
     }
 
     // Default: AISDK tools-based agent
     const agentConfigSignature = this.agentCache.buildConfigSignature(options);
     const isStreaming = options?.stream ?? false;
-
-    return {
-      execute: async (
-        instructionOrOptions:
-          | string
-          | AgentExecuteOptions
-          | AgentStreamExecuteOptions,
-      ): Promise<AgentResult | AgentStreamResult> =>
-        withInstanceLogContext(this.instanceId, async () => {
+    const execute = async (
+      instructionOrOptions:
+        | string
+        | AgentExecuteOptions
+        | AgentStreamExecuteOptions,
+    ): Promise<AgentResult | AgentStreamResult> =>
+      withInstanceLogContext(
+        this.instanceId,
+        async (): Promise<AgentResult | AgentStreamResult> => {
           validateExperimentalFeatures({
             isExperimental: this.experimental,
             agentConfig: options,
@@ -1963,10 +2159,6 @@ export class V3 {
                 ? instructionOrOptions
                 : null,
             isStreaming,
-          });
-          SessionFileLogger.logAgentTaskStarted({
-            invocation: "Agent.execute",
-            args: [instructionOrOptions],
           });
 
           // Streaming mode
@@ -1984,7 +2176,6 @@ export class V3 {
                 llmClient,
               );
               if (replayed) {
-                SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
                 return replayed;
               }
             }
@@ -2001,13 +2192,9 @@ export class V3 {
                 () => this.endAgentReplayRecording(),
                 () => this.discardAgentReplayRecording(),
               );
-              // Log completion when stream is returned (stream completes asynchronously)
-              SessionFileLogger.logAgentTaskCompleted();
               return wrappedStream;
             }
 
-            // Log completion when stream is returned (stream completes asynchronously)
-            SessionFileLogger.logAgentTaskCompleted();
             return streamResult;
           }
 
@@ -2025,7 +2212,6 @@ export class V3 {
               llmClient,
             );
             if (replayed) {
-              SessionFileLogger.logAgentTaskCompleted({ cacheHit: true });
               return replayed;
             }
           }
@@ -2047,6 +2233,7 @@ export class V3 {
                 page.mainFrameId(),
                 !!cacheContext,
               );
+              this.updateAgentMetricsFromUsage(result.usage);
               if (cacheContext) {
                 const transferredEntry =
                   this.apiClient.consumeLatestAgentCacheEntry();
@@ -2078,9 +2265,14 @@ export class V3 {
             if (shouldRecordLocally) {
               this.discardAgentReplayRecording();
             }
-            SessionFileLogger.logAgentTaskCompleted();
           }
-        }),
+        },
+      );
+    return {
+      execute: FlowLogger.wrapWithLogging({
+        eventType: "AgentExecute",
+        context: this.flowLoggerContext,
+      })(execute),
     };
   }
 }

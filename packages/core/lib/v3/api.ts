@@ -11,12 +11,12 @@ import {
   ExperimentalNotConfiguredError,
 } from "./types/public/index.js";
 import type {
-  Action,
   ActResult,
   AgentConfig,
   AgentExecuteOptions,
   AgentResult,
   ExtractResult,
+  ObserveResult,
   LogLine,
   StagehandMetrics,
   BrowserbaseRegion,
@@ -84,8 +84,15 @@ export function getApiUrlForRegion(
  */
 interface StagehandAPIConstructorParams {
   apiKey: string;
-  projectId: string;
+  projectId?: string;
   logger: (message: LogLine) => void;
+  /**
+   * When true, enables server-side caching by default for all requests.
+   * When false, disables server-side caching.
+   * Defaults to true (caching enabled).
+   * Can be overridden per-method in act(), extract(), and observe() options.
+   */
+  serverCache?: boolean;
 }
 
 /**
@@ -95,8 +102,10 @@ interface StagehandAPIConstructorParams {
  * Wire format: Api.SessionStartRequest (modelApiKey sent via header, not body)
  */
 interface ClientSessionStartParams extends Api.SessionStartRequest {
-  /** Model API key - sent via x-model-api-key header, not in request body */
-  modelApiKey: string;
+  /** Model API key - sent via x-model-api-key header, not in request body.
+   *  Optional: when omitted, requests are sent without the x-model-api-key header
+   *  and the server is expected to handle model authentication on its own. */
+  modelApiKey?: string;
 }
 
 /**
@@ -123,6 +132,12 @@ interface ExecuteActionParams {
   method: "act" | "extract" | "observe" | "navigate" | "end" | "agentExecute";
   args?: ApiRequestBody;
   params?: Record<string, string>;
+  /**
+   * Override the instance-level serverCache setting for this request.
+   * When true, enables server-side caching.
+   * When false, disables server-side caching.
+   */
+  serverCache?: boolean;
 }
 
 /**
@@ -161,20 +176,27 @@ interface ClientObserveParameters {
 
 export class StagehandAPIClient {
   private apiKey: string;
-  private projectId: string;
+  private projectId?: string;
   private sessionId?: string;
-  private modelApiKey: string;
+  private modelApiKey?: string;
   private modelProvider?: string;
   private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
+  private serverCache: boolean;
   private lastFinishedEventData: Record<string, unknown> | null = null;
   private latestAgentCacheEntry: AgentCacheTransferPayload | null = null;
 
-  constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
+  constructor({
+    apiKey,
+    projectId,
+    logger,
+    serverCache,
+  }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
     this.projectId = projectId;
     this.logger = logger;
+    this.serverCache = serverCache ?? true;
     // Create a single cookie jar instance that will persist across all requests
     this.fetchWithCookies = makeFetchCookie(fetch);
   }
@@ -190,9 +212,6 @@ export class StagehandAPIClient {
     browserbaseSessionID,
     // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
-    if (!modelApiKey) {
-      throw new StagehandAPIError("modelApiKey is required");
-    }
     this.modelApiKey = modelApiKey;
     // Extract provider from modelName (e.g., "openai/gpt-5-nano" -> "openai")
     this.modelProvider = modelName?.includes("/")
@@ -261,11 +280,13 @@ export class StagehandAPIClient {
     options,
     frameId,
   }: ClientActParameters): Promise<ActResult> {
-    // Strip non-serializable `page` from options before wire serialization
+    // Strip non-serializable `page` and SDK-only fields from options before wire serialization
     let wireOptions: Api.ActRequest["options"];
+    let serverCache: boolean | undefined;
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, ...restOptions } = options;
+      const { page: _, serverCache: enableCache, ...restOptions } = options;
+      serverCache = enableCache;
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
@@ -284,6 +305,7 @@ export class StagehandAPIClient {
     return this.execute<ActResult>({
       method: "act",
       args: requestBody,
+      serverCache,
     });
   }
 
@@ -296,11 +318,13 @@ export class StagehandAPIClient {
     // Convert Zod schema to JSON schema for wire format
     const jsonSchema = zodSchema ? toJsonSchema(zodSchema) : undefined;
 
-    // Strip non-serializable `page` from options before wire serialization
+    // Strip non-serializable `page` and SDK-only fields from options before wire serialization
     let wireOptions: Api.ExtractRequest["options"];
+    let serverCache: boolean | undefined;
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, ...restOptions } = options;
+      const { page: _, serverCache: enableCache, ...restOptions } = options;
+      serverCache = enableCache;
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
@@ -320,6 +344,7 @@ export class StagehandAPIClient {
     return this.execute<ExtractResult<T>>({
       method: "extract",
       args: requestBody,
+      serverCache,
     });
   }
 
@@ -327,12 +352,14 @@ export class StagehandAPIClient {
     instruction,
     options,
     frameId,
-  }: ClientObserveParameters): Promise<Action[]> {
-    // Strip non-serializable `page` from options before wire serialization
+  }: ClientObserveParameters): Promise<ObserveResult> {
+    // Strip non-serializable `page` and SDK-only fields from options before wire serialization
     let wireOptions: Api.ObserveRequest["options"];
+    let serverCache: boolean | undefined;
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, ...restOptions } = options;
+      const { page: _, serverCache: enableCache, ...restOptions } = options;
+      serverCache = enableCache;
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
@@ -348,9 +375,10 @@ export class StagehandAPIClient {
       frameId,
     };
 
-    return this.execute<Action[]>({
+    return this.execute<ObserveResult>({
       method: "observe",
       args: requestBody,
+      serverCache,
     });
   }
 
@@ -578,7 +606,7 @@ export class StagehandAPIClient {
    */
   private prepareModelConfig(
     model: ModelConfiguration,
-  ): { modelName: string; apiKey: string } & Record<string, unknown> {
+  ): { modelName: string; apiKey?: string } & Record<string, unknown> {
     if (typeof model === "string") {
       // Extract provider from model string (e.g., "openai/gpt-5-nano" -> "openai")
       const provider = model.includes("/") ? model.split("/")[0] : undefined;
@@ -588,7 +616,7 @@ export class StagehandAPIClient {
           : this.modelApiKey;
       return {
         modelName: model,
-        apiKey,
+        ...(apiKey ? { apiKey } : {}),
       };
     }
 
@@ -602,7 +630,7 @@ export class StagehandAPIClient {
           : this.modelApiKey;
       return {
         ...model,
-        apiKey,
+        ...(apiKey ? { apiKey } : {}),
       };
     }
 
@@ -622,16 +650,27 @@ export class StagehandAPIClient {
     method,
     args,
     params,
+    serverCache,
   }: ExecuteActionParams): Promise<T> {
     this.lastFinishedEventData = null;
     const urlParams = new URLSearchParams(params as Record<string, string>);
     const queryString = urlParams.toString();
     const url = `/sessions/${this.sessionId}/${method}${queryString ? `?${queryString}` : ""}`;
 
-    const response = await this.request(url, {
-      method: "POST",
-      body: JSON.stringify(args),
-    });
+    const response = await this.request(
+      url,
+      {
+        method: "POST",
+        body: JSON.stringify(args),
+      },
+      serverCache,
+    );
+
+    // Capture cache status from response header
+    const cacheStatus = response.headers.get("browserbase-cache-status") as
+      | "HIT"
+      | "MISS"
+      | null;
 
     if (!response.ok) {
       const errorBody = await response.text();
@@ -675,7 +714,16 @@ export class StagehandAPIClient {
             }
             if (eventData.data.status === "finished") {
               this.lastFinishedEventData = eventData.data;
-              return eventData.data.result as T;
+
+              // If caching was bypassed for this request, suppress cache status
+              // so we don't log or surface a MISS that the server emits anyway.
+              const cacheEnabled = this.shouldUseCache(serverCache);
+              return this.attachCacheStatus(
+                eventData.data.result as T,
+                method,
+                cacheEnabled ? cacheStatus : null,
+                cacheEnabled ? eventData : { data: {} },
+              );
             }
           } else if (eventData.type === "log") {
             const msg = eventData.data.message;
@@ -713,7 +761,12 @@ export class StagehandAPIClient {
               eventData.type === "system" &&
               eventData.data.status === "finished"
             ) {
-              return eventData.data.result as T;
+              return this.attachCacheStatus(
+                eventData.data.result as T,
+                method,
+                cacheStatus,
+                eventData,
+              );
             }
           } catch {
             this.logger({
@@ -730,17 +783,80 @@ export class StagehandAPIClient {
     }
   }
 
-  private async request(path: string, options: RequestInit): Promise<Response> {
+  /**
+   * Resolves the final cache status from the response header or SSE event data,
+   * logs it, and attaches it to act/extract results before returning.
+   */
+  private attachCacheStatus<T>(
+    result: T,
+    method: string,
+    cacheStatus: "HIT" | "MISS" | null,
+    eventData: { data: { cacheHit?: boolean } },
+  ): T {
+    const finalCacheStatus =
+      cacheStatus ||
+      (typeof eventData.data.cacheHit === "boolean"
+        ? eventData.data.cacheHit
+          ? "HIT"
+          : "MISS"
+        : undefined);
+    if (
+      finalCacheStatus &&
+      (method === "act" || method === "extract" || method === "observe")
+    ) {
+      this.logger({
+        category: "cache",
+        message: `${method} server cache ${finalCacheStatus.toLowerCase()}`,
+        level: 1,
+      });
+    }
+    if (
+      finalCacheStatus &&
+      result &&
+      typeof result === "object" &&
+      (method === "act" || method === "extract" || method === "observe")
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (result as ActResult | ExtractResult<any> | ObserveResult).cacheStatus =
+        finalCacheStatus;
+    }
+    return result;
+  }
+
+  /**
+   * Determine if caching should be enabled for a request.
+   * Method-level setting takes precedence over instance-level setting.
+   */
+  private shouldUseCache(methodServerCache?: boolean): boolean {
+    // If method-level setting is explicitly provided, use it
+    if (methodServerCache !== undefined) {
+      return methodServerCache;
+    }
+    // Otherwise, use instance-level setting
+    return this.serverCache;
+  }
+
+  private async request(
+    path: string,
+    options: RequestInit,
+    serverCache?: boolean,
+  ): Promise<Response> {
     const defaultHeaders: Record<string, string> = {
       "x-bb-api-key": this.apiKey,
-      "x-bb-project-id": this.projectId,
+      ...(this.projectId ? { "x-bb-project-id": this.projectId } : {}),
       "x-bb-session-id": this.sessionId,
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
-      "x-model-api-key": this.modelApiKey,
+      ...(this.modelApiKey ? { "x-model-api-key": this.modelApiKey } : {}),
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
+
+    // Add cache bypass header if caching is disabled
+    if (!this.shouldUseCache(serverCache)) {
+      defaultHeaders["browserbase-cache-bypass"] = "true";
+    }
+
     if (options.method === "POST" && options.body) {
       defaultHeaders["Content-Type"] = "application/json";
     }

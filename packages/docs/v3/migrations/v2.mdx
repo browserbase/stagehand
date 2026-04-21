@@ -54,7 +54,6 @@ import { Stagehand } from "@browserbasehq/stagehand";
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
   modelName: "openai/gpt-5",
   modelClientOptions: {
     apiKey: process.env.OPENAI_API_KEY
@@ -70,7 +69,6 @@ import { Stagehand } from "@browserbasehq/stagehand";
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
   model: "openai/gpt-5"
 });
 
@@ -78,7 +76,6 @@ const stagehand = new Stagehand({
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
   model: {
     modelName: "gpt-5",
     apiKey: process.env.OPENAI_API_KEY,
@@ -345,7 +342,7 @@ console.log(result.actions);  // Array of action details
 `extract()` has moved from the page object to the stagehand instance, with a cleaner parameter structure.
 
 ```typescript Stagehand v2 icon="/images/typescript.svg"
-import { z } from 'zod/v3';
+import { z } from "zod";
 
 const result = await page.extract({
   instruction: "extract product details",
@@ -361,7 +358,7 @@ const result = await page.extract({
 ```
 
 ```typescript Stagehand v3 icon="/images/typescript.svg"
-import { z } from 'zod/v3';
+import { z } from "zod";
 
 // Cleaner parameter structure
 const result = await stagehand.extract(
@@ -453,7 +450,7 @@ const data = await stagehand.extract(
 Array extraction now has a more ergonomic syntax.
 
 ```typescript Stagehand v2 icon="/images/typescript.svg"
-import { z } from 'zod/v3';
+import { z } from "zod";
 
 // Had to wrap array in object
 const ApartmentListingsSchema = z.object({
@@ -473,7 +470,7 @@ const result = await page.extract({
 ```
 
 ```typescript Stagehand v3 icon="/images/typescript.svg"
-import { z } from 'zod/v3';
+import { z } from "zod";
 
 // Can use array schema directly
 const ApartmentListingsSchema = z.array(
@@ -733,13 +730,12 @@ Here's a complete example showing a full migration:
 
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
-import { z } from 'zod/v3';
+import { z } from "zod";
 
 // Initialize
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
   modelName: "openai/gpt-5",
   modelClientOptions: {
     apiKey: process.env.OPENAI_API_KEY
@@ -790,13 +786,12 @@ await stagehand.close();
 
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
-import { z } from 'zod/v3';
+import { z } from "zod";
 
 // Initialize - simplified configuration
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
   model: "openai/gpt-5",  // Unified model configuration
   cacheDir: "./cache",      // Flexible cache directory
   domSettleTimeout: 5000    // Consistent naming

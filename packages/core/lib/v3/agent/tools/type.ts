@@ -99,43 +99,36 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
       } catch (error) {
         return {
           success: false,
-          error: `Error typing: ${(error as Error).message}`,
+          error: `Error typing: ${error.message}`,
         };
       }
     },
     toModelOutput: (result) => {
-      if (result.success) {
-        const content: ModelOutputContentItem[] = [
-          {
-            type: "text",
-            text: JSON.stringify({
-              success: result.success,
-              describe: result.describe,
-              text: result.text,
-            }),
-          },
-        ];
-        if (result.screenshotBase64) {
-          content.push({
-            type: "media",
-            mediaType: "image/png",
-            data: result.screenshotBase64,
-          });
-        }
-        return { type: "content", value: content };
+      if (result.success === false || result.error !== undefined) {
+        return {
+          type: "content",
+          value: [{ type: "text", text: JSON.stringify(result) }],
+        };
       }
-      return {
-        type: "content",
-        value: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              success: result.success,
-              error: result.error,
-            }),
-          },
-        ],
-      };
+
+      const content: ModelOutputContentItem[] = [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: result.success,
+            describe: result.describe,
+            text: result.text,
+          }),
+        },
+      ];
+      if (result.screenshotBase64) {
+        content.push({
+          type: "media",
+          mediaType: "image/png",
+          data: result.screenshotBase64,
+        });
+      }
+      return { type: "content", value: content };
     },
   });
 };

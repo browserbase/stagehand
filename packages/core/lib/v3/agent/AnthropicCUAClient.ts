@@ -22,10 +22,10 @@ import { compressConversationImages } from "./utils/imageCompression.js";
 import { toJsonSchema } from "../zodCompat.js";
 import type { StagehandZodSchema } from "../zodCompat.js";
 import {
-  SessionFileLogger,
-  formatCuaPromptPreview,
-  formatCuaResponsePreview,
-} from "../flowLogger.js";
+  FlowLogger,
+  extractLlmCuaPromptSummary,
+  extractLlmCuaResponseSummary,
+} from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
@@ -136,6 +136,8 @@ export class AnthropicCUAClient extends AgentClient {
     try {
       // Execute steps until completion or max steps reached
       while (!completed && currentStep < maxSteps) {
+        await this.preStepHook?.();
+
         logger({
           category: "agent",
           message: `Executing step ${currentStep + 1}/${maxSteps}`,
@@ -511,11 +513,10 @@ export class AnthropicCUAClient extends AgentClient {
 
       // Log LLM request
       const llmRequestId = uuidv7();
-      SessionFileLogger.logLlmRequest({
+      FlowLogger.logLlmRequest({
         requestId: llmRequestId,
         model: this.modelName,
-        operation: "CUA.getAction",
-        prompt: formatCuaPromptPreview(messages),
+        prompt: extractLlmCuaPromptSummary(messages),
       });
 
       const startTime = Date.now();
@@ -531,11 +532,10 @@ export class AnthropicCUAClient extends AgentClient {
       };
 
       // Log LLM response
-      SessionFileLogger.logLlmResponse({
+      FlowLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.modelName,
-        operation: "CUA.getAction",
-        output: formatCuaResponsePreview(response.content),
+        output: extractLlmCuaResponseSummary(response.content),
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
       });

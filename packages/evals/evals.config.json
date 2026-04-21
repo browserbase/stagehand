@@ -109,18 +109,6 @@
       "categories": ["combination", "regression"]
     },
     {
-      "name": "hn_aisdk",
-      "categories": ["llm_clients"]
-    },
-    {
-      "name": "hn_langchain",
-      "categories": ["llm_clients"]
-    },
-    {
-      "name": "hn_customOpenAI",
-      "categories": ["llm_clients"]
-    },
-    {
       "name": "apple",
       "categories": ["experimental"]
     },

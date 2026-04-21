@@ -898,6 +898,66 @@ describe("No-timeout success paths", () => {
     );
   });
 
+  it("observe() forwards variables to inference and preserves placeholders", async () => {
+    const captureHybridSnapshotMock = vi.mocked(captureHybridSnapshot);
+    captureHybridSnapshotMock.mockResolvedValue({
+      combinedTree: "tree content",
+      combinedXpathMap: { "1-0": "/html/body/input" },
+      combinedUrlMap: {},
+    });
+
+    const observeInferenceMock = vi.mocked(observeInference);
+    observeInferenceMock.mockResolvedValue({
+      elements: [
+        {
+          elementId: "1-0",
+          description: "Email field",
+          method: "fill",
+          arguments: ["%username%"],
+        },
+      ],
+      prompt_tokens: 150,
+      completion_tokens: 75,
+      reasoning_tokens: 15,
+      cached_input_tokens: 8,
+      inference_time_ms: 600,
+    } as ReturnType<typeof observeInference> extends Promise<infer T>
+      ? T
+      : never);
+
+    vi.mocked(createTimeoutGuard).mockImplementation(() => {
+      return vi.fn(() => {
+        // No-op - never throws
+      });
+    });
+
+    const handler = buildObserveHandler();
+    const fakePage = {
+      mainFrame: vi.fn().mockReturnValue({}),
+    } as unknown as Page;
+    const variables = {
+      username: {
+        value: "john@example.com",
+        description: "The login email",
+      },
+    };
+
+    const result = await handler.observe({
+      instruction: "find the field where %username% should be entered",
+      variables,
+      page: fakePage,
+    });
+
+    expect(observeInferenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variables,
+      }),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]).toHaveProperty("arguments");
+    expect(result[0]?.arguments).toEqual(["%username%"]);
+  });
+
   it("act() with zero timeout behaves as no timeout", async () => {
     const waitForDomNetworkQuietMock = vi.mocked(waitForDomNetworkQuiet);
     waitForDomNetworkQuietMock.mockResolvedValue(undefined);

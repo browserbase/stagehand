@@ -1,3 +1,4 @@
+import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
 import {
   ExperimentalNotConfiguredError,
   UnsupportedAISDKModelProviderError,
@@ -31,7 +32,7 @@ import { mistral, createMistral } from "@ai-sdk/mistral";
 import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama, createOllama } from "ollama-ai-provider-v2";
-import { gateway, createGateway } from "ai";
+import { gateway, createGateway, wrapLanguageModel } from "ai";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model.js";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
@@ -85,11 +86,6 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gpt-4o-2024-08-06": "openai",
   "gpt-4.5-preview": "openai",
   "o1-preview": "openai",
-  "claude-3-5-sonnet-latest": "anthropic",
-  "claude-3-5-sonnet-20240620": "anthropic",
-  "claude-3-5-sonnet-20241022": "anthropic",
-  "claude-3-7-sonnet-20250219": "anthropic",
-  "claude-3-7-sonnet-latest": "anthropic",
   "cerebras-llama-3.3-70b": "cerebras",
   "cerebras-llama-3.1-8b": "cerebras",
   "groq-llama-3.3-70b-versatile": "groq",
@@ -108,11 +104,13 @@ export function getAISDKLanguageModel(
   subProvider: string,
   subModelName: string,
   clientOptions?: ClientOptions,
+  middleware?: LanguageModelV2Middleware,
 ) {
   const hasValidOptions =
     clientOptions &&
     Object.values(clientOptions).some((v) => v !== undefined && v !== null);
 
+  let model;
   if (hasValidOptions) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
@@ -122,8 +120,7 @@ export function getAISDKLanguageModel(
       );
     }
     const provider = creator(clientOptions);
-    // Get the specific model from the provider
-    return provider(subModelName);
+    model = provider(subModelName);
   } else {
     const provider = AISDKProviders[subProvider];
     if (!provider) {
@@ -132,21 +129,35 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProviders),
       );
     }
-    return provider(subModelName);
+    model = provider(subModelName);
   }
+
+  if (middleware) {
+    return wrapLanguageModel({ model, middleware });
+  }
+  return model;
 }
 
 export class LLMProvider {
   private logger: (message: LogLine) => void;
+  private middleware?: LanguageModelV2Middleware;
 
-  constructor(logger: (message: LogLine) => void) {
+  constructor(
+    logger: (message: LogLine) => void,
+    middleware?: LanguageModelV2Middleware,
+  ) {
     this.logger = logger;
+    this.middleware = middleware;
   }
 
   getClient(
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
-    options?: { experimental?: boolean; disableAPI?: boolean },
+    options?: {
+      experimental?: boolean;
+      disableAPI?: boolean;
+      middleware?: LanguageModelV2Middleware;
+    },
   ): LLMClient {
     if (modelName.includes("/")) {
       const firstSlashIndex = modelName.indexOf("/");
@@ -160,15 +171,18 @@ export class LLMProvider {
         throw new ExperimentalNotConfiguredError("Vertex provider");
       }
 
+      const effectiveMiddleware = options?.middleware ?? this.middleware;
       const languageModel = getAISDKLanguageModel(
         subProvider,
         subModelName,
         clientOptions,
+        effectiveMiddleware,
       );
 
       return new AISdkClient({
         model: languageModel,
         logger: this.logger,
+        clientOptions,
       });
     }
 

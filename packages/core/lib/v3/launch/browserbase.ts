@@ -8,7 +8,7 @@ import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 
 export async function createBrowserbaseSession(
   apiKey: string,
-  projectId: string,
+  projectId?: string,
   params?: BrowserbaseSessionCreateParams,
   resumeSessionId?: string,
 ): Promise<{ ws: string; sessionId: string; bb: Browserbase }> {
@@ -19,14 +19,11 @@ export async function createBrowserbaseSession(
 
   // Resume an existing session if provided
   if (resumeSessionId) {
-    const retrievePromise = bb.sessions.retrieve(resumeSessionId);
-    const existing = (sessionCreateTimeoutMs
-      ? await withTimeout(
-          retrievePromise,
-          sessionCreateTimeoutMs,
-          "Browserbase session retrieve",
-        )
-      : await retrievePromise) as unknown as {
+    const existing = (await withTimeout(
+      bb.sessions.retrieve(resumeSessionId),
+      sessionCreateTimeoutMs,
+      "Browserbase session retrieve",
+    )) as unknown as {
       id: string;
       connectUrl?: string;
       status?: string;
@@ -53,8 +50,9 @@ export async function createBrowserbaseSession(
   } = params ?? {};
 
   // satisfies check ensures our BrowserbaseSessionCreateParamsSchema stays in sync with SDK
+  const resolvedProjectId = overrideProjectId ?? projectId;
   const createPayload = {
-    projectId: overrideProjectId ?? projectId,
+    ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
     ...rest,
     browserSettings: {
       ...(browserSettings ?? {}),
@@ -66,14 +64,11 @@ export async function createBrowserbaseSession(
     },
   } satisfies Browserbase.Sessions.SessionCreateParams;
 
-  const createPromise = bb.sessions.create(createPayload);
-  const created = (sessionCreateTimeoutMs
-    ? await withTimeout(
-        createPromise,
-        sessionCreateTimeoutMs,
-        "Browserbase session create",
-      )
-    : await createPromise) as unknown as { id: string; connectUrl: string };
+  const created = (await withTimeout(
+    bb.sessions.create(createPayload),
+    sessionCreateTimeoutMs,
+    "Browserbase session create",
+  )) as unknown as { id: string; connectUrl: string };
 
   if (!created?.connectUrl || !created?.id) {
     throw new StagehandInitError(

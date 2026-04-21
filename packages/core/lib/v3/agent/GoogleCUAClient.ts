@@ -34,10 +34,10 @@ import {
 } from "./utils/googleCustomToolHandler.js";
 import { ToolSet } from "ai";
 import {
-  SessionFileLogger,
-  formatCuaPromptPreview,
-  formatCuaResponsePreview,
-} from "../flowLogger.js";
+  FlowLogger,
+  extractLlmCuaPromptSummary,
+  extractLlmCuaResponseSummary,
+} from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
 /**
@@ -246,6 +246,8 @@ export class GoogleCUAClient extends AgentClient {
     try {
       // Execute steps until completion or max steps reached
       while (!completed && currentStep < maxSteps) {
+        await this.preStepHook?.();
+
         logger({
           category: "agent",
           message: `Executing step ${currentStep + 1}/${maxSteps}`,
@@ -368,11 +370,10 @@ export class GoogleCUAClient extends AgentClient {
 
       // Log LLM request
       const llmRequestId = uuidv7();
-      SessionFileLogger.logLlmRequest({
+      FlowLogger.logLlmRequest({
         requestId: llmRequestId,
         model: this.modelName,
-        operation: "CUA.generateContent",
-        prompt: formatCuaPromptPreview(compressedHistory),
+        prompt: extractLlmCuaPromptSummary(compressedHistory),
       });
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -442,11 +443,10 @@ export class GoogleCUAClient extends AgentClient {
       const { usageMetadata } = response;
 
       // Log LLM response
-      SessionFileLogger.logLlmResponse({
+      FlowLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.modelName,
-        operation: "CUA.generateContent",
-        output: formatCuaResponsePreview(response),
+        output: extractLlmCuaResponseSummary(response),
         inputTokens: usageMetadata?.promptTokenCount,
         outputTokens: usageMetadata?.candidatesTokenCount,
       });

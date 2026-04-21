@@ -1,7 +1,7 @@
 import { Protocol } from "devtools-protocol";
 import { promises as fs } from "fs";
 import { v3Logger } from "../logger.js";
-import { logAction } from "../flowLogger.js";
+import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { Frame } from "./frame.js";
@@ -26,6 +26,7 @@ import { ConsoleMessage, ConsoleListener } from "./consoleMessage.js";
 import type { StagehandAPIClient } from "../api.js";
 import {
   LocalBrowserLaunchOptions,
+  StagehandSetExtraHTTPHeadersError,
   StagehandSnapshotError,
 } from "../types/public/index.js";
 import type { Locator } from "./locator.js";
@@ -51,10 +52,10 @@ import {
   normalizeScreenshotClip,
   runScreenshotCleanups,
   setTransparentBackground,
-  withScreenshotTimeout,
   type ScreenshotCleanup,
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
+import { withTimeout } from "../timeoutConfig.js";
 
 /**
  * Page
@@ -112,6 +113,7 @@ export class Page {
   >();
   /** Document-start scripts installed across every session this page owns. */
   private readonly initScripts: string[] = [];
+  private extraHTTPHeaders: Record<string, string>;
 
   private constructor(
     private readonly conn: CdpConnection,
@@ -302,8 +304,12 @@ export class Page {
     localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
     browserIsRemote = false,
   ): Promise<Page> {
-    await session.send("Page.enable").catch(() => {});
-    await session
+    // Context already issues Page.enable + lifecycle enable before resume.
+    // Re-issue here only as best-effort and do not block page registration on
+    // their acknowledgements; some remote CDP backends can delay these replies
+    // long after the target is otherwise ready.
+    void session.send("Page.enable").catch(() => {});
+    void session
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
     const { frameTree } = await session.send<{
@@ -439,6 +445,11 @@ export class Page {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
     this.networkManager.trackSession(childSession);
+    if (this.extraHTTPHeaders)
+      void this.applyExtraHTTPHeadersToSession(
+        childSession,
+        this.extraHTTPHeaders,
+      ).catch(() => {});
 
     void this.applyInitScriptsToSession(childSession).catch(() => {});
 
@@ -640,7 +651,7 @@ export class Page {
   /**
    * Close this top-level page (tab). Best-effort via Target.closeTarget.
    */
-  @logAction("Page.close")
+  @FlowLogger.wrapWithLogging({ eventType: "PageClose" })
   public async close(): Promise<void> {
     try {
       await this.conn.send("Target.closeTarget", { targetId: this._targetId });
@@ -671,6 +682,16 @@ export class Page {
 
   public asProtocolFrameTree(rootMainFrameId: string): Protocol.Page.FrameTree {
     return this.registry.asProtocolFrameTree(rootMainFrameId);
+  }
+
+  private async applyExtraHTTPHeadersToSession(
+    session: CDPSessionLike,
+    headers: Record<string, string>,
+  ): Promise<void> {
+    await session.send("Network.enable");
+    await session.send("Network.setExtraHTTPHeaders", {
+      headers: headers,
+    });
   }
 
   private ensureOrdinal(frameId: string): number {
@@ -775,7 +796,7 @@ export class Page {
    * Navigate the page; optionally wait for a lifecycle state.
    * Waits on the **current** main frame and follows root swaps during navigation.
    */
-  @logAction("Page.goto")
+  @FlowLogger.wrapWithLogging({ eventType: "PageGoto" })
   async goto(
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
@@ -804,7 +825,7 @@ export class Page {
       if (this.apiClient) {
         const result = await this.apiClient.goto(
           url,
-          { waitUntil: options?.waitUntil },
+          { waitUntil: options?.waitUntil, timeout: options?.timeoutMs },
           this.mainFrameId(),
         );
         this._currentUrl = url;
@@ -838,7 +859,7 @@ export class Page {
   /**
    * Reload the page; optionally wait for a lifecycle state.
    */
-  @logAction("Page.reload")
+  @FlowLogger.wrapWithLogging({ eventType: "PageReload" })
   async reload(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -885,7 +906,7 @@ export class Page {
   /**
    * Navigate back in history if possible; optionally wait for a lifecycle state.
    */
-  @logAction("Page.goBack")
+  @FlowLogger.wrapWithLogging({ eventType: "PageGoBack" })
   async goBack(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -938,7 +959,9 @@ export class Page {
   /**
    * Navigate forward in history if possible; optionally wait for a lifecycle state.
    */
-  @logAction("Page.goForward")
+  @FlowLogger.wrapWithLogging({
+    eventType: "PageGoForward",
+  })
   async goForward(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
@@ -1068,7 +1091,9 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
-  @logAction("Page.screenshot")
+  @FlowLogger.wrapWithLogging({
+    eventType: "PageScreenshot",
+  })
   async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
@@ -1148,7 +1173,57 @@ export class Page {
       }
     };
 
-    return withScreenshotTimeout(opts.timeout, exec);
+    return await withTimeout(exec(), opts.timeout, "screenshot");
+  }
+
+  /**
+   * specifies additional HTTP headers to be included in every request sent by
+   * the root CDP session of the page, and all of its child CDP sessions.
+   *
+   * @param headers - the headers to be set.
+   * @throws {StagehandSetExtraHTTPHeadersError}
+   * Thrown when one or more CDP sessions fail to enable the Network domain or fail
+   * to apply the headers (i.e. `Network.enable` and/or `Network.setExtraHTTPHeaders` rejects).
+   * @return void
+   */
+  async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
+    const headersToSet = { ...headers };
+    this.extraHTTPHeaders = headersToSet;
+
+    // get the session(s) for this page:
+    const sessions: CDPSessionLike[] = [this.mainSession];
+    for (const session of this.sessions.values()) {
+      if (session === this.mainSession) continue;
+      sessions.push(session);
+    }
+
+    const results = await Promise.allSettled(
+      sessions.map(async (session) => {
+        await this.applyExtraHTTPHeadersToSession(session, headersToSet);
+      }),
+    );
+
+    // get list of objects containing results & corresponding session IDs
+    const pairs = results.map((result, index) => ({
+      result,
+      id: sessions[index].id,
+    }));
+
+    const filtered = pairs.filter(
+      (pair): pair is { result: PromiseRejectedResult; id: string | null } =>
+        pair.result.status === "rejected",
+    );
+
+    const errors = filtered.map((pair) => {
+      const reason = pair.result.reason;
+      const sessId = pair.id ?? "root";
+      const message = reason?.message ?? String(reason);
+      return `session=${sessId} error=${message}`;
+    });
+
+    if (errors.length > 0) {
+      throw new StagehandSetExtraHTTPHeadersError(errors);
+    }
   }
 
   /**
@@ -1191,7 +1266,9 @@ export class Page {
    * Wait until the page reaches a lifecycle state on the current main frame.
    * Mirrors Playwright's API signatures.
    */
-  @logAction("Page.waitForLoadState")
+  @FlowLogger.wrapWithLogging({
+    eventType: "PageWaitForLoadState",
+  })
   async waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void> {
     await this.waitForMainLoadState(state, timeoutMs ?? 15000);
   }
@@ -1219,7 +1296,9 @@ export class Page {
    * @returns True when the condition is met
    * @throws Error if timeout is reached before the condition is met
    */
-  @logAction("Page.waitForSelector")
+  @FlowLogger.wrapWithLogging({
+    eventType: "PageWaitForSelector",
+  })
   async waitForSelector(
     selector: string,
     options?: {
@@ -1254,7 +1333,7 @@ export class Page {
    * - The return value should be JSON-serializable. Non-serializable objects will
    *   best-effort serialize via JSON.stringify inside the page context.
    */
-  @logAction("Page.evaluate")
+  @FlowLogger.wrapWithLogging({ eventType: "PageEvaluate" })
   async evaluate<R = unknown, Arg = unknown>(
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
@@ -1308,7 +1387,7 @@ export class Page {
    * Force the page viewport to an exact CSS size and device scale factor.
    * Ensures screenshots match width x height pixels when deviceScaleFactor = 1.
    */
-  // @logAction("Page.setViewportSize")  // disabled because it's pretty noisy, can always re-enable if needed for debugging
+  // @FlowLogger.wrapWithLogging({ eventType: "PageSetViewportSize" })  // disabled because it's pretty noisy, can always re-enable if needed for debugging
   async setViewportSize(
     width: number,
     height: number,
@@ -1341,7 +1420,7 @@ export class Page {
    * on the top-level page target's session. Coordinates are relative to the
    * viewport origin (top-left). Does not scroll.
    */
-  @logAction("Page.click")
+  @FlowLogger.wrapWithLogging({ eventType: "PageClick" })
   async click(
     x: number,
     y: number,
@@ -1433,7 +1512,7 @@ export class Page {
    * Dispatches mouseMoved via CDP Input domain on the top-level page target's
    * session.
    */
-  @logAction("Page.hover")
+  @FlowLogger.wrapWithLogging({ eventType: "PageHover" })
   async hover(
     x: number,
     y: number,
@@ -1484,7 +1563,7 @@ export class Page {
     return xpathResult ?? "";
   }
 
-  @logAction("Page.scroll")
+  @FlowLogger.wrapWithLogging({ eventType: "PageScroll" })
   async scroll(
     x: number,
     y: number,
@@ -1527,7 +1606,9 @@ export class Page {
    * Drag from (fromX, fromY) to (toX, toY) using mouse events.
    * Sends mouseMoved → mousePressed → mouseMoved (steps) → mouseReleased.
    */
-  @logAction("Page.dragAndDrop")
+  @FlowLogger.wrapWithLogging({
+    eventType: "PageDragAndDrop",
+  })
   async dragAndDrop(
     fromX: number,
     fromY: number,
@@ -1632,7 +1713,7 @@ export class Page {
    * and never falls back to Input.insertText. Optional delay applies between
    * successive characters.
    */
-  @logAction("Page.type")
+  @FlowLogger.wrapWithLogging({ eventType: "PageType" })
   async type(
     text: string,
     options?: { delay?: number; withMistakes?: boolean },
@@ -1759,7 +1840,7 @@ export class Page {
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
-  @logAction("Page.keyPress")
+  @FlowLogger.wrapWithLogging({ eventType: "PageKeyPress" })
   async keyPress(key: string, options?: { delay?: number }): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
     const sleep = (ms: number) =>
@@ -1811,7 +1892,7 @@ export class Page {
     }
   }
 
-  @logAction("Page.snapshot")
+  @FlowLogger.wrapWithLogging({ eventType: "PageSnapshot" })
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
     try {
       const { combinedTree, combinedXpathMap, combinedUrlMap } =

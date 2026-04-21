@@ -17,7 +17,7 @@ import {
 import { StagehandZodObject } from "../zodCompat.js";
 import { processMessages } from "../agent/utils/messageProcessing.js";
 import { LLMClient } from "../llm/LLMClient.js";
-import { SessionFileLogger } from "../flowLogger.js";
+import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
@@ -35,10 +35,16 @@ import { V3FunctionName } from "../types/public/methods.js";
 import { mapToolResultToActions } from "../agent/utils/actionMapping.js";
 import {
   MissingLLMConfigurationError,
+  MissingEnvironmentVariableError,
   StreamingCallbacksInNonStreamingModeError,
   AgentAbortError,
 } from "../types/public/sdkErrors.js";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall.js";
+import {
+  CaptchaSolver,
+  CAPTCHA_SOLVED_MSG,
+  CAPTCHA_ERRORED_MSG,
+} from "../agent/utils/captchaSolver.js";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -74,6 +80,7 @@ export class V3AgentHandler {
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
+  private captchaAutoSolveEnabled: boolean;
 
   constructor(
     v3: V3,
@@ -83,6 +90,7 @@ export class V3AgentHandler {
     systemInstructions?: string,
     mcpTools?: ToolSet,
     mode?: AgentToolMode,
+    captchaAutoSolveEnabled?: boolean,
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -91,6 +99,7 @@ export class V3AgentHandler {
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
     this.mode = mode ?? "dom";
+    this.captchaAutoSolveEnabled = captchaAutoSolveEnabled ?? false;
   }
 
   private async prepareAgent(
@@ -113,12 +122,28 @@ export class V3AgentHandler {
         executionInstruction: options.instruction,
         mode: this.mode,
         systemInstructions: this.systemInstructions,
-        isBrowserbase: this.v3.isBrowserbase,
+        captchasAutoSolve: this.v3.isCaptchaAutoSolveEnabled,
         excludeTools: options.excludeTools,
         variables: options.variables,
+        useSearch: options.useSearch,
       });
 
-      const tools = this.createTools(options.excludeTools, options.variables);
+      if (options.useSearch) {
+        const bbApiKey = this.v3.browserbaseApiKey;
+        if (!bbApiKey) {
+          throw new MissingEnvironmentVariableError(
+            "BROWSERBASE_API_KEY",
+            "agent search (useSearch: true)",
+          );
+        }
+      }
+
+      const tools = this.createTools(
+        options.excludeTools,
+        options.variables,
+        options.toolTimeout,
+        options.useSearch,
+      );
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
 
       // Use provided messages for continuation, or start fresh with the instruction
@@ -134,7 +159,7 @@ export class V3AgentHandler {
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
         middleware: {
-          ...SessionFileLogger.createLlmLoggingMiddleware(baseModel.modelId),
+          ...FlowLogger.createLlmLoggingMiddleware(baseModel.modelId),
         },
       });
 
@@ -170,9 +195,46 @@ export class V3AgentHandler {
   }
   private createPrepareStep(
     userCallback?: PrepareStepFunction<ToolSet>,
+    captchaSolver?: CaptchaSolver,
   ): PrepareStepFunction<ToolSet> {
     return async (options) => {
       processMessages(options.messages);
+      if (captchaSolver) {
+        if (captchaSolver.isSolving()) {
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha detected — waiting for Browserbase to solve it before continuing",
+            level: 1,
+          });
+        }
+        await captchaSolver.waitIfSolving();
+        const { solved, errored } = captchaSolver.consumeSolveResult();
+        if (solved) {
+          options.messages.push({
+            role: "user",
+            content: CAPTCHA_SOLVED_MSG,
+          });
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha solved — injected notification into agent message stream",
+            level: 1,
+          });
+        }
+        if (errored) {
+          options.messages.push({
+            role: "user",
+            content: CAPTCHA_ERRORED_MSG,
+          });
+          this.logger({
+            category: "agent",
+            message:
+              "Captcha solver failed — injected error notification into agent message stream",
+            level: 1,
+          });
+        }
+      }
       if (userCallback) {
         return userCallback(options);
       }
@@ -232,19 +294,6 @@ export class V3AgentHandler {
           }
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
-
-        // Capture screenshot after tool execution (only for evals)
-        if (process.env.EVALS === "true") {
-          try {
-            await this.captureAndEmitScreenshot();
-          } catch (e) {
-            this.logger({
-              category: "agent",
-              message: `Warning: Failed to capture screenshot: ${getErrorMessage(e)}`,
-              level: 1,
-            });
-          }
-        }
       }
 
       if (userCallback) {
@@ -274,6 +323,7 @@ export class V3AgentHandler {
     };
 
     let messages: ModelMessage[] = [];
+    let captchaSolver: CaptchaSolver | undefined;
 
     try {
       const {
@@ -290,6 +340,12 @@ export class V3AgentHandler {
       if (shouldHighlightCursor && this.mode === "hybrid") {
         const page = await this.v3.context.awaitActivePage();
         await page.enableCursorOverlay().catch(() => {});
+      }
+
+      // Set up captcha solver for Browserbase environments
+      if (this.captchaAutoSolveEnabled) {
+        captchaSolver = new CaptchaSolver();
+        captchaSolver.init(() => this.v3.context.awaitActivePage());
       }
 
       messages = preparedMessages;
@@ -320,16 +376,16 @@ export class V3AgentHandler {
         temperature: 1,
         toolChoice: "auto",
 
-        prepareStep: this.createPrepareStep(callbacks?.prepareStep),
+        prepareStep: this.createPrepareStep(
+          callbacks?.prepareStep,
+          captchaSolver,
+        ),
         onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
         abortSignal: preparedOptions.signal,
-        providerOptions: wrappedModel.modelId.includes("gemini-3")
-          ? {
-              google: {
-                mediaResolution: "MEDIA_RESOLUTION_HIGH",
-              },
-            }
-          : undefined,
+        providerOptions: {
+          google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
+          openai: { store: false },
+        },
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
@@ -352,7 +408,10 @@ export class V3AgentHandler {
       );
     } catch (error) {
       // Re-throw validation errors that should propagate to the caller
-      if (error instanceof StreamingCallbacksInNonStreamingModeError) {
+      if (
+        error instanceof StreamingCallbacksInNonStreamingModeError ||
+        error instanceof MissingEnvironmentVariableError
+      ) {
         throw error;
       }
 
@@ -377,6 +436,8 @@ export class V3AgentHandler {
         completed: false,
         messages,
       };
+    } finally {
+      captchaSolver?.dispose();
     }
   }
 
@@ -404,6 +465,13 @@ export class V3AgentHandler {
     if (shouldHighlightCursor && this.mode === "hybrid") {
       const page = await this.v3.context.awaitActivePage();
       await page.enableCursorOverlay().catch(() => {});
+    }
+
+    // Set up captcha solver for Browserbase environments
+    let captchaSolver: CaptchaSolver | undefined;
+    if (this.captchaAutoSolveEnabled) {
+      captchaSolver = new CaptchaSolver();
+      captchaSolver.init(() => this.v3.context.awaitActivePage());
     }
 
     const callbacks = (instructionOrOptions as AgentStreamExecuteOptions)
@@ -436,66 +504,78 @@ export class V3AgentHandler {
       rejectResult(error);
     };
 
-    const streamResult = this.llmClient.streamText({
-      model: wrappedModel,
-      messages: prependSystemMessage(systemPrompt, messages),
-      tools: allTools,
-      stopWhen: (result) => this.handleStop(result, maxSteps),
-      temperature: 1,
-      toolChoice: "auto",
-      prepareStep: this.createPrepareStep(callbacks?.prepareStep),
-      onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
-      onError: (event) => {
-        if (callbacks?.onError) {
-          callbacks.onError(event);
-        }
-        handleError(event.error);
-      },
-      onChunk: callbacks?.onChunk,
-      onFinish: (event) => {
-        if (callbacks?.onFinish) {
-          callbacks.onFinish(event);
-        }
-
-        const allMessages = [...messages, ...(event.response?.messages || [])];
-        this.ensureDone(
-          state,
-          wrappedModel,
-          allMessages,
-          options.instruction,
-          options.output,
-          this.logger,
-        ).then((doneResult) => {
-          const result = this.consolidateMetricsAndResult(
-            startTime,
-            state,
-            doneResult.messages,
-            event,
-            maxSteps,
-            doneResult.output,
-          );
-          resolveResult(result);
-        });
-      },
-      onAbort: (event) => {
-        if (callbacks?.onAbort) {
-          callbacks.onAbort(event);
-        }
-        // Reject the result promise with AgentAbortError when stream is aborted
-        const reason = options.signal?.reason
-          ? String(options.signal.reason)
-          : "Stream was aborted";
-        rejectResult(new AgentAbortError(reason));
-      },
-      abortSignal: options.signal,
-      providerOptions: wrappedModel.modelId.includes("gemini-3")
-        ? {
-            google: {
-              mediaResolution: "MEDIA_RESOLUTION_HIGH",
-            },
+    let streamResult: ReturnType<typeof this.llmClient.streamText>;
+    try {
+      streamResult = this.llmClient.streamText({
+        model: wrappedModel,
+        messages: prependSystemMessage(systemPrompt, messages),
+        tools: allTools,
+        stopWhen: (result) => this.handleStop(result, maxSteps),
+        temperature: 1,
+        toolChoice: "auto",
+        prepareStep: this.createPrepareStep(
+          callbacks?.prepareStep,
+          captchaSolver,
+        ),
+        onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
+        onError: (event) => {
+          captchaSolver?.dispose();
+          if (callbacks?.onError) {
+            callbacks.onError(event);
           }
-        : undefined,
-    });
+          handleError(event.error);
+        },
+        onChunk: callbacks?.onChunk,
+        onFinish: (event) => {
+          captchaSolver?.dispose();
+          if (callbacks?.onFinish) {
+            callbacks.onFinish(event);
+          }
+
+          const allMessages = [
+            ...messages,
+            ...(event.response?.messages || []),
+          ];
+          this.ensureDone(
+            state,
+            wrappedModel,
+            allMessages,
+            options.instruction,
+            options.output,
+            this.logger,
+          ).then((doneResult) => {
+            const result = this.consolidateMetricsAndResult(
+              startTime,
+              state,
+              doneResult.messages,
+              event,
+              maxSteps,
+              doneResult.output,
+            );
+            resolveResult(result);
+          });
+        },
+        onAbort: (event) => {
+          captchaSolver?.dispose();
+          if (callbacks?.onAbort) {
+            callbacks.onAbort(event);
+          }
+          // Reject the result promise with AgentAbortError when stream is aborted
+          const reason = options.signal?.reason
+            ? String(options.signal.reason)
+            : "Stream was aborted";
+          rejectResult(new AgentAbortError(reason));
+        },
+        abortSignal: options.signal,
+        providerOptions: {
+          google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
+          openai: { store: false },
+        },
+      });
+    } catch (error) {
+      captchaSolver?.dispose();
+      throw error;
+    }
 
     const agentStreamResult = streamResult as AgentStreamResult;
     agentStreamResult.result = resultPromise;
@@ -562,7 +642,12 @@ export class V3AgentHandler {
     };
   }
 
-  private createTools(excludeTools?: string[], variables?: Variables) {
+  private createTools(
+    excludeTools?: string[],
+    variables?: Variables,
+    toolTimeout?: number,
+    useSearch?: boolean,
+  ) {
     const provider = this.llmClient?.getLanguageModel?.()?.provider;
     return createAgentTools(this.v3, {
       executionModel: this.executionModel,
@@ -571,6 +656,9 @@ export class V3AgentHandler {
       provider,
       excludeTools,
       variables,
+      toolTimeout,
+      useSearch,
+      browserbaseApiKey: useSearch ? this.v3.browserbaseApiKey : undefined,
     });
   }
 
@@ -634,22 +722,5 @@ export class V3AgentHandler {
       messages: [...messages, ...doneResult.messages],
       output: doneResult.output,
     };
-  }
-
-  /**
-   * Capture a screenshot and emit it via the event bus
-   */
-  private async captureAndEmitScreenshot(): Promise<void> {
-    try {
-      const page = await this.v3.context.awaitActivePage();
-      const screenshot = await page.screenshot({ fullPage: false });
-      this.v3.bus.emit("agent_screenshot_taken_event", screenshot);
-    } catch (error) {
-      this.logger({
-        category: "agent",
-        message: `Error capturing screenshot: ${getErrorMessage(error)}`,
-        level: 0,
-      });
-    }
   }
 }

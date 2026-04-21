@@ -8,16 +8,9 @@
  */
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { getRepoRootDir } from "../runtimePaths.js";
 
-const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/evals/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoRoot = getRepoRootDir();
 
 const run = (args: string[]) => {
   const result = spawnSync("pnpm", args, { stdio: "inherit", cwd: repoRoot });
@@ -42,12 +35,40 @@ run([
   "--log-level=warning",
 ]);
 
-fs.copyFileSync(
-  `${repoRoot}/packages/evals/evals.config.json`,
-  `${repoRoot}/packages/evals/dist/cli/evals.config.json`,
+/* ── merge config: always update tasks/benchmarks from source, but preserve user defaults ── */
+const sourceConfig = JSON.parse(
+  fs.readFileSync(`${repoRoot}/packages/evals/evals.config.json`, "utf-8"),
 );
+const distConfigPath = `${repoRoot}/packages/evals/dist/cli/evals.config.json`;
+
+if (fs.existsSync(distConfigPath)) {
+  try {
+    const existing = JSON.parse(fs.readFileSync(distConfigPath, "utf-8"));
+    if (existing.defaults) {
+      sourceConfig.defaults = {
+        ...sourceConfig.defaults,
+        ...existing.defaults,
+      };
+    }
+  } catch {
+    // invalid existing config – overwrite entirely
+  }
+}
+
+fs.writeFileSync(distConfigPath, JSON.stringify(sourceConfig, null, 2) + "\n");
 fs.writeFileSync(
   `${repoRoot}/packages/evals/dist/cli/package.json`,
   '{\n  "type": "module"\n}\n',
 );
 fs.chmodSync(`${repoRoot}/packages/evals/dist/cli/cli.js`, 0o755);
+
+/* ── auto-link the `evals` binary globally ── */
+const link = spawnSync("npm", ["link", "--force"], {
+  stdio: "inherit",
+  cwd: `${repoRoot}/packages/evals`,
+});
+if (link.status !== 0) {
+  console.warn(
+    "⚠  npm link failed (non-fatal) – you can run `npm link` manually from packages/evals",
+  );
+}

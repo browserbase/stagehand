@@ -31,14 +31,22 @@ await stagehand.observe(instruction: string, options: ObserveOptions): Promise<A
 ```typescript
 interface ObserveOptions {
   model?: ModelConfiguration;
+  variables?: Record<string, VariableValue>;
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  serverCache?: boolean;
 }
+
+type VariableValue =
+  | string
+  | number
+  | boolean
+  | { value: string | number | boolean; description?: string };
 
 // ModelConfiguration can be either a string or an object
 type ModelConfiguration =
-  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022")
+  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-6")
   | {
       modelName: string;  // The model name
       apiKey?: string;    // Optional: API key override
@@ -59,12 +67,12 @@ type ModelConfiguration =
 
 <ParamField path="model" type="ModelConfiguration" optional>
   Configure the AI model to use for this observation. Can be either:
-  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet-20241022"`)
+  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-sonnet-4-6"`)
   - An object with detailed configuration
 
   <Expandable title="Model Configuration Object">
     <ParamField path="modelName" type="string" required>
-      The model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash")
+      The model name (e.g., "gpt-4o", "claude-sonnet-4-6", "gemini-2.5-flash")
     </ParamField>
     <ParamField path="apiKey" type="string" optional>
       API key for the model provider (overrides default)
@@ -73,6 +81,12 @@ type ModelConfiguration =
       Base URL for the API endpoint (for custom endpoints or proxies)
     </ParamField>
   </Expandable>
+</ParamField>
+
+<ParamField path="variables" type="Record<string, VariableValue>" optional>
+  Key-value pairs for placeholder generation using `%variableName%` syntax in returned action arguments. `observe()` exposes only the placeholder names to the model and returns `Action[]` that still contain `%variableName%` tokens so you can validate them before executing with `act()`.
+
+  Values can be simple primitives (`string`, `number`, `boolean`) or rich objects with an optional description (`{ value, description? }`).
 </ParamField>
 
 <ParamField path="timeout" type="number" optional>
@@ -91,6 +105,14 @@ type ModelConfiguration =
   - **Stagehand Page**: Stagehand's wrapped Page object
 
   If not specified, defaults to the current "active" page in your Stagehand instance.
+</ParamField>
+
+<ParamField path="serverCache" type="boolean" optional>
+  Override the instance-level `serverCache` setting for this request. When `true`, enables server-side caching. When `false`, disables it.
+
+  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments.</Note>
+
+  Defaults to the value set on the Stagehand constructor (which itself defaults to `true`).
 </ParamField>
 
 ### Returns `Promise<Action[]>`
@@ -155,8 +177,8 @@ interface Action {
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
-// Initialize with Browserbase (API key and project ID from environment variables)
-// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+// Initialize with Browserbase (API key from environment variable)
+// Set BROWSERBASE_API_KEY in your environment
 const stagehand = new Stagehand({ env: "BROWSERBASE" });
 await stagehand.init();
 const page = stagehand.context.pages()[0];
@@ -189,7 +211,7 @@ const elements = await stagehand.observe("find important call-to-action buttons"
 // Using object format with custom configuration
 const actions = await stagehand.observe("find navigation links", {
   model: {
-    modelName: "claude-3-5-sonnet-20241022",
+    modelName: "claude-sonnet-4-6",
     apiKey: process.env.ANTHROPIC_API_KEY
   },
   timeout: 30000
@@ -204,6 +226,33 @@ const actions = await stagehand.observe("find navigation links", {
 const tableActions = await stagehand.observe("find all table rows", {
   selector: "/html/body/main/table"
 });
+```
+
+</Tab>
+<Tab title="Validate Then Act">
+
+```typescript
+const [emailField, passwordField, submitButton] = await stagehand.observe(
+  "Find the login fields and submit button",
+  {
+    variables: {
+      username: { value: "user@example.com", description: "The login email" },
+      password: { value: process.env.USER_PASSWORD, description: "The login password" },
+    },
+  }
+);
+
+// Returned actions can reference placeholders like %username% and %password%
+console.log(emailField.arguments);
+
+// Validate the suggested actions before executing them
+await stagehand.act(emailField, {
+  variables: { username: "user@example.com" },
+});
+await stagehand.act(passwordField, {
+  variables: { password: process.env.USER_PASSWORD },
+});
+await stagehand.act(submitButton);
 ```
 
 </Tab>

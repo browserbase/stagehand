@@ -342,6 +342,32 @@ await page.type(text: string, options?: TypeOptions): Promise<void>
   </Expandable>
 </ParamField>
 
+### keyPress()
+
+Press a single key or key combination (keyDown then keyUp). Supports named keys, printable characters, and modifier combinations.
+
+```typescript
+await page.keyPress(key: string, options?: KeyPressOptions): Promise<void>
+```
+
+<ParamField path="key" type="string" required>
+  The key or key combination to press. Supports printable characters (`"a"`, `"1"`), named keys (`"Enter"`, `"Tab"`, `"Escape"`, `"Backspace"`, `"ArrowDown"`, etc.), and modifier combinations using `+` (`"Cmd+A"`, `"Ctrl+C"`, `"Shift+Tab"`).
+
+  Common modifier aliases like `"Cmd"`, `"Ctrl"`, `"Alt"`, and `"Option"` are accepted. `"Cmd"` maps to Meta on Mac and Control elsewhere.
+</ParamField>
+
+<ParamField path="options" type="object" optional>
+  Optional key press configuration.
+
+  <Expandable title="properties">
+    <ParamField path="delay" type="number">
+      Delay in milliseconds between the keyDown and keyUp events.
+
+      Default: `0`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
 ### locator()
 
 Create a locator for querying elements.
@@ -429,6 +455,47 @@ const result = await page.evaluate(() => Math.random());
 console.log("Math.random() returned:", result);
 
 // Math.random() returned: 42
+```
+
+## HTTP Headers
+
+### setExtraHTTPHeaders()
+
+Set HTTP headers that will be included in every request made by this page.
+
+```typescript
+await page.setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>
+```
+
+<ParamField path="headers" type="Record<string, string>" required>
+  A plain object of header name–value pairs. All values must be strings.
+</ParamField>
+
+This method:
+- Applies the headers to the page's main CDP session and all of its child sessions (e.g. out-of-process iframes)
+- Automatically applies the same headers to any child sessions adopted after calling `setExtraHTTPHeaders()`
+- Calling it again replaces all previously set extra headers (it does not merge)
+- To clear all extra headers, pass an empty object: `await page.setExtraHTTPHeaders({})`
+
+<Note>
+Headers set via `page.setExtraHTTPHeaders()` are page-scoped. They apply to every network request from this page only, including navigation requests, XHR/fetch calls, and subresource loads. Use [`context.setExtraHTTPHeaders()`](/v3/references/context#setextrahttpheaders) to set headers across all pages in the context.
+</Note>
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+// Set custom headers for all requests from this page
+await page.setExtraHTTPHeaders({
+  "X-Custom-Token": "my-secret-token",
+  "Accept-Language": "en-US",
+});
+
+// All subsequent requests from this page will include these headers
+await page.goto("https://example.com");
 ```
 
 ## Screenshot
@@ -747,8 +814,8 @@ page.off("console", handleConsole);
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
-// Initialize with Browserbase (API key and project ID from environment variables)
-// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+// Initialize with Browserbase (API key from environment variable)
+// Set BROWSERBASE_API_KEY in your environment
 const stagehand = new Stagehand({ env: "BROWSERBASE" });
 await stagehand.init();
 const page = stagehand.context.pages()[0];
@@ -845,6 +912,21 @@ await page.type("Hello, World!");
 // Type with delay between keystrokes
 await page.type("Slow typing", { delay: 100 });
 
+// Press a single key
+await page.keyPress("Enter");
+
+// Press a key combination (select all)
+await page.keyPress("Cmd+A");
+
+// Press with delay between keyDown and keyUp
+await page.keyPress("Escape", { delay: 100 });
+
+// Arrow key navigation
+await page.keyPress("ArrowDown");
+
+// Copy selection
+await page.keyPress("Ctrl+C");
+
 // Use locator for element interaction
 const button = page.locator("button.submit");
 await button.click();
@@ -918,6 +1000,36 @@ await page.setViewportSize(375, 667, {
 
 // Then take a screenshot at this size
 const screenshot = await page.screenshot();
+```
+
+</Tab>
+<Tab title="Custom HTTP Headers">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+// Set authorization headers for requests from this page
+await page.setExtraHTTPHeaders({
+  Authorization: "Bearer my-api-token",
+});
+
+// Navigate — the headers are sent with every request from this page
+await page.goto("https://api.example.com/dashboard");
+
+// Replace headers (previous headers are removed)
+await page.setExtraHTTPHeaders({
+  Authorization: "Bearer refreshed-token",
+  "X-Request-Id": "abc-123",
+});
+
+// Clear all extra headers
+await page.setExtraHTTPHeaders({});
+
+await stagehand.close();
 ```
 
 </Tab>

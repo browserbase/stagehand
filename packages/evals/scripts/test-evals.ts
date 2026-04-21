@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { getCurrentFilePath, getRepoRootDir } from "../runtimePaths.js";
 
 type Runtime = "source" | "dist-esm";
 
@@ -166,14 +166,7 @@ const writeEvalCtrf = (
   fs.writeFileSync(outputPath, JSON.stringify(missingReport, null, 2));
 };
 
-const repoRoot = (() => {
-  const value = fileURLToPath(import.meta.url).replaceAll("\\", "/");
-  const root = value.split("/packages/evals/")[0];
-  if (root === value) {
-    throw new Error(`Unable to determine repo root from ${value}`);
-  }
-  return root;
-})();
+const repoRoot = getRepoRootDir();
 const toPosix = (value: string) => value.replaceAll("\\", "/");
 const resolveRepoRelative = (value: string) =>
   path.isAbsolute(value) ? value : path.resolve(repoRoot, value);
@@ -185,8 +178,7 @@ const inferRuntimeFromPath = (value: string) => {
   return null;
 };
 const inferRuntimeFromExecution = () =>
-  inferRuntimeFromPath(fileURLToPath(import.meta.url)) ??
-  (process.argv[1] ? inferRuntimeFromPath(process.argv[1]) : null) ??
+  inferRuntimeFromPath(getCurrentFilePath()) ??
   inferRuntimeFromPath(process.cwd());
 const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 const listRequested = rawArgs.includes("--list");

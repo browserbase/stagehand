@@ -1,7 +1,7 @@
 import { defineConfig, type ReporterDescription } from "@playwright/test";
-import { fileURLToPath } from "node:url";
-
-const testDir = fileURLToPath(new URL(".", import.meta.url));
+import { getPackageRootDir } from "../../lib/v3/runtimePaths.js";
+const coreDir = getPackageRootDir();
+const testDir = `${coreDir}/dist/esm/tests/integration`;
 
 const browserTarget = (
   process.env.STAGEHAND_BROWSER_TARGET ?? "local"

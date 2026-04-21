@@ -16,7 +16,6 @@ import { MicrosoftCUAClient } from "./MicrosoftCUAClient.js";
 export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
   "computer-use-preview": "openai",
   "computer-use-preview-2025-03-11": "openai",
-  "claude-3-7-sonnet-latest": "anthropic",
   "claude-sonnet-4-20250514": "anthropic",
   "claude-sonnet-4-5-20250929": "anthropic",
   "claude-opus-4-5-20251101": "anthropic",

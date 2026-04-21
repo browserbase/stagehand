@@ -42,7 +42,6 @@ interface V3Options {
 
   // Browserbase options (required when env = "BROWSERBASE")
   apiKey?: string;
-  projectId?: string;
   browserbaseSessionID?: string;
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
 
@@ -59,6 +58,8 @@ interface V3Options {
   experimental?: boolean;
   domSettleTimeout?: number;
   cacheDir?: string;
+  keepAlive?: boolean;
+  serverCache?: boolean;
 
   // Logging options
   verbose?: 0 | 1 | 2;
@@ -83,12 +84,6 @@ interface V3Options {
   Browserbase API key. Required when `env` is `"BROWSERBASE"`.
 
   Can also be set via `BROWSERBASE_API_KEY` environment variable.
-</ParamField>
-
-<ParamField path="projectId" type="string" optional>
-  Browserbase project ID. Required when `env` is `"BROWSERBASE"`.
-
-  Can also be set via `BROWSERBASE_PROJECT_ID` environment variable.
 </ParamField>
 
 <ParamField path="browserbaseSessionID" type="string" optional>
@@ -161,12 +156,12 @@ interface V3Options {
 
 <ParamField path="model" type="ModelConfiguration" optional>
   Configure the AI model to use for automation. Can be either:
-  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet-20241022"`)
+  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-sonnet-4-6"`)
   - An object with detailed configuration
 
   <Expandable title="Model Configuration Object">
     <ParamField path="modelName" type="string" required>
-      The model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash")
+      The model name (e.g., "gpt-4o", "claude-sonnet-4-6", "gemini-2.5-flash")
     </ParamField>
     <ParamField path="apiKey" type="string" optional>
       API key for the model provider (overrides environment variables)
@@ -209,6 +204,27 @@ interface V3Options {
 
 <ParamField path="cacheDir" type="string" optional>
   Directory path for caching action observations to improve performance.
+</ParamField>
+
+<ParamField path="keepAlive" type="boolean" optional>
+  Controls whether the browser remains running after `stagehand.close()` is called or the parent process exits unexpectedly.
+
+  - **`true`** - Browser continues running independently. On Browserbase, the session stays active. Locally, the Chrome process is kept alive.
+  - **`false`** - Browser is terminated and resources are cleaned up on close or crash.
+
+  When set, this overrides any value in `browserbaseSessionCreateParams.keepAlive`.
+
+  **Default:** `false`
+</ParamField>
+
+<ParamField path="serverCache" type="boolean" optional>
+  Enable or disable server-side caching for `act()`, `extract()`, and `observe()` requests. When enabled, repeated calls with the same inputs return instantly without consuming LLM tokens.
+
+  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments.</Note>
+
+  Can be overridden per-call via the `serverCache` option on `act()`, `extract()`, and `observe()`.
+
+  **Default:** `true`
 </ParamField>
 
 #### Logging Options
@@ -264,6 +280,10 @@ await stagehand.close(options?: { force?: boolean }): Promise<void>
 
   **Default:** `false`
 </ParamField>
+
+<Note>
+When `keepAlive` is `true`, calling `close()` disconnects Stagehand from the browser without terminating it. The browser session continues running independently and can be reconnected to later using `browserbaseSessionID`. When `keepAlive` is `false` (the default), `close()` fully terminates the browser and cleans up all resources.
+</Note>
 
 ### agent()
 
@@ -431,8 +451,7 @@ import { Stagehand } from "@browserbasehq/stagehand";
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
-  model: "anthropic/claude-3-5-sonnet-20241022"
+  model: "anthropic/claude-sonnet-4-6"
 });
 
 await stagehand.init();
@@ -610,7 +629,6 @@ try {
 Stagehand recognizes the following environment variables:
 
 - `BROWSERBASE_API_KEY` - Browserbase API key
-- `BROWSERBASE_PROJECT_ID` - Browserbase project ID
 - `OPENAI_API_KEY` - OpenAI API key
 - `ANTHROPIC_API_KEY` - Anthropic API key
 - `GOOGLE_API_KEY` - Google AI API key

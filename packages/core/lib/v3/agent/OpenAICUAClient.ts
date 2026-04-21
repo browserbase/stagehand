@@ -1,4 +1,9 @@
 import OpenAI from "openai";
+import type {
+  EasyInputMessage,
+  ResponseInputImage,
+  ResponseInputText,
+} from "openai/resources/responses/responses";
 import { LogLine } from "../types/public/logs.js";
 import {
   AgentAction,
@@ -20,17 +25,23 @@ import {
 } from "../types/public/sdkErrors.js";
 import { ToolSet } from "ai";
 import {
-  SessionFileLogger,
-  formatCuaPromptPreview,
-  formatCuaResponsePreview,
-} from "../flowLogger.js";
+  FlowLogger,
+  extractLlmCuaPromptSummary,
+  extractLlmCuaResponseSummary,
+} from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
 /**
  * Client for OpenAI's Computer Use Assistant API
  * This implementation uses the official OpenAI Responses API for Computer Use
  */
+const CAPTCHA_PROCEED_TOOL = "captchaSolvedProceed";
+
+type OpenAIRequestInputItem = ResponseInputItem | EasyInputMessage;
+
 export class OpenAICUAClient extends AgentClient {
+  private pendingContextNotes: string[] = [];
+  private captchaSolvedToolActive = false;
   private apiKey: string;
   private organization?: string;
   private baseURL: string;
@@ -108,6 +119,17 @@ export class OpenAICUAClient extends AgentClient {
     this.safetyConfirmationHandler = handler;
   }
 
+  addContextNote(note: string): void {
+    this.pendingContextNotes.push(note);
+
+    // When a captcha-related note arrives, expose a tool that the model can
+    // call instead of asking the user for confirmation.  This replaces
+    // fragile English-phrase parsing with a structured tool call.
+    if (note.toLowerCase().includes("captcha")) {
+      this.captchaSolvedToolActive = true;
+    }
+  }
+
   /**
    * Execute a task with the OpenAI CUA
    * This is the main entry point for the agent
@@ -126,7 +148,8 @@ export class OpenAICUAClient extends AgentClient {
     this.reasoningItems.clear(); // Clear any previous reasoning items
 
     // Start with the initial instruction
-    let inputItems = this.createInitialInputItems(instruction);
+    let inputItems: OpenAIRequestInputItem[] =
+      await this.createInitialInputItems(instruction);
     let previousResponseId: string | undefined = undefined;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
@@ -135,6 +158,8 @@ export class OpenAICUAClient extends AgentClient {
     try {
       // Execute steps until completion or max steps reached
       while (!completed && currentStep < maxSteps) {
+        await this.preStepHook?.();
+
         logger({
           category: "agent",
           message: `Executing step ${currentStep + 1}/${maxSteps}`,
@@ -162,6 +187,16 @@ export class OpenAICUAClient extends AgentClient {
         // Update the input items for the next step if we're continuing
         if (!completed) {
           inputItems = result.nextInputItems;
+          const contextNotes = this.drainContextNotes();
+          if (contextNotes.length > 0) {
+            inputItems = [
+              ...inputItems,
+              ...contextNotes.map((note) => ({
+                role: "user" as const,
+                content: note,
+              })),
+            ];
+          }
         }
 
         // Record any message for this step
@@ -214,7 +249,7 @@ export class OpenAICUAClient extends AgentClient {
    * This coordinates the flow: Request → Get Action → Execute Action
    */
   async executeStep(
-    inputItems: ResponseInputItem[],
+    inputItems: OpenAIRequestInputItem[],
     previousResponseId: string | undefined,
     logger: (message: LogLine) => void,
   ): Promise<{
@@ -258,7 +293,7 @@ export class OpenAICUAClient extends AgentClient {
         if (item.type === "computer_call" && this.isComputerCallItem(item)) {
           logger({
             category: "agent",
-            message: `Found computer_call: ${item.action.type}, call_id: ${item.call_id}`,
+            message: `Found computer_call: ${item.action.type}, payload: ${JSON.stringify(item.action)}, call_id: ${item.call_id}`,
             level: 2,
           });
           const action = this.convertComputerCallToAction(item);
@@ -403,22 +438,48 @@ export class OpenAICUAClient extends AgentClient {
     );
   }
 
-  private createInitialInputItems(instruction: string): ResponseInputItem[] {
-    // For the initial request, we use a simple array with the user's instruction
-    return [
-      {
+  private async createInitialInputItems(
+    instruction: string,
+  ): Promise<OpenAIRequestInputItem[]> {
+    const inputItems: OpenAIRequestInputItem[] = [];
+
+    if (this.userProvidedInstructions) {
+      const systemMessage: EasyInputMessage = {
         role: "system",
         content: this.userProvidedInstructions,
-      },
-      {
-        role: "user",
-        content: instruction,
-      },
+      };
+      inputItems.push(systemMessage);
+    }
+
+    const textInput: ResponseInputText = {
+      type: "input_text",
+      text: instruction,
+    };
+    const userContent: Array<ResponseInputText | ResponseInputImage> = [
+      textInput,
     ];
+
+    const initialScreenshot = await this.captureInitialScreenshot();
+    if (initialScreenshot) {
+      const screenshotInput: ResponseInputImage = {
+        type: "input_image",
+        image_url: initialScreenshot,
+        detail: "high",
+      };
+      userContent.push(screenshotInput);
+    }
+
+    const userMessage: EasyInputMessage = {
+      role: "user",
+      content: userContent,
+    };
+    inputItems.push(userMessage);
+
+    return inputItems;
   }
 
   async getAction(
-    inputItems: ResponseInputItem[],
+    inputItems: OpenAIRequestInputItem[],
     previousResponseId?: string,
   ): Promise<{
     output: ResponseItem[];
@@ -459,6 +520,27 @@ export class OpenAICUAClient extends AgentClient {
         ];
       }
 
+      // When a captcha was just solved, expose a tool the model can call
+      // to confirm it should proceed.  This avoids fragile English-phrase
+      // parsing and works regardless of the model's output language.
+      if (this.captchaSolvedToolActive) {
+        requestParams.tools = [
+          ...(requestParams.tools as Record<string, unknown>[]),
+          {
+            type: "function" as const,
+            name: CAPTCHA_PROCEED_TOOL,
+            function: {
+              name: CAPTCHA_PROCEED_TOOL,
+              description:
+                "The captcha on this page was solved automatically. " +
+                "Call this tool to confirm and continue with your task " +
+                "instead of asking the user for permission.",
+              parameters: { type: "object", properties: {}, required: [] },
+            },
+          },
+        ];
+      }
+
       // Add previous_response_id if available
       if (previousResponseId) {
         requestParams.previous_response_id = previousResponseId;
@@ -466,11 +548,10 @@ export class OpenAICUAClient extends AgentClient {
 
       // Log LLM request
       const llmRequestId = uuidv7();
-      SessionFileLogger.logLlmRequest({
+      FlowLogger.logLlmRequest({
         requestId: llmRequestId,
         model: this.modelName,
-        operation: "CUA.getAction",
-        prompt: formatCuaPromptPreview(inputItems),
+        prompt: extractLlmCuaPromptSummary(inputItems),
       });
 
       const startTime = Date.now();
@@ -488,11 +569,10 @@ export class OpenAICUAClient extends AgentClient {
       };
 
       // Log LLM response
-      SessionFileLogger.logLlmResponse({
+      FlowLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.modelName,
-        operation: "CUA.getAction",
-        output: formatCuaResponsePreview(response.output),
+        output: extractLlmCuaResponseSummary(response.output),
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
       });
@@ -683,6 +763,19 @@ export class OpenAICUAClient extends AgentClient {
         item.type === "function_call" &&
         this.isFunctionCallItem(item)
       ) {
+        // Handle the captcha-proceed tool — just return a confirmation and
+        // deactivate the tool so it doesn't appear on subsequent steps.
+        if (item.name === CAPTCHA_PROCEED_TOOL) {
+          this.captchaSolvedToolActive = false;
+          nextInputItems.push({
+            type: "function_call_output",
+            call_id: item.call_id,
+            output:
+              "Confirmed. The captcha is solved. Continue completing the original task autonomously without asking for further confirmation.",
+          } as ResponseInputItem);
+          continue;
+        }
+
         // Handle function calls (tool calls)
         try {
           const action = this.convertFunctionCallToAction(item);
@@ -777,6 +870,28 @@ export class OpenAICUAClient extends AgentClient {
       type: action.type as string,
       ...action, // Spread all properties from the action
     };
+  }
+
+  private drainContextNotes(): string[] {
+    if (this.pendingContextNotes.length === 0) {
+      return [];
+    }
+
+    const notes = [...this.pendingContextNotes];
+    this.pendingContextNotes = [];
+    return notes;
+  }
+
+  private async captureInitialScreenshot(): Promise<string | undefined> {
+    if (!this.screenshotProvider) {
+      return undefined;
+    }
+
+    try {
+      return await this.captureScreenshot();
+    } catch {
+      return undefined;
+    }
   }
 
   private convertFunctionCallToAction(

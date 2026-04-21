@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z, ZodTypeAny } from "zod";
 import type { V3 } from "../../v3.js";
 import type { AgentModelConfig } from "../../types/public/agent.js";
+import { TimeoutError } from "../../types/public/sdkErrors.js";
 
 interface JsonSchema {
   type?: string;
@@ -48,6 +49,7 @@ function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
 export const extractTool = (
   v3: V3,
   executionModel?: string | AgentModelConfig,
+  toolTimeout?: number,
 ) =>
   tool({
     description: `Extract structured data from the current page based on a provided schema.
@@ -94,11 +96,14 @@ export const extractTool = (
           : undefined;
         const result = await v3.extract(instruction, parsedSchema, {
           ...(executionModel ? { model: executionModel } : {}),
+          timeout: toolTimeout,
         });
         return { success: true, result };
       } catch (error) {
-        const err = error as Error;
-        return { success: false, error: err?.message ?? String(error) };
+        if (error instanceof TimeoutError) {
+          throw error;
+        }
+        return { success: false, error: error?.message ?? String(error) };
       }
     },
   });

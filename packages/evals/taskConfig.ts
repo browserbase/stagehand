@@ -12,10 +12,10 @@
 
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "node:url";
 import { AvailableModel } from "@browserbasehq/stagehand";
 import { filterByEvalName } from "./args.js";
 import { AgentModelEntry } from "./types/evals.js";
+import { getCurrentDirPath } from "./runtimePaths.js";
 
 const ALL_EVAL_MODELS = [
   // GOOGLE
@@ -28,8 +28,7 @@ const ALL_EVAL_MODELS = [
   "gemini-2.5-flash-preview-04-17",
   "gemini-2.5-pro-preview-03-25",
   // ANTHROPIC
-  "claude-3-5-sonnet-latest",
-  "claude-3-7-sonnet-latest",
+  "claude-sonnet-4-6",
   // OPENAI
   "gpt-4o-mini",
   "gpt-4o",
@@ -58,7 +57,7 @@ const ALL_EVAL_MODELS = [
 ];
 
 // The configuration file `evals.config.json` contains a list of tasks and their associated categories.
-const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const moduleDir = getCurrentDirPath();
 const configPath = path.join(moduleDir, "evals.config.json");
 const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) satisfies {
   tasks: {
