@@ -1,7 +1,4 @@
-import type {
-  LanguageModelV2CallOptions,
-  LanguageModelV2Middleware,
-} from "@ai-sdk/provider";
+import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
 import {
   ExperimentalNotConfiguredError,
   UnsupportedAISDKModelProviderError,
@@ -73,8 +70,6 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   gateway: createGateway,
 };
 
-const OPUS_47_MODEL_PATTERN = /^claude-opus-4-7(?:$|-)/;
-
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gpt-4.1": "openai",
   "gpt-4.1-mini": "openai",
@@ -104,32 +99,6 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.5-flash-preview-04-17": "google",
   "gemini-2.5-pro-preview-03-25": "google",
 };
-
-function shouldOmitTemperatureForModel(
-  subProvider: string,
-  subModelName: string,
-): boolean {
-  return (
-    subProvider === "anthropic" && OPUS_47_MODEL_PATTERN.test(subModelName)
-  );
-}
-
-function createOpus47TemperatureMiddleware(): LanguageModelV2Middleware {
-  return {
-    middlewareVersion: "v2",
-    transformParams: async ({ params }) => {
-      if (params.temperature == null) {
-        return params;
-      }
-
-      const transformedParams: LanguageModelV2CallOptions = {
-        ...params,
-        temperature: undefined,
-      };
-      return transformedParams;
-    },
-  };
-}
 
 export function getAISDKLanguageModel(
   subProvider: string,
@@ -164,16 +133,8 @@ export function getAISDKLanguageModel(
   }
 
   if (middleware) {
-    model = wrapLanguageModel({ model, middleware });
+    return wrapLanguageModel({ model, middleware });
   }
-
-  if (shouldOmitTemperatureForModel(subProvider, subModelName)) {
-    model = wrapLanguageModel({
-      model,
-      middleware: createOpus47TemperatureMiddleware(),
-    });
-  }
-
   return model;
 }
 

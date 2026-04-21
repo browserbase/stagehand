@@ -142,12 +142,9 @@ export class AISdkClientWrapped extends LLMClient {
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
     const isDeepSeek = this.model.modelId.includes("deepseek");
-    // Kimi models require temperature=1; other models prefer per-call overrides,
-    // then fall back to a client-level default.
+    // Kimi models only support temperature=1
     const isKimi = this.model.modelId.includes("kimi");
-    const requestedTemperature =
-      options.temperature ?? this.clientOptions?.temperature;
-    const temperature = isKimi ? 1 : requestedTemperature;
+    const temperature = isKimi ? 1 : options.temperature;
 
     // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
     const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
