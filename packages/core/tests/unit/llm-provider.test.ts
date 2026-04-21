@@ -57,6 +57,30 @@ describe("getAISDKLanguageModel", () => {
     });
   });
 
+  describe("novita provider", () => {
+    it("works with apiKey", () => {
+      const model = getAISDKLanguageModel(
+        "novita",
+        "moonshotai/kimi-k2.5",
+        { apiKey: "test-novita-key" },
+      );
+      expect(model).toBeDefined();
+    });
+
+    it("works without clientOptions (uses static provider)", () => {
+      const model = getAISDKLanguageModel("novita", "moonshotai/kimi-k2.5");
+      expect(model).toBeDefined();
+    });
+
+    it("works with custom baseURL override", () => {
+      const model = getAISDKLanguageModel("novita", "minimax/minimax-m2.5", {
+        apiKey: "test-novita-key",
+        baseURL: "https://api.novita.ai/openai",
+      });
+      expect(model).toBeDefined();
+    });
+  });
+
   describe("hasValidOptions logic", () => {
     it("treats undefined apiKey as no options", () => {
       // This should use the default provider path (AISDKProviders)
