@@ -65,6 +65,8 @@ export interface AgentContext {
   messages: ModelMessage[];
   wrappedModel: ReturnType<typeof wrapLanguageModel>;
   initialPageUrl: string;
+  /** True when the model supports adaptive thinking natively (e.g. Claude 4.6). */
+  useAdaptiveThinking: boolean;
 }
 
 export interface AgentState {

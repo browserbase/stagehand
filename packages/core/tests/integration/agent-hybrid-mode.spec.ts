@@ -314,5 +314,29 @@ test.describe("Stagehand agent hybrid mode", () => {
       const tools = createAgentTools(v3, { mode: "hybrid" });
       expect(tools).toHaveProperty("think");
     });
+
+    test("Think tool is excluded when useAdaptiveThinking is true", () => {
+      const tools = createAgentTools(v3, {
+        mode: "hybrid",
+        useAdaptiveThinking: true,
+      });
+      expect(tools).not.toHaveProperty("think");
+    });
+
+    test("Think tool is excluded in DOM mode when useAdaptiveThinking is true", () => {
+      const tools = createAgentTools(v3, {
+        mode: "dom",
+        useAdaptiveThinking: true,
+      });
+      expect(tools).not.toHaveProperty("think");
+    });
+
+    test("Think tool is included when useAdaptiveThinking is false", () => {
+      const tools = createAgentTools(v3, {
+        mode: "hybrid",
+        useAdaptiveThinking: false,
+      });
+      expect(tools).toHaveProperty("think");
+    });
   });
 });
