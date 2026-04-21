@@ -129,8 +129,8 @@ export class V3CuaAgentHandler {
           }
         }
         await new Promise((r) => setTimeout(r, 300));
-        // Skip logging for screenshot actions - they're no-ops, the actual
-        // Page.screenshot in captureAndSendScreenshot() is logged separately
+        // Skip logging for screenshot actions - they're no-ops; the CUA client
+        // takes its own screenshot via screenshotProvider between API turns.
         const shouldLog = action.type !== "screenshot";
         if (shouldLog) {
           await FlowLogger.runWithLogging(
@@ -151,17 +151,6 @@ export class V3CuaAgentHandler {
         action.timestamp = Date.now();
 
         await new Promise((r) => setTimeout(r, waitBetween));
-        try {
-          await this.captureAndSendScreenshot();
-        } catch (e) {
-          this.logger({
-            category: "agent",
-            message: `Warning: Failed to take screenshot after action: ${String(
-              (e as Error)?.message ?? e,
-            )}`,
-            level: 1,
-          });
-        }
       } catch (error) {
         const msg = (error as Error)?.message ?? String(error);
         this.logger({
@@ -503,7 +492,8 @@ export class V3CuaAgentHandler {
         return { success: true };
       }
       case "screenshot": {
-        // No-op - screenshot is captured by captureAndSendScreenshot() after all actions
+        // No-op - the CUA client captures a screenshot itself after each
+        // computer_call (or batch of actions) for the next request.
         return { success: true };
       }
       case "goto": {
