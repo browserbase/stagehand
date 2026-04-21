@@ -101,7 +101,7 @@ if (filterByEvalName && !tasksByName[filterByEvalName]) {
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
   : [
-      "google/gemini-2.0-flash",
+      "google/gemini-2.5-flash",
       "openai/gpt-4.1-mini",
       "anthropic/claude-haiku-4-5",
     ];
