@@ -8,6 +8,7 @@
  * Multiple sessions can run simultaneously using --session <name> or BROWSE_SESSION env var.
  */
 
+
 import { Command, Option } from "commander";
 import { Stagehand, type Page as BrowsePage } from "@browserbasehq/stagehand";
 import { promises as fs } from "fs";
