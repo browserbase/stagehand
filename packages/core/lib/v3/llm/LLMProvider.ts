@@ -1,4 +1,9 @@
-import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
+import type {
+  LanguageModelV2CallOptions,
+  LanguageModelV2CallWarning,
+  LanguageModelV2Middleware,
+  LanguageModelV2StreamPart,
+} from "@ai-sdk/provider";
 import {
   ExperimentalNotConfiguredError,
   UnsupportedAISDKModelProviderError,
@@ -70,6 +75,8 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   gateway: createGateway,
 };
 
+const OPUS_47_MODEL_PATTERN = /^claude-opus-4-7(?:$|-)/;
+
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gpt-4.1": "openai",
   "gpt-4.1-mini": "openai",
@@ -99,6 +106,120 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.5-flash-preview-04-17": "google",
   "gemini-2.5-pro-preview-03-25": "google",
 };
+
+function shouldOmitTemperatureForModel(
+  subProvider: string,
+  subModelName: string,
+): boolean {
+  return (
+    subProvider === "anthropic" && OPUS_47_MODEL_PATTERN.test(subModelName)
+  );
+}
+
+function createOpus47TemperatureWarning(
+  modelId: string,
+): LanguageModelV2CallWarning {
+  return {
+    type: "unsupported-setting",
+    setting: "temperature",
+    details: `temperature is not supported by anthropic/${modelId}. The setting was omitted.`,
+  };
+}
+
+function createOpus47TemperatureMiddleware(
+  modelId: string,
+): LanguageModelV2Middleware {
+  const warningByParams = new WeakMap<
+    LanguageModelV2CallOptions,
+    LanguageModelV2CallWarning[]
+  >();
+
+  const getWarningsForParams = (params: LanguageModelV2CallOptions) => {
+    const warnings = warningByParams.get(params) ?? [];
+    warningByParams.delete(params);
+    return warnings;
+  };
+
+  return {
+    middlewareVersion: "v2",
+    transformParams: async ({ params }) => {
+      if (params.temperature == null) {
+        return params;
+      }
+
+      const transformedParams: LanguageModelV2CallOptions = {
+        ...params,
+        temperature: undefined,
+      };
+      warningByParams.set(transformedParams, [
+        createOpus47TemperatureWarning(modelId),
+      ]);
+      return transformedParams;
+    },
+    wrapGenerate: async ({ doGenerate, params }) => {
+      const result = await doGenerate();
+      const warnings = getWarningsForParams(params);
+
+      if (warnings.length === 0) {
+        return result;
+      }
+
+      return {
+        ...result,
+        warnings: [...(result.warnings ?? []), ...warnings],
+      };
+    },
+    wrapStream: async ({ doStream, params }) => {
+      const result = await doStream();
+      const warnings = getWarningsForParams(params);
+
+      if (warnings.length === 0) {
+        return result;
+      }
+
+      let emittedStreamStart = false;
+      const reader = result.stream.getReader();
+
+      const stream = new ReadableStream<LanguageModelV2StreamPart>({
+        async pull(controller) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            controller.close();
+            return;
+          }
+
+          if (value.type === "stream-start") {
+            emittedStreamStart = true;
+            controller.enqueue({
+              ...value,
+              warnings: [...value.warnings, ...warnings],
+            });
+            return;
+          }
+
+          if (!emittedStreamStart) {
+            emittedStreamStart = true;
+            controller.enqueue({
+              type: "stream-start",
+              warnings,
+            });
+          }
+
+          controller.enqueue(value);
+        },
+        async cancel(reason) {
+          await reader.cancel(reason);
+        },
+      });
+
+      return {
+        ...result,
+        stream,
+      };
+    },
+  };
+}
 
 export function getAISDKLanguageModel(
   subProvider: string,
@@ -133,8 +254,16 @@ export function getAISDKLanguageModel(
   }
 
   if (middleware) {
-    return wrapLanguageModel({ model, middleware });
+    model = wrapLanguageModel({ model, middleware });
   }
+
+  if (shouldOmitTemperatureForModel(subProvider, subModelName)) {
+    model = wrapLanguageModel({
+      model,
+      middleware: createOpus47TemperatureMiddleware(subModelName),
+    });
+  }
+
   return model;
 }
 

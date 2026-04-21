@@ -25,6 +25,32 @@ import {
 // Wrap AI SDK functions with Braintrust for tracing
 const { generateObject, generateText } = wrapAISDK(ai);
 
+function logProviderWarnings(
+  logger: ((message: LogLine) => void) | undefined,
+  warnings: unknown,
+  requestId: string | undefined,
+) {
+  if (!Array.isArray(warnings) || warnings.length === 0) {
+    return;
+  }
+
+  logger?.({
+    category: "aisdk",
+    message: "provider warnings",
+    level: 1,
+    auxiliary: {
+      warnings: {
+        value: JSON.stringify(warnings),
+        type: "object",
+      },
+      requestId: {
+        value: requestId,
+        type: "string",
+      },
+    },
+  });
+}
+
 export class AISdkClientWrapped extends LLMClient {
   public type = "aisdk" as const;
   private model: LanguageModelV2;
@@ -142,9 +168,12 @@ export class AISdkClientWrapped extends LLMClient {
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
     const isDeepSeek = this.model.modelId.includes("deepseek");
-    // Kimi models only support temperature=1
+    // Kimi models require temperature=1; other models prefer per-call overrides,
+    // then fall back to a client-level default.
     const isKimi = this.model.modelId.includes("kimi");
-    const temperature = isKimi ? 1 : options.temperature;
+    const requestedTemperature =
+      options.temperature ?? this.clientOptions?.temperature;
+    const temperature = isKimi ? 1 : requestedTemperature;
 
     // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
     const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
@@ -230,6 +259,12 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           total_tokens: objectResponse.usage.totalTokens ?? 0,
         },
       } as T;
+
+      logProviderWarnings(
+        this.logger,
+        objectResponse.warnings,
+        options.requestId,
+      );
 
       this.logger?.({
         category: "aisdk",
@@ -318,6 +353,8 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;
+
+    logProviderWarnings(this.logger, textResponse.warnings, options.requestId);
 
     this.logger?.({
       category: "aisdk",
