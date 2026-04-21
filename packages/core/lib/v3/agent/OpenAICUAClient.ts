@@ -279,6 +279,12 @@ export class OpenAICUAClient extends AgentClient {
         inference_time_ms: result.usage.inference_time_ms,
       };
 
+      logger({
+        category: "agent",
+        message: `Raw model response output: ${JSON.stringify(output, null, 2)}`,
+        level: 2,
+      });
+
       // Add any reasoning items to our map
       for (const item of output) {
         if (item.type === "reasoning") {
@@ -631,7 +637,9 @@ export class OpenAICUAClient extends AgentClient {
             output: {
               type: outputType,
               image_url: screenshot,
-              ...(this.usesNewComputerTool ? { detail: "original" as const } : {}),
+              ...(this.usesNewComputerTool
+                ? { detail: "original" as const }
+                : {}),
             },
           } as ResponseInputItem;
 
@@ -708,7 +716,9 @@ export class OpenAICUAClient extends AgentClient {
                 type: outputType,
                 image_url: screenshot,
                 error: errorMessage,
-                ...(this.usesNewComputerTool ? { detail: "original" as const } : {}),
+                ...(this.usesNewComputerTool
+                  ? { detail: "original" as const }
+                  : {}),
               },
             } as ResponseInputItem;
 
@@ -902,9 +912,7 @@ export class OpenAICUAClient extends AgentClient {
     }
   }
 
-  private convertComputerCallToActions(
-    call: ComputerCallItem,
-  ): AgentAction[] {
+  private convertComputerCallToActions(call: ComputerCallItem): AgentAction[] {
     if (call.actions && Array.isArray(call.actions)) {
       return call.actions.map((action) => ({
         type: action.type as string,

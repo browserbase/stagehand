@@ -1,5 +1,7 @@
 import { Stagehand } from "../lib/v3/index.js";
 import chalk from "chalk";
+import dotenv from "dotenv";
+dotenv.config();
 
 async function main() {
   console.log(`\n${chalk.bold("Stagehand 🤘 GPT-5.4 CUA Demo")}\n`);
@@ -16,7 +18,7 @@ async function main() {
     const agent = stagehand.agent({
       mode: "cua",
       model: {
-        modelName: "openai/gpt-5.4-2026-03-05",
+        modelName: "openai/gpt-5.4",
         apiKey: process.env.OPENAI_API_KEY,
       },
       systemPrompt: `You are a helpful assistant that can use a web browser.
@@ -27,7 +29,7 @@ async function main() {
     await page.goto("https://news.ycombinator.com");
 
     const instruction =
-      "Find the top story on Hacker News and tell me its title, link, and point count and then click on it and extract a summary for me";
+      "scroll down (use scroll tool, don't use keypresses) to the bottom of the page and then extract the text from the page";
     console.log(`Instruction: ${chalk.white(instruction)}`);
 
     const result = await agent.execute({
