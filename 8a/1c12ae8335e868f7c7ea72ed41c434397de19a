@@ -1,0 +1,23 @@
+packages/core/lib/v3/llm/aisdk.ts
+  c5c6ee111cfe0393 155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "8a1c12ae8335e868f7c7ea72ed41c434397de19a",
+  "prompts": {
+    "c5c6ee111cfe0393": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dabfc-2a44-7793-8204-1611809c6957",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 2,
+      "accepted_lines": 254,
+      "overriden_lines": 0
+    }
+  }
+}
