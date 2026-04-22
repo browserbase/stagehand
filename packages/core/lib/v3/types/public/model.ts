@@ -97,6 +97,17 @@ export type ModelProvider =
   | "google"
   | "aisdk";
 
+/**
+ * Effort levels for Claude adaptive thinking.
+ * Used with Claude 4.6+ models (claude-opus-4-6, claude-sonnet-4-6).
+ * - "none": Disable adaptive thinking entirely
+ * - "low": Claude minimizes thinking, skips for simple tasks
+ * - "medium": Claude uses moderate thinking, may skip for simple queries (default)
+ * - "high": Claude always thinks with deep reasoning
+ * - "max": Claude always thinks with no constraints (Opus 4.6 only)
+ */
+export type ThinkingEffort = "none" | "low" | "medium" | "high" | "max";
+
 export type ClientOptions = (
   | OpenAIClientOptions
   | AnthropicClientOptions
@@ -109,8 +120,19 @@ export type ClientOptions = (
   organization?: string;
   /** Delay between agent actions in ms */
   waitBetweenActions?: number;
-  /** Anthropic thinking budget for extended thinking */
+  /**
+   * @deprecated For Claude 4.6+ models, use `thinkingEffort` instead.
+   * Anthropic thinking budget for extended thinking (used with older Claude models like 4.5).
+   * Sets `thinking.type: "enabled"` with the specified `budget_tokens`.
+   */
   thinkingBudget?: number;
+  /**
+   * Effort level for Claude adaptive thinking (Claude 4.6+ models only).
+   * Uses `thinking.type: "adaptive"` with `output_config.effort`.
+   * This is the recommended approach for Claude Opus 4.6 and Sonnet 4.6.
+   * @see https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+   */
+  thinkingEffort?: ThinkingEffort;
   /** Environment type for CUA agents (browser, mac, windows, ubuntu) */
   environment?: string;
   /** Max images for Microsoft FARA agent */
