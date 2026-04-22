@@ -4,6 +4,7 @@ import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
 import type { AgentModelConfig, Variables } from "../../types/public/agent.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
+import { substituteVariables } from "../utils/variables.js";
 
 export const fillFormTool = (
   v3: V3,
@@ -12,18 +13,22 @@ export const fillFormTool = (
   toolTimeout?: number,
 ) => {
   const hasVariables = variables && Object.keys(variables).length > 0;
+  const valueDescription = hasVariables
+    ? `The exact text to type into the field. Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}`
+    : "The exact text to type into the field";
   const actionDescription = hasVariables
-    ? `Must follow the pattern: "type <exact value> into the <field name> <fieldType>". Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}. Examples: "type %email% into the email input", "type %password% into the password input"`
-    : 'Must follow the pattern: "type <exact value> into the <field name> <fieldType>". Examples: "type john@example.com into the email input", "type John into the first name input"';
+    ? `Describe which field to target, e.g. "type into the email input", "type into the password field". Use %variableName% to substitute a variable value. Available: ${Object.keys(variables).join(", ")}. Example: "type %email% into the email input"`
+    : 'Describe which field to target, e.g. "type into the email input", "type into the first name input"';
 
   return tool({
     description:
-      'FORM FILL - MULTI-FIELD INPUT TOOL\nFill 2+ form inputs/textareas at once. Each action MUST include the exact text to type and the target field, e.g. "type john@example.com into the email field".',
+      'FORM FILL - MULTI-FIELD INPUT TOOL\nFill 2+ form inputs/textareas at once. Each field requires an action describing the target element and a value with the text to type.',
     inputSchema: z.object({
       fields: z
         .array(
           z.object({
             action: z.string().describe(actionDescription),
+            value: z.string().describe(valueDescription),
           }),
         )
         .min(1, "Provide at least one field to fill"),
@@ -49,6 +54,17 @@ export const fillFormTool = (
           ? { model: executionModel, variables, timeout: toolTimeout }
           : { variables, timeout: toolTimeout };
         const observeResults = await v3.observe(instruction, observeOptions);
+
+        // Override observe results with the actual values provided by the agent.
+        // The LLM used by observe() may hallucinate placeholder values instead of
+        // using the intended text, so we inject the real values before calling act().
+        for (let i = 0; i < observeResults.length && i < fields.length; i++) {
+          const res = observeResults[i];
+          if (res.method === "fill" && res.arguments && res.arguments.length > 0) {
+            const actualValue = substituteVariables(fields[i].value, variables);
+            res.arguments[0] = actualValue;
+          }
+        }
 
         const completed = [] as unknown[];
         const replayableActions: Action[] = [];
