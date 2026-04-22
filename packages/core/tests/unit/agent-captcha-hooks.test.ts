@@ -432,3 +432,76 @@ describe("agent captcha hooks", () => {
     ).toBe(true);
   });
 });
+
+describe("v3 cua handler screenshot behavior", () => {
+  let page: MockPage;
+  let logs: LogLine[];
+  let logger: (line: LogLine) => void;
+
+  beforeEach(() => {
+    page = new MockPage();
+    logs = [];
+    logger = (line) => {
+      logs.push(line);
+    };
+    fakeCuaClient = new FakeCuaClient();
+  });
+
+  it("does not take per-action screenshots when a batch of actions runs", async () => {
+    const screenshotSpy = vi.spyOn(page, "screenshot");
+    const batchSize = 4;
+
+    fakeCuaClient.executeImpl = vi.fn(async () => {
+      for (let i = 0; i < batchSize; i += 1) {
+        await fakeCuaClient.actionHandler?.({
+          type: "scroll",
+          x: 0,
+          y: 0,
+          scroll_x: 0,
+          scroll_y: 100,
+        });
+      }
+      return {
+        success: true,
+        message: "ok",
+        actions: [],
+        completed: true,
+      };
+    });
+
+    const handler = new V3CuaAgentHandler(
+      {
+        context: {
+          awaitActivePage: async () => page,
+        },
+        bus: { emit: vi.fn() },
+        isCaptchaAutoSolveEnabled: false,
+        isAdvancedStealth: false,
+        configuredViewport: { width: 1288, height: 711 },
+        isAgentReplayActive: () => false,
+        updateMetrics: vi.fn(),
+      } as never,
+      logger,
+      {
+        modelName: "openai/gpt-5.4",
+        clientOptions: { waitBetweenActions: 1 },
+      } as never,
+    );
+
+    vi.spyOn(
+      handler as unknown as {
+        executeAction: (action: Record<string, unknown>) => Promise<unknown>;
+      },
+      "executeAction",
+    ).mockResolvedValue({ success: true });
+
+    await handler.execute({
+      instruction: "scroll to the bottom",
+      highlightCursor: false,
+    });
+
+    // The handler must not call page.screenshot for each action in a batch —
+    // the CUA client takes a single screenshot after all actions itself.
+    expect(screenshotSpy).not.toHaveBeenCalled();
+  });
+});
