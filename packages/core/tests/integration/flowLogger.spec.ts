@@ -213,11 +213,13 @@ test.describe("flow logger integration", () => {
     const llmClient = createScriptedAisdkTestLlmClient({
       jsonResponses: {
         act: (options) => ({
-          elementId: findLastEncodedId(options),
-          description: `click ${buttonText}`,
-          method: "click",
-          arguments: [],
-          twoStep: false,
+          action: {
+            elementId: findLastEncodedId(options),
+            description: `click ${buttonText}`,
+            method: "click",
+            arguments: [],
+            twoStep: false,
+          },
         }),
       },
     });
@@ -435,11 +437,13 @@ test.describe("flow logger integration", () => {
     const llmClient = createScriptedAisdkTestLlmClient({
       jsonResponses: {
         act: (options) => ({
-          elementId: findLastEncodedId(options),
-          description: `click ${buttonText}`,
-          method: "click",
-          arguments: [],
-          twoStep: false,
+          action: {
+            elementId: findLastEncodedId(options),
+            description: `click ${buttonText}`,
+            method: "click",
+            arguments: [],
+            twoStep: false,
+          },
         }),
       },
       generateResponses: [
