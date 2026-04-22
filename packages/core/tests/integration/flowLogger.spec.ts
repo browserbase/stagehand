@@ -218,8 +218,8 @@ test.describe("flow logger integration", () => {
             description: `click ${buttonText}`,
             method: "click",
             arguments: [],
-            twoStep: false,
           },
+          twoStep: false,
         }),
       },
     });
@@ -442,8 +442,8 @@ test.describe("flow logger integration", () => {
             description: `click ${buttonText}`,
             method: "click",
             arguments: [],
-            twoStep: false,
           },
+          twoStep: false,
         }),
       },
       generateResponses: [

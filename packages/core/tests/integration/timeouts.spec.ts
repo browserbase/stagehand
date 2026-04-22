@@ -121,8 +121,8 @@ function createToolTimeoutTestLlmClient(
               description: "click body",
               method: "click",
               arguments: [],
-              twoStep: false,
             },
+            twoStep: false,
           },
           usage,
         } as T;

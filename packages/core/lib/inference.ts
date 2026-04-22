@@ -440,12 +440,12 @@ export async function act({
               "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
             ),
         ),
-        twoStep: z.boolean(),
       })
       .nullable()
       .describe(
         "The element to act on. Return null if no element on the page matches the instruction — do NOT fabricate or guess an element, and never emit empty strings or placeholder values.",
       ),
+    twoStep: z.boolean(),
   });
 
   type ActResponse = z.infer<typeof actSchema>;
@@ -535,6 +535,6 @@ export async function act({
     reasoning_tokens: reasoningTokens,
     cached_input_tokens: cachedInputTokens,
     inference_time_ms: usageTimeMs,
-    twoStep: actData.action?.twoStep ?? false,
+    twoStep: actData.twoStep,
   };
 }

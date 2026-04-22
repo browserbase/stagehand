@@ -133,7 +133,7 @@ function resolveJsonResponseKey(
   };
   const properties = schema?.properties ?? {};
 
-  if ("action" in properties) {
+  if ("action" in properties && "twoStep" in properties) {
     return "act";
   }
 
