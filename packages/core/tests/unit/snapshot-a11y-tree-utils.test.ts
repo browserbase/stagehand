@@ -81,6 +81,28 @@ describe("decorateRoles", () => {
     ]);
   });
 
+  it("overrides role to 'input, file' for file inputs", () => {
+    const opts: A11yOptions = {
+      ...defaultOpts,
+      tagNameMap: { "enc-10": "input, file" },
+      scrollableMap: {},
+    };
+    const nodes = [
+      makeAxNode({
+        backendDOMNodeId: 10,
+        role: axString("button"),
+        name: axString("Choose File"),
+      }),
+    ];
+
+    const decorated = decorateRoles(nodes, opts);
+    expect(decorated[0]).toMatchObject({
+      encodedId: "enc-10",
+      role: "input, file",
+      name: "Choose File",
+    });
+  });
+
   it("falls back when encoding fails", () => {
     const opts: A11yOptions = {
       ...defaultOpts,
