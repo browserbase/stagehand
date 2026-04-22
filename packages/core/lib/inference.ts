@@ -411,34 +411,41 @@ export async function act({
   const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
 
   const actSchema = z.object({
-    elementId: z
-      .string()
-      .regex(/^\d+-\d+$/)
-      .describe(
-        "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'. for example, '0-76' or '16-21'",
-      ),
-    description: z
-      .string()
-      .describe("a description of the accessible element and its purpose"),
-    method: z
-      .enum(
-        // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
-        Object.values(SupportedUnderstudyAction) as unknown as readonly [
-          string,
-          ...string[],
-        ],
-      )
-      .describe(
-        "the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.",
-      ),
-    arguments: z.array(
-      z
-        .string()
-        .describe(
-          "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
+    action: z
+      .object({
+        elementId: z
+          .string()
+          .regex(/^\d+-\d+$/)
+          .describe(
+            "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'. for example, '0-76' or '16-21'",
+          ),
+        description: z
+          .string()
+          .describe("a description of the accessible element and its purpose"),
+        method: z
+          .enum(
+            // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
+            Object.values(SupportedUnderstudyAction) as unknown as readonly [
+              string,
+              ...string[],
+            ],
+          )
+          .describe(
+            "the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.",
+          ),
+        arguments: z.array(
+          z
+            .string()
+            .describe(
+              "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
+            ),
         ),
-    ),
-    twoStep: z.boolean(),
+      })
+      .nullable()
+      .describe(
+        "The element to act on. Return null if no element on the page matches the instruction — do NOT fabricate or guess an element, and never emit empty strings or placeholder values.",
+      ),
+    twoStep: z.boolean().default(false),
   });
 
   type ActResponse = z.infer<typeof actSchema>;
@@ -512,12 +519,14 @@ export async function act({
     });
   }
 
-  const parsedElement = {
-    elementId: actData.elementId,
-    description: String(actData.description),
-    method: String(actData.method),
-    arguments: actData.arguments,
-  };
+  const parsedElement = actData.action
+    ? {
+        elementId: actData.action.elementId,
+        description: String(actData.action.description),
+        method: String(actData.action.method),
+        arguments: actData.action.arguments,
+      }
+    : undefined;
 
   return {
     element: parsedElement,
