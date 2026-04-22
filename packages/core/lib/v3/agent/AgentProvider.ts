@@ -14,6 +14,7 @@ import { MicrosoftCUAClient } from "./MicrosoftCUAClient.js";
 
 // Map model names to their provider types
 export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
+  "gpt-5.4": "openai",
   "computer-use-preview": "openai",
   "computer-use-preview-2025-03-11": "openai",
   "claude-sonnet-4-20250514": "anthropic",
