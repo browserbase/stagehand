@@ -194,11 +194,6 @@ export class AISdkClient extends LLMClient {
           structuredOutputs: true,
         };
         break;
-      case "anthropic":
-        providerOptions.anthropic = {
-          structuredOutputMode: "auto",
-        };
-        break;
       case "groq":
         providerOptions.groq = {
           structuredOutputs: true,
