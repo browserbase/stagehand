@@ -10,7 +10,7 @@ import {
   ToolUseItem,
 } from "../types/public/agent.js";
 import { LogLine } from "../types/public/logs.js";
-import { ClientOptions } from "../types/public/model.js";
+import { ClientOptions, ThinkingEffort } from "../types/public/model.js";
 import {
   AgentScreenshotProviderError,
   StagehandClosedError,
@@ -44,6 +44,8 @@ export class AnthropicCUAClient extends AgentClient {
   private screenshotProvider?: () => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
   private thinkingBudget: number | null = null;
+  private thinkingEffort: ThinkingEffort | null = null;
+  private userTemperature: number | undefined;
   private tools?: ToolSet;
 
   constructor(
@@ -60,13 +62,21 @@ export class AnthropicCUAClient extends AgentClient {
       (clientOptions?.apiKey as string) || process.env.ANTHROPIC_API_KEY || "";
     this.baseURL = (clientOptions?.baseURL as string) || undefined;
 
-    // Get thinking budget if specified
+    // Get thinking budget if specified (deprecated for 4.6 models)
     if (
       clientOptions?.thinkingBudget &&
       typeof clientOptions.thinkingBudget === "number"
     ) {
       this.thinkingBudget = clientOptions.thinkingBudget;
     }
+
+    // Get thinking effort for adaptive thinking (Claude 4.6+ models)
+    if (clientOptions?.thinkingEffort) {
+      this.thinkingEffort = clientOptions.thinkingEffort;
+    }
+
+    // Track user-specified temperature so we can warn if adaptive thinking overrides it
+    this.userTemperature = clientOptions?.temperature;
 
     // Store client options for reference
     this.clientOptions = {
@@ -234,7 +244,7 @@ export class AnthropicCUAClient extends AgentClient {
   }> {
     try {
       // Get response from the model
-      const result = await this.getAction(inputItems);
+      const result = await this.getAction(inputItems, logger);
       const content = result.content;
       const usage = {
         input_tokens: result.usage.input_tokens,
@@ -411,7 +421,10 @@ export class AnthropicCUAClient extends AgentClient {
     ];
   }
 
-  async getAction(inputItems: ResponseInputItem[]): Promise<{
+  async getAction(
+    inputItems: ResponseInputItem[],
+    logger?: (message: LogLine) => void,
+  ): Promise<{
     content: AnthropicContentBlock[];
     id: string;
     usage: Record<string, number>;
@@ -432,20 +445,54 @@ export class AnthropicCUAClient extends AgentClient {
         // as they should already be properly wrapped in user messages
       }
 
-      // Configure thinking capability if available
-      const thinking = this.thinkingBudget
-        ? { type: "enabled" as const, budget_tokens: this.thinkingBudget }
-        : undefined;
-
       // Claude 4.6+ models require the newer computer_20251124 tool version
+      // and support adaptive thinking instead of budget_tokens
       const modelBase = this.modelName.includes("/")
         ? this.modelName.split("/")[1]
         : this.modelName;
-      const shouldUseNewToolVersion = [
+
+      // Check if this is a Claude 4.6+ model that supports adaptive thinking
+      const isAdaptiveThinkingModel = [
         "claude-opus-4-6",
         "claude-sonnet-4-6",
-        "claude-opus-4-5-20251101",
       ].includes(modelBase);
+
+      // claude-opus-4-5-20251101 uses the newer computer tool version but does
+      // NOT support adaptive thinking — it still requires budget_tokens.
+      const shouldUseNewToolVersion =
+        isAdaptiveThinkingModel || modelBase === "claude-opus-4-5-20251101";
+
+      // Configure thinking capability based on model version
+      // - For 4.6 models: Use adaptive thinking with effort (recommended, defaults to "medium")
+      // - For older models: Use enabled thinking with budget_tokens (deprecated)
+      let thinking:
+        | { type: "adaptive" }
+        | { type: "enabled"; budget_tokens: number }
+        | undefined;
+      let outputConfig: { effort: Exclude<ThinkingEffort, "none"> } | undefined;
+      let useAdaptiveThinking = false;
+
+      if (isAdaptiveThinkingModel) {
+        if (this.thinkingBudget) {
+          logger?.({
+            category: "agent",
+            message: `thinkingBudget is ignored for ${this.modelName}; use thinkingEffort instead`,
+            level: 2,
+          });
+        }
+
+        if (this.thinkingEffort !== "none") {
+          // Claude 4.6+ models use adaptive thinking with output_config.effort
+          // Default to "medium" effort if not explicitly specified
+          // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+          thinking = { type: "adaptive" };
+          outputConfig = { effort: this.thinkingEffort || "medium" };
+          useAdaptiveThinking = true;
+        }
+      } else if (this.thinkingBudget) {
+        // Older models use enabled thinking with budget_tokens (deprecated for 4.6)
+        thinking = { type: "enabled", budget_tokens: this.thinkingBudget };
+      }
 
       const computerToolType = shouldUseNewToolVersion
         ? "computer_20251124"
@@ -509,6 +556,24 @@ export class AnthropicCUAClient extends AgentClient {
       // Add thinking parameter if available
       if (thinking) {
         requestParams.thinking = thinking;
+      }
+
+      // Add output_config for adaptive thinking (Claude 4.6+ models)
+      if (outputConfig) {
+        requestParams.output_config = outputConfig;
+      }
+
+      // Adaptive thinking requires temperature to be set to 1
+      // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      if (useAdaptiveThinking) {
+        if (this.userTemperature !== undefined && this.userTemperature !== 1) {
+          logger?.({
+            category: "agent",
+            message: `Adaptive thinking requires temperature=1; overriding user-specified temperature=${this.userTemperature}`,
+            level: 2,
+          });
+        }
+        requestParams.temperature = 1;
       }
 
       // Log LLM request
