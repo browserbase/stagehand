@@ -445,7 +445,7 @@ export async function act({
       .describe(
         "The element to act on. Return null if no element on the page matches the instruction — do NOT fabricate or guess an element, and never emit empty strings or placeholder values.",
       ),
-    twoStep: z.boolean().default(false),
+    twoStep: z.boolean(),
   });
 
   type ActResponse = z.infer<typeof actSchema>;

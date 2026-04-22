@@ -12,10 +12,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": [
-    "lib/**/*.ts",
-    "tests/**/*.ts",
-    "lib/v3/cli.js"
-  ],
+  "include": ["lib/**/*.ts", "tests/**/*.ts", "lib/v3/cli.js"],
   "exclude": ["node_modules", "dist"]
 }
