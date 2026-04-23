@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { unwrapToolResponse } from "../lib/v3/llm/unwrapToolResponse.js";
+import { unwrapToolResponse } from "../../lib/v3/llm/unwrapToolResponse.js";
 
 describe("unwrapToolResponse", () => {
   it("unwraps $PARAMETER_NAME wrapper", () => {
@@ -8,7 +8,7 @@ describe("unwrapToolResponse", () => {
         elementId: "11-811",
         description: "Create Invoice link button",
         method: "click",
-        arguments: [],
+        arguments: [] as never[],
         twoStep: false,
       },
     };
@@ -17,7 +17,7 @@ describe("unwrapToolResponse", () => {
       elementId: "11-811",
       description: "Create Invoice link button",
       method: "click",
-      arguments: [],
+      arguments: [] as never[],
       twoStep: false,
     });
   });
