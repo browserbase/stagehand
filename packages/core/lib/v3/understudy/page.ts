@@ -33,6 +33,7 @@ import type { Locator } from "./locator.js";
 import {
   StagehandInvalidArgumentError,
   StagehandEvalError,
+  TimeoutError,
 } from "../types/public/sdkErrors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { locatorScriptSources } from "../dom/build/locatorScripts.generated.js";
@@ -1371,16 +1372,19 @@ export class Page {
             if (state === "visible" && attached && isVisible(el)) return resolvePromise(true);
             if (state === "hidden" && (!attached || !isVisible(el))) return resolvePromise(true);
             if (Date.now() >= deadline) {
-              return rejectPromise(
-                new Error(\`waitForSelector: Timeout \${timeout}ms exceeded waiting for "\${selector}" to be \${state}\`),
-              );
+              return resolvePromise(false);
             }
             setTimeout(tick, 100);
           };
           tick();
         });
       })()`;
-      return await targetFrame.evaluate<boolean>(expression);
+      const matched = await targetFrame.evaluate<boolean>(expression);
+      if (matched) return true;
+      throw new TimeoutError(
+        `waitForSelector("${finalSelector}") to be ${state}`,
+        remainingTimeout,
+      );
     }
 
     const resolver = new FrameSelectorResolver(targetFrame);
@@ -1425,8 +1429,9 @@ export class Page {
       await this.waitForTimeout(Math.min(100, remaining));
     }
 
-    throw new Error(
-      `waitForSelector: Timeout ${remainingTimeout}ms exceeded waiting for "${finalSelector}" to be ${state}`,
+    throw new TimeoutError(
+      `waitForSelector("${finalSelector}") to be ${state}`,
+      remainingTimeout,
     );
   }
 
