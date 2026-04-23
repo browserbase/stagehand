@@ -29,7 +29,14 @@ import type {
   SerializableResponse,
   AgentCacheTransferPayload,
 } from "./types/private/index.js";
-import type { ModelConfiguration } from "./types/public/model.js";
+import type {
+  ClientOptions,
+  ModelConfiguration,
+} from "./types/public/model.js";
+import {
+  normalizeClientOptionsForModel,
+  toApiModelClientOptions,
+} from "./modelProviderOptions.js";
 import { toJsonSchema } from "./zodCompat.js";
 import type { StagehandZodSchema } from "./zodCompat.js";
 
@@ -97,15 +104,17 @@ interface StagehandAPIConstructorParams {
 
 /**
  * Parameters for starting a session via the API client.
- * Extends Api.SessionStartRequest with client-specific field (modelApiKey).
  *
  * Wire format: Api.SessionStartRequest (modelApiKey sent via header, not body)
  */
-interface ClientSessionStartParams extends Api.SessionStartRequest {
+interface ClientSessionStartParams
+  extends Omit<Api.SessionStartRequest, "modelClientOptions"> {
   /** Model API key - sent via x-model-api-key header, not in request body.
    *  Optional: when omitted, requests are sent without the x-model-api-key header
    *  and the server is expected to handle model authentication on its own. */
   modelApiKey?: string;
+  /** SDK model client options serialized into the hosted API wire format. */
+  modelClientOptions?: ClientOptions;
 }
 
 /**
@@ -180,6 +189,8 @@ export class StagehandAPIClient {
   private sessionId?: string;
   private modelApiKey?: string;
   private modelProvider?: string;
+  /** Serialized session model config, resent on each hosted action when needed. */
+  private sessionModelConfig?: Api.ModelConfig;
   private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
@@ -204,6 +215,7 @@ export class StagehandAPIClient {
   async init({
     modelName,
     modelApiKey,
+    modelClientOptions,
     domSettleTimeoutMs,
     verbose,
     systemPrompt,
@@ -213,6 +225,22 @@ export class StagehandAPIClient {
     // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
     this.modelApiKey = modelApiKey;
+
+    const serializedModelClientOptions = this.toSessionStartModelClientOptions(
+      modelClientOptions,
+      modelName,
+    );
+    if (
+      modelName &&
+      serializedModelClientOptions &&
+      Object.keys(serializedModelClientOptions).length > 0
+    ) {
+      this.sessionModelConfig = {
+        modelName,
+        ...serializedModelClientOptions,
+      } as Api.ModelConfig;
+    }
+
     // Extract provider from modelName (e.g., "openai/gpt-5-nano" -> "openai")
     this.modelProvider = modelName?.includes("/")
       ? modelName.split("/")[0]
@@ -230,6 +258,7 @@ export class StagehandAPIClient {
     // Build wire-format request body (Api.SessionStartRequest shape)
     const requestBody: Api.SessionStartRequest = {
       modelName,
+      modelClientOptions: serializedModelClientOptions,
       domSettleTimeoutMs,
       verbose,
       systemPrompt,
@@ -294,6 +323,7 @@ export class StagehandAPIClient {
         wireOptions = restOptions as unknown as Api.ActRequest["options"];
       }
     }
+    wireOptions = this.ensureModelConfig(wireOptions);
 
     // Build wire-format request body
     const requestBody: Api.ActRequest = {
@@ -332,6 +362,7 @@ export class StagehandAPIClient {
         wireOptions = restOptions as unknown as Api.ExtractRequest["options"];
       }
     }
+    wireOptions = this.ensureModelConfig(wireOptions);
 
     // Build wire-format request body
     const requestBody: Api.ExtractRequest = {
@@ -367,6 +398,7 @@ export class StagehandAPIClient {
         wireOptions = restOptions as unknown as Api.ObserveRequest["options"];
       }
     }
+    wireOptions = this.ensureModelConfig(wireOptions);
 
     // Build wire-format request body
     const requestBody: Api.ObserveRequest = {
@@ -424,7 +456,7 @@ export class StagehandAPIClient {
       cua: agentConfig.mode === undefined ? agentConfig.cua : undefined,
       model: agentConfig.model
         ? this.prepareModelConfig(agentConfig.model)
-        : undefined,
+        : this.sessionModelConfig,
       executionModel: agentConfig.executionModel
         ? this.prepareModelConfig(agentConfig.executionModel)
         : undefined,
@@ -606,7 +638,7 @@ export class StagehandAPIClient {
    */
   private prepareModelConfig(
     model: ModelConfiguration,
-  ): { modelName: string; apiKey?: string } & Record<string, unknown> {
+  ): { modelName: string } & Record<string, unknown> {
     if (typeof model === "string") {
       // Extract provider from model string (e.g., "openai/gpt-5-nano" -> "openai")
       const provider = model.includes("/") ? model.split("/")[0] : undefined;
@@ -620,7 +652,14 @@ export class StagehandAPIClient {
       };
     }
 
-    if (!model.apiKey) {
+    const normalizedModel = {
+      modelName: model.modelName,
+      ...(this.toSessionStartModelClientOptions(model, model.modelName) ?? {}),
+    };
+
+    const normalizedApiKey = (normalizedModel as Record<string, unknown>)
+      .apiKey;
+    if (typeof normalizedApiKey !== "string" || !normalizedApiKey) {
       const provider = model.modelName?.includes("/")
         ? model.modelName.split("/")[0]
         : undefined;
@@ -629,15 +668,41 @@ export class StagehandAPIClient {
           ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
           : this.modelApiKey;
       return {
-        ...model,
+        ...normalizedModel,
         ...(apiKey ? { apiKey } : {}),
       };
     }
 
-    return model as { modelName: string; apiKey: string } & Record<
-      string,
-      unknown
-    >;
+    return normalizedModel as { modelName: string } & Record<string, unknown>;
+  }
+
+  /**
+   * If no model config is present in the wire options, inject the session
+   * default model config so hosted deployments receive provider-native auth on
+   * every action.
+   */
+  private ensureModelConfig<T extends { model?: unknown } | undefined>(
+    wireOptions: T,
+  ): T {
+    if (!this.sessionModelConfig || wireOptions?.model) {
+      return wireOptions;
+    }
+
+    return {
+      ...(wireOptions ?? {}),
+      model: this.sessionModelConfig,
+    } as T;
+  }
+
+  private toSessionStartModelClientOptions(
+    options?: ClientOptions,
+    modelName?: string,
+  ): Api.ModelClientOptions | undefined {
+    const normalizedOptions = normalizeClientOptionsForModel(
+      options,
+      modelName,
+    );
+    return toApiModelClientOptions(normalizedOptions, modelName);
   }
 
   private consumeFinishedEventData<T>(): T | null {

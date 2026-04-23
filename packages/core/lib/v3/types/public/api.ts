@@ -55,36 +55,192 @@ export const LocalBrowserLaunchOptionsSchema = z
   .strict()
   .meta({ id: "LocalBrowserLaunchOptions" });
 
-/** Detailed model configuration object */
-export const ModelConfigObjectSchema = z
+export const ProviderConfigSchema = z
   .object({
-    provider: z
-      .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
-      .optional()
-      .meta({
-        description:
-          "AI provider for the model (or provide a baseURL endpoint instead)",
-        example: "openai",
-      }),
-    modelName: z.string().meta({
+    provider: z.string().meta({
       description:
-        "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-      example: "openai/gpt-5.4-mini",
+        "Provider identifier derived from modelName (for example: bedrock or vertex)",
+      example: "bedrock",
     }),
-    apiKey: z.string().optional().meta({
-      description: "API key for the model provider",
-      example: "sk-some-openai-api-key",
-    }),
-    baseURL: z.string().url().optional().meta({
-      description: "Base URL for the model provider",
-      example: "https://api.openai.com/v1",
-    }),
-    headers: z.record(z.string(), z.string()).optional().meta({
+    options: z.record(z.string(), z.unknown()).optional().meta({
       description:
-        "Custom headers sent with every request to the model provider",
+        "Provider-native options forwarded to the server/runtime. This is wire-only; the public SDK constructor uses model.providerOptions instead.",
     }),
   })
+  .passthrough()
+  .meta({ id: "ProviderConfig" });
+
+function getProviderFromModelName(modelName?: string): string | undefined {
+  return typeof modelName === "string" && modelName.includes("/")
+    ? modelName.split("/", 1)[0]
+    : undefined;
+}
+
+function getProviderConfigMismatchMessage({
+  modelName,
+  providerConfig,
+}: {
+  modelName?: string;
+  providerConfig?: { provider?: string };
+}): string | undefined {
+  const modelProvider = getProviderFromModelName(modelName);
+  const provider =
+    typeof providerConfig?.provider === "string"
+      ? providerConfig.provider
+      : undefined;
+
+  if (modelProvider && provider && provider !== modelProvider) {
+    return `providerConfig.provider "${provider}" must match the model provider "${modelProvider}"`;
+  }
+
+  return undefined;
+}
+
+function addBedrockAuthIssues(
+  providerConfig: { options?: Record<string, unknown> } | undefined,
+  ctx: z.RefinementCtx,
+) {
+  const providerOptions = providerConfig?.options;
+  const region =
+    typeof providerOptions?.region === "string" ? providerOptions.region : "";
+  const accessKeyId =
+    typeof providerOptions?.accessKeyId === "string"
+      ? providerOptions.accessKeyId
+      : "";
+  const secretAccessKey =
+    typeof providerOptions?.secretAccessKey === "string"
+      ? providerOptions.secretAccessKey
+      : "";
+  const sessionToken =
+    typeof providerOptions?.sessionToken === "string"
+      ? providerOptions.sessionToken
+      : "";
+
+  if (!region) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Bedrock configs require providerConfig.options.region.",
+      path: ["providerConfig", "options", "region"],
+    });
+  }
+
+  const hasAccessKeyId = accessKeyId.length > 0;
+  const hasSecretAccessKey = secretAccessKey.length > 0;
+  const hasSessionToken = sessionToken.length > 0;
+
+  if (hasAccessKeyId !== hasSecretAccessKey) {
+    if (!hasAccessKeyId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Bedrock AWS credentials require providerConfig.options.accessKeyId when secretAccessKey is provided.",
+        path: ["providerConfig", "options", "accessKeyId"],
+      });
+    }
+    if (!hasSecretAccessKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Bedrock AWS credentials require providerConfig.options.secretAccessKey when accessKeyId is provided.",
+        path: ["providerConfig", "options", "secretAccessKey"],
+      });
+    }
+  }
+
+  if (hasSessionToken && (!hasAccessKeyId || !hasSecretAccessKey)) {
+    if (!hasAccessKeyId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Bedrock sessionToken requires providerConfig.options.accessKeyId.",
+        path: ["providerConfig", "options", "accessKeyId"],
+      });
+    }
+    if (!hasSecretAccessKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Bedrock sessionToken requires providerConfig.options.secretAccessKey.",
+        path: ["providerConfig", "options", "secretAccessKey"],
+      });
+    }
+  }
+}
+
+const modelConfigSharedShape = {
+  provider: z
+    .enum(["openai", "anthropic", "google", "microsoft", "bedrock", "vertex"])
+    .optional()
+    .meta({
+      description:
+        "AI provider for the model (or provide a baseURL endpoint instead)",
+      example: "openai",
+    }),
+  modelName: z.string().meta({
+    description:
+      "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+    example: "openai/gpt-5.4-mini",
+  }),
+  apiKey: z.string().optional().meta({
+    description: "API key for the model provider",
+    example: "sk-some-openai-api-key",
+  }),
+  baseURL: z.string().url().optional().meta({
+    description: "Base URL for the model provider",
+    example: "https://api.openai.com/v1",
+  }),
+  headers: z.record(z.string(), z.string()).optional().meta({
+    description: "Custom headers sent with every request to the model provider",
+  }),
+  providerConfig: ProviderConfigSchema.optional(),
+} as const;
+
+function validateProviderConfig(
+  value: {
+    modelName?: string;
+    providerConfig?: { provider?: string; options?: Record<string, unknown> };
+  },
+  ctx: z.RefinementCtx,
+) {
+  const mismatchMessage = getProviderConfigMismatchMessage(value);
+
+  if (mismatchMessage) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: mismatchMessage,
+      path: ["providerConfig", "provider"],
+    });
+  }
+
+  const modelProvider = getProviderFromModelName(value.modelName);
+  const provider =
+    typeof value.providerConfig?.provider === "string"
+      ? value.providerConfig.provider
+      : undefined;
+
+  if (provider === "bedrock" || modelProvider === "bedrock") {
+    addBedrockAuthIssues(value.providerConfig, ctx);
+  }
+}
+
+/** Detailed model configuration object */
+export const ModelConfigObjectSchema = z
+  .object(modelConfigSharedShape)
+  .passthrough()
+  .superRefine((value, ctx) => validateProviderConfig(value, ctx))
   .meta({ id: "ModelConfigObject" });
+
+/** Session-level model client options (wire-only). */
+export const ModelClientOptionsSchema = z
+  .object({
+    provider: modelConfigSharedShape.provider,
+    apiKey: modelConfigSharedShape.apiKey,
+    baseURL: modelConfigSharedShape.baseURL,
+    headers: modelConfigSharedShape.headers,
+    providerConfig: modelConfigSharedShape.providerConfig,
+  })
+  .passthrough()
+  .meta({ id: "ModelClientOptions" });
 
 /** Model configuration */
 export const ModelConfigSchema = ModelConfigObjectSchema.meta({
@@ -319,6 +475,10 @@ export const SessionStartRequestSchema = z
       description: "Model name to use for AI operations",
       example: "openai/gpt-5.4-mini",
     }),
+    modelClientOptions: ModelClientOptionsSchema.optional().meta({
+      description:
+        "Hosted-session model options. The public Stagehand constructor fills this from model.providerOptions/apiKey when env='BROWSERBASE'.",
+    }),
     domSettleTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms to wait for DOM to settle",
       example: 5000,
@@ -361,6 +521,15 @@ export const SessionStartRequestSchema = z
       description: "Timeout in ms for act operations (deprecated, v2 only)",
     }),
   })
+  .superRefine((value, ctx) =>
+    validateProviderConfig(
+      {
+        modelName: value.modelName,
+        providerConfig: value.modelClientOptions?.providerConfig,
+      },
+      ctx,
+    ),
+  )
   .meta({ id: "SessionStartRequest" });
 
 export const SessionStartResultSchema = z
@@ -1081,6 +1250,7 @@ export const Operations = {
 // Shared types
 export type Action = z.infer<typeof ActionSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+export type ModelClientOptions = z.infer<typeof ModelClientOptionsSchema>;
 export type BrowserConfig = z.infer<typeof BrowserConfigSchema>;
 export type SessionIdParams = z.infer<typeof SessionIdParamsSchema>;
 
