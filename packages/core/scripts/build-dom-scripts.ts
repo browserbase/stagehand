@@ -65,6 +65,13 @@ const scripts: ScriptConfig[] = [
     outputFile: "a11yScripts.generated.ts",
   },
   {
+    type: "bootstrap-module",
+    entry: "selectorRuntime/index.ts",
+    globalName: "__stagehandSelectorRuntime",
+    prefix: "selectorRuntime",
+    outputFile: "selectorRuntime.generated.ts",
+  },
+  {
     type: "sources-only",
     entry: "screenshotScripts/index.ts",
     prefix: "screenshotScript",
