@@ -22,7 +22,7 @@ import {
   extractLlmPromptSummary,
 } from "../flowlogger/FlowLogger.js";
 import { toJsonSchema } from "../zodCompat.js";
-import { unwrapToolResponse } from "./unwrapToolResponse.js";
+import { unwrapToolResponse } from "./AnthropicClient.js";
 
 type ProviderOptionValue = string | number | boolean | null;
 type ProviderOptionMap = Record<string, ProviderOptionValue>;

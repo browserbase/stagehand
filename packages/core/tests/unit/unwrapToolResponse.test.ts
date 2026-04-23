@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { unwrapToolResponse } from "../../lib/v3/llm/unwrapToolResponse.js";
+import { unwrapToolResponse } from "../../lib/v3/llm/AnthropicClient.js";
 
 describe("unwrapToolResponse", () => {
   it("unwraps $PARAMETER_NAME wrapper", () => {
