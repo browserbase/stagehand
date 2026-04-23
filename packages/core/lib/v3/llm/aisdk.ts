@@ -254,13 +254,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             : {}),
         });
       } catch (err) {
-        // Log error response to maintain request/response pairing
-        FlowLogger.logLlmResponse({
-          requestId: llmRequestId,
-          model: this.model.modelId,
-          output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
-        });
-
         if (NoObjectGeneratedError.isInstance(err)) {
           this.logger?.({
             category: "AISDK error",
@@ -300,7 +293,8 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
               const parsed = JSON.parse(err.text);
               const unwrapped = unwrapToolResponse(parsed);
               if (unwrapped !== parsed) {
-                const validated = options.response_model.schema.parse(unwrapped);
+                const validated =
+                  options.response_model.schema.parse(unwrapped);
                 this.logger?.({
                   category: "aisdk",
                   message: "recovered from $PARAMETER_NAME wrapper",
@@ -331,8 +325,21 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             }
           }
 
+          // Log error response only when recovery was not attempted or failed
+          FlowLogger.logLlmResponse({
+            requestId: llmRequestId,
+            model: this.model.modelId,
+            output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+          });
           throw err;
         }
+        // Log error response to maintain request/response pairing
+        // (only reached if recovery was not attempted or not applicable)
+        FlowLogger.logLlmResponse({
+          requestId: llmRequestId,
+          model: this.model.modelId,
+          output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+        });
         throw err;
       }
 
