@@ -1320,17 +1320,74 @@ export class Page {
     const remainingTimeout = Math.max(0, timeout - elapsed);
 
     if (!pierceShadow) {
+      const query = FrameSelectorResolver.parseSelector(finalSelector);
       const expression = `(() => {
-        const selector = ${JSON.stringify(finalSelector)};
+        const query = ${JSON.stringify(query)};
         const state = ${JSON.stringify(state)};
         const timeout = ${remainingTimeout};
-        const isXPath = selector.startsWith("xpath=") || selector.startsWith("/");
-        const resolve = () => {
-          if (isXPath) {
+        const normalizeText = (value) =>
+          typeof value === "string" ? value.trim().toLowerCase() : "";
+        const findByText = (needle) => {
+          const queryText = normalizeText(needle);
+          if (!queryText) return null;
+          const skipTags = new Set([
+            "SCRIPT",
+            "STYLE",
+            "TEMPLATE",
+            "NOSCRIPT",
+            "HEAD",
+            "TITLE",
+            "LINK",
+            "META",
+            "HTML",
+            "BODY",
+          ]);
+          const extractText = (element) => {
+            const tag = element.tagName ? element.tagName.toUpperCase() : "";
+            if (skipTags.has(tag)) return "";
             try {
-              const xpath = selector.replace(/^xpath=/i, "").trim();
+              const inner = element.innerText;
+              if (typeof inner === "string" && inner.trim()) return inner.trim();
+            } catch {
+              // ignore
+            }
+            const text = element.textContent;
+            return typeof text === "string" ? text.trim() : "";
+          };
+          const root = document.documentElement || document.body;
+          if (!root) return null;
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+          const matches = [];
+          while (walker.nextNode()) {
+            const node = walker.currentNode;
+            if (!(node instanceof Element)) continue;
+            const text = extractText(node);
+            if (text && text.toLowerCase().includes(queryText)) {
+              matches.push(node);
+            }
+          }
+          for (const candidate of matches) {
+            let covered = false;
+            for (const other of matches) {
+              if (candidate === other) continue;
+              try {
+                if (candidate.contains(other)) {
+                  covered = true;
+                  break;
+                }
+              } catch {
+                // ignore
+              }
+            }
+            if (!covered) return candidate;
+          }
+          return null;
+        };
+        const resolve = () => {
+          if (query.kind === "xpath") {
+            try {
               return document.evaluate(
-                xpath,
+                query.value,
                 document,
                 null,
                 XPathResult.FIRST_ORDERED_NODE_TYPE,
@@ -1340,8 +1397,11 @@ export class Page {
               return null;
             }
           }
+          if (query.kind === "text") {
+            return findByText(query.value);
+          }
           try {
-            return document.querySelector(selector);
+            return document.querySelector(query.value);
           } catch {
             return null;
           }
@@ -1362,7 +1422,7 @@ export class Page {
             return false;
           }
         };
-        return new Promise((resolvePromise, rejectPromise) => {
+        return new Promise((resolvePromise) => {
           const deadline = Date.now() + timeout;
           const tick = () => {
             const el = resolve();
