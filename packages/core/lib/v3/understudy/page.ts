@@ -35,7 +35,8 @@ import {
   StagehandEvalError,
 } from "../types/public/sdkErrors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
-import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { locatorScriptSources } from "../dom/build/locatorScripts.generated.js";
+import { FrameSelectorResolver } from "./selectorResolver.js";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -1317,13 +1318,116 @@ export class Page {
     const elapsed = Date.now() - startTime;
     const remainingTimeout = Math.max(0, timeout - elapsed);
 
-    const expression = buildLocatorInvocation("waitForSelector", [
-      JSON.stringify(finalSelector),
-      JSON.stringify(state),
-      String(remainingTimeout),
-      String(pierceShadow),
-    ]);
-    return targetFrame.evaluate(expression);
+    if (!pierceShadow) {
+      const expression = `(() => {
+        const selector = ${JSON.stringify(finalSelector)};
+        const state = ${JSON.stringify(state)};
+        const timeout = ${remainingTimeout};
+        const isXPath = selector.startsWith("xpath=") || selector.startsWith("/");
+        const resolve = () => {
+          if (isXPath) {
+            try {
+              const xpath = selector.replace(/^xpath=/i, "").trim();
+              return document.evaluate(
+                xpath,
+                document,
+                null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE,
+                null,
+              ).singleNodeValue;
+            } catch {
+              return null;
+            }
+          }
+          try {
+            return document.querySelector(selector);
+          } catch {
+            return null;
+          }
+        };
+        const isVisible = (el) => {
+          if (!el) return false;
+          try {
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            return (
+              style.display !== "none" &&
+              style.visibility !== "hidden" &&
+              style.opacity !== "0" &&
+              rect.width > 0 &&
+              rect.height > 0
+            );
+          } catch {
+            return false;
+          }
+        };
+        return new Promise((resolvePromise, rejectPromise) => {
+          const deadline = Date.now() + timeout;
+          const tick = () => {
+            const el = resolve();
+            const attached = !!el;
+            if (state === "attached" && attached) return resolvePromise(true);
+            if (state === "detached" && !attached) return resolvePromise(true);
+            if (state === "visible" && attached && isVisible(el)) return resolvePromise(true);
+            if (state === "hidden" && (!attached || !isVisible(el))) return resolvePromise(true);
+            if (Date.now() >= deadline) {
+              return rejectPromise(
+                new Error(\`waitForSelector: Timeout \${timeout}ms exceeded waiting for "\${selector}" to be \${state}\`),
+              );
+            }
+            setTimeout(tick, 100);
+          };
+          tick();
+        });
+      })()`;
+      return await targetFrame.evaluate<boolean>(expression);
+    }
+
+    const resolver = new FrameSelectorResolver(targetFrame);
+    const query = FrameSelectorResolver.parseSelector(finalSelector);
+    const deadline = Date.now() + remainingTimeout;
+
+    while (Date.now() <= deadline) {
+      const resolved = await resolver.resolveFirst(query);
+      try {
+        const attached = !!resolved;
+        if (state === "attached" && attached) return true;
+        if (state === "detached" && !attached) return true;
+
+        if (state === "visible" || state === "hidden") {
+          const visible = resolved
+            ? await targetFrame.session
+                .send<Protocol.Runtime.CallFunctionOnResponse>(
+                  "Runtime.callFunctionOn",
+                  {
+                    objectId: resolved.objectId,
+                    functionDeclaration: locatorScriptSources.isElementVisible,
+                    returnByValue: true,
+                  },
+                )
+                .then((result) => result.result.value === true)
+                .catch(() => false)
+            : false;
+
+          if (state === "visible" && attached && visible) return true;
+          if (state === "hidden" && (!attached || !visible)) return true;
+        }
+      } finally {
+        if (resolved?.objectId) {
+          await targetFrame.session
+            .send("Runtime.releaseObject", { objectId: resolved.objectId })
+            .catch(() => {});
+        }
+      }
+
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await this.waitForTimeout(Math.min(100, remaining));
+    }
+
+    throw new Error(
+      `waitForSelector: Timeout ${remainingTimeout}ms exceeded waiting for "${finalSelector}" to be ${state}`,
+    );
   }
 
   /**

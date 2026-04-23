@@ -133,47 +133,21 @@ function matchesTag(element: Element, step: XPathStep): boolean {
 }
 
 function getShadowContext(): ShadowContext {
-  const backdoor = window.__stagehandV3__;
-  const getClosedRoot: ClosedRootGetter | null =
-    backdoor && typeof backdoor.getClosedRoot === "function"
-      ? (host: Element): ShadowRoot | null => {
-          try {
-            return backdoor.getClosedRoot(host) ?? null;
-          } catch {
-            return null;
-          }
-        }
-      : null;
-
   let hasShadow = false;
   try {
-    if (backdoor && typeof backdoor.stats === "function") {
-      const stats = backdoor.stats();
-      hasShadow = (stats?.open ?? 0) > 0 || (stats?.closed ?? 0) > 0;
+    const walker = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
+    while (walker.nextNode()) {
+      const el = walker.currentNode as Element;
+      if (el.shadowRoot) {
+        hasShadow = true;
+        break;
+      }
     }
   } catch {
-    // ignore stats errors
+    // ignore scan errors
   }
 
-  if (!hasShadow) {
-    try {
-      const walker = document.createTreeWalker(
-        document,
-        NodeFilter.SHOW_ELEMENT,
-      );
-      while (walker.nextNode()) {
-        const el = walker.currentNode as Element;
-        if (el.shadowRoot) {
-          hasShadow = true;
-          break;
-        }
-      }
-    } catch {
-      // ignore scan errors
-    }
-  }
-
-  return { getClosedRoot, hasShadow };
+  return { getClosedRoot: null, hasShadow };
 }
 
 function composedChildren(

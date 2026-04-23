@@ -73,76 +73,7 @@ export function resolveCssSelectorPierce(
   selectorRaw: string,
   targetIndexRaw?: number,
 ): Element | null {
-  const selector = String(selectorRaw ?? "").trim();
-  if (!selector) return null;
-
-  const targetIndex = parseTargetIndex(targetIndexRaw);
-  const backdoor = window.__stagehandV3__;
-  if (!backdoor || typeof backdoor.getClosedRoot !== "function") {
-    const matches = collectCssMatches(selector, targetIndex + 1);
-    return matches[targetIndex] ?? null;
-  }
-
-  const getClosedRoot: (host: Element) => ShadowRoot | null = (
-    host: Element,
-  ) => {
-    try {
-      return backdoor.getClosedRoot(host) ?? null;
-    } catch {
-      return null;
-    }
-  };
-
-  const seenRoots = new WeakSet<Node>();
-  const seenElements = new Set<Element>();
-  const results: Element[] = [];
-  const queue: Array<Document | ShadowRoot> = [document];
-
-  const visit = (root: Document | ShadowRoot): void => {
-    if (!root || seenRoots.has(root) || results.length >= targetIndex + 1)
-      return;
-    seenRoots.add(root);
-
-    try {
-      const matches = root.querySelectorAll(selector);
-      for (const element of matches) {
-        if (seenElements.has(element)) continue;
-        seenElements.add(element);
-        results.push(element);
-        if (results.length >= targetIndex + 1) return;
-      }
-    } catch {
-      // ignore query errors
-    }
-
-    try {
-      const ownerDocument =
-        root instanceof Document
-          ? root
-          : (root.host?.ownerDocument ?? document);
-      const walker = ownerDocument.createTreeWalker(
-        root,
-        NodeFilter.SHOW_ELEMENT,
-      );
-      let node: Node | null;
-      while ((node = walker.nextNode())) {
-        if (!(node instanceof Element)) continue;
-        const open = node.shadowRoot;
-        if (open) queue.push(open);
-        const closed = getClosedRoot(node);
-        if (closed) queue.push(closed);
-      }
-    } catch {
-      // ignore traversal issues
-    }
-  };
-
-  while (queue.length && results.length < targetIndex + 1) {
-    const next = queue.shift();
-    if (next) visit(next);
-  }
-
-  return results[targetIndex] ?? null;
+  return resolveCssSelector(selectorRaw, targetIndexRaw);
 }
 
 export function resolveTextSelector(
@@ -194,21 +125,6 @@ export function resolveTextSelector(
     const text = extractText(node);
     return !!text && text.toLowerCase().includes(needleLc);
   };
-
-  const backdoor = window.__stagehandV3__;
-  const getClosedRoot: (host: Element) => ShadowRoot | null =
-    backdoor && typeof backdoor.getClosedRoot === "function"
-      ? (host: Element): ShadowRoot | null => {
-          try {
-            return backdoor.getClosedRoot(host) ?? null;
-          } catch {
-            return null;
-          }
-        }
-      : (host: Element): ShadowRoot | null => {
-          void host;
-          return null;
-        };
 
   const seen = new WeakSet<Node>();
   const queue: Node[] = [];
@@ -273,9 +189,6 @@ export function resolveTextSelector(
 
       const open = node.shadowRoot;
       if (open) enqueue(open);
-
-      const closed = getClosedRoot(node);
-      if (closed) enqueue(closed);
     }
   }
 

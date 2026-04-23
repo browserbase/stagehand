@@ -1,7 +1,7 @@
 /**
  * waitForSelector - Waits for an element matching a selector to reach a specific state.
  * Supports both CSS selectors and XPath expressions.
- * Uses MutationObserver for efficiency and integrates with the V3 piercer for closed shadow roots.
+ * Uses MutationObserver for efficiency and can traverse open shadow roots.
  *
  * NOTE: This function runs inside the page context. Keep it dependency-free
  * and resilient to exceptions.
@@ -19,32 +19,15 @@ const isXPath = (selector: string): boolean => {
 };
 
 /**
- * Get closed shadow root via the V3 piercer if available.
+ * Get shadow root (open only).
  */
-const getClosedRoot = (element: Element): ShadowRoot | null => {
-  try {
-    const backdoor = window.__stagehandV3__;
-    if (backdoor && typeof backdoor.getClosedRoot === "function") {
-      return backdoor.getClosedRoot(element) ?? null;
-    }
-  } catch {
-    // ignore
-  }
+const getShadowRoot = (element: Element): ShadowRoot | null => {
+  if (element.shadowRoot) return element.shadowRoot;
   return null;
 };
 
 /**
- * Get shadow root (open or closed via piercer).
- */
-const getShadowRoot = (element: Element): ShadowRoot | null => {
-  // First try open shadow root
-  if (element.shadowRoot) return element.shadowRoot;
-  // Then try closed shadow root via piercer
-  return getClosedRoot(element);
-};
-
-/**
- * Deep querySelector that pierces shadow DOM (both open and closed via piercer).
+ * Deep querySelector that pierces open shadow DOM.
  */
 const deepQuerySelector = (
   root: Document | ShadowRoot,

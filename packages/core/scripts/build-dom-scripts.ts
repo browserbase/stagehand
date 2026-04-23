@@ -51,18 +51,6 @@ type ScriptConfig =
 
 const scripts: ScriptConfig[] = [
   {
-    type: "iife-string",
-    entry: "piercer.entry.ts",
-    exportName: "v3ScriptContent",
-    outputFile: "scriptV3Content.ts",
-  },
-  {
-    type: "iife-string",
-    entry: "rerenderMissingShadows.entry.ts",
-    exportName: "reRenderScriptContent",
-    outputFile: "reRenderScriptContent.ts",
-  },
-  {
     type: "bootstrap-module",
     entry: "locatorScripts/index.ts",
     globalName: "__stagehandLocatorScripts",
