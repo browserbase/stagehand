@@ -1,8 +1,10 @@
 import {
-  applyPredicates,
-  parseXPathSteps,
-  type XPathStep,
-} from "./xpathParser.js";
+  countXPathNative,
+  countXPathWithRoots,
+  hasOpenShadowRoots,
+  queryXPathNative,
+  queryXPathWithRoots,
+} from "../selectorRuntime/index.js";
 
 type ClosedRootGetter = (host: Element) => ShadowRoot | null;
 
@@ -42,18 +44,19 @@ export function resolveXPathAtIndex(
   const shadowCtx = pierceShadow ? getShadowContext() : null;
 
   if (!pierceShadow) {
-    return resolveNativeAtIndexWithError(xp, targetIndex).value;
+    return (
+      queryXPathNative.call(document, xp, targetIndex + 1)[targetIndex] ?? null
+    );
   }
 
   if (!shadowCtx?.hasShadow) {
-    const native = resolveNativeAtIndexWithError(xp, targetIndex);
-    if (!native.error) return native.value;
-    const composed = resolveXPathComposedMatches(xp, shadowCtx?.getClosedRoot);
-    return composed[targetIndex] ?? null;
+    const native = queryXPathNative.call(document, xp, targetIndex + 1);
+    if (native.length > targetIndex) return native[targetIndex] ?? null;
   }
 
-  const composed = resolveXPathComposedMatches(xp, shadowCtx.getClosedRoot);
-  return composed[targetIndex] ?? null;
+  return (
+    queryXPathWithRoots.call(document, xp, targetIndex + 1)[targetIndex] ?? null
+  );
 }
 
 export function countXPathMatches(
@@ -67,178 +70,26 @@ export function countXPathMatches(
   const shadowCtx = pierceShadow ? getShadowContext() : null;
 
   if (!pierceShadow) {
-    return resolveNativeCountWithError(xp).count;
+    return countXPathNative.call(document, xp);
   }
 
   if (!shadowCtx?.hasShadow) {
-    const count = resolveNativeCountWithError(xp);
-    if (!count.error) return count.count;
-    return resolveXPathComposedMatches(xp, shadowCtx?.getClosedRoot).length;
+    const nativeCount = countXPathNative.call(document, xp);
+    if (nativeCount > 0) return nativeCount;
   }
 
-  return resolveXPathComposedMatches(xp, shadowCtx.getClosedRoot).length;
+  return countXPathWithRoots.call(document, xp);
 }
 
-export function resolveXPathComposedMatches(
-  rawXp: string,
-  getClosedRoot?: ClosedRootGetter | null,
-): Element[] {
+export function resolveXPathComposedMatches(rawXp: string): Element[] {
   const xp = normalizeXPath(rawXp);
   if (!xp) return [];
-
-  const steps = parseXPathSteps(xp);
-  if (!steps.length) return [];
-
-  const closedRoot = getClosedRoot ?? null;
-
-  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [
-    document,
-  ];
-
-  for (const step of steps) {
-    const next: Element[] = [];
-    const seen = new Set<Element>();
-
-    for (const root of current) {
-      if (!root) continue;
-      const pool =
-        step.axis === "child"
-          ? composedChildren(root, closedRoot)
-          : composedDescendants(root, closedRoot);
-      if (!pool.length) continue;
-
-      const tagMatches = pool.filter((candidate) =>
-        matchesTag(candidate, step),
-      );
-      const matches = applyPredicates(tagMatches, step.predicates);
-
-      for (const candidate of matches) {
-        if (!seen.has(candidate)) {
-          seen.add(candidate);
-          next.push(candidate);
-        }
-      }
-    }
-
-    if (!next.length) return [];
-    current = next;
-  }
-
-  return current as Element[];
-}
-
-function matchesTag(element: Element, step: XPathStep): boolean {
-  if (step.tag === "*") return true;
-  return element.localName === step.tag;
+  return queryXPathWithRoots.call(document, xp, Number.MAX_SAFE_INTEGER);
 }
 
 function getShadowContext(): ShadowContext {
-  let hasShadow = false;
-  try {
-    const walker = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
-    while (walker.nextNode()) {
-      const el = walker.currentNode as Element;
-      if (el.shadowRoot) {
-        hasShadow = true;
-        break;
-      }
-    }
-  } catch {
-    // ignore scan errors
-  }
-
-  return { getClosedRoot: null, hasShadow };
-}
-
-function composedChildren(
-  node: Node | null | undefined,
-  getClosedRoot: ClosedRootGetter | null,
-): Element[] {
-  const out: Element[] = [];
-  if (!node) return out;
-
-  if (node instanceof Document) {
-    if (node.documentElement) out.push(node.documentElement);
-    return out;
-  }
-
-  if (node instanceof ShadowRoot || node instanceof DocumentFragment) {
-    out.push(...Array.from(node.children ?? []));
-    return out;
-  }
-
-  if (node instanceof Element) {
-    out.push(...Array.from(node.children ?? []));
-    const open = node.shadowRoot;
-    if (open) out.push(...Array.from(open.children ?? []));
-    if (getClosedRoot) {
-      const closed = getClosedRoot(node);
-      if (closed) out.push(...Array.from(closed.children ?? []));
-    }
-    return out;
-  }
-
-  return out;
-}
-
-function composedDescendants(
-  node: Node | null | undefined,
-  getClosedRoot: ClosedRootGetter | null,
-): Element[] {
-  const out: Element[] = [];
-  const seen = new Set<Element>();
-  const stack = [...composedChildren(node, getClosedRoot)].reverse();
-
-  while (stack.length) {
-    const next = stack.pop();
-    if (!next || seen.has(next)) continue;
-    seen.add(next);
-    out.push(next);
-
-    const children = composedChildren(next, getClosedRoot);
-    for (let i = children.length - 1; i >= 0; i -= 1) {
-      stack.push(children[i]!);
-    }
-  }
-
-  return out;
-}
-
-function resolveNativeAtIndexWithError(
-  xp: string,
-  index: number,
-): { value: Element | null; error: boolean } {
-  try {
-    const snapshot = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
-    return {
-      value: snapshot.snapshotItem(index) as Element | null,
-      error: false,
-    };
-  } catch {
-    return { value: null, error: true };
-  }
-}
-
-function resolveNativeCountWithError(xp: string): {
-  count: number;
-  error: boolean;
-} {
-  try {
-    const snapshot = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
-    return { count: snapshot.snapshotLength, error: false };
-  } catch {
-    return { count: 0, error: true };
-  }
+  return {
+    getClosedRoot: null,
+    hasShadow: hasOpenShadowRoots.call(document),
+  };
 }

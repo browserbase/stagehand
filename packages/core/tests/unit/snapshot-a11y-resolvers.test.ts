@@ -221,9 +221,7 @@ describe("resolveObjectIdForCss", () => {
           expect(String(params?.expression)).toContain("resolveCssSelector");
           return { result: {} };
         }
-        expect(String(params?.expression)).toContain(
-          "resolveCssSelectorPierce",
-        );
+        expect(String(params?.expression)).toContain("querySelector");
         return { result: { objectId: "css-obj" } };
       },
     });

@@ -29,33 +29,35 @@ const wrapSelectorRuntimeCall = (
 ) =>
   `function() { ${selectorRuntimeBootstrap}; return ${globalRef}.call(this, ${argsExpression}); }`;
 
-const QUERY_CSS_WITH_ROOTS_DECLARATION = wrapSelectorRuntimeCall(
-  selectorRuntimeGlobalRefs.queryCssWithRoots,
-);
-const COUNT_CSS_WITH_ROOTS_DECLARATION = wrapSelectorRuntimeCall(
-  selectorRuntimeGlobalRefs.countCssWithRoots,
-);
-const QUERY_TEXT_WITH_ROOTS_DECLARATION = wrapSelectorRuntimeCall(
-  selectorRuntimeGlobalRefs.queryTextWithRoots,
-);
-const COUNT_TEXT_WITH_ROOTS_DECLARATION = wrapSelectorRuntimeCall(
-  selectorRuntimeGlobalRefs.countTextWithRoots,
-);
-const QUERY_XPATH_WITH_ROOTS_DECLARATION = wrapSelectorRuntimeCall(
-  selectorRuntimeGlobalRefs.queryXPathWithRoots,
-);
-const COUNT_XPATH_WITH_ROOTS_DECLARATION = wrapSelectorRuntimeCall(
-  selectorRuntimeGlobalRefs.countXPathWithRoots,
-);
-const QUERY_XPATH_NATIVE_DECLARATION = wrapSelectorRuntimeCall(
-  selectorRuntimeGlobalRefs.queryXPathNative,
-);
-const COUNT_XPATH_NATIVE_DECLARATION = wrapSelectorRuntimeCall(
-  selectorRuntimeGlobalRefs.countXPathNative,
-);
-const HAS_OPEN_SHADOW_ROOTS_DECLARATION = wrapSelectorRuntimeCall(
-  selectorRuntimeGlobalRefs.hasOpenShadowRoots,
-);
+const selectorRuntimeDeclarations = {
+  queryCssWithRoots: wrapSelectorRuntimeCall(
+    selectorRuntimeGlobalRefs.queryCssWithRoots,
+  ),
+  countCssWithRoots: wrapSelectorRuntimeCall(
+    selectorRuntimeGlobalRefs.countCssWithRoots,
+  ),
+  queryTextWithRoots: wrapSelectorRuntimeCall(
+    selectorRuntimeGlobalRefs.queryTextWithRoots,
+  ),
+  countTextWithRoots: wrapSelectorRuntimeCall(
+    selectorRuntimeGlobalRefs.countTextWithRoots,
+  ),
+  queryXPathWithRoots: wrapSelectorRuntimeCall(
+    selectorRuntimeGlobalRefs.queryXPathWithRoots,
+  ),
+  countXPathWithRoots: wrapSelectorRuntimeCall(
+    selectorRuntimeGlobalRefs.countXPathWithRoots,
+  ),
+  queryXPathNative: wrapSelectorRuntimeCall(
+    selectorRuntimeGlobalRefs.queryXPathNative,
+  ),
+  countXPathNative: wrapSelectorRuntimeCall(
+    selectorRuntimeGlobalRefs.countXPathNative,
+  ),
+  hasOpenShadowRoots: wrapSelectorRuntimeCall(
+    selectorRuntimeGlobalRefs.hasOpenShadowRoots,
+  ),
+} as const;
 
 export class FrameSelectorResolver {
   constructor(private readonly frame: Frame) {}
@@ -148,7 +150,7 @@ export class FrameSelectorResolver {
     limit: number,
   ): Promise<ResolvedNode[]> {
     const objectIds = await this.queryElementsAcrossRoots(
-      QUERY_CSS_WITH_ROOTS_DECLARATION,
+      selectorRuntimeDeclarations.queryCssWithRoots,
       selector,
       limit,
     );
@@ -160,7 +162,7 @@ export class FrameSelectorResolver {
     limit: number,
   ): Promise<ResolvedNode[]> {
     const objectIds = await this.queryElementsAcrossRoots(
-      QUERY_TEXT_WITH_ROOTS_DECLARATION,
+      selectorRuntimeDeclarations.queryTextWithRoots,
       value,
       limit,
     );
@@ -176,11 +178,17 @@ export class FrameSelectorResolver {
   }
 
   private async countCss(selector: string): Promise<number> {
-    return this.countAcrossRoots(COUNT_CSS_WITH_ROOTS_DECLARATION, selector);
+    return this.countAcrossRoots(
+      selectorRuntimeDeclarations.countCssWithRoots,
+      selector,
+    );
   }
 
   private async countText(value: string): Promise<number> {
-    return this.countAcrossRoots(COUNT_TEXT_WITH_ROOTS_DECLARATION, value);
+    return this.countAcrossRoots(
+      selectorRuntimeDeclarations.countTextWithRoots,
+      value,
+    );
   }
 
   private async countXPath(value: string): Promise<number> {
@@ -212,8 +220,8 @@ export class FrameSelectorResolver {
           {
             objectId: bundle.documentObjectId,
             functionDeclaration: shouldUseComposed
-              ? QUERY_XPATH_WITH_ROOTS_DECLARATION
-              : QUERY_XPATH_NATIVE_DECLARATION,
+              ? selectorRuntimeDeclarations.queryXPathWithRoots
+              : selectorRuntimeDeclarations.queryXPathNative,
             arguments: shouldUseComposed
               ? [{ value: query }, { value: limit }, ...pairArgs]
               : [{ value: query }, { value: limit }],
@@ -248,8 +256,8 @@ export class FrameSelectorResolver {
           {
             objectId: bundle.documentObjectId,
             functionDeclaration: shouldUseComposed
-              ? COUNT_XPATH_WITH_ROOTS_DECLARATION
-              : COUNT_XPATH_NATIVE_DECLARATION,
+              ? selectorRuntimeDeclarations.countXPathWithRoots
+              : selectorRuntimeDeclarations.countXPathNative,
             arguments: shouldUseComposed
               ? [{ value: query }, ...pairArgs]
               : [{ value: query }],
@@ -277,7 +285,7 @@ export class FrameSelectorResolver {
           "Runtime.callFunctionOn",
           {
             objectId: documentObjectId,
-            functionDeclaration: HAS_OPEN_SHADOW_ROOTS_DECLARATION,
+            functionDeclaration: selectorRuntimeDeclarations.hasOpenShadowRoots,
             returnByValue: true,
             awaitPromise: true,
           },
@@ -332,11 +340,7 @@ export class FrameSelectorResolver {
       return this.getArrayElementObjectIds(resultArrayId);
     } finally {
       await releaseRemoteObject(this.frame, resultArrayId);
-      await releaseRemoteObject(this.frame, bundle.documentObjectId);
-      for (const pair of bundle.roots) {
-        await releaseRemoteObject(this.frame, pair.hostObjectId);
-        await releaseRemoteObject(this.frame, pair.rootObjectId);
-      }
+      await this.releaseClosedRootBundle(bundle);
     }
   }
 
@@ -369,11 +373,7 @@ export class FrameSelectorResolver {
     } catch {
       return 0;
     } finally {
-      await releaseRemoteObject(this.frame, bundle.documentObjectId);
-      for (const pair of bundle.roots) {
-        await releaseRemoteObject(this.frame, pair.hostObjectId);
-        await releaseRemoteObject(this.frame, pair.rootObjectId);
-      }
+      await this.releaseClosedRootBundle(bundle);
     }
   }
 

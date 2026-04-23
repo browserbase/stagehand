@@ -206,7 +206,7 @@ export async function resolveObjectIdForXPath(
 ): Promise<string | null> {
   try {
     const expression = `(() => {
-      function resolveXPathMainWorld(rawXp) {
+      function resolveXPathSelector(rawXp) {
         try {
           const xp = String(rawXp ?? "").trim().replace(/^xpath=/i, "");
           if (!xp) return null;
@@ -221,7 +221,7 @@ export async function resolveObjectIdForXPath(
           return null;
         }
       }
-      return resolveXPathMainWorld(${JSON.stringify(xpath)});
+      return resolveXPathSelector(${JSON.stringify(xpath)});
     })()`;
 
     const contextId = frameId
@@ -266,7 +266,7 @@ export async function resolveObjectIdForCss(
     })()`;
 
     const fallbackExpression = `(() => {
-      function resolveCssSelectorPierce(rawSelector) {
+      function resolveCssSelectorDeep(rawSelector) {
         try {
           const selector = String(rawSelector ?? "").trim();
           if (!selector) return null;
@@ -289,7 +289,7 @@ export async function resolveObjectIdForCss(
         }
         return null;
       }
-      return resolveCssSelectorPierce(${JSON.stringify(selector)});
+      return resolveCssSelectorDeep(${JSON.stringify(selector)});
     })()`;
 
     const contextId = frameId

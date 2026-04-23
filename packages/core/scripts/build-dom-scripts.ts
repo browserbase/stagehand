@@ -20,19 +20,12 @@ const outDir = path.join(domDir, "build");
 // Config
 // ---------------------------------------------------------------------------
 
-type IIFEStringConfig = {
-  type: "iife-string";
-  entry: string; // relative to domDir
-  exportName: string;
-  outputFile: string;
-};
-
 type BootstrapModuleConfig = {
   type: "bootstrap-module";
   entry: string;
   /** Global variable name, e.g. "__stagehandLocatorScripts" */
   globalName: string;
-  /** Export prefix, e.g. "locatorScript" → locatorScriptBootstrap, locatorScriptSources, etc. */
+  /** Export prefix, e.g. "locatorScript" → locatorScriptBootstrap, locatorScriptGlobalRefs, etc. */
   prefix: string;
   outputFile: string;
 };
@@ -44,10 +37,7 @@ type SourcesOnlyConfig = {
   outputFile: string;
 };
 
-type ScriptConfig =
-  | IIFEStringConfig
-  | BootstrapModuleConfig
-  | SourcesOnlyConfig;
+type ScriptConfig = BootstrapModuleConfig | SourcesOnlyConfig;
 
 const scripts: ScriptConfig[] = [
   {
@@ -143,26 +133,18 @@ async function extractFunctionSources(
 // Builders
 // ---------------------------------------------------------------------------
 
-async function buildIIFEString(config: IIFEStringConfig): Promise<void> {
-  const entryPoint = path.join(domDir, config.entry);
-  const js = bundleIIFE(entryPoint);
-  const content = `export const ${config.exportName} = ${JSON.stringify(js)};\n`;
-  fs.writeFileSync(path.join(outDir, config.outputFile), content);
-}
-
 async function buildBootstrapModule(
   config: BootstrapModuleConfig,
 ): Promise<void> {
   const entryPoint = path.join(domDir, config.entry);
   const factoryName = `${config.globalName}Factory`;
 
-  // Bundle IIFE for bootstrap
   const iifeRaw = bundleIIFE(entryPoint, factoryName);
-  const bootstrap = `if (!globalThis.${config.globalName}) { ${iifeRaw}\n  globalThis.${config.globalName} = ${factoryName};\n}`;
+  const bootstrap = `if (!globalThis.${config.globalName}) { ${iifeRaw}
+  globalThis.${config.globalName} = ${factoryName};
+}`;
 
-  // Extract individual function sources
   const functions = await extractFunctionSources(entryPoint);
-
   const sources: Record<string, string> = Object.fromEntries(functions);
   const globalRefs: Record<string, string> = Object.fromEntries(
     functions.map(([name]) => [
@@ -171,8 +153,18 @@ async function buildBootstrapModule(
     ]),
   );
 
-  const banner = `/*\n * AUTO-GENERATED FILE. DO NOT EDIT.\n * Run \`pnpm run build-dom-scripts\` to regenerate.\n */`;
-  const content = `${banner}\nexport const ${config.prefix}Bootstrap = ${JSON.stringify(bootstrap)};\nexport const ${config.prefix}Sources = ${JSON.stringify(sources, null, 2)} as const;\nexport const ${config.prefix}GlobalRefs = ${JSON.stringify(globalRefs, null, 2)} as const;\nexport type ${config.prefix.charAt(0).toUpperCase() + config.prefix.slice(1)}Name = keyof typeof ${config.prefix}Sources;\n`;
+  const banner = `/*
+ * AUTO-GENERATED FILE. DO NOT EDIT.
+ * Run \`pnpm run build-dom-scripts\` to regenerate.
+ */`;
+  const typeName =
+    config.prefix.charAt(0).toUpperCase() + config.prefix.slice(1);
+  const content = `${banner}
+export const ${config.prefix}Bootstrap = ${JSON.stringify(bootstrap)};
+export const ${config.prefix}Sources = ${JSON.stringify(sources, null, 2)} as const;
+export const ${config.prefix}GlobalRefs = ${JSON.stringify(globalRefs, null, 2)} as const;
+export type ${typeName}Name = keyof typeof ${config.prefix}Sources;
+`;
 
   fs.writeFileSync(path.join(outDir, config.outputFile), content);
 }
@@ -182,8 +174,16 @@ async function buildSourcesOnly(config: SourcesOnlyConfig): Promise<void> {
   const functions = await extractFunctionSources(entryPoint);
   const sources: Record<string, string> = Object.fromEntries(functions);
 
-  const banner = `/*\n * AUTO-GENERATED FILE. DO NOT EDIT.\n * Run \`pnpm run build-dom-scripts\` to regenerate.\n */`;
-  const content = `${banner}\nexport const ${config.prefix}Sources = ${JSON.stringify(sources, null, 2)} as const;\nexport type ${config.prefix.charAt(0).toUpperCase() + config.prefix.slice(1)}Name = keyof typeof ${config.prefix}Sources;\n`;
+  const banner = `/*
+ * AUTO-GENERATED FILE. DO NOT EDIT.
+ * Run \`pnpm run build-dom-scripts\` to regenerate.
+ */`;
+  const typeName =
+    config.prefix.charAt(0).toUpperCase() + config.prefix.slice(1);
+  const content = `${banner}
+export const ${config.prefix}Sources = ${JSON.stringify(sources, null, 2)} as const;
+export type ${typeName}Name = keyof typeof ${config.prefix}Sources;
+`;
 
   fs.writeFileSync(path.join(outDir, config.outputFile), content);
 }
@@ -198,8 +198,6 @@ async function main(): Promise<void> {
   await Promise.all(
     scripts.map((config) => {
       switch (config.type) {
-        case "iife-string":
-          return buildIIFEString(config);
         case "bootstrap-module":
           return buildBootstrapModule(config);
         case "sources-only":
