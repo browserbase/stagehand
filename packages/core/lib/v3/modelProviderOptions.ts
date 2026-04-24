@@ -110,9 +110,7 @@ function toSerializableGoogleAuthOptions(
   const projectId =
     typeof value.projectId === "string" ? value.projectId : undefined;
   const universeDomain =
-    typeof value.universeDomain === "string"
-      ? value.universeDomain
-      : undefined;
+    typeof value.universeDomain === "string" ? value.universeDomain : undefined;
 
   const googleAuthOptions: SerializableGoogleAuthOptions = {};
   if (credentials) {

@@ -29,11 +29,10 @@ describe("LLMProvider hosted vertex gating", () => {
     const llmProvider = new LLMProvider(() => {});
 
     expect(() =>
-      llmProvider.getClient(
-        "vertex/gemini-2.5-pro",
-        undefined,
-        { disableAPI: false, experimental: false },
-      ),
+      llmProvider.getClient("vertex/gemini-2.5-pro", undefined, {
+        disableAPI: false,
+        experimental: false,
+      }),
     ).toThrow(ExperimentalNotConfiguredError);
   });
 

@@ -115,9 +115,7 @@ function getRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function getStringRecord(
-  value: unknown,
-): Record<string, string> | undefined {
+function getStringRecord(value: unknown): Record<string, string> | undefined {
   const record = getRecord(value);
   if (!record) {
     return undefined;
@@ -1268,13 +1266,10 @@ export const AgentExecuteResponseSchema = wrapResponse(
 
 export const NavigateOptionsSchema = z
   .object({
-    model: z
-      .union([ModelConfigSchema, z.string()])
-      .optional()
-      .meta({
-        description:
-          "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
-      }),
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     referer: z.string().optional().meta({
       description: "Referer header to send with the request",
     }),

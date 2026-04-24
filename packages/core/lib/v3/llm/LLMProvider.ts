@@ -101,9 +101,7 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.5-pro-preview-03-25": "google",
 };
 
-function isStringRecord(
-  value: unknown,
-): value is Record<string, string> {
+function isStringRecord(value: unknown): value is Record<string, string> {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -113,11 +111,10 @@ function isStringRecord(
   );
 }
 
-function hasHostedVertexClientOptions(
-  clientOptions?: ClientOptions,
-): boolean {
-  const vertexOptions =
-    clientOptions as Partial<GoogleVertexProviderSettings> | undefined;
+function hasHostedVertexClientOptions(clientOptions?: ClientOptions): boolean {
+  const vertexOptions = clientOptions as
+    | Partial<GoogleVertexProviderSettings>
+    | undefined;
   return Boolean(
     vertexOptions &&
       (typeof vertexOptions.project === "string" ||
