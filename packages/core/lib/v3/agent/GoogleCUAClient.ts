@@ -576,10 +576,8 @@ export class GoogleCUAClient extends AgentClient {
               });
 
               const screenshot = await this.captureScreenshot();
-              const base64Data = screenshot.replace(
-                /^data:image\/png;base64,/,
-                "",
-              );
+              const { mimeType, base64Data } =
+                this.parseScreenshotDataUrl(screenshot);
 
               // Create one function response for each computer use function call
               // Following Python SDK pattern: FunctionResponse with parts containing inline_data
@@ -606,7 +604,7 @@ export class GoogleCUAClient extends AgentClient {
                     parts: [
                       {
                         inlineData: {
-                          mimeType: "image/png",
+                          mimeType,
                           data: base64Data,
                         },
                       },
@@ -979,6 +977,46 @@ export class GoogleCUAClient extends AgentClient {
     };
   }
 
+  private normalizeScreenshotDataUrl(imageData: string): string {
+    const trimmedImageData = imageData.trim();
+    if (/^data:[^;]+;base64,/i.test(trimmedImageData)) {
+      return trimmedImageData;
+    }
+    return `data:image/png;base64,${trimmedImageData}`;
+  }
+
+  private parseScreenshotDataUrl(screenshot: string): {
+    mimeType: string;
+    base64Data: string;
+  } {
+    const trimmedScreenshot = screenshot.trim();
+    const imageDataUrlMatch = trimmedScreenshot.match(
+      /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/i,
+    );
+
+    if (imageDataUrlMatch) {
+      const mimeType =
+        imageDataUrlMatch[1].toLowerCase() === "image/jpg"
+          ? "image/jpeg"
+          : imageDataUrlMatch[1];
+      return {
+        mimeType,
+        base64Data: imageDataUrlMatch[2],
+      };
+    }
+
+    const genericDataUrlMatch = trimmedScreenshot.match(
+      /^data:[^;]+;base64,([\s\S]+)$/i,
+    );
+
+    return {
+      mimeType: "image/png",
+      base64Data: genericDataUrlMatch
+        ? genericDataUrlMatch[1]
+        : trimmedScreenshot,
+    };
+  }
+
   async captureScreenshot(options?: {
     base64Image?: string;
     currentUrl?: string;
@@ -990,14 +1028,14 @@ export class GoogleCUAClient extends AgentClient {
 
     // Use provided options if available
     if (options?.base64Image) {
-      return `data:image/png;base64,${options.base64Image}`;
+      return this.normalizeScreenshotDataUrl(options.base64Image);
     }
 
     // Use the screenshot provider if available
     if (this.screenshotProvider) {
       try {
         const base64Image = await this.screenshotProvider();
-        return `data:image/png;base64,${base64Image}`;
+        return this.normalizeScreenshotDataUrl(base64Image);
       } catch (error) {
         console.error("Error capturing screenshot:", error);
         throw error;
