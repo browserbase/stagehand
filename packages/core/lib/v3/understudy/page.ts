@@ -1442,7 +1442,7 @@ export class Page {
       const matched = await targetFrame.evaluate<boolean>(expression);
       if (matched) return true;
       throw new TimeoutError(
-        `waitForSelector("${finalSelector}") to be ${state}`,
+        `Timeout waiting for selector "${finalSelector}" to be ${state}`,
         remainingTimeout,
       );
     }
