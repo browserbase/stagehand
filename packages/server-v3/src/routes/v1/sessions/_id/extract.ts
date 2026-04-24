@@ -6,6 +6,7 @@ import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
+import { normalizeApiModelConfig } from "../../../../lib/model.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { jsonSchemaToZod } from "../../../../lib/utils.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
@@ -52,17 +53,9 @@ const extractRouteHandler: RouteHandlerMethod = withErrorHandling(
           );
         }
 
-        const modelOpt = data.options?.model;
-        const normalizedModel =
-          typeof modelOpt === "string"
-            ? { modelName: modelOpt }
-            : modelOpt
-              ? { ...modelOpt, modelName: modelOpt.modelName ?? "gpt-4o" }
-              : undefined;
-
         const safeOptions = {
           ...data.options,
-          model: normalizedModel,
+          model: normalizeApiModelConfig(data.options?.model),
           page,
         };
 
