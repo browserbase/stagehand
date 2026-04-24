@@ -102,12 +102,14 @@ Optional extraction instruction.
 </Accordion>
 
 <Accordion title="start">
-Create or reuse a Browserbase session and set it as active for the current MCP transport session.
+Create a new Browserbase session, or attach to an existing Browserbase session, and set it as active for the current MCP transport session.
 
-<Info>No input parameters required.</Info>
+<ParamField path="sessionId" type="string">
+Optional Browserbase session ID to attach to. If omitted, `start` creates a new Browserbase session.
+</ParamField>
 
 <ResponseField name="sessionId" type="string">
-Browserbase session ID.
+Browserbase session ID now active for the current MCP transport session.
 </ResponseField>
 </Accordion>
 
