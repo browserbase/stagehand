@@ -94,37 +94,44 @@ export async function collectClosedShadowRoots(
 
     const roots: ClosedShadowRootHandlePair[] = [];
     for (const pair of pairs) {
-      try {
-        const [hostResolved, rootResolved] = await Promise.all([
-          frame.session.send<Protocol.DOM.ResolveNodeResponse>(
-            "DOM.resolveNode",
-            {
-              backendNodeId: pair.hostBackendNodeId,
-              executionContextId: contextId,
-            },
-          ),
-          frame.session.send<Protocol.DOM.ResolveNodeResponse>(
-            "DOM.resolveNode",
-            {
-              backendNodeId: pair.rootBackendNodeId,
-              executionContextId: contextId,
-            },
-          ),
-        ]);
+      const [hostResult, rootResult] = await Promise.allSettled([
+        frame.session.send<Protocol.DOM.ResolveNodeResponse>(
+          "DOM.resolveNode",
+          {
+            backendNodeId: pair.hostBackendNodeId,
+            executionContextId: contextId,
+          },
+        ),
+        frame.session.send<Protocol.DOM.ResolveNodeResponse>(
+          "DOM.resolveNode",
+          {
+            backendNodeId: pair.rootBackendNodeId,
+            executionContextId: contextId,
+          },
+        ),
+      ]);
 
-        const hostObjectId = hostResolved.object.objectId;
-        const rootObjectId = rootResolved.object.objectId;
-        if (!hostObjectId || !rootObjectId) continue;
+      const hostObjectId =
+        hostResult.status === "fulfilled"
+          ? hostResult.value.object.objectId
+          : undefined;
+      const rootObjectId =
+        rootResult.status === "fulfilled"
+          ? rootResult.value.object.objectId
+          : undefined;
 
-        roots.push({
-          hostObjectId,
-          rootObjectId,
-          hostBackendNodeId: pair.hostBackendNodeId,
-          rootBackendNodeId: pair.rootBackendNodeId,
-        });
-      } catch {
-        // ignore individual root resolution failures
+      if (!hostObjectId || !rootObjectId) {
+        await releaseRemoteObject(frame, hostObjectId);
+        await releaseRemoteObject(frame, rootObjectId);
+        continue;
       }
+
+      roots.push({
+        hostObjectId,
+        rootObjectId,
+        hostBackendNodeId: pair.hostBackendNodeId,
+        rootBackendNodeId: pair.rootBackendNodeId,
+      });
     }
 
     return { contextId, documentObjectId, roots };
