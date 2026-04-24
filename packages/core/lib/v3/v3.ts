@@ -52,7 +52,9 @@ import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
   AgentResult,
+  AgentToolMode,
   AVAILABLE_CUA_MODELS,
+  HYBRID_CAPABLE_MODEL_PATTERNS,
   LogLine,
   StagehandMetrics,
   Action,
@@ -611,6 +613,16 @@ export class V3 {
 
     this.overrideLlmClients.set(cacheKey, client);
     return client;
+  }
+
+  private resolveDefaultAgentMode(
+    model?: string | { modelName: string; [key: string]: unknown },
+  ): AgentToolMode {
+    const modelName = extractModelName(model) ?? this.modelName;
+    const matchedPattern = HYBRID_CAPABLE_MODEL_PATTERNS.find((pattern) =>
+      modelName.includes(pattern),
+    );
+    return matchedPattern ? "hybrid" : "dom";
   }
 
   private beginAgentReplayRecording(): void {
@@ -1835,16 +1847,6 @@ export class V3 {
     llmClient: LLMClient;
   }> {
     // Note: experimental validation is done at the call site before this method
-    // Warn if mode is not explicitly set (defaults to "dom")
-    if (options?.mode === undefined) {
-      this.logger({
-        category: "agent",
-        message:
-          "Using agent in default DOM mode (legacy). Agent will default to 'hybrid' on an upcoming release for improved performance.\n  → https://docs.stagehand.dev/v3/basics/agent\n",
-        level: 0,
-      });
-    }
-
     const tools = options?.integrations
       ? await resolveTools(options.integrations, options.tools)
       : (options?.tools ?? {});
@@ -1855,6 +1857,9 @@ export class V3 {
 
     const resolvedExecutionModel = options?.executionModel ?? options?.model;
 
+    const resolvedMode =
+      options?.mode ?? this.resolveDefaultAgentMode(options?.model);
+
     const handler = new V3AgentHandler(
       this,
       this.logger,
@@ -1862,7 +1867,7 @@ export class V3 {
       resolvedExecutionModel,
       options?.systemPrompt,
       tools,
-      options?.mode,
+      resolvedMode,
       this.isCaptchaAutoSolveEnabled,
     );
 
@@ -1942,11 +1947,12 @@ export class V3 {
         | AgentStreamExecuteOptions,
     ) => Promise<AgentResult | AgentStreamResult>;
   } {
+    // Resolve the effective mode: explicit > auto-routed by model
+    const effectiveMode =
+      options?.mode ?? (options?.cua === true ? "cua" : undefined);
+
     // Determine if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
-    const isCuaMode =
-      options?.mode !== undefined
-        ? options.mode === "cua"
-        : options?.cua === true;
+    const isCuaMode = effectiveMode === "cua" || options?.cua === true;
 
     // Emit deprecation warning for cua: true
     if (options?.cua === true) {
@@ -1961,13 +1967,16 @@ export class V3 {
       );
     }
 
+    const loggedMode =
+      effectiveMode ?? this.resolveDefaultAgentMode(options?.model);
+
     this.logger({
       category: "agent",
       message: "Creating v3 agent instance",
       level: 1,
       auxiliary: {
         cua: { value: isCuaMode ? "true" : "false", type: "boolean" },
-        mode: { value: options?.mode ?? "dom", type: "string" },
+        mode: { value: loggedMode, type: "string" },
         model: {
           value: extractModelName(options?.model) ?? this.llmClient.modelName,
           type: "string",

@@ -30,6 +30,7 @@ import {
   AgentToolMode,
   AgentModelConfig,
   Variables,
+  HYBRID_CAPABLE_MODEL_PATTERNS,
 } from "../types/public/agent.js";
 import { V3FunctionName } from "../types/public/methods.js";
 import { mapToolResultToActions } from "../agent/utils/actionMapping.js";
@@ -163,11 +164,10 @@ export class V3AgentHandler {
         },
       });
 
-      if (
-        this.mode === "hybrid" &&
-        !baseModel.modelId.includes("gemini-3-flash") &&
-        !baseModel.modelId.includes("claude")
-      ) {
+      const isHybridCapable = HYBRID_CAPABLE_MODEL_PATTERNS.some((pattern) =>
+        baseModel.modelId.includes(pattern),
+      );
+      if (this.mode === "hybrid" && !isHybridCapable) {
         this.logger({
           category: "agent",
           message: `Warning: "${baseModel.modelId}" may not perform well in hybrid mode. See recommended models: https://docs.stagehand.dev/v3/basics/agent#hybrid-mode`,

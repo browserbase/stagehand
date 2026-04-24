@@ -647,6 +647,17 @@ export type AgentModelConfig<TModelName extends string = string> = {
  */
 export type AgentToolMode = "dom" | "hybrid" | "cua";
 
+/**
+ * Model name substrings that indicate hybrid mode compatibility.
+ * Used for auto-routing when the user doesn't specify a mode.
+ */
+export const HYBRID_CAPABLE_MODEL_PATTERNS = [
+  "gemini-3",
+  "claude",
+  "gpt-5.4",
+  "gpt-5.5",
+];
+
 export type AgentConfig = {
   /**
    * Custom system prompt to provide to the agent. Overrides the default system prompt.
