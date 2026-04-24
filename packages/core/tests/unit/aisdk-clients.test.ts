@@ -98,4 +98,29 @@ describe("AISdkClient structured output provider options", () => {
       }),
     );
   });
+
+  it("omits temperature for OpenAI reasoning structured calls", async () => {
+    const client = new AISdkClient({
+      model: createModel("openai/gpt-5.4-mini"),
+      logger: vi.fn(),
+    });
+
+    await client.createChatCompletion({
+      options: {
+        messages: [{ role: "user", content: "hello" }],
+        response_model: {
+          name: "test",
+          schema: z.object({ ok: z.boolean() }),
+        },
+        temperature: 0.1,
+      },
+      logger: vi.fn(),
+    });
+
+    expect(mockGenerateObject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        temperature: undefined,
+      }),
+    );
+  });
 });

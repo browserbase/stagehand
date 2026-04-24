@@ -45,6 +45,7 @@ import {
   CAPTCHA_SOLVED_MSG,
   CAPTCHA_ERRORED_MSG,
 } from "../agent/utils/captchaSolver.js";
+import { resolveTemperatureForModel } from "../llm/modelCapabilities.js";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -373,7 +374,7 @@ export class V3AgentHandler {
         messages: prependSystemMessage(systemPrompt, messages),
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
-        temperature: 1,
+        temperature: resolveTemperatureForModel(wrappedModel.modelId, 1),
         toolChoice: "auto",
 
         prepareStep: this.createPrepareStep(
@@ -511,7 +512,7 @@ export class V3AgentHandler {
         messages: prependSystemMessage(systemPrompt, messages),
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
-        temperature: 1,
+        temperature: resolveTemperatureForModel(wrappedModel.modelId, 1),
         toolChoice: "auto",
         prepareStep: this.createPrepareStep(
           callbacks?.prepareStep,
