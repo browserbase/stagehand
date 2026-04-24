@@ -201,19 +201,22 @@ export class FrameSelectorResolver {
   ): Promise<Protocol.Runtime.RemoteObjectId[]> {
     if (limit <= 0) return [];
 
-    const bundle = await collectClosedShadowRoots(this.frame);
-    const hasOpenShadowRoots = await this.hasOpenShadowRoots(
-      bundle.documentObjectId,
-    );
-    const shouldUseComposed = bundle.roots.length > 0 || hasOpenShadowRoots;
-
-    const pairArgs = bundle.roots.flatMap((pair) => [
-      { objectId: pair.hostObjectId },
-      { objectId: pair.rootObjectId },
-    ]);
-
+    let bundle:
+      | Awaited<ReturnType<typeof collectClosedShadowRoots>>
+      | undefined;
     let resultArrayId: Protocol.Runtime.RemoteObjectId | undefined;
     try {
+      bundle = await collectClosedShadowRoots(this.frame);
+      const hasOpenShadowRoots = await this.hasOpenShadowRoots(
+        bundle.documentObjectId,
+      );
+      const shouldUseComposed = bundle.roots.length > 0 || hasOpenShadowRoots;
+
+      const pairArgs = bundle.roots.flatMap((pair) => [
+        { objectId: pair.hostObjectId },
+        { objectId: pair.rootObjectId },
+      ]);
+
       const called =
         await this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
           "Runtime.callFunctionOn",
@@ -231,25 +234,32 @@ export class FrameSelectorResolver {
         );
       resultArrayId = called.result.objectId;
       if (!resultArrayId) return [];
-      return this.getArrayElementObjectIds(resultArrayId);
+      return await this.getArrayElementObjectIds(resultArrayId);
+    } catch {
+      return [];
     } finally {
       await releaseRemoteObject(this.frame, resultArrayId);
-      await this.releaseClosedRootBundle(bundle);
+      if (bundle) {
+        await this.releaseClosedRootBundle(bundle);
+      }
     }
   }
 
   private async countXPathMatches(query: string): Promise<number> {
-    const bundle = await collectClosedShadowRoots(this.frame);
-    const hasOpenShadowRoots = await this.hasOpenShadowRoots(
-      bundle.documentObjectId,
-    );
-    const shouldUseComposed = bundle.roots.length > 0 || hasOpenShadowRoots;
-    const pairArgs = bundle.roots.flatMap((pair) => [
-      { objectId: pair.hostObjectId },
-      { objectId: pair.rootObjectId },
-    ]);
-
+    let bundle:
+      | Awaited<ReturnType<typeof collectClosedShadowRoots>>
+      | undefined;
     try {
+      bundle = await collectClosedShadowRoots(this.frame);
+      const hasOpenShadowRoots = await this.hasOpenShadowRoots(
+        bundle.documentObjectId,
+      );
+      const shouldUseComposed = bundle.roots.length > 0 || hasOpenShadowRoots;
+      const pairArgs = bundle.roots.flatMap((pair) => [
+        { objectId: pair.hostObjectId },
+        { objectId: pair.rootObjectId },
+      ]);
+
       const called =
         await this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
           "Runtime.callFunctionOn",
@@ -272,7 +282,9 @@ export class FrameSelectorResolver {
     } catch {
       return 0;
     } finally {
-      await this.releaseClosedRootBundle(bundle);
+      if (bundle) {
+        await this.releaseClosedRootBundle(bundle);
+      }
     }
   }
 
@@ -316,14 +328,17 @@ export class FrameSelectorResolver {
       ? Math.max(0, Math.floor(limit))
       : Number.MAX_SAFE_INTEGER;
 
-    const bundle = await collectClosedShadowRoots(this.frame);
-    const pairArgs = bundle.roots.flatMap((pair) => [
-      { objectId: pair.hostObjectId },
-      { objectId: pair.rootObjectId },
-    ]);
-
+    let bundle:
+      | Awaited<ReturnType<typeof collectClosedShadowRoots>>
+      | undefined;
     let resultArrayId: Protocol.Runtime.RemoteObjectId | undefined;
     try {
+      bundle = await collectClosedShadowRoots(this.frame);
+      const pairArgs = bundle.roots.flatMap((pair) => [
+        { objectId: pair.hostObjectId },
+        { objectId: pair.rootObjectId },
+      ]);
+
       const called =
         await this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
           "Runtime.callFunctionOn",
@@ -337,10 +352,14 @@ export class FrameSelectorResolver {
         );
       resultArrayId = called.result.objectId;
       if (!resultArrayId) return [];
-      return this.getArrayElementObjectIds(resultArrayId);
+      return await this.getArrayElementObjectIds(resultArrayId);
+    } catch {
+      return [];
     } finally {
       await releaseRemoteObject(this.frame, resultArrayId);
-      await this.releaseClosedRootBundle(bundle);
+      if (bundle) {
+        await this.releaseClosedRootBundle(bundle);
+      }
     }
   }
 
@@ -348,13 +367,16 @@ export class FrameSelectorResolver {
     functionDeclaration: string,
     query: string,
   ): Promise<number> {
-    const bundle = await collectClosedShadowRoots(this.frame);
-    const pairArgs = bundle.roots.flatMap((pair) => [
-      { objectId: pair.hostObjectId },
-      { objectId: pair.rootObjectId },
-    ]);
-
+    let bundle:
+      | Awaited<ReturnType<typeof collectClosedShadowRoots>>
+      | undefined;
     try {
+      bundle = await collectClosedShadowRoots(this.frame);
+      const pairArgs = bundle.roots.flatMap((pair) => [
+        { objectId: pair.hostObjectId },
+        { objectId: pair.rootObjectId },
+      ]);
+
       const called =
         await this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
           "Runtime.callFunctionOn",
@@ -373,7 +395,9 @@ export class FrameSelectorResolver {
     } catch {
       return 0;
     } finally {
-      await this.releaseClosedRootBundle(bundle);
+      if (bundle) {
+        await this.releaseClosedRootBundle(bundle);
+      }
     }
   }
 

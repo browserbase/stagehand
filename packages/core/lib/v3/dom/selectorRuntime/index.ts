@@ -305,7 +305,13 @@ export function countXPathNative(this: Document, rawXPath: string): number {
       XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
       null,
     );
-    return snapshot.snapshotLength;
+    let count = 0;
+    for (let i = 0; i < snapshot.snapshotLength; i += 1) {
+      if (snapshot.snapshotItem(i) instanceof Element) {
+        count += 1;
+      }
+    }
+    return count;
   } catch {
     return 0;
   }

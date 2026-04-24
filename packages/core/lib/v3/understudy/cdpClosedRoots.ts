@@ -29,6 +29,8 @@ export async function releaseRemoteObject(
 export async function collectClosedShadowRoots(
   frame: Frame,
 ): Promise<ClosedShadowRootBundle> {
+  let documentObjectId: Protocol.Runtime.RemoteObjectId | undefined;
+  const roots: ClosedShadowRootHandlePair[] = [];
   try {
     const contextId = await executionContexts.waitForMainWorld(
       frame.session,
@@ -47,7 +49,7 @@ export async function collectClosedShadowRoots(
         },
       );
 
-    const documentObjectId = evaluated.result.objectId;
+    documentObjectId = evaluated.result.objectId;
     if (!documentObjectId) {
       throw new StagehandDomProcessError(
         "unable to resolve document object for closed shadow root collection",
@@ -92,7 +94,6 @@ export async function collectClosedShadowRoots(
 
     visit(described.node);
 
-    const roots: ClosedShadowRootHandlePair[] = [];
     for (const pair of pairs) {
       const [hostResult, rootResult] = await Promise.allSettled([
         frame.session.send<Protocol.DOM.ResolveNodeResponse>(
@@ -136,6 +137,11 @@ export async function collectClosedShadowRoots(
 
     return { contextId, documentObjectId, roots };
   } catch (error) {
+    await releaseRemoteObject(frame, documentObjectId);
+    for (const pair of roots) {
+      await releaseRemoteObject(frame, pair.hostObjectId);
+      await releaseRemoteObject(frame, pair.rootObjectId);
+    }
     if (error instanceof StagehandDomProcessError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     throw new StagehandDomProcessError(

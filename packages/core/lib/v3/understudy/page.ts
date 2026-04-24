@@ -1410,13 +1410,18 @@ export class Page {
           if (!el) return false;
           try {
             const style = window.getComputedStyle(el);
+            if (!style || style.display === "none" || style.visibility === "hidden") {
+              return false;
+            }
+            const opacity = parseFloat(style.opacity ?? "1");
+            if (!Number.isFinite(opacity) || opacity === 0) {
+              return false;
+            }
             const rect = el.getBoundingClientRect();
-            return (
-              style.display !== "none" &&
-              style.visibility !== "hidden" &&
-              style.opacity !== "0" &&
-              rect.width > 0 &&
-              rect.height > 0
+            return !!(
+              rect &&
+              Math.max(rect.width, rect.height) !== 0 &&
+              el.getClientRects().length !== 0
             );
           } catch {
             return false;
