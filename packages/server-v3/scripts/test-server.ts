@@ -6,7 +6,7 @@
  * - SEA integration still requires build:sea when STAGEHAND_SERVER_TARGET=sea.
  *
  * Args: [test paths...] -- [node --test args...] | --list (prints JSON matrix)
- * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_BASE_URL, SEA_BINARY_NAME,
+ * Env: STAGEHAND_SERVER_TARGET=sea|local|remote, STAGEHAND_API_URL, SEA_BINARY_NAME,
  *      NODE_TEST_CONSOLE_REPORTER, NODE_TEST_REPORTER, NODE_TEST_REPORTER_DESTINATION,
  *      NODE_V8_COVERAGE; writes CTRF to ctrf/node-test-*.xml by default.
  * Example: STAGEHAND_SERVER_TARGET=sea pnpm run test:server -- packages/server-v3/dist/tests/integration/v3/start.test.js
@@ -191,11 +191,14 @@ if (!fs.existsSync(allTestsDir)) {
 const serverTarget = (
   process.env.STAGEHAND_SERVER_TARGET ?? "sea"
 ).toLowerCase();
-const explicitBaseUrl = process.env.STAGEHAND_BASE_URL;
+const explicitBaseUrl =
+  process.env.STAGEHAND_API_URL ?? process.env.STAGEHAND_BASE_URL;
 const baseUrl = explicitBaseUrl ?? "http://stagehand-api.localhost:3106"; // different than server-v4 to avoid clash
 
 if (serverTarget === "remote" && !explicitBaseUrl) {
-  console.error("Missing STAGEHAND_BASE_URL for remote server target.");
+  console.error(
+    "Missing STAGEHAND_API_URL for remote server target. STAGEHAND_BASE_URL is accepted as a legacy fallback.",
+  );
   process.exit(1);
 }
 

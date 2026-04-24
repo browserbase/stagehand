@@ -32,10 +32,13 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
+    logger.mockClear();
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    delete process.env.STAGEHAND_BASE_URL;
+    delete process.env.STAGEHAND_API_URL;
     vi.restoreAllMocks();
   });
 
@@ -114,5 +117,80 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
     // Verify x-model-api-key header is NOT present
     const [, requestInit] = fetchSpy.mock.calls[0];
     expect(requestInit.headers["x-model-api-key"]).toBeUndefined();
+  });
+
+  it("should use STAGEHAND_API_URL for the API base URL", async () => {
+    process.env.STAGEHAND_API_URL = "http://localhost:5000";
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(createSessionStartResponse("sess-api-url"));
+    globalThis.fetch = fetchSpy;
+
+    const client = new StagehandAPIClient({
+      apiKey: "test-api-key",
+      logger,
+    });
+
+    await client.init({
+      modelName: "openai/gpt-4.1-mini",
+    });
+
+    const [url] = fetchSpy.mock.calls[0];
+    expect(url.toString()).toBe("http://localhost:5000/v1/sessions/start");
+  });
+
+  it("should use STAGEHAND_BASE_URL as a legacy fallback", async () => {
+    process.env.STAGEHAND_BASE_URL = "http://localhost:5001";
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(createSessionStartResponse("sess-base-url"));
+    globalThis.fetch = fetchSpy;
+
+    const client = new StagehandAPIClient({
+      apiKey: "test-api-key",
+      logger,
+    });
+
+    await client.init({
+      modelName: "openai/gpt-4.1-mini",
+    });
+
+    const [url] = fetchSpy.mock.calls[0];
+    expect(url.toString()).toBe("http://localhost:5001/v1/sessions/start");
+    expect(logger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: "config",
+        message:
+          "STAGEHAND_BASE_URL is deprecated. Use STAGEHAND_API_URL instead.",
+        level: 0,
+      }),
+    );
+  });
+
+  it("should prefer STAGEHAND_API_URL over STAGEHAND_BASE_URL", async () => {
+    process.env.STAGEHAND_BASE_URL = "http://localhost:5002";
+    process.env.STAGEHAND_API_URL = "http://localhost:5003";
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(createSessionStartResponse("sess-base-precedence"));
+    globalThis.fetch = fetchSpy;
+
+    const client = new StagehandAPIClient({
+      apiKey: "test-api-key",
+      logger,
+    });
+
+    await client.init({
+      modelName: "openai/gpt-4.1-mini",
+    });
+
+    const [url] = fetchSpy.mock.calls[0];
+    expect(url.toString()).toBe("http://localhost:5003/v1/sessions/start");
+    expect(logger).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          "STAGEHAND_BASE_URL is deprecated. Use STAGEHAND_API_URL instead.",
+      }),
+    );
   });
 });
