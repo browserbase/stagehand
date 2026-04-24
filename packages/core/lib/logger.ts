@@ -34,18 +34,23 @@ export function createLogger(options: LoggerOptions = {}) {
   // and not in a test environment
   if (options.pretty && !isTestEnvironment()) {
     try {
-      // Use require for dynamic import
-      const transport = {
-        transport: {
-          target: "pino-pretty",
-          options: {
-            colorize: true,
-            translateTime: "SYS:standard",
-            ignore: "pid,hostname",
+      // pino-pretty is an optional dependency and may not be available in all
+      // environments (e.g. serverless, Next.js). Attempt to initialise pino with
+      // the pretty transport and fall back to plain pino on any error.
+      return pino(
+        {
+          ...loggerConfig,
+          transport: {
+            target: "pino-pretty",
+            options: {
+              colorize: true,
+              translateTime: "SYS:standard",
+              ignore: "pid,hostname",
+            },
           },
         },
-      };
-      Object.assign(loggerConfig, transport);
+        options.destination,
+      );
     } catch {
       console.warn(
         "pino-pretty not available, falling back to standard logging",
