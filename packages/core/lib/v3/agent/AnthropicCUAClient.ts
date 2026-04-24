@@ -30,6 +30,29 @@ import { v7 as uuidv7 } from "uuid";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
+const IMAGE_DATA_URL_PATTERN =
+  /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]*)$/i;
+const PNG_DATA_URL_PREFIX = /^data:image\/png;base64,/i;
+
+function getImageToolResultSource(screenshot: string): {
+  mediaType: string;
+  base64Data: string;
+} {
+  const match = screenshot.match(IMAGE_DATA_URL_PATTERN);
+  if (match?.[1] && typeof match[2] === "string") {
+    return {
+      mediaType: match[1].toLowerCase(),
+      base64Data: match[2],
+    };
+  }
+
+  // Fallback preserves existing PNG behavior for malformed/unexpected values.
+  return {
+    mediaType: "image/png",
+    base64Data: screenshot.replace(PNG_DATA_URL_PREFIX, ""),
+  };
+}
+
 /**
  * Client for Anthropic's Computer Use API
  * This implementation uses the official Anthropic Messages API for Computer Use
@@ -661,6 +684,7 @@ export class AnthropicCUAClient extends AgentClient {
             message: `Screenshot captured, length: ${screenshot.length}`,
             level: 2,
           });
+          const screenshotSource = getImageToolResultSource(screenshot);
 
           // Create proper image content block for Anthropic
           const imageContent = [
@@ -668,8 +692,8 @@ export class AnthropicCUAClient extends AgentClient {
               type: "image",
               source: {
                 type: "base64",
-                media_type: "image/png",
-                data: screenshot.replace(/^data:image\/png;base64,/, ""),
+                media_type: screenshotSource.mediaType,
+                data: screenshotSource.base64Data,
               },
             },
           ];
@@ -770,6 +794,7 @@ export class AnthropicCUAClient extends AgentClient {
           // For computer tool, try to capture a screenshot even on error
           if (item.name === "computer") {
             const screenshot = await this.captureScreenshot();
+            const screenshotSource = getImageToolResultSource(screenshot);
 
             toolResults.push({
               type: "tool_result",
@@ -779,8 +804,8 @@ export class AnthropicCUAClient extends AgentClient {
                   type: "image",
                   source: {
                     type: "base64",
-                    media_type: "image/png",
-                    data: screenshot.replace(/^data:image\/png;base64,/, ""),
+                    media_type: screenshotSource.mediaType,
+                    data: screenshotSource.base64Data,
                   },
                 },
                 {
