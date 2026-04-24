@@ -41,6 +41,9 @@ export type GoogleVertexProviderSettings = Omit<
   headers?: Record<string, string>;
   googleAuthOptions?: {
     credentials?: GoogleServiceAccountCredentials;
+    scopes?: string | string[];
+    projectId?: string;
+    universeDomain?: string;
   };
 };
 

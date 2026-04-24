@@ -70,6 +70,114 @@ export const ProviderConfigSchema = z
   .passthrough()
   .meta({ id: "ProviderConfig" });
 
+const BEDROCK_ALLOWED_PROVIDER_OPTION_KEYS = new Set([
+  "region",
+  "apiKey",
+  "accessKeyId",
+  "secretAccessKey",
+  "sessionToken",
+  "baseURL",
+  "headers",
+]);
+
+const VERTEX_ALLOWED_PROVIDER_OPTION_KEYS = new Set([
+  "project",
+  "location",
+  "baseURL",
+  "headers",
+  "googleAuthOptions",
+]);
+
+const VERTEX_GOOGLE_AUTH_ALLOWED_KEYS = new Set([
+  "credentials",
+  "scopes",
+  "projectId",
+  "universeDomain",
+]);
+
+const GOOGLE_SERVICE_ACCOUNT_ALLOWED_KEYS = new Set([
+  "type",
+  "project_id",
+  "private_key_id",
+  "private_key",
+  "client_email",
+  "client_id",
+  "auth_uri",
+  "token_uri",
+  "auth_provider_x509_cert_url",
+  "client_x509_cert_url",
+  "universe_domain",
+]);
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function getStringRecord(
+  value: unknown,
+): Record<string, string> | undefined {
+  const record = getRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  if (Object.values(record).some((item) => typeof item !== "string")) {
+    return undefined;
+  }
+
+  return record as Record<string, string>;
+}
+
+function addUnsupportedOptionIssues({
+  providerName,
+  options,
+  allowedKeys,
+  ctx,
+  pathPrefix,
+}: {
+  providerName: string;
+  options: Record<string, unknown> | undefined;
+  allowedKeys: Set<string>;
+  ctx: z.RefinementCtx;
+  pathPrefix: (string | number)[];
+}) {
+  if (!options) {
+    return;
+  }
+
+  for (const key of Object.keys(options)) {
+    if (allowedKeys.has(key)) {
+      continue;
+    }
+
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${providerName} configs do not support ${[
+        ...pathPrefix,
+        key,
+      ].join(".")}.`,
+      path: [...pathPrefix, key],
+    });
+  }
+}
+
+function addExpectedStringIssue(
+  value: unknown,
+  path: (string | number)[],
+  message: string,
+  ctx: z.RefinementCtx,
+) {
+  if (value !== undefined && typeof value !== "string") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message,
+      path,
+    });
+  }
+}
+
 function getProviderFromModelName(modelName?: string): string | undefined {
   return typeof modelName === "string" && modelName.includes("/")
     ? modelName.split("/", 1)[0]
@@ -167,6 +275,181 @@ function addBedrockAuthIssues(
   }
 }
 
+function addBedrockValidationIssues(
+  providerOptions: Record<string, unknown> | undefined,
+  ctx: z.RefinementCtx,
+) {
+  addUnsupportedOptionIssues({
+    providerName: "Bedrock",
+    options: providerOptions,
+    allowedKeys: BEDROCK_ALLOWED_PROVIDER_OPTION_KEYS,
+    ctx,
+    pathPrefix: ["providerConfig", "options"],
+  });
+
+  const headers = providerOptions?.headers;
+  if (headers !== undefined && !getStringRecord(headers)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Bedrock providerConfig.options.headers must be a string-to-string record.",
+      path: ["providerConfig", "options", "headers"],
+    });
+  }
+
+  addExpectedStringIssue(
+    providerOptions?.apiKey,
+    ["providerConfig", "options", "apiKey"],
+    "Bedrock providerConfig.options.apiKey must be a string.",
+    ctx,
+  );
+  addExpectedStringIssue(
+    providerOptions?.baseURL,
+    ["providerConfig", "options", "baseURL"],
+    "Bedrock providerConfig.options.baseURL must be a string.",
+    ctx,
+  );
+}
+
+function addVertexValidationIssues(
+  providerOptions: Record<string, unknown> | undefined,
+  ctx: z.RefinementCtx,
+) {
+  addUnsupportedOptionIssues({
+    providerName: "Vertex",
+    options: providerOptions,
+    allowedKeys: VERTEX_ALLOWED_PROVIDER_OPTION_KEYS,
+    ctx,
+    pathPrefix: ["providerConfig", "options"],
+  });
+
+  addExpectedStringIssue(
+    providerOptions?.project,
+    ["providerConfig", "options", "project"],
+    "Vertex providerConfig.options.project must be a string.",
+    ctx,
+  );
+  addExpectedStringIssue(
+    providerOptions?.location,
+    ["providerConfig", "options", "location"],
+    "Vertex providerConfig.options.location must be a string.",
+    ctx,
+  );
+  addExpectedStringIssue(
+    providerOptions?.baseURL,
+    ["providerConfig", "options", "baseURL"],
+    "Vertex providerConfig.options.baseURL must be a string.",
+    ctx,
+  );
+
+  const headers = providerOptions?.headers;
+  if (headers !== undefined && !getStringRecord(headers)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Vertex providerConfig.options.headers must be a string-to-string record.",
+      path: ["providerConfig", "options", "headers"],
+    });
+  }
+
+  const googleAuthOptions = providerOptions?.googleAuthOptions;
+  if (googleAuthOptions === undefined) {
+    return;
+  }
+
+  const googleAuthRecord = getRecord(googleAuthOptions);
+  if (!googleAuthRecord) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Vertex providerConfig.options.googleAuthOptions must be an object.",
+      path: ["providerConfig", "options", "googleAuthOptions"],
+    });
+    return;
+  }
+
+  addUnsupportedOptionIssues({
+    providerName: "Vertex",
+    options: googleAuthRecord,
+    allowedKeys: VERTEX_GOOGLE_AUTH_ALLOWED_KEYS,
+    ctx,
+    pathPrefix: ["providerConfig", "options", "googleAuthOptions"],
+  });
+
+  const credentials = googleAuthRecord.credentials;
+  if (credentials !== undefined) {
+    const credentialRecord = getRecord(credentials);
+    if (!credentialRecord) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Vertex providerConfig.options.googleAuthOptions.credentials must be an object.",
+        path: ["providerConfig", "options", "googleAuthOptions", "credentials"],
+      });
+    } else {
+      addUnsupportedOptionIssues({
+        providerName: "Vertex",
+        options: credentialRecord,
+        allowedKeys: GOOGLE_SERVICE_ACCOUNT_ALLOWED_KEYS,
+        ctx,
+        pathPrefix: [
+          "providerConfig",
+          "options",
+          "googleAuthOptions",
+          "credentials",
+        ],
+      });
+
+      for (const [key, value] of Object.entries(credentialRecord)) {
+        if (
+          GOOGLE_SERVICE_ACCOUNT_ALLOWED_KEYS.has(key) &&
+          value !== undefined &&
+          typeof value !== "string"
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Vertex providerConfig.options.googleAuthOptions.credentials.${key} must be a string.`,
+            path: [
+              "providerConfig",
+              "options",
+              "googleAuthOptions",
+              "credentials",
+              key,
+            ],
+          });
+        }
+      }
+    }
+  }
+
+  const scopes = googleAuthRecord.scopes;
+  if (
+    scopes !== undefined &&
+    typeof scopes !== "string" &&
+    !(Array.isArray(scopes) && scopes.every((item) => typeof item === "string"))
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Vertex providerConfig.options.googleAuthOptions.scopes must be a string or string array.",
+      path: ["providerConfig", "options", "googleAuthOptions", "scopes"],
+    });
+  }
+
+  addExpectedStringIssue(
+    googleAuthRecord.projectId,
+    ["providerConfig", "options", "googleAuthOptions", "projectId"],
+    "Vertex providerConfig.options.googleAuthOptions.projectId must be a string.",
+    ctx,
+  );
+  addExpectedStringIssue(
+    googleAuthRecord.universeDomain,
+    ["providerConfig", "options", "googleAuthOptions", "universeDomain"],
+    "Vertex providerConfig.options.googleAuthOptions.universeDomain must be a string.",
+    ctx,
+  );
+}
+
 const modelConfigSharedShape = {
   provider: z
     .enum(["openai", "anthropic", "google", "microsoft", "bedrock", "vertex"])
@@ -217,9 +500,15 @@ function validateProviderConfig(
     typeof value.providerConfig?.provider === "string"
       ? value.providerConfig.provider
       : undefined;
+  const providerOptions = getRecord(value.providerConfig?.options);
 
   if (provider === "bedrock" || modelProvider === "bedrock") {
     addBedrockAuthIssues(value.providerConfig, ctx);
+    addBedrockValidationIssues(providerOptions, ctx);
+  }
+
+  if (provider === "vertex" || modelProvider === "vertex") {
+    addVertexValidationIssues(providerOptions, ctx);
   }
 }
 

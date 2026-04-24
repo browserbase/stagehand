@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Api } from "../../lib/v3/types/public/index.js";
 
 const bedrockModelName = "bedrock/us.amazon.nova-lite-v1:0";
+const vertexModelName = "vertex/gemini-2.5-pro";
 
 describe("API providerConfig schemas", () => {
   it("rejects Bedrock session start payloads without a region", () => {
@@ -64,6 +65,55 @@ describe("API providerConfig schemas", () => {
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.message).toBe(
       'providerConfig.provider "bedrock" must match the model provider "openai"',
+    );
+  });
+
+  it("rejects unsupported Bedrock providerConfig options", () => {
+    const result = Api.SessionStartRequestSchema.safeParse({
+      modelName: bedrockModelName,
+      modelClientOptions: {
+        providerConfig: {
+          provider: "bedrock",
+          options: {
+            region: "us-east-1",
+            fetch: "nope",
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toContain(
+      "Bedrock configs do not support providerConfig.options.fetch.",
+    );
+  });
+
+  it("rejects unsupported Vertex googleAuthOptions fields", () => {
+    const result = Api.SessionStartRequestSchema.safeParse({
+      modelName: vertexModelName,
+      modelClientOptions: {
+        providerConfig: {
+          provider: "vertex",
+          options: {
+            project: "vertex-project",
+            location: "us-central1",
+            googleAuthOptions: {
+              credentials: {
+                client_email: "vertex@example.com",
+                private_key: "private-key",
+              },
+              authClient: {
+                nope: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toContain(
+      "Vertex configs do not support providerConfig.options.googleAuthOptions.authClient.",
     );
   });
 });

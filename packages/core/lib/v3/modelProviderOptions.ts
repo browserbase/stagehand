@@ -9,12 +9,27 @@ import type { Api } from "./types/public/index.js";
 type VertexCompatibleClientOptions = ClientOptions &
   Partial<GoogleVertexProviderSettings>;
 
+type SerializableGoogleServiceAccountCredentials = NonNullable<
+  NonNullable<GoogleVertexProviderSettings["googleAuthOptions"]>["credentials"]
+>;
+
+type SerializableGoogleAuthOptions = {
+  credentials?: SerializableGoogleServiceAccountCredentials;
+  scopes?: string | string[];
+  projectId?: string;
+  universeDomain?: string;
+};
+
 function hasValue<T>(value: T | undefined | null): value is T {
   return value !== undefined && value !== null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined;
 }
 
 function toSerializableHeaders(
@@ -33,6 +48,89 @@ function toSerializableHeaders(
   }
 
   return headers as Record<string, string>;
+}
+
+function withStringProperty<T extends string>(
+  target: Record<string, unknown>,
+  source: Record<string, unknown> | undefined,
+  key: T,
+) {
+  const value = source?.[key];
+  if (typeof value === "string") {
+    target[key] = value;
+  }
+}
+
+function toSerializableGoogleServiceAccountCredentials(
+  value: unknown,
+): SerializableGoogleServiceAccountCredentials | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const credentials: Record<string, string> = {};
+  for (const key of [
+    "type",
+    "project_id",
+    "private_key_id",
+    "private_key",
+    "client_email",
+    "client_id",
+    "auth_uri",
+    "token_uri",
+    "auth_provider_x509_cert_url",
+    "client_x509_cert_url",
+    "universe_domain",
+  ] as const) {
+    withStringProperty(credentials, value, key);
+  }
+
+  return Object.keys(credentials).length > 0
+    ? (credentials as SerializableGoogleServiceAccountCredentials)
+    : undefined;
+}
+
+function toSerializableGoogleAuthOptions(
+  value: unknown,
+): SerializableGoogleAuthOptions | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const credentials = toSerializableGoogleServiceAccountCredentials(
+    value.credentials,
+  );
+  const scopes =
+    typeof value.scopes === "string"
+      ? value.scopes
+      : Array.isArray(value.scopes) &&
+          value.scopes.every((item) => typeof item === "string")
+        ? value.scopes
+        : undefined;
+  const projectId =
+    typeof value.projectId === "string" ? value.projectId : undefined;
+  const universeDomain =
+    typeof value.universeDomain === "string"
+      ? value.universeDomain
+      : undefined;
+
+  const googleAuthOptions: SerializableGoogleAuthOptions = {};
+  if (credentials) {
+    googleAuthOptions.credentials = credentials;
+  }
+  if (scopes) {
+    googleAuthOptions.scopes = scopes;
+  }
+  if (projectId) {
+    googleAuthOptions.projectId = projectId;
+  }
+  if (universeDomain) {
+    googleAuthOptions.universeDomain = universeDomain;
+  }
+
+  return Object.keys(googleAuthOptions).length > 0
+    ? googleAuthOptions
+    : undefined;
 }
 
 export function getProviderFromModelName(
@@ -59,8 +157,11 @@ function getLegacyVertexOptions(
   if (hasValue(vertexOptions.location)) {
     legacyVertexOptions.location = vertexOptions.location;
   }
-  if (hasValue(vertexOptions.googleAuthOptions)) {
-    legacyVertexOptions.googleAuthOptions = vertexOptions.googleAuthOptions;
+  const googleAuthOptions = toSerializableGoogleAuthOptions(
+    vertexOptions.googleAuthOptions,
+  );
+  if (googleAuthOptions) {
+    legacyVertexOptions.googleAuthOptions = googleAuthOptions;
   }
 
   const headers = toSerializableHeaders(options.headers);
@@ -82,31 +183,67 @@ function getNormalizedVertexProviderOptions(
 
   const legacyVertexOptions = getLegacyVertexOptions(options);
   const rawProviderOptions = options.providerOptions;
-  const providerOptions = isRecord(rawProviderOptions)
-    ? (rawProviderOptions as GoogleVertexProviderSettings)
-    : undefined;
+  const providerOptions = getRecord(rawProviderOptions);
 
   if (!legacyVertexOptions && !providerOptions) {
     return undefined;
   }
 
-  const mergedHeaders = toSerializableHeaders(providerOptions?.headers);
-
-  return {
+  const normalizedVertexOptions: GoogleVertexProviderSettings = {
     ...(legacyVertexOptions ?? {}),
-    ...(providerOptions ?? {}),
-    ...(mergedHeaders ? { headers: mergedHeaders } : {}),
   };
+
+  const providerProject = providerOptions?.project;
+  if (typeof providerProject === "string") {
+    normalizedVertexOptions.project = providerProject;
+  }
+
+  const providerLocation = providerOptions?.location;
+  if (typeof providerLocation === "string") {
+    normalizedVertexOptions.location = providerLocation;
+  }
+
+  const providerGoogleAuthOptions = toSerializableGoogleAuthOptions(
+    providerOptions?.googleAuthOptions,
+  );
+  if (providerGoogleAuthOptions) {
+    normalizedVertexOptions.googleAuthOptions = providerGoogleAuthOptions;
+  }
+
+  const providerHeaders = toSerializableHeaders(providerOptions?.headers);
+  if (providerHeaders) {
+    normalizedVertexOptions.headers = providerHeaders;
+  }
+
+  return Object.keys(normalizedVertexOptions).length > 0
+    ? normalizedVertexOptions
+    : undefined;
 }
 
 function getBedrockProviderOptions(
   options?: ClientOptions,
 ): BedrockProviderOptions | undefined {
-  if (!options || !isRecord(options.providerOptions)) {
+  const rawProviderOptions = getRecord(options?.providerOptions);
+  if (!options || !rawProviderOptions) {
     return undefined;
   }
+  const bedrockProviderOptions: BedrockProviderOptions = {};
 
-  return options.providerOptions as BedrockProviderOptions;
+  for (const key of [
+    "region",
+    "accessKeyId",
+    "secretAccessKey",
+    "sessionToken",
+  ] as const) {
+    const value = rawProviderOptions[key];
+    if (typeof value === "string") {
+      bedrockProviderOptions[key] = value;
+    }
+  }
+
+  return Object.keys(bedrockProviderOptions).length > 0
+    ? bedrockProviderOptions
+    : undefined;
 }
 
 function getProviderConfig(
