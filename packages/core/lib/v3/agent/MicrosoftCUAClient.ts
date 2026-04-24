@@ -921,16 +921,14 @@ For each function call, return a json object with function name and arguments wi
         // Update completion status
         completed = result.completed;
 
-        if (!completed) {
-          const contextNotes = this.drainContextNotes();
-          if (contextNotes.length > 0) {
-            this.conversationHistory.push(
-              ...contextNotes.map((note) => ({
-                role: "user" as const,
-                content: note,
-              })),
-            );
-          }
+        const contextNotes = this.drainContextNotes();
+        if (!completed && contextNotes.length > 0) {
+          this.conversationHistory.push(
+            ...contextNotes.map((note) => ({
+              role: "user" as const,
+              content: note,
+            })),
+          );
         }
 
         currentStep++;

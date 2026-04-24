@@ -270,16 +270,14 @@ export class GoogleCUAClient extends AgentClient {
         // Update completion status
         completed = result.completed;
 
-        if (!completed) {
-          const contextNotes = this.drainContextNotes();
-          if (contextNotes.length > 0) {
-            this.history.push(
-              ...contextNotes.map((note) => ({
-                role: "user" as const,
-                parts: [{ text: note }],
-              })),
-            );
-          }
+        const contextNotes = this.drainContextNotes();
+        if (!completed && contextNotes.length > 0) {
+          this.history.push(
+            ...contextNotes.map((note) => ({
+              role: "user" as const,
+              parts: [{ text: note }],
+            })),
+          );
         }
 
         // Record any message for this step

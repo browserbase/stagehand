@@ -177,10 +177,11 @@ export class AnthropicCUAClient extends AgentClient {
         // Update completion status
         completed = result.completed;
 
+        const contextNotes = this.drainContextNotes();
+
         // Update the input items for the next step if we're continuing
         if (!completed) {
           inputItems = result.nextInputItems;
-          const contextNotes = this.drainContextNotes();
           if (contextNotes.length > 0) {
             inputItems = [
               ...inputItems,
