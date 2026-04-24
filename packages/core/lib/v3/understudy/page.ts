@@ -1490,7 +1490,7 @@ export class Page {
     }
 
     throw new TimeoutError(
-      `waitForSelector("${finalSelector}") to be ${state}`,
+      `Timeout waiting for selector "${finalSelector}" to be ${state}`,
       remainingTimeout,
     );
   }
