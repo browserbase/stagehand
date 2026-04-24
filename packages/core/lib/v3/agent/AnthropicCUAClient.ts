@@ -46,6 +46,7 @@ export class AnthropicCUAClient extends AgentClient {
   private thinkingBudget: number | null = null;
   private thinkingEffort: ThinkingEffort | null = null;
   private userTemperature: number | undefined;
+  private maxImages: number = 2;
   private tools?: ToolSet;
 
   constructor(
@@ -77,6 +78,10 @@ export class AnthropicCUAClient extends AgentClient {
 
     // Track user-specified temperature so we can warn if adaptive thinking overrides it
     this.userTemperature = clientOptions?.temperature;
+
+    if (clientOptions?.maxImages !== undefined) {
+      this.maxImages = clientOptions.maxImages as number;
+    }
 
     // Store client options for reference
     this.clientOptions = {
@@ -360,7 +365,9 @@ export class AnthropicCUAClient extends AgentClient {
       const nextInputItems: ResponseInputItem[] = [...inputItems];
 
       // Add the assistant message with tool_use blocks to the history
-      compressConversationImages(nextInputItems);
+      if (this.maxImages > 0) {
+        compressConversationImages(nextInputItems, this.maxImages);
+      }
 
       nextInputItems.push(assistantMessage);
 
