@@ -62,6 +62,11 @@ describe("modelProviderOptions", () => {
           region: "us-east-1",
           accessKeyId: "AKIATEST",
           secretAccessKey: "secret-test",
+          apiKey: "bedrock-bearer-token",
+          baseURL: "https://bedrock.example.com",
+          headers: {
+            "x-bedrock-header": "present",
+          },
           fetch: "should-not-pass-through",
           credentialProvider: "also-ignored",
         } as unknown as Record<string, unknown>,
@@ -76,6 +81,11 @@ describe("modelProviderOptions", () => {
           region: "us-east-1",
           accessKeyId: "AKIATEST",
           secretAccessKey: "secret-test",
+          apiKey: "bedrock-bearer-token",
+          baseURL: "https://bedrock.example.com",
+          headers: {
+            "x-bedrock-header": "present",
+          },
         },
       },
     });
@@ -139,6 +149,7 @@ describe("modelProviderOptions", () => {
         providerOptions: {
           project: "vertex-project",
           location: "us-central1",
+          baseURL: "https://vertex.example.com",
           googleAuthOptions: {
             credentials: {
               client_email: "vertex@example.com",
@@ -162,6 +173,7 @@ describe("modelProviderOptions", () => {
         options: {
           project: "vertex-project",
           location: "us-central1",
+          baseURL: "https://vertex.example.com",
           googleAuthOptions: {
             credentials: {
               client_email: "vertex@example.com",

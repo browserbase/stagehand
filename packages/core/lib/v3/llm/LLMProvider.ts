@@ -9,6 +9,7 @@ import { LogLine } from "../types/public/logs.js";
 import {
   AvailableModel,
   ClientOptions,
+  GoogleVertexProviderSettings,
   ModelProvider,
 } from "../types/public/model.js";
 import { AISdkClient } from "./aisdk.js";
@@ -100,6 +101,34 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.5-pro-preview-03-25": "google",
 };
 
+function isStringRecord(
+  value: unknown,
+): value is Record<string, string> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((item) => typeof item === "string")
+  );
+}
+
+function hasHostedVertexClientOptions(
+  clientOptions?: ClientOptions,
+): boolean {
+  const vertexOptions =
+    clientOptions as Partial<GoogleVertexProviderSettings> | undefined;
+  return Boolean(
+    vertexOptions &&
+      (typeof vertexOptions.project === "string" ||
+        typeof vertexOptions.location === "string" ||
+        typeof vertexOptions.baseURL === "string" ||
+        isStringRecord(vertexOptions.headers) ||
+        (typeof vertexOptions.googleAuthOptions === "object" &&
+          vertexOptions.googleAuthOptions !== null &&
+          Object.keys(vertexOptions.googleAuthOptions).length > 0)),
+  );
+}
+
 export function getAISDKLanguageModel(
   subProvider: string,
   subModelName: string,
@@ -166,7 +195,8 @@ export class LLMProvider {
       if (
         subProvider === "vertex" &&
         !options?.disableAPI &&
-        !options?.experimental
+        !options?.experimental &&
+        !hasHostedVertexClientOptions(clientOptions)
       ) {
         throw new ExperimentalNotConfiguredError("Vertex provider");
       }

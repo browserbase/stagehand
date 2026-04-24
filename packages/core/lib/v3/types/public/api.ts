@@ -1237,6 +1237,7 @@ export const AgentExecuteResponseSchema = wrapResponse(
 
 export const NavigateOptionsSchema = z
   .object({
+    model: ModelConfigSchema.optional(),
     referer: z.string().optional().meta({
       description: "Referer header to send with the request",
     }),

@@ -34,7 +34,10 @@ export interface GoogleServiceAccountCredentials {
 
 export type GoogleVertexProviderSettings = Omit<
   Partial<
-    Pick<GoogleVertexProviderSettingsBase, "project" | "location" | "headers">
+    Pick<
+      GoogleVertexProviderSettingsBase,
+      "project" | "location" | "baseURL" | "headers"
+    >
   >,
   "headers"
 > & {
@@ -47,12 +50,23 @@ export type GoogleVertexProviderSettings = Omit<
   };
 };
 
-export type BedrockProviderOptions = Partial<
-  Pick<
-    AmazonBedrockProviderSettingsBase,
-    "region" | "accessKeyId" | "secretAccessKey" | "sessionToken"
-  >
->;
+export type BedrockProviderOptions = Omit<
+  Partial<
+    Pick<
+      AmazonBedrockProviderSettingsBase,
+      | "region"
+      | "accessKeyId"
+      | "secretAccessKey"
+      | "sessionToken"
+      | "apiKey"
+      | "baseURL"
+      | "headers"
+    >
+  >,
+  "headers"
+> & {
+  headers?: Record<string, string>;
+};
 
 export type ProviderOptions =
   | BedrockProviderOptions

@@ -157,6 +157,9 @@ function getLegacyVertexOptions(
   if (hasValue(vertexOptions.location)) {
     legacyVertexOptions.location = vertexOptions.location;
   }
+  if (hasValue(vertexOptions.baseURL)) {
+    legacyVertexOptions.baseURL = vertexOptions.baseURL;
+  }
   const googleAuthOptions = toSerializableGoogleAuthOptions(
     vertexOptions.googleAuthOptions,
   );
@@ -203,6 +206,11 @@ function getNormalizedVertexProviderOptions(
     normalizedVertexOptions.location = providerLocation;
   }
 
+  const providerBaseURL = providerOptions?.baseURL;
+  if (typeof providerBaseURL === "string") {
+    normalizedVertexOptions.baseURL = providerBaseURL;
+  }
+
   const providerGoogleAuthOptions = toSerializableGoogleAuthOptions(
     providerOptions?.googleAuthOptions,
   );
@@ -234,11 +242,18 @@ function getBedrockProviderOptions(
     "accessKeyId",
     "secretAccessKey",
     "sessionToken",
+    "apiKey",
+    "baseURL",
   ] as const) {
     const value = rawProviderOptions[key];
     if (typeof value === "string") {
       bedrockProviderOptions[key] = value;
     }
+  }
+
+  const headers = toSerializableHeaders(rawProviderOptions.headers);
+  if (headers) {
+    bedrockProviderOptions.headers = headers;
   }
 
   return Object.keys(bedrockProviderOptions).length > 0
@@ -330,6 +345,15 @@ export function normalizeClientOptionsForModel(
       if (normalizedOptions.sessionToken === undefined) {
         normalizedOptions.sessionToken = bedrockOptions.sessionToken;
       }
+      if (normalizedOptions.apiKey === undefined) {
+        normalizedOptions.apiKey = bedrockOptions.apiKey;
+      }
+      if (normalizedOptions.baseURL === undefined) {
+        normalizedOptions.baseURL = bedrockOptions.baseURL;
+      }
+      if (normalizedOptions.headers === undefined) {
+        normalizedOptions.headers = bedrockOptions.headers;
+      }
     }
   }
 
@@ -349,6 +373,9 @@ export function normalizeClientOptionsForModel(
       }
       if (vertexOptions.location !== undefined) {
         normalizedVertexOptions.location = vertexOptions.location;
+      }
+      if (vertexOptions.baseURL !== undefined) {
+        normalizedVertexOptions.baseURL = vertexOptions.baseURL;
       }
       if (vertexOptions.googleAuthOptions !== undefined) {
         normalizedVertexOptions.googleAuthOptions =
@@ -389,11 +416,15 @@ export function toApiModelClientOptions(
     delete requestOptions.accessKeyId;
     delete requestOptions.secretAccessKey;
     delete requestOptions.sessionToken;
+    delete requestOptions.apiKey;
+    delete requestOptions.baseURL;
+    delete requestOptions.headers;
   }
 
   if (providerConfig?.provider === "vertex") {
     delete requestOptions.project;
     delete requestOptions.location;
+    delete requestOptions.baseURL;
     delete requestOptions.googleAuthOptions;
     delete requestOptions.headers;
   }

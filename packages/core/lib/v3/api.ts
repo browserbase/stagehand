@@ -212,6 +212,22 @@ export class StagehandAPIClient {
     this.fetchWithCookies = makeFetchCookie(fetch);
   }
 
+  private shouldSendModelApiKeyHeader(
+    modelClientOptions?: Api.ModelClientOptions,
+  ): boolean {
+    const providerConfig =
+      modelClientOptions?.providerConfig &&
+      typeof modelClientOptions.providerConfig === "object" &&
+      !Array.isArray(modelClientOptions.providerConfig)
+        ? modelClientOptions.providerConfig
+        : undefined;
+
+    return (
+      providerConfig?.provider !== "bedrock" &&
+      providerConfig?.provider !== "vertex"
+    );
+  }
+
   async init({
     modelName,
     modelApiKey,
@@ -224,12 +240,15 @@ export class StagehandAPIClient {
     browserbaseSessionID,
     // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
-    this.modelApiKey = modelApiKey;
-
     const serializedModelClientOptions = this.toSessionStartModelClientOptions(
       modelClientOptions,
       modelName,
     );
+    this.modelApiKey = this.shouldSendModelApiKeyHeader(
+      serializedModelClientOptions,
+    )
+      ? modelApiKey
+      : undefined;
     if (
       modelName &&
       serializedModelClientOptions &&
@@ -419,7 +438,11 @@ export class StagehandAPIClient {
     options?: Api.NavigateRequest["options"],
     frameId?: string,
   ): Promise<SerializableResponse | null> {
-    const requestBody: Api.NavigateRequest = { url, options, frameId };
+    const requestBody: Api.NavigateRequest = {
+      url,
+      options: this.ensureModelConfig(options),
+      frameId,
+    };
 
     return this.execute<SerializableResponse | null>({
       method: "navigate",
