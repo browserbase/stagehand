@@ -178,6 +178,13 @@ function addExpectedStringIssue(
   }
 }
 
+function prefixedPath(
+  pathPrefix: (string | number)[],
+  path: (string | number)[],
+): (string | number)[] {
+  return [...pathPrefix, ...path];
+}
+
 function getProviderFromModelName(modelName?: string): string | undefined {
   return typeof modelName === "string" && modelName.includes("/")
     ? modelName.split("/", 1)[0]
@@ -207,6 +214,7 @@ function getProviderConfigMismatchMessage({
 function addBedrockAuthIssues(
   providerConfig: { options?: Record<string, unknown> } | undefined,
   ctx: z.RefinementCtx,
+  providerConfigPath: (string | number)[] = ["providerConfig"],
 ) {
   const providerOptions = providerConfig?.options;
   const region =
@@ -228,7 +236,7 @@ function addBedrockAuthIssues(
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Bedrock configs require providerConfig.options.region.",
-      path: ["providerConfig", "options", "region"],
+      path: prefixedPath(providerConfigPath, ["options", "region"]),
     });
   }
 
@@ -242,7 +250,7 @@ function addBedrockAuthIssues(
         code: z.ZodIssueCode.custom,
         message:
           "Bedrock AWS credentials require providerConfig.options.accessKeyId when secretAccessKey is provided.",
-        path: ["providerConfig", "options", "accessKeyId"],
+        path: prefixedPath(providerConfigPath, ["options", "accessKeyId"]),
       });
     }
     if (!hasSecretAccessKey) {
@@ -250,7 +258,7 @@ function addBedrockAuthIssues(
         code: z.ZodIssueCode.custom,
         message:
           "Bedrock AWS credentials require providerConfig.options.secretAccessKey when accessKeyId is provided.",
-        path: ["providerConfig", "options", "secretAccessKey"],
+        path: prefixedPath(providerConfigPath, ["options", "secretAccessKey"]),
       });
     }
   }
@@ -261,7 +269,7 @@ function addBedrockAuthIssues(
         code: z.ZodIssueCode.custom,
         message:
           "Bedrock sessionToken requires providerConfig.options.accessKeyId.",
-        path: ["providerConfig", "options", "accessKeyId"],
+        path: prefixedPath(providerConfigPath, ["options", "accessKeyId"]),
       });
     }
     if (!hasSecretAccessKey) {
@@ -269,7 +277,7 @@ function addBedrockAuthIssues(
         code: z.ZodIssueCode.custom,
         message:
           "Bedrock sessionToken requires providerConfig.options.secretAccessKey.",
-        path: ["providerConfig", "options", "secretAccessKey"],
+        path: prefixedPath(providerConfigPath, ["options", "secretAccessKey"]),
       });
     }
   }
@@ -278,13 +286,14 @@ function addBedrockAuthIssues(
 function addBedrockValidationIssues(
   providerOptions: Record<string, unknown> | undefined,
   ctx: z.RefinementCtx,
+  providerConfigPath: (string | number)[] = ["providerConfig"],
 ) {
   addUnsupportedOptionIssues({
     providerName: "Bedrock",
     options: providerOptions,
     allowedKeys: BEDROCK_ALLOWED_PROVIDER_OPTION_KEYS,
     ctx,
-    pathPrefix: ["providerConfig", "options"],
+    pathPrefix: prefixedPath(providerConfigPath, ["options"]),
   });
 
   const headers = providerOptions?.headers;
@@ -293,19 +302,19 @@ function addBedrockValidationIssues(
       code: z.ZodIssueCode.custom,
       message:
         "Bedrock providerConfig.options.headers must be a string-to-string record.",
-      path: ["providerConfig", "options", "headers"],
+      path: prefixedPath(providerConfigPath, ["options", "headers"]),
     });
   }
 
   addExpectedStringIssue(
     providerOptions?.apiKey,
-    ["providerConfig", "options", "apiKey"],
+    prefixedPath(providerConfigPath, ["options", "apiKey"]),
     "Bedrock providerConfig.options.apiKey must be a string.",
     ctx,
   );
   addExpectedStringIssue(
     providerOptions?.baseURL,
-    ["providerConfig", "options", "baseURL"],
+    prefixedPath(providerConfigPath, ["options", "baseURL"]),
     "Bedrock providerConfig.options.baseURL must be a string.",
     ctx,
   );
@@ -314,30 +323,31 @@ function addBedrockValidationIssues(
 function addVertexValidationIssues(
   providerOptions: Record<string, unknown> | undefined,
   ctx: z.RefinementCtx,
+  providerConfigPath: (string | number)[] = ["providerConfig"],
 ) {
   addUnsupportedOptionIssues({
     providerName: "Vertex",
     options: providerOptions,
     allowedKeys: VERTEX_ALLOWED_PROVIDER_OPTION_KEYS,
     ctx,
-    pathPrefix: ["providerConfig", "options"],
+    pathPrefix: prefixedPath(providerConfigPath, ["options"]),
   });
 
   addExpectedStringIssue(
     providerOptions?.project,
-    ["providerConfig", "options", "project"],
+    prefixedPath(providerConfigPath, ["options", "project"]),
     "Vertex providerConfig.options.project must be a string.",
     ctx,
   );
   addExpectedStringIssue(
     providerOptions?.location,
-    ["providerConfig", "options", "location"],
+    prefixedPath(providerConfigPath, ["options", "location"]),
     "Vertex providerConfig.options.location must be a string.",
     ctx,
   );
   addExpectedStringIssue(
     providerOptions?.baseURL,
-    ["providerConfig", "options", "baseURL"],
+    prefixedPath(providerConfigPath, ["options", "baseURL"]),
     "Vertex providerConfig.options.baseURL must be a string.",
     ctx,
   );
@@ -348,7 +358,7 @@ function addVertexValidationIssues(
       code: z.ZodIssueCode.custom,
       message:
         "Vertex providerConfig.options.headers must be a string-to-string record.",
-      path: ["providerConfig", "options", "headers"],
+      path: prefixedPath(providerConfigPath, ["options", "headers"]),
     });
   }
 
@@ -363,7 +373,7 @@ function addVertexValidationIssues(
       code: z.ZodIssueCode.custom,
       message:
         "Vertex providerConfig.options.googleAuthOptions must be an object.",
-      path: ["providerConfig", "options", "googleAuthOptions"],
+      path: prefixedPath(providerConfigPath, ["options", "googleAuthOptions"]),
     });
     return;
   }
@@ -373,7 +383,10 @@ function addVertexValidationIssues(
     options: googleAuthRecord,
     allowedKeys: VERTEX_GOOGLE_AUTH_ALLOWED_KEYS,
     ctx,
-    pathPrefix: ["providerConfig", "options", "googleAuthOptions"],
+    pathPrefix: prefixedPath(providerConfigPath, [
+      "options",
+      "googleAuthOptions",
+    ]),
   });
 
   const credentials = googleAuthRecord.credentials;
@@ -384,7 +397,11 @@ function addVertexValidationIssues(
         code: z.ZodIssueCode.custom,
         message:
           "Vertex providerConfig.options.googleAuthOptions.credentials must be an object.",
-        path: ["providerConfig", "options", "googleAuthOptions", "credentials"],
+        path: prefixedPath(providerConfigPath, [
+          "options",
+          "googleAuthOptions",
+          "credentials",
+        ]),
       });
     } else {
       addUnsupportedOptionIssues({
@@ -392,12 +409,11 @@ function addVertexValidationIssues(
         options: credentialRecord,
         allowedKeys: GOOGLE_SERVICE_ACCOUNT_ALLOWED_KEYS,
         ctx,
-        pathPrefix: [
-          "providerConfig",
+        pathPrefix: prefixedPath(providerConfigPath, [
           "options",
           "googleAuthOptions",
           "credentials",
-        ],
+        ]),
       });
 
       for (const [key, value] of Object.entries(credentialRecord)) {
@@ -410,10 +426,11 @@ function addVertexValidationIssues(
             code: z.ZodIssueCode.custom,
             message: `Vertex providerConfig.options.googleAuthOptions.credentials.${key} must be a string.`,
             path: [
-              "providerConfig",
-              "options",
-              "googleAuthOptions",
-              "credentials",
+              ...prefixedPath(providerConfigPath, [
+                "options",
+                "googleAuthOptions",
+                "credentials",
+              ]),
               key,
             ],
           });
@@ -432,19 +449,31 @@ function addVertexValidationIssues(
       code: z.ZodIssueCode.custom,
       message:
         "Vertex providerConfig.options.googleAuthOptions.scopes must be a string or string array.",
-      path: ["providerConfig", "options", "googleAuthOptions", "scopes"],
+      path: prefixedPath(providerConfigPath, [
+        "options",
+        "googleAuthOptions",
+        "scopes",
+      ]),
     });
   }
 
   addExpectedStringIssue(
     googleAuthRecord.projectId,
-    ["providerConfig", "options", "googleAuthOptions", "projectId"],
+    prefixedPath(providerConfigPath, [
+      "options",
+      "googleAuthOptions",
+      "projectId",
+    ]),
     "Vertex providerConfig.options.googleAuthOptions.projectId must be a string.",
     ctx,
   );
   addExpectedStringIssue(
     googleAuthRecord.universeDomain,
-    ["providerConfig", "options", "googleAuthOptions", "universeDomain"],
+    prefixedPath(providerConfigPath, [
+      "options",
+      "googleAuthOptions",
+      "universeDomain",
+    ]),
     "Vertex providerConfig.options.googleAuthOptions.universeDomain must be a string.",
     ctx,
   );
@@ -484,6 +513,7 @@ function validateProviderConfig(
     providerConfig?: { provider?: string; options?: Record<string, unknown> };
   },
   ctx: z.RefinementCtx,
+  providerConfigPath: (string | number)[] = ["providerConfig"],
 ) {
   const mismatchMessage = getProviderConfigMismatchMessage(value);
 
@@ -491,7 +521,7 @@ function validateProviderConfig(
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: mismatchMessage,
-      path: ["providerConfig", "provider"],
+      path: prefixedPath(providerConfigPath, ["provider"]),
     });
   }
 
@@ -503,12 +533,12 @@ function validateProviderConfig(
   const providerOptions = getRecord(value.providerConfig?.options);
 
   if (provider === "bedrock" || modelProvider === "bedrock") {
-    addBedrockAuthIssues(value.providerConfig, ctx);
-    addBedrockValidationIssues(providerOptions, ctx);
+    addBedrockAuthIssues(value.providerConfig, ctx, providerConfigPath);
+    addBedrockValidationIssues(providerOptions, ctx, providerConfigPath);
   }
 
   if (provider === "vertex" || modelProvider === "vertex") {
-    addVertexValidationIssues(providerOptions, ctx);
+    addVertexValidationIssues(providerOptions, ctx, providerConfigPath);
   }
 }
 
@@ -817,6 +847,7 @@ export const SessionStartRequestSchema = z
         providerConfig: value.modelClientOptions?.providerConfig,
       },
       ctx,
+      ["modelClientOptions", "providerConfig"],
     ),
   )
   .meta({ id: "SessionStartRequest" });
@@ -1237,7 +1268,13 @@ export const AgentExecuteResponseSchema = wrapResponse(
 
 export const NavigateOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional(),
+    model: z
+      .union([ModelConfigSchema, z.string()])
+      .optional()
+      .meta({
+        description:
+          "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+      }),
     referer: z.string().optional().meta({
       description: "Referer header to send with the request",
     }),

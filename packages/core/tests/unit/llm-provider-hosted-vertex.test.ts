@@ -36,4 +36,16 @@ describe("LLMProvider hosted vertex gating", () => {
       ),
     ).toThrow(ExperimentalNotConfiguredError);
   });
+
+  it("does not treat empty header objects as hosted Vertex config", () => {
+    const llmProvider = new LLMProvider(() => {});
+
+    expect(() =>
+      llmProvider.getClient(
+        "vertex/gemini-2.5-pro",
+        { headers: {} },
+        { disableAPI: false, experimental: false },
+      ),
+    ).toThrow(ExperimentalNotConfiguredError);
+  });
 });

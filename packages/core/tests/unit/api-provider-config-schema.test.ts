@@ -21,6 +21,12 @@ describe("API providerConfig schemas", () => {
     expect(JSON.stringify(result.error?.issues)).toContain(
       "Bedrock configs require providerConfig.options.region.",
     );
+    expect(result.error?.issues[0]?.path).toEqual([
+      "modelClientOptions",
+      "providerConfig",
+      "options",
+      "region",
+    ]);
   });
 
   it("rejects Bedrock model configs with only one AWS credential", () => {
@@ -84,7 +90,7 @@ describe("API providerConfig schemas", () => {
 
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.error?.issues)).toContain(
-      "Bedrock configs do not support providerConfig.options.fetch.",
+      "Bedrock configs do not support modelClientOptions.providerConfig.options.fetch.",
     );
   });
 
@@ -113,7 +119,18 @@ describe("API providerConfig schemas", () => {
 
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.error?.issues)).toContain(
-      "Vertex configs do not support providerConfig.options.googleAuthOptions.authClient.",
+      "Vertex configs do not support modelClientOptions.providerConfig.options.googleAuthOptions.authClient.",
     );
+  });
+
+  it("accepts string-form navigate models", () => {
+    const result = Api.NavigateRequestSchema.safeParse({
+      url: "https://example.com",
+      options: {
+        model: "openai/gpt-5-nano",
+      },
+    });
+
+    expect(result.success).toBe(true);
   });
 });

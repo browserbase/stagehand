@@ -108,6 +108,7 @@ function isStringRecord(
     typeof value === "object" &&
     value !== null &&
     !Array.isArray(value) &&
+    Object.keys(value).length > 0 &&
     Object.values(value).every((item) => typeof item === "string")
   );
 }
