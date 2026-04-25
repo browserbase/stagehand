@@ -7,8 +7,8 @@ import type { A11yNode } from "../../../types/private/snapshot.js";
  */
 export function formatTreeLine(node: A11yNode, level = 0): string {
   const indent = "  ".repeat(level);
-  const labelId = node.encodedId ?? node.nodeId;
-  const label = `[${labelId}] ${node.role}${node.name ? `: ${cleanText(node.name)}` : ""}`;
+  const ref = node.encodedId ? `[${node.encodedId}] ` : "";
+  const label = `${ref}${node.role}${node.name ? `: ${cleanText(node.name)}` : ""}`;
   const kids =
     node.children?.map((c) => formatTreeLine(c, level + 1)).join("\n") ?? "";
   return kids ? `${indent}${label}\n${kids}` : `${indent}${label}`;

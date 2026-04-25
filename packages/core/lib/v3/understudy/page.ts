@@ -1899,12 +1899,28 @@ export class Page {
         await captureHybridSnapshot(this, {
           pierceShadow: true,
           includeIframes: options?.includeIframes,
+          interactive: options?.interactive,
+          maxDepth: options?.maxDepth,
+          focusSelector: options?.focusSelector,
         });
+
+      const refsInTree = new Set(
+        Array.from(
+          combinedTree.matchAll(/(?:^|\n)\s*\[([^\]]+)\]/g),
+          (match) => match[1],
+        ),
+      );
+      const filterMap = (map: Record<string, string>) =>
+        Object.fromEntries(
+          Object.entries(map).filter(([encodedId]) =>
+            refsInTree.has(encodedId),
+          ),
+        );
 
       return {
         formattedTree: combinedTree,
-        xpathMap: combinedXpathMap,
-        urlMap: combinedUrlMap,
+        xpathMap: filterMap(combinedXpathMap),
+        urlMap: filterMap(combinedUrlMap),
       };
     } catch (err) {
       throw new StagehandSnapshotError(err);

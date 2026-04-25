@@ -191,6 +191,8 @@ export async function tryScopedSnapshot(
         scrollableMap,
         encode: (backendNodeId) =>
           `${page.getOrdinal(targetFrameId)}-${backendNodeId}`,
+        interactive: options?.interactive,
+        maxDepth: options?.maxDepth,
       },
     );
 
@@ -331,6 +333,8 @@ export async function collectPerFrameMaps(
       tagNameMap,
       scrollableMap,
       encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
+      interactive: options?.interactive,
+      maxDepth: options?.maxDepth,
     });
 
     perFrameOutlines.push({ frameId, outline });

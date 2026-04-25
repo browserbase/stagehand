@@ -20,6 +20,14 @@ export type SnapshotOptions = {
    * Optional feature flag that surfaces experimental traversal tweaks in the Accessibility layer.
    */
   experimental?: boolean;
+  /**
+   * Filter the snapshot to actionable elements and their structural ancestors.
+   */
+  interactive?: boolean;
+  /**
+   * Maximum tree depth to include after pruning.
+   */
+  maxDepth?: number;
 };
 
 /**
@@ -105,6 +113,8 @@ export type A11yNode = {
 export type A11yOptions = {
   focusSelector?: string;
   experimental: boolean;
+  interactive?: boolean;
+  maxDepth?: number;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   encode: (backendNodeId: number) => string;

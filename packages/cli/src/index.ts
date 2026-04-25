@@ -1300,15 +1300,26 @@ async function executeCommand(
 
     // Snapshot
     case "snapshot": {
-      const [compact] = args as [boolean?];
-      const snapshot = await page!.snapshot();
+      const [options] = args as [
+        {
+          compact?: boolean;
+          interactive?: boolean;
+          maxDepth?: number;
+          focusSelector?: string;
+        }?,
+      ];
+      const snapshot = await page!.snapshot({
+        interactive: options?.interactive,
+        maxDepth: options?.maxDepth,
+        focusSelector: options?.focusSelector,
+      });
 
       refMap = {
         xpathMap: snapshot.xpathMap ?? {},
         urlMap: snapshot.urlMap ?? {},
       };
 
-      if (compact) {
+      if (options?.compact) {
         return { tree: snapshot.formattedTree };
       }
       return {
@@ -2682,10 +2693,32 @@ program
   .command("snapshot")
   .description("Get accessibility tree snapshot")
   .option("-c, --compact", "Output tree only (no xpath map)")
+  .option(
+    "-i, --interactive",
+    "Only include actionable elements and their structural ancestors",
+  )
+  .option("-d, --depth <n>", "Maximum tree depth", (value) => {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      throw new Error("depth must be a non-negative integer");
+    }
+    return parsed;
+  })
+  .option(
+    "-s, --selector <selector>",
+    "Scope snapshot to CSS selector or XPath",
+  )
   .action(async (cmdOpts) => {
     const opts = program.opts<GlobalOpts>();
     try {
-      const result = (await runCommand("snapshot", [cmdOpts.compact])) as {
+      const result = (await runCommand("snapshot", [
+        {
+          compact: cmdOpts.compact,
+          interactive: cmdOpts.interactive,
+          maxDepth: cmdOpts.depth,
+          focusSelector: cmdOpts.selector,
+        },
+      ])) as {
         tree: string;
         xpathMap?: Record<string, string>;
         urlMap?: Record<string, string>;

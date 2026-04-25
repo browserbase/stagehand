@@ -122,6 +122,9 @@ describe("buildHierarchicalTree", () => {
     tagNameMap: { root: "div", child: "span" },
   };
 
+  const collectRoles = (nodes: A11yNode[]): string[] =>
+    nodes.flatMap((node) => [node.role, ...collectRoles(node.children ?? [])]);
+
   it("drops structural nodes without children or names", async () => {
     const nodes: A11yNode[] = [
       {
@@ -270,6 +273,106 @@ describe("buildHierarchicalTree", () => {
 
     const { tree } = await buildHierarchicalTree(nodes, opts);
     expect(tree).toEqual([]);
+  });
+
+  it("keeps interactive controls and useful landmarks in interactive mode", async () => {
+    const nodes: A11yNode[] = [
+      {
+        role: "RootWebArea",
+        name: "Dashboard",
+        nodeId: "root",
+        encodedId: "root",
+        parentId: undefined,
+        childIds: ["main"],
+      },
+      {
+        role: "main",
+        name: "",
+        nodeId: "main",
+        encodedId: "main",
+        parentId: "root",
+        childIds: ["region"],
+      },
+      {
+        role: "region",
+        name: "Reports",
+        nodeId: "region",
+        encodedId: "region",
+        parentId: "main",
+        childIds: ["article", "paragraph", "input"],
+      },
+      {
+        role: "article",
+        name: "Report 1",
+        nodeId: "article",
+        encodedId: "article",
+        parentId: "region",
+        childIds: ["heading", "link", "button"],
+      },
+      {
+        role: "heading",
+        name: "Quarterly report",
+        nodeId: "heading",
+        encodedId: "heading",
+        parentId: "article",
+        childIds: [],
+      },
+      {
+        role: "paragraph",
+        name: "Static summary copy",
+        nodeId: "paragraph",
+        encodedId: "paragraph",
+        parentId: "region",
+        childIds: [],
+      },
+      {
+        role: "link",
+        name: "Open report",
+        nodeId: "link",
+        encodedId: "link",
+        parentId: "article",
+        childIds: [],
+      },
+      {
+        role: "button",
+        name: "Archive report",
+        nodeId: "button",
+        encodedId: "button",
+        parentId: "article",
+        childIds: [],
+      },
+      {
+        role: "textbox",
+        name: "Search dashboards",
+        nodeId: "input",
+        encodedId: "input",
+        parentId: "region",
+        childIds: [],
+      },
+    ];
+
+    const { tree } = await buildHierarchicalTree(nodes, {
+      ...opts,
+      interactive: true,
+      tagNameMap: { input: "input" },
+    });
+
+    expect(tree).toHaveLength(1);
+    expect(tree[0]).toMatchObject({ role: "RootWebArea", name: "Dashboard" });
+    expect(tree[0]?.encodedId).toBeUndefined();
+    expect(tree[0]?.children?.[0]).toMatchObject({ role: "main" });
+    expect(tree[0]?.children?.[0]?.encodedId).toBeUndefined();
+    const treeText = JSON.stringify(tree);
+    const roles = collectRoles(tree);
+
+    expect(treeText).toContain("Open report");
+    expect(treeText).toContain("Archive report");
+    expect(treeText).toContain("Search dashboards");
+    expect(treeText).not.toContain("Quarterly report");
+    expect(treeText).not.toContain("Static summary copy");
+    expect(roles).not.toContain("article");
+    expect(roles).not.toContain("paragraph");
+    expect(roles).not.toContain("heading");
   });
 });
 

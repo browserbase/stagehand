@@ -11,6 +11,51 @@ import {
 } from "./focusSelectors.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
 
+const INTERACTIVE_ROLES = new Set([
+  "button",
+  "checkbox",
+  "combobox",
+  "gridcell",
+  "link",
+  "listbox",
+  "menuitem",
+  "menuitemcheckbox",
+  "menuitemradio",
+  "option",
+  "radio",
+  "rowheader",
+  "scrollbar",
+  "searchbox",
+  "select",
+  "slider",
+  "spinbutton",
+  "switch",
+  "tab",
+  "textbox",
+  "treeitem",
+]);
+
+const INTERACTIVE_TAGS = new Set([
+  "a",
+  "button",
+  "input",
+  "select",
+  "textarea",
+]);
+
+const INTERACTIVE_CONTEXT_ROLES = new Set([
+  "alertdialog",
+  "banner",
+  "dialog",
+  "form",
+  "main",
+  "menu",
+  "navigation",
+  "region",
+  "rootwebarea",
+  "toolbar",
+]);
+
 /**
  * Fetch and prune the accessibility tree for a frame, optionally scoping the
  * output to a selector root for faster targeted snapshots.
@@ -180,7 +225,13 @@ export async function buildHierarchicalTree(
     Boolean,
   ) as A11yNode[];
 
-  return { tree: cleaned };
+  const depthLimited = limitTreeDepth(cleaned, opts.maxDepth);
+
+  if (opts.interactive) {
+    return { tree: filterToInteractiveNodes(depthLimited, opts) };
+  }
+
+  return { tree: depthLimited };
 
   async function pruneStructuralSafe(node: A11yNode): Promise<A11yNode | null> {
     if (+node.nodeId < 0) return null;
@@ -219,6 +270,76 @@ export async function buildHierarchicalTree(
 export function isStructural(role: string): boolean {
   const r = role?.toLowerCase();
   return r === "generic" || r === "none" || r === "inlinetextbox";
+}
+
+export function isInteractive(node: A11yNode, opts: A11yOptions): boolean {
+  const role = node.role?.toLowerCase() ?? "";
+  if (INTERACTIVE_ROLES.has(role)) return true;
+  if (role.startsWith("scrollable")) return true;
+  if (!node.encodedId) return false;
+
+  const tag = opts.tagNameMap[node.encodedId]?.split(",")[0]?.trim();
+  return INTERACTIVE_TAGS.has(tag);
+}
+
+function filterToInteractiveNodes(
+  roots: A11yNode[],
+  opts: A11yOptions,
+): A11yNode[] {
+  const filtered: A11yNode[] = [];
+
+  for (const root of roots) {
+    filtered.push(...filterNode(root));
+  }
+
+  return filtered;
+
+  function filterNode(node: A11yNode): A11yNode[] {
+    const children = (node.children ?? [])
+      .flatMap(filterNode)
+      .filter(Boolean) as A11yNode[];
+
+    const interactive = isInteractive(node, opts);
+    if (!interactive && children.length === 0) return [];
+
+    if (!interactive && !isInteractiveContext(node)) return children;
+
+    return [
+      {
+        ...node,
+        encodedId: interactive ? node.encodedId : undefined,
+        children: children.length ? children : undefined,
+      },
+    ];
+  }
+}
+
+function isInteractiveContext(node: A11yNode): boolean {
+  const role = node.role?.toLowerCase() ?? "";
+  if (role.startsWith("scrollable")) return true;
+  if (INTERACTIVE_CONTEXT_ROLES.has(role)) return true;
+  return role === "body" || role === "html";
+}
+
+function limitTreeDepth(
+  roots: A11yNode[],
+  maxDepth: number | undefined,
+): A11yNode[] {
+  if (maxDepth === undefined) return roots;
+  const normalizedDepth = Math.max(0, Math.floor(maxDepth));
+
+  const visit = (node: A11yNode, depth: number): A11yNode | null => {
+    if (depth > normalizedDepth) return null;
+    const children = (node.children ?? [])
+      .map((child) => visit(child, depth + 1))
+      .filter(Boolean) as A11yNode[];
+    return {
+      ...node,
+      children: children.length ? children : undefined,
+    };
+  };
+
+  return roots.map((root) => visit(root, 0)).filter(Boolean) as A11yNode[];
 }
 
 export function extractUrlFromAXNode(
