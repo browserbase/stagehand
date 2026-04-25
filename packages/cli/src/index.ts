@@ -8,7 +8,7 @@
  * Multiple sessions can run simultaneously using --session <name> or BROWSE_SESSION env var.
  */
 
-import { Command, Option } from "commander";
+import { Command, InvalidArgumentError, Option } from "commander";
 import { Stagehand, type Page as BrowsePage } from "@browserbasehq/stagehand";
 import { promises as fs } from "fs";
 import * as path from "path";
@@ -2700,7 +2700,7 @@ program
   .option("-d, --depth <n>", "Maximum tree depth", (value) => {
     const parsed = Number.parseInt(value, 10);
     if (Number.isNaN(parsed) || parsed < 0) {
-      throw new Error("depth must be a non-negative integer");
+      throw new InvalidArgumentError("depth must be a non-negative integer");
     }
     return parsed;
   })

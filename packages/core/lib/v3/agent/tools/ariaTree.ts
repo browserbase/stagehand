@@ -33,16 +33,21 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
           interactive: mode === "interactive",
           maxDepth,
         });
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const snapshot = toolTimeout
           ? await Promise.race([
               snapshotPromise,
-              new Promise<never>((_, reject) =>
-                setTimeout(
+              new Promise<never>((_, reject) => {
+                timeoutId = setTimeout(
                   () => reject(new TimeoutError("ariaTree", toolTimeout)),
                   toolTimeout,
-                ),
-              ),
-            ])
+                );
+              }),
+            ]).finally(() => {
+              if (timeoutId) {
+                clearTimeout(timeoutId);
+              }
+            })
           : await snapshotPromise;
         const pageUrl = page.url();
 
