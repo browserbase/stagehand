@@ -15,6 +15,7 @@ const INTERACTIVE_ROLES = new Set([
   "button",
   "checkbox",
   "combobox",
+  "disclosuretriangle",
   "gridcell",
   "link",
   "listbox",
@@ -40,6 +41,7 @@ const INTERACTIVE_TAGS = new Set([
   "button",
   "input",
   "select",
+  "summary",
   "textarea",
 ]);
 

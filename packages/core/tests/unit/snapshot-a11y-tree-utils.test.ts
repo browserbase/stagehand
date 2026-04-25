@@ -299,7 +299,7 @@ describe("buildHierarchicalTree", () => {
         nodeId: "region",
         encodedId: "region",
         parentId: "main",
-        childIds: ["article", "paragraph", "input"],
+        childIds: ["article", "paragraph", "input", "summary"],
       },
       {
         role: "article",
@@ -349,6 +349,14 @@ describe("buildHierarchicalTree", () => {
         parentId: "region",
         childIds: [],
       },
+      {
+        role: "DisclosureTriangle",
+        name: "Advanced filters",
+        nodeId: "summary",
+        encodedId: "summary",
+        parentId: "region",
+        childIds: [],
+      },
     ];
 
     const { tree } = await buildHierarchicalTree(nodes, {
@@ -368,6 +376,7 @@ describe("buildHierarchicalTree", () => {
     expect(treeText).toContain("Open report");
     expect(treeText).toContain("Archive report");
     expect(treeText).toContain("Search dashboards");
+    expect(treeText).toContain("Advanced filters");
     expect(treeText).not.toContain("Quarterly report");
     expect(treeText).not.toContain("Static summary copy");
     expect(roles).not.toContain("article");
