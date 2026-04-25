@@ -22,7 +22,7 @@ export function rerenderMissingShadowHosts(): void {
         const clone = host.cloneNode(true);
         host.replaceWith(clone);
       } catch {
-        // ignore individual failures
+        // ignore individual failures (e.g., constructor throws)
       }
     }
 
