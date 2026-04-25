@@ -88,7 +88,11 @@ describe("discoverLocalCdp", () => {
     });
 
     const { port } = await listenNetServer(server);
-    await writeDevToolsActivePort(userDataDir, port, "/devtools/browser/actual");
+    await writeDevToolsActivePort(
+      userDataDir,
+      port,
+      "/devtools/browser/actual",
+    );
 
     const result = await discoverLocalCdp({
       userDataDirs: [userDataDir],
@@ -170,7 +174,11 @@ describe("discoverLocalCdp", () => {
     ]);
 
     await writeDevToolsActivePort(firstDir, firstPort, "/devtools/browser/one");
-    await writeDevToolsActivePort(secondDir, secondPort, "/devtools/browser/two");
+    await writeDevToolsActivePort(
+      secondDir,
+      secondPort,
+      "/devtools/browser/two",
+    );
 
     const result = await discoverLocalCdp({
       userDataDirs: [firstDir, secondDir],

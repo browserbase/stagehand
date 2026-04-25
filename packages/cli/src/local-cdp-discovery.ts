@@ -86,7 +86,9 @@ export async function readDevToolsActivePort(
   }
 }
 
-async function cleanupStaleDevToolsActivePort(userDataDir: string): Promise<void> {
+async function cleanupStaleDevToolsActivePort(
+  userDataDir: string,
+): Promise<void> {
   try {
     await fs.unlink(path.join(userDataDir, "DevToolsActivePort"));
   } catch {
@@ -231,7 +233,10 @@ export async function resolveWsTargetFromPort(
   options: ResolveWsTargetFromPortOptions = {},
 ): Promise<string> {
   const userDataDirs = options.userDataDirs ?? getChromeUserDataDirs();
-  const devToolsPortUrl = await resolveDevToolsActivePortUrl(port, userDataDirs);
+  const devToolsPortUrl = await resolveDevToolsActivePortUrl(
+    port,
+    userDataDirs,
+  );
   if (devToolsPortUrl) {
     return devToolsPortUrl;
   }
