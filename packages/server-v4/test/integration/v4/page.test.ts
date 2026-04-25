@@ -932,6 +932,22 @@ describe("v4 page routes", { concurrency: false }, () => {
     assertSuccessAction(jseventCtx, "click");
   });
 
+  it("POST /v4/page/click accepts expect* options", async () => {
+    const gotoCtx = await postPageRoute("goto", sessionId, {
+      url: CLICK_TEST_URL,
+      waitUntil: "load",
+    });
+    assertSuccessAction(gotoCtx, "goto");
+
+    const clickCtx = await postPageRoute("click", sessionId, {
+      selector: { css: "#click-target" },
+      expectNavigation: true,
+      expectPopup: false,
+      expectDownload: false,
+    });
+    assertSuccessAction(clickCtx, "click");
+  });
+
   it("POST /v4/page/dragAndDrop accepts mixed selector types (xpath from, coordinates to)", async () => {
     const gotoCtx = await postPageRoute("goto", sessionId, {
       url: METHODS_TEST_URL,
