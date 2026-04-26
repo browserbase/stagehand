@@ -167,7 +167,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     extract: extractTool(v3, executionModel, toolTimeout),
     fillForm: fillFormTool(v3, executionModel, variables, toolTimeout),
     fillFormVision: fillFormVisionTool(v3, provider, variables),
-    goto: gotoTool(v3),
+    goto: gotoTool(v3, variables),
     keys: keysTool(v3, variables),
     navback: navBackTool(v3),
     screenshot: screenshotTool(v3),
