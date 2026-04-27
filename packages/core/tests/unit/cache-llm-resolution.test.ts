@@ -229,4 +229,72 @@ describe("Cache LLM client selection", () => {
       waitUntil: "load",
     });
   });
+
+  it("AgentCache substitutes variables for goto steps during replay", async () => {
+    const gotoEntry: CachedAgentEntry = {
+      version: 1,
+      instruction: "navigate with vars",
+      startUrl: "https://example.com/source",
+      options: {},
+      configSignature: "sig",
+      steps: [
+        {
+          type: "goto",
+          url: "https://example.com/%path%?token=%token%",
+          waitUntil: "load",
+        },
+      ],
+      result: { success: true, actions: [] } as AgentResult,
+      timestamp: new Date().toISOString(),
+    };
+
+    const storage = {
+      enabled: true,
+      readJson: vi.fn().mockResolvedValue({ value: gotoEntry }),
+      writeJson: vi.fn().mockResolvedValue({}),
+      directory: "/tmp/cache",
+    } as unknown as CacheStorage;
+
+    const handler = {
+      takeDeterministicAction: vi.fn(),
+    } as unknown as ActHandler;
+
+    const fakePage = { goto: vi.fn() } as unknown as Page;
+    const ctx = {
+      awaitActivePage: vi.fn().mockResolvedValue(fakePage),
+    } as unknown as V3Context;
+
+    const cache = new AgentCache({
+      storage,
+      logger: vi.fn(),
+      getActHandler: () => handler,
+      getContext: () => ctx,
+      getDefaultLlmClient: () => ({ id: "default" }) as unknown as LLMClient,
+      getBaseModelName: () => "openai/gpt-4.1-mini" as AvailableModel,
+      getSystemPrompt: () => undefined,
+      domSettleTimeoutMs: undefined,
+      act: vi.fn(),
+    });
+
+    const context: AgentCacheContext = {
+      instruction: "navigate with vars",
+      startUrl: "https://example.com/source",
+      options: {},
+      configSignature: "sig",
+      cacheKey: "agent-goto-vars",
+      variableKeys: ["path", "token"],
+      variables: { path: "target", token: "abc123" },
+    };
+
+    const result = await cache.tryReplay(context);
+
+    expect(result?.success).toBe(true);
+    expect(handler.takeDeterministicAction).not.toHaveBeenCalled();
+    expect(fakePage.goto).toHaveBeenCalledWith(
+      "https://example.com/target?token=abc123",
+      {
+        waitUntil: "load",
+      },
+    );
+  });
 });
