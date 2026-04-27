@@ -1,5 +1,21 @@
 # @browserbasehq/browse-cli
 
+## 0.6.0
+
+### Minor Changes
+
+- [#1935](https://github.com/browserbase/stagehand/pull/1935) [`666baf1`](https://github.com/browserbase/stagehand/commit/666baf1df966b598efd89402563350319ca1aa36) Thanks [@shrey150](https://github.com/shrey150)! - Add global flags for commonly used Browserbase session parameters (--proxies, --advanced-stealth, --solve-captchas, --region, --keep-alive, --session-timeout, --block-ads). These flags configure the Browserbase session in remote mode.
+
+### Patch Changes
+
+- [#1905](https://github.com/browserbase/stagehand/pull/1905) [`a4ca430`](https://github.com/browserbase/stagehand/commit/a4ca4308f634cb5bc0c466469f4bde6ddf83f225) Thanks [@derekmeegan](https://github.com/derekmeegan)! - Add `browse cdp <url|port>` command to attach to any CDP target and stream DevTools protocol events as NDJSON. Supports `--domain` filtering, `--pretty` mode for human-readable output, and clean piping to files or jq.
+
+- [#1906](https://github.com/browserbase/stagehand/pull/1906) [`34598b9`](https://github.com/browserbase/stagehand/commit/34598b936f62657b8bdfd2a705eb09451089a7bc) Thanks [@derekmeegan](https://github.com/derekmeegan)! - Add `browse upload <selector> <files...>` command for uploading files to `<input type="file">` elements. Supports single and multiple file uploads, works with both local and remote Browserbase sessions.
+
+- [#2056](https://github.com/browserbase/stagehand/pull/2056) [`e87f167`](https://github.com/browserbase/stagehand/commit/e87f167d688a44872f380ca808f558ac9161db3c) Thanks [@derekmeegan](https://github.com/derekmeegan)! - `browse cdp` now also calls `Page.setLifecycleEventsEnabled` whenever the Page domain is enabled, so consumers receive `Page.lifecycleEvent` notifications (`init`, `commit`, `DOMContentLoaded`, `load`, `firstPaint`, `firstContentfulPaint`, `networkAlmostIdle`, `networkIdle`, etc.) in addition to `Page.frameNavigated`. `--pretty` mode formats lifecycle events with the milestone name. No effect on consumers that pass `--domain` without `Page`.
+
+- [#2049](https://github.com/browserbase/stagehand/pull/2049) [`ed4db53`](https://github.com/browserbase/stagehand/commit/ed4db535c3ee4a05b1c508ff183a08264b1507c2) Thanks [@shrey150](https://github.com/shrey150)! - Use the exact DevToolsActivePort websocket path for local auto-connect and bare-port CDP attach to avoid extra remote debugging probes before the real browser connection.
+
 ## 0.5.0
 
 ### Minor Changes
