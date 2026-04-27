@@ -1,0 +1,25 @@
+packages/core/tests/unit/agent-temperature.test.ts
+  e0a3024c84b4a350 1-220
+.changeset/remove-agent-temperature-default.md
+  e0a3024c84b4a350 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f4acd85da58b810de0a54a8e7bb259800057876a",
+  "prompts": {
+    "e0a3024c84b4a350": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dd059-cd19-7493-8094-75c5c85cb962",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 251,
+      "total_deletions": 28,
+      "accepted_lines": 225,
+      "overriden_lines": 0
+    }
+  }
+}
