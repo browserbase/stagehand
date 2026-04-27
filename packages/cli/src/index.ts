@@ -2754,6 +2754,18 @@ program
           } else {
             sendCDP(ws, `${domain}.enable`, {}, sessionId);
           }
+
+          // Page.enable does not emit Page.lifecycleEvent on its own; it requires
+          // a separate opt-in. Enable it so consumers see DOMContentLoaded, load,
+          // firstPaint, networkIdle, etc.
+          if (domain === "Page") {
+            sendCDP(
+              ws,
+              "Page.setLifecycleEventsEnabled",
+              { enabled: true },
+              sessionId,
+            );
+          }
         }
       }
 
@@ -2820,6 +2832,11 @@ program
             case "Page.frameNavigated": {
               const url = (params?.frame as { url?: string })?.url ?? "";
               if (url) line += ` ${url}`;
+              break;
+            }
+            case "Page.lifecycleEvent": {
+              const name = (params?.name as string) ?? "";
+              if (name) line += ` ${name}`;
               break;
             }
             case "Target.attachedToTarget": {
