@@ -66,6 +66,7 @@ export class MicrosoftCUAClient extends AgentClient {
   private maxImages: number = 3;
   private temperature: number = 0;
   private facts: string[] = [];
+  private pendingContextNotes: string[] = [];
 
   // FARA-specific MLM processor config
   private readonly MLM_PROCESSOR_IM_CFG = {
@@ -144,6 +145,10 @@ export class MicrosoftCUAClient extends AgentClient {
 
   setActionHandler(handler: (action: AgentAction) => Promise<void>): void {
     this.actionHandler = handler;
+  }
+
+  addContextNote(note: string): void {
+    this.pendingContextNotes.push(note);
   }
 
   /**
@@ -916,6 +921,16 @@ For each function call, return a json object with function name and arguments wi
         // Update completion status
         completed = result.completed;
 
+        const contextNotes = this.drainContextNotes();
+        if (!completed && contextNotes.length > 0) {
+          this.conversationHistory.push(
+            ...contextNotes.map((note) => ({
+              role: "user" as const,
+              content: note,
+            })),
+          );
+        }
+
         currentStep++;
 
         // Record message for this step
@@ -961,5 +976,15 @@ For each function call, return a json object with function name and arguments wi
       // Rethrow to allow eval runner's retry logic to handle transient errors
       throw error;
     }
+  }
+
+  private drainContextNotes(): string[] {
+    if (this.pendingContextNotes.length === 0) {
+      return [];
+    }
+
+    const notes = [...this.pendingContextNotes];
+    this.pendingContextNotes = [];
+    return notes;
   }
 }
