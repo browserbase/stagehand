@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/browse-cli",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Browser automation CLI for AI agents, built on Stagehand",
   "type": "commonjs",
   "license": "MIT",
