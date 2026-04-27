@@ -90,6 +90,8 @@ export type AgentReplayStep =
   | AgentReplayScrollStep
   | AgentReplayWaitStep
   | AgentReplayNavBackStep
+  | AgentReplayBackStep
+  | AgentReplayForwardStep
   | AgentReplayKeysStep
   | { type: string; [key: string]: unknown };
 
@@ -129,6 +131,16 @@ export interface AgentReplayWaitStep {
 
 export interface AgentReplayNavBackStep {
   type: "navback";
+  waitUntil?: LoadState;
+}
+
+export interface AgentReplayBackStep {
+  type: "back";
+  waitUntil?: LoadState;
+}
+
+export interface AgentReplayForwardStep {
+  type: "forward";
   waitUntil?: LoadState;
 }
 
