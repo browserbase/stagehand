@@ -3,7 +3,10 @@ import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame.js";
 import { Locator } from "../../understudy/locator.js";
 import { MouseButton } from "../../types/public/locator.js";
-import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
+import {
+  resolveLocatorTarget,
+  resolveLocatorWithHops,
+} from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import { v3Logger } from "../../logger.js";
 import { FlowLogger } from "../../flowlogger/FlowLogger.js";
@@ -32,6 +35,173 @@ function normalizeRootXPath(input: string): string {
   return s;
 }
 
+function isRetryableFrameError(message: string): boolean {
+  return /No frame for given id found|main world not ready for frame|Unable to obtain a content frame/i.test(
+    message,
+  );
+}
+
+function isDocumentRootSelector(selector: string): boolean {
+  const normalized = String(selector ?? "").trim().toLowerCase();
+  return (
+    normalized === "/" ||
+    normalized === "/html" ||
+    normalized === "xpath=/" ||
+    normalized === "xpath=/html"
+  );
+}
+
+const FIRST_TEXT_ENTRY_SELECTOR = [
+  'input:not([type="hidden"]):not([disabled])',
+  "textarea:not([disabled])",
+  '[contenteditable=""]',
+  '[contenteditable="true"]',
+].join(", ");
+
+function hintedIframeTextSelector(title: string | null): string | null {
+  const normalized = title?.trim().toLowerCase() ?? "";
+  if (!normalized) return null;
+  if (normalized.includes("card number")) {
+    return 'input[name="number"]';
+  }
+  if (
+    normalized.includes("expiration date") ||
+    normalized.includes("expiry")
+  ) {
+    return 'input[name="expiry"]';
+  }
+  if (
+    normalized.includes("security code") ||
+    normalized.includes("verification") ||
+    normalized.includes("cvv")
+  ) {
+    return 'input[name="verification_value"]';
+  }
+  if (normalized.includes("name on card")) {
+    return 'input[name="name"]';
+  }
+  return null;
+}
+
+async function readLocatorAttribute(
+  locator: Locator,
+  attributeName: string,
+): Promise<string | null> {
+  const session = locator.getFrame().session;
+  const { objectId } = await locator.resolveNode();
+  try {
+    const result = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      "Runtime.callFunctionOn",
+      {
+        objectId,
+        functionDeclaration: `
+          function(attributeName) {
+            try {
+              return this.getAttribute ? this.getAttribute(attributeName) : null;
+            } catch {
+              return null;
+            }
+          }
+        `,
+        arguments: [{ value: attributeName }],
+        returnByValue: true,
+      },
+    );
+    return typeof result.result.value === "string"
+      ? result.result.value
+      : null;
+  } finally {
+    await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
+  }
+}
+
+async function setFrameTextEntryValue(
+  frame: Frame,
+  selector: string,
+  value: string,
+): Promise<boolean> {
+  return frame.evaluate(
+    ({ selector, value }: { selector: string; value: string }) => {
+      try {
+        const element = document.querySelector(selector);
+        if (!element) return false;
+
+        const doc = element.ownerDocument || document;
+        const win = doc.defaultView || window;
+
+        const dispatchEvents = () => {
+          let inputEvent: Event;
+          if (typeof win.InputEvent === "function") {
+            try {
+              inputEvent = new win.InputEvent("input", {
+                bubbles: true,
+                composed: true,
+                data: value,
+                inputType: "insertText",
+              });
+            } catch {
+              inputEvent = new win.Event("input", {
+                bubbles: true,
+                composed: true,
+              });
+            }
+          } else {
+            inputEvent = new win.Event("input", {
+              bubbles: true,
+              composed: true,
+            });
+          }
+          element.dispatchEvent(inputEvent);
+          element.dispatchEvent(
+            new win.Event("change", { bubbles: true }),
+          );
+        };
+
+        if (
+          element instanceof win.HTMLInputElement ||
+          element instanceof win.HTMLTextAreaElement
+        ) {
+          const prototype =
+            element instanceof win.HTMLInputElement
+              ? win.HTMLInputElement.prototype
+              : win.HTMLTextAreaElement.prototype;
+          const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+          const nativeSetter = descriptor?.set;
+          if (typeof nativeSetter === "function") {
+            nativeSetter.call(element, value);
+          } else {
+            element.value = value;
+          }
+
+          const tracker = (
+            element as HTMLInputElement & {
+              _valueTracker?: { setValue?: (next: string) => void };
+            }
+          )._valueTracker;
+          tracker?.setValue?.(value);
+
+          dispatchEvents();
+          return true;
+        }
+
+        if (
+          element instanceof win.HTMLElement &&
+          element.isContentEditable
+        ) {
+          element.textContent = value;
+          dispatchEvents();
+          return true;
+        }
+
+        return false;
+      } catch {
+        return false;
+      }
+    },
+    { selector, value },
+  );
+}
+
 export async function performUnderstudyMethod(
   page: Page,
   frame: Frame,
@@ -41,81 +211,165 @@ export async function performUnderstudyMethod(
   domSettleTimeoutMs?: number,
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
+  const normalizedArgs = args.map((a) => (a == null ? "" : String(a)));
+  const maxAttempts = 4;
 
-  try {
-    await FlowLogger.runWithLogging(
-      {
-        eventType: `Understudy${toTitleCase(method)}`, // e.g. "UnderstudyClick"
-        data: {
-          target: selectorRaw,
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await FlowLogger.runWithLogging(
+        {
+          eventType: `Understudy${toTitleCase(method)}`, // e.g. "UnderstudyClick"
+          data: {
+            target: selectorRaw,
+          },
         },
-      },
-      async () => {
-        // Unified resolver: supports '>>' hops and XPath across iframes.
-        const locator: Locator = await resolveLocatorWithHops(
-          page,
-          frame,
-          selectorRaw,
-        );
-        const initialUrl = await getFrameUrl(frame);
+        async () => {
+          // Unified resolver: supports '>>' hops and XPath across iframes.
+          const target = await resolveLocatorTarget(
+            page,
+            frame,
+            selectorRaw,
+          );
+          let locator = new Locator(target.frame, target.selector);
 
+          // If the model chose an iframe host for a typing action, retarget to
+          // the first text-entry control inside the iframe's document.
+          if (
+            (method === "type" || method === "fill") &&
+            isDocumentRootSelector(target.selector)
+          ) {
+            const hostLocator = new Locator(frame, selectorRaw);
+            let hostTitle: string | null = null;
+            try {
+              hostTitle = await readLocatorAttribute(hostLocator, "title");
+            } catch {
+              hostTitle = null;
+            }
+            try {
+              await hostLocator.click();
+              await page.waitForTimeout(75);
+            } catch (error) {
+              v3Logger({
+                category: "action",
+                message: "failed to activate iframe host before typing",
+                level: 1,
+                auxiliary: {
+                  xpath: { value: selectorRaw, type: "string" },
+                  error: {
+                    value:
+                      error instanceof Error ? error.message : String(error),
+                    type: "string",
+                  },
+                },
+              });
+            }
+            const hintedSelector = hintedIframeTextSelector(hostTitle);
+            if (hintedSelector) {
+              const directValue = normalizedArgs[0] ?? "";
+              const setDirectly = await setFrameTextEntryValue(
+                target.frame,
+                hintedSelector,
+                directValue,
+              );
+              if (setDirectly) {
+                const iframeSettleMs = Math.min(
+                  500,
+                  Math.max(250, domSettleTimeoutMs ?? 500),
+                );
+                // Shopify briefly re-stabilizes PCI iframe hosts after each
+                // successful card-field update. Without a short pause here,
+                // the next agent tool can snapshot the checkout mid-refresh
+                // and fail to reacquire the following iframe.
+                await page.waitForTimeout(iframeSettleMs);
+                return;
+              }
+            }
+            locator = target.frame
+              .locator(hintedSelector ?? FIRST_TEXT_ENTRY_SELECTOR)
+              .first();
+          }
+
+          const initialUrl = await getFrameUrl(frame);
+
+          v3Logger({
+            category: "action",
+            message: "performing understudy method",
+            level: 2,
+            auxiliary: {
+              xpath: { value: selectorRaw, type: "string" },
+              method: { value: method, type: "string" },
+              url: { value: initialUrl, type: "string" },
+              attempt: { value: String(attempt), type: "string" },
+            },
+          });
+
+          const ctx: UnderstudyMethodHandlerContext = {
+            method,
+            locator,
+            xpath: selectorRaw,
+            args: normalizedArgs,
+            frame,
+            page,
+            initialUrl,
+            domSettleTimeoutMs,
+          };
+          const handler = METHOD_HANDLER_MAP[method] ?? null;
+
+          if (handler) {
+            await handler(ctx);
+            return;
+          }
+
+          v3Logger({
+            category: "action",
+            message: "chosen method is invalid",
+            level: 1,
+            auxiliary: { method: { value: method, type: "string" } },
+          });
+          throw new UnderstudyCommandException(`Method ${method} not supported`);
+        },
+        args,
+      );
+      return;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const stack = e instanceof Error ? e.stack : undefined;
+
+      if (attempt < maxAttempts && isRetryableFrameError(msg)) {
+        const delayMs = attempt * 250;
         v3Logger({
           category: "action",
-          message: "performing understudy method",
-          level: 2,
+          message: "retrying understudy method after frame instability",
+          level: 1,
           auxiliary: {
-            xpath: { value: selectorRaw, type: "string" },
+            error: { value: msg, type: "string" },
             method: { value: method, type: "string" },
-            url: { value: initialUrl, type: "string" },
+            xpath: { value: selectorRaw, type: "string" },
+            attempt: { value: `${attempt}/${maxAttempts}`, type: "string" },
+            delayMs: { value: String(delayMs), type: "string" },
           },
         });
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
 
-        const ctx: UnderstudyMethodHandlerContext = {
-          method,
-          locator,
-          xpath: selectorRaw,
-          args: args.map((a) => (a == null ? "" : String(a))),
-          frame,
-          page,
-          initialUrl,
-          domSettleTimeoutMs,
-        };
-        const handler = METHOD_HANDLER_MAP[method] ?? null;
-
-        if (handler) {
-          await handler(ctx);
-          return;
-        }
-
-        v3Logger({
-          category: "action",
-          message: "chosen method is invalid",
-          level: 1,
-          auxiliary: { method: { value: method, type: "string" } },
-        });
-        throw new UnderstudyCommandException(`Method ${method} not supported`);
-      },
-      args,
-    );
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const stack = e instanceof Error ? e.stack : undefined;
-    v3Logger({
-      category: "action",
-      message: "error performing method",
-      level: 1,
-      auxiliary: {
-        error: { value: msg, type: "string" },
-        trace: { value: stack ?? "", type: "string" },
-        method: { value: method, type: "string" },
-        xpath: { value: selectorRaw, type: "string" },
-        args: { value: JSON.stringify(args), type: "object" },
-      },
-    });
-    if (e instanceof UnderstudyCommandException) {
-      throw e;
+      v3Logger({
+        category: "action",
+        message: "error performing method",
+        level: 1,
+        auxiliary: {
+          error: { value: msg, type: "string" },
+          trace: { value: stack ?? "", type: "string" },
+          method: { value: method, type: "string" },
+          xpath: { value: selectorRaw, type: "string" },
+          args: { value: JSON.stringify(args), type: "object" },
+        },
+      });
+      if (e instanceof UnderstudyCommandException) {
+        throw e;
+      }
+      throw new UnderstudyCommandException(msg, e);
     }
-    throw new UnderstudyCommandException(msg, e);
   }
 }
 

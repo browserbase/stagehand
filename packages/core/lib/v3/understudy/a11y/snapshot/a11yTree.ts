@@ -37,6 +37,9 @@ export async function a11yForFrame(
       msg.includes("does not belong to the target") ||
       msg.includes("is not found");
     if (!isFrameScopeError || !frameId) throw e;
+    if (!opts.focusSelector?.trim()) {
+      return { outline: "", urlMap: {}, scopeApplied: false };
+    }
     ({ nodes } = await session.send<{
       nodes: Protocol.Accessibility.AXNode[];
     }>("Accessibility.getFullAXTree"));

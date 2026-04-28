@@ -142,6 +142,32 @@ function wrapToolWithTimeout<T extends Record<string, any>>(
   } as T;
 }
 
+/**
+ * Serializes tool execution for a single agent instance.
+ *
+ * AI SDK tool calls can be emitted in a single step and executed concurrently.
+ * That is unsafe for shared browser state: overlapping act/click/type calls can
+ * race each other against the same page and produce stale frame/selector state.
+ *
+ * We queue tool execution so each browser interaction fully settles before the
+ * next one begins. The queue is per createAgentTools() call, so separate agent
+ * instances do not block each other.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function wrapToolWithExecutionQueue<T extends Record<string, any>>(
+  agentTool: T,
+  enqueue: <R>(task: () => Promise<R>) => Promise<R>,
+): T {
+  if (!agentTool.execute) return agentTool;
+
+  const originalExecute = agentTool.execute;
+  return {
+    ...agentTool,
+    execute: async (...args: unknown[]) =>
+      await enqueue(() => originalExecute(...args)),
+  } as T;
+}
+
 export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const executionModel = options?.executionModel;
   const mode = options?.mode ?? "dom";
@@ -156,6 +182,16 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     extract: "— try using a smaller or simpler schema",
     fillForm:
       "(it may continue executing in the background) — try filling fewer fields at once or use a different tool",
+  };
+
+  let executionChain: Promise<void> = Promise.resolve();
+  const enqueueToolExecution = async <T>(task: () => Promise<T>): Promise<T> => {
+    const run = executionChain.then(task, task);
+    executionChain = run.then<void>(
+      () => undefined,
+      () => undefined,
+    );
+    return await run;
   };
 
   const unwrappedTools: ToolSet = {
@@ -188,17 +224,20 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     ...Object.fromEntries(
       Object.entries(unwrappedTools).map(([name, t]) => [
         name,
-        wrapToolWithTimeout(
-          t,
-          `${name}()`,
-          v3,
-          toolTimeout,
-          timeoutHints[name],
+        wrapToolWithExecutionQueue(
+          wrapToolWithTimeout(
+            t,
+            `${name}()`,
+            v3,
+            toolTimeout,
+            timeoutHints[name],
+          ),
+          enqueueToolExecution,
         ),
       ]),
     ),
-    think: thinkTool(),
-    wait: waitTool(v3, mode),
+    think: wrapToolWithExecutionQueue(thinkTool(), enqueueToolExecution),
+    wait: wrapToolWithExecutionQueue(waitTool(v3, mode), enqueueToolExecution),
   };
 
   return filterTools(allTools, mode, excludeTools);

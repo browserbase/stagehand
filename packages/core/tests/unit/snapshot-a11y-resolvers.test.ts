@@ -74,6 +74,32 @@ describe("a11yForFrame", () => {
     expect(result.outline).toContain("Docs");
   });
 
+  it("returns an empty frame snapshot when frame-scoped AX lookup fails without focus", async () => {
+    const session = new MockCDPSession({
+      ...baseHandlers,
+      "Accessibility.getFullAXTree": async (params) => {
+        if (params?.frameId) {
+          throw new Error("Frame with the given frameId is not found.");
+        }
+        return { nodes: baseAxNodes() };
+      },
+    });
+
+    const opts: A11yOptions = {
+      focusSelector: undefined,
+      experimental: false,
+      tagNameMap: { "enc-100": "#document", "enc-101": "a" },
+      scrollableMap: {},
+      encode: (backend) => `enc-${backend}`,
+    };
+
+    const result = await a11yForFrame(session, "dead-frame", opts);
+
+    expect(result.scopeApplied).toBe(false);
+    expect(result.urlMap).toEqual({});
+    expect(result.outline).toBe("");
+  });
+
   it("scopes the tree to the resolved focus selector target", async () => {
     const nodes = baseAxNodes().map((n) =>
       n.nodeId === "2"
@@ -275,6 +301,7 @@ describe("tryScopedSnapshot", () => {
       }),
       listAllFrameIds: () => ["frame-1", "frame-2"],
       getSessionForFrame: () => session,
+      allSessions: () => [session],
       getOrdinal: (fid: string) => ordinal(fid),
       ...overrides,
     }) as unknown as Page;
