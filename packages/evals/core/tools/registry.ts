@@ -32,8 +32,6 @@ export function getCoreTool(toolSurface: ToolSurface): CoreTool {
     case "browse_cli":
       return new BrowseCliTool();
     default:
-      throw new Error(
-        `Tool surface "${toolSurface}" is not implemented yet`,
-      );
+      throw new Error(`Tool surface "${toolSurface}" is not implemented yet`);
   }
 }

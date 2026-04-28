@@ -1,8 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  AgentProvider,
-  providerEnvVarMap,
-} from "@browserbasehq/stagehand";
+import { AgentProvider, providerEnvVarMap } from "@browserbasehq/stagehand";
 import {
   tasksByName,
   getModelList,

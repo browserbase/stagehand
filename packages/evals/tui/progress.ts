@@ -69,7 +69,12 @@ export class ProgressRenderer {
 
   onPass(taskName: string, model?: string, durationMs?: number): void {
     const key = model ? `${taskName}:${model}` : taskName;
-    this.tasks.set(key, { name: taskName, model, status: "passed", durationMs });
+    this.tasks.set(key, {
+      name: taskName,
+      model,
+      status: "passed",
+      durationMs,
+    });
     this.passed++;
     if (this.animated) {
       this.renderAnimated();
@@ -116,7 +121,9 @@ export class ProgressRenderer {
     );
     if (total > 0) {
       const pct = Math.round((this.passed / total) * 100);
-      writeLine(`  ${bold("Pass rate:")} ${pct >= 80 ? green(`${pct}%`) : pct >= 50 ? `${pct}%` : red(`${pct}%`)}`);
+      writeLine(
+        `  ${bold("Pass rate:")} ${pct >= 80 ? green(`${pct}%`) : pct >= 50 ? `${pct}%` : red(`${pct}%`)}`,
+      );
     }
     writeLine(separator());
     writeLine("");
@@ -159,12 +166,7 @@ export class ProgressRenderer {
     if (hasModel && taskWidth < 18) {
       const deficit = 18 - taskWidth;
       modelWidth = Math.max(10, modelWidth - deficit);
-      taskWidth =
-        contentWidth -
-        statusWidth -
-        durationWidth -
-        modelWidth -
-        2;
+      taskWidth = contentWidth - statusWidth - durationWidth - modelWidth - 2;
     }
 
     if (hasModel && taskWidth < 18) {
@@ -261,7 +263,9 @@ export class ProgressRenderer {
           task.name,
           task.model,
           green("passed"),
-          task.durationMs !== undefined ? dim(formatMs(task.durationMs)) : undefined,
+          task.durationMs !== undefined
+            ? dim(formatMs(task.durationMs))
+            : undefined,
         );
       case "failed":
       case "error":
@@ -335,12 +339,7 @@ export class ProgressRenderer {
     if (hasModel && taskWidth < 18) {
       const deficit = 18 - taskWidth;
       modelWidth = Math.max(10, modelWidth - deficit);
-      taskWidth =
-        contentWidth -
-        statusWidth -
-        durationWidth -
-        modelWidth -
-        2;
+      taskWidth = contentWidth - statusWidth - durationWidth - modelWidth - 2;
     }
 
     if (hasModel && taskWidth < 18) {

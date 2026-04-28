@@ -116,9 +116,17 @@ export const getPackageRootDir = (): string =>
   `${getRepoRootDir()}${PACKAGE_SEGMENT.slice(0, -1)}`;
 
 export const resolveRuntimeTasksRoot = (
-  _callerFilePath: string,
+  callerFilePath: string,
   packageRootDir: string,
-): string => path.join(packageRootDir, "tasks");
+): string => {
+  const normalizedCaller = normalizePath(callerFilePath);
+  if (normalizedCaller.includes("/dist/")) {
+    const compiledTasksRoot = path.join(packageRootDir, "dist", "esm", "tasks");
+    return compiledTasksRoot;
+  }
+
+  return path.join(packageRootDir, "tasks");
+};
 
 export const getRuntimeTasksRoot = (): string =>
   resolveRuntimeTasksRoot(getCurrentFilePath(), getPackageRootDir());

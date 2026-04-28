@@ -13,4 +13,3 @@ export interface PageRepresentation {
   };
   raw?: unknown;
 }
-

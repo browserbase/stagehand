@@ -15,4 +15,3 @@ export interface Artifact {
   data?: Buffer | string;
   mimeType?: string;
 }
-

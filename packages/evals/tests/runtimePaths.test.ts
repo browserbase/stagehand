@@ -12,12 +12,12 @@ describe("resolveRuntimeTasksRoot", () => {
     );
   });
 
-  it("keeps built CLI callers on the source task tree", () => {
+  it("uses compiled tasks for built CLI callers", () => {
     const packageRoot = "/repo/packages/evals";
     const caller = "/repo/packages/evals/dist/cli/cli.js";
 
     expect(resolveRuntimeTasksRoot(caller, packageRoot)).toBe(
-      path.join(packageRoot, "tasks"),
+      path.join(packageRoot, "dist", "esm", "tasks"),
     );
   });
 });

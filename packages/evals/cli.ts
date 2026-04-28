@@ -32,7 +32,6 @@ dotenv.config({ quiet: true } as dotenv.DotenvConfigOptions);
 // mode (node running dist/cli/cli.js) this is what lets task files load.
 await (async () => {
   try {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error — tsx's subpath export doesn't resolve under `moduleResolution: "node"`; resolved at runtime.
     const tsxApi = (await import("tsx/esm/api")) as {
       register: () => unknown;
@@ -83,7 +82,9 @@ const args = process.argv.slice(2);
     shuttingDown = true;
     const code = signal === "SIGINT" ? 130 : 143;
     try {
-      const { cleanupActiveRunResources } = await import("./framework/runner.js");
+      const { cleanupActiveRunResources } = await import(
+        "./framework/runner.js"
+      );
       await cleanupActiveRunResources();
     } catch {
       // ignore
@@ -194,7 +195,9 @@ const args = process.argv.slice(2);
           printExperimentsHelp();
           return;
         }
-        const { handleExperiments } = await import("./tui/commands/experiments.js");
+        const { handleExperiments } = await import(
+          "./tui/commands/experiments.js"
+        );
         await handleExperiments(subArgs);
         return;
       }

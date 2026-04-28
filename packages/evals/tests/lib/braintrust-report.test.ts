@@ -195,7 +195,9 @@ describe("braintrust-report", () => {
 
     expect(braintrustMock.loginCalls).toBe(2);
     expect(
-      braintrustMock.apiCalls.filter((call) => call.endpoint === "/v1/experiment"),
+      braintrustMock.apiCalls.filter(
+        (call) => call.endpoint === "/v1/experiment",
+      ),
     ).toHaveLength(2);
     expect(
       braintrustMock.apiCalls.filter(

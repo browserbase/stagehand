@@ -158,11 +158,11 @@ interface BenchHarness {
 
 Initial harness meanings:
 
-| Harness              | Meaning                                                                                              |
-| -------------------- | ---------------------------------------------------------------------------------------------------- |
-| `stagehand`          | Stagehand's agent loop, whether run locally or through the Stagehand API                             |
-| `claude_code`        | Claude Code / Claude Code SDK agent harness, including its permissions, sessions, tools, and MCP use. Executable with `browse_cli`; evaluator parity is still pending for active agent benchmarks |
-| `codex`              | OpenAI Codex agent harness, initially CLI-driven                                                    |
+| Harness       | Meaning                                                                                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stagehand`   | Stagehand's agent loop, whether run locally or through the Stagehand API                                                                                                                          |
+| `claude_code` | Claude Code / Claude Code SDK agent harness, including its permissions, sessions, tools, and MCP use. Executable with `browse_cli`; evaluator parity is still pending for active agent benchmarks |
+| `codex`       | OpenAI Codex agent harness, initially CLI-driven                                                                                                                                                  |
 
 Stagehand local and Stagehand API are the same harness. `--api` / `USE_API` should remain `useApi` run configuration and metadata, not a separate harness.
 
@@ -653,13 +653,13 @@ packages/evals/
 
 Planned bench v2 files:
 
-| File                         | Purpose                                                                 |
-| ---------------------------- | ----------------------------------------------------------------------- |
-| `framework/benchHarness.ts`  | `BenchHarness`, `Harness`, harness registry                             |
-| `framework/benchPlanner.ts`  | Expands tasks + flags into `BenchMatrixRow[]`                           |
-| `framework/benchRunner.ts`   | Executes rows, handles scoring/progress/metadata                        |
-| `framework/benchSuites.ts`   | Compatibility layer for `webvoyager` and `onlineMind2Web`                     |
-| `framework/runner.ts`        | Delegates bench execution to bench v2 once the first slice is ready     |
+| File                        | Purpose                                                             |
+| --------------------------- | ------------------------------------------------------------------- |
+| `framework/benchHarness.ts` | `BenchHarness`, `Harness`, harness registry                         |
+| `framework/benchPlanner.ts` | Expands tasks + flags into `BenchMatrixRow[]`                       |
+| `framework/benchRunner.ts`  | Executes rows, handles scoring/progress/metadata                    |
+| `framework/benchSuites.ts`  | Compatibility layer for `webvoyager` and `onlineMind2Web`           |
+| `framework/runner.ts`       | Delegates bench execution to bench v2 once the first slice is ready |
 
 ---
 
@@ -675,18 +675,18 @@ The unified entrypoint is `packages/evals/cli.ts`. It supports argv mode and REP
 
 ### Commands
 
-| Command                 | Purpose                                                                        |
-| ----------------------- | ------------------------------------------------------------------------------ |
-| `run [target] [flags]`  | Run core or bench evals through the unified runner                             |
-| `list [core\|bench]`    | List discovered tasks and categories                                           |
-| `config`               | Read/write general eval defaults                                               |
-| `config core`          | Read/write core tool/startup defaults                                          |
-| `experiments`          | Help/overview for Braintrust experiment inspection                             |
-| `experiments list`     | Show recent runs from `stagehand-dev` and `stagehand-core-dev`                 |
-| `experiments show`     | Show one experiment                                                            |
-| `experiments open`     | Open one experiment in the browser                                             |
-| `experiments compare`  | Generate comparison reports; `--headless` prints a terminal-friendly summary   |
-| `new`                  | Scaffold a task file only                                                      |
+| Command                  | Purpose                                                                      |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `run [target] [flags]`   | Run core or bench evals through the unified runner                           |
+| `list [core\|bench]`     | List discovered tasks and categories                                         |
+| `config`                 | Read/write general eval defaults                                             |
+| `config core`            | Read/write core tool/startup defaults                                        |
+| `experiments`            | Help/overview for Braintrust experiment inspection                           |
+| `experiments list`       | Show recent runs from `stagehand-dev` and `stagehand-core-dev`               |
+| `experiments show`       | Show one experiment                                                          |
+| `experiments open`       | Open one experiment in the browser                                           |
+| `experiments compare`    | Generate comparison reports; `--headless` prints a terminal-friendly summary |
+| `new`                    | Scaffold a task file only                                                    |
 | `help` / `-h` / `--help` | Print command help                                                           |
 
 ### Run output modes

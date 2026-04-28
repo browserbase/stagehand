@@ -10,7 +10,9 @@ import path from "node:path";
 import { cyan, dim, green, red } from "../format.js";
 import { getPackageRootDir } from "../../runtimePaths.js";
 
-const CORE_TEMPLATE = (name: string) => `import { defineCoreTask } from "../../../framework/defineTask.js";
+const CORE_TEMPLATE = (
+  name: string,
+) => `import { defineCoreTask } from "../../../framework/defineTask.js";
 
 export default defineCoreTask(
   { name: "${name}" },
@@ -91,7 +93,11 @@ export function scaffoldTask(args: string[]): ScaffoldedTask | null {
   }
 
   if (!/^[a-z][a-z0-9_]*$/.test(name)) {
-    console.log(red(`  Invalid name "${name}". Use lowercase letters, numbers, underscores.`));
+    console.log(
+      red(
+        `  Invalid name "${name}". Use lowercase letters, numbers, underscores.`,
+      ),
+    );
     return null;
   }
 

@@ -16,10 +16,7 @@ import {
   buildBenchMatrixRow,
   generateBenchTestcases,
 } from "../../framework/benchPlanner.js";
-import type {
-  StartupProfile,
-  ToolSurface,
-} from "../../core/contracts/tool.js";
+import type { StartupProfile, ToolSurface } from "../../core/contracts/tool.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
@@ -37,9 +34,7 @@ type RunProgressEvent = {
   error?: string;
 };
 
-const LEGACY_ONLY_BENCHMARK_TARGETS = new Set([
-  "agent/gaia",
-]);
+const LEGACY_ONLY_BENCHMARK_TARGETS = new Set(["agent/gaia"]);
 
 function isExplicitLegacyOnlyTarget(target?: string): boolean {
   return Boolean(target && LEGACY_ONLY_BENCHMARK_TARGETS.has(target));
@@ -111,6 +106,16 @@ export async function runCommand(
     throw new Error(message);
   }
 
+  if (
+    options.useApi &&
+    options.harness !== "stagehand" &&
+    tasks.some((t) => t.tier === "bench")
+  ) {
+    throw new Error(
+      `Harness "${options.harness}" does not support --api. Use --harness stagehand for API-backed bench runs.`,
+    );
+  }
+
   if (options.dryRun) {
     await emitDryRun(options, tasks, registry, undefined, skippedTasks);
     return;
@@ -124,7 +129,6 @@ export async function runCommand(
       `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand or --harness claude_code for executable bench runs.`,
     );
   }
-
   const tierBreakdown = new Map<string, number>();
   for (const t of tasks) {
     tierBreakdown.set(t.tier, (tierBreakdown.get(t.tier) ?? 0) + 1);
@@ -148,7 +152,10 @@ export async function runCommand(
   console.log("");
 
   const progress = new ProgressRenderer({ animated: !options.verbose });
-  const categoryFilter = deriveCategoryFilter(registry, options.normalizedTarget);
+  const categoryFilter = deriveCategoryFilter(
+    registry,
+    options.normalizedTarget,
+  );
 
   await withEnvOverrides(options.envOverrides, async () => {
     try {
@@ -178,7 +185,11 @@ export async function runCommand(
             if (event.type === "started") {
               progress.onStart(event.taskName, event.modelName);
             } else if (event.type === "passed") {
-              progress.onPass(event.taskName, event.modelName, event.durationMs);
+              progress.onPass(
+                event.taskName,
+                event.modelName,
+                event.durationMs,
+              );
             } else if (event.type === "failed") {
               progress.onFail(event.taskName, event.modelName, event.error);
             }
@@ -275,9 +286,7 @@ async function emitDryRun(
     skippedTasks: sortedSkippedTasks,
     envOverrides,
     runOptions,
-    matrix: error
-      ? []
-      : await buildDryRunMatrix(options, tasks, registry),
+    matrix: error ? [] : await buildDryRunMatrix(options, tasks, registry),
   };
   if (error) payload.error = error;
 
@@ -397,7 +406,7 @@ async function withSuppressedConsole<T>(fn: () => Promise<T>): Promise<T> {
     debug: console.debug,
   };
 
-  const noop = (..._args: unknown[]) => {};
+  const noop = () => {};
   console.log = noop;
   console.info = noop;
   console.warn = noop;

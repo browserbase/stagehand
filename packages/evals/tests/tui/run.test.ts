@@ -76,8 +76,16 @@ describe("deriveCategoryFilter", () => {
 
   it("omits legacy-only suite tasks from broad dry-runs", async () => {
     const registry = makeRegistry([
-      makeTask({ name: "agent/gaia", primaryCategory: "agent", categories: ["agent"] }),
-      makeTask({ name: "agent/webvoyager", primaryCategory: "agent", categories: ["agent"] }),
+      makeTask({
+        name: "agent/gaia",
+        primaryCategory: "agent",
+        categories: ["agent"],
+      }),
+      makeTask({
+        name: "agent/webvoyager",
+        primaryCategory: "agent",
+        categories: ["agent"],
+      }),
     ]);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -183,10 +191,9 @@ describe("deriveCategoryFilter", () => {
     const payload = JSON.parse(String(log.mock.calls[0][0]));
     expect(payload.runOptions.agentModes).toEqual(["dom", "hybrid"]);
     expect(payload.matrix).toHaveLength(2);
-    expect(payload.matrix.map((row: { agentMode: string }) => row.agentMode)).toEqual([
-      "dom",
-      "hybrid",
-    ]);
+    expect(
+      payload.matrix.map((row: { agentMode: string }) => row.agentMode),
+    ).toEqual(["dom", "hybrid"]);
     expect(
       payload.matrix.map(
         (row: { harnessConfig: { agentMode: string; isCUA: boolean } }) =>
@@ -242,7 +249,9 @@ describe("deriveCategoryFilter", () => {
       startupProfile: "tool_create_browserbase",
       toolCommand: "browse",
       browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringContaining("packages/cli/dist/index.js"),
+      browseCliEntrypoint: expect.stringContaining(
+        "packages/cli/dist/index.js",
+      ),
       agentMode: null,
       harnessConfig: {
         harness: "claude_code",
@@ -254,6 +263,68 @@ describe("deriveCategoryFilter", () => {
         dataset: "webvoyager",
       },
     });
+  });
+
+  it("rejects claude_code for unsupported bench targets instead of emitting an empty matrix", async () => {
+    const registry = makeRegistry([
+      makeTask({
+        name: "observe/observe_github",
+        primaryCategory: "observe",
+        categories: ["observe"],
+      }),
+    ]);
+
+    await expect(
+      runCommand(
+        {
+          target: "observe",
+          normalizedTarget: "observe",
+          trials: 1,
+          concurrency: 1,
+          environment: "BROWSERBASE",
+          model: "anthropic/claude-sonnet-4-20250514",
+          useApi: false,
+          harness: "claude_code",
+          envOverrides: {},
+          dryRun: true,
+          verbose: false,
+        },
+        registry,
+      ),
+    ).rejects.toThrow(/only supports agent benchmark suites/);
+  });
+
+  it("rejects --api for non-stagehand bench harnesses even in dry-run", async () => {
+    const registry = makeRegistry([
+      makeTask({
+        name: "agent/webvoyager",
+        primaryCategory: "agent",
+        categories: ["external_agent_benchmarks"],
+      }),
+    ]);
+
+    await expect(
+      runCommand(
+        {
+          target: "b:webvoyager",
+          normalizedTarget: "agent/webvoyager",
+          trials: 1,
+          concurrency: 1,
+          environment: "BROWSERBASE",
+          model: "anthropic/claude-sonnet-4-20250514",
+          useApi: true,
+          harness: "claude_code",
+          datasetFilter: "webvoyager",
+          envOverrides: {
+            EVAL_MAX_K: "1",
+            EVAL_WEBVOYAGER_LIMIT: "1",
+          },
+          dryRun: true,
+          verbose: false,
+        },
+        registry,
+      ),
+    ).rejects.toThrow(/does not support --api/);
   });
 
   it("allows executable harnesses without env gates", () => {

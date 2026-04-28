@@ -1,3 +1,4 @@
+/* eslint-disable require-yield */
 import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import {

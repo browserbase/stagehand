@@ -48,10 +48,7 @@ describe("handleConfig", () => {
 
     await handleConfig(["set", "agentModes", "dom,hybrid,dom"], entryDir);
 
-    expect(readConfig(entryDir).defaults.agentModes).toEqual([
-      "dom",
-      "hybrid",
-    ]);
+    expect(readConfig(entryDir).defaults.agentModes).toEqual(["dom", "hybrid"]);
     expect(log).toHaveBeenCalled();
   });
 });

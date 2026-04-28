@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -108,7 +109,9 @@ describe("CLI entrypoint", () => {
     ]);
 
     expect(code).toBe(1);
-    expect(stdout + stderr).toContain('No tasks found matching "nonexistent_eval_xyz"');
+    expect(stdout + stderr).toContain(
+      'No tasks found matching "nonexistent_eval_xyz"',
+    );
   });
 
   it("prints the source config path in source mode", async () => {
@@ -148,7 +151,11 @@ describe.sequential("core config", () => {
   it("persists tool via `config core set tool`", async () => {
     resetConfig();
     const setResult = await runCli([
-      "config", "core", "set", "tool", "understudy_code",
+      "config",
+      "core",
+      "set",
+      "tool",
+      "understudy_code",
     ]);
     expect(setResult.code).toBe(0);
     expect(setResult.stdout).toContain("Set core.tool to understudy_code");
@@ -174,7 +181,11 @@ describe.sequential("core config", () => {
   it("rejects unknown tool", async () => {
     resetConfig();
     const { stdout, stderr, code } = await runCli([
-      "config", "core", "set", "tool", "not_a_real_tool",
+      "config",
+      "core",
+      "set",
+      "tool",
+      "not_a_real_tool",
     ]);
     expect(code).toBe(1);
     expect(stdout + stderr).toContain('Invalid tool "not_a_real_tool"');
@@ -183,62 +194,60 @@ describe.sequential("core config", () => {
   it("rejects setting startup without a tool", async () => {
     resetConfig();
     const { stdout, stderr, code } = await runCli([
-      "config", "core", "set", "startup", "tool_launch_local",
+      "config",
+      "core",
+      "set",
+      "startup",
+      "tool_launch_local",
     ]);
     expect(code).toBe(1);
     expect(stdout + stderr).toContain("Cannot set startup without a tool");
   });
 
-  it(
-    "rejects startup unsupported by the chosen tool",
-    async () => {
-      resetConfig();
-      // cdp_code does not support tool_create_browserbase.
-      await runCli(["config", "core", "set", "tool", "cdp_code"]);
-      const { stdout, stderr, code } = await runCli([
-        "config", "core", "set", "startup", "tool_create_browserbase",
-      ]);
-      expect(code).toBe(1);
-      expect(stdout + stderr).toContain(
-        'Tool "cdp_code" does not support startup',
-      );
-    },
-    30_000,
-  );
+  it("rejects startup unsupported by the chosen tool", async () => {
+    resetConfig();
+    // cdp_code does not support tool_create_browserbase.
+    await runCli(["config", "core", "set", "tool", "cdp_code"]);
+    const { stdout, stderr, code } = await runCli([
+      "config",
+      "core",
+      "set",
+      "startup",
+      "tool_create_browserbase",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout + stderr).toContain(
+      'Tool "cdp_code" does not support startup',
+    );
+  }, 30_000);
 
-  it(
-    "auto-resets startup when a tool change invalidates it",
-    async () => {
-      resetConfig();
-      // cdp_code supports tool_attach_local_cdp; browse_cli does not.
-      await runCli(["config", "core", "set", "tool", "cdp_code"]);
-      await runCli([
-        "config", "core", "set", "startup", "tool_attach_local_cdp",
-      ]);
-      const { stdout, code } = await runCli([
-        "config", "core", "set", "tool", "browse_cli",
-      ]);
-      expect(code).toBe(0);
-      expect(stdout).toContain("Resetting startup");
+  it("auto-resets startup when a tool change invalidates it", async () => {
+    resetConfig();
+    // cdp_code supports tool_attach_local_cdp; browse_cli does not.
+    await runCli(["config", "core", "set", "tool", "cdp_code"]);
+    await runCli(["config", "core", "set", "startup", "tool_attach_local_cdp"]);
+    const { stdout, code } = await runCli([
+      "config",
+      "core",
+      "set",
+      "tool",
+      "browse_cli",
+    ]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Resetting startup");
 
-      const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
-      expect(saved.core?.tool).toBe("browse_cli");
-      expect(saved.core?.startup).toBeUndefined();
-    },
-    30_000,
-  );
+    const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+    expect(saved.core?.tool).toBe("browse_cli");
+    expect(saved.core?.startup).toBeUndefined();
+  }, 30_000);
 
-  it(
-    "reset clears the whole core section",
-    async () => {
-      resetConfig();
-      await runCli(["config", "core", "set", "tool", "understudy_code"]);
-      const { code } = await runCli(["config", "core", "reset"]);
-      expect(code).toBe(0);
+  it("reset clears the whole core section", async () => {
+    resetConfig();
+    await runCli(["config", "core", "set", "tool", "understudy_code"]);
+    const { code } = await runCli(["config", "core", "reset"]);
+    expect(code).toBe(0);
 
-      const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
-      expect(saved.core).toBeUndefined();
-    },
-    15_000,
-  );
+    const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+    expect(saved.core).toBeUndefined();
+  }, 15_000);
 });

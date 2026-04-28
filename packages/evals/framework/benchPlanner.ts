@@ -13,10 +13,7 @@ import {
   type AgentModelEntry,
 } from "../taskConfig.js";
 import type { Testcase } from "../types/evals.js";
-import type {
-  StartupProfile,
-  ToolSurface,
-} from "../core/contracts/tool.js";
+import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { DiscoveredTask } from "./types.js";
 import {
   DEFAULT_BENCH_HARNESS,
@@ -144,12 +141,14 @@ function resolveDefaultModelEntries(
   isAgentCategory: boolean,
 ): AgentModelEntry[] {
   if (harness === "claude_code") {
-    return readModelListEnv("EVAL_CLAUDE_CODE_MODELS", DEFAULT_CLAUDE_CODE_MODELS)
-      .map((modelName) => ({
-        modelName,
-        mode: "hybrid",
-        cua: false,
-      }));
+    return readModelListEnv(
+      "EVAL_CLAUDE_CODE_MODELS",
+      DEFAULT_CLAUDE_CODE_MODELS,
+    ).map((modelName) => ({
+      modelName,
+      mode: "hybrid",
+      cua: false,
+    }));
   }
 
   if (harness === "codex") {
@@ -194,9 +193,7 @@ function resolveRequestedAgentModes(
   return [...new Set(options.agentModes)];
 }
 
-function resolveAgentModeForModel(
-  modelName: string,
-): AgentToolMode {
+function resolveAgentModeForModel(modelName: string): AgentToolMode {
   return (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName)
     ? "cua"
     : "hybrid";
@@ -242,9 +239,7 @@ export function buildBenchMatrixRow(
     options.coreStartupProfile,
   );
   const resolvedAgentMode = agentMode ?? (isCUA ? "cua" : undefined);
-  const resolvedIsCUA = resolvedAgentMode
-    ? resolvedAgentMode === "cua"
-    : isCUA;
+  const resolvedIsCUA = resolvedAgentMode ? resolvedAgentMode === "cua" : isCUA;
   const config = buildBenchHarnessConfig({
     harness,
     model: modelName,
@@ -334,6 +329,15 @@ export function generateBenchTestcases(
   const allTestcases = [...suiteTestcases.testcases];
 
   if (options.harness === "claude_code") {
+    if (suiteTestcases.remainingTasks.length > 0) {
+      const unsupported = suiteTestcases.remainingTasks
+        .map((task) => task.name)
+        .sort()
+        .join(", ");
+      throw new EvalsError(
+        `Harness "claude_code" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench. Unsupported task(s): ${unsupported}.`,
+      );
+    }
     return allTestcases;
   }
 
@@ -475,7 +479,7 @@ function withBenchMetadata(
 ): Testcase {
   const isStagehand = rowUsesStagehand(options);
   const agentMode = isStagehand
-    ? options.agentMode ?? testcase.input.agentMode
+    ? (options.agentMode ?? testcase.input.agentMode)
     : undefined;
   const row = buildBenchMatrixRow(
     task,
@@ -489,11 +493,9 @@ function withBenchMetadata(
     (tag) => tag !== "dom" && tag !== "hybrid" && tag !== "cua",
   );
   if (isStagehand && agentMode) tags.push(agentMode);
-  const {
-    agentMode: _inputAgentMode,
-    isCUA: _inputIsCUA,
-    ...inputWithoutStagehandMode
-  } = testcase.input;
+  const inputWithoutStagehandMode = { ...testcase.input };
+  delete inputWithoutStagehandMode.agentMode;
+  delete inputWithoutStagehandMode.isCUA;
 
   return {
     ...testcase,

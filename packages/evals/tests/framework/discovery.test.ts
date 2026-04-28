@@ -33,11 +33,15 @@ describe("discovery", () => {
     writeFile(path.join(tasksRoot, "bench", "act", "dropdown.ts"));
 
     const registry = await discoverTasks(tasksRoot, false);
-    const openTasks = registry.tasks.filter((task) => task.name === "navigation/open");
+    const openTasks = registry.tasks.filter(
+      (task) => task.name === "navigation/open",
+    );
 
     expect(openTasks).toHaveLength(1);
     expect(openTasks[0].tier).toBe("core");
-    expect(openTasks[0].filePath).toContain(`${path.sep}core${path.sep}tasks${path.sep}`);
+    expect(openTasks[0].filePath).toContain(
+      `${path.sep}core${path.sep}tasks${path.sep}`,
+    );
   });
 
   it("does not discover legacy tasks/core anymore", async () => {

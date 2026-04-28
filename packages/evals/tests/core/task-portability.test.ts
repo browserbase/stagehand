@@ -36,8 +36,10 @@ describe("core task portability", () => {
     for (const taskFile of walk(coreTasksRoot)) {
       const source = fs.readFileSync(taskFile, "utf8");
       for (const pattern of forbiddenPatterns) {
-        expect(source, `${path.relative(coreTasksRoot, taskFile)} matched ${pattern}`)
-          .not.toMatch(pattern);
+        expect(
+          source,
+          `${path.relative(coreTasksRoot, taskFile)} matched ${pattern}`,
+        ).not.toMatch(pattern);
       }
     }
   });

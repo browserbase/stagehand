@@ -1,8 +1,9 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
+  getBrowseCliAllowedTools,
   getBrowseCliToolMetadata,
   isAllowedBrowseCommand,
   installBrowserSkill,
@@ -11,6 +12,10 @@ import {
 } from "../../framework/claudeCodeToolAdapter.js";
 
 describe("claude code tool adapter resolution", () => {
+  afterEach(() => {
+    delete process.env.EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL;
+  });
+
   it("defaults Claude Code to browse_cli", () => {
     expect(resolveClaudeCodeToolSurface()).toBe("browse_cli");
   });
@@ -32,17 +37,34 @@ describe("claude code tool adapter resolution", () => {
 
   it("allows only direct browse commands through Bash", () => {
     expect(isAllowedBrowseCommand("browse -h")).toBe(true);
-    expect(isAllowedBrowseCommand("browse open https://example.com")).toBe(true);
+    expect(isAllowedBrowseCommand("browse open https://example.com")).toBe(
+      true,
+    );
     expect(isAllowedBrowseCommand("./browse -h")).toBe(false);
     expect(isAllowedBrowseCommand("npm test")).toBe(false);
     expect(isAllowedBrowseCommand("browse status; rm -rf /")).toBe(false);
+    expect(isAllowedBrowseCommand("browse status\ncat ~/.ssh/id_rsa")).toBe(
+      false,
+    );
+    expect(isAllowedBrowseCommand("browse status\r\ncat ~/.ssh/id_rsa")).toBe(
+      false,
+    );
+  });
+
+  it("does not auto-allow raw Bash unless unsandboxed local mode is explicit", () => {
+    expect(getBrowseCliAllowedTools()).toEqual(["Skill"]);
+
+    process.env.EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL = "true";
+    expect(getBrowseCliAllowedTools()).toEqual(["Skill", "Bash"]);
   });
 
   it("exposes browse cli metadata for Braintrust rows", () => {
     expect(getBrowseCliToolMetadata()).toMatchObject({
       toolCommand: "browse",
       browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringContaining("packages/cli/dist/index.js"),
+      browseCliEntrypoint: expect.stringContaining(
+        "packages/cli/dist/index.js",
+      ),
     });
   });
 

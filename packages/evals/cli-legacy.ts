@@ -157,7 +157,8 @@ function loadConfig(): Config {
 function saveConfig(config: Config): void {
   // Only persist defaults and benchmarks — never write the discovered tasks
   // back to the config file, as they are auto-discovered from the filesystem.
-  const { tasks: _tasks, ...persistable } = config;
+  const persistable = { ...config };
+  delete persistable.tasks;
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(persistable, null, 2));
 }
 
@@ -616,13 +617,23 @@ function handleRun(args: string[]): void {
   }
 
   // Check if this is a core tier target — if so, delegate to runCore.ts
-  const CORE_CATEGORIES = new Set(["navigation", "actions", "forms", "page-info", "viewport", "tabs", "network"]);
+  const CORE_CATEGORIES = new Set([
+    "navigation",
+    "actions",
+    "forms",
+    "page-info",
+    "viewport",
+    "tabs",
+    "network",
+  ]);
 
   // Also build a set of individual core task names for direct targeting
   const coreTaskNames = new Set<string>();
   const coreTasksDir = path.join(packageRoot, "tasks", "core");
   if (fs.existsSync(coreTasksDir)) {
-    for (const catEntry of fs.readdirSync(coreTasksDir, { withFileTypes: true })) {
+    for (const catEntry of fs.readdirSync(coreTasksDir, {
+      withFileTypes: true,
+    })) {
       if (!catEntry.isDirectory()) continue;
       for (const f of findTaskFiles(path.join(coreTasksDir, catEntry.name))) {
         const baseName = path.basename(f).replace(/\.(ts|js)$/, "");

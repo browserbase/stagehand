@@ -18,7 +18,11 @@ import type {
 } from "../contracts/tool.js";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
-import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
+import type {
+  ActionTarget,
+  TargetKind,
+  WaitSpec,
+} from "../contracts/targets.js";
 
 const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "session",
@@ -40,7 +44,9 @@ function countAccessibilityNodes(node: unknown): number {
   if (!node || typeof node !== "object") return 0;
   const children =
     "children" in node && Array.isArray(node.children) ? node.children : [];
-  return 1 + children.reduce((sum, child) => sum + countAccessibilityNodes(child), 0);
+  return (
+    1 + children.reduce((sum, child) => sum + countAccessibilityNodes(child), 0)
+  );
 }
 
 class PlaywrightLocatorHandle implements CoreLocatorHandle {
@@ -87,7 +93,10 @@ class PlaywrightPageHandle implements CorePageHandle {
 
   async goto(
     url: string,
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
+    opts?: {
+      waitUntil?: "load" | "domcontentloaded" | "networkidle";
+      timeoutMs?: number;
+    },
   ): Promise<void> {
     await this.page.goto(url, {
       waitUntil: opts?.waitUntil,
@@ -95,18 +104,20 @@ class PlaywrightPageHandle implements CorePageHandle {
     });
   }
 
-  async reload(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<void> {
+  async reload(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<void> {
     await this.page.reload({
       waitUntil: opts?.waitUntil,
       timeout: opts?.timeoutMs,
     });
   }
 
-  async back(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async back(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return (
       (await this.page.goBack({
         waitUntil: opts?.waitUntil,
@@ -115,15 +126,17 @@ class PlaywrightPageHandle implements CorePageHandle {
     );
   }
 
-  async goBack(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async goBack(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return this.back(opts);
   }
 
-  async forward(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async forward(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return (
       (await this.page.goForward({
         waitUntil: opts?.waitUntil,
@@ -132,9 +145,10 @@ class PlaywrightPageHandle implements CorePageHandle {
     );
   }
 
-  async goForward(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async goForward(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return this.forward(opts);
   }
 
@@ -211,7 +225,9 @@ class PlaywrightPageHandle implements CorePageHandle {
     return new PlaywrightLocatorHandle(this.page.locator(selector));
   }
 
-  private roleTarget(target: Extract<ActionTarget, { kind: "role_name" }>): Locator {
+  private roleTarget(
+    target: Extract<ActionTarget, { kind: "role_name" }>,
+  ): Locator {
     return this.page.getByRole(target.role as never, {
       name: target.name,
     });
@@ -221,7 +237,10 @@ class PlaywrightPageHandle implements CorePageHandle {
     return this.page.getByText(target.text);
   }
 
-  async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async click(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
@@ -249,11 +268,16 @@ class PlaywrightPageHandle implements CorePageHandle {
         await this.textTarget(target).click();
         return;
       default:
-        throw new Error(`playwright_code does not support click target kind "${target.kind}" yet`);
+        throw new Error(
+          `playwright_code does not support click target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async hover(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async hover(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
@@ -281,7 +305,9 @@ class PlaywrightPageHandle implements CorePageHandle {
         await this.textTarget(target).hover();
         return;
       default:
-        throw new Error(`playwright_code does not support hover target kind "${target.kind}" yet`);
+        throw new Error(
+          `playwright_code does not support hover target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -332,7 +358,9 @@ class PlaywrightPageHandle implements CorePageHandle {
         await this.page.keyboard.type(text);
         return;
       default:
-        throw new Error(`playwright_code does not support type target kind "${target.kind}" yet`);
+        throw new Error(
+          `playwright_code does not support type target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -375,7 +403,9 @@ class PlaywrightPageHandle implements CorePageHandle {
         await this.page.keyboard.press(key);
         return;
       default:
-        throw new Error(`playwright_code does not support press target kind "${target.kind}" yet`);
+        throw new Error(
+          `playwright_code does not support press target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -441,7 +471,9 @@ class PlaywrightSession implements CoreSession {
     if (this.activePageId) {
       const active = this.context
         .pages()
-        .find((candidate: Page) => this.wrap(candidate).id === this.activePageId);
+        .find(
+          (candidate: Page) => this.wrap(candidate).id === this.activePageId,
+        );
       if (active) return this.wrap(active);
     }
 
@@ -538,7 +570,9 @@ export class PlaywrightCodeTool implements CoreTool {
     "tool_attach_local_cdp",
     "tool_attach_browserbase",
   ];
-  readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
+  readonly supportedCapabilities: CoreCapability[] = [
+    ...SUPPORTED_CAPABILITIES,
+  ];
   readonly supportedTargetKinds: TargetKind[] = [
     "selector",
     "coords",
@@ -596,7 +630,8 @@ export class PlaywrightCodeTool implements CoreTool {
         await session.close();
       },
       metadata: {
-        environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
+        environment:
+          input.environment === "BROWSERBASE" ? "browserbase" : "local",
         browserOwnership: input.startupProfile.startsWith("runner_provided")
           ? "runner"
           : "tool",

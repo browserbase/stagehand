@@ -49,9 +49,7 @@ export function defineBenchTask(
  */
 export function defineTask(
   meta: TaskMeta | BenchTaskMeta,
-  fn: (
-    ctx: CoreTaskContext | BenchTaskContext,
-  ) => Promise<void | TaskResult>,
+  fn: (ctx: CoreTaskContext | BenchTaskContext) => Promise<void | TaskResult>,
 ): TaskDefinition {
   return {
     __taskDefinition: true,

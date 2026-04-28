@@ -84,11 +84,13 @@ export function readConfig(entryDir: string): ConfigFile {
       "code" in error &&
       error.code === "ENOENT"
     ) {
-      throw new Error(`Missing config file: ${configPath}`);
+      throw new Error(`Missing config file: ${configPath}`, { cause: error });
     }
 
     if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON in ${configPath}: ${error.message}`);
+      throw new Error(`Invalid JSON in ${configPath}: ${error.message}`, {
+        cause: error,
+      });
     }
 
     throw error;

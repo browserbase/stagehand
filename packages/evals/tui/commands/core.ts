@@ -57,9 +57,7 @@ export async function handleCore(
 
   if (sub === "set") {
     if (args.length < 3) {
-      console.error(
-        red("  Usage: config core set <tool|startup> <value>"),
-      );
+      console.error(red("  Usage: config core set <tool|startup> <value>"));
       process.exitCode = 1;
       return;
     }
@@ -81,9 +79,7 @@ export async function handleCore(
 }
 
 function printCoreUsage(): void {
-  console.log(
-    dim("  Usage: config core [set <k> <v>|reset [key]|path|setup]"),
-  );
+  console.log(dim("  Usage: config core [set <k> <v>|reset [key]|path|setup]"));
 }
 
 export function printCoreConfig(entryDir: string): void {
@@ -98,11 +94,7 @@ export function printCoreConfig(entryDir: string): void {
     `    ${cyan("startup")}  ${core.startup ?? gray("(inferred from tool + env)")}`,
   );
   console.log("");
-  console.log(
-    dim(
-      `  Config file: ${resolveConfigPath(entryDir)}`,
-    ),
-  );
+  console.log(dim(`  Config file: ${resolveConfigPath(entryDir)}`));
   console.log("");
 }
 
@@ -163,13 +155,9 @@ async function setCoreKey(
     const supported = tool.supportedStartupProfiles;
     if (!supported.includes(value as never)) {
       console.error(
-        red(
-          `  Tool "${toolSurface}" does not support startup "${value}".`,
-        ),
+        red(`  Tool "${toolSurface}" does not support startup "${value}".`),
       );
-      console.log(
-        dim(`  Supported: ${supported.join(", ")}`),
-      );
+      console.log(dim(`  Supported: ${supported.join(", ")}`));
       process.exitCode = 1;
       return;
     }

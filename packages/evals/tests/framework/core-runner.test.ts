@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -163,11 +164,13 @@ describe("core runner", () => {
     });
 
     expect(capturedProject).toBe("stagehand-core-dev");
-    expect(capturedScores[0]({
-      input: { name: "navigation/open", modelName: "openai/gpt-4.1-mini" },
-      output: { _success: true },
-      expected: true,
-    })).toEqual({
+    expect(
+      capturedScores[0]({
+        input: { name: "navigation/open", modelName: "openai/gpt-4.1-mini" },
+        output: { _success: true },
+        expected: true,
+      }),
+    ).toEqual({
       name: "Pass",
       score: 1,
     });

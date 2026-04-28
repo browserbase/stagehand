@@ -54,11 +54,7 @@ describe("resolveRunOptions", () => {
       "--agent-modes",
       "hybrid,cua",
     ]);
-    const resolved = resolveRunOptions(
-      flags,
-      { agentModes: ["cua"] },
-      {},
-    );
+    const resolved = resolveRunOptions(flags, { agentModes: ["cua"] }, {});
 
     expect(resolved.agentMode).toBe("dom");
     expect(resolved.agentModes).toBeUndefined();
@@ -96,16 +92,16 @@ describe("resolveRunOptions", () => {
     expect(resolved.envOverrides.EVAL_DATASET).toBe("webvoyager");
     expect(resolved.envOverrides.EVAL_WEBVOYAGER_LIMIT).toBe("5");
 
-    const webtailbench = applyBenchmarkShorthand("b:webtailbench", { limit: 2 });
+    const webtailbench = applyBenchmarkShorthand("b:webtailbench", {
+      limit: 2,
+    });
     expect(webtailbench.target).toBe("agent/webtailbench");
     expect(webtailbench.datasetFilter).toBe("webtailbench");
     expect(webtailbench.envOverrides.EVAL_WEBTAILBENCH_LIMIT).toBe("2");
   });
 
   it("marks GAIA as legacy-only in the unified runner", () => {
-    expect(() => applyBenchmarkShorthand("b:gaia", {})).toThrow(
-      /legacy-only/,
-    );
+    expect(() => applyBenchmarkShorthand("b:gaia", {})).toThrow(/legacy-only/);
   });
 
   it("does not advertise nonexistent WebBench", () => {

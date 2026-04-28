@@ -30,24 +30,21 @@ export async function prepareCoreBrowserTarget(input: {
         cleanup: target.cleanup,
       };
     }
-    case "runner_provided_browserbase_cdp":
-      {
-        const target = await launchRunnerProvidedBrowserbaseChrome();
-        return {
-          providedEndpoint: {
-            kind: "ws",
-            url: target.wsUrl,
-          },
-          metadata: {
-            browserbaseSessionId: target.sessionId,
-            browserbaseSessionUrl: target.sessionUrl,
-            ...(target.debugUrl
-              ? { browserbaseDebugUrl: target.debugUrl }
-              : {}),
-          },
-          cleanup: target.cleanup,
-        };
-      }
+    case "runner_provided_browserbase_cdp": {
+      const target = await launchRunnerProvidedBrowserbaseChrome();
+      return {
+        providedEndpoint: {
+          kind: "ws",
+          url: target.wsUrl,
+        },
+        metadata: {
+          browserbaseSessionId: target.sessionId,
+          browserbaseSessionUrl: target.sessionUrl,
+          ...(target.debugUrl ? { browserbaseDebugUrl: target.debugUrl } : {}),
+        },
+        cleanup: target.cleanup,
+      };
+    }
     default:
       return {
         cleanup: async () => {},

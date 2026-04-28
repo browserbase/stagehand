@@ -60,7 +60,7 @@ export async function runLegacy(
   process.on("SIGINT", () => forward("SIGINT"));
   process.on("SIGTERM", () => forward("SIGTERM"));
 
-  return new Promise<never>((_resolve) => {
+  return new Promise<never>(() => {
     child.on("exit", (code, signal) => {
       if (signal === "SIGINT") process.exit(130);
       if (signal === "SIGTERM") process.exit(143);

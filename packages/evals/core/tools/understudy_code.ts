@@ -11,7 +11,11 @@ import type {
   ToolStartInput,
   ToolStartResult,
 } from "../contracts/tool.js";
-import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
+import type {
+  ActionTarget,
+  TargetKind,
+  WaitSpec,
+} from "../contracts/targets.js";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
 
@@ -79,38 +83,46 @@ class UnderstudyPageHandle implements CorePageHandle {
 
   async goto(
     url: string,
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
+    opts?: {
+      waitUntil?: "load" | "domcontentloaded" | "networkidle";
+      timeoutMs?: number;
+    },
   ): Promise<void> {
     await this.page.goto(url, opts);
   }
 
-  async reload(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<void> {
+  async reload(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<void> {
     await this.page.reload(opts);
   }
 
-  async back(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async back(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return (await this.page.goBack(opts)) !== null;
   }
 
-  async goBack(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async goBack(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return this.back(opts);
   }
 
-  async forward(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async forward(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return (await this.page.goForward(opts)) !== null;
   }
 
-  async goForward(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async goForward(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return this.forward(opts);
   }
 
@@ -184,7 +196,10 @@ class UnderstudyPageHandle implements CorePageHandle {
     return new UnderstudyLocatorHandle(this.page.locator(selector));
   }
 
-  async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async click(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
@@ -206,11 +221,16 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.click(target.x, target.y);
         return;
       default:
-        throw new Error(`understudy_code does not support click target kind "${target.kind}" yet`);
+        throw new Error(
+          `understudy_code does not support click target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async hover(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async hover(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
@@ -232,7 +252,9 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.hover(target.x, target.y);
         return;
       default:
-        throw new Error(`understudy_code does not support hover target kind "${target.kind}" yet`);
+        throw new Error(
+          `understudy_code does not support hover target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -275,7 +297,9 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.type(text);
         return;
       default:
-        throw new Error(`understudy_code does not support type target kind "${target.kind}" yet`);
+        throw new Error(
+          `understudy_code does not support type target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -310,11 +334,15 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.keyPress(key);
         return;
       default:
-        throw new Error(`understudy_code does not support press target kind "${target.kind}" yet`);
+        throw new Error(
+          `understudy_code does not support press target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async represent(opts?: { includeIframes?: boolean }): Promise<PageRepresentation> {
+  async represent(opts?: {
+    includeIframes?: boolean;
+  }): Promise<PageRepresentation> {
     const snapshot = await this.page.snapshot({
       includeIframes: opts?.includeIframes,
     });
@@ -445,7 +473,9 @@ export class UnderstudyCodeTool implements CoreTool {
     "tool_create_browserbase",
     "tool_attach_browserbase",
   ];
-  readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
+  readonly supportedCapabilities: CoreCapability[] = [
+    ...SUPPORTED_CAPABILITIES,
+  ];
   readonly supportedTargetKinds: TargetKind[] = [
     "selector",
     "coords",
@@ -463,10 +493,11 @@ export class UnderstudyCodeTool implements CoreTool {
       logger: input.logger,
       modelName: "openai/gpt-4.1-mini",
       configOverrides: {
-        env: input.startupProfile.startsWith("runner_provided") ||
+        env:
+          input.startupProfile.startsWith("runner_provided") ||
           input.startupProfile === "tool_attach_browserbase"
-          ? "LOCAL"
-          : input.environment,
+            ? "LOCAL"
+            : input.environment,
         localBrowserLaunchOptions: {
           headless: true,
           ...(process.env.CHROME_PATH
@@ -486,8 +517,8 @@ export class UnderstudyCodeTool implements CoreTool {
         ...(input.startupProfile === "tool_create_browserbase" &&
         input.browserbase?.sessionParams
           ? {
-              browserbaseSessionCreateParams:
-                input.browserbase.sessionParams as never,
+              browserbaseSessionCreateParams: input.browserbase
+                .sessionParams as never,
             }
           : {}),
       },
@@ -501,7 +532,8 @@ export class UnderstudyCodeTool implements CoreTool {
         await session.close();
       },
       metadata: {
-        environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
+        environment:
+          input.environment === "BROWSERBASE" ? "browserbase" : "local",
         browserOwnership: input.startupProfile.startsWith("runner_provided")
           ? "runner"
           : "tool",

@@ -135,10 +135,7 @@ export async function runClaudeCodeAgent({
   }
 
   const messages: ClaudeSdkMessage[] = [];
-  const prompt = buildClaudeCodePrompt(
-    plan,
-    toolAdapter?.promptInstructions,
-  );
+  const prompt = buildClaudeCodePrompt(plan, toolAdapter?.promptInstructions);
   const allowedTools =
     toolAdapter?.allowedTools ??
     readCsvEnv("EVAL_CLAUDE_CODE_ALLOWED_TOOLS", ["WebFetch", "WebSearch"]);
@@ -214,7 +211,6 @@ export async function runClaudeCodeAgent({
     .filter(Boolean)
     .join("\n\n");
   const parsed = parseClaudeCodeResult(rawResult);
-  const isSdkError = resultMessage?.is_error === true;
   const status = resolveClaudeCodeStatus(resultMessage, iterationError);
   const stopReason = buildClaudeCodeStopReason(resultMessage, iterationError);
   const errorMessage =

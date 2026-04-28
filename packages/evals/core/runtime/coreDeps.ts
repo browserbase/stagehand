@@ -2,9 +2,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { getRepoRootDir } from "../../runtimePaths.js";
 
-type BrowserbaseConstructor = new (options: {
-  apiKey: string;
-}) => {
+type BrowserbaseConstructor = new (options: { apiKey: string }) => {
   sessions: {
     create: (payload: Record<string, unknown>) => Promise<unknown>;
     update: (
@@ -16,7 +14,10 @@ type BrowserbaseConstructor = new (options: {
 };
 
 type WsModule = {
-  new (url: string, options?: Record<string, unknown>): {
+  new (
+    url: string,
+    options?: Record<string, unknown>,
+  ): {
     on: (event: string, listener: (...args: unknown[]) => void) => void;
     once: (event: string, listener: (...args: unknown[]) => void) => void;
     send: (data: string, cb?: (error?: Error) => void) => void;

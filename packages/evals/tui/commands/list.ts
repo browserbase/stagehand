@@ -1,11 +1,4 @@
-import {
-  bold,
-  dim,
-  cyan,
-  gray,
-  bb,
-  separator,
-} from "../format.js";
+import { bold, dim, cyan, gray, bb, separator } from "../format.js";
 import type { TaskRegistry, Tier } from "../../framework/types.js";
 
 export function printList(
@@ -13,12 +6,10 @@ export function printList(
   tierFilter?: string,
   detailed = false,
 ): void {
-  if (
-    tierFilter &&
-    tierFilter !== "core" &&
-    tierFilter !== "bench"
-  ) {
-    throw new Error(`Unknown list filter "${tierFilter}". Use "core" or "bench".`);
+  if (tierFilter && tierFilter !== "core" && tierFilter !== "bench") {
+    throw new Error(
+      `Unknown list filter "${tierFilter}". Use "core" or "bench".`,
+    );
   }
 
   const tiers: Tier[] = tierFilter
@@ -42,9 +33,7 @@ export function printList(
     }
 
     for (const [category, names] of byCategory) {
-      console.log(
-        `\n    ${cyan(bold(category))} ${gray(`(${names.length})`)}`,
-      );
+      console.log(`\n    ${cyan(bold(category))} ${gray(`(${names.length})`)}`);
       const limit = detailed ? names.length : 15;
       for (const name of names.slice(0, limit)) {
         console.log(`      ${dim("•")} ${name}`);

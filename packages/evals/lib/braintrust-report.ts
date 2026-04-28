@@ -118,14 +118,12 @@ export type ExperimentEvent = {
   span_parents?: string[] | null;
   is_root?: boolean;
   input?: { name?: string; [key: string]: unknown } | string | null;
-  output?:
-    | {
-        _success?: boolean;
-        error?: unknown;
-        metrics?: Record<string, EventMetric>;
-        [key: string]: unknown;
-      }
-    | null;
+  output?: {
+    _success?: boolean;
+    error?: unknown;
+    metrics?: Record<string, EventMetric>;
+    [key: string]: unknown;
+  } | null;
   scores?: Record<string, number | null | undefined>;
   metrics?: Record<string, EventMetric>;
   metadata?: Record<string, unknown>;
@@ -345,11 +343,8 @@ async function getBraintrustState(
   apiKey: string,
   options: FetchOptions,
 ): Promise<BraintrustState> {
-  return cachePromise(
-    stateCache,
-    apiKey,
-    shouldCache(options),
-    () => loginBraintrust(apiKey),
+  return cachePromise(stateCache, apiKey, shouldCache(options), () =>
+    loginBraintrust(apiKey),
   );
 }
 
@@ -417,13 +412,6 @@ function readString(
   key: string,
 ): string | undefined {
   return stringValue(record?.[key]);
-}
-
-function readNumber(
-  record: Record<string, unknown> | undefined,
-  key: string,
-): number | undefined {
-  return numberValue(record?.[key]);
 }
 
 function readBoolean(
@@ -526,10 +514,8 @@ export function extractMetricValue(raw: unknown): number | undefined {
     const obj = raw as Record<string, number | undefined>;
     if (typeof obj.value === "number" && Number.isFinite(obj.value))
       return obj.value;
-    if (typeof obj.avg === "number" && Number.isFinite(obj.avg))
-      return obj.avg;
-    if (typeof obj.p50 === "number" && Number.isFinite(obj.p50))
-      return obj.p50;
+    if (typeof obj.avg === "number" && Number.isFinite(obj.avg)) return obj.avg;
+    if (typeof obj.p50 === "number" && Number.isFinite(obj.p50)) return obj.p50;
   }
   return undefined;
 }
@@ -678,7 +664,11 @@ export function extractBenchCases(events: ExperimentEvent[]): BenchCaseRow[] {
       "bench",
     )!;
     const taskName = firstString(metadataTest, inputName, suite)!;
-    const dataset = deriveDataset(readString(metadata, "dataset"), suite, taskName);
+    const dataset = deriveDataset(
+      readString(metadata, "dataset"),
+      suite,
+      taskName,
+    );
     const taskId = firstString(
       readString(metadata, "task_id"),
       readString(params, "task_id"),
@@ -777,15 +767,16 @@ export function extractBenchCases(events: ExperimentEvent[]): BenchCaseRow[] {
     });
   }
 
-  cases.sort((a, b) =>
-    [
-      a.suite.localeCompare(b.suite),
-      (a.dataset ?? "").localeCompare(b.dataset ?? ""),
-      (a.taskId ?? "").localeCompare(b.taskId ?? ""),
-      (a.model ?? "").localeCompare(b.model ?? ""),
-      (a.agentMode ?? "").localeCompare(b.agentMode ?? ""),
-      a.trial - b.trial,
-    ].find((value) => value !== 0) ?? 0,
+  cases.sort(
+    (a, b) =>
+      [
+        a.suite.localeCompare(b.suite),
+        (a.dataset ?? "").localeCompare(b.dataset ?? ""),
+        (a.taskId ?? "").localeCompare(b.taskId ?? ""),
+        (a.model ?? "").localeCompare(b.model ?? ""),
+        (a.agentMode ?? "").localeCompare(b.agentMode ?? ""),
+        a.trial - b.trial,
+      ].find((value) => value !== 0) ?? 0,
   );
   return cases;
 }
@@ -917,7 +908,8 @@ async function fetchExperimentDataForRow(
       ? benchCases.filter((benchCase) => benchCase.success).length
       : tasks.filter((task) => task.success).length;
   const totalTasks = mode === "bench" ? benchCases.length : tasks.length;
-  const computedPassScore = totalTasks > 0 ? passedTasks / totalTasks : passScore;
+  const computedPassScore =
+    totalTasks > 0 ? passedTasks / totalTasks : passScore;
 
   const experimentUrl = buildExperimentUrl(
     state.appPublicUrl,
@@ -953,18 +945,12 @@ async function fetchRecentExperimentDataForRow(
   cacheScope: string,
   options: FetchOptions,
 ): Promise<RecentExperimentData> {
-  let comparison: ExperimentComparison | null = null;
-
-  try {
-    comparison = await fetchExperimentComparison(
-      state,
-      experiment.id,
-      cacheScope,
-      options,
-    );
-  } catch {
-    comparison = null;
-  }
+  const comparison = await fetchExperimentComparison(
+    state,
+    experiment.id,
+    cacheScope,
+    options,
+  ).catch((): ExperimentComparison | null => null);
 
   return {
     experimentName: experiment.name,
@@ -1035,34 +1021,30 @@ export async function fetchManyExperimentData(
   const apiKey = resolveApiKey(options.apiKey);
   const state = await getBraintrustState(apiKey, options);
   const cacheScope = braintrustCacheScope(apiKey, state);
-  return mapWithConcurrency(
-    inputs,
-    options.fetchConcurrency,
-    async (input) => {
-      const resolvedProject = input.project ?? project;
-      const experiment = await lookupExperiment(
-        state,
-        resolvedProject,
-        input.experiment,
-        cacheScope,
-        options,
+  return mapWithConcurrency(inputs, options.fetchConcurrency, async (input) => {
+    const resolvedProject = input.project ?? project;
+    const experiment = await lookupExperiment(
+      state,
+      resolvedProject,
+      input.experiment,
+      cacheScope,
+      options,
+    );
+    if (!experiment) {
+      throw new Error(
+        `Experiment "${input.experiment}" not found in project "${resolvedProject}"`,
       );
-      if (!experiment) {
-        throw new Error(
-          `Experiment "${input.experiment}" not found in project "${resolvedProject}"`,
-        );
-      }
-      return fetchExperimentDataForRow(
-        state,
-        resolvedProject,
-        experiment,
-        input.label,
-        apiKey,
-        cacheScope,
-        options,
-      );
-    },
-  );
+    }
+    return fetchExperimentDataForRow(
+      state,
+      resolvedProject,
+      experiment,
+      input.label,
+      apiKey,
+      cacheScope,
+      options,
+    );
+  });
 }
 
 export async function listRecentExperiments(
@@ -1087,17 +1069,14 @@ export async function listRecentExperiments(
     },
   );
 
-  return mapWithConcurrency(
-    rows,
-    options.fetchConcurrency,
-    (experiment) =>
-      fetchRecentExperimentDataForRow(
-        state,
-        project,
-        experiment,
-        cacheScope,
-        options,
-      ),
+  return mapWithConcurrency(rows, options.fetchConcurrency, (experiment) =>
+    fetchRecentExperimentDataForRow(
+      state,
+      project,
+      experiment,
+      cacheScope,
+      options,
+    ),
   );
 }
 
@@ -1195,43 +1174,39 @@ export async function resolveExperimentProjectsAcrossProjects(
   const state = await getBraintrustState(apiKey, options);
   const cacheScope = braintrustCacheScope(apiKey, state);
 
-  return mapWithConcurrency(
-    inputs,
-    options.fetchConcurrency,
-    async (input) => {
-      const searchProjects = input.project ? [input.project] : projects;
-      const matches: ResolvedExperimentProject[] = [];
+  return mapWithConcurrency(inputs, options.fetchConcurrency, async (input) => {
+    const searchProjects = input.project ? [input.project] : projects;
+    const matches: ResolvedExperimentProject[] = [];
 
-      for (const project of searchProjects) {
-        const found = await lookupExperiment(
-          state,
-          project,
-          input.experiment,
-          cacheScope,
-          options,
-        );
-        if (!found) continue;
-        matches.push({
-          projectName: project,
-          experimentId: found.id,
-          experimentName: found.name,
-        });
-      }
+    for (const project of searchProjects) {
+      const found = await lookupExperiment(
+        state,
+        project,
+        input.experiment,
+        cacheScope,
+        options,
+      );
+      if (!found) continue;
+      matches.push({
+        projectName: project,
+        experimentId: found.id,
+        experimentName: found.name,
+      });
+    }
 
-      if (matches.length === 0) {
-        throw new Error(
-          `Experiment "${input.experiment}" not found in ${searchProjects.join(", ")}.`,
-        );
-      }
-      if (matches.length > 1) {
-        throw new Error(
-          `Experiment "${input.experiment}" is ambiguous across ${searchProjects.join(", ")}. Add --project or use an unambiguous experiment id.`,
-        );
-      }
+    if (matches.length === 0) {
+      throw new Error(
+        `Experiment "${input.experiment}" not found in ${searchProjects.join(", ")}.`,
+      );
+    }
+    if (matches.length > 1) {
+      throw new Error(
+        `Experiment "${input.experiment}" is ambiguous across ${searchProjects.join(", ")}. Add --project or use an unambiguous experiment id.`,
+      );
+    }
 
-      return matches[0];
-    },
-  );
+    return matches[0];
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1293,9 +1268,13 @@ export function detectCompareMode(rows: ExperimentData[]): ExperimentMode {
 export function sharedBenchCaseKeys(rows: ExperimentData[]): string[] {
   if (rows.length === 0) return [];
   const [first, ...rest] = rows;
-  const initial = new Set((first.benchCases ?? []).map((benchCase) => benchCase.key));
+  const initial = new Set(
+    (first.benchCases ?? []).map((benchCase) => benchCase.key),
+  );
   for (const row of rest) {
-    const keys = new Set((row.benchCases ?? []).map((benchCase) => benchCase.key));
+    const keys = new Set(
+      (row.benchCases ?? []).map((benchCase) => benchCase.key),
+    );
     for (const key of [...initial]) {
       if (!keys.has(key)) initial.delete(key);
     }
@@ -1316,39 +1295,37 @@ export function benchCaseDiffs(rows: ExperimentData[]): BenchCaseDiff[] {
     }
   }
 
-  return [...keys]
-    .sort()
-    .map((key) => {
-      const template = caseByKey.get(key)!;
-      const outcomes = rows.map((row) => {
-        const benchCase = (row.benchCases ?? []).find(
-          (candidate) => candidate.key === key,
-        );
-        return {
-          label: row.label,
-          project: row.projectName,
-          passed: benchCase ? benchCase.success : null,
-          durationMs: benchCase?.durationMs ?? null,
-        };
-      });
-      const availableOutcomes = outcomes
-        .map((outcome) => outcome.passed)
-        .filter((value): value is boolean => value !== null);
+  return [...keys].sort().map((key) => {
+    const template = caseByKey.get(key)!;
+    const outcomes = rows.map((row) => {
+      const benchCase = (row.benchCases ?? []).find(
+        (candidate) => candidate.key === key,
+      );
       return {
-        key,
-        suite: template.suite,
-        dataset: template.dataset,
-        taskId: template.taskId,
-        taskName: template.taskName,
-        model: template.model,
-        agentMode: template.agentMode,
-        website: template.website,
-        category: template.category,
-        outcomes,
-        differs: new Set(availableOutcomes).size > 1,
-        missing: outcomes.some((outcome) => outcome.passed === null),
+        label: row.label,
+        project: row.projectName,
+        passed: benchCase ? benchCase.success : null,
+        durationMs: benchCase?.durationMs ?? null,
       };
     });
+    const availableOutcomes = outcomes
+      .map((outcome) => outcome.passed)
+      .filter((value): value is boolean => value !== null);
+    return {
+      key,
+      suite: template.suite,
+      dataset: template.dataset,
+      taskId: template.taskId,
+      taskName: template.taskName,
+      model: template.model,
+      agentMode: template.agentMode,
+      website: template.website,
+      category: template.category,
+      outcomes,
+      differs: new Set(availableOutcomes).size > 1,
+      missing: outcomes.some((outcome) => outcome.passed === null),
+    };
+  });
 }
 
 export function summarizeBenchCases(
@@ -1409,7 +1386,9 @@ function agentConfigLabel(benchCase: BenchCaseRow): string {
   return parts.length > 0 ? parts.join(" / ") : "default";
 }
 
-function aggregateCaseMetrics(cases: BenchCaseRow[]): Record<string, MetricAggregate> {
+function aggregateCaseMetrics(
+  cases: BenchCaseRow[],
+): Record<string, MetricAggregate> {
   const buckets: Record<string, number[]> = {};
   for (const benchCase of cases) {
     for (const [key, value] of Object.entries(benchCase.metrics)) {

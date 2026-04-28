@@ -29,8 +29,7 @@ export function printResultsTable(results: SummaryResult[]): void {
     byTask.set(r.name, existing);
   }
 
-  const { taskWidth, modelWidth, resultWidth, summaryWidth } =
-    getResultsLayout();
+  const { taskWidth, modelWidth, resultWidth } = getResultsLayout();
 
   console.log(separator());
   console.log(
@@ -46,9 +45,7 @@ export function printResultsTable(results: SummaryResult[]): void {
         r.output._success ? "✓ pass" : "✗ fail",
         resultWidth,
       );
-      const result = r.output._success
-        ? green(resultLabel)
-        : red(resultLabel);
+      const result = r.output._success ? green(resultLabel) : red(resultLabel);
       console.log(
         `  ${padRight(name, taskWidth)} ${dim(padRight(r.input.modelName, modelWidth))} ${result}`,
       );

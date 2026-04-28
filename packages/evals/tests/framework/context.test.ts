@@ -15,9 +15,9 @@ describe("resolveDefaultCoreStartupProfile", () => {
     expect(resolveDefaultCoreStartupProfile("playwright_mcp", "LOCAL")).toBe(
       "runner_provided_local_cdp",
     );
-    expect(resolveDefaultCoreStartupProfile("chrome_devtools_mcp", "LOCAL")).toBe(
-      "runner_provided_local_cdp",
-    );
+    expect(
+      resolveDefaultCoreStartupProfile("chrome_devtools_mcp", "LOCAL"),
+    ).toBe("runner_provided_local_cdp");
   });
 
   it("uses tool launch for browse_cli in LOCAL", () => {
@@ -27,21 +27,21 @@ describe("resolveDefaultCoreStartupProfile", () => {
   });
 
   it("uses runner-provided Browserbase CDP for code surfaces in BROWSERBASE", () => {
-    expect(resolveDefaultCoreStartupProfile("understudy_code", "BROWSERBASE")).toBe(
-      "runner_provided_browserbase_cdp",
-    );
-    expect(resolveDefaultCoreStartupProfile("playwright_code", "BROWSERBASE")).toBe(
-      "runner_provided_browserbase_cdp",
-    );
+    expect(
+      resolveDefaultCoreStartupProfile("understudy_code", "BROWSERBASE"),
+    ).toBe("runner_provided_browserbase_cdp");
+    expect(
+      resolveDefaultCoreStartupProfile("playwright_code", "BROWSERBASE"),
+    ).toBe("runner_provided_browserbase_cdp");
     expect(resolveDefaultCoreStartupProfile("cdp_code", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
     );
-    expect(resolveDefaultCoreStartupProfile("playwright_mcp", "BROWSERBASE")).toBe(
-      "runner_provided_browserbase_cdp",
-    );
-    expect(resolveDefaultCoreStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(
-      "runner_provided_browserbase_cdp",
-    );
+    expect(
+      resolveDefaultCoreStartupProfile("playwright_mcp", "BROWSERBASE"),
+    ).toBe("runner_provided_browserbase_cdp");
+    expect(
+      resolveDefaultCoreStartupProfile("chrome_devtools_mcp", "BROWSERBASE"),
+    ).toBe("runner_provided_browserbase_cdp");
   });
 
   it("uses native Browserbase creation for browse_cli in BROWSERBASE", () => {

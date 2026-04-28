@@ -9,7 +9,11 @@ import type {
   ToolStartResult,
 } from "../contracts/tool.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
-import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
+import type {
+  ActionTarget,
+  TargetKind,
+  WaitSpec,
+} from "../contracts/targets.js";
 import { loadWsModule } from "../runtime/coreDeps.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -160,9 +164,7 @@ class CdpConnection {
       reject: (error: Error) => void;
     }
   >();
-  private readonly eventListeners = new Set<
-    (event: CdpEventMessage) => void
-  >();
+  private readonly eventListeners = new Set<(event: CdpEventMessage) => void>();
   private readonly ws: {
     on: (event: string, listener: (...args: unknown[]) => void) => void;
     once: (event: string, listener: (...args: unknown[]) => void) => void;
@@ -172,14 +174,12 @@ class CdpConnection {
   private nextId = 0;
   private closed = false;
 
-  private constructor(
-    ws: {
-      on: (event: string, listener: (...args: unknown[]) => void) => void;
-      once: (event: string, listener: (...args: unknown[]) => void) => void;
-      send: (data: string, cb?: (error?: Error) => void) => void;
-      close: () => void;
-    },
-  ) {
+  private constructor(ws: {
+    on: (event: string, listener: (...args: unknown[]) => void) => void;
+    once: (event: string, listener: (...args: unknown[]) => void) => void;
+    send: (data: string, cb?: (error?: Error) => void) => void;
+    close: () => void;
+  }) {
     this.ws = ws;
     this.ws.on("message", (data: unknown) => {
       this.handleMessage(data);
@@ -209,7 +209,10 @@ class CdpConnection {
       send: (data: string, cb?: (error?: Error) => void) => void;
       close: () => void;
     }>((resolve, reject) => {
-      const socket = new WebSocket(wsUrl, input.headers ? { headers: input.headers } : {});
+      const socket = new WebSocket(
+        wsUrl,
+        input.headers ? { headers: input.headers } : {},
+      );
       socket.once("open", () => resolve(socket));
       socket.once("error", (error: unknown) => {
         reject(error instanceof Error ? error : new Error(String(error)));
@@ -364,46 +367,50 @@ class CdpPageHandle implements CorePageHandle {
 
   async goto(
     url: string,
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
+    opts?: {
+      waitUntil?: "load" | "domcontentloaded" | "networkidle";
+      timeoutMs?: number;
+    },
   ): Promise<void> {
-    await this.connection.send(
-      "Page.navigate",
-      { url },
-      this.state.sessionId,
-    );
+    await this.connection.send("Page.navigate", { url }, this.state.sessionId);
     await this.waitForReadyState(opts?.waitUntil ?? "load", opts?.timeoutMs);
     await this.refreshUrl();
   }
 
-  async reload(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<void> {
+  async reload(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<void> {
     await this.connection.send("Page.reload", {}, this.state.sessionId);
     await this.waitForReadyState(opts?.waitUntil ?? "load", opts?.timeoutMs);
     await this.refreshUrl();
   }
 
-  async back(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async back(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return this.navigateHistory(-1, opts);
   }
 
-  async forward(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async forward(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return this.navigateHistory(1, opts);
   }
 
-  async goBack(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async goBack(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return this.back(opts);
   }
 
-  async goForward(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async goForward(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return this.forward(opts);
   }
 
@@ -415,7 +422,10 @@ class CdpPageHandle implements CorePageHandle {
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
   ): Promise<R> {
-    const expression = buildCdpEvaluationExpression(pageFunctionOrExpression, arg);
+    const expression = buildCdpEvaluationExpression(
+      pageFunctionOrExpression,
+      arg,
+    );
 
     const response = (await this.connection.send(
       "Runtime.evaluate",
@@ -545,7 +555,10 @@ class CdpPageHandle implements CorePageHandle {
     return new CdpLocatorHandle(this, selector);
   }
 
-  async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async click(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
@@ -569,11 +582,16 @@ class CdpPageHandle implements CorePageHandle {
         await this.dispatchMouseClick(target.x, target.y);
         return;
       default:
-        throw new Error(`cdp_code does not support click target kind "${target.kind}" yet`);
+        throw new Error(
+          `cdp_code does not support click target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async hover(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async hover(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
@@ -597,7 +615,9 @@ class CdpPageHandle implements CorePageHandle {
         await this.dispatchMouseMove(target.x, target.y);
         return;
       default:
-        throw new Error(`cdp_code does not support hover target kind "${target.kind}" yet`);
+        throw new Error(
+          `cdp_code does not support hover target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -652,7 +672,9 @@ class CdpPageHandle implements CorePageHandle {
         await this.insertText(text);
         return;
       default:
-        throw new Error(`cdp_code does not support type target kind "${target.kind}" yet`);
+        throw new Error(
+          `cdp_code does not support type target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -687,7 +709,9 @@ class CdpPageHandle implements CorePageHandle {
         await this.dispatchKey(key);
         return;
       default:
-        throw new Error(`cdp_code does not support press target kind "${target.kind}" yet`);
+        throw new Error(
+          `cdp_code does not support press target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -730,7 +754,9 @@ class CdpPageHandle implements CorePageHandle {
       const rect = first.getBoundingClientRect();
       const style = window.getComputedStyle(first);
       const visible =
-        (rect.width > 0 || rect.height > 0 || first.getClientRects().length > 0) &&
+        (rect.width > 0 ||
+          rect.height > 0 ||
+          first.getClientRects().length > 0) &&
         style.visibility !== "hidden" &&
         style.display !== "none";
 
@@ -740,10 +766,7 @@ class CdpPageHandle implements CorePageHandle {
         count: matches.length,
         visible,
         textContent: first.textContent,
-        value:
-          typeof inputLike.value === "string"
-            ? inputLike.value
-            : "",
+        value: typeof inputLike.value === "string" ? inputLike.value : "",
         center: {
           x: rect.left + rect.width / 2,
           y: rect.top + rect.height / 2,
@@ -754,7 +777,13 @@ class CdpPageHandle implements CorePageHandle {
 
   async fillSelector(selector: string, value: string): Promise<void> {
     const filled = await this.evaluate(
-      ({ rawSelector, nextValue }: { rawSelector: string; nextValue: string }) => {
+      ({
+        rawSelector,
+        nextValue,
+      }: {
+        rawSelector: string;
+        nextValue: string;
+      }) => {
         function queryOne(selectorInput: string): HTMLElement | null {
           if (selectorInput.startsWith("xpath=")) {
             const expression = selectorInput.slice("xpath=".length);
@@ -792,7 +821,10 @@ class CdpPageHandle implements CorePageHandle {
 
   private async navigateHistory(
     delta: -1 | 1,
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
+    opts?: {
+      waitUntil?: "load" | "domcontentloaded" | "networkidle";
+      timeoutMs?: number;
+    },
   ): Promise<boolean> {
     const history = (await this.connection.send(
       "Page.getNavigationHistory",
@@ -1041,11 +1073,7 @@ class CdpSession implements CoreSession {
     if (!state) {
       throw new Error(`Unknown page id "${pageId}"`);
     }
-    await this.connection.send(
-      "Page.bringToFront",
-      {},
-      state.sessionId,
-    );
+    await this.connection.send("Page.bringToFront", {}, state.sessionId);
     this.activePageId = pageId;
   }
 
@@ -1054,7 +1082,9 @@ class CdpSession implements CoreSession {
     if (!state) {
       throw new Error(`Unknown page id "${pageId}"`);
     }
-    await this.connection.send("Target.closeTarget", { targetId: state.targetId });
+    await this.connection.send("Target.closeTarget", {
+      targetId: state.targetId,
+    });
     this.pages.delete(pageId);
     if (this.activePageId === pageId) {
       this.activePageId = this.pages.keys().next().value ?? null;
@@ -1179,7 +1209,9 @@ export class CdpCodeTool implements CoreTool {
     "tool_attach_local_cdp",
     "tool_attach_browserbase",
   ];
-  readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
+  readonly supportedCapabilities: CoreCapability[] = [
+    ...SUPPORTED_CAPABILITIES,
+  ];
   readonly supportedTargetKinds: TargetKind[] = [
     "selector",
     "coords",
@@ -1203,7 +1235,8 @@ export class CdpCodeTool implements CoreTool {
         await session.close();
       },
       metadata: {
-        environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
+        environment:
+          input.environment === "BROWSERBASE" ? "browserbase" : "local",
         browserOwnership: input.startupProfile.startsWith("runner_provided")
           ? "runner"
           : "tool",

@@ -98,8 +98,8 @@ describe("experiments compare", () => {
   });
 
   it("passes the headless default output path to the renderer", async () => {
-    spawnMock.mockImplementation(
-      (_command: string, args: string[]) => makeChildProcess(args),
+    spawnMock.mockImplementation((_command: string, args: string[]) =>
+      makeChildProcess(args),
     );
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 

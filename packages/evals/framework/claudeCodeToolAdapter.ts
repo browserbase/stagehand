@@ -5,10 +5,7 @@ import path from "node:path";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { getRepoRootDir } from "../runtimePaths.js";
-import type {
-  StartupProfile,
-  ToolSurface,
-} from "../core/contracts/tool.js";
+import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 
 export interface ClaudeCodeToolAdapterInput {
@@ -55,6 +52,7 @@ const BROWSER_SKILL_SOURCE = path.join(
   "browser",
   "SKILL.md",
 );
+const ALLOW_UNSANDBOXED_LOCAL_ENV = "EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL";
 
 export interface BrowseCliToolMetadata {
   toolCommand: "browse";
@@ -68,6 +66,14 @@ export function getBrowseCliToolMetadata(): BrowseCliToolMetadata {
     browseCliEntrypoint: BROWSE_CLI_ENTRYPOINT,
     ...readBrowseCliVersion(),
   };
+}
+
+export function allowUnsandboxedLocalClaudeCode(): boolean {
+  return process.env[ALLOW_UNSANDBOXED_LOCAL_ENV] === "true";
+}
+
+export function getBrowseCliAllowedTools(): string[] {
+  return allowUnsandboxedLocalClaudeCode() ? ["Skill", "Bash"] : ["Skill"];
 }
 
 export async function prepareClaudeCodeToolAdapter(
@@ -174,20 +180,30 @@ async function prepareBrowseCliAdapter(
   );
 
   await runBrowseSetup(wrapperPath, input.environment, input.logger, env, cwd);
+  if (allowUnsandboxedLocalClaudeCode()) {
+    input.logger.warn({
+      category: "claude_code",
+      message: `${ALLOW_UNSANDBOXED_LOCAL_ENV}=true: raw Bash auto-approval is enabled for Claude Code. Use only in an isolated checkout/container.`,
+      level: 0,
+    });
+  }
 
   return {
     toolSurface: "browse_cli",
     startupProfile: input.startupProfile,
     cwd,
     env,
-    allowedTools: ["Skill", "Bash"],
+    allowedTools: getBrowseCliAllowedTools(),
     settingSources: ["project"],
     canUseTool: async (toolName, commandInput) => {
       if (toolName === "Skill") {
         return { behavior: "allow", updatedInput: commandInput };
       }
       if (toolName !== "Bash") {
-        return { behavior: "deny", message: "Only Skill and Bash are allowed." };
+        return {
+          behavior: "deny",
+          message: "Only Skill and Bash are allowed.",
+        };
       }
 
       const command = readCommand(commandInput);
@@ -251,6 +267,7 @@ export async function installBrowserSkill(cwd: string): Promise<void> {
 
 export function isAllowedBrowseCommand(command: string): boolean {
   const trimmed = command.trim();
+  if (/[\r\n]/.test(trimmed)) return false;
   if (trimmed !== "browse" && !trimmed.startsWith("browse ")) return false;
   return !/[;&|`$<>]/.test(trimmed);
 }

@@ -1,1 +1,2 @@
-../lib/node_modules/@browserbasehq/stagehand-evals/dist/cli/cli.js
+#!/usr/bin/env node
+import "../dist/cli/cli.js";

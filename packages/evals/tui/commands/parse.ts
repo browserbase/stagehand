@@ -378,17 +378,14 @@ export function resolveRunOptions(
     target,
     datasetFilter: shorthandDatasetFilter,
     envOverrides,
-  } = applyBenchmarkShorthand(
-    flags.target,
-    flags,
-  );
+  } = applyBenchmarkShorthand(flags.target, flags);
 
-  const model = flags.model ?? defaults.model ?? env.EVAL_MODEL_OVERRIDE ?? undefined;
-  const provider = flags.provider ?? defaults.provider ?? env.EVAL_PROVIDER ?? undefined;
+  const model =
+    flags.model ?? defaults.model ?? env.EVAL_MODEL_OVERRIDE ?? undefined;
+  const provider =
+    flags.provider ?? defaults.provider ?? env.EVAL_PROVIDER ?? undefined;
   const useApi =
-    flags.api ??
-    defaults.api ??
-    ((env.USE_API ?? "").toLowerCase() === "true");
+    flags.api ?? defaults.api ?? (env.USE_API ?? "").toLowerCase() === "true";
   const trials =
     flags.trials ??
     readPositiveInteger(defaults.trials, "defaults.trials") ??
@@ -407,7 +404,7 @@ export function resolveRunOptions(
     : undefined;
   const agentModes = agentMode
     ? undefined
-    : flags.agentModes ?? defaults.agentModes ?? undefined;
+    : (flags.agentModes ?? defaults.agentModes ?? undefined);
 
   envOverrides.EVAL_ENV = environment;
   envOverrides.USE_API = String(Boolean(useApi));

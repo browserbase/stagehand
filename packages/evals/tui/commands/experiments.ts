@@ -64,7 +64,12 @@ type ResolvedCompareInput = ExperimentInput & ResolvedExperimentProject;
 export async function handleExperiments(args: string[]): Promise<void> {
   const [subcommand, ...rest] = args;
 
-  if (!subcommand || subcommand === "help" || subcommand === "-h" || subcommand === "--help") {
+  if (
+    !subcommand ||
+    subcommand === "help" ||
+    subcommand === "-h" ||
+    subcommand === "--help"
+  ) {
     const { printExperimentsHelp } = await import("./help.js");
     printExperimentsHelp();
     return;
@@ -114,9 +119,7 @@ export async function handleExperiments(args: string[]): Promise<void> {
 
 async function handleList(args: string[]): Promise<void> {
   const options = parseListArgs(args);
-  const projects = options.project
-    ? [options.project]
-    : DEFAULT_LIST_PROJECTS;
+  const projects = options.project ? [options.project] : DEFAULT_LIST_PROJECTS;
 
   const rows: Array<{
     project: string;
@@ -151,7 +154,9 @@ async function handleList(args: string[]): Promise<void> {
       ...section.experiments.map((e) => e.experimentName.length),
     );
     for (const experiment of section.experiments) {
-      const relative = dim(padRight(formatRelativeTime(experiment.createdAt), 10));
+      const relative = dim(
+        padRight(formatRelativeTime(experiment.createdAt), 10),
+      );
       const name = padRight(experiment.experimentName, nameWidth);
       const passRate =
         experiment.passScore !== undefined
@@ -182,14 +187,16 @@ async function handleShow(args: string[]): Promise<void> {
 
   console.log(`\n  ${bold("Experiment:")} ${experiment.experimentName}`);
   console.log(`  ${bold("Project:")} ${experiment.projectName}`);
-  console.log(`  ${bold("Created:")} ${experiment.createdAt ?? gray("unknown")}`);
   console.log(
-    `  ${bold("Pass rate:")} ${formatPassRate(experiment, false)}`,
+    `  ${bold("Created:")} ${experiment.createdAt ?? gray("unknown")}`,
   );
+  console.log(`  ${bold("Pass rate:")} ${formatPassRate(experiment, false)}`);
   console.log(
     `  ${bold(experiment.mode === "bench" ? "Cases:" : "Tasks:")} ${experiment.passedTasks}/${experiment.totalTasks}`,
   );
-  console.log(`  ${bold("Duration:")} ${formatSeconds(experiment.durationSeconds)}`);
+  console.log(
+    `  ${bold("Duration:")} ${formatSeconds(experiment.durationSeconds)}`,
+  );
   console.log(`  ${bold("URL:")} ${experiment.experimentUrl}`);
   console.log("");
 }
@@ -208,7 +215,9 @@ async function handleOpen(args: string[]): Promise<void> {
 async function handleCompare(args: string[]): Promise<void> {
   const options = parseCompareArgs(args);
   const resolvedInputs = await resolveCompareInputs(options);
-  const projects = [...new Set(resolvedInputs.map((input) => input.projectName))];
+  const projects = [
+    ...new Set(resolvedInputs.map((input) => input.projectName)),
+  ];
   const projectLabel =
     projects.length === 1 ? projects[0] : `mixed (${projects.join(", ")})`;
   const scriptPath = path.join(
@@ -338,7 +347,9 @@ function parseShowArgs(args: string[]): ShowOptions {
   }
 
   if (positional.length !== 1) {
-    throw new Error("Usage: experiments show <experiment> [--project <name>] [--json]");
+    throw new Error(
+      "Usage: experiments show <experiment> [--project <name>] [--json]",
+    );
   }
 
   return { project, json, experiment: positional[0] };
@@ -417,7 +428,9 @@ function parseExperimentSpec(raw: string): ExperimentInput {
   const left = raw.slice(0, eqIdx).trim();
   const right = raw.slice(eqIdx + 1).trim();
   if (!left || !right) {
-    throw new Error(`Invalid experiment spec "${raw}". Use <id> or <label>=<id>.`);
+    throw new Error(
+      `Invalid experiment spec "${raw}". Use <id> or <label>=<id>.`,
+    );
   }
   if (looksLikeExperimentId(right) && !looksLikeExperimentId(left)) {
     return { label: left, experiment: right };
@@ -430,8 +443,9 @@ function parseExperimentSpec(raw: string): ExperimentInput {
 
 function looksLikeExperimentId(value: string): boolean {
   return (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ||
-    /^[a-z][a-z0-9_-]*-[a-f0-9]{4,}$/i.test(value)
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    ) || /^[a-z][a-z0-9_-]*-[a-f0-9]{4,}$/i.test(value)
   );
 }
 
@@ -461,10 +475,7 @@ function formatExperimentArg(input: ResolvedCompareInput): string {
   return `${input.label}=${input.experiment}`;
 }
 
-function formatPassRate(
-  experiment: ExperimentData,
-  color = true,
-): string {
+function formatPassRate(experiment: ExperimentData, color = true): string {
   const pct = `${(experiment.passScore * 100).toFixed(1)}%`;
   if (!color) return pct;
   if (experiment.passScore >= 0.8) return green(pct);
@@ -490,7 +501,9 @@ function renderHeadlessCompareSummary(
   if (!fs.existsSync(dataPath)) {
     throw new Error(`Compare data file was not written: ${dataPath}`);
   }
-  const rows = JSON.parse(fs.readFileSync(dataPath, "utf8")) as ExperimentData[];
+  const rows = JSON.parse(
+    fs.readFileSync(dataPath, "utf8"),
+  ) as ExperimentData[];
   const mode = detectCompareMode(rows);
   const leaderIndex = rows.length > 1 ? findLeaderIndex(rows) : -1;
   const sharedTasks = mode === "core" ? sharedTaskNames(rows) : [];
@@ -539,10 +552,7 @@ function renderHeadlessCompareSummary(
         passed: entry.outcomes[index],
       })),
     }));
-  const caseDiffs =
-    mode === "bench"
-      ? benchCaseDiffs(rows)
-      : [];
+  const caseDiffs = mode === "bench" ? benchCaseDiffs(rows) : [];
   const differingCases = caseDiffs
     .filter((entry) => entry.differs && !entry.missing)
     .slice(0, 8)
@@ -572,17 +582,15 @@ function renderHeadlessCompareSummary(
       ? rows.map((row) => ({
           label: row.label,
           project: row.projectName,
-          configs: summarizeBenchAgentConfigs(row.benchCases).map(
-            (config) => ({
-              key: config.key,
-              label: config.label,
-              models: config.models,
-              passed: config.passed,
-              total: config.total,
-              passScore: config.passScore,
-              meanDurationMs: config.meanDurationMs,
-            }),
-          ),
+          configs: summarizeBenchAgentConfigs(row.benchCases).map((config) => ({
+            key: config.key,
+            label: config.label,
+            models: config.models,
+            passed: config.passed,
+            total: config.total,
+            passScore: config.passScore,
+            meanDurationMs: config.meanDurationMs,
+          })),
         }))
       : [];
   const experimentMetrics = collectExperimentMetrics(rows).slice(0, 24);
@@ -654,8 +662,7 @@ function openInBrowser(target: string): void {
   const platform = process.platform;
   const command =
     platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
-  const args =
-    platform === "win32" ? ["/c", "start", "", target] : [target];
+  const args = platform === "win32" ? ["/c", "start", "", target] : [target];
 
   try {
     const child = spawn(command, args, { detached: true, stdio: "ignore" });

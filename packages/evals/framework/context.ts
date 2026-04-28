@@ -72,7 +72,8 @@ export async function buildCoreContext(
   const toolSurface = options.toolSurface ?? "understudy_code";
   const tool = getCoreTool(toolSurface);
   const startupProfile =
-    options.startupProfile ?? resolveDefaultCoreStartupProfile(toolSurface, environment);
+    options.startupProfile ??
+    resolveDefaultCoreStartupProfile(toolSurface, environment);
 
   if (environment === "LOCAL") {
     await ensureCoreFixtureServer([...coreFixtureRoutes]);

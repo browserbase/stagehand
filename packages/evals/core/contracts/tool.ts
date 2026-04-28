@@ -1,6 +1,14 @@
 import type { EvalLogger } from "../../logger.js";
-import type { ActionTarget, FocusedTarget, TargetKind, WaitSpec } from "./targets.js";
-import type { PageRepresentation, RepresentationOpts } from "./representation.js";
+import type {
+  ActionTarget,
+  FocusedTarget,
+  TargetKind,
+  WaitSpec,
+} from "./targets.js";
+import type {
+  PageRepresentation,
+  RepresentationOpts,
+} from "./representation.js";
 import type {
   Artifact,
   BrowserOwnership,

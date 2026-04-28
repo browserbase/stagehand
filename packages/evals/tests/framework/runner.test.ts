@@ -69,8 +69,12 @@ describe("runner: Braintrust project selection", () => {
     const hasCoreOnly = true;
     const isCI = true;
     const project = hasCoreOnly
-      ? (isCI ? "stagehand-core" : "stagehand-core-dev")
-      : (isCI ? "stagehand" : "stagehand-dev");
+      ? isCI
+        ? "stagehand-core"
+        : "stagehand-core-dev"
+      : isCI
+        ? "stagehand"
+        : "stagehand-dev";
     expect(project).toBe("stagehand-core");
   });
 });
@@ -144,9 +148,7 @@ describe("runner: single-task agent model detection", () => {
   });
 
   it("does NOT auto-detect for non-agent single task", () => {
-    const benchTasks = [
-      makeTask({ name: "dropdown", categories: ["act"] }),
-    ];
+    const benchTasks = [makeTask({ name: "dropdown", categories: ["act"] })];
 
     let effectiveCategory: string | null = null;
     if (

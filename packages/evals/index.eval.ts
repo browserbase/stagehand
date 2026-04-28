@@ -84,11 +84,14 @@ function resolveTaskModulePath(
   // Search all bench subdirectories
   const benchDir = path.join(baseDir, "tasks", "bench");
   if (fs.existsSync(benchDir)) {
-    const categories = fs.readdirSync(benchDir, { withFileTypes: true })
+    const categories = fs
+      .readdirSync(benchDir, { withFileTypes: true })
       .filter((d: fs.Dirent) => d.isDirectory())
       .map((d: fs.Dirent) => d.name);
 
-    const baseName = taskName.includes("/") ? taskName.split("/").pop()! : taskName;
+    const baseName = taskName.includes("/")
+      ? taskName.split("/").pop()!
+      : taskName;
     for (const cat of categories) {
       for (const ext of extensions) {
         const p = path.join(benchDir, cat, baseName + ext);
@@ -350,8 +353,12 @@ const generateFilteredTestcases = (): Testcase[] => {
         environment: env,
         tier: "bench",
         ...(USE_API && { api: true }),
-        ...(process.env.EVAL_PROVIDER && { provider: process.env.EVAL_PROVIDER }),
-        ...(process.env.EVAL_MODEL_OVERRIDE && { model: process.env.EVAL_MODEL_OVERRIDE }),
+        ...(process.env.EVAL_PROVIDER && {
+          provider: process.env.EVAL_PROVIDER,
+        }),
+        ...(process.env.EVAL_MODEL_OVERRIDE && {
+          model: process.env.EVAL_MODEL_OVERRIDE,
+        }),
       },
       data: generateFilteredTestcases,
       // Each test is a function that runs the corresponding task module

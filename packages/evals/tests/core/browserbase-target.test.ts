@@ -53,9 +53,7 @@ describe("runner-provided Browserbase target", () => {
     expect(target.sessionUrl).toBe(
       "https://www.browserbase.com/sessions/session-123",
     );
-    expect(target.debugUrl).toBe(
-      "https://debug.browserbase.test/session-123",
-    );
+    expect(target.debugUrl).toBe("https://debug.browserbase.test/session-123");
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: "test-project-id",

@@ -63,9 +63,7 @@ export async function startRepl(entryDir: string): Promise<void> {
     registry = await discoverTasks(resolvedTasksRoot, false);
     console.log(dim(`  Discovered ${registry.tasks.length} tasks\n`));
   } catch (err) {
-    console.error(
-      red(`  Failed to discover tasks: ${(err as Error).message}`),
-    );
+    console.error(red(`  Failed to discover tasks: ${(err as Error).message}`));
     process.exit(1);
   }
 
@@ -148,8 +146,7 @@ export async function startRepl(entryDir: string): Promise<void> {
             printListHelp();
             break;
           }
-          const detailed =
-            args.includes("--detailed") || args.includes("-d");
+          const detailed = args.includes("--detailed") || args.includes("-d");
           const tierFilter = args.find((a) => !a.startsWith("-"));
           printList(registry, tierFilter, detailed);
           break;

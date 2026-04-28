@@ -31,4 +31,3 @@ export type WaitSpec =
       state: "load" | "domcontentloaded" | "networkidle";
       timeoutMs?: number;
     };
-

@@ -3,6 +3,7 @@
 ## What The Interview Implies
 
 Core v1 is about:
+
 - reliability
 - latency
 - adapter-to-adapter comparison
@@ -12,6 +13,7 @@ Core v1 is about:
 Core tasks are code-first and mostly raw primitives plus small workflows.
 
 The important adapters are:
+
 - Understudy / V3
 - Playwright
 - raw CDP
@@ -42,6 +44,7 @@ The system should become a 3-layer stack:
 This is just how you get a Chromium endpoint.
 
 Examples:
+
 - local
 - browserbase
 
@@ -52,6 +55,7 @@ Its job is to produce a session handle plus CDP connection info.
 This is the deterministic tool layer under test.
 
 Examples:
+
 - understudy_v3
 - playwright
 - raw_cdp
@@ -64,6 +68,7 @@ Its job is to implement the same small command surface against a target.
 This is bench-only.
 
 Examples:
+
 - Stagehand agent
 - stagent-style skill harness
 - MCP-driven agent
@@ -72,10 +77,12 @@ Examples:
 Its job is to solve tasks using one tool adapter.
 
 That gives you the separation you want:
+
 - **core** = compare tool adapters
 - **bench** = compare full harness + tool + model stacks
 
 So the matrices become:
+
 - **Core:** target × adapter × task × trial_profile
 - **Bench:** target × adapter × harness × model × task × trial_profile
 
@@ -123,6 +130,7 @@ If an operation is not shared by the first two adapters, it should not be in v1 
 ## What To Keep From The Current Spec
 
 Keep these pieces from the existing work:
+
 - filesystem task discovery
 - defineTask-style authoring
 - assertion helpers
@@ -132,6 +140,7 @@ Keep these pieces from the existing work:
 - separate core/bench Braintrust projects
 
 **Do not keep** for core:
+
 - `buildCoreContext()` wrapping `initV3()` as the execution substrate
 
 That part hardcodes V3 into the core layer.
@@ -145,6 +154,7 @@ Core tasks should stop being "V3 tasks that happen not to use an LLM."
 Instead they should become "adapter-agnostic tool tasks."
 
 So conceptually:
+
 - **current core context:** `page + assert + metrics + logger`
 - **new core context:** `tool + assert + metrics + artifacts + logger + adapterMeta`
 
@@ -157,6 +167,7 @@ And `tool` is backed by whichever adapter was selected for the run.
 Core should track two metric families:
 
 ### 1. Execution metrics
+
 - pass/fail
 - startup time
 - command time
@@ -165,6 +176,7 @@ Core should track two metric families:
 - flake rate
 
 ### 2. Representation metrics
+
 - output byte size
 - estimated token count
 - maybe line count / node count / serialization size
@@ -173,6 +185,7 @@ Core should track two metric families:
 This is important because "core" is not only about whether a click works. It is also about whether a tool layer exposes browser state in a form that is efficient for an agent to consume.
 
 That suggests a future second family of core tasks:
+
 - `snapshot_basic`
 - `snapshot_large_dom`
 - `observe_click_targets`
@@ -185,6 +198,7 @@ These are still tool-layer tasks, not bench.
 ## V1 Recommendation
 
 V1 should be:
+
 - two adapters: `understudy_v3`, `playwright`
 - one target interface, with `local` and `browserbase` implementations
 - a rewritten core task contract around low-level shared commands

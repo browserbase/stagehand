@@ -27,7 +27,9 @@ type McpEmbeddedResourceContent = {
 };
 
 export type McpToolResult = {
-  content?: Array<McpTextContent | McpImageContent | McpEmbeddedResourceContent>;
+  content?: Array<
+    McpTextContent | McpImageContent | McpEmbeddedResourceContent
+  >;
   isError?: boolean;
   structuredContent?: unknown;
 };
@@ -63,13 +65,13 @@ function findBalancedJsonCandidate(text: string): string | null {
           escaping = false;
         } else if (char === "\\") {
           escaping = true;
-        } else if (char === "\"") {
+        } else if (char === '"') {
           inString = false;
         }
         continue;
       }
 
-      if (char === "\"") {
+      if (char === '"') {
         inString = true;
         continue;
       }
@@ -127,7 +129,7 @@ export function parseLooseJson<T>(text: string): T {
       if (
         !trimmed.startsWith("{") &&
         !trimmed.startsWith("[") &&
-        !trimmed.startsWith("\"")
+        !trimmed.startsWith('"')
       ) {
         break;
       }
@@ -150,9 +152,7 @@ export function parseLooseJson<T>(text: string): T {
     return unwrap(JSON.parse(resultSection[1].trim())) as T;
   }
 
-  const returnedSection = trimmed.match(
-    /returned:\s*([\s\S]*?)(?:\n###|$)/i,
-  );
+  const returnedSection = trimmed.match(/returned:\s*([\s\S]*?)(?:\n###|$)/i);
   if (returnedSection?.[1]) {
     return parseLooseJson<T>(returnedSection[1].trim());
   }
@@ -173,7 +173,9 @@ export function parseLooseJson<T>(text: string): T {
   }
 }
 
-export function parseChromeDevtoolsListedPages(text: string): ParsedListedPage[] {
+export function parseChromeDevtoolsListedPages(
+  text: string,
+): ParsedListedPage[] {
   const pages = new Map<number, ParsedListedPage>();
   const lines = text.split(/\r?\n/);
 
@@ -207,10 +209,15 @@ export function parseChromeDevtoolsListedPages(text: string): ParsedListedPage[]
     pages.set(toolPageId, { toolPageId, url });
   }
 
-  return [...pages.values()].sort((left, right) => left.toolPageId - right.toolPageId);
+  return [...pages.values()].sort(
+    (left, right) => left.toolPageId - right.toolPageId,
+  );
 }
 
-function normalizeToolError(result: McpToolResult, toolName: string): Error | null {
+function normalizeToolError(
+  result: McpToolResult,
+  toolName: string,
+): Error | null {
   if (!result.isError) return null;
   const text = extractMcpText(result);
   return new Error(text || `MCP tool "${toolName}" failed`);
@@ -279,7 +286,9 @@ export class StdioMcpRuntime {
     private readonly artifactDir: string,
   ) {}
 
-  static async connect(options: StdioMcpConnectionOptions): Promise<StdioMcpRuntime> {
+  static async connect(
+    options: StdioMcpConnectionOptions,
+  ): Promise<StdioMcpRuntime> {
     const client = await connectToMCPServer({
       command: options.command,
       args: options.args,
@@ -305,12 +314,18 @@ export class StdioMcpRuntime {
     return result;
   }
 
-  async callText(toolName: string, args: Record<string, unknown>): Promise<string> {
+  async callText(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<string> {
     const result = await this.callTool(toolName, args);
     return extractMcpText(result);
   }
 
-  async callJson<T>(toolName: string, args: Record<string, unknown>): Promise<T> {
+  async callJson<T>(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<T> {
     const text = await this.callText(toolName, args);
     return parseLooseJson<T>(text);
   }
@@ -331,7 +346,9 @@ export class StdioMcpRuntime {
     try {
       await this.client.close();
     } finally {
-      await rm(this.artifactDir, { recursive: true, force: true }).catch(() => {});
+      await rm(this.artifactDir, { recursive: true, force: true }).catch(
+        () => {},
+      );
     }
   }
 }

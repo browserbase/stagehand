@@ -3,10 +3,7 @@ import { EvalLogger } from "../logger.js";
 import type { EvalInput } from "../types/evals.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { RunEvalsOptions } from "./runner.js";
-import {
-  onceAsync,
-  registerActiveRunCleanup,
-} from "./activeRunCleanup.js";
+import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import { getBenchHarness } from "./benchHarness.js";
 import { buildBenchMatrixRow } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
@@ -54,10 +51,7 @@ export async function executeBenchTask(
     unregisterCleanup = registerActiveRunCleanup(cleanup);
 
     const harnessCtx = startedHarness.ctx;
-    const taskModule = await loadTaskModuleFromPath(
-      task.filePath,
-      task.name,
-    );
+    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
     if (taskModule.definition) {
       const ctx = {
         v3: harnessCtx.v3,
@@ -83,9 +77,7 @@ export async function executeBenchTask(
       });
     }
 
-    throw new EvalsError(
-      `No valid task export found in ${task.filePath}`,
-    );
+    throw new EvalsError(`No valid task export found in ${task.filePath}`);
   } catch (error) {
     console.error(`Error in ${input.name}: ${error}`);
     logger.error({
@@ -97,7 +89,7 @@ export async function executeBenchTask(
           type: "string",
         },
         trace: {
-          value: error instanceof Error ? error.stack ?? "" : "",
+          value: error instanceof Error ? (error.stack ?? "") : "",
           type: "string",
         },
       },

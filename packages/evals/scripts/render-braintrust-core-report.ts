@@ -53,7 +53,7 @@ function usage(): string {
     "Options:",
     "  --project <name>       Braintrust project (default: stagehand-core-dev)",
     "  --project-map <json>   Internal: JSON array of per-experiment projects",
-    "  --title <text>         Report title (default: \"Experiment Comparison\")",
+    '  --title <text>         Report title (default: "Experiment Comparison")',
     "  --out <path>           Output HTML path",
     "  --label-a <text>       Label for position A (shortcut)",
     "  --label-b <text>       Label for position B (shortcut)",
@@ -82,14 +82,18 @@ function parseExperimentSpec(raw: string): ExperimentInput {
   const left = raw.slice(0, eqIdx).trim();
   const right = raw.slice(eqIdx + 1).trim();
   if (!left || !right) {
-    throw new Error(`Invalid experiment spec "${raw}". Use <id> or <label>=<id>.`);
+    throw new Error(
+      `Invalid experiment spec "${raw}". Use <id> or <label>=<id>.`,
+    );
   }
   // Heuristic: UUIDs, or ids that look like "all-abc123", start with "eval-", etc.
   const looksLikeId = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ||
     /^[a-z][a-z0-9_-]*-[a-f0-9]{4,}$/i.test(s);
-  if (looksLikeId(right) && !looksLikeId(left)) return { label: left, experiment: right };
-  if (looksLikeId(left) && !looksLikeId(right)) return { label: right, experiment: left };
+  if (looksLikeId(right) && !looksLikeId(left))
+    return { label: left, experiment: right };
+  if (looksLikeId(left) && !looksLikeId(right))
+    return { label: right, experiment: left };
   // Default: treat left as id, right as label (common `id=label` form)
   return { label: right, experiment: left };
 }
@@ -116,25 +120,46 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
     switch (arg) {
       case "--project":
-        project = args.shift() ?? (() => { throw new Error("Missing value for --project"); })();
+        project =
+          args.shift() ??
+          (() => {
+            throw new Error("Missing value for --project");
+          })();
         break;
       case "--project-map": {
-        const raw = args.shift() ?? (() => { throw new Error("Missing value for --project-map"); })();
+        const raw =
+          args.shift() ??
+          (() => {
+            throw new Error("Missing value for --project-map");
+          })();
         const parsed = JSON.parse(raw) as unknown;
         if (
           !Array.isArray(parsed) ||
-          parsed.some((value) => typeof value !== "string" || value.length === 0)
+          parsed.some(
+            (value) => typeof value !== "string" || value.length === 0,
+          )
         ) {
-          throw new Error("--project-map must be a JSON array of project names");
+          throw new Error(
+            "--project-map must be a JSON array of project names",
+          );
         }
         projectMap = parsed;
         break;
       }
       case "--out":
-        outputPath = path.resolve(args.shift() ?? (() => { throw new Error("Missing value for --out"); })());
+        outputPath = path.resolve(
+          args.shift() ??
+            (() => {
+              throw new Error("Missing value for --out");
+            })(),
+        );
         break;
       case "--title":
-        title = args.shift() ?? (() => { throw new Error("Missing value for --title"); })();
+        title =
+          args.shift() ??
+          (() => {
+            throw new Error("Missing value for --title");
+          })();
         break;
       case "--no-open":
         openAfter = false;
@@ -143,6 +168,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       case "-h":
         console.log(usage());
         process.exit(0);
+        break;
       default:
         if (arg.startsWith("--")) throw new Error(`Unknown option: ${arg}`);
         positional.push(arg);
@@ -155,7 +181,9 @@ function parseArgs(argv: string[]): ParsedArgs {
     process.exit(1);
   }
   if (positional.length > MAX_EXPERIMENTS) {
-    console.error(`Error: up to ${MAX_EXPERIMENTS} experiments are supported (got ${positional.length}).`);
+    console.error(
+      `Error: up to ${MAX_EXPERIMENTS} experiments are supported (got ${positional.length}).`,
+    );
     process.exit(1);
   }
 
@@ -181,8 +209,10 @@ function openInBrowser(filePath: string): void {
   if ((process.env.BROWSER ?? "").toLowerCase() === "none") return;
 
   const platform = process.platform;
-  const command = platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
-  const args = platform === "win32" ? ["/c", "start", "", filePath] : [filePath];
+  const command =
+    platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
+  const args =
+    platform === "win32" ? ["/c", "start", "", filePath] : [filePath];
 
   try {
     const child = spawn(command, args, { detached: true, stdio: "ignore" });
@@ -197,7 +227,7 @@ function escapeHtml(value: string): string {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll("\"", "&quot;")
+    .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
 
@@ -229,7 +259,11 @@ function sideLetter(i: number): string {
   return SIDE_LETTERS[i] ?? `#${i + 1}`;
 }
 
-function buildSummary(rows: ExperimentData[], shared: number, sharedTimers: number): string {
+function buildSummary(
+  rows: ExperimentData[],
+  shared: number,
+  sharedTimers: number,
+): string {
   const leader = findLeaderIndex(rows);
 
   const cards = rows
@@ -325,7 +359,9 @@ function buildPhaseBreakdown(rows: ExperimentData[]): string {
 
 function buildTimerGrid(rows: ExperimentData[], keys: string[]): string {
   const timerKeys = keys.filter(
-    (k) => !PHASE_METRICS.includes(k as (typeof PHASE_METRICS)[number]) && k !== "total_ms",
+    (k) =>
+      !PHASE_METRICS.includes(k as (typeof PHASE_METRICS)[number]) &&
+      k !== "total_ms",
   );
   if (timerKeys.length === 0) return "";
 
@@ -350,7 +386,8 @@ function buildTimerGrid(rows: ExperimentData[], keys: string[]): string {
           const mean = row.taskMetrics[key]?.mean ?? 0;
           const count = row.taskMetrics[key]?.count ?? 0;
           const height = max > 0 ? (mean / max) * 100 : 0;
-          const isWinner = hasData && mean > 0 && mean === min && rows.length > 1;
+          const isWinner =
+            hasData && mean > 0 && mean === min && rows.length > 1;
           return `
             <div class="timer__col">
               <div class="timer__bar ${isWinner ? "is-winner" : ""}" style="height: ${height.toFixed(2)}%" title="${escapeHtml(row.label)} · ${formatMs(mean)}${count > 1 ? ` · n=${count}` : ""}">
@@ -409,7 +446,9 @@ function buildTaskTable(rows: ExperimentData[], taskNames: string[]): string {
   const perRow = taskNames.map((name) => {
     const cells = rows.map((r) => r.tasks.find((t) => t.name === name));
     const anyFail = cells.some((c) => c && !c.success);
-    const timings = cells.map((c) => c?.totalMs).filter((v): v is number => v !== undefined);
+    const timings = cells
+      .map((c) => c?.totalMs)
+      .filter((v): v is number => v !== undefined);
     const minT = timings.length > 0 ? Math.min(...timings) : 0;
     const maxT = timings.length > 0 ? Math.max(...timings) : 0;
     const spread = maxT - minT;
@@ -422,13 +461,16 @@ function buildTaskTable(rows: ExperimentData[], taskNames: string[]): string {
   });
 
   const headerCells = rows
-    .map((r, i) => `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(r.label)}</th>`)
+    .map(
+      (r, i) =>
+        `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(r.label)}</th>`,
+    )
     .join("");
 
   const body = perRow
     .map((r) => {
       const cellsHtml = r.cells
-        .map((cell, i) => {
+        .map((cell) => {
           if (!cell) {
             return `<td class="xcol muted">—</td>`;
           }
@@ -437,9 +479,13 @@ function buildTaskTable(rows: ExperimentData[], taskNames: string[]): string {
             : `<span class="dot dot--fail"></span>`;
           const time = cell.totalMs !== undefined ? formatMs(cell.totalMs) : "";
           const minT = Math.min(
-            ...r.cells.filter((c): c is TaskRow => !!c && c.totalMs !== undefined).map((c) => c.totalMs!),
+            ...r.cells
+              .filter((c): c is TaskRow => !!c && c.totalMs !== undefined)
+              .map((c) => c.totalMs!),
           );
-          const isFastest = cell.totalMs === minT && r.cells.filter((c) => c?.totalMs !== undefined).length > 1;
+          const isFastest =
+            cell.totalMs === minT &&
+            r.cells.filter((c) => c?.totalMs !== undefined).length > 1;
           return `
             <td class="xcol">
               <div class="xcell">
@@ -540,13 +586,14 @@ function agentConfigCell(summary: BenchAgentConfigSummary | undefined): string {
 }
 
 function buildAgentConfigTable(rows: ExperimentData[]): string {
-  const summaries = rows.map((row) =>
-    new Map(
-      summarizeBenchAgentConfigs(row.benchCases).map((summary) => [
-        summary.key,
-        summary,
-      ]),
-    ),
+  const summaries = rows.map(
+    (row) =>
+      new Map(
+        summarizeBenchAgentConfigs(row.benchCases).map((summary) => [
+          summary.key,
+          summary,
+        ]),
+      ),
   );
   const configKeys = [
     ...new Set(summaries.flatMap((summary) => [...summary.keys()])),
@@ -554,7 +601,10 @@ function buildAgentConfigTable(rows: ExperimentData[]): string {
   if (configKeys.length === 0) return "";
 
   const headerCells = rows
-    .map((row, i) => `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(row.label)}</th>`)
+    .map(
+      (row, i) =>
+        `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(row.label)}</th>`,
+    )
     .join("");
   const body = configKeys
     .map((key) => {
@@ -604,12 +654,17 @@ function buildAgentConfigTable(rows: ExperimentData[]): string {
   `;
 }
 
-function formatMetricValue(value: number | null, unit: string, key: string): string {
+function formatMetricValue(
+  value: number | null,
+  unit: string,
+  key: string,
+): string {
   if (value === null) return "—";
   const normalized = `${unit} ${key}`.toLowerCase();
   if (unit === "ratio") return formatPct(value);
   if (normalized.includes("ms")) return formatMs(value);
-  if (unit === "s" || normalized.includes("duration")) return formatSeconds(value);
+  if (unit === "s" || normalized.includes("duration"))
+    return formatSeconds(value);
   if (/(usd|cost|price|dollar|\$)/.test(normalized)) {
     return `$${value.toFixed(value < 1 ? 4 : 2)}`;
   }
@@ -624,7 +679,10 @@ function buildExperimentMetricsTable(rows: ExperimentData[]): string {
   if (metrics.length === 0) return "";
 
   const headerCells = rows
-    .map((row, i) => `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(row.label)}</th>`)
+    .map(
+      (row, i) =>
+        `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(row.label)}</th>`,
+    )
     .join("");
   const body = metrics
     .map((metric: ExperimentMetricRow) => {
@@ -701,7 +759,10 @@ function buildBenchDiffTable(
   }
 
   const headerCells = rows
-    .map((row, i) => `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(row.label)}</th>`)
+    .map(
+      (row, i) =>
+        `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(row.label)}</th>`,
+    )
     .join("");
   const body = diffs
     .map((diff) => {
@@ -798,8 +859,7 @@ function buildHtml(title: string, rows: ExperimentData[]): string {
   });
   const taskNames = mode === "core" ? sharedTaskNames(rows) : [];
   const metricKeys = mode === "core" ? sharedMetricKeys(rows) : [];
-  const hasPerTaskData =
-    mode === "core" && rows.every((r) => r.totalTasks > 0);
+  const hasPerTaskData = mode === "core" && rows.every((r) => r.totalTasks > 0);
   const content =
     mode === "bench"
       ? buildBenchContent(rows)
@@ -815,7 +875,9 @@ function buildHtml(title: string, rows: ExperimentData[]): string {
       ? rows.reduce((sum, row) => sum + row.benchCases.length, 0)
       : rows.reduce((sum, row) => sum + row.totalTasks, 0);
 
-  const subtitle = rows.map((r) => escapeHtml(r.label)).join(" <span style=\"opacity: 0.4;\">vs</span> ");
+  const subtitle = rows
+    .map((r) => escapeHtml(r.label))
+    .join(' <span style="opacity: 0.4;">vs</span> ');
 
   return `<!doctype html>
 <html lang="en">

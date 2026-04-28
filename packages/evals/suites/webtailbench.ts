@@ -79,11 +79,7 @@ export const buildWebTailBenchTestcases = (
       allTestcases.push({
         input,
         name: input.name,
-        tags: [
-          modelEntry.modelName,
-          modelEntry.mode,
-          "webtailbench",
-        ],
+        tags: [modelEntry.modelName, modelEntry.mode, "webtailbench"],
         metadata: {
           model: modelEntry.modelName as AvailableModel,
           test: `${input.name}:${row.id}`,

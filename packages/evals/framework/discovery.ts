@@ -296,7 +296,9 @@ export function resolveTarget(
     }
 
     const tierTasks = registry.byTier.get(tier) ?? [];
-    const matches = tierTasks.filter((t) => t.categories.includes(categoryPart));
+    const matches = tierTasks.filter((t) =>
+      t.categories.includes(categoryPart),
+    );
     if (matches.length === 0) {
       throw new Error(
         `No tasks found matching "${target}". Run "evals list" to see available tasks.`,

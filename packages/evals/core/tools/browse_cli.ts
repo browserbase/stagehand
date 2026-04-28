@@ -4,7 +4,12 @@ import { promisify } from "node:util";
 import path from "node:path";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
-import type { ActionTarget, FocusedTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
+import type {
+  ActionTarget,
+  FocusedTarget,
+  TargetKind,
+  WaitSpec,
+} from "../contracts/targets.js";
 import type {
   CoreCapability,
   CoreLocatorHandle,
@@ -100,7 +105,13 @@ class BrowseCliRuntime {
   async runJson<T>(args: string[]): Promise<T> {
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
-      [resolveBrowseCliEntrypoint(), "--json", "--session", this.session, ...args],
+      [
+        resolveBrowseCliEntrypoint(),
+        "--json",
+        "--session",
+        this.session,
+        ...args,
+      ],
       {
         cwd: getRepoRootDir(),
         env: process.env,
@@ -111,7 +122,9 @@ class BrowseCliRuntime {
     const trimmed = stdout.trim();
     if (!trimmed) {
       const detail = stderr.trim();
-      throw new Error(detail || `browse ${args.join(" ")} returned no JSON output`);
+      throw new Error(
+        detail || `browse ${args.join(" ")} returned no JSON output`,
+      );
     }
 
     return JSON.parse(trimmed) as T;
@@ -148,27 +161,27 @@ class BrowseCliLocatorHandle implements CoreLocatorHandle {
   }
 
   async isVisible(): Promise<boolean> {
-    return this.pageHandle.runCommandAfterSelecting<{ visible: boolean }>([
-      "is",
-      "visible",
-      this.selector,
-    ]).then((result) => result.visible);
+    return this.pageHandle
+      .runCommandAfterSelecting<{
+        visible: boolean;
+      }>(["is", "visible", this.selector])
+      .then((result) => result.visible);
   }
 
   async textContent(): Promise<string | null> {
-    return this.pageHandle.runCommandAfterSelecting<{ text: string | null }>([
-      "get",
-      "text",
-      this.selector,
-    ]).then((result) => result.text ?? null);
+    return this.pageHandle
+      .runCommandAfterSelecting<{
+        text: string | null;
+      }>(["get", "text", this.selector])
+      .then((result) => result.text ?? null);
   }
 
   async inputValue(): Promise<string> {
-    return this.pageHandle.runCommandAfterSelecting<{ value: string }>([
-      "get",
-      "value",
-      this.selector,
-    ]).then((result) => result.value);
+    return this.pageHandle
+      .runCommandAfterSelecting<{
+        value: string;
+      }>(["get", "value", this.selector])
+      .then((result) => result.value);
   }
 }
 
@@ -211,7 +224,10 @@ class BrowseCliPageHandle implements CorePageHandle {
 
   async goto(
     url: string,
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
+    opts?: {
+      waitUntil?: "load" | "domcontentloaded" | "networkidle";
+      timeoutMs?: number;
+    },
   ): Promise<void> {
     const args = ["open", url];
     if (opts?.waitUntil) {
@@ -224,18 +240,22 @@ class BrowseCliPageHandle implements CorePageHandle {
     this.cachedUrl = result.url;
   }
 
-  async reload(
-    _opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<void> {
+  async reload(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<void> {
+    void opts;
     const result = await this.runCommandAfterSelecting<{ url: string }>([
       "reload",
     ]);
     this.cachedUrl = result.url;
   }
 
-  async back(
-    _opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async back(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
+    void opts;
     const result = await this.runCommandAfterSelecting<{ url: string }>([
       "back",
     ]);
@@ -243,9 +263,11 @@ class BrowseCliPageHandle implements CorePageHandle {
     return true;
   }
 
-  async forward(
-    _opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async forward(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
+    void opts;
     const result = await this.runCommandAfterSelecting<{ url: string }>([
       "forward",
     ]);
@@ -253,15 +275,17 @@ class BrowseCliPageHandle implements CorePageHandle {
     return true;
   }
 
-  async goBack(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async goBack(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return this.back(opts);
   }
 
-  async goForward(
-    opts?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
-  ): Promise<boolean> {
+  async goForward(opts?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+  }): Promise<boolean> {
     return this.forward(opts);
   }
 
@@ -305,7 +329,9 @@ class BrowseCliPageHandle implements CorePageHandle {
       args.push("-q", String(opts.quality));
     }
 
-    const result = await this.runCommandAfterSelecting<{ base64: string }>(args);
+    const result = await this.runCommandAfterSelecting<{ base64: string }>(
+      args,
+    );
     return Buffer.from(result.base64, "base64");
   }
 
@@ -385,7 +411,9 @@ class BrowseCliPageHandle implements CorePageHandle {
     return ref.startsWith("@") ? ref : `@${ref}`;
   }
 
-  private async resolveHoverPoint(selector: string): Promise<{ x: number; y: number }> {
+  private async resolveHoverPoint(
+    selector: string,
+  ): Promise<{ x: number; y: number }> {
     return this.runCommandAfterSelecting<{ x: number; y: number }>([
       "get",
       "box",
@@ -393,7 +421,10 @@ class BrowseCliPageHandle implements CorePageHandle {
     ]);
   }
 
-  async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async click(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
@@ -416,7 +447,10 @@ class BrowseCliPageHandle implements CorePageHandle {
         await this.runCommandAfterSelecting(["click", target.value]);
         return;
       case "snapshot_ref":
-        await this.runCommandAfterSelecting(["click", this.refSelector(target.value)]);
+        await this.runCommandAfterSelecting([
+          "click",
+          this.refSelector(target.value),
+        ]);
         return;
       case "coords":
         await this.runCommandAfterSelecting([
@@ -426,11 +460,16 @@ class BrowseCliPageHandle implements CorePageHandle {
         ]);
         return;
       default:
-        throw new Error(`browse_cli does not support click target kind "${target.kind}" yet`);
+        throw new Error(
+          `browse_cli does not support click target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async hover(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async hover(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
@@ -466,7 +505,9 @@ class BrowseCliPageHandle implements CorePageHandle {
         ]);
         return;
       default:
-        throw new Error(`browse_cli does not support hover target kind "${target.kind}" yet`);
+        throw new Error(
+          `browse_cli does not support hover target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -516,7 +557,9 @@ class BrowseCliPageHandle implements CorePageHandle {
         ]);
         return;
       default:
-        throw new Error(`browse_cli does not support type target kind "${target.kind}" yet`);
+        throw new Error(
+          `browse_cli does not support type target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -547,7 +590,10 @@ class BrowseCliPageHandle implements CorePageHandle {
         await this.runCommandAfterSelecting(["press", key]);
         return;
       case "snapshot_ref":
-        await this.runCommandAfterSelecting(["click", this.refSelector(target.value)]);
+        await this.runCommandAfterSelecting([
+          "click",
+          this.refSelector(target.value),
+        ]);
         await this.runCommandAfterSelecting(["press", key]);
         return;
       case "coords":
@@ -559,7 +605,9 @@ class BrowseCliPageHandle implements CorePageHandle {
         await this.runCommandAfterSelecting(["press", key]);
         return;
       default:
-        throw new Error(`browse_cli does not support press target kind "${target.kind}" yet`);
+        throw new Error(
+          `browse_cli does not support press target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -614,7 +662,10 @@ class BrowseCliSession implements CoreSession {
       this.wrap(page);
     }
 
-    if (this.activePageId && !pages.some((page) => page.targetId === this.activePageId)) {
+    if (
+      this.activePageId &&
+      !pages.some((page) => page.targetId === this.activePageId)
+    ) {
       this.activePageId = null;
     }
     if (!this.activePageId && pages.length > 0) {
@@ -669,10 +720,7 @@ class BrowseCliSession implements CoreSession {
       throw new Error(`Unknown page id "${pageId}"`);
     }
 
-    await this.runtime.runJson([
-      "tab_switch",
-      String(page.index),
-    ]);
+    await this.runtime.runJson(["tab_switch", String(page.index)]);
     this.activePageId = pageId;
   }
 
@@ -683,10 +731,7 @@ class BrowseCliSession implements CoreSession {
       throw new Error(`Unknown page id "${pageId}"`);
     }
 
-    await this.runtime.runJson([
-      "tab_close",
-      String(page.index),
-    ]);
+    await this.runtime.runJson(["tab_close", String(page.index)]);
     this.handles.delete(pageId);
     const remaining = await this.fetchPages();
     this.activePageId = remaining[0]?.targetId ?? null;
@@ -714,7 +759,9 @@ class BrowseCliSession implements CoreSession {
   }
 }
 
-function connectionModeFromProfile(startupProfile: StartupProfile): ConnectionMode {
+function connectionModeFromProfile(
+  startupProfile: StartupProfile,
+): ConnectionMode {
   if (startupProfile === "tool_launch_local") {
     return "launch";
   }
@@ -738,7 +785,9 @@ export class BrowseCliTool implements CoreTool {
     "tool_launch_local",
     "tool_create_browserbase",
   ];
-  readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
+  readonly supportedCapabilities: CoreCapability[] = [
+    ...SUPPORTED_CAPABILITIES,
+  ];
   readonly supportedTargetKinds: TargetKind[] = [
     "selector",
     "coords",
@@ -757,7 +806,8 @@ export class BrowseCliTool implements CoreTool {
     }
 
     if (
-      (input.environment === "LOCAL" && input.startupProfile !== "tool_launch_local") ||
+      (input.environment === "LOCAL" &&
+        input.startupProfile !== "tool_launch_local") ||
       (input.environment === "BROWSERBASE" &&
         input.startupProfile !== "tool_create_browserbase")
     ) {
@@ -778,7 +828,8 @@ export class BrowseCliTool implements CoreTool {
         await session.close();
       },
       metadata: {
-        environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
+        environment:
+          input.environment === "BROWSERBASE" ? "browserbase" : "local",
         browserOwnership: "tool",
         connectionMode: connectionModeFromProfile(input.startupProfile),
         startupProfile: input.startupProfile,

@@ -32,9 +32,7 @@ describe("generateExperimentName", () => {
   });
 
   it("returns 'all' when neither evalName nor category", () => {
-    expect(
-      generateExperimentName({ environment: "LOCAL" }),
-    ).toBe("all");
+    expect(generateExperimentName({ environment: "LOCAL" })).toBe("all");
   });
 
   it("clips long log lines to terminal width", () => {

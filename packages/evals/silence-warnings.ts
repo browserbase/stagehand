@@ -12,7 +12,9 @@
 
 const originalWarn = console.warn.bind(console);
 
-const SUPPRESS_PATTERNS: RegExp[] = [/OpenTelemetry packages are not installed/];
+const SUPPRESS_PATTERNS: RegExp[] = [
+  /OpenTelemetry packages are not installed/,
+];
 
 console.warn = (...args: unknown[]): void => {
   const first = args[0];

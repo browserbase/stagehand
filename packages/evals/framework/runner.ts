@@ -16,27 +16,14 @@ import { EvalsError } from "../errors.js";
 import { exactMatch, errorMatch, passRate } from "../scoring.js";
 import { generateExperimentName } from "../utils.js";
 import { generateSummary } from "../summary.js";
-import type {
-  StartupProfile,
-  ToolSurface,
-} from "../core/contracts/tool.js";
-import type {
-  DiscoveredTask,
-  TaskRegistry,
-  TaskResult,
-} from "./types.js";
+import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import type { DiscoveredTask, TaskRegistry, TaskResult } from "./types.js";
 import type { Testcase, EvalInput } from "../types/evals.js";
 import { generateBenchTestcases } from "./benchPlanner.js";
-import {
-  DEFAULT_BENCH_HARNESS,
-  type Harness,
-} from "./benchTypes.js";
+import { DEFAULT_BENCH_HARNESS, type Harness } from "./benchTypes.js";
 import { executeBenchTask } from "./benchRunner.js";
 import { loadBraintrust, tracedSpan } from "./braintrust.js";
-import {
-  onceAsync,
-  registerActiveRunCleanup,
-} from "./activeRunCleanup.js";
+import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
 
 export { discoverTasks, resolveTarget } from "./discovery.js";
@@ -95,8 +82,8 @@ function readAbortMode(signal?: AbortSignal): AbortMode {
 }
 
 const silentBraintrustProgress = {
-  start: (_name: string, _total: number): void => {},
-  increment: (_name: string): void => {},
+  start: (): void => {},
+  increment: (): void => {},
   stop: (): void => {},
 };
 
@@ -173,7 +160,7 @@ async function executeCoreTask(
   let cleanup: () => Promise<void> = async () => {};
   let startupMs = 0;
   let taskMs = 0;
-  let cleanupMs = 0;
+  let cleanupMs: number;
   let result: TaskResult;
   let taskStart = 0;
   let unregisterCleanup: (() => void) | undefined;
@@ -219,9 +206,7 @@ async function executeCoreTask(
             `Legacy core task exports are not supported in the adapter-backed core runner: ${task.filePath}`,
           );
         }
-        throw new EvalsError(
-          `No valid task export found in ${task.filePath}`,
-        );
+        throw new EvalsError(`No valid task export found in ${task.filePath}`);
       },
       { name: "task" },
     );
@@ -327,18 +312,20 @@ export async function runEvals(
     };
   }
 
-  const hasCoreOnly = options.tasks.every((t: DiscoveredTask) => t.tier === "core");
+  const hasCoreOnly = options.tasks.every(
+    (t: DiscoveredTask) => t.tier === "core",
+  );
   const effectiveCoreToolSurface = hasCoreOnly
-    ? options.coreToolSurface ?? "understudy_code"
+    ? (options.coreToolSurface ?? "understudy_code")
     : undefined;
   const effectiveCoreStartupProfile =
     hasCoreOnly && effectiveCoreToolSurface
-      ? options.coreStartupProfile ??
-        resolveDefaultCoreStartupProfile(effectiveCoreToolSurface, environment)
+      ? (options.coreStartupProfile ??
+        resolveDefaultCoreStartupProfile(effectiveCoreToolSurface, environment))
       : undefined;
   const effectiveBenchHarness = hasCoreOnly
     ? undefined
-    : options.harness ?? DEFAULT_BENCH_HARNESS;
+    : (options.harness ?? DEFAULT_BENCH_HARNESS);
   const experimentName = generateExperimentName({
     evalName: options.tasks.length === 1 ? options.tasks[0].name : undefined,
     category: options.categoryFilter ?? undefined,
@@ -355,7 +342,9 @@ export async function runEvals(
       ? "stagehand"
       : "stagehand-dev";
 
-  const scores = hasCoreOnly ? [passRate, errorMatch] : [exactMatch, errorMatch];
+  const scores = hasCoreOnly
+    ? [passRate, errorMatch]
+    : [exactMatch, errorMatch];
 
   const { Eval, flush } = await loadBraintrust();
 
@@ -365,83 +354,89 @@ export async function runEvals(
   // throw; finished tasks' cleanup is a no-op via onceAsync.
   const onAggressiveAbort = async (): Promise<void> => {
     if (readAbortMode(options.signal) !== "aggressive") return;
-    const { cleanupActiveRunResources } = await import(
-      "./activeRunCleanup.js"
-    );
+    const { cleanupActiveRunResources } = await import("./activeRunCleanup.js");
     await cleanupActiveRunResources();
   };
   options.signal?.addEventListener("abort", () => {
     void onAggressiveAbort();
   });
 
-  const evalResult = await Eval(braintrustProjectName, {
-    experimentName,
-    metadata: {
-      environment,
-      tier: hasCoreOnly ? "core" : "bench",
-      ...(effectiveCoreToolSurface && { toolSurface: effectiveCoreToolSurface }),
-      ...(effectiveCoreStartupProfile && { startupProfile: effectiveCoreStartupProfile }),
-      ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
-      ...(options.provider && { provider: options.provider }),
-      ...(options.modelOverride && { model: options.modelOverride }),
-      ...(options.useApi && { api: true }),
-    },
-    data: () => testcases,
-    task: async (input: EvalInput): Promise<TaskResult> => {
-      // Cooperative abort: skip any testcase that hasn't started yet
-      // when the signal has flipped. The in-flight task at the moment of
-      // abort still finishes its current step; this stops the next one
-      // from spinning up.
-      if (options.signal?.aborted) {
+  const evalResult = await Eval(
+    braintrustProjectName,
+    {
+      experimentName,
+      metadata: {
+        environment,
+        tier: hasCoreOnly ? "core" : "bench",
+        ...(effectiveCoreToolSurface && {
+          toolSurface: effectiveCoreToolSurface,
+        }),
+        ...(effectiveCoreStartupProfile && {
+          startupProfile: effectiveCoreStartupProfile,
+        }),
+        ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
+        ...(options.provider && { provider: options.provider }),
+        ...(options.modelOverride && { model: options.modelOverride }),
+        ...(options.useApi && { api: true }),
+      },
+      data: () => testcases,
+      task: async (input: EvalInput): Promise<TaskResult> => {
+        // Cooperative abort: skip any testcase that hasn't started yet
+        // when the signal has flipped. The in-flight task at the moment of
+        // abort still finishes its current step; this stops the next one
+        // from spinning up.
+        if (options.signal?.aborted) {
+          options.onProgress?.({
+            type: "failed",
+            taskName: input.name,
+            modelName: input.modelName,
+            error: "aborted",
+          });
+          return {
+            _success: false,
+            error: "aborted by user",
+            logs: [],
+          };
+        }
+
+        const resolvedTask =
+          options.registry.byName.get(input.name) ??
+          (input.name.includes("/")
+            ? undefined
+            : options.registry.byName.get(`agent/${input.name}`));
+
+        if (!resolvedTask) {
+          throw new EvalsError(`Task "${input.name}" not found in registry.`);
+        }
+
         options.onProgress?.({
-          type: "failed",
+          type: "started",
           taskName: input.name,
           modelName: input.modelName,
-          error: "aborted",
         });
-        return {
-          _success: false,
-          error: "aborted by user",
-          logs: [],
-        };
-      }
 
-      const resolvedTask =
-        options.registry.byName.get(input.name) ??
-        (input.name.includes("/")
-          ? undefined
-          : options.registry.byName.get(`agent/${input.name}`));
+        const result = await executeTask(input, resolvedTask, options);
 
-      if (!resolvedTask) {
-        throw new EvalsError(
-          `Task "${input.name}" not found in registry.`,
-        );
-      }
+        options.onProgress?.({
+          type: result._success ? "passed" : "failed",
+          taskName: input.name,
+          modelName: input.modelName,
+          error: result._success
+            ? undefined
+            : formatProgressError(result.error),
+        });
 
-      options.onProgress?.({
-        type: "started",
-        taskName: input.name,
-        modelName: input.modelName,
-      });
-
-      const result = await executeTask(input, resolvedTask, options);
-
-      options.onProgress?.({
-        type: result._success ? "passed" : "failed",
-        taskName: input.name,
-        modelName: input.modelName,
-        error: result._success ? undefined : formatProgressError(result.error),
-      });
-
-      return result;
+        return result;
+      },
+      scores: scores as unknown as never,
+      maxConcurrency: concurrency,
+      trialCount: trials,
     },
-    scores: scores as unknown as never,
-    maxConcurrency: concurrency,
-    trialCount: trials,
-  }, {
-    progress: silentBraintrustProgress,
-    reporter: silentBraintrustReporter,
-  });
+    {
+      progress: silentBraintrustProgress,
+      reporter: silentBraintrustReporter,
+    },
+  );
 
   await flush();
 
