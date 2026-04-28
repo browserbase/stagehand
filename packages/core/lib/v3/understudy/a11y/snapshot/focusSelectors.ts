@@ -1,7 +1,8 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
-import { executionContexts } from "../../executionContextRegistry.js";
+import { Frame } from "../../frame.js";
 import { Page } from "../../page.js";
+import { FrameSelectorResolver } from "../../selectorResolver.js";
 import { StagehandIframeError } from "../../../types/public/sdkErrors.js";
 import type {
   Axis,
@@ -198,126 +199,45 @@ export async function resolveCssFocusFrameAndTail(
   return { targetFrameId: ctxFrameId, tailSelector, absPrefix };
 }
 
+function createFocusResolverFrame(
+  session: CDPSessionLike,
+  frameId: string,
+): Frame {
+  return new Frame(session, frameId, "a11y-focus", false);
+}
+
+async function resolveObjectIdWithSelectorResolver(
+  session: CDPSessionLike,
+  rawSelector: string,
+  frameId: string,
+): Promise<string | null> {
+  try {
+    const frame = createFocusResolverFrame(session, frameId);
+    const resolver = new FrameSelectorResolver(frame);
+    const query = FrameSelectorResolver.parseSelector(rawSelector);
+    const resolved = await resolver.resolveFirst(query);
+    return resolved?.objectId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Resolve an XPath to a Runtime remoteObjectId in the given CDP session. */
 export async function resolveObjectIdForXPath(
   session: CDPSessionLike,
   xpath: string,
-  frameId?: string,
+  frameId: string,
 ): Promise<string | null> {
-  try {
-    const expression = `(() => {
-      function resolveXPathSelector(rawXp) {
-        try {
-          const xp = String(rawXp ?? "").trim().replace(/^xpath=/i, "");
-          if (!xp) return null;
-          return document.evaluate(
-            xp,
-            document,
-            null,
-            XPathResult.FIRST_ORDERED_NODE_TYPE,
-            null,
-          ).singleNodeValue;
-        } catch {
-          return null;
-        }
-      }
-      return resolveXPathSelector(${JSON.stringify(xpath)});
-    })()`;
-
-    const contextId = frameId
-      ? await executionContexts
-          .waitForMainWorld(session, frameId, 1000)
-          .catch((): undefined => undefined)
-      : undefined;
-
-    const result = await session.send<Protocol.Runtime.EvaluateResponse>(
-      "Runtime.evaluate",
-      {
-        expression,
-        ...(contextId ? { contextId } : {}),
-        serializationOptions: { serialization: "idOnly" },
-      },
-    );
-    if (result.exceptionDetails) return null;
-    return result.result.objectId ?? null;
-  } catch {
-    return null;
-  }
+  return resolveObjectIdWithSelectorResolver(session, xpath, frameId);
 }
 
 /** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
 export async function resolveObjectIdForCss(
   session: CDPSessionLike,
   selector: string,
-  frameId?: string,
+  frameId: string,
 ): Promise<string | null> {
-  try {
-    const primaryExpression = `(() => {
-      function resolveCssSelector(rawSelector) {
-        try {
-          const selector = String(rawSelector ?? "").trim();
-          if (!selector) return null;
-          return document.querySelector(selector);
-        } catch {
-          return null;
-        }
-      }
-      return resolveCssSelector(${JSON.stringify(selector)});
-    })()`;
-
-    const fallbackExpression = `(() => {
-      function resolveCssSelectorDeep(rawSelector) {
-        try {
-          const selector = String(rawSelector ?? "").trim();
-          if (!selector) return null;
-          const queue = [document];
-          const seen = new WeakSet();
-          while (queue.length) {
-            const root = queue.shift();
-            if (!root || seen.has(root)) continue;
-            seen.add(root);
-            const found = root.querySelector?.(selector);
-            if (found) return found;
-            const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-            while (walker.nextNode()) {
-              const node = walker.currentNode;
-              if (node instanceof Element && node.shadowRoot) queue.push(node.shadowRoot);
-            }
-          }
-        } catch {
-          return null;
-        }
-        return null;
-      }
-      return resolveCssSelectorDeep(${JSON.stringify(selector)});
-    })()`;
-
-    const contextId = frameId
-      ? await executionContexts
-          .waitForMainWorld(session, frameId, 1000)
-          .catch((): undefined => undefined)
-      : undefined;
-
-    const evaluate = async (
-      expression: string,
-    ): Promise<Protocol.Runtime.EvaluateResponse> =>
-      session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        ...(contextId ? { contextId } : {}),
-        serializationOptions: { serialization: "idOnly" },
-      });
-
-    const primary = await evaluate(primaryExpression);
-    if (!primary.exceptionDetails && primary.result.objectId) {
-      return primary.result.objectId;
-    }
-
-    const fallback = await evaluate(fallbackExpression);
-    if (fallback.exceptionDetails) return null;
-    return fallback.result.objectId ?? null;
-  } catch {
-    return null;
-  }
+  return resolveObjectIdWithSelectorResolver(session, selector, frameId);
 }
 
 export function listChildrenOf(

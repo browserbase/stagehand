@@ -55,7 +55,7 @@ export async function a11yForFrame(
   let scopeApplied = false;
   const nodesForOutline = await (async () => {
     const sel = opts.focusSelector?.trim();
-    if (!sel) return nodes;
+    if (!sel || !frameId) return nodes;
     try {
       const looksLikeXPath = /^xpath=/i.test(sel) || sel.startsWith("/");
       const objectId = looksLikeXPath

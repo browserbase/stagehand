@@ -275,7 +275,7 @@ export function queryXPathNative(
   const xpath = normalizeXPath(rawXPath);
   if (!xpath || !Number.isFinite(limit) || limit <= 0) return [];
   try {
-    const snapshot = document.evaluate(
+    const snapshot = this.evaluate(
       xpath,
       this,
       null,
@@ -298,7 +298,7 @@ export function countXPathNative(this: Document, rawXPath: string): number {
   const xpath = normalizeXPath(rawXPath);
   if (!xpath) return 0;
   try {
-    const snapshot = document.evaluate(
+    const snapshot = this.evaluate(
       xpath,
       this,
       null,
@@ -319,7 +319,7 @@ export function countXPathNative(this: Document, rawXPath: string): number {
 
 export function hasOpenShadowRoots(this: Document): boolean {
   try {
-    const walker = document.createTreeWalker(this, NodeFilter.SHOW_ELEMENT);
+    const walker = this.createTreeWalker(this, NodeFilter.SHOW_ELEMENT);
     while (walker.nextNode()) {
       const node = walker.currentNode;
       if (node instanceof Element && node.shadowRoot) return true;
