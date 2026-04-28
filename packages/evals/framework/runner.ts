@@ -453,7 +453,11 @@ export async function runEvals(
     };
   });
 
-  await generateSummary(summaryResults, experimentName);
+  await generateSummary(
+    summaryResults,
+    evalResult.summary?.experimentName ?? experimentName,
+    evalResult.summary?.experimentUrl,
+  );
 
   const passed = summaryResults.filter((r) => r.output._success).length;
   const failed = summaryResults.filter((r) => !r.output._success).length;

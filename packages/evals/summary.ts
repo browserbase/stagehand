@@ -9,10 +9,30 @@ const repoRoot = getRepoRootDir();
 export const generateSummary = async (
   results: SummaryResult[],
   experimentName: string,
+  experimentUrl?: string,
 ) => {
+  const getTaskBasename = (taskName: string): string => {
+    if (!taskName.includes("/")) return taskName;
+    const parts = taskName.split("/");
+    return parts[parts.length - 1] ?? taskName;
+  };
+
   const resolveCategories = (taskName: string): string[] => {
     const configured = tasksByName[taskName]?.categories;
     if (configured) return configured;
+
+    const taskCategory = taskName.includes("/")
+      ? taskName.split("/")[0]
+      : undefined;
+    const basenameConfigured =
+      tasksByName[getTaskBasename(taskName)]?.categories;
+    if (
+      basenameConfigured &&
+      (!taskCategory || basenameConfigured.includes(taskCategory))
+    ) {
+      return basenameConfigured;
+    }
+
     return taskName.includes("/") ? [taskName.split("/")[0]] : [];
   };
 
@@ -66,6 +86,7 @@ export const generateSummary = async (
 
   const formattedSummary = {
     experimentName,
+    ...(experimentUrl && { experimentUrl }),
     passed,
     failed,
     categories,

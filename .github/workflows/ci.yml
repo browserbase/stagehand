@@ -755,17 +755,29 @@ jobs:
             printf '%s\n' "$EVAL_STDOUT_SUMMARY" >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
-          experimentName=$(jq -r '.experimentName' eval-summary.json)
-          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
-          if [ -f eval-summary.json ]; then
-            category_score=$(jq ".categories[\"${{ matrix.category }}\"]" eval-summary.json)
-            echo "${{ matrix.category }} category score: $category_score%"
-            if (( $(echo "$category_score < 80" | bc -l) )); then
-              echo "${{ matrix.category }} category score is below 80%. Failing CI."
-              exit 1
-            fi
-          else
+
+          if [ ! -f eval-summary.json ]; then
             echo "Eval summary not found for ${{ matrix.category }} category. Failing CI."
+            exit 1
+          fi
+
+          experimentUrl=$(jq -r '.experimentUrl // empty' eval-summary.json)
+          if [ -n "$experimentUrl" ]; then
+            echo "View results at ${experimentUrl}"
+          else
+            experimentName=$(jq -r '.experimentName' eval-summary.json)
+            echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
+          fi
+
+          category_score=$(jq -r --arg category "${{ matrix.category }}" '.categories[$category] // empty' eval-summary.json)
+          if [ -z "$category_score" ]; then
+            echo "${{ matrix.category }} category score not found in eval summary. Failing CI."
+            exit 1
+          fi
+
+          echo "${{ matrix.category }} category score: $category_score%"
+          if (( $(echo "$category_score < 80" | bc -l) )); then
+            echo "${{ matrix.category }} category score is below 80%. Failing CI."
             exit 1
           fi
 
