@@ -2,13 +2,21 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import {
+  benchCaseDiffs,
+  collectExperimentMetrics,
+  detectCompareMode,
   fetchManyExperimentData,
   findLeaderIndex,
   sharedMetricKeys,
+  sharedBenchCaseKeys,
   sharedTaskNames,
+  type BenchCaseDiff,
+  type BenchAgentConfigSummary,
   type ExperimentData,
   type ExperimentInput,
+  type ExperimentMetricRow,
   type TaskRow,
+  summarizeBenchAgentConfigs,
 } from "../lib/braintrust-report.js";
 
 type ParsedArgs = {
@@ -17,6 +25,7 @@ type ParsedArgs = {
   title: string;
   experiments: ExperimentInput[];
   openAfter: boolean;
+  projectMap?: string[];
 };
 
 const DEFAULT_PROJECT = "stagehand-core-dev";
@@ -26,7 +35,7 @@ const MAX_EXPERIMENTS = 8; // practical layout limit
 const SIDE_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
 function defaultOutputPath(): string {
-  return "/tmp/stagehand-core-braintrust-report.html";
+  return "/tmp/stagehand-evals-braintrust-report.html";
 }
 
 function usage(): string {
@@ -43,6 +52,7 @@ function usage(): string {
     "",
     "Options:",
     "  --project <name>       Braintrust project (default: stagehand-core-dev)",
+    "  --project-map <json>   Internal: JSON array of per-experiment projects",
     "  --title <text>         Report title (default: \"Experiment Comparison\")",
     "  --out <path>           Output HTML path",
     "  --label-a <text>       Label for position A (shortcut)",
@@ -90,6 +100,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   let outputPath = defaultOutputPath();
   let title = DEFAULT_TITLE;
   let openAfter = true;
+  let projectMap: string[] | undefined;
   const positional: string[] = [];
   const labelOverrides: Record<number, string> = {};
 
@@ -107,6 +118,18 @@ function parseArgs(argv: string[]): ParsedArgs {
       case "--project":
         project = args.shift() ?? (() => { throw new Error("Missing value for --project"); })();
         break;
+      case "--project-map": {
+        const raw = args.shift() ?? (() => { throw new Error("Missing value for --project-map"); })();
+        const parsed = JSON.parse(raw) as unknown;
+        if (
+          !Array.isArray(parsed) ||
+          parsed.some((value) => typeof value !== "string" || value.length === 0)
+        ) {
+          throw new Error("--project-map must be a JSON array of project names");
+        }
+        projectMap = parsed;
+        break;
+      }
       case "--out":
         outputPath = path.resolve(args.shift() ?? (() => { throw new Error("Missing value for --out"); })());
         break;
@@ -139,10 +162,18 @@ function parseArgs(argv: string[]): ParsedArgs {
   const experiments = positional.map((raw, i) => {
     const spec = parseExperimentSpec(raw);
     if (labelOverrides[i]) spec.label = labelOverrides[i];
+    if (projectMap) {
+      if (projectMap.length !== positional.length) {
+        throw new Error(
+          `--project-map length (${projectMap.length}) must match experiment count (${positional.length})`,
+        );
+      }
+      spec.project = projectMap[i];
+    }
     return spec;
   });
 
-  return { project, outputPath, title, experiments, openAfter };
+  return { project, outputPath, title, experiments, openAfter, projectMap };
 }
 
 function openInBrowser(filePath: string): void {
@@ -452,7 +483,312 @@ function buildTaskTable(rows: ExperimentData[], taskNames: string[]): string {
   `;
 }
 
+function buildBenchSummary(rows: ExperimentData[]): string {
+  const leader = findLeaderIndex(rows);
+  const sharedCases = sharedBenchCaseKeys(rows).length;
+  const totalCases = rows.reduce((sum, row) => sum + row.benchCases.length, 0);
+
+  const cards = rows
+    .map((row, i) => {
+      const isLeader = i === leader;
+      return `
+        <article class="summary__card ${isLeader ? "is-leader" : ""}" data-side="${i}">
+          <header class="summary__head">
+            <span class="side side--${i}">${sideLetter(i)}</span>
+            ${isLeader ? `<span class="badge badge--success">Leader</span>` : ""}
+          </header>
+          <h2 class="summary__label">${escapeHtml(row.label)}</h2>
+          <div class="summary__figure">${formatPct(row.passScore)}</div>
+          <div class="summary__detail">
+            <span class="summary__fraction">${row.passedTasks} of ${row.totalTasks} cases passed</span>
+          </div>
+          <footer class="summary__foot">
+            <code class="summary__id">${escapeHtml(row.experimentName)}</code>
+            <a class="summary__link" href="${row.experimentUrl}" target="_blank" rel="noreferrer">Open ↗</a>
+          </footer>
+        </article>
+      `;
+    })
+    .join("\n");
+
+  return `
+    <section class="summary" data-count="${rows.length}">
+      ${cards}
+    </section>
+    <p class="overlap">
+      <strong>${sharedCases}</strong> shared ${sharedCases === 1 ? "case" : "cases"} ·
+      <strong>${totalCases}</strong> total ${totalCases === 1 ? "case" : "cases"} analyzed ·
+      bench comparisons use case keys: dataset, task id, model, agent mode, and trial
+    </p>
+  `;
+}
+
+function agentConfigCell(summary: BenchAgentConfigSummary | undefined): string {
+  if (!summary) return `<td class="xcol muted">—</td>`;
+  const duration =
+    summary.meanDurationMs !== undefined
+      ? `<span class="xcell__time">${formatMs(summary.meanDurationMs)}</span>`
+      : "";
+  return `
+    <td class="xcol">
+      <div class="xcell xcell--stack">
+        <span>${summary.passed}/${summary.total} <span class="muted">(${formatPct(summary.passScore)})</span></span>
+        ${duration}
+      </div>
+    </td>
+  `;
+}
+
+function buildAgentConfigTable(rows: ExperimentData[]): string {
+  const summaries = rows.map((row) =>
+    new Map(
+      summarizeBenchAgentConfigs(row.benchCases).map((summary) => [
+        summary.key,
+        summary,
+      ]),
+    ),
+  );
+  const configKeys = [
+    ...new Set(summaries.flatMap((summary) => [...summary.keys()])),
+  ].sort();
+  if (configKeys.length === 0) return "";
+
+  const headerCells = rows
+    .map((row, i) => `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(row.label)}</th>`)
+    .join("");
+  const body = configKeys
+    .map((key) => {
+      const rowSummaries = summaries
+        .map((summary) => summary.get(key))
+        .filter((summary): summary is BenchAgentConfigSummary => !!summary);
+      const label = rowSummaries[0]?.label ?? key;
+      const models = [
+        ...new Set(rowSummaries.flatMap((summary) => summary.models)),
+      ].sort();
+      const cells = summaries
+        .map((summary) => agentConfigCell(summary.get(key)))
+        .join("");
+      return `
+        <tr>
+          <th class="task"><code>${escapeHtml(label)}</code></th>
+          <td class="xcol">
+            <div class="model-list">${models.map((model) => `<code>${escapeHtml(model)}</code>`).join(" ") || `<span class="muted">unknown</span>`}</div>
+          </td>
+          ${cells}
+        </tr>
+      `;
+    })
+    .join("\n");
+
+  return `
+    <section class="card">
+      <header class="card__head">
+        <div>
+          <h2 class="card__title">Agent config</h2>
+          <p class="card__desc">Pass rate and mean duration grouped by harness, mode, environment, API, tool surface, and startup profile.</p>
+        </div>
+      </header>
+      <div class="task-table-wrap">
+        <table class="task-table" data-cols="${rows.length}">
+          <thead>
+            <tr>
+              <th>Config</th>
+              <th class="xcol">Models</th>
+              ${headerCells}
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function formatMetricValue(value: number | null, unit: string, key: string): string {
+  if (value === null) return "—";
+  const normalized = `${unit} ${key}`.toLowerCase();
+  if (unit === "ratio") return formatPct(value);
+  if (normalized.includes("ms")) return formatMs(value);
+  if (unit === "s" || normalized.includes("duration")) return formatSeconds(value);
+  if (/(usd|cost|price|dollar|\$)/.test(normalized)) {
+    return `$${value.toFixed(value < 1 ? 4 : 2)}`;
+  }
+  if (/(count|token|usage|cases|tasks|errors)/.test(normalized)) {
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  }
+  return Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(3);
+}
+
+function buildExperimentMetricsTable(rows: ExperimentData[]): string {
+  const metrics = collectExperimentMetrics(rows).slice(0, 24);
+  if (metrics.length === 0) return "";
+
+  const headerCells = rows
+    .map((row, i) => `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(row.label)}</th>`)
+    .join("");
+  const body = metrics
+    .map((metric: ExperimentMetricRow) => {
+      const cells = metric.values
+        .map(
+          (value) =>
+            `<td class="xcol"><code>${escapeHtml(formatMetricValue(value, metric.unit, metric.key))}</code></td>`,
+        )
+        .join("");
+      return `
+        <tr>
+          <th class="task">
+            <code>${escapeHtml(metric.label)}</code>
+            ${metric.unit ? `<div class="case-meta">${escapeHtml(metric.unit)}</div>` : ""}
+          </th>
+          ${cells}
+        </tr>
+      `;
+    })
+    .join("\n");
+
+  return `
+    <section class="card">
+      <header class="card__head">
+        <div>
+          <h2 class="card__title">Experiment metrics</h2>
+          <p class="card__desc">Derived counts and speed metrics plus raw Braintrust metrics such as cost, tokens, duration, and errors when present.</p>
+        </div>
+      </header>
+      <div class="task-table-wrap">
+        <table class="task-table" data-cols="${rows.length}">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              ${headerCells}
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function caseLabel(diff: BenchCaseDiff): string {
+  return [
+    diff.dataset ?? diff.suite,
+    diff.taskId ?? diff.taskName,
+    diff.model,
+    diff.agentMode,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+}
+
+function buildBenchDiffTable(
+  rows: ExperimentData[],
+  diffs: BenchCaseDiff[],
+  title: string,
+  description: string,
+): string {
+  if (diffs.length === 0) {
+    return `
+      <section class="card">
+        <header class="card__head">
+          <div>
+            <h2 class="card__title">${escapeHtml(title)}</h2>
+            <p class="card__desc">${escapeHtml(description)}</p>
+          </div>
+        </header>
+        <div class="empty">No cases in this category.</div>
+      </section>
+    `;
+  }
+
+  const headerCells = rows
+    .map((row, i) => `<th class="xcol"><span class="side side--${i} side--sm">${sideLetter(i)}</span> ${escapeHtml(row.label)}</th>`)
+    .join("");
+  const body = diffs
+    .map((diff) => {
+      const cells = diff.outcomes
+        .map((outcome) => {
+          if (outcome.passed === null) {
+            return `<td class="xcol muted">—</td>`;
+          }
+          const glyph = outcome.passed
+            ? `<span class="dot dot--ok"></span>`
+            : `<span class="dot dot--fail"></span>`;
+          const duration =
+            outcome.durationMs !== null ? formatMs(outcome.durationMs) : "";
+          return `
+            <td class="xcol">
+              <div class="xcell">
+                ${glyph}
+                <span class="xcell__time">${duration}</span>
+              </div>
+            </td>
+          `;
+        })
+        .join("");
+      const meta = [diff.website, diff.category].filter(Boolean).join(" · ");
+      return `
+        <tr${diff.differs ? ' class="row--alert"' : ""}>
+          <th class="task">
+            <code>${escapeHtml(caseLabel(diff))}</code>
+            ${meta ? `<div class="case-meta">${escapeHtml(meta)}</div>` : ""}
+          </th>
+          ${cells}
+        </tr>
+      `;
+    })
+    .join("\n");
+
+  return `
+    <section class="card">
+      <header class="card__head">
+        <div>
+          <h2 class="card__title">${escapeHtml(title)}</h2>
+          <p class="card__desc">${escapeHtml(description)}</p>
+        </div>
+      </header>
+      <div class="task-table-wrap">
+        <table class="task-table" data-cols="${rows.length}">
+          <thead>
+            <tr>
+              <th>Case</th>
+              ${headerCells}
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function buildBenchContent(rows: ExperimentData[]): string {
+  const diffs = benchCaseDiffs(rows);
+  const differingCases = diffs
+    .filter((diff) => diff.differs && !diff.missing)
+    .slice(0, 100);
+  const missingCases = diffs.filter((diff) => diff.missing).slice(0, 100);
+
+  return `
+    ${buildBenchSummary(rows)}
+    ${buildAgentConfigTable(rows)}
+    ${buildExperimentMetricsTable(rows)}
+    ${buildBenchDiffTable(
+      rows,
+      differingCases,
+      "Case differences",
+      "Shared case keys where pass/fail outcomes differ between experiments.",
+    )}
+    ${buildBenchDiffTable(
+      rows,
+      missingCases,
+      "Missing cases",
+      "Case keys that exist in at least one experiment but not all experiments.",
+    )}
+  `;
+}
+
 function buildHtml(title: string, rows: ExperimentData[]): string {
+  const mode = detectCompareMode(rows);
   const generatedAt = new Date().toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -460,9 +796,24 @@ function buildHtml(title: string, rows: ExperimentData[]): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const taskNames = sharedTaskNames(rows);
-  const metricKeys = sharedMetricKeys(rows);
-  const hasPerTaskData = rows.every((r) => r.totalTasks > 0);
+  const taskNames = mode === "core" ? sharedTaskNames(rows) : [];
+  const metricKeys = mode === "core" ? sharedMetricKeys(rows) : [];
+  const hasPerTaskData =
+    mode === "core" && rows.every((r) => r.totalTasks > 0);
+  const content =
+    mode === "bench"
+      ? buildBenchContent(rows)
+      : `
+      ${buildSummary(rows, taskNames.length, metricKeys.length)}
+
+      ${hasPerTaskData ? buildPhaseBreakdown(rows) : ""}
+      ${hasPerTaskData ? buildTimerGrid(rows, metricKeys) : ""}
+      ${hasPerTaskData ? buildTaskTable(rows, taskNames) : `<section class="card"><div class="empty">Per-task event data not available for all experiments.</div></section>`}
+    `;
+  const analyzedCount =
+    mode === "bench"
+      ? rows.reduce((sum, row) => sum + row.benchCases.length, 0)
+      : rows.reduce((sum, row) => sum + row.totalTasks, 0);
 
   const subtitle = rows.map((r) => escapeHtml(r.label)).join(" <span style=\"opacity: 0.4;\">vs</span> ");
 
@@ -989,6 +1340,12 @@ function buildHtml(title: string, rows: ExperimentData[]): string {
         gap: 8px;
       }
 
+      .xcell--stack {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 2px;
+      }
+
       .xcell__time {
         font-family: var(--font-mono);
         font-size: 12px;
@@ -1009,6 +1366,29 @@ function buildHtml(title: string, rows: ExperimentData[]): string {
       }
       .dot--ok { background: var(--primary); box-shadow: 0 0 0 3px var(--primary-dim); }
       .dot--fail { background: var(--destructive); box-shadow: 0 0 0 3px var(--destructive-dim); }
+
+      .muted { color: var(--muted-foreground); }
+      .case-meta {
+        margin-top: 3px;
+        color: var(--muted-foreground);
+        font-family: var(--font-sans);
+        font-size: 11px;
+        font-weight: 400;
+      }
+
+      .model-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 6px;
+        max-width: 360px;
+      }
+      .model-list code {
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--muted);
+        color: var(--foreground);
+        font-size: 10.5px;
+      }
 
       /* Footer */
       .footer {
@@ -1046,15 +1426,11 @@ function buildHtml(title: string, rows: ExperimentData[]): string {
         <span class="header__time">${escapeHtml(generatedAt)}</span>
       </header>
 
-      ${buildSummary(rows, taskNames.length, metricKeys.length)}
-
-      ${hasPerTaskData ? buildPhaseBreakdown(rows) : ""}
-      ${hasPerTaskData ? buildTimerGrid(rows, metricKeys) : ""}
-      ${hasPerTaskData ? buildTaskTable(rows, taskNames) : `<section class="card"><div class="empty">Per-task event data not available for all experiments.</div></section>`}
+      ${content}
 
       <footer class="footer">
         <span>${rows.length}-way comparison · Braintrust</span>
-        <span>${rows.reduce((s, r) => s + r.totalTasks, 0)} events analyzed</span>
+        <span>${analyzedCount} ${mode === "bench" ? "cases" : "events"} analyzed</span>
       </footer>
     </div>
   </body>

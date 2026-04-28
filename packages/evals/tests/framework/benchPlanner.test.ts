@@ -41,6 +41,13 @@ describe("benchPlanner", () => {
       provider: "openai",
       environment: "BROWSERBASE",
       useApi: true,
+      config: {
+        harness: "stagehand",
+        model: "openai/gpt-4.1-mini",
+        provider: "openai",
+        environment: "BROWSERBASE",
+        useApi: true,
+      },
     });
   });
 
@@ -102,6 +109,99 @@ describe("benchPlanner", () => {
     expect(testcase.tags).toContain("dom");
     expect(testcase.tags).not.toContain("hybrid");
     expect(testcase.metadata.agentMode).toBe("dom");
+  });
+
+  it("can expand a stagehand model across explicit agent modes", async () => {
+    const testcases = await withEnvOverrides(
+      {
+        EVAL_MAX_K: "1",
+        EVAL_WEBVOYAGER_LIMIT: "1",
+      },
+      async () =>
+        generateBenchTestcases(
+          [
+            makeTask({
+              name: "agent/webvoyager",
+              primaryCategory: "agent",
+              categories: ["external_agent_benchmarks"],
+            }),
+          ],
+          {
+            modelOverride: "openai/gpt-4.1-mini",
+            datasetFilter: "webvoyager",
+            harness: "stagehand",
+            agentModes: ["dom", "hybrid"],
+          },
+        ),
+    );
+
+    expect(testcases).toHaveLength(2);
+    expect(testcases.map((testcase) => testcase.input.agentMode).sort()).toEqual([
+      "dom",
+      "hybrid",
+    ]);
+    expect(testcases.map((testcase) => testcase.input.modelName)).toEqual([
+      "openai/gpt-4.1-mini",
+      "openai/gpt-4.1-mini",
+    ]);
+    expect(testcases.every((testcase) => testcase.input.isCUA === false)).toBe(
+      true,
+    );
+  });
+
+  it("does not expand non-agent model overrides across agent modes", () => {
+    const testcases = generateBenchTestcases([makeTask()], {
+      modelOverride: "openai/gpt-4.1-mini",
+      harness: "stagehand",
+      agentModes: ["dom", "hybrid"],
+    });
+
+    expect(testcases).toHaveLength(1);
+    expect(testcases[0].input.modelName).toBe("openai/gpt-4.1-mini");
+    expect(testcases[0].input.agentMode).toBeUndefined();
+    expect(testcases[0].input.isCUA).toBeUndefined();
+    expect(testcases[0].tags).not.toContain("dom");
+    expect(testcases[0].tags).not.toContain("hybrid");
+    expect(testcases[0].metadata.agentMode).toBeUndefined();
+  });
+
+  it("keeps claude_code as a harness-level matrix without stagehand agent modes", async () => {
+    const testcases = await withEnvOverrides(
+      {
+        EVAL_MAX_K: "1",
+        EVAL_WEBVOYAGER_LIMIT: "1",
+      },
+      async () =>
+        generateBenchTestcases(
+          [
+            makeTask({
+              name: "agent/webvoyager",
+              primaryCategory: "agent",
+              categories: ["external_agent_benchmarks"],
+            }),
+          ],
+          {
+            modelOverride: "anthropic/claude-sonnet-4-20250514",
+            datasetFilter: "webvoyager",
+            harness: "claude_code",
+            agentModes: ["dom", "hybrid"],
+          },
+        ),
+    );
+
+    expect(testcases).toHaveLength(1);
+    expect(testcases[0].input.modelName).toBe(
+      "anthropic/claude-sonnet-4-20250514",
+    );
+    expect(testcases[0].input.agentMode).toBeUndefined();
+    expect(testcases[0].input.isCUA).toBeUndefined();
+    expect(testcases[0].tags).toContain("harness/claude_code");
+    expect(testcases[0].tags).not.toContain("dom");
+    expect(testcases[0].tags).not.toContain("hybrid");
+    expect(testcases[0].metadata.harness).toBe("claude_code");
+    expect(testcases[0].metadata.toolSurface).toBe("browse_cli");
+    expect(testcases[0].metadata.startupProfile).toBe("tool_launch_local");
+    expect(testcases[0].metadata.agentMode).toBeUndefined();
   });
 
   it("generates direct WebVoyager suite testcases from source datasets", async () => {

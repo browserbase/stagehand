@@ -68,6 +68,7 @@ export interface RunEvalsOptions {
   categoryFilter?: string;
   datasetFilter?: string;
   agentMode?: AgentToolMode;
+  agentModes?: AgentToolMode[];
   harness?: Harness;
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;
@@ -128,6 +129,8 @@ function generateTestcases(
       metadata: {
         model: "none" as AvailableModel,
         test: task.name,
+        tier: "core",
+        task: task.name,
         categories: task.categories,
         task_category: task.primaryCategory,
       },

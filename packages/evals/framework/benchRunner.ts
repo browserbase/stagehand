@@ -26,11 +26,23 @@ export async function executeBenchTask(
     options,
     input.params,
     input.isCUA,
+    input.agentMode,
   );
   let cleanup: () => Promise<void> = async () => {};
   let unregisterCleanup: (() => void) | undefined;
 
   try {
+    if (harness.execute) {
+      return await harness.execute({
+        task,
+        input,
+        row,
+        logger,
+        verbose: options.verbose,
+        signal: options.signal,
+      });
+    }
+
     const startedHarness = await harness.start({
       task,
       input,

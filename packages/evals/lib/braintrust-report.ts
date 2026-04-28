@@ -35,6 +35,20 @@ async function loginBraintrust(apiKey: string): Promise<BraintrustState> {
   return loginToState({ apiKey });
 }
 
+const stateCache = new Map<string, Promise<BraintrustState>>();
+const lookupCache = new Map<string, Promise<BraintrustExperimentRow | null>>();
+const comparisonCache = new Map<string, Promise<ExperimentComparison>>();
+const eventsCache = new Map<string, Promise<ExperimentEvent[]>>();
+const recentRowsCache = new Map<string, Promise<BraintrustExperimentRow[]>>();
+
+export function clearBraintrustReportCache(): void {
+  stateCache.clear();
+  lookupCache.clear();
+  comparisonCache.clear();
+  eventsCache.clear();
+  recentRowsCache.clear();
+}
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -43,6 +57,8 @@ export type ExperimentInput = {
   label: string;
   /** Experiment name OR UUID — both are accepted. */
   experiment: string;
+  /** Optional per-experiment project for cross-project comparisons. */
+  project?: string;
 };
 
 export type BraintrustExperimentRow = {
@@ -128,12 +144,58 @@ export type TaskRow = {
   totalMs?: number;
 };
 
+export type ExperimentMode = "core" | "bench";
+
+export type BenchCaseRow = {
+  key: string;
+  suite: string;
+  dataset?: string;
+  taskId?: string;
+  taskName: string;
+  harness?: string;
+  model?: string;
+  provider?: string;
+  environment?: string;
+  api?: boolean;
+  toolSurface?: string;
+  startupProfile?: string;
+  agentMode?: string;
+  trial: number;
+  success: boolean;
+  durationMs?: number;
+  metrics: Record<string, number>;
+  website?: string;
+  category?: string;
+  error?: unknown;
+};
+
+export type BenchCaseDiff = {
+  key: string;
+  suite: string;
+  dataset?: string;
+  taskId?: string;
+  taskName: string;
+  model?: string;
+  agentMode?: string;
+  website?: string;
+  category?: string;
+  outcomes: Array<{
+    label: string;
+    project: string;
+    passed: boolean | null;
+    durationMs: number | null;
+  }>;
+  differs: boolean;
+  missing: boolean;
+};
+
 export type ExperimentData = {
   label: string;
   experimentName: string;
   experimentId: string;
   experimentUrl: string;
   projectName: string;
+  mode: ExperimentMode;
   createdAt?: string;
   passScore: number;
   totalTasks: number;
@@ -146,6 +208,41 @@ export type ExperimentData = {
   taskMetrics: Record<string, MetricAggregate>;
   /** Individual task runs with pass/fail + total duration. */
   tasks: TaskRow[];
+  /** Individual bench suite cases, keyed by dataset/task/model/agent mode/trial. */
+  benchCases: BenchCaseRow[];
+};
+
+export type BenchGroupSummary = {
+  name: string;
+  total: number;
+  passed: number;
+  passScore: number;
+  meanDurationMs?: number;
+};
+
+export type BenchAgentConfigSummary = {
+  key: string;
+  label: string;
+  harness?: string;
+  provider?: string;
+  environment?: string;
+  api?: boolean;
+  toolSurface?: string;
+  startupProfile?: string;
+  agentMode?: string;
+  models: string[];
+  total: number;
+  passed: number;
+  passScore: number;
+  meanDurationMs?: number;
+  metrics: Record<string, MetricAggregate>;
+};
+
+export type ExperimentMetricRow = {
+  key: string;
+  label: string;
+  unit: string;
+  values: Array<number | null>;
 };
 
 export type RecentExperimentData = {
@@ -171,6 +268,14 @@ export type FetchOptions = {
    *   2. process.env.BRAINTRUST_API_KEY
    */
   apiKey?: string;
+  /**
+   * Max concurrent Braintrust fetches for fan-out helpers. Defaults to 1
+   * because report commands are interactive and Braintrust rate limits are
+   * easier to hit than local CPU limits.
+   */
+  fetchConcurrency?: number;
+  /** Reuse in-process Braintrust lookups and payloads. Defaults to true. */
+  cache?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -179,6 +284,74 @@ export type FetchOptions = {
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function shouldCache(options: FetchOptions): boolean {
+  return options.cache !== false;
+}
+
+function cachePromise<T>(
+  cache: Map<string, Promise<T>>,
+  key: string,
+  enabled: boolean,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (!enabled) return fn();
+  let promise = cache.get(key);
+  if (!promise) {
+    promise = fn().catch((err) => {
+      cache.delete(key);
+      throw err;
+    });
+    cache.set(key, promise);
+  }
+  return promise;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number | undefined,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const limit =
+    Number.isSafeInteger(concurrency) && concurrency && concurrency > 0
+      ? concurrency
+      : 1;
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await fn(items[currentIndex], currentIndex);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => worker()),
+  );
+  return results;
+}
+
+function cacheKey(...parts: string[]): string {
+  return parts.join("\0");
+}
+
+function braintrustCacheScope(apiKey: string, state: BraintrustState): string {
+  return cacheKey(apiKey, state.orgName ?? "", state.appPublicUrl ?? "");
+}
+
+async function getBraintrustState(
+  apiKey: string,
+  options: FetchOptions,
+): Promise<BraintrustState> {
+  return cachePromise(
+    stateCache,
+    apiKey,
+    shouldCache(options),
+    () => loginBraintrust(apiKey),
+  );
+}
 
 function packageRoot(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -211,6 +384,121 @@ export function resolveApiKey(apiKey?: string): string {
 
 function numberOrZero(value: number | undefined): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function readString(
+  record: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  return stringValue(record?.[key]);
+}
+
+function readNumber(
+  record: Record<string, unknown> | undefined,
+  key: string,
+): number | undefined {
+  return numberValue(record?.[key]);
+}
+
+function readBoolean(
+  record: Record<string, unknown> | undefined,
+  key: string,
+): boolean | undefined {
+  const value = record?.[key];
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function metricAggregate(values: number[]): MetricAggregate | undefined {
+  if (values.length === 0) return undefined;
+  const sum = values.reduce((a, b) => a + b, 0);
+  return {
+    mean: sum / values.length,
+    min: Math.min(...values),
+    max: Math.max(...values),
+    count: values.length,
+  };
+}
+
+function extractNumericMetrics(
+  record: Record<string, EventMetric> | undefined,
+): Record<string, number> {
+  const metrics: Record<string, number> = {};
+  if (!record) return metrics;
+  for (const [key, payload] of Object.entries(record)) {
+    const value = extractMetricValue(payload);
+    if (value !== undefined) metrics[key] = value;
+  }
+  return metrics;
+}
+
+function firstString(...values: Array<string | undefined>): string | undefined {
+  return values.find((value) => value !== undefined);
+}
+
+function stripCaseSuffix(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const idx = value.indexOf(":");
+  return idx === -1 ? value : value.slice(0, idx);
+}
+
+function suffixAfterColon(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const idx = value.lastIndexOf(":");
+  if (idx === -1 || idx === value.length - 1) return undefined;
+  return value.slice(idx + 1);
+}
+
+function getInputRecord(
+  event: ExperimentEvent,
+): Record<string, unknown> | undefined {
+  return asRecord(event.input);
+}
+
+function getOutputRecord(
+  event: ExperimentEvent,
+): Record<string, unknown> | undefined {
+  return asRecord(event.output);
+}
+
+function deriveDataset(
+  explicit: string | undefined,
+  suite: string | undefined,
+  taskName: string | undefined,
+): string | undefined {
+  if (explicit) return explicit;
+  const combined = `${suite ?? ""} ${taskName ?? ""}`.toLowerCase();
+  if (combined.includes("webvoyager")) return "webvoyager";
+  if (combined.includes("onlinemind2web")) return "onlineMind2Web";
+  if (combined.includes("webtailbench")) return "webtailbench";
+  if (combined.includes("gaia")) return "gaia";
+  if (suite?.startsWith("agent/")) return suite.slice("agent/".length);
+  return undefined;
 }
 
 function extractPrimaryScore(
@@ -293,14 +581,8 @@ export function aggregateMetrics(
   }
   const result: Record<string, MetricAggregate> = {};
   for (const [key, values] of Object.entries(buckets)) {
-    if (values.length === 0) continue;
-    const sum = values.reduce((a, b) => a + b, 0);
-    result[key] = {
-      mean: sum / values.length,
-      min: Math.min(...values),
-      max: Math.max(...values),
-      count: values.length,
-    };
+    const aggregate = metricAggregate(values);
+    if (aggregate) result[key] = aggregate;
   }
   return result;
 }
@@ -343,6 +625,171 @@ export function extractTasks(events: ExperimentEvent[]): TaskRow[] {
   return deduped;
 }
 
+export function inferExperimentMode(
+  project: string,
+  events: ExperimentEvent[],
+): ExperimentMode {
+  for (const event of events) {
+    if (!isRootEvent(event)) continue;
+    const metadata = event.metadata;
+    const input = getInputRecord(event);
+    const taskName = firstString(
+      readString(metadata, "task"),
+      readString(metadata, "test"),
+      readString(input, "name"),
+      typeof event.input === "string" ? event.input : undefined,
+    );
+    const tier = readString(metadata, "tier");
+
+    if (tier === "core") return "core";
+    if (tier === "bench") return "bench";
+    if (readString(metadata, "dataset")) return "bench";
+    if (readString(metadata, "harness")) return "bench";
+    if (readString(input, "agentMode")) return "bench";
+    const modelName = readString(input, "modelName");
+    if (modelName && modelName !== "none") return "bench";
+    if (taskName?.startsWith("agent/")) return "bench";
+  }
+
+  return project.toLowerCase().includes("core") ? "core" : "bench";
+}
+
+export function extractBenchCases(events: ExperimentEvent[]): BenchCaseRow[] {
+  const cases: BenchCaseRow[] = [];
+  const trialCounts = new Map<string, number>();
+
+  for (const event of events) {
+    if (!isRootEvent(event)) continue;
+
+    const metadata = event.metadata;
+    const input = getInputRecord(event);
+    const params = asRecord(input?.params);
+    const output = getOutputRecord(event);
+    const inputName = firstString(
+      readString(input, "name"),
+      typeof event.input === "string" ? event.input : undefined,
+    );
+    const metadataTest = readString(metadata, "test");
+    const metadataTask = readString(metadata, "task");
+    const suite = firstString(
+      metadataTask,
+      stripCaseSuffix(metadataTest),
+      stripCaseSuffix(inputName),
+      "bench",
+    )!;
+    const taskName = firstString(metadataTest, inputName, suite)!;
+    const dataset = deriveDataset(readString(metadata, "dataset"), suite, taskName);
+    const taskId = firstString(
+      readString(metadata, "task_id"),
+      readString(params, "task_id"),
+      readString(params, "id"),
+      readString(input, "task_id"),
+      readString(input, "id"),
+      suffixAfterColon(metadataTest),
+      suffixAfterColon(inputName),
+    );
+    const model = firstString(
+      readString(metadata, "model"),
+      readString(input, "modelName"),
+      readString(input, "model"),
+    );
+    const harness = readString(metadata, "harness");
+    const provider = firstString(
+      readString(metadata, "provider"),
+      readString(input, "provider"),
+    );
+    const environment = readString(metadata, "environment");
+    const api = readBoolean(metadata, "api");
+    const toolSurface = readString(metadata, "toolSurface");
+    const startupProfile = readString(metadata, "startupProfile");
+    const agentMode = firstString(
+      readString(metadata, "agentMode"),
+      readString(input, "agentMode"),
+      readBoolean(input, "isCUA") === true ? "cua" : undefined,
+    );
+    const website = firstString(
+      readString(metadata, "website"),
+      readString(params, "web_name"),
+      readString(params, "website"),
+      readString(params, "web"),
+    );
+    const category = firstString(
+      readString(metadata, "task_category"),
+      readString(metadata, "category"),
+      readString(params, "category"),
+    );
+
+    const trialIdentity = [
+      dataset ?? suite,
+      taskId ?? taskName,
+      model ?? "unknown-model",
+      agentMode ?? "default",
+    ].join("\0");
+    const explicitTrial = firstString(
+      readString(metadata, "trial"),
+      readString(input, "trial"),
+      readString(params, "trial"),
+    );
+    let trial = explicitTrial ? numberValue(explicitTrial) : undefined;
+    if (trial === undefined) {
+      trial = (trialCounts.get(trialIdentity) ?? 0) + 1;
+      trialCounts.set(trialIdentity, trial);
+    }
+
+    const key = [
+      dataset ?? suite,
+      taskId ?? taskName,
+      model ?? "unknown-model",
+      agentMode ?? "default",
+      String(trial),
+    ].join("::");
+    const taskMetrics = getTaskMetrics(event);
+    const durationMs =
+      extractMetricValue(taskMetrics?.total_ms) ??
+      extractMetricValue(taskMetrics?.duration_ms) ??
+      extractMetricValue(taskMetrics?.task_ms);
+    const metrics = {
+      ...extractNumericMetrics(event.metrics),
+      ...extractNumericMetrics(taskMetrics),
+    };
+
+    cases.push({
+      key,
+      suite,
+      dataset,
+      taskId,
+      taskName,
+      harness,
+      model,
+      provider,
+      environment,
+      api,
+      toolSurface,
+      startupProfile,
+      agentMode,
+      trial,
+      success: readBoolean(output, "_success") === true,
+      durationMs,
+      metrics,
+      website,
+      category,
+      error: output?.error,
+    });
+  }
+
+  cases.sort((a, b) =>
+    [
+      a.suite.localeCompare(b.suite),
+      (a.dataset ?? "").localeCompare(b.dataset ?? ""),
+      (a.taskId ?? "").localeCompare(b.taskId ?? ""),
+      (a.model ?? "").localeCompare(b.model ?? ""),
+      (a.agentMode ?? "").localeCompare(b.agentMode ?? ""),
+      a.trial - b.trial,
+    ].find((value) => value !== 0) ?? 0,
+  );
+  return cases;
+}
+
 // ---------------------------------------------------------------------------
 // Public fetchers
 // ---------------------------------------------------------------------------
@@ -351,22 +798,31 @@ async function fetchExperimentEventsInternal(
   project: string,
   experimentName: string,
   apiKey: string,
+  cacheScope: string,
+  options: FetchOptions,
 ): Promise<ExperimentEvent[]> {
-  try {
-    const { init: initExperiment } = await loadBraintrust();
-    const experiment = initExperiment(project, {
-      experiment: experimentName,
-      open: true,
-      apiKey,
-    });
-    const data = await experiment.fetchedData();
-    return data as unknown as ExperimentEvent[];
-  } catch (err) {
-    console.warn(
-      `Could not fetch events for "${experimentName}": ${err instanceof Error ? err.message : err}`,
-    );
-    return [];
-  }
+  return cachePromise(
+    eventsCache,
+    cacheKey(cacheScope, project, experimentName),
+    shouldCache(options),
+    async () => {
+      try {
+        const { init: initExperiment } = await loadBraintrust();
+        const experiment = initExperiment(project, {
+          experiment: experimentName,
+          open: true,
+          apiKey,
+        });
+        const data = await experiment.fetchedData();
+        return data as unknown as ExperimentEvent[];
+      } catch (err) {
+        console.warn(
+          `Could not fetch events for "${experimentName}" in "${project}": ${err instanceof Error ? err.message : err}`,
+        );
+        return [];
+      }
+    },
+  );
 }
 
 function buildExperimentUrl(
@@ -386,17 +842,43 @@ async function lookupExperiment(
   state: BraintrustState,
   project: string,
   input: string,
+  cacheScope: string,
+  options: FetchOptions = {},
 ): Promise<BraintrustExperimentRow | null> {
-  const response = (await state.apiConn().get_json("/v1/experiment", {
-    project_name: project,
-    org_name: state.orgName,
-    limit: "1",
-    ...(UUID_RE.test(input)
-      ? { ids: [input] }
-      : { experiment_name: input }),
-  })) as { objects?: BraintrustExperimentRow[] };
+  return cachePromise(
+    lookupCache,
+    cacheKey(cacheScope, project, input),
+    shouldCache(options),
+    async () => {
+      const response = (await state.apiConn().get_json("/v1/experiment", {
+        project_name: project,
+        org_name: state.orgName,
+        limit: "1",
+        ...(UUID_RE.test(input)
+          ? { ids: [input] }
+          : { experiment_name: input }),
+      })) as { objects?: BraintrustExperimentRow[] };
 
-  return response.objects?.[0] ?? null;
+      return response.objects?.[0] ?? null;
+    },
+  );
+}
+
+async function fetchExperimentComparison(
+  state: BraintrustState,
+  experimentId: string,
+  cacheScope: string,
+  options: FetchOptions,
+): Promise<ExperimentComparison> {
+  return cachePromise(
+    comparisonCache,
+    cacheKey(cacheScope, experimentId),
+    shouldCache(options),
+    () =>
+      state.apiConn().get_json("/experiment-comparison2", {
+        experiment_id: experimentId,
+      }) as Promise<ExperimentComparison>,
+  );
 }
 
 async function fetchExperimentDataForRow(
@@ -405,21 +887,37 @@ async function fetchExperimentDataForRow(
   experiment: BraintrustExperimentRow,
   label: string,
   apiKey: string,
+  cacheScope: string,
+  options: FetchOptions,
 ): Promise<ExperimentData> {
-  const [comparison, events] = await Promise.all([
-    state.apiConn().get_json("/experiment-comparison2", {
-      experiment_id: experiment.id,
-    }) as Promise<ExperimentComparison>,
-    fetchExperimentEventsInternal(project, experiment.name, apiKey),
-  ]);
+  const comparison = await fetchExperimentComparison(
+    state,
+    experiment.id,
+    cacheScope,
+    options,
+  );
+  const events = await fetchExperimentEventsInternal(
+    project,
+    experiment.name,
+    apiKey,
+    cacheScope,
+    options,
+  );
 
   const passScore = numberOrZero(extractPrimaryScore(comparison));
   const durationSeconds = numberOrZero(comparison.metrics.duration?.metric);
   const errorsMetric = numberOrZero(comparison.metrics.errors?.metric);
 
+  const mode = inferExperimentMode(project, events);
   const taskMetrics = aggregateMetrics(events);
-  const tasks = extractTasks(events);
-  const passedTasks = tasks.filter((t) => t.success).length;
+  const tasks = mode === "core" ? extractTasks(events) : [];
+  const benchCases = mode === "bench" ? extractBenchCases(events) : [];
+  const passedTasks =
+    mode === "bench"
+      ? benchCases.filter((benchCase) => benchCase.success).length
+      : tasks.filter((task) => task.success).length;
+  const totalTasks = mode === "bench" ? benchCases.length : tasks.length;
+  const computedPassScore = totalTasks > 0 ? passedTasks / totalTasks : passScore;
 
   const experimentUrl = buildExperimentUrl(
     state.appPublicUrl,
@@ -434,15 +932,17 @@ async function fetchExperimentDataForRow(
     experimentId: experiment.id,
     experimentUrl,
     projectName: project,
+    mode,
     createdAt: experiment.created,
-    passScore,
-    totalTasks: tasks.length,
+    passScore: computedPassScore,
+    totalTasks,
     passedTasks,
     durationSeconds,
     errorsMetric,
     raw: comparison,
     taskMetrics,
     tasks,
+    benchCases,
   };
 }
 
@@ -450,13 +950,18 @@ async function fetchRecentExperimentDataForRow(
   state: BraintrustState,
   project: string,
   experiment: BraintrustExperimentRow,
+  cacheScope: string,
+  options: FetchOptions,
 ): Promise<RecentExperimentData> {
   let comparison: ExperimentComparison | null = null;
 
   try {
-    comparison = (await state.apiConn().get_json("/experiment-comparison2", {
-      experiment_id: experiment.id,
-    })) as ExperimentComparison;
+    comparison = await fetchExperimentComparison(
+      state,
+      experiment.id,
+      cacheScope,
+      options,
+    );
   } catch {
     comparison = null;
   }
@@ -493,18 +998,34 @@ export async function fetchExperimentData(
   options: FetchOptions = {},
 ): Promise<ExperimentData> {
   const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginBraintrust(apiKey);
-  const experiment = await lookupExperiment(state, project, input.experiment);
+  const state = await getBraintrustState(apiKey, options);
+  const cacheScope = braintrustCacheScope(apiKey, state);
+  const resolvedProject = input.project ?? project;
+  const experiment = await lookupExperiment(
+    state,
+    resolvedProject,
+    input.experiment,
+    cacheScope,
+    options,
+  );
   if (!experiment) {
     throw new Error(
-      `Experiment "${input.experiment}" not found in project "${project}"`,
+      `Experiment "${input.experiment}" not found in project "${resolvedProject}"`,
     );
   }
-  return fetchExperimentDataForRow(state, project, experiment, input.label, apiKey);
+  return fetchExperimentDataForRow(
+    state,
+    resolvedProject,
+    experiment,
+    input.label,
+    apiKey,
+    cacheScope,
+    options,
+  );
 }
 
 /**
- * Fetch many experiments in parallel.
+ * Fetch many experiments with conservative concurrency and in-process caching.
  */
 export async function fetchManyExperimentData(
   project: string,
@@ -512,23 +1033,35 @@ export async function fetchManyExperimentData(
   options: FetchOptions = {},
 ): Promise<ExperimentData[]> {
   const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginBraintrust(apiKey);
-  return Promise.all(
-    inputs.map(async (input) => {
-      const experiment = await lookupExperiment(state, project, input.experiment);
+  const state = await getBraintrustState(apiKey, options);
+  const cacheScope = braintrustCacheScope(apiKey, state);
+  return mapWithConcurrency(
+    inputs,
+    options.fetchConcurrency,
+    async (input) => {
+      const resolvedProject = input.project ?? project;
+      const experiment = await lookupExperiment(
+        state,
+        resolvedProject,
+        input.experiment,
+        cacheScope,
+        options,
+      );
       if (!experiment) {
         throw new Error(
-          `Experiment "${input.experiment}" not found in project "${project}"`,
+          `Experiment "${input.experiment}" not found in project "${resolvedProject}"`,
         );
       }
       return fetchExperimentDataForRow(
         state,
-        project,
+        resolvedProject,
         experiment,
         input.label,
         apiKey,
+        cacheScope,
+        options,
       );
-    }),
+    },
   );
 }
 
@@ -538,17 +1071,33 @@ export async function listRecentExperiments(
   options: FetchOptions = {},
 ): Promise<RecentExperimentData[]> {
   const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginBraintrust(apiKey);
-  const response = (await state.apiConn().get_json("/v1/experiment", {
-    project_name: project,
-    org_name: state.orgName,
-    limit: String(limit),
-  })) as { objects?: BraintrustExperimentRow[] };
+  const state = await getBraintrustState(apiKey, options);
+  const cacheScope = braintrustCacheScope(apiKey, state);
+  const rows = await cachePromise(
+    recentRowsCache,
+    cacheKey(cacheScope, project, String(limit)),
+    shouldCache(options),
+    async () => {
+      const response = (await state.apiConn().get_json("/v1/experiment", {
+        project_name: project,
+        org_name: state.orgName,
+        limit: String(limit),
+      })) as { objects?: BraintrustExperimentRow[] };
+      return (response.objects ?? []).slice(0, limit);
+    },
+  );
 
-  return Promise.all(
-    (response.objects ?? []).slice(0, limit).map((experiment) =>
-      fetchRecentExperimentDataForRow(state, project, experiment),
-    ),
+  return mapWithConcurrency(
+    rows,
+    options.fetchConcurrency,
+    (experiment) =>
+      fetchRecentExperimentDataForRow(
+        state,
+        project,
+        experiment,
+        cacheScope,
+        options,
+      ),
   );
 }
 
@@ -558,14 +1107,29 @@ export async function resolveExperimentAcrossProjects(
   options: FetchOptions = {},
 ): Promise<ExperimentData> {
   const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginBraintrust(apiKey);
+  const state = await getBraintrustState(apiKey, options);
+  const cacheScope = braintrustCacheScope(apiKey, state);
   const matches: ExperimentData[] = [];
 
   for (const project of projects) {
-    const found = await lookupExperiment(state, project, experiment);
+    const found = await lookupExperiment(
+      state,
+      project,
+      experiment,
+      cacheScope,
+      options,
+    );
     if (!found) continue;
     matches.push(
-      await fetchExperimentDataForRow(state, project, found, found.name, apiKey),
+      await fetchExperimentDataForRow(
+        state,
+        project,
+        found,
+        found.name,
+        apiKey,
+        cacheScope,
+        options,
+      ),
     );
   }
 
@@ -588,11 +1152,18 @@ export async function resolveExperimentProjectAcrossProjects(
   options: FetchOptions = {},
 ): Promise<ResolvedExperimentProject> {
   const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginBraintrust(apiKey);
+  const state = await getBraintrustState(apiKey, options);
+  const cacheScope = braintrustCacheScope(apiKey, state);
   const matches: ResolvedExperimentProject[] = [];
 
   for (const project of projects) {
-    const found = await lookupExperiment(state, project, experiment);
+    const found = await lookupExperiment(
+      state,
+      project,
+      experiment,
+      cacheScope,
+      options,
+    );
     if (!found) continue;
     matches.push({
       projectName: project,
@@ -613,6 +1184,54 @@ export async function resolveExperimentProjectAcrossProjects(
   }
 
   return matches[0];
+}
+
+export async function resolveExperimentProjectsAcrossProjects(
+  projects: string[],
+  inputs: ExperimentInput[],
+  options: FetchOptions = {},
+): Promise<ResolvedExperimentProject[]> {
+  const apiKey = resolveApiKey(options.apiKey);
+  const state = await getBraintrustState(apiKey, options);
+  const cacheScope = braintrustCacheScope(apiKey, state);
+
+  return mapWithConcurrency(
+    inputs,
+    options.fetchConcurrency,
+    async (input) => {
+      const searchProjects = input.project ? [input.project] : projects;
+      const matches: ResolvedExperimentProject[] = [];
+
+      for (const project of searchProjects) {
+        const found = await lookupExperiment(
+          state,
+          project,
+          input.experiment,
+          cacheScope,
+          options,
+        );
+        if (!found) continue;
+        matches.push({
+          projectName: project,
+          experimentId: found.id,
+          experimentName: found.name,
+        });
+      }
+
+      if (matches.length === 0) {
+        throw new Error(
+          `Experiment "${input.experiment}" not found in ${searchProjects.join(", ")}.`,
+        );
+      }
+      if (matches.length > 1) {
+        throw new Error(
+          `Experiment "${input.experiment}" is ambiguous across ${searchProjects.join(", ")}. Add --project or use an unambiguous experiment id.`,
+        );
+      }
+
+      return matches[0];
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -649,6 +1268,353 @@ export function sharedMetricKeys(rows: ExperimentData[]): string[] {
     }
   }
   return [...initial].sort();
+}
+
+export function experimentModeForRow(row: ExperimentData): ExperimentMode {
+  const mode = (row as { mode?: unknown }).mode;
+  if (mode === "core" || mode === "bench") return mode;
+  const benchCases = (row as { benchCases?: unknown }).benchCases;
+  if (Array.isArray(benchCases) && benchCases.length > 0) return "bench";
+  if (row.tasks.some((task) => task.name.startsWith("agent/"))) return "bench";
+  return row.projectName.toLowerCase().includes("core") ? "core" : "bench";
+}
+
+export function detectCompareMode(rows: ExperimentData[]): ExperimentMode {
+  if (rows.length === 0) return "core";
+  const modes = new Set(rows.map((row) => experimentModeForRow(row)));
+  if (modes.size > 1) {
+    throw new Error(
+      "Cannot compare core and bench experiments together yet. Compare only core experiments or only bench experiments.",
+    );
+  }
+  return [...modes][0] ?? "core";
+}
+
+export function sharedBenchCaseKeys(rows: ExperimentData[]): string[] {
+  if (rows.length === 0) return [];
+  const [first, ...rest] = rows;
+  const initial = new Set((first.benchCases ?? []).map((benchCase) => benchCase.key));
+  for (const row of rest) {
+    const keys = new Set((row.benchCases ?? []).map((benchCase) => benchCase.key));
+    for (const key of [...initial]) {
+      if (!keys.has(key)) initial.delete(key);
+    }
+  }
+  return [...initial].sort();
+}
+
+export function benchCaseDiffs(rows: ExperimentData[]): BenchCaseDiff[] {
+  const caseByKey = new Map<string, BenchCaseRow>();
+  const keys = new Set<string>();
+
+  for (const row of rows) {
+    for (const benchCase of row.benchCases ?? []) {
+      keys.add(benchCase.key);
+      if (!caseByKey.has(benchCase.key)) {
+        caseByKey.set(benchCase.key, benchCase);
+      }
+    }
+  }
+
+  return [...keys]
+    .sort()
+    .map((key) => {
+      const template = caseByKey.get(key)!;
+      const outcomes = rows.map((row) => {
+        const benchCase = (row.benchCases ?? []).find(
+          (candidate) => candidate.key === key,
+        );
+        return {
+          label: row.label,
+          project: row.projectName,
+          passed: benchCase ? benchCase.success : null,
+          durationMs: benchCase?.durationMs ?? null,
+        };
+      });
+      const availableOutcomes = outcomes
+        .map((outcome) => outcome.passed)
+        .filter((value): value is boolean => value !== null);
+      return {
+        key,
+        suite: template.suite,
+        dataset: template.dataset,
+        taskId: template.taskId,
+        taskName: template.taskName,
+        model: template.model,
+        agentMode: template.agentMode,
+        website: template.website,
+        category: template.category,
+        outcomes,
+        differs: new Set(availableOutcomes).size > 1,
+        missing: outcomes.some((outcome) => outcome.passed === null),
+      };
+    });
+}
+
+export function summarizeBenchCases(
+  cases: BenchCaseRow[],
+  groupBy: (benchCase: BenchCaseRow) => string | undefined,
+): BenchGroupSummary[] {
+  const groups = new Map<string, BenchCaseRow[]>();
+  for (const benchCase of cases) {
+    const name = groupBy(benchCase) ?? "unknown";
+    const group = groups.get(name) ?? [];
+    group.push(benchCase);
+    groups.set(name, group);
+  }
+
+  return [...groups.entries()]
+    .map(([name, group]) => {
+      const durations = group
+        .map((benchCase) => benchCase.durationMs)
+        .filter((value): value is number => typeof value === "number");
+      const passed = group.filter((benchCase) => benchCase.success).length;
+      return {
+        name,
+        total: group.length,
+        passed,
+        passScore: group.length > 0 ? passed / group.length : 0,
+        meanDurationMs:
+          durations.length > 0
+            ? durations.reduce((sum, value) => sum + value, 0) /
+              durations.length
+            : undefined,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function agentConfigKey(benchCase: BenchCaseRow): string {
+  return [
+    benchCase.harness ?? "stagehand",
+    benchCase.provider ?? "",
+    benchCase.environment ?? "",
+    benchCase.api === undefined ? "" : benchCase.api ? "api" : "local",
+    benchCase.toolSurface ?? "",
+    benchCase.startupProfile ?? "",
+    benchCase.agentMode ?? "default",
+  ].join("::");
+}
+
+function agentConfigLabel(benchCase: BenchCaseRow): string {
+  const parts = [
+    benchCase.harness ?? "stagehand",
+    benchCase.agentMode,
+    benchCase.provider,
+    benchCase.environment,
+    benchCase.api === undefined ? undefined : benchCase.api ? "api" : "direct",
+    benchCase.toolSurface,
+    benchCase.startupProfile,
+  ].filter((value): value is string => !!value);
+  return parts.length > 0 ? parts.join(" / ") : "default";
+}
+
+function aggregateCaseMetrics(cases: BenchCaseRow[]): Record<string, MetricAggregate> {
+  const buckets: Record<string, number[]> = {};
+  for (const benchCase of cases) {
+    for (const [key, value] of Object.entries(benchCase.metrics)) {
+      if (!buckets[key]) buckets[key] = [];
+      buckets[key].push(value);
+    }
+  }
+
+  const result: Record<string, MetricAggregate> = {};
+  for (const [key, values] of Object.entries(buckets)) {
+    const aggregate = metricAggregate(values);
+    if (aggregate) result[key] = aggregate;
+  }
+  return result;
+}
+
+export function summarizeBenchAgentConfigs(
+  cases: BenchCaseRow[],
+): BenchAgentConfigSummary[] {
+  const groups = new Map<string, BenchCaseRow[]>();
+  for (const benchCase of cases) {
+    const key = agentConfigKey(benchCase);
+    const group = groups.get(key) ?? [];
+    group.push(benchCase);
+    groups.set(key, group);
+  }
+
+  return [...groups.entries()]
+    .map(([key, group]) => {
+      const first = group[0];
+      const durations = group
+        .map((benchCase) => benchCase.durationMs)
+        .filter((value): value is number => typeof value === "number");
+      const durationAggregate = metricAggregate(durations);
+      const passed = group.filter((benchCase) => benchCase.success).length;
+
+      return {
+        key,
+        label: agentConfigLabel(first),
+        harness: first.harness,
+        provider: first.provider,
+        environment: first.environment,
+        api: first.api,
+        toolSurface: first.toolSurface,
+        startupProfile: first.startupProfile,
+        agentMode: first.agentMode,
+        models: [
+          ...new Set(
+            group
+              .map((benchCase) => benchCase.model)
+              .filter((value): value is string => !!value),
+          ),
+        ].sort(),
+        total: group.length,
+        passed,
+        passScore: group.length > 0 ? passed / group.length : 0,
+        meanDurationMs: durationAggregate?.mean,
+        metrics: aggregateCaseMetrics(group),
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function addMetricRow(
+  rowsByKey: Map<string, ExperimentMetricRow>,
+  rowIndex: number,
+  rowCount: number,
+  key: string,
+  label: string,
+  unit: string,
+  value: number | undefined,
+): void {
+  if (value === undefined || !Number.isFinite(value)) return;
+  const existing =
+    rowsByKey.get(key) ??
+    ({
+      key,
+      label,
+      unit,
+      values: Array.from({ length: rowCount }, (): number | null => null),
+    } satisfies ExperimentMetricRow);
+  existing.values[rowIndex] = value;
+  rowsByKey.set(key, existing);
+}
+
+function metricSortPriority(metric: ExperimentMetricRow): number {
+  const key = `${metric.key} ${metric.label}`.toLowerCase();
+  if (metric.key.startsWith("derived:")) return 0;
+  if (/(cost|price|usd|dollar)/.test(key)) return 10;
+  if (/(token|usage)/.test(key)) return 20;
+  if (/(duration|latency|time|speed|_ms|seconds|total_ms)/.test(key)) {
+    return 30;
+  }
+  if (/(error|fail)/.test(key)) return 40;
+  return 100;
+}
+
+function inferMetricUnit(key: string, fallback = ""): string {
+  const normalized = key.toLowerCase();
+  if (/(^|_)ms$|_ms$/.test(normalized)) return "ms";
+  if (/(duration|seconds|_s$)/.test(normalized)) return fallback || "s";
+  if (/(cost|price|usd|dollar)/.test(normalized)) return fallback || "usd";
+  if (/(token|usage)/.test(normalized)) return fallback || "count";
+  if (/(count|errors|failures|cases|tasks)/.test(normalized)) return "count";
+  return fallback;
+}
+
+export function collectExperimentMetrics(
+  rows: ExperimentData[],
+): ExperimentMetricRow[] {
+  const metricsByKey = new Map<string, ExperimentMetricRow>();
+
+  rows.forEach((row, rowIndex) => {
+    const benchDurations = row.benchCases
+      .map((benchCase) => benchCase.durationMs)
+      .filter((value): value is number => typeof value === "number");
+    const meanCaseDurationMs = metricAggregate(benchDurations)?.mean;
+
+    addMetricRow(
+      metricsByKey,
+      rowIndex,
+      rows.length,
+      "derived:pass_rate",
+      "Pass rate",
+      "ratio",
+      row.passScore,
+    );
+    addMetricRow(
+      metricsByKey,
+      rowIndex,
+      rows.length,
+      "derived:passed",
+      "Passed",
+      "count",
+      row.passedTasks,
+    );
+    addMetricRow(
+      metricsByKey,
+      rowIndex,
+      rows.length,
+      "derived:total",
+      row.mode === "bench" ? "Cases" : "Tasks",
+      "count",
+      row.totalTasks,
+    );
+    addMetricRow(
+      metricsByKey,
+      rowIndex,
+      rows.length,
+      "derived:duration",
+      "Braintrust duration",
+      "s",
+      row.durationSeconds,
+    );
+    addMetricRow(
+      metricsByKey,
+      rowIndex,
+      rows.length,
+      "derived:errors",
+      "Errors",
+      "count",
+      row.errorsMetric,
+    );
+    addMetricRow(
+      metricsByKey,
+      rowIndex,
+      rows.length,
+      "derived:mean_case_duration",
+      "Mean case duration",
+      "ms",
+      meanCaseDurationMs,
+    );
+
+    for (const [key, metric] of Object.entries(row.raw.metrics ?? {})) {
+      addMetricRow(
+        metricsByKey,
+        rowIndex,
+        rows.length,
+        `braintrust:${key}`,
+        metric.name || key,
+        inferMetricUnit(key, metric.unit),
+        metric.metric,
+      );
+    }
+
+    for (const [key, aggregate] of Object.entries(row.taskMetrics)) {
+      addMetricRow(
+        metricsByKey,
+        rowIndex,
+        rows.length,
+        `task:${key}:mean`,
+        `Mean ${key}`,
+        inferMetricUnit(key),
+        aggregate.mean,
+      );
+    }
+  });
+
+  return [...metricsByKey.values()]
+    .filter((metric) => metric.values.some((value) => value !== null))
+    .sort((a, b) => {
+      const priority = metricSortPriority(a) - metricSortPriority(b);
+      if (priority !== 0) return priority;
+      return a.label.localeCompare(b.label);
+    });
 }
 
 /**

@@ -32,6 +32,7 @@ export interface RunFlags {
   startup?: string;
   harness?: string;
   agentMode?: string;
+  agentModes?: AgentToolMode[];
   limit?: number;
   sample?: number;
   filter?: Array<[string, string]>;
@@ -48,6 +49,7 @@ export interface ConfigDefaults {
   model?: string | null;
   api?: boolean;
   verbose?: boolean | null;
+  agentModes?: AgentToolMode[] | null;
 }
 
 export interface ResolvedRunOptions {
@@ -63,6 +65,7 @@ export interface ResolvedRunOptions {
   coreStartupProfile?: string;
   harness: Harness;
   agentMode?: AgentToolMode;
+  agentModes?: AgentToolMode[];
   datasetFilter?: string;
   envOverrides: Record<string, string>;
   dryRun: boolean;
@@ -94,6 +97,7 @@ const VALUE_FLAGS = new Set([
   "startup",
   "harness",
   "agent-mode",
+  "agent-modes",
   "filter",
 ]);
 
@@ -136,6 +140,20 @@ function normalizeAgentMode(raw: string): AgentToolMode {
     throw new Error('--agent-mode must be "dom", "hybrid", or "cua"');
   }
   return raw;
+}
+
+export function parseAgentModes(raw: string): AgentToolMode[] {
+  const modes = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map(normalizeAgentMode);
+
+  if (modes.length === 0) {
+    throw new Error("--agent-modes must include at least one mode");
+  }
+
+  return [...new Set(modes)];
 }
 
 function parseFilter(raw: string): [string, string] {
@@ -232,6 +250,9 @@ export function parseRunArgs(tokens: string[]): RunFlags {
           break;
         case "agent-mode":
           flags.agentMode = normalizeAgentMode(value);
+          break;
+        case "agent-modes":
+          flags.agentModes = parseAgentModes(value);
           break;
         case "filter": {
           filters.push(parseFilter(value));
@@ -384,6 +405,9 @@ export function resolveRunOptions(
   const agentMode = flags.agentMode
     ? normalizeAgentMode(flags.agentMode)
     : undefined;
+  const agentModes = agentMode
+    ? undefined
+    : flags.agentModes ?? defaults.agentModes ?? undefined;
 
   envOverrides.EVAL_ENV = environment;
   envOverrides.USE_API = String(Boolean(useApi));
@@ -409,6 +433,7 @@ export function resolveRunOptions(
     coreStartupProfile: flags.startup ?? core.startup,
     harness,
     agentMode,
+    agentModes,
     datasetFilter,
     envOverrides,
     dryRun: flags.dryRun ?? false,

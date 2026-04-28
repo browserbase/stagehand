@@ -98,6 +98,8 @@ export const buildOnlineMind2WebTestcases = (
         metadata: {
           model: modelEntry.modelName as AvailableModel,
           test: `${input.name}:${row.task_id}`,
+          tier: "bench",
+          task: input.name,
           category: taskCategories[0] || "agent",
           categories: taskCategories,
           dataset: "onlineMind2Web",

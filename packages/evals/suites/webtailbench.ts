@@ -87,6 +87,8 @@ export const buildWebTailBenchTestcases = (
         metadata: {
           model: modelEntry.modelName as AvailableModel,
           test: `${input.name}:${row.id}`,
+          tier: "bench",
+          task: input.name,
           category: taskCategories[0] || "agent",
           categories: taskCategories,
           dataset: "webtailbench",

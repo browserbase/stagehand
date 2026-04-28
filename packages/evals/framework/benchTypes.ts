@@ -17,8 +17,16 @@ export const SUPPORTED_BENCH_HARNESSES = [
   "codex",
 ] as const satisfies readonly Harness[];
 
+export const EXECUTABLE_BENCH_HARNESSES = [
+  "stagehand",
+] as const satisfies readonly Harness[];
+
 export function isBenchHarness(value: string): value is Harness {
   return (SUPPORTED_BENCH_HARNESSES as readonly string[]).includes(value);
+}
+
+export function isExecutableBenchHarness(value: Harness): boolean {
+  return (EXECUTABLE_BENCH_HARNESSES as readonly Harness[]).includes(value);
 }
 
 export function parseBenchHarness(value: string | undefined): Harness {
@@ -37,6 +45,42 @@ export type BenchTaskKind =
   | "combination"
   | "suite";
 
+export interface StagehandHarnessConfig {
+  harness: "stagehand";
+  model: AvailableModel;
+  provider?: string;
+  environment: "LOCAL" | "BROWSERBASE";
+  useApi: boolean;
+  agentMode?: AgentToolMode;
+  isCUA?: boolean;
+  toolSurface?: ToolSurface;
+  startupProfile?: StartupProfile;
+  dataset?: string;
+}
+
+export interface ExternalHarnessConfig {
+  model: AvailableModel;
+  provider?: string;
+  environment: "LOCAL" | "BROWSERBASE";
+  useApi: boolean;
+  toolSurface?: ToolSurface;
+  startupProfile?: StartupProfile;
+  dataset?: string;
+}
+
+export interface ClaudeCodeHarnessConfig extends ExternalHarnessConfig {
+  harness: "claude_code";
+}
+
+export interface CodexHarnessConfig extends ExternalHarnessConfig {
+  harness: "codex";
+}
+
+export type BenchHarnessConfig =
+  | StagehandHarnessConfig
+  | ClaudeCodeHarnessConfig
+  | CodexHarnessConfig;
+
 export interface BenchMatrixRow {
   harness: Harness;
   task: string;
@@ -53,4 +97,5 @@ export interface BenchMatrixRow {
   params?: Record<string, unknown>;
   agentMode?: AgentToolMode;
   isCUA?: boolean;
+  config: BenchHarnessConfig;
 }

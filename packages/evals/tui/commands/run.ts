@@ -12,13 +12,22 @@ import { ProgressRenderer } from "../progress.js";
 import { printModelSummary, printResultsTable } from "../results.js";
 import { discoverTasks, resolveTarget } from "../../framework/discovery.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
+import {
+  buildBenchMatrixRow,
+  generateBenchTestcases,
+} from "../../framework/benchPlanner.js";
 import type {
   StartupProfile,
   ToolSurface,
 } from "../../core/contracts/tool.js";
+import type { AvailableModel } from "@browserbasehq/stagehand";
 import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
+import {
+  isExecutableBenchHarness,
+  type Harness,
+} from "../../framework/benchTypes.js";
 
 type RunProgressEvent = {
   type: "started" | "passed" | "failed" | "error";
@@ -70,7 +79,7 @@ export async function runCommand(
     tasks = resolveTarget(registry, options.normalizedTarget);
   } catch (err) {
     if (options.dryRun) {
-      emitDryRun(options, [], (err as Error).message);
+      await emitDryRun(options, [], registry, (err as Error).message);
       process.exitCode = 1;
       return;
     }
@@ -80,7 +89,7 @@ export async function runCommand(
   if (isExplicitLegacyOnlyTarget(options.normalizedTarget)) {
     const message = `Benchmark "${options.normalizedTarget}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`;
     if (options.dryRun) {
-      emitDryRun(options, tasks, message);
+      await emitDryRun(options, tasks, registry, message);
       process.exitCode = 1;
       return;
     }
@@ -95,7 +104,7 @@ export async function runCommand(
       ? `No runnable tasks found matching "${options.normalizedTarget}".`
       : "No runnable tasks found.";
     if (options.dryRun) {
-      emitDryRun(options, tasks, message, skippedTasks);
+      await emitDryRun(options, tasks, registry, message, skippedTasks);
       process.exitCode = 1;
       return;
     }
@@ -103,13 +112,16 @@ export async function runCommand(
   }
 
   if (options.dryRun) {
-    emitDryRun(options, tasks, undefined, skippedTasks);
+    await emitDryRun(options, tasks, registry, undefined, skippedTasks);
     return;
   }
 
-  if (options.harness !== "stagehand" && tasks.some((t) => t.tier === "bench")) {
+  if (
+    !canExecuteBenchHarness(options.harness) &&
+    tasks.some((t) => t.tier === "bench")
+  ) {
     throw new Error(
-      `Harness "${options.harness}" is not implemented yet. Use --harness stagehand for executable bench runs.`,
+      `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand for executable bench runs, or enable its experimental runner if available.`,
     );
   }
 
@@ -152,6 +164,7 @@ export async function runCommand(
           modelOverride: options.model,
           provider: options.provider,
           agentMode: options.agentMode,
+          agentModes: options.agentModes,
           harness: options.harness,
           categoryFilter,
           datasetFilter: options.datasetFilter,
@@ -212,6 +225,14 @@ export function deriveCategoryFilter(
     : undefined;
 }
 
+export function canExecuteBenchHarness(harness: Harness): boolean {
+  if (isExecutableBenchHarness(harness)) return true;
+  return (
+    harness === "claude_code" &&
+    process.env.EVAL_CLAUDE_CODE_EXPERIMENTAL === "true"
+  );
+}
+
 /**
  * Emit a deterministic JSON plan for --dry-run. Test-support only — not
  * part of the public CLI contract.
@@ -220,12 +241,13 @@ export function deriveCategoryFilter(
  *   { target, normalizedTarget, tasks (sorted), envOverrides (sorted),
  *     runOptions (sorted keys), error? }
  */
-function emitDryRun(
+async function emitDryRun(
   options: ResolvedRunOptions,
   tasks: DiscoveredTask[],
+  registry: TaskRegistry,
   error?: string,
   skippedTasks: DiscoveredTask[] = [],
-): void {
+): Promise<void> {
   const sortedTasks = tasks.map((t) => t.name).sort();
   const sortedSkippedTasks = skippedTasks.map((t) => t.name).sort();
 
@@ -242,6 +264,7 @@ function emitDryRun(
     environment: options.environment,
     harness: options.harness,
     agentMode: options.agentMode ?? null,
+    agentModes: options.agentModes ?? null,
     model: options.model ?? null,
     provider: options.provider ?? null,
     trials: options.trials,
@@ -256,10 +279,109 @@ function emitDryRun(
     skippedTasks: sortedSkippedTasks,
     envOverrides,
     runOptions,
+    matrix: error
+      ? []
+      : await buildDryRunMatrix(options, tasks, registry),
   };
   if (error) payload.error = error;
 
   console.log(JSON.stringify(payload, null, 2));
+}
+
+async function buildDryRunMatrix(
+  options: ResolvedRunOptions,
+  tasks: DiscoveredTask[],
+  registry: TaskRegistry,
+): Promise<Array<Record<string, unknown>>> {
+  return withEnvOverrides(options.envOverrides, async () => {
+    const rows: Array<Record<string, unknown>> = [];
+
+    for (const task of tasks.filter((t) => t.tier === "core")) {
+      rows.push(
+        sortKeys({
+          tier: "core",
+          task: task.name,
+          category: task.primaryCategory,
+          model: "none",
+          environment: options.environment,
+        }),
+      );
+    }
+
+    const benchTasks = tasks.filter((t) => t.tier === "bench");
+    if (benchTasks.length > 0) {
+      const categoryFilter = deriveCategoryFilter(
+        registry,
+        options.normalizedTarget,
+      );
+      const testcases = generateBenchTestcases(benchTasks, {
+        environment: options.environment,
+        useApi: options.useApi,
+        modelOverride: options.model,
+        provider: options.provider,
+        harness: options.harness,
+        categoryFilter,
+        datasetFilter: options.datasetFilter,
+        agentMode: options.agentMode,
+        agentModes: options.agentModes,
+        coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
+        coreStartupProfile: options.coreStartupProfile as
+          | StartupProfile
+          | undefined,
+      });
+
+      for (const testcase of testcases) {
+        const task =
+          registry.byName.get(testcase.input.name) ??
+          (testcase.input.name.includes("/")
+            ? undefined
+            : registry.byName.get(`agent/${testcase.input.name}`));
+        const row = task
+          ? buildBenchMatrixRow(
+              task,
+              testcase.input.modelName,
+              {
+                ...options,
+                coreToolSurface: options.coreToolSurface as
+                  | ToolSurface
+                  | undefined,
+                coreStartupProfile: options.coreStartupProfile as
+                  | StartupProfile
+                  | undefined,
+              },
+              testcase.input.params,
+              testcase.input.isCUA,
+              testcase.input.agentMode,
+            )
+          : undefined;
+        rows.push(
+          sortKeys({
+            tier: testcase.metadata.tier ?? "bench",
+            task: testcase.metadata.task ?? testcase.input.name,
+            category:
+              testcase.metadata.task_category ??
+              testcase.metadata.category ??
+              null,
+            dataset: testcase.metadata.dataset ?? null,
+            model: testcase.input.modelName as AvailableModel,
+            harness: testcase.metadata.harness ?? options.harness,
+            agentMode: testcase.input.agentMode ?? null,
+            environment: testcase.metadata.environment ?? options.environment,
+            useApi: testcase.metadata.api ?? options.useApi,
+            provider: testcase.metadata.provider ?? options.provider ?? null,
+            toolSurface: testcase.metadata.toolSurface ?? null,
+            startupProfile: testcase.metadata.startupProfile ?? null,
+            toolCommand: testcase.metadata.toolCommand ?? null,
+            browseCliVersion: testcase.metadata.browseCliVersion ?? null,
+            browseCliEntrypoint: testcase.metadata.browseCliEntrypoint ?? null,
+            harnessConfig: row?.config ?? null,
+          }),
+        );
+      }
+    }
+
+    return rows;
+  });
 }
 
 function sortKeys<T extends Record<string, unknown>>(obj: T): T {

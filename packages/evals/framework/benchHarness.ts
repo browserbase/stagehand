@@ -14,7 +14,10 @@ import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { V3InitResult } from "../initV3.js";
 import type { EvalInput } from "../types/evals.js";
-import type { DiscoveredTask } from "./types.js";
+import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
+import { prepareClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
+import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
 
 type Page = ReturnType<V3["context"]["pages"]>[number];
@@ -25,6 +28,10 @@ export interface BenchHarnessStartInput {
   row: BenchMatrixRow;
   logger: EvalLogger;
   verbose?: boolean;
+}
+
+export interface BenchHarnessExecuteInput extends BenchHarnessStartInput {
+  signal?: AbortSignal;
 }
 
 export interface BenchHarnessContext {
@@ -47,6 +54,7 @@ export interface BenchHarness {
   harness: Harness;
   supportedTaskKinds: BenchTaskKind[];
   supportsApi: boolean;
+  execute?(input: BenchHarnessExecuteInput): Promise<TaskResult>;
   start(input: BenchHarnessStartInput): Promise<StartedBenchHarness>;
 }
 
@@ -90,8 +98,16 @@ export const stagehandHarness: BenchHarness = {
   }: BenchHarnessStartInput): Promise<StartedBenchHarness> {
     let v3Result: V3InitResult | undefined;
     const createAgent = isAgentTask(task);
+    if (row.config.harness !== "stagehand") {
+      throw new EvalsError(
+        `Harness "${row.config.harness}" is not implemented yet. Use --harness stagehand for the current unified runner.`,
+      );
+    }
+    const config = row.config;
+    const agentMode = config.agentMode ?? input.agentMode;
+    const isCUA = config.isCUA ?? input.isCUA;
 
-    if (row.useApi) {
+    if (config.useApi) {
       const provider = resolveProvider(input.modelName);
       const logFn = (line: LogLine) => logger.log(line);
       const apiKey = loadApiKeyFromEnv(provider, logFn);
@@ -106,10 +122,10 @@ export const stagehandHarness: BenchHarness = {
         modelName: input.modelName,
         modelClientOptions: { apiKey },
         createAgent,
-        agentMode: input.agentMode,
-        isCUA: input.isCUA,
+        agentMode,
+        isCUA,
         verbose,
-        configOverrides: { env: row.environment },
+        configOverrides: { env: config.environment },
       });
     } else {
       let llmClient: LLMClient | undefined;
@@ -128,10 +144,10 @@ export const stagehandHarness: BenchHarness = {
         llmClient,
         modelName: input.modelName,
         createAgent,
-        agentMode: input.agentMode,
-        isCUA: input.isCUA,
+        agentMode,
+        isCUA,
         verbose,
-        configOverrides: { env: row.environment },
+        configOverrides: { env: config.environment },
       });
     }
 
@@ -163,8 +179,56 @@ export const stagehandHarness: BenchHarness = {
   },
 };
 
+export const claudeCodeHarness: BenchHarness = {
+  harness: "claude_code",
+  supportedTaskKinds: ["agent", "suite"],
+  supportsApi: false,
+  async execute({
+    input,
+    row,
+    logger,
+    signal,
+  }: BenchHarnessExecuteInput): Promise<TaskResult> {
+    const plan = buildExternalHarnessTaskPlan(input);
+    if (process.env.EVAL_CLAUDE_CODE_EXPERIMENTAL !== "true") {
+      throw new EvalsError(
+        "Claude Code harness execution is experimental. Set EVAL_CLAUDE_CODE_EXPERIMENTAL=true to run it, or use --dry-run to inspect its bench matrix.",
+      );
+    }
+    if (row.config.harness !== "claude_code") {
+      throw new EvalsError(
+        `Expected claude_code harness config, received "${row.config.harness}".`,
+      );
+    }
+    const toolAdapter = await prepareClaudeCodeToolAdapter({
+      toolSurface: row.config.toolSurface,
+      startupProfile: row.config.startupProfile,
+      environment: row.config.environment,
+      plan,
+      logger,
+    });
+    try {
+      return await runClaudeCodeAgent({
+        plan,
+        model: input.modelName,
+        logger,
+        toolAdapter,
+        signal,
+      });
+    } finally {
+      await toolAdapter.cleanup();
+    }
+  },
+  async start(): Promise<StartedBenchHarness> {
+    throw new EvalsError(
+      "Claude Code harness execution uses the external harness execute path. Use --dry-run to inspect its bench matrix, or set EVAL_CLAUDE_CODE_EXPERIMENTAL=true and run through the bench runner.",
+    );
+  },
+};
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
+  ["claude_code", claudeCodeHarness],
 ]);
 
 export function getBenchHarness(harness: Harness): BenchHarness {

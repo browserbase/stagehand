@@ -110,6 +110,8 @@ export const buildGAIATestcases = (
         metadata: {
           model: modelEntry.modelName as AvailableModel,
           test: `${input.name}:${row.id}`,
+          tier: "bench",
+          task: input.name,
         },
         expected: true,
       });

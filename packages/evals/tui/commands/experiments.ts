@@ -12,20 +12,27 @@ import {
   separator,
 } from "../format.js";
 import {
+  benchCaseDiffs,
+  collectExperimentMetrics,
+  detectCompareMode,
   listRecentExperiments,
   resolveExperimentAcrossProjects,
-  resolveExperimentProjectAcrossProjects,
+  resolveExperimentProjectsAcrossProjects,
   findLeaderIndex,
   sharedMetricKeys,
+  sharedBenchCaseKeys,
   sharedTaskNames,
+  summarizeBenchAgentConfigs,
   type ExperimentData,
+  type ExperimentInput,
   type RecentExperimentData,
+  type ResolvedExperimentProject,
 } from "../../lib/braintrust-report.js";
 import { getPackageRootDir } from "../../runtimePaths.js";
 
 const DEFAULT_LIST_PROJECTS = ["stagehand-dev", "stagehand-core-dev"];
 const DEFAULT_LIMIT = 5;
-const DEFAULT_COMPARE_OUTPUT = "/tmp/stagehand-core-braintrust-report.html";
+const DEFAULT_COMPARE_OUTPUT = "/tmp/stagehand-evals-braintrust-report.html";
 
 type ListOptions = {
   project?: string;
@@ -49,8 +56,10 @@ type CompareOptions = {
   title?: string;
   out?: string;
   headless: boolean;
-  experiments: string[];
+  experiments: ExperimentInput[];
 };
+
+type ResolvedCompareInput = ExperimentInput & ResolvedExperimentProject;
 
 export async function handleExperiments(args: string[]): Promise<void> {
   const [subcommand, ...rest] = args;
@@ -109,12 +118,16 @@ async function handleList(args: string[]): Promise<void> {
     ? [options.project]
     : DEFAULT_LIST_PROJECTS;
 
-  const rows = await Promise.all(
-    projects.map(async (project) => ({
+  const rows: Array<{
+    project: string;
+    experiments: RecentExperimentData[];
+  }> = [];
+  for (const project of projects) {
+    rows.push({
       project,
       experiments: await listRecentExperiments(project, options.limit),
-    })),
-  );
+    });
+  }
 
   if (options.json) {
     console.log(JSON.stringify(rows, null, 2));
@@ -174,7 +187,7 @@ async function handleShow(args: string[]): Promise<void> {
     `  ${bold("Pass rate:")} ${formatPassRate(experiment, false)}`,
   );
   console.log(
-    `  ${bold("Tasks:")} ${experiment.passedTasks}/${experiment.totalTasks}`,
+    `  ${bold(experiment.mode === "bench" ? "Cases:" : "Tasks:")} ${experiment.passedTasks}/${experiment.totalTasks}`,
   );
   console.log(`  ${bold("Duration:")} ${formatSeconds(experiment.durationSeconds)}`);
   console.log(`  ${bold("URL:")} ${experiment.experimentUrl}`);
@@ -194,22 +207,34 @@ async function handleOpen(args: string[]): Promise<void> {
 
 async function handleCompare(args: string[]): Promise<void> {
   const options = parseCompareArgs(args);
-  const project = options.project ?? (await inferCompareProject(options.experiments));
+  const resolvedInputs = await resolveCompareInputs(options);
+  const projects = [...new Set(resolvedInputs.map((input) => input.projectName))];
+  const projectLabel =
+    projects.length === 1 ? projects[0] : `mixed (${projects.join(", ")})`;
   const scriptPath = path.join(
     getPackageRootDir(),
     "scripts",
     "render-braintrust-core-report.ts",
   );
+  const experimentArgs = resolvedInputs.map(formatExperimentArg);
+  const outputPath = options.out ?? DEFAULT_COMPARE_OUTPUT;
+  const projectArgs =
+    projects.length === 1
+      ? ["--project", projects[0]]
+      : [
+          "--project-map",
+          JSON.stringify(resolvedInputs.map((input) => input.projectName)),
+        ];
 
   const childArgs = [
     "--import",
     "tsx",
     scriptPath,
-    ...options.experiments,
-    "--project",
-    project,
+    ...experimentArgs,
+    ...projectArgs,
     ...(options.title ? ["--title", options.title] : []),
-    ...(options.out ? ["--out", options.out] : []),
+    "--out",
+    outputPath,
     ...(options.headless ? ["--no-open"] : []),
   ];
 
@@ -218,7 +243,12 @@ async function handleCompare(args: string[]): Promise<void> {
     let stderr = "";
     const child = spawn(process.execPath, childArgs, {
       stdio: options.headless ? "pipe" : "inherit",
-      env: process.env,
+      env: {
+        ...process.env,
+        ...(options.headless
+          ? { BROWSER: "none", CI: process.env.CI ?? "true", NO_COLOR: "1" }
+          : {}),
+      },
     });
     if (options.headless) {
       child.stdout?.on("data", (chunk) => {
@@ -229,12 +259,16 @@ async function handleCompare(args: string[]): Promise<void> {
       });
     }
     child.on("error", reject);
-    child.on("exit", (code) => {
+    child.on("close", (code) => {
       if (code === 0) {
         if (options.headless) {
-          const outputPath = options.out ?? DEFAULT_COMPARE_OUTPUT;
           const dataPath = outputPath.replace(/\.html?$/i, ".json");
-          renderHeadlessCompareSummary(project, outputPath, dataPath);
+          try {
+            renderHeadlessCompareSummary(projectLabel, outputPath, dataPath);
+          } catch (err) {
+            reject(err);
+            return;
+          }
         }
         resolve();
         return;
@@ -339,7 +373,7 @@ function parseCompareArgs(args: string[]): CompareOptions {
   let title: string | undefined;
   let out: string | undefined;
   let headless = false;
-  const experiments: string[] = [];
+  const experiments: ExperimentInput[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -365,7 +399,7 @@ function parseCompareArgs(args: string[]): CompareOptions {
     if (arg.startsWith("-")) {
       throw new Error(`Unknown option "${arg}"`);
     }
-    experiments.push(arg);
+    experiments.push(parseExperimentSpec(arg));
   }
 
   if (experiments.length < 2) {
@@ -375,26 +409,56 @@ function parseCompareArgs(args: string[]): CompareOptions {
   return { project, title, out, headless, experiments };
 }
 
-async function inferCompareProject(experiments: string[]): Promise<string> {
-  const resolved = await Promise.all(
-    experiments.map((experiment) =>
-      resolveExperimentProjectAcrossProjects(
-        DEFAULT_LIST_PROJECTS,
-        experiment,
-      ),
-    ),
+function parseExperimentSpec(raw: string): ExperimentInput {
+  const eqIdx = raw.indexOf("=");
+  if (eqIdx === -1) {
+    return { label: raw, experiment: raw };
+  }
+  const left = raw.slice(0, eqIdx).trim();
+  const right = raw.slice(eqIdx + 1).trim();
+  if (!left || !right) {
+    throw new Error(`Invalid experiment spec "${raw}". Use <id> or <label>=<id>.`);
+  }
+  if (looksLikeExperimentId(right) && !looksLikeExperimentId(left)) {
+    return { label: left, experiment: right };
+  }
+  if (looksLikeExperimentId(left) && !looksLikeExperimentId(right)) {
+    return { label: right, experiment: left };
+  }
+  return { label: right, experiment: left };
+}
+
+function looksLikeExperimentId(value: string): boolean {
+  return (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ||
+    /^[a-z][a-z0-9_-]*-[a-f0-9]{4,}$/i.test(value)
+  );
+}
+
+async function resolveCompareInputs(
+  options: CompareOptions,
+): Promise<ResolvedCompareInput[]> {
+  const inputs = options.project
+    ? options.experiments.map((experiment) => ({
+        ...experiment,
+        project: options.project,
+      }))
+    : options.experiments;
+  const resolved = await resolveExperimentProjectsAcrossProjects(
+    options.project ? [options.project] : DEFAULT_LIST_PROJECTS,
+    inputs,
   );
 
-  const project = resolved[0]?.projectName;
-  if (!project) {
-    throw new Error("Unable to infer a Braintrust project for compare.");
-  }
-  if (resolved.some((entry) => entry.projectName !== project)) {
-    throw new Error(
-      "All experiments in compare must belong to the same project. Pass --project explicitly if needed.",
-    );
-  }
-  return project;
+  return inputs.map((input, index) => ({
+    ...input,
+    ...resolved[index],
+    project: resolved[index].projectName,
+  }));
+}
+
+function formatExperimentArg(input: ResolvedCompareInput): string {
+  if (input.label === input.experiment) return input.experiment;
+  return `${input.label}=${input.experiment}`;
 }
 
 function formatPassRate(
@@ -423,132 +487,37 @@ function renderHeadlessCompareSummary(
   reportPath: string,
   dataPath: string,
 ): void {
-  const rows = JSON.parse(fs.readFileSync(dataPath, "utf8")) as ExperimentData[];
-  const leaderIndex = rows.length > 1 ? findLeaderIndex(rows) : -1;
-  const sharedTasks = sharedTaskNames(rows);
-  const sharedMetrics = sharedMetricKeys(rows);
-  const nameWidth = Math.max(
-    18,
-    Math.min(
-      32,
-      Math.max(...rows.map((row) => row.label.length), "Experiment".length),
-    ),
-  );
-  const passWidth = 7;
-  const tasksWidth = 9;
-  const durationWidth = 8;
-  const leaderWidth = 8;
-  const sideLetters = rows.map((_, index) => String.fromCharCode(65 + index));
-
-  console.log(`\n  ${bold("Comparison")}`);
-  console.log(`  ${bold("Project:")} ${project}`);
-  console.log(
-    `  ${bold("Experiments:")} ${rows
-      .map((row, index) => `${sideLetters[index]}=${row.label}`)
-      .join(` ${dim("·")} `)}`,
-  );
-  console.log(separator());
-  console.log(
-    `    ${bold(padRight("Experiment", nameWidth))} ${bold(padRight("Pass", passWidth))} ${bold(padRight("Tasks", tasksWidth))} ${bold(padRight("Duration", durationWidth))}`,
-  );
-  console.log(separator());
-
-  for (const [index, row] of rows.entries()) {
-    const name = padRight(row.label, nameWidth);
-    const pass = colorizeRate(
-      row.passScore,
-      padRight(formatPassRate(row, false), passWidth),
-    );
-    const tasks = padRight(`${row.passedTasks}/${row.totalTasks}`, 9);
-    const duration = padRight(formatSeconds(row.durationSeconds), durationWidth);
-    const leader = padRight(index === leaderIndex ? "leader" : "", leaderWidth);
-    console.log(`    ${name} ${pass} ${dim(tasks)} ${dim(duration)} ${dim(leader)}`);
+  if (!fs.existsSync(dataPath)) {
+    throw new Error(`Compare data file was not written: ${dataPath}`);
   }
-
-  console.log(separator());
-  console.log(`  ${bold("Shared tasks:")} ${sharedTasks.length}`);
-  console.log(`  ${bold("Shared metrics:")} ${sharedMetrics.length}`);
-  printMetricSpreadSection(rows, sharedMetrics, sideLetters);
-  printTaskDiffSection(rows, sharedTasks, sideLetters);
-  console.log(`  ${bold("HTML report:")} ${reportPath}`);
-  console.log(`  ${bold("JSON data:")} ${dataPath}`);
-  console.log("");
-}
-
-function printMetricSpreadSection(
-  rows: ExperimentData[],
-  metricKeys: string[],
-  sideLetters: string[],
-): void {
-  const topMetrics = metricKeys
+  const rows = JSON.parse(fs.readFileSync(dataPath, "utf8")) as ExperimentData[];
+  const mode = detectCompareMode(rows);
+  const leaderIndex = rows.length > 1 ? findLeaderIndex(rows) : -1;
+  const sharedTasks = mode === "core" ? sharedTaskNames(rows) : [];
+  const sharedMetrics = mode === "core" ? sharedMetricKeys(rows) : [];
+  const sharedCases = mode === "bench" ? sharedBenchCaseKeys(rows) : [];
+  const metricSpreads = sharedMetrics
     .map((key) => {
       const values = rows
         .map((row) => row.taskMetrics[key]?.mean)
         .filter((value): value is number => typeof value === "number");
       return {
         key,
+        values,
         spread:
           values.length > 1 ? Math.max(...values) - Math.min(...values) : 0,
       };
     })
     .filter((entry) => entry.spread > 0)
     .sort((a, b) => b.spread - a.spread)
-    .slice(0, 5);
-
-  if (topMetrics.length === 0) {
-    return;
-  }
-
-  console.log(`\n  ${bold("Largest metric spreads:")}`);
-  const metricWidth = Math.max(
-    12,
-    Math.min(18, Math.max(...topMetrics.map((metric) => metric.key.length))),
-  );
-
-  for (const metric of topMetrics) {
-    const metricValues = rows.map((row, index) => ({
-      side: sideLetters[index],
-      mean: row.taskMetrics[metric.key]?.mean,
+    .slice(0, 5)
+    .map((entry) => ({
+      metric: entry.key,
+      spread: entry.spread,
+      values: rows.map((row) => row.taskMetrics[entry.key]?.mean ?? null),
     }));
-    const numericValues = metricValues
-      .map((entry) => entry.mean)
-      .filter((value): value is number => typeof value === "number");
-    const bestValue = numericValues.length > 0 ? Math.min(...numericValues) : undefined;
-    const valueWidth = Math.max(
-      10,
-      Math.min(
-        14,
-        Math.max(
-          ...metricValues.map((entry) =>
-            `${entry.side}:${formatMetricValue(metric.key, entry.mean ?? 0)}`.length,
-          ),
-        ),
-      ),
-    );
-    const values = metricValues
-      .map((entry) => {
-        if (typeof entry.mean !== "number") {
-          return padRight(`${entry.side}:—`, valueWidth);
-        }
-        const text = padRight(
-          `${entry.side}:${formatMetricValue(metric.key, entry.mean)}`,
-          valueWidth,
-        );
-        return entry.mean === bestValue ? green(text) : dim(text);
-      })
-      .join(` ${dim("·")} `);
-    console.log(
-      `    ${padRight(metric.key, metricWidth)} ${values} ${dim(`spread ${formatMetricValue(metric.key, metric.spread)}`)}`,
-    );
-  }
-}
 
-function printTaskDiffSection(
-  rows: ExperimentData[],
-  taskNames: string[],
-  sideLetters: string[],
-): void {
-  const differingTasks = taskNames
+  const differingTasks = sharedTasks
     .map((name) => {
       const outcomes = rows.map((row) => {
         const task = row.tasks.find((candidate) => candidate.name === name);
@@ -561,43 +530,97 @@ function printTaskDiffSection(
       };
     })
     .filter((entry) => entry.differs)
-    .slice(0, 8);
+    .slice(0, 8)
+    .map((entry) => ({
+      task: entry.name,
+      outcomes: rows.map((row, index) => ({
+        label: row.label,
+        project: row.projectName,
+        passed: entry.outcomes[index],
+      })),
+    }));
+  const caseDiffs =
+    mode === "bench"
+      ? benchCaseDiffs(rows)
+      : [];
+  const differingCases = caseDiffs
+    .filter((entry) => entry.differs && !entry.missing)
+    .slice(0, 8)
+    .map((entry) => ({
+      key: entry.key,
+      suite: entry.suite,
+      dataset: entry.dataset,
+      taskId: entry.taskId,
+      model: entry.model,
+      agentMode: entry.agentMode,
+      outcomes: entry.outcomes,
+    }));
+  const missingCases = caseDiffs
+    .filter((entry) => entry.missing)
+    .slice(0, 8)
+    .map((entry) => ({
+      key: entry.key,
+      suite: entry.suite,
+      dataset: entry.dataset,
+      taskId: entry.taskId,
+      model: entry.model,
+      agentMode: entry.agentMode,
+      outcomes: entry.outcomes,
+    }));
+  const agentConfigs =
+    mode === "bench"
+      ? rows.map((row) => ({
+          label: row.label,
+          project: row.projectName,
+          configs: summarizeBenchAgentConfigs(row.benchCases).map(
+            (config) => ({
+              key: config.key,
+              label: config.label,
+              models: config.models,
+              passed: config.passed,
+              total: config.total,
+              passScore: config.passScore,
+              meanDurationMs: config.meanDurationMs,
+            }),
+          ),
+        }))
+      : [];
+  const experimentMetrics = collectExperimentMetrics(rows).slice(0, 24);
 
-  if (differingTasks.length === 0) {
-    return;
-  }
-
-  console.log(`\n  ${bold("Differing tasks:")}`);
-  for (const task of differingTasks) {
-    const outcomes = task.outcomes
-      .map((success, index) =>
-        `${sideLetters[index]}:${success ? green("pass") : red("fail")}`,
-      )
-      .join(` ${dim("·")} `);
-    console.log(`    ${padRight(task.name, 28)} ${outcomes}`);
-  }
-}
-
-function colorizeRate(score: number, text: string): string {
-  if (score >= 0.8) return green(text);
-  if (score >= 0.5) return text;
-  return red(text);
-}
-
-function formatMetricValue(metricKey: string, value: number): string {
-  if (metricKey.endsWith("_ms")) {
-    return value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${Math.round(value)}ms`;
-  }
-  if (metricKey.endsWith("_tokens")) {
-    return `${Math.round(value)}tok`;
-  }
-  if (metricKey.includes("duration")) {
-    return formatSeconds(value);
-  }
-  if (value >= 100) {
-    return `${Math.round(value)}`;
-  }
-  return value.toFixed(2);
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        mode,
+        project,
+        reportPath,
+        dataPath,
+        experiments: rows.map((row, index) => ({
+          label: row.label,
+          project: row.projectName,
+          experimentName: row.experimentName,
+          experimentId: row.experimentId,
+          experimentUrl: row.experimentUrl,
+          passScore: row.passScore,
+          passedTasks: row.passedTasks,
+          totalTasks: row.totalTasks,
+          durationSeconds: row.durationSeconds,
+          leader: index === leaderIndex,
+        })),
+        sharedTasks: sharedTasks.length,
+        sharedCases: sharedCases.length,
+        sharedMetrics: sharedMetrics.length,
+        metricSpreads,
+        differingTasks,
+        agentConfigs,
+        experimentMetrics,
+        differingCases,
+        missingCases,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 function formatSeconds(seconds: number): string {

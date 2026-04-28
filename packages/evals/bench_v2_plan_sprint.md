@@ -1,5 +1,29 @@
 # Bench Runner V2 Sprint Plan
 
+## Status (as of 2026-04-28)
+
+Goals 1 and 2 of the sprint are landed; Goal 3 now has a dry-run matrix, external-suite task planning, and a gated Claude Code SDK execution boundary. The remaining Claude Code work is browser/tool handoff and a real smoke run.
+
+Landed in commits `61a801c4 first pass at bench runner` and `f4940b0a fixed benchmarks`, plus uncommitted refinements:
+
+- `framework/benchTypes.ts` — `Harness`, `DEFAULT_BENCH_HARNESS`, `parseBenchHarness`, `BenchTaskKind`, `BenchMatrixRow`, executable-harness helpers, and the `BenchHarnessConfig` discriminated union (`StagehandHarnessConfig`, `ClaudeCodeHarnessConfig`, `CodexHarnessConfig`).
+- `framework/benchHarness.ts` — `BenchHarness` interface, the `stagehand` harness implementation, the `claude_code` external execute seam, and a registry that keeps unsupported harnesses explicit.
+- `framework/claudeCodeRunner.ts` — Claude Code SDK prompt/result adapter behind `EVAL_CLAUDE_CODE_EXPERIMENTAL=true`.
+- `framework/externalHarnessPlan.ts` — typed task-plan extraction for `webvoyager`, `onlineMind2Web`, and `webtailbench` external harness runs.
+- `framework/benchPlanner.ts` — pure `BenchPlanOptions`, `resolveBenchModelEntries`, `buildBenchMatrixRow`, `generateBenchTestcases`, `generateSuiteTestcases`. Auto-detects CUA mode from `AVAILABLE_CUA_MODELS`. Routes `agent/gaia` to the `--legacy` escape hatch via `legacyOnlySuites`.
+- `framework/benchRunner.ts` — `executeBenchTask` now goes through `getBenchHarness(harness).start()`, with cleanup registered through the existing `activeRunCleanup` so SIGINT / `Esc` aggressive abort can close in-flight V3 sessions.
+- `framework/runner.ts` and `framework/discovery.ts` — testcase metadata now carries `tier`, `task`, `harness`, `environment`, `api`, `provider`, `toolSurface`, `startupProfile`, `agentMode`. Suite testcases (`webvoyager`, `onlineMind2Web`, `webtailbench`) are decorated with the same metadata via `withBenchMetadata`.
+- `tui/commands/parse.ts` — `--harness <name>` (validated through `parseBenchHarness`) and `--agent-mode <dom|hybrid|cua>` flags wired end to end.
+- `tui/commands/run.ts` — `--dry-run` now emits an actual matrix view via `buildDryRunMatrix`, calling `generateBenchTestcases` + `buildBenchMatrixRow` so users can preview the model × harness × task expansion.
+- `tests/framework/benchPlanner.test.ts` and harness-related cases in `tests/tui/parse.test.ts` — planner expansion, harness annotation, agent-mode override, unknown-harness rejection, defaulting to `stagehand`.
+
+Still open:
+
+- Claude Code browser/tool handoff. The SDK prompt/result adapter exists, but it is experimental and still needs a real browser-capable tool path before it should be considered a supported runner.
+- Codex follow-up.
+- Direct suite typed options (suite builders still consume env-based limit/sample/filter).
+- Bench v2 → core tool-surface bridge (current Stagehand harness uses its native browser path; `toolSurface`/`startupProfile` are metadata-only on the bench side).
+
 ## Purpose
 
 Bench runner v2 makes bench evals comparable across agent implementations, not just models. The new bench matrix is:
@@ -76,7 +100,13 @@ Existing core tool surfaces:
 - `chrome_devtools_mcp`
 - `browse_cli`
 
-For the first slice, Stagehand uses its current native/default tool path. Tool injection is metadata-only until a real bridge exists.
+For the first slice, Stagehand uses its current native/default tool path. External harnesses should receive the **native agent-facing interface** for the selected tool surface, not the core-normalized `CorePageHandle` abstraction. Core page abstractions are what core evals test; bench v2 should test whether a harness can use the intended tool interface directly.
+
+Native forwarding rules:
+
+- MCP surfaces (`playwright_mcp`, `chrome_devtools_mcp`) should be passed through as MCP servers directly to the agent SDK when implemented. Do not proxy them through a synthetic MCP server unless there is no direct SDK path.
+- CLI surfaces (`browse_cli`) should be exposed as CLI usage. For Claude Code, that means Bash access to a constrained `browse` wrapper pinned to one eval session.
+- Code surfaces (`understudy_code`, `playwright_code`, `cdp_code`) should be exposed as a small runnable code harness or a limited set of code-generation/execution tools. Do not force them through `CorePageHandle`; the point is to compare the code-facing abstraction.
 
 ## Research Notes
 
@@ -86,7 +116,7 @@ Codex is also a concrete agent harness candidate. Public docs describe Codex as 
 
 ## Sprint Goals
 
-### Goal 1: Extract Stagehand Into A Named Harness
+### Goal 1: Extract Stagehand Into A Named Harness — ✅ done
 
 Represent the current bench path as:
 
@@ -99,7 +129,7 @@ Represent the current bench path as:
 
 This must be behavior-preserving.
 
-### Goal 2: Add Matrix Metadata
+### Goal 2: Add Matrix Metadata — ✅ done
 
 Every bench testcase should include enough metadata to compare by:
 
@@ -115,9 +145,13 @@ Every bench testcase should include enough metadata to compare by:
 - trial
 - dataset, when applicable
 
-### Goal 3: Prepare For Claude Code SDK
+### Goal 3: Prepare For Claude Code SDK — ◐ partial
 
 Create the contracts and file boundaries needed for `claude_code`, but do not implement it until the Stagehand extraction is green.
+
+Landed: `Harness` union accepts `"claude_code"`, `ClaudeCodeHarnessConfig` exists, parser accepts `--harness claude_code`, dry-run emits `claude_code` matrix rows, external suite inputs convert to a neutral task plan, and `claude_code` can reach the SDK adapter only when `EVAL_CLAUDE_CODE_EXPERIMENTAL=true`.
+
+Outstanding: browser-capable tool integration for Claude Code and a real smoke run. Until then, `claude_code` should be treated as experimental and non-default.
 
 ## Non-Goals
 
@@ -313,20 +347,26 @@ Second implementation slice, after Stagehand harness extraction is green:
 - one explicit model
 - one local environment path
 
-### Integration Question
+### Integration Plan
 
-The key design question is how the Claude Code SDK receives browser tools.
+Claude Code should receive the selected browser tool in its native form:
 
-Preferred exploration order:
+1. `browse_cli` first: create an isolated temp workspace containing a `browse` command wrapper on `PATH`. The wrapper calls `node packages/cli/dist/index.js --json --session <eval-session> ...`. Claude Code gets Bash permission only for `browse ...` commands and should discover usage through `browse -h` / subcommand help rather than receiving a prescriptive command script.
+2. Direct MCP forwarding second: pass `playwright_mcp` / `chrome_devtools_mcp` to Claude Code SDK via `mcpServers` once the exact startup/auth shape is proven.
+3. Code surfaces third: expose `understudy_code` and related code tools through a small generated script/module that Claude can edit or execute inside a sandbox.
 
-1. MCP-backed browser tools, because Claude Code SDK documents MCP extensibility.
-2. A small custom tool bridge if MCP is too heavy for the first spike.
-3. Direct CLI/headless mode only if SDK integration blocks.
+Non-negotiables:
+
+- no proxy MCP for `browse_cli`
+- no generic `CorePageHandle` bridge for external bench harnesses
+- no unrestricted Bash for Claude Code
+- no built-in web tools by default; benchmark runs should go through the selected tool surface
+- Braintrust metadata for CLI-backed tool surfaces must include the command and version, e.g. `toolCommand: "browse"`, `browseCliVersion`, and `browseCliEntrypoint`.
 
 ### Acceptance Criteria
 
-- `evals run observe --harness claude_code -m <model> --dry-run` produces valid rows.
-- One actual `claude_code` run can execute a tiny observe subset locally.
+- `evals run b:webvoyager --harness claude_code --tool browse_cli -m <model> --dry-run` produces valid rows with `toolSurface: "browse_cli"` and a concrete startup profile.
+- One actual `claude_code + browse_cli` run can execute one WebVoyager case behind `EVAL_CLAUDE_CODE_EXPERIMENTAL=true`.
 - Braintrust metadata distinguishes:
   - `harness: "claude_code"`
   - model
@@ -412,21 +452,34 @@ Regression checks:
 
 ## Implementation Order
 
-1. Add `Harness` types and stagehand-only registry.
-2. Add pure `benchPlanner.ts`.
-3. Add planner unit tests.
-4. Add parser support for `--harness`.
-5. Route current bench execution through `benchRunner.ts` and the `stagehand` harness.
-6. Add matrix metadata to bench testcases.
-7. Verify no behavior change for existing Stagehand bench runs.
-8. Add Claude Code SDK spike behind `harness: "claude_code"`.
-9. Revisit direct suite typed options.
-10. Revisit Codex once browser/tool handoff is clear.
+1. ✅ Add `Harness` types and stagehand-only registry. (`framework/benchTypes.ts`, `framework/benchHarness.ts`)
+2. ✅ Add pure `benchPlanner.ts`. (`framework/benchPlanner.ts`)
+3. ✅ Add planner unit tests. (`tests/framework/benchPlanner.test.ts`)
+4. ✅ Add parser support for `--harness`. (`tui/commands/parse.ts` + `tests/tui/parse.test.ts` cover default / accepted / rejected)
+5. ✅ Route current bench execution through `benchRunner.ts` and the `stagehand` harness. (`framework/benchRunner.ts`)
+6. ✅ Add matrix metadata to bench testcases. (planner + suite builders both annotate `tier/task/harness/environment/api/provider/toolSurface/startupProfile/agentMode`)
+7. ✅ Verify no behavior change for existing Stagehand bench runs. (existing CLI smokes pass; suite shorthands `b:webvoyager` / `b:onlineMind2Web` / `b:webtailbench` still work)
+8. ◐ Add Claude Code SDK spike behind `harness: "claude_code"` (dry-run + gated SDK adapter landed; browser/tool handoff pending).
+9. ⬜ Revisit direct suite typed options.
+10. ⬜ Revisit Codex once browser/tool handoff is clear.
 
 ## Done Criteria For This Sprint
 
-- Stagehand bench path is represented as `harness: "stagehand"`.
-- Existing bench commands preserve behavior.
-- `--harness stagehand` works.
-- Dry-run and Braintrust metadata expose the bench matrix axes.
-- The next harness spike has a documented entry point and acceptance criteria.
+- ✅ Stagehand bench path is represented as `harness: "stagehand"`.
+- ✅ Existing bench commands preserve behavior.
+- ✅ `--harness stagehand` works (default; `--harness claude_code` parses but rejects at execution time with a clear message).
+- ✅ Dry-run and Braintrust metadata expose the bench matrix axes.
+- ✅ The next harness spike has a documented entry point and acceptance criteria (this file's "Claude Code SDK Spike" section).
+
+## Beyond Original Sprint Scope
+
+Items that landed alongside the bench-runner work but were not part of the original goals listed above:
+
+- **`--agent-mode <dom|hybrid|cua>`** — added on top of the harness flag so a single Stagehand harness run can pick its agent tool mode. Validated in `parse.ts` (`normalizeAgentMode`) and threaded through to `initV3` via the harness.
+- **CUA auto-detection** — `resolveAgentModeForModel` in `benchPlanner.ts` auto-picks `cua` when the model is in `AVAILABLE_CUA_MODELS`, otherwise `hybrid`. `--agent-mode` overrides this.
+- **`webtailbench` wired as a third supported direct suite** alongside `webvoyager` and `onlineMind2Web` (added in `f4940b0a`).
+- **`agent/gaia` gated as legacy-only** via `legacyOnlySuites` in the planner; throws a hard error pointing the user at `--legacy` or one of the supported suites.
+- **`--dry-run` matrix view** — `buildDryRunMatrix` in `tui/commands/run.ts` materializes the full row-per-testcase preview (model × harness × task × dataset, plus the resolved `BenchHarnessConfig`), instead of just listing target/tasks.
+- **Esc-to-abort plumbing** — `RunEvalsOptions.signal` on the runner; cooperative abort short-circuits unstarted testcases and aggressive abort closes V3 sessions immediately. `tui/repl.ts` does cooperative-then-aggressive double-press; argv mode forwards Esc → SIGINT.
+- **`experiments` command** (`8d38a2ad`) reads bench metadata for comparisons; the metadata work above makes its summaries cross-axis comparable.
+- **`framework/braintrust.ts`, `framework/taskLoader.ts`, `framework/activeRunCleanup.ts`** — extracted helpers split off from `runner.ts` while bench was being lifted out.
