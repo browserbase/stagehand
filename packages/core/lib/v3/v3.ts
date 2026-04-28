@@ -46,6 +46,7 @@ import type {
   ShutdownSupervisorConfig,
   ShutdownSupervisorHandle,
 } from "./types/private/shutdown.js";
+import { HYBRID_CAPABLE_MODEL_PATTERNS } from "./types/private/agent.js";
 import {
   AgentConfig,
   AgentExecuteCallbacks,
@@ -54,7 +55,6 @@ import {
   AgentResult,
   AgentToolMode,
   AVAILABLE_CUA_MODELS,
-  HYBRID_CAPABLE_MODEL_PATTERNS,
   LogLine,
   StagehandMetrics,
   Action,
@@ -1947,12 +1947,9 @@ export class V3 {
         | AgentStreamExecuteOptions,
     ) => Promise<AgentResult | AgentStreamResult>;
   } {
-    // Resolve the effective mode: explicit > auto-routed by model
-    const effectiveMode =
-      options?.mode ?? (options?.cua === true ? "cua" : undefined);
-
-    // Determine if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
-    const isCuaMode = effectiveMode === "cua" || options?.cua === true;
+    const isCuaMode =
+      options?.mode === "cua" ||
+      (options?.mode === undefined && options?.cua === true);
 
     // Emit deprecation warning for cua: true
     if (options?.cua === true) {
@@ -1968,7 +1965,8 @@ export class V3 {
     }
 
     const loggedMode =
-      effectiveMode ?? this.resolveDefaultAgentMode(options?.model);
+      options?.mode ??
+      (isCuaMode ? "cua" : this.resolveDefaultAgentMode(options?.model));
 
     this.logger({
       category: "agent",

@@ -30,8 +30,8 @@ import {
   AgentToolMode,
   AgentModelConfig,
   Variables,
-  HYBRID_CAPABLE_MODEL_PATTERNS,
 } from "../types/public/agent.js";
+import { HYBRID_CAPABLE_MODEL_PATTERNS } from "../types/private/agent.js";
 import { V3FunctionName } from "../types/public/methods.js";
 import { mapToolResultToActions } from "../agent/utils/actionMapping.js";
 import {

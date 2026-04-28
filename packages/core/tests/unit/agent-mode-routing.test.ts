@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { extractModelName } from "../../lib/modelUtils.js";
-import {
-  type AgentToolMode,
-  HYBRID_CAPABLE_MODEL_PATTERNS,
-} from "../../lib/v3/types/public/agent.js";
+import type { AgentToolMode } from "../../lib/v3/types/public/agent.js";
+import { HYBRID_CAPABLE_MODEL_PATTERNS } from "../../lib/v3/types/private/agent.js";
 
 function resolveDefaultAgentMode(
   model: string | { modelName: string } | undefined,
@@ -62,13 +60,10 @@ describe("agent mode auto-routing", () => {
       ["anthropic/claude-haiku-4-5-20251001", "claude"],
       ["openai/gpt-5.4-turbo", "gpt-5.4"],
       ["openai/gpt-5.4", "gpt-5.4"],
-    ])(
-      "model %s (pattern: %s) → hybrid",
-      (modelName: string, _pattern: string) => {
-        const result = resolveAgentMode(undefined, modelName, "fallback-model");
-        expect(result).toBe("hybrid");
-      },
-    );
+    ])("model %s (pattern: %s) → hybrid", (modelName: string) => {
+      const result = resolveAgentMode(undefined, modelName, "fallback-model");
+      expect(result).toBe("hybrid");
+    });
   });
 
   describe("auto-routes to dom for unsupported models when no mode is set", () => {
