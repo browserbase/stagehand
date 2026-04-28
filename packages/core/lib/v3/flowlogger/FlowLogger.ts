@@ -413,7 +413,15 @@ export class FlowLogger {
       parentEvents: [],
     };
 
-    loggerContext.enterWith(ctx);
+    try {
+      loggerContext.enterWith(ctx);
+    } catch {
+      // Some runtimes (e.g. Cloudflare Workers) do not implement enterWith()
+      // because it mutates context across concurrent requests, which is unsafe
+      // in that environment. Fall through: the context is still returned and
+      // callers that need ALS can use loggerContext.run() via runWithLogging()
+      // or withContext().
+    }
     return ctx;
   }
 
