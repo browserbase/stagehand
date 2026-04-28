@@ -1,4 +1,7 @@
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import type {
+  AgentToolMode,
+  AvailableModel,
+} from "@browserbasehq/stagehand";
 import type {
   StartupProfile,
   ToolSurface,
@@ -48,5 +51,6 @@ export interface BenchMatrixRow {
   trial: number;
   dataset?: string;
   params?: Record<string, unknown>;
+  agentMode?: AgentToolMode;
   isCUA?: boolean;
 }

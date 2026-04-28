@@ -30,7 +30,6 @@ type RunProgressEvent = {
 
 const LEGACY_ONLY_BENCHMARK_TARGETS = new Set([
   "agent/gaia",
-  "agent/webtailbench",
 ]);
 
 function isExplicitLegacyOnlyTarget(target?: string): boolean {
@@ -79,7 +78,7 @@ export async function runCommand(
   }
 
   if (isExplicitLegacyOnlyTarget(options.normalizedTarget)) {
-    const message = `Benchmark "${options.normalizedTarget}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web.`;
+    const message = `Benchmark "${options.normalizedTarget}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`;
     if (options.dryRun) {
       emitDryRun(options, tasks, message);
       process.exitCode = 1;
@@ -152,6 +151,7 @@ export async function runCommand(
           useApi: options.useApi,
           modelOverride: options.model,
           provider: options.provider,
+          agentMode: options.agentMode,
           harness: options.harness,
           categoryFilter,
           datasetFilter: options.datasetFilter,
@@ -241,6 +241,7 @@ function emitDryRun(
     datasetFilter: options.datasetFilter ?? null,
     environment: options.environment,
     harness: options.harness,
+    agentMode: options.agentMode ?? null,
     model: options.model ?? null,
     provider: options.provider ?? null,
     trials: options.trials,

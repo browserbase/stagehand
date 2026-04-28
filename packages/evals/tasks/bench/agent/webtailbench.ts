@@ -38,10 +38,12 @@ export default defineBenchTask({ name: "agent/webtailbench" }, async ({
       timeoutMs: 120_000,
     });
 
+    const systemPrompt = `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}. You will need to navigate to the appropriate website to complete the task.`;
+    const agentMode = input.agentMode ?? (input.isCUA ? "cua" : "hybrid");
     const agent = v3.agent({
-      cua: true,
+      mode: agentMode,
       model: modelName,
-      systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}. You will need to navigate to the appropriate website to complete the task.`,
+      systemPrompt,
     });
 
     screenshotCollector = new ScreenshotCollector(v3, {

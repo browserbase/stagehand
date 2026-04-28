@@ -1,6 +1,11 @@
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import {
+  AVAILABLE_CUA_MODELS,
+  type AgentToolMode,
+  type AvailableModel,
+} from "@browserbasehq/stagehand";
 import { EvalsError } from "../errors.js";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
+import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
 import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
 import {
   getAgentModelEntries,
@@ -27,6 +32,7 @@ export interface BenchPlanOptions {
   provider?: string;
   categoryFilter?: string;
   datasetFilter?: string;
+  agentMode?: AgentToolMode;
   harness?: Harness;
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;
@@ -63,7 +69,10 @@ export function inferEffectiveBenchCategory(
 
 export function resolveBenchModelEntries(
   benchTasks: DiscoveredTask[],
-  options: Pick<BenchPlanOptions, "categoryFilter" | "modelOverride">,
+  options: Pick<
+    BenchPlanOptions,
+    "categoryFilter" | "modelOverride" | "agentMode"
+  >,
 ): BenchModelResolution {
   const effectiveCategory = inferEffectiveBenchCategory(
     benchTasks,
@@ -74,10 +83,20 @@ export function resolveBenchModelEntries(
     effectiveCategory === "external_agent_benchmarks";
 
   if (options.modelOverride) {
+    const mode = resolveAgentModeForModel(
+      options.modelOverride,
+      options.agentMode,
+    );
     return {
       effectiveCategory,
       isAgentCategory,
-      modelEntries: [{ modelName: options.modelOverride, cua: false }],
+      modelEntries: [
+        {
+          modelName: options.modelOverride,
+          mode,
+          cua: mode === "cua",
+        },
+      ],
     };
   }
 
@@ -88,9 +107,20 @@ export function resolveBenchModelEntries(
       ? getAgentModelEntries()
       : getModelList(effectiveCategory).map((m) => ({
           modelName: m,
+          mode: "hybrid",
           cua: false,
         })),
   };
+}
+
+function resolveAgentModeForModel(
+  modelName: string,
+  override?: AgentToolMode,
+): AgentToolMode {
+  if (override) return override;
+  return (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName)
+    ? "cua"
+    : "hybrid";
 }
 
 export function inferBenchTaskKind(task: DiscoveredTask): BenchTaskKind {
@@ -117,6 +147,7 @@ export function buildBenchMatrixRow(
   options: BenchPlanOptions,
   params?: Record<string, unknown>,
   isCUA?: boolean,
+  agentMode?: AgentToolMode,
 ): BenchMatrixRow {
   return {
     harness: options.harness ?? DEFAULT_BENCH_HARNESS,
@@ -132,6 +163,7 @@ export function buildBenchMatrixRow(
     trial: 1,
     dataset: options.datasetFilter,
     params,
+    agentMode,
     isCUA,
   };
 }
@@ -160,18 +192,23 @@ export function generateBenchTestcases(
         model,
         options,
         undefined,
-        isAgentCategory ? entry.cua : undefined,
+        isAgentCategory ? entry.mode === "cua" : undefined,
+        isAgentCategory ? (options.agentMode ?? entry.mode) : undefined,
       );
+      const agentMode = row.agentMode;
       allTestcases.push({
         input: {
           name: task.name,
           modelName: model,
-          ...(isAgentCategory && { isCUA: entry.cua }),
+          ...(isAgentCategory && {
+            agentMode,
+            isCUA: agentMode === "cua",
+          }),
         },
         name: task.name,
         tags: [
           entry.modelName,
-          ...(isAgentCategory ? [entry.cua ? "cua" : "agent"] : []),
+          ...(isAgentCategory && agentMode ? [agentMode] : []),
           task.name,
           ...task.categories.map((x) => `category/${x}`),
           `harness/${row.harness}`,
@@ -187,6 +224,7 @@ export function generateBenchTestcases(
           provider: row.provider,
           toolSurface: row.toolSurface,
           startupProfile: row.startupProfile,
+          agentMode: row.agentMode,
         },
         expected: true,
       });
@@ -208,14 +246,15 @@ export function generateSuiteTestcases(
   const suiteMap: Record<string, (models: AgentModelEntry[]) => Testcase[]> = {
     "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
     "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
+    "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
   };
-  const legacyOnlySuites = new Set(["agent/gaia", "agent/webtailbench"]);
+  const legacyOnlySuites = new Set(["agent/gaia"]);
 
   for (const suiteName of legacyOnlySuites) {
     const idx = remaining.findIndex((t) => t.name === suiteName);
     if (idx === -1) continue;
     throw new EvalsError(
-      `Benchmark "${suiteName}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web.`,
+      `Benchmark "${suiteName}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`,
     );
   }
 
@@ -242,17 +281,27 @@ function withBenchMetadata(
   task: DiscoveredTask,
   options: BenchPlanOptions,
 ): Testcase {
+  const agentMode = options.agentMode ?? testcase.input.agentMode;
   const row = buildBenchMatrixRow(
     task,
     testcase.input.modelName,
     options,
     testcase.input.params,
-    testcase.input.isCUA,
+    agentMode === "cua",
+    agentMode,
   );
+  const tags = testcase.tags.filter(
+    (tag) => tag !== "dom" && tag !== "hybrid" && tag !== "cua",
+  );
+  if (agentMode) tags.push(agentMode);
 
   return {
     ...testcase,
-    tags: [...testcase.tags, `harness/${row.harness}`],
+    input: {
+      ...testcase.input,
+      ...(agentMode && { agentMode, isCUA: agentMode === "cua" }),
+    },
+    tags: [...tags, `harness/${row.harness}`],
     metadata: {
       ...testcase.metadata,
       category: task.categories[0] ?? task.primaryCategory,
@@ -264,6 +313,7 @@ function withBenchMetadata(
       provider: row.provider,
       toolSurface: row.toolSurface,
       startupProfile: row.startupProfile,
+      agentMode: row.agentMode,
     },
   };
 }

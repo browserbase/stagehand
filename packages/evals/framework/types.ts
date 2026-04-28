@@ -8,6 +8,7 @@
  * A third tier ("interpret") is planned but not yet implemented.
  */
 import type {
+  AgentToolMode,
   AgentInstance,
   AvailableModel,
   LogLine,
@@ -75,10 +76,11 @@ export interface BenchTaskContext {
   page: Page;
   /** Eval logger. */
   logger: EvalLogger;
-  /** Full eval input (name, modelName, params). */
+  /** Full eval input (name, modelName, agent mode, params). */
   input: {
     name: string;
     modelName: AvailableModel;
+    agentMode?: AgentToolMode;
     isCUA?: boolean;
     params?: Record<string, unknown>;
   };

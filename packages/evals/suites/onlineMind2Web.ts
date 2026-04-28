@@ -1,6 +1,9 @@
 import path from "path";
 import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import {
+  AVAILABLE_CUA_MODELS,
+  type AvailableModel,
+} from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
 import { getPackageRootDir } from "../runtimePaths.js";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
@@ -10,7 +13,14 @@ function normalizeModelEntries(
 ): AgentModelEntry[] {
   if (models.length === 0) return [];
   if (typeof models[0] === "string") {
-    return (models as string[]).map((modelName) => ({ modelName, cua: false }));
+    return (models as string[]).map((modelName) => {
+      const mode = (AVAILABLE_CUA_MODELS as readonly string[]).includes(
+        modelName,
+      )
+        ? "cua"
+        : "hybrid";
+      return { modelName, mode, cua: mode === "cua" };
+    });
   }
   return models as AgentModelEntry[];
 }
@@ -65,7 +75,8 @@ export const buildOnlineMind2WebTestcases = (
       const input: EvalInput = {
         name: "agent/onlineMind2Web",
         modelName: modelEntry.modelName as AvailableModel,
-        ...(modelEntry.cua ? { isCUA: true } : {}),
+        agentMode: modelEntry.mode,
+        isCUA: modelEntry.mode === "cua",
         params: {
           task_id: row.task_id,
           confirmed_task: row.confirmed_task,
@@ -81,7 +92,7 @@ export const buildOnlineMind2WebTestcases = (
         name: input.name,
         tags: [
           modelEntry.modelName,
-          modelEntry.cua ? "cua" : "agent",
+          modelEntry.mode,
           "mind2web", // Simple dataset tag
         ],
         metadata: {

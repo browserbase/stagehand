@@ -9,6 +9,7 @@
  * while preserving backward compatibility with legacy EvalFunction tasks.
  */
 import type { AvailableModel } from "@browserbasehq/stagehand";
+import type { AgentToolMode } from "@browserbasehq/stagehand";
 import { AssertionError } from "./assertions.js";
 import { EvalLogger } from "../logger.js";
 import { EvalsError } from "../errors.js";
@@ -66,6 +67,7 @@ export interface RunEvalsOptions {
   provider?: string;
   categoryFilter?: string;
   datasetFilter?: string;
+  agentMode?: AgentToolMode;
   harness?: Harness;
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;

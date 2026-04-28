@@ -8,7 +8,12 @@
 
 import fs from "fs";
 import path from "path";
-import { AvailableModel } from "@browserbasehq/stagehand";
+import {
+  AgentProvider,
+  AVAILABLE_CUA_MODELS,
+  AvailableModel,
+  providerEnvVarMap,
+} from "@browserbasehq/stagehand";
 import { AgentModelEntry } from "./types/evals.js";
 import { getCurrentDirPath } from "./runtimePaths.js";
 
@@ -229,15 +234,29 @@ const AGENT_MODELS = process.env.EVAL_AGENT_MODELS
 
 const AGENT_MODELS_CUA = process.env.EVAL_AGENT_MODELS_CUA
   ? process.env.EVAL_AGENT_MODELS_CUA.split(",")
-  : [
-      "openai/computer-use-preview-2025-03-11",
-      "anthropic/claude-sonnet-4-20250514",
-      "google/gemini-2.5-computer-use-preview-10-2025",
-    ];
+  : AVAILABLE_CUA_MODELS.filter((modelName) => {
+      try {
+        const provider = AgentProvider.getAgentProvider(modelName);
+        return provider in providerEnvVarMap;
+      } catch {
+        return false;
+      }
+    });
+
+const isCuaModel = (modelName: string): boolean =>
+  (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName);
 
 const AGENT_MODEL_ENTRIES: AgentModelEntry[] = [
-  ...AGENT_MODELS.map((m) => ({ modelName: m, cua: false })),
-  ...AGENT_MODELS_CUA.map((m) => ({ modelName: m, cua: true })),
+  ...AGENT_MODELS.map((modelName) => ({
+    modelName,
+    mode: "hybrid" as const,
+    cua: false,
+  })),
+  ...AGENT_MODELS_CUA.map((modelName) => ({
+    modelName,
+    mode: isCuaModel(modelName) ? ("cua" as const) : ("hybrid" as const),
+    cua: isCuaModel(modelName),
+  })),
 ];
 
 const DEFAULT_AGENT_MODELS = AGENT_MODEL_ENTRIES.map((e) => e.modelName);

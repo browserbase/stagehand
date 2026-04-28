@@ -18,6 +18,7 @@ import {
   parseBenchHarness,
   type Harness,
 } from "../../framework/benchTypes.js";
+import type { AgentToolMode } from "@browserbasehq/stagehand";
 
 export interface RunFlags {
   target?: string;
@@ -30,6 +31,7 @@ export interface RunFlags {
   tool?: string;
   startup?: string;
   harness?: string;
+  agentMode?: string;
   limit?: number;
   sample?: number;
   filter?: Array<[string, string]>;
@@ -60,6 +62,7 @@ export interface ResolvedRunOptions {
   coreToolSurface?: string;
   coreStartupProfile?: string;
   harness: Harness;
+  agentMode?: AgentToolMode;
   datasetFilter?: string;
   envOverrides: Record<string, string>;
   dryRun: boolean;
@@ -67,12 +70,16 @@ export interface ResolvedRunOptions {
 }
 
 /**
- * Suites wired into the unified runner. GAIA/WebTailBench remain legacy-only;
+ * Suites wired into the unified runner. GAIA remains legacy-only;
  * WebBench never had a unified suite implementation.
  */
-const SUPPORTED_BENCHMARKS = new Set(["webvoyager", "onlineMind2Web"]);
+const SUPPORTED_BENCHMARKS = new Set([
+  "webvoyager",
+  "onlineMind2Web",
+  "webtailbench",
+]);
 
-const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "webtailbench", "osworld"]);
+const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "osworld"]);
 
 const BOOLEAN_FLAGS = new Set(["api", "dry-run", "legacy"]);
 const VALUE_FLAGS = new Set([
@@ -86,6 +93,7 @@ const VALUE_FLAGS = new Set([
   "tool",
   "startup",
   "harness",
+  "agent-mode",
   "filter",
 ]);
 
@@ -121,6 +129,13 @@ function normalizeEnvironment(
     throw new Error(`${source} must be "local" or "browserbase"`);
   }
   return normalized;
+}
+
+function normalizeAgentMode(raw: string): AgentToolMode {
+  if (raw !== "dom" && raw !== "hybrid" && raw !== "cua") {
+    throw new Error('--agent-mode must be "dom", "hybrid", or "cua"');
+  }
+  return raw;
 }
 
 function parseFilter(raw: string): [string, string] {
@@ -214,6 +229,9 @@ export function parseRunArgs(tokens: string[]): RunFlags {
           break;
         case "harness":
           flags.harness = value;
+          break;
+        case "agent-mode":
+          flags.agentMode = normalizeAgentMode(value);
           break;
         case "filter": {
           filters.push(parseFilter(value));
@@ -363,6 +381,9 @@ export function resolveRunOptions(
 
   const datasetFilter = shorthandDatasetFilter ?? env.EVAL_DATASET ?? undefined;
   const harness = parseBenchHarness(flags.harness ?? DEFAULT_BENCH_HARNESS);
+  const agentMode = flags.agentMode
+    ? normalizeAgentMode(flags.agentMode)
+    : undefined;
 
   envOverrides.EVAL_ENV = environment;
   envOverrides.USE_API = String(Boolean(useApi));
@@ -387,6 +408,7 @@ export function resolveRunOptions(
     coreToolSurface: flags.tool ?? core.tool,
     coreStartupProfile: flags.startup ?? core.startup,
     harness,
+    agentMode,
     datasetFilter,
     envOverrides,
     dryRun: flags.dryRun ?? false,

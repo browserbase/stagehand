@@ -36,10 +36,19 @@ export default defineBenchTask({ name: "agent/webvoyager" }, async ({
       timeoutMs: 120_000,
     });
 
-    const agent = v3.agent({
-      model: modelName,
-      systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}`,
-    });
+    const systemPrompt = `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}`;
+    const agentMode = input.agentMode ?? (input.isCUA ? "cua" : "hybrid");
+    const agent = agentMode === "cua"
+      ? v3.agent({
+          mode: "cua",
+          model: modelName,
+          systemPrompt,
+        })
+      : v3.agent({
+          mode: agentMode,
+          model: modelName,
+          systemPrompt,
+        });
 
     screenshotCollector = new ScreenshotCollector(v3, {
       interval: 3000,

@@ -50,6 +50,7 @@ export function printRunHelp(): void {
     row(cyan("dropdown"), "Specific task name"),
     row(cyan("navigation/open"), "Task with its category prefix"),
     row(`${cyan("b:webvoyager")} / ${cyan("benchmark:onlineMind2Web")}`, "Benchmark suite shorthand"),
+    row(cyan("b:webtailbench"), "WebTailBench benchmark shorthand"),
     "",
     `  ${bold("Options:")}`,
     "",
@@ -82,6 +83,7 @@ export function printRunHelp(): void {
     `    ${dim("$")} evals run navigation/open --tool understudy_code`,
     `    ${dim("$")} evals run b:webvoyager -l 10`,
     `    ${dim("$")} evals run b:onlineMind2Web -l 25`,
+    `    ${dim("$")} evals run b:webtailbench -l 10`,
     "",
   ]);
 }

@@ -44,9 +44,12 @@ export default defineBenchTask({ name: "agent/gaia" }, async ({
     const page = v3.context.pages()[0];
     await page.goto(params.web);
 
+    const systemPrompt = `You are a helpful assistant that must solve the task by browsing. You must produce a single line at the end like: "Final Answer: <answer>". Do not ask follow up questions. Current page: ${await page.title()}`;
+    const agentMode = input.agentMode ?? (input.isCUA ? "cua" : "hybrid");
     const agent = v3.agent({
+      mode: agentMode,
       model: modelName,
-      systemPrompt: `You are a helpful assistant that must solve the task by browsing. You must produce a single line at the end like: "Final Answer: <answer>". Do not ask follow up questions. Current page: ${await page.title()}`,
+      systemPrompt,
     });
 
     const result = await agent.execute({

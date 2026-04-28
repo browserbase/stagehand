@@ -26,6 +26,20 @@ describe("resolveRunOptions", () => {
     expect(resolved.harness).toBe("claude_code");
   });
 
+  it("accepts explicit agent modes", () => {
+    for (const agentMode of ["dom", "hybrid", "cua"] as const) {
+      const flags = parseRunArgs(["b:webvoyager", "--agent-mode", agentMode]);
+      const resolved = resolveRunOptions(flags, {}, {});
+      expect(resolved.agentMode).toBe(agentMode);
+    }
+  });
+
+  it("rejects unknown agent modes", () => {
+    expect(() =>
+      parseRunArgs(["b:webvoyager", "--agent-mode", "visual"]),
+    ).toThrow(/agent-mode/);
+  });
+
   it("rejects unknown bench harnesses", () => {
     expect(() =>
       resolveRunOptions({ harness: "not_a_harness" }, {}, {}),
@@ -38,6 +52,11 @@ describe("resolveRunOptions", () => {
     expect(resolved.datasetFilter).toBe("webvoyager");
     expect(resolved.envOverrides.EVAL_DATASET).toBe("webvoyager");
     expect(resolved.envOverrides.EVAL_WEBVOYAGER_LIMIT).toBe("5");
+
+    const webtailbench = applyBenchmarkShorthand("b:webtailbench", { limit: 2 });
+    expect(webtailbench.target).toBe("agent/webtailbench");
+    expect(webtailbench.datasetFilter).toBe("webtailbench");
+    expect(webtailbench.envOverrides.EVAL_WEBTAILBENCH_LIMIT).toBe("2");
   });
 
   it("marks GAIA as legacy-only in the unified runner", () => {

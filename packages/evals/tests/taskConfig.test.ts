@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
+  AgentProvider,
+  providerEnvVarMap,
+} from "@browserbasehq/stagehand";
+import {
   tasksByName,
   getModelList,
   getAgentModelEntries,
@@ -56,6 +60,19 @@ describe("getAgentModelEntries", () => {
       expect(typeof entry.modelName).toBe("string");
       expect(entry.modelName.length).toBeGreaterThan(0);
     }
+  });
+
+  it("does not include CUA providers without API key env support by default", () => {
+    const cuaEntries = getAgentModelEntries().filter((entry) => entry.cua);
+
+    for (const entry of cuaEntries) {
+      const provider = AgentProvider.getAgentProvider(entry.modelName);
+      expect(provider in providerEnvVarMap).toBe(true);
+    }
+
+    expect(cuaEntries.map((entry) => entry.modelName)).not.toContain(
+      "microsoft/fara-7b",
+    );
   });
 });
 

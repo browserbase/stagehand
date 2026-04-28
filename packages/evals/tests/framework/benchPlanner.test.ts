@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import {
+  AVAILABLE_CUA_MODELS,
+  type AvailableModel,
+} from "@browserbasehq/stagehand";
 import type { DiscoveredTask } from "../../framework/types.js";
 import {
   buildBenchMatrixRow,
@@ -54,6 +57,53 @@ describe("benchPlanner", () => {
     expect(testcase.metadata.environment).toBe("LOCAL");
   });
 
+  it("marks explicit computer-use model overrides as CUA", () => {
+    const cuaModel = AVAILABLE_CUA_MODELS[0];
+    const [testcase] = generateBenchTestcases(
+      [
+        makeTask({
+          name: "agent/webvoyager",
+          primaryCategory: "agent",
+          categories: ["external_agent_benchmarks"],
+        }),
+      ],
+      {
+        modelOverride: cuaModel,
+        datasetFilter: "webvoyager",
+        harness: "stagehand",
+      },
+    );
+
+    expect(testcase.input.modelName).toBe(cuaModel);
+    expect(testcase.input.isCUA).toBe(true);
+    expect(testcase.input.agentMode).toBe("cua");
+    expect(testcase.tags).toContain("cua");
+  });
+
+  it("lets an explicit agent mode override inferred suite mode", () => {
+    const [testcase] = generateBenchTestcases(
+      [
+        makeTask({
+          name: "agent/webvoyager",
+          primaryCategory: "agent",
+          categories: ["external_agent_benchmarks"],
+        }),
+      ],
+      {
+        modelOverride: "openai/gpt-4.1-mini",
+        datasetFilter: "webvoyager",
+        harness: "stagehand",
+        agentMode: "dom",
+      },
+    );
+
+    expect(testcase.input.agentMode).toBe("dom");
+    expect(testcase.input.isCUA).toBe(false);
+    expect(testcase.tags).toContain("dom");
+    expect(testcase.tags).not.toContain("hybrid");
+    expect(testcase.metadata.agentMode).toBe("dom");
+  });
+
   it("generates direct WebVoyager suite testcases from source datasets", async () => {
     const testcases = await withEnvOverrides(
       {
@@ -79,6 +129,8 @@ describe("benchPlanner", () => {
 
     expect(testcases).toHaveLength(1);
     expect(testcases[0].input.name).toBe("agent/webvoyager");
+    expect(testcases[0].input.agentMode).toBe("hybrid");
+    expect(testcases[0].input.isCUA).toBe(false);
     expect(testcases[0].input.params?.id).toBeTruthy();
     expect(testcases[0].metadata.dataset).toBe("webvoyager");
     expect(testcases[0].metadata.categories).toEqual([
@@ -112,7 +164,40 @@ describe("benchPlanner", () => {
 
     expect(testcases).toHaveLength(1);
     expect(testcases[0].input.name).toBe("agent/onlineMind2Web");
+    expect(testcases[0].input.agentMode).toBe("hybrid");
+    expect(testcases[0].input.isCUA).toBe(false);
     expect(testcases[0].input.params?.task_id).toBeTruthy();
     expect(testcases[0].metadata.dataset).toBe("onlineMind2Web");
+  });
+
+  it("generates direct WebTailBench suite testcases from source datasets", async () => {
+    const testcases = await withEnvOverrides(
+      {
+        EVAL_MAX_K: "1",
+        EVAL_WEBTAILBENCH_LIMIT: "1",
+      },
+      async () =>
+        generateBenchTestcases(
+          [
+            makeTask({
+              name: "agent/webtailbench",
+              primaryCategory: "agent",
+              categories: ["external_agent_benchmarks"],
+            }),
+          ],
+          {
+            modelOverride: "openai/gpt-4.1-mini",
+            datasetFilter: "webtailbench",
+            harness: "stagehand",
+          },
+        ),
+    );
+
+    expect(testcases).toHaveLength(1);
+    expect(testcases[0].input.name).toBe("agent/webtailbench");
+    expect(testcases[0].input.agentMode).toBe("hybrid");
+    expect(testcases[0].input.isCUA).toBe(false);
+    expect(testcases[0].input.params?.id).toBeTruthy();
+    expect(testcases[0].metadata.dataset).toBe("webtailbench");
   });
 });

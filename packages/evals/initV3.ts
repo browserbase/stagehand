@@ -7,6 +7,7 @@
 import type {
   AvailableCuaModel,
   AvailableModel,
+  AgentToolMode,
   AgentInstance,
   ClientOptions,
   LLMClient,
@@ -29,6 +30,7 @@ type InitV3Args = {
   domSettleTimeoutMs?: number; // retained for parity; v3 handlers accept timeouts per-call
   logger: EvalLogger;
   createAgent?: boolean; // only create an agent for agent tasks
+  agentMode?: AgentToolMode;
   isCUA?: boolean;
   configOverrides?: {
     env?: "LOCAL" | "BROWSERBASE";
@@ -60,12 +62,17 @@ export async function initV3({
   configOverrides,
   modelName,
   createAgent,
+  agentMode,
   isCUA,
   verbose = false,
 }: InitV3Args): Promise<V3InitResult> {
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
-  if (isCUA) {
+  const resolvedAgentMode: AgentToolMode | undefined =
+    agentMode ?? (isCUA ? "cua" : undefined);
+  const isCuaMode = resolvedAgentMode === "cua";
+
+  if (isCuaMode) {
     if (process.env.OPENAI_API_KEY)
       internalModel = "openai/gpt-4.1-mini" as AvailableModel;
     else if (
@@ -82,7 +89,7 @@ export async function initV3({
   }
 
   const resolvedModelConfig: ModelConfiguration =
-    !isCUA && modelClientOptions
+    !isCuaMode && modelClientOptions
       ? ({
           ...modelClientOptions,
           modelName: internalModel,
@@ -116,7 +123,7 @@ export async function initV3({
     logger: logger.log.bind(logger),
   };
 
-  if (!isCUA && llmClient) {
+  if (!isCuaMode && llmClient) {
     v3Options.llmClient = llmClient;
   }
 
@@ -128,7 +135,7 @@ export async function initV3({
 
   let agent: AgentInstance | undefined;
   if (createAgent) {
-    if (isCUA) {
+    if (isCuaMode) {
       const shortModelName = modelName.includes("/")
         ? modelName.split("/")[1]
         : modelName;
@@ -152,13 +159,14 @@ export async function initV3({
           : (modelName as AvailableCuaModel);
 
       agent = v3.agent({
-        cua: true,
+        mode: "cua",
         model: cuaModel,
         systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, YOU WILL ALWAYS BE PROVIDED WITH AN OPENED PAGE, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
       });
     } else {
       agent = v3.agent({
         model: modelName,
+        mode: resolvedAgentMode ?? "hybrid",
         executionModel: "google/gemini-2.5-flash",
       });
     }

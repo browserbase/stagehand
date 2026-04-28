@@ -129,9 +129,17 @@ async function handleList(args: string[]): Promise<void> {
     }
 
     console.log(separator());
+    // Size the name column to the longest experiment name in this
+    // section so long names like
+    // `act_browserbase_stagehand_gpt_4_1_mini_apr27_1530` aren't truncated.
+    // Floor at 24 to keep short-name layouts stable.
+    const nameWidth = Math.max(
+      24,
+      ...section.experiments.map((e) => e.experimentName.length),
+    );
     for (const experiment of section.experiments) {
       const relative = dim(padRight(formatRelativeTime(experiment.createdAt), 10));
-      const name = padRight(experiment.experimentName, 24);
+      const name = padRight(experiment.experimentName, nameWidth);
       const passRate =
         experiment.passScore !== undefined
           ? formatRecentPassRate(experiment)
