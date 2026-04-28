@@ -402,7 +402,7 @@ async function loadClaudeAgentSdk(): Promise<ClaudeAgentSdk> {
     return { query: mod.query };
   } catch (error) {
     throw new EvalsError(
-      `Claude Code harness requires ${CLAUDE_AGENT_SDK_PACKAGE}. Install it in packages/evals before enabling EVAL_CLAUDE_CODE_EXPERIMENTAL=true. ${
+      `Claude Code harness requires ${CLAUDE_AGENT_SDK_PACKAGE}. Install it in packages/evals before running --harness claude_code. ${
         error instanceof Error ? error.message : String(error)
       }`,
     );

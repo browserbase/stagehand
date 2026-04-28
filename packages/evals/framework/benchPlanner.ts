@@ -333,6 +333,10 @@ export function generateBenchTestcases(
   );
   const allTestcases = [...suiteTestcases.testcases];
 
+  if (options.harness === "claude_code") {
+    return allTestcases;
+  }
+
   for (const entry of modelEntries) {
     for (const task of suiteTestcases.remainingTasks) {
       const model = entry.modelName as AvailableModel;

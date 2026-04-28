@@ -121,7 +121,7 @@ export async function runCommand(
     tasks.some((t) => t.tier === "bench")
   ) {
     throw new Error(
-      `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand for executable bench runs, or enable its experimental runner if available.`,
+      `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand or --harness claude_code for executable bench runs.`,
     );
   }
 
@@ -226,11 +226,7 @@ export function deriveCategoryFilter(
 }
 
 export function canExecuteBenchHarness(harness: Harness): boolean {
-  if (isExecutableBenchHarness(harness)) return true;
-  return (
-    harness === "claude_code" &&
-    process.env.EVAL_CLAUDE_CODE_EXPERIMENTAL === "true"
-  );
+  return isExecutableBenchHarness(harness);
 }
 
 /**

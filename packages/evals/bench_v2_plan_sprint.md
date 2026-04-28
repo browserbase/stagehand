@@ -2,13 +2,13 @@
 
 ## Status (as of 2026-04-28)
 
-Goals 1 and 2 of the sprint are landed; Goal 3 now has a dry-run matrix, external-suite task planning, and a gated Claude Code SDK execution boundary. The remaining Claude Code work is browser/tool handoff and a real smoke run.
+Goals 1 and 2 of the sprint are landed; Goal 3 now has a dry-run matrix, external-suite task planning, a Claude Code SDK execution boundary, and the first `browse_cli` tool handoff. The remaining Claude Code work is evaluator parity for the active agent benchmark datasets.
 
 Landed in commits `61a801c4 first pass at bench runner` and `f4940b0a fixed benchmarks`, plus uncommitted refinements:
 
 - `framework/benchTypes.ts` — `Harness`, `DEFAULT_BENCH_HARNESS`, `parseBenchHarness`, `BenchTaskKind`, `BenchMatrixRow`, executable-harness helpers, and the `BenchHarnessConfig` discriminated union (`StagehandHarnessConfig`, `ClaudeCodeHarnessConfig`, `CodexHarnessConfig`).
 - `framework/benchHarness.ts` — `BenchHarness` interface, the `stagehand` harness implementation, the `claude_code` external execute seam, and a registry that keeps unsupported harnesses explicit.
-- `framework/claudeCodeRunner.ts` — Claude Code SDK prompt/result adapter behind `EVAL_CLAUDE_CODE_EXPERIMENTAL=true`.
+- `framework/claudeCodeRunner.ts` — Claude Code SDK prompt/result adapter for `--harness claude_code`.
 - `framework/externalHarnessPlan.ts` — typed task-plan extraction for `webvoyager`, `onlineMind2Web`, and `webtailbench` external harness runs.
 - `framework/benchPlanner.ts` — pure `BenchPlanOptions`, `resolveBenchModelEntries`, `buildBenchMatrixRow`, `generateBenchTestcases`, `generateSuiteTestcases`. Auto-detects CUA mode from `AVAILABLE_CUA_MODELS`. Routes `agent/gaia` to the `--legacy` escape hatch via `legacyOnlySuites`.
 - `framework/benchRunner.ts` — `executeBenchTask` now goes through `getBenchHarness(harness).start()`, with cleanup registered through the existing `activeRunCleanup` so SIGINT / `Esc` aggressive abort can close in-flight V3 sessions.
@@ -19,7 +19,7 @@ Landed in commits `61a801c4 first pass at bench runner` and `f4940b0a fixed benc
 
 Still open:
 
-- Claude Code browser/tool handoff. The SDK prompt/result adapter exists, but it is experimental and still needs a real browser-capable tool path before it should be considered a supported runner.
+- Shared external-harness evaluators for `webvoyager`, `onlineMind2Web`, and `webtailbench`. Claude Code can execute with `browse_cli`, but it does not yet reuse the dataset-specific Stagehand evaluator logic.
 - Codex follow-up.
 - Direct suite typed options (suite builders still consume env-based limit/sample/filter).
 - Bench v2 → core tool-surface bridge (current Stagehand harness uses its native browser path; `toolSurface`/`startupProfile` are metadata-only on the bench side).
@@ -149,9 +149,9 @@ Every bench testcase should include enough metadata to compare by:
 
 Create the contracts and file boundaries needed for `claude_code`, but do not implement it until the Stagehand extraction is green.
 
-Landed: `Harness` union accepts `"claude_code"`, `ClaudeCodeHarnessConfig` exists, parser accepts `--harness claude_code`, dry-run emits `claude_code` matrix rows, external suite inputs convert to a neutral task plan, and `claude_code` can reach the SDK adapter only when `EVAL_CLAUDE_CODE_EXPERIMENTAL=true`.
+Landed: `Harness` union accepts `"claude_code"`, `ClaudeCodeHarnessConfig` exists, parser accepts `--harness claude_code`, dry-run emits `claude_code` matrix rows, external suite inputs convert to a neutral task plan, and `claude_code` can execute through the SDK adapter with the `browse_cli` tool surface.
 
-Outstanding: browser-capable tool integration for Claude Code and a real smoke run. Until then, `claude_code` should be treated as experimental and non-default.
+Outstanding: shared evaluation for external harness outputs. Until the active agent benchmark datasets use evals-owned evaluators, `claude_code` is supported for execution but should not be treated as benchmark-parity complete.
 
 ## Non-Goals
 
@@ -366,7 +366,8 @@ Non-negotiables:
 ### Acceptance Criteria
 
 - `evals run b:webvoyager --harness claude_code --tool browse_cli -m <model> --dry-run` produces valid rows with `toolSurface: "browse_cli"` and a concrete startup profile.
-- One actual `claude_code + browse_cli` run can execute one WebVoyager case behind `EVAL_CLAUDE_CODE_EXPERIMENTAL=true`.
+- One actual `claude_code + browse_cli` run can execute one WebVoyager case without an env unlock.
+- Max-turn termination returns a normal task artifact/result instead of a harness exception, so the evaluator layer can still assess partial work.
 - Braintrust metadata distinguishes:
   - `harness: "claude_code"`
   - model
@@ -374,6 +375,32 @@ Non-negotiables:
   - startup profile
   - task/category/trial
 - Stagehand harness behavior remains unchanged.
+
+## Shared External Evaluator Follow-Up
+
+The current Stagehand agent task files, such as `tasks/bench/agent/webvoyager.ts`, still own their dataset-specific evaluation path. External harnesses bypass those task modules and currently produce direct task results from their own transcripts/final answers. That is useful for smoke testing but not enough for parity.
+
+Next implementation target:
+
+```text
+dataset scenario -> harness execution artifact -> evals-owned evaluator -> TaskResult
+```
+
+Scope:
+
+- `webvoyager`
+- `onlineMind2Web`
+- `webtailbench`
+
+Rules:
+
+- Keep the existing Stagehand task path untouched until the shared evaluator is proven.
+- Add evaluator code inside `packages/evals`, not a separate package yet.
+- Harnesses should produce artifacts only: instruction, start URL, final URL/page state when available, final answer, reasoning/transcript, screenshots if available, logs, and harness stop status.
+- Evaluators should not know whether the artifact came from Stagehand, Claude Code, Codex, or another harness.
+- Max-step/max-turn outcomes are evaluatable artifacts, not harness exceptions.
+
+Initial evaluator can be text-first for external harnesses, then add screenshots/page-state capture from `browse_cli` once the artifact path is stable.
 
 ## Codex Follow-Up
 

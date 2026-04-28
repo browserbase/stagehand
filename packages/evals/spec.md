@@ -161,7 +161,7 @@ Initial harness meanings:
 | Harness              | Meaning                                                                                              |
 | -------------------- | ---------------------------------------------------------------------------------------------------- |
 | `stagehand`          | Stagehand's agent loop, whether run locally or through the Stagehand API                             |
-| `claude_code`        | Claude Code / Claude Code SDK agent harness, including its permissions, sessions, tools, and MCP use |
+| `claude_code`        | Claude Code / Claude Code SDK agent harness, including its permissions, sessions, tools, and MCP use. Executable with `browse_cli`; evaluator parity is still pending for active agent benchmarks |
 | `codex`              | OpenAI Codex agent harness, initially CLI-driven                                                    |
 
 Stagehand local and Stagehand API are the same harness. `--api` / `USE_API` should remain `useApi` run configuration and metadata, not a separate harness.
@@ -174,6 +174,13 @@ Optional later harness candidates, not part of the initial contract:
 - `pi`
 
 The first implementation slice should keep `defineBenchTask` source compatibility. Existing tasks should not need rewrites just to run under the `stagehand` harness.
+
+Current implementation status:
+
+- `stagehand` remains the default executable harness.
+- `claude_code` is executable without an env unlock when the Claude Code SDK dependency is installed.
+- `claude_code` currently supports `browse_cli` as its first native tool surface.
+- `codex` remains a planned harness and should stay dry-run/non-executable until its browser tool handoff is designed.
 
 ### Bench runner v2 execution flow
 
@@ -259,6 +266,42 @@ This is more important than experiment naming. Names are for humans; metadata is
 5. Add one external harness spike, likely `claude_code` first because its SDK exposes a documented agent harness and MCP/tooling surface.
 6. Add `codex` as a CLI-driven external harness once the browser/tool handoff contract is clear.
 7. Move direct suite builders from env-driven options to typed options.
+
+### External harness evaluation
+
+External harnesses must not own benchmark scoring. They should produce artifacts; evals-owned evaluators should decide pass/fail.
+
+Initial artifact shape:
+
+```typescript
+interface AgentBenchmarkArtifact {
+  dataset: "webvoyager" | "onlineMind2Web" | "webtailbench";
+  taskId?: string;
+  instruction: string;
+  startUrl?: string;
+  finalUrl?: string;
+  finalAnswer?: string;
+  reasoning?: string;
+  transcript?: string;
+  screenshots?: string[];
+  pageSnapshot?: string;
+  stopReason?: string;
+  metadata?: Record<string, unknown>;
+}
+```
+
+Initial evaluator scope:
+
+- `webvoyager`
+- `onlineMind2Web`
+- `webtailbench`
+
+Rules:
+
+- Keep evaluator implementation in `packages/evals` for now; do not introduce a separate package boundary until the abstraction is proven.
+- Keep the existing Stagehand task path untouched while the external evaluator path is built.
+- Max-step and max-turn outcomes are artifacts to evaluate, not generic harness errors.
+- Evaluators should be harness-agnostic and consume only artifacts plus dataset expectations.
 
 ---
 

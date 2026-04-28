@@ -61,6 +61,12 @@ Landed:
 - quiet/help/dry-run commands avoid eager Braintrust imports in both source and built CLI modes
 - `experiments compare --headless` exists for terminal-friendly comparison summaries backed by the JSON report output
 - `new` is scaffold-only again; the demo inline REPL edit flow was removed
+- bench runner v2 has named harnesses:
+  - `stagehand` is the default behavior-preserving harness
+  - `claude_code` is executable through the Claude Code SDK with `browse_cli`
+  - `codex` remains planned/dry-run-only
+- Claude Code execution no longer requires `EVAL_CLAUDE_CODE_EXPERIMENTAL=true`
+- Claude Code max-turn stops now return normal task results/artifacts instead of generic harness exceptions
 
 Important product decisions already made:
 
@@ -83,12 +89,12 @@ Completed relative to the earlier plan:
 - `experiments` command landed
 - `new` command was simplified back to scaffold-only
 
-Deferred until after the pre-bench cleanup:
+Deferred until after the bench runner v2 spike:
 
 - representation task design and implementation
-- bench runner v2 implementation
+- shared external-harness evaluator parity for active agent benchmarks
 
-That changes the immediate focus from “prove the abstraction exists” to “write the bench runner v2 plan before building it, while keeping the current CLI/TUI surface stable.”
+That changes the immediate focus from “prove the abstraction exists” to “make external harness results comparable without regressing the current Stagehand benchmark path.”
 
 ## Active Priorities
 
@@ -273,11 +279,17 @@ First implementation slice:
 Second slice:
 
 - external harness: `claude_code`
-- category: one small `observe` subset
+- category: active agent benchmark suites
 - tool surface:
-  - prefer `playwright_code` or MCP-backed browser tools, depending on the cleanest Claude Code SDK integration point
+  - `browse_cli` first
 - goal:
   - prove the harness abstraction compares Stagehand against a genuinely different agent implementation, not a Stagehand runtime variant
+
+Current status:
+
+- `claude_code` is no longer env-gated
+- `claude_code + browse_cli` is the first executable external-harness path
+- remaining parity gap: `webvoyager`, `onlineMind2Web`, and `webtailbench` need evals-owned shared evaluators so Stagehand and external harness artifacts are judged through the same dataset logic
 
 Non-goals for the first slice:
 
@@ -327,16 +339,16 @@ This should come back after the first bench runner v2 slice proves the harness a
    - `stagehand` harness only
    - clear Braintrust naming/reporting expectations
 4. Implement the first external harness spike:
-   - likely `claude_code`
-   - one small observe subset
-   - one model
+   - `claude_code`
+   - `browse_cli`
+   - one active agent benchmark case
 5. Re-plan representation after the first external harness proves the harness abstraction.
 
 ## Next Steps
 
 The bench runner v2 proposal is now captured in this plan and in `spec.md`. The next implementation pass should start with the smallest compatibility-preserving slice:
 
-1. Add planned files without changing behavior:
+1. Keep planned files behavior-compatible:
    - `framework/benchHarness.ts`
    - `framework/benchPlanner.ts`
    - `framework/benchRunner.ts`
@@ -347,7 +359,7 @@ The bench runner v2 proposal is now captured in this plan and in `spec.md`. The 
    - one `observe` task
    - one explicit model
    - `stagehand`
-6. Add `claude_code` only after the no-behavior-change harness extraction is green.
+6. Add shared external evaluators for `webvoyager`, `onlineMind2Web`, and `webtailbench` after the executable Claude Code path is green.
 
 Compatibility rules for that pass:
 
@@ -367,3 +379,4 @@ Compatibility rules for that pass:
 - fanout UX for running multiple tool surfaces from one command while still producing separate Braintrust experiments
 - bench-on-top-of-core implementation work
 - redesigned task-authoring UX for `evals new`
+- separate evaluator package boundary; keep evaluator implementation in `packages/evals` until the abstraction stabilizes

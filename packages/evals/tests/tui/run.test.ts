@@ -38,7 +38,6 @@ function makeTask(overrides: Partial<DiscoveredTask> = {}): DiscoveredTask {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  delete process.env.EVAL_CLAUDE_CODE_EXPERIMENTAL;
   process.exitCode = undefined;
 });
 
@@ -257,12 +256,8 @@ describe("deriveCategoryFilter", () => {
     });
   });
 
-  it("keeps claude_code execution opt-in behind the experimental env flag", () => {
+  it("allows executable harnesses without env gates", () => {
     expect(canExecuteBenchHarness("stagehand")).toBe(true);
-    expect(canExecuteBenchHarness("claude_code")).toBe(false);
-
-    process.env.EVAL_CLAUDE_CODE_EXPERIMENTAL = "true";
-
     expect(canExecuteBenchHarness("claude_code")).toBe(true);
     expect(canExecuteBenchHarness("codex")).toBe(false);
   });

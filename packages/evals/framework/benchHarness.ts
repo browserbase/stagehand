@@ -190,11 +190,6 @@ export const claudeCodeHarness: BenchHarness = {
     signal,
   }: BenchHarnessExecuteInput): Promise<TaskResult> {
     const plan = buildExternalHarnessTaskPlan(input);
-    if (process.env.EVAL_CLAUDE_CODE_EXPERIMENTAL !== "true") {
-      throw new EvalsError(
-        "Claude Code harness execution is experimental. Set EVAL_CLAUDE_CODE_EXPERIMENTAL=true to run it, or use --dry-run to inspect its bench matrix.",
-      );
-    }
     if (row.config.harness !== "claude_code") {
       throw new EvalsError(
         `Expected claude_code harness config, received "${row.config.harness}".`,
@@ -221,7 +216,7 @@ export const claudeCodeHarness: BenchHarness = {
   },
   async start(): Promise<StartedBenchHarness> {
     throw new EvalsError(
-      "Claude Code harness execution uses the external harness execute path. Use --dry-run to inspect its bench matrix, or set EVAL_CLAUDE_CODE_EXPERIMENTAL=true and run through the bench runner.",
+      "Claude Code harness execution uses the external harness execute path. Use --dry-run to inspect its bench matrix, or run with --harness claude_code.",
     );
   },
 };

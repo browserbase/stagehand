@@ -204,6 +204,38 @@ describe("benchPlanner", () => {
     expect(testcases[0].metadata.agentMode).toBeUndefined();
   });
 
+  it("filters unsupported Claude Code tasks from broad targets", async () => {
+    const testcases = await withEnvOverrides(
+      {
+        EVAL_MAX_K: "1",
+        EVAL_WEBVOYAGER_LIMIT: "1",
+      },
+      async () =>
+        generateBenchTestcases(
+          [
+            makeTask(),
+            makeTask({
+              name: "agent/webvoyager",
+              primaryCategory: "agent",
+              categories: ["external_agent_benchmarks"],
+            }),
+          ],
+          {
+            modelOverride: "anthropic/claude-sonnet-4-20250514",
+            datasetFilter: "webvoyager",
+            harness: "claude_code",
+          },
+        ),
+    );
+
+    expect(testcases).toHaveLength(1);
+    expect(testcases[0].input.name).toBe("agent/webvoyager");
+    expect(testcases[0].tags).toContain("harness/claude_code");
+    expect(testcases.map((testcase) => testcase.input.name)).not.toContain(
+      "dropdown",
+    );
+  });
+
   it("generates direct WebVoyager suite testcases from source datasets", async () => {
     const testcases = await withEnvOverrides(
       {

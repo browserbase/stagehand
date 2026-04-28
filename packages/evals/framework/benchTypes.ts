@@ -19,6 +19,7 @@ export const SUPPORTED_BENCH_HARNESSES = [
 
 export const EXECUTABLE_BENCH_HARNESSES = [
   "stagehand",
+  "claude_code",
 ] as const satisfies readonly Harness[];
 
 export function isBenchHarness(value: string): value is Harness {
