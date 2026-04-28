@@ -15,6 +15,7 @@ const buildCoreContextMock = vi.fn();
 const resolveDefaultCoreStartupProfileMock = vi.fn(
   () => "runner_provided_local_cdp",
 );
+let originalCi: string | undefined;
 
 vi.mock("braintrust", async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import("braintrust");
@@ -62,6 +63,8 @@ function makeRegistry(tasks: DiscoveredTask[]): TaskRegistry {
 }
 
 beforeEach(() => {
+  originalCi = process.env.CI;
+  delete process.env.CI;
   tracedNames.length = 0;
   evalMock.mockReset();
   flushMock.mockClear();
@@ -71,6 +74,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  if (originalCi === undefined) {
+    delete process.env.CI;
+  } else {
+    process.env.CI = originalCi;
+  }
+
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
     if (dir) fs.rmSync(dir, { recursive: true, force: true });

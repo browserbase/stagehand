@@ -65,6 +65,20 @@ const CATEGORY_OVERRIDES: Record<string, string[]> = {
   "agent/webtailbench": ["external_agent_benchmarks"],
 };
 
+function getTaskBasename(taskName: string): string {
+  if (!taskName.includes("/")) return taskName;
+  const parts = taskName.split("/");
+  return parts[parts.length - 1] ?? taskName;
+}
+
+function getExtraCategories(taskName: string): string[] {
+  return (
+    EXTRA_CATEGORIES[taskName] ??
+    EXTRA_CATEGORIES[getTaskBasename(taskName)] ??
+    []
+  );
+}
+
 type ParsedTaskPath = {
   tier: Tier;
   category: string;
@@ -233,7 +247,7 @@ export async function discoverTasks(
               ...extraCategories.filter((c) => c !== parsed.category),
             ];
 
-        const hardcodedExtras = EXTRA_CATEGORIES[taskName] ?? [];
+        const hardcodedExtras = getExtraCategories(taskName);
         const categories = [...baseCategories];
         for (const extra of hardcodedExtras) {
           if (!categories.includes(extra)) categories.push(extra);

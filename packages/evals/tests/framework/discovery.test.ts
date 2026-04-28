@@ -70,6 +70,20 @@ describe("discovery", () => {
     expect(tasks[0].tier).toBe("core");
   });
 
+  it("applies legacy cross-cutting categories to category-qualified bench names", async () => {
+    const root = makeTempRoot();
+    const tasksRoot = path.join(root, "tasks");
+
+    writeFile(path.join(tasksRoot, "bench", "observe", "observe_github.ts"));
+
+    const registry = await discoverTasks(tasksRoot, false);
+    const tasks = resolveTarget(registry, "regression");
+
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].name).toBe("observe/observe_github");
+    expect(tasks[0].categories).toEqual(["observe", "regression"]);
+  });
+
   it("rejects empty tier-qualified category targets", async () => {
     const root = makeTempRoot();
     const tasksRoot = path.join(root, "tasks");
