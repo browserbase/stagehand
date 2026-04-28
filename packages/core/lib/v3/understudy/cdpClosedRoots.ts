@@ -72,9 +72,10 @@ export async function collectClosedShadowRoots(
     }> = [];
 
     const visit = (node: Protocol.DOM.Node): void => {
-      if (typeof node.backendNodeId === "number" && node.shadowRoots?.length) {
+      if (node.shadowRoots?.length) {
         for (const shadowRoot of node.shadowRoots) {
           if (
+            typeof node.backendNodeId === "number" &&
             shadowRoot.shadowRootType === "closed" &&
             typeof shadowRoot.backendNodeId === "number"
           ) {

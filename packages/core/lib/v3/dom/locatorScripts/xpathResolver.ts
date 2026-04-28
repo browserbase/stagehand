@@ -6,14 +6,11 @@ import {
   queryXPathWithRoots,
 } from "../selectorRuntime/index.js";
 
-type ClosedRootGetter = (host: Element) => ShadowRoot | null;
-
 export type XPathResolveOptions = {
   pierceShadow?: boolean;
 };
 
 type ShadowContext = {
-  getClosedRoot: ClosedRootGetter | null;
   hasShadow: boolean;
 };
 
@@ -44,14 +41,12 @@ export function resolveXPathAtIndex(
   const shadowCtx = pierceShadow ? getShadowContext() : null;
 
   if (!pierceShadow) {
-    return (
-      queryXPathNative.call(document, xp, targetIndex + 1)[targetIndex] ?? null
-    );
+    return resolveNativeAtIndexWithError(xp, targetIndex).value;
   }
 
   if (!shadowCtx?.hasShadow) {
-    const native = queryXPathNative.call(document, xp, targetIndex + 1);
-    if (native.length > targetIndex) return native[targetIndex] ?? null;
+    const native = resolveNativeAtIndexWithError(xp, targetIndex);
+    if (!native.error) return native.value;
   }
 
   return (
@@ -70,12 +65,12 @@ export function countXPathMatches(
   const shadowCtx = pierceShadow ? getShadowContext() : null;
 
   if (!pierceShadow) {
-    return countXPathNative.call(document, xp);
+    return resolveNativeCountWithError(xp).count;
   }
 
   if (!shadowCtx?.hasShadow) {
-    const nativeCount = countXPathNative.call(document, xp);
-    if (nativeCount > 0) return nativeCount;
+    const native = resolveNativeCountWithError(xp);
+    if (!native.error) return native.count;
   }
 
   return countXPathWithRoots.call(document, xp);
@@ -89,7 +84,32 @@ export function resolveXPathComposedMatches(rawXp: string): Element[] {
 
 function getShadowContext(): ShadowContext {
   return {
-    getClosedRoot: null,
     hasShadow: hasOpenShadowRoots.call(document),
   };
+}
+
+function resolveNativeAtIndexWithError(
+  xp: string,
+  index: number,
+): { value: Element | null; error: boolean } {
+  try {
+    const matches = queryXPathNative.call(document, xp, index + 1);
+    return {
+      value: matches[index] ?? null,
+      error: false,
+    };
+  } catch {
+    return { value: null, error: true };
+  }
+}
+
+function resolveNativeCountWithError(xp: string): {
+  count: number;
+  error: boolean;
+} {
+  try {
+    return { count: countXPathNative.call(document, xp), error: false };
+  } catch {
+    return { count: 0, error: true };
+  }
 }
