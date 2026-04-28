@@ -27,6 +27,10 @@ import {
   extractLlmCuaResponseSummary,
 } from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
+import {
+  DEFAULT_CUSTOM_TOOL_SUCCESS_RESULT,
+  formatCustomToolResult,
+} from "./utils/customToolResult.js";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -702,7 +706,7 @@ export class AnthropicCUAClient extends AgentClient {
           });
         } else {
           // Handle custom tools
-          let toolResult = "Tool executed successfully";
+          let toolResult = DEFAULT_CUSTOM_TOOL_SUCCESS_RESULT;
           if (this.tools && item.name in this.tools) {
             try {
               const tool = this.tools[item.name];
@@ -717,7 +721,7 @@ export class AnthropicCUAClient extends AgentClient {
                 toolCallId: item.id,
                 messages: [],
               });
-              toolResult = JSON.stringify(result);
+              toolResult = formatCustomToolResult(result);
 
               logger({
                 category: "agent",
