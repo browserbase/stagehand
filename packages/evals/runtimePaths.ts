@@ -121,7 +121,7 @@ export const resolveRuntimeTasksRoot = (
 ): string => {
   const normalizedCaller = normalizePath(callerFilePath);
   if (normalizedCaller.includes("/dist/")) {
-    const compiledTasksRoot = path.join(packageRootDir, "dist", "esm", "tasks");
+    const compiledTasksRoot = `${packageRootDir}/dist/esm/tasks`;
     return compiledTasksRoot;
   }
 
