@@ -8,31 +8,13 @@
  * This module replaces the monolithic task execution logic in index.eval.ts
  * while preserving backward compatibility with legacy EvalFunction tasks.
  */
-import fs from "node:fs";
-import { pathToFileURL } from "node:url";
-import { Eval, flush, traced } from "braintrust";
-import {
-  StagehandEvalError,
-  AgentProvider,
-  loadApiKeyFromEnv,
-  getAISDKLanguageModel,
-  type AvailableModel,
-  type LLMClient,
-  type LogLine,
-} from "@browserbasehq/stagehand";
-import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
+import type { AvailableModel } from "@browserbasehq/stagehand";
 import { AssertionError } from "./assertions.js";
 import { EvalLogger } from "../logger.js";
-import { endBrowserbaseSession } from "../browserbaseCleanup.js";
+import { EvalsError } from "../errors.js";
 import { exactMatch, errorMatch, passRate } from "../scoring.js";
 import { generateExperimentName } from "../utils.js";
 import { generateSummary } from "../summary.js";
-import type { V3InitResult } from "../initV3.js";
-import {
-  getModelList,
-  getAgentModelEntries,
-  type AgentModelEntry,
-} from "../taskConfig.js";
 import type {
   StartupProfile,
   ToolSurface,
@@ -43,13 +25,26 @@ import type {
   TaskResult,
 } from "./types.js";
 import type { Testcase, EvalInput } from "../types/evals.js";
+import { generateBenchTestcases } from "./benchPlanner.js";
+import {
+  DEFAULT_BENCH_HARNESS,
+  type Harness,
+} from "./benchTypes.js";
+import { executeBenchTask } from "./benchRunner.js";
+import { loadBraintrust, tracedSpan } from "./braintrust.js";
+import {
+  onceAsync,
+  registerActiveRunCleanup,
+} from "./activeRunCleanup.js";
+import { loadTaskModuleFromPath } from "./taskLoader.js";
 
 export { discoverTasks, resolveTarget } from "./discovery.js";
-
-import { buildGAIATestcases } from "../suites/gaia.js";
-import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
-import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
-import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
+export {
+  inferEffectiveBenchCategory,
+  resolveBenchModelEntries,
+} from "./benchPlanner.js";
+export type { Harness } from "./benchTypes.js";
+export { cleanupActiveRunResources } from "./activeRunCleanup.js";
 import { resolveDefaultCoreStartupProfile } from "./context.js";
 
 export interface RunProgressEvent {
@@ -71,10 +66,29 @@ export interface RunEvalsOptions {
   provider?: string;
   categoryFilter?: string;
   datasetFilter?: string;
+  harness?: Harness;
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;
   onProgress?: (event: RunProgressEvent) => void;
   verbose?: boolean;
+  /**
+   * Cooperative abort. When triggered, the runner short-circuits any
+   * unstarted testcases and any in-flight bench task is asked to close
+   * its V3 instance early via `addEventListener('abort', …)`. The reason
+   * passed to `controller.abort(reason)` is read as one of:
+   *   - "cooperative" (default) — let in-flight tasks finish their current step
+   *   - "aggressive" — close V3 sessions immediately to force a throw
+   */
+  signal?: AbortSignal;
+}
+
+/** Reason values we read from `controller.abort(reason)`. */
+type AbortMode = "cooperative" | "aggressive";
+
+function readAbortMode(signal?: AbortSignal): AbortMode {
+  if (!signal?.aborted) return "cooperative";
+  const reason = signal.reason;
+  return reason === "aggressive" ? "aggressive" : "cooperative";
 }
 
 const silentBraintrustProgress = {
@@ -92,61 +106,6 @@ const silentBraintrustReporter = {
     return true;
   },
 };
-
-
-export function inferEffectiveBenchCategory(
-  benchTasks: DiscoveredTask[],
-  categoryFilter?: string | null,
-): string | null {
-  let effectiveCategory = categoryFilter ?? null;
-  if (
-    !effectiveCategory &&
-    benchTasks.length === 1 &&
-    benchTasks[0].categories.length === 1 &&
-    (benchTasks[0].categories[0] === "agent" ||
-      benchTasks[0].categories[0] === "external_agent_benchmarks")
-  ) {
-    effectiveCategory = benchTasks[0].categories[0];
-  }
-
-  return effectiveCategory;
-}
-
-export function resolveBenchModelEntries(
-  benchTasks: DiscoveredTask[],
-  options: RunEvalsOptions,
-): {
-  effectiveCategory: string | null;
-  isAgentCategory: boolean;
-  modelEntries: AgentModelEntry[];
-} {
-  const effectiveCategory = inferEffectiveBenchCategory(
-    benchTasks,
-    options.categoryFilter,
-  );
-  const isAgentCategory =
-    effectiveCategory === "agent" ||
-    effectiveCategory === "external_agent_benchmarks";
-
-  if (options.modelOverride) {
-    return {
-      effectiveCategory,
-      isAgentCategory,
-      modelEntries: [{ modelName: options.modelOverride, cua: false }],
-    };
-  }
-
-  return {
-    effectiveCategory,
-    isAgentCategory,
-    modelEntries: isAgentCategory
-      ? getAgentModelEntries()
-      : getModelList(effectiveCategory).map((m) => ({
-          modelName: m,
-          cua: false,
-        })),
-  };
-}
 
 function generateTestcases(
   tasks: DiscoveredTask[],
@@ -175,42 +134,7 @@ function generateTestcases(
   }
 
   if (benchTasks.length > 0) {
-    const { effectiveCategory, isAgentCategory, modelEntries } =
-      resolveBenchModelEntries(benchTasks, options);
-
-    const suiteTestcases = generateSuiteTestcases(
-      benchTasks,
-      options,
-      modelEntries,
-    );
-    allTestcases.push(...suiteTestcases.testcases);
-    const remainingBenchTasks = suiteTestcases.remainingTasks;
-
-    for (const entry of modelEntries) {
-      for (const task of remainingBenchTasks) {
-        allTestcases.push({
-          input: {
-            name: task.name,
-            modelName: entry.modelName as AvailableModel,
-            ...(isAgentCategory && { isCUA: entry.cua }),
-          },
-          name: task.name,
-          tags: [
-            entry.modelName,
-            ...(isAgentCategory ? [entry.cua ? "cua" : "agent"] : []),
-            task.name,
-            ...task.categories.map((x) => `category/${x}`),
-          ],
-          metadata: {
-            model: entry.modelName as AvailableModel,
-            test: task.name,
-            categories: task.categories,
-            task_category: task.primaryCategory,
-          },
-          expected: true,
-        });
-      }
-    }
+    allTestcases.push(...generateBenchTestcases(benchTasks, options));
   }
 
   if (options.environment === "BROWSERBASE") {
@@ -220,35 +144,6 @@ function generateTestcases(
   }
 
   return allTestcases;
-}
-
-function generateSuiteTestcases(
-  benchTasks: DiscoveredTask[],
-  options: RunEvalsOptions,
-  modelEntries: AgentModelEntry[],
-): { testcases: Testcase[]; remainingTasks: DiscoveredTask[] } {
-  const testcases: Testcase[] = [];
-  const remaining = [...benchTasks];
-  const datasetFilter = options.datasetFilter;
-
-  const suiteMap: Record<string, (models: AgentModelEntry[]) => Testcase[]> = {
-    "agent/gaia": (models) => buildGAIATestcases(models),
-    "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
-    "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
-    "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
-  };
-
-  for (const [suiteName, builder] of Object.entries(suiteMap)) {
-    const idx = remaining.findIndex((t) => t.name === suiteName);
-    if (idx === -1) continue;
-    const datasetName = suiteName.split("/").pop();
-    if (!datasetFilter || datasetFilter === datasetName) {
-      testcases.push(...builder(modelEntries));
-    }
-    remaining.splice(idx, 1);
-  }
-
-  return { testcases, remainingTasks: remaining };
 }
 
 async function executeTask(
@@ -276,9 +171,10 @@ async function executeCoreTask(
   let cleanupMs = 0;
   let result: TaskResult;
   let taskStart = 0;
+  let unregisterCleanup: (() => void) | undefined;
   try {
     const startupStart = performance.now();
-    const startupResult = await traced(
+    const startupResult = await tracedSpan(
       async () =>
         buildCtx({
           logger,
@@ -292,11 +188,12 @@ async function executeCoreTask(
     );
     startupMs = performance.now() - startupStart;
     ctx = startupResult.ctx;
-    cleanup = startupResult.cleanup;
+    cleanup = onceAsync(startupResult.cleanup);
+    unregisterCleanup = registerActiveRunCleanup(cleanup);
 
     taskStart = performance.now();
     const ctxLocal = ctx!;
-    result = await traced(
+    result = await tracedSpan(
       async (): Promise<TaskResult> => {
         const taskModule = await loadTaskModuleFromPath(
           task.filePath,
@@ -313,11 +210,11 @@ async function executeCoreTask(
           };
         }
         if (taskModule.legacyFn) {
-          throw new StagehandEvalError(
+          throw new EvalsError(
             `Legacy core task exports are not supported in the adapter-backed core runner: ${task.filePath}`,
           );
         }
-        throw new StagehandEvalError(
+        throw new EvalsError(
           `No valid task export found in ${task.filePath}`,
         );
       },
@@ -350,13 +247,14 @@ async function executeCoreTask(
     }
   } finally {
     const cleanupStart = performance.now();
-    await traced(
+    await tracedSpan(
       async () => {
         await cleanup();
       },
       { name: "cleanup" },
     );
     cleanupMs = performance.now() - cleanupStart;
+    unregisterCleanup?.();
     logger.clear();
   }
 
@@ -382,205 +280,6 @@ async function executeCoreTask(
       ...((result.metrics ?? {}) as Record<string, unknown>),
     },
   };
-}
-
-async function executeBenchTask(
-  input: EvalInput,
-  task: DiscoveredTask,
-  options: RunEvalsOptions,
-): Promise<TaskResult> {
-  const logger = new EvalLogger(Boolean(options.verbose));
-  const useApi = options.useApi ?? false;
-  let v3Result: V3InitResult | undefined;
-
-  try {
-    const isAgentTask =
-      task.primaryCategory === "agent" ||
-      task.categories.includes("agent") ||
-      task.categories.includes("external_agent_benchmarks");
-
-    v3Result = await traced(
-      async () => {
-        if (useApi) {
-          let provider: string | undefined;
-          if (input.modelName.includes("/")) {
-            provider = input.modelName.split("/")[0];
-          } else {
-            try {
-              provider = AgentProvider.getAgentProvider(input.modelName);
-            } catch {
-              provider = undefined;
-            }
-          }
-          const logFn = (line: LogLine) => logger.log(line);
-          const apiKey = loadApiKeyFromEnv(provider, logFn);
-          if (!apiKey) {
-            throw new StagehandEvalError(
-              `USE_API=true but no API key found for provider "${provider}".`,
-            );
-          }
-          const { initV3 } = await import("../initV3.js");
-          return initV3({
-            logger,
-            modelName: input.modelName,
-            modelClientOptions: { apiKey },
-            createAgent: isAgentTask,
-            isCUA: input.isCUA,
-            verbose: options.verbose,
-            configOverrides: { env: options.environment ?? "LOCAL" },
-          });
-        }
-
-        let llmClient: LLMClient | undefined;
-        if (input.modelName.includes("/")) {
-          const firstSlashIndex = input.modelName.indexOf("/");
-          llmClient = new AISdkClientWrapped({
-            model: getAISDKLanguageModel(
-              input.modelName.substring(0, firstSlashIndex),
-              input.modelName.substring(firstSlashIndex + 1),
-            ),
-          });
-        }
-        const { initV3 } = await import("../initV3.js");
-        return initV3({
-          logger,
-          llmClient,
-          modelName: input.modelName,
-          createAgent: isAgentTask,
-          isCUA: input.isCUA,
-          verbose: options.verbose,
-          configOverrides: { env: options.environment ?? "LOCAL" },
-        });
-      },
-      { name: "session.startup" },
-    );
-
-    const v3 = v3Result;
-    const result = await traced(
-      async (): Promise<TaskResult> => {
-        const taskModule = await loadTaskModuleFromPath(
-          task.filePath,
-          task.name,
-        );
-        if (taskModule.definition) {
-          const ctx = {
-            v3: v3.v3,
-            agent: v3.agent,
-            page: v3.v3.context.pages()[0],
-            logger,
-            input,
-            modelName: input.modelName,
-            debugUrl: v3.debugUrl ?? "",
-            sessionUrl: v3.sessionUrl ?? "",
-          };
-          return (await taskModule.definition.fn(ctx)) as TaskResult;
-        }
-        if (taskModule.legacyFn) {
-          return taskModule.legacyFn({
-            v3: v3.v3,
-            logger,
-            debugUrl: v3.debugUrl ?? "",
-            sessionUrl: v3.sessionUrl ?? "",
-            modelName: input.modelName,
-            agent: v3.agent,
-            input,
-          });
-        }
-        throw new StagehandEvalError(
-          `No valid task export found in ${task.filePath}`,
-        );
-      },
-      { name: "task" },
-    );
-
-    return result;
-  } catch (error) {
-    console.error(`Error in ${input.name}: ${error}`);
-    logger.error({
-      message: `Error in task ${input.name}`,
-      level: 0,
-      auxiliary: {
-        error: {
-          value: error instanceof Error ? error.message : String(error),
-          type: "string",
-        },
-        trace: {
-          value: error instanceof Error ? error.stack ?? "" : "",
-          type: "string",
-        },
-      },
-    });
-    return {
-      _success: false,
-      error:
-        error instanceof Error
-          ? JSON.parse(JSON.stringify(error, null, 2))
-          : String(error),
-      logs: logger.getLogs(),
-    };
-  } finally {
-    await traced(
-      async () => {
-        if (v3Result?.v3) {
-          try {
-            await v3Result.v3.close();
-          } catch (closeError) {
-            console.error(
-              `Warning: Error closing V3 instance for ${input.name}:`,
-              closeError,
-            );
-          }
-        }
-        await endBrowserbaseSession(v3Result?.v3);
-      },
-      { name: "cleanup" },
-    );
-    logger.clear();
-  }
-}
-
-interface LoadedTaskDefinition {
-  __taskDefinition: true;
-  meta: unknown;
-  fn: (ctx: unknown) => Promise<unknown>;
-}
-
-type LegacyTaskFn = (ctx: unknown) => Promise<TaskResult>;
-
-interface LoadedTaskModule {
-  definition?: LoadedTaskDefinition;
-  legacyFn?: LegacyTaskFn;
-}
-
-async function loadTaskModuleFromPath(
-  filePath: string,
-  taskName: string,
-): Promise<LoadedTaskModule> {
-  if (!fs.existsSync(filePath)) {
-    throw new StagehandEvalError(`Task module not found: ${filePath}`);
-  }
-
-  const moduleUrl = pathToFileURL(filePath).href;
-  const taskModule = (await import(moduleUrl)) as Record<string, unknown>;
-
-  const defaultExport = taskModule.default as
-    | Partial<LoadedTaskDefinition>
-    | undefined;
-  if (defaultExport && defaultExport.__taskDefinition === true) {
-    return { definition: defaultExport as LoadedTaskDefinition };
-  }
-
-  const baseName = taskName.includes("/")
-    ? (taskName.split("/").pop() as string)
-    : taskName;
-  if (typeof taskModule[baseName] === "function") {
-    return { legacyFn: taskModule[baseName] as LegacyTaskFn };
-  }
-
-  throw new StagehandEvalError(
-    `No task function found for "${taskName}" in ${filePath}. ` +
-      `Expected either a default defineTask() export or a named export "${baseName}".`,
-  );
 }
 
 export interface RunEvalsResult {
@@ -632,6 +331,9 @@ export async function runEvals(
       ? options.coreStartupProfile ??
         resolveDefaultCoreStartupProfile(effectiveCoreToolSurface, environment)
       : undefined;
+  const effectiveBenchHarness = hasCoreOnly
+    ? undefined
+    : options.harness ?? DEFAULT_BENCH_HARNESS;
   const experimentName = generateExperimentName({
     evalName: options.tasks.length === 1 ? options.tasks[0].name : undefined,
     category: options.categoryFilter ?? undefined,
@@ -650,6 +352,23 @@ export async function runEvals(
 
   const scores = hasCoreOnly ? [passRate, errorMatch] : [exactMatch, errorMatch];
 
+  const { Eval, flush } = await loadBraintrust();
+
+  // Aggressive abort: when the caller flips signal.reason to "aggressive",
+  // close every active session so any in-flight task throws on its next
+  // page operation. The cleanup path inside executeBenchTask handles the
+  // throw; finished tasks' cleanup is a no-op via onceAsync.
+  const onAggressiveAbort = async (): Promise<void> => {
+    if (readAbortMode(options.signal) !== "aggressive") return;
+    const { cleanupActiveRunResources } = await import(
+      "./activeRunCleanup.js"
+    );
+    await cleanupActiveRunResources();
+  };
+  options.signal?.addEventListener("abort", () => {
+    void onAggressiveAbort();
+  });
+
   const evalResult = await Eval(braintrustProjectName, {
     experimentName,
     metadata: {
@@ -657,12 +376,31 @@ export async function runEvals(
       tier: hasCoreOnly ? "core" : "bench",
       ...(effectiveCoreToolSurface && { toolSurface: effectiveCoreToolSurface }),
       ...(effectiveCoreStartupProfile && { startupProfile: effectiveCoreStartupProfile }),
+      ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
       ...(options.provider && { provider: options.provider }),
       ...(options.modelOverride && { model: options.modelOverride }),
       ...(options.useApi && { api: true }),
     },
     data: () => testcases,
     task: async (input: EvalInput): Promise<TaskResult> => {
+      // Cooperative abort: skip any testcase that hasn't started yet
+      // when the signal has flipped. The in-flight task at the moment of
+      // abort still finishes its current step; this stops the next one
+      // from spinning up.
+      if (options.signal?.aborted) {
+        options.onProgress?.({
+          type: "failed",
+          taskName: input.name,
+          modelName: input.modelName,
+          error: "aborted",
+        });
+        return {
+          _success: false,
+          error: "aborted by user",
+          logs: [],
+        };
+      }
+
       const resolvedTask =
         options.registry.byName.get(input.name) ??
         (input.name.includes("/")
@@ -670,7 +408,7 @@ export async function runEvals(
           : options.registry.byName.get(`agent/${input.name}`));
 
       if (!resolvedTask) {
-        throw new StagehandEvalError(
+        throw new EvalsError(
           `Task "${input.name}" not found in registry.`,
         );
       }

@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
-import { deriveCategoryFilter } from "../../tui/commands/run.js";
+import { deriveCategoryFilter, runCommand } from "../../tui/commands/run.js";
 
 function makeRegistry(tasks: DiscoveredTask[]): TaskRegistry {
   const byName = new Map(tasks.map((task) => [task.name, task]));
@@ -32,6 +32,11 @@ function makeTask(overrides: Partial<DiscoveredTask> = {}): DiscoveredTask {
   };
 }
 
+afterEach(() => {
+  vi.restoreAllMocks();
+  process.exitCode = undefined;
+});
+
 describe("deriveCategoryFilter", () => {
   it("returns the category for category targets", () => {
     const registry = makeRegistry([makeTask()]);
@@ -56,12 +61,41 @@ describe("deriveCategoryFilter", () => {
   it("does not treat direct suite task names as categories", () => {
     const registry = makeRegistry([
       makeTask({
-        name: "agent/gaia",
+        name: "agent/webvoyager",
         primaryCategory: "external_agent_benchmarks",
         categories: ["external_agent_benchmarks"],
       }),
     ]);
 
-    expect(deriveCategoryFilter(registry, "agent/gaia")).toBeUndefined();
+    expect(deriveCategoryFilter(registry, "agent/webvoyager")).toBeUndefined();
+  });
+
+  it("omits legacy-only suite tasks from broad dry-runs", async () => {
+    const registry = makeRegistry([
+      makeTask({ name: "agent/gaia", primaryCategory: "agent", categories: ["agent"] }),
+      makeTask({ name: "agent/webvoyager", primaryCategory: "agent", categories: ["agent"] }),
+    ]);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runCommand(
+      {
+        target: "bench",
+        normalizedTarget: "bench",
+        trials: 1,
+        concurrency: 1,
+        environment: "LOCAL",
+        useApi: false,
+        harness: "stagehand",
+        envOverrides: {},
+        dryRun: true,
+        verbose: false,
+      },
+      registry,
+    );
+
+    const payload = JSON.parse(String(log.mock.calls[0][0]));
+    expect(payload.tasks).toEqual(["agent/webvoyager"]);
+    expect(payload.skippedTasks).toEqual(["agent/gaia"]);
+    expect(process.exitCode).toBeUndefined();
   });
 });

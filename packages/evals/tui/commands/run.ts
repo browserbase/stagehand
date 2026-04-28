@@ -10,11 +10,7 @@
 import { bold, dim, cyan, separator } from "../format.js";
 import { ProgressRenderer } from "../progress.js";
 import { printModelSummary, printResultsTable } from "../results.js";
-import {
-  discoverTasks,
-  resolveTarget,
-  runEvals,
-} from "../../framework/runner.js";
+import { discoverTasks, resolveTarget } from "../../framework/discovery.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 import type {
   StartupProfile,
@@ -32,9 +28,37 @@ type RunProgressEvent = {
   error?: string;
 };
 
+const LEGACY_ONLY_BENCHMARK_TARGETS = new Set([
+  "agent/gaia",
+  "agent/webtailbench",
+]);
+
+function isExplicitLegacyOnlyTarget(target?: string): boolean {
+  return Boolean(target && LEGACY_ONLY_BENCHMARK_TARGETS.has(target));
+}
+
+function splitLegacyOnlyTasks(tasks: DiscoveredTask[]): {
+  runnableTasks: DiscoveredTask[];
+  skippedTasks: DiscoveredTask[];
+} {
+  const runnableTasks: DiscoveredTask[] = [];
+  const skippedTasks: DiscoveredTask[] = [];
+
+  for (const task of tasks) {
+    if (LEGACY_ONLY_BENCHMARK_TARGETS.has(task.name)) {
+      skippedTasks.push(task);
+    } else {
+      runnableTasks.push(task);
+    }
+  }
+
+  return { runnableTasks, skippedTasks };
+}
+
 export async function runCommand(
   options: ResolvedRunOptions,
   registry?: TaskRegistry,
+  signal?: AbortSignal,
 ): Promise<void> {
   const resolvedTasksRoot = getRuntimeTasksRoot();
 
@@ -54,14 +78,40 @@ export async function runCommand(
     throw err;
   }
 
+  if (isExplicitLegacyOnlyTarget(options.normalizedTarget)) {
+    const message = `Benchmark "${options.normalizedTarget}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web.`;
+    if (options.dryRun) {
+      emitDryRun(options, tasks, message);
+      process.exitCode = 1;
+      return;
+    }
+    throw new Error(message);
+  }
+
+  const { runnableTasks, skippedTasks } = splitLegacyOnlyTasks(tasks);
+  tasks = runnableTasks;
+
+  if (tasks.length === 0) {
+    const message = options.normalizedTarget
+      ? `No runnable tasks found matching "${options.normalizedTarget}".`
+      : "No runnable tasks found.";
+    if (options.dryRun) {
+      emitDryRun(options, tasks, message, skippedTasks);
+      process.exitCode = 1;
+      return;
+    }
+    throw new Error(message);
+  }
+
   if (options.dryRun) {
-    emitDryRun(options, tasks);
+    emitDryRun(options, tasks, undefined, skippedTasks);
     return;
   }
 
-  if (tasks.length === 0) {
-    console.log(dim("  No tasks match the given target."));
-    return;
+  if (options.harness !== "stagehand" && tasks.some((t) => t.tier === "bench")) {
+    throw new Error(
+      `Harness "${options.harness}" is not implemented yet. Use --harness stagehand for executable bench runs.`,
+    );
   }
 
   const tierBreakdown = new Map<string, number>();
@@ -75,6 +125,11 @@ export async function runCommand(
   console.log(
     `\n  ${bold("Running:")} ${tasks.length} task(s) ${dim(`(${breakdown})`)}`,
   );
+  if (skippedTasks.length > 0) {
+    console.log(
+      `  ${bold("Skipped:")} ${skippedTasks.length} legacy-only task(s) ${dim(skippedTasks.map((task) => task.name).join(", "))}`,
+    );
+  }
   console.log(
     `  ${bold("Env:")} ${cyan(options.environment)}  ${bold("Trials:")} ${options.trials}  ${bold("Concurrency:")} ${options.concurrency}`,
   );
@@ -86,6 +141,7 @@ export async function runCommand(
 
   await withEnvOverrides(options.envOverrides, async () => {
     try {
+      const { runEvals } = await import("../../framework/runner.js");
       const run = async () =>
         runEvals({
           tasks,
@@ -96,6 +152,7 @@ export async function runCommand(
           useApi: options.useApi,
           modelOverride: options.model,
           provider: options.provider,
+          harness: options.harness,
           categoryFilter,
           datasetFilter: options.datasetFilter,
           coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
@@ -103,6 +160,7 @@ export async function runCommand(
             | StartupProfile
             | undefined,
           verbose: options.verbose,
+          signal,
           onProgress: (event: RunProgressEvent) => {
             if (event.type === "started") {
               progress.onStart(event.taskName, event.modelName);
@@ -166,8 +224,10 @@ function emitDryRun(
   options: ResolvedRunOptions,
   tasks: DiscoveredTask[],
   error?: string,
+  skippedTasks: DiscoveredTask[] = [],
 ): void {
   const sortedTasks = tasks.map((t) => t.name).sort();
+  const sortedSkippedTasks = skippedTasks.map((t) => t.name).sort();
 
   const envOverrides: Record<string, string> = {};
   for (const key of Object.keys(options.envOverrides).sort()) {
@@ -180,6 +240,7 @@ function emitDryRun(
     coreToolSurface: options.coreToolSurface ?? null,
     datasetFilter: options.datasetFilter ?? null,
     environment: options.environment,
+    harness: options.harness,
     model: options.model ?? null,
     provider: options.provider ?? null,
     trials: options.trials,
@@ -191,6 +252,7 @@ function emitDryRun(
     target: options.target ?? null,
     normalizedTarget: options.normalizedTarget ?? null,
     tasks: sortedTasks,
+    skippedTasks: sortedSkippedTasks,
     envOverrides,
     runOptions,
   };

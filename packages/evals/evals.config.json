@@ -14,9 +14,6 @@
     },
     "onlineMind2Web": {
       "limit": 25
-    },
-    "webtailbench": {
-      "limit": 25
     }
   }
 }

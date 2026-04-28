@@ -13,6 +13,14 @@ export function printList(
   tierFilter?: string,
   detailed = false,
 ): void {
+  if (
+    tierFilter &&
+    tierFilter !== "core" &&
+    tierFilter !== "bench"
+  ) {
+    throw new Error(`Unknown list filter "${tierFilter}". Use "core" or "bench".`);
+  }
+
   const tiers: Tier[] = tierFilter
     ? [tierFilter as Tier]
     : (["core", "bench"] as const);

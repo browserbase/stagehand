@@ -8,7 +8,7 @@ export default defineBenchTask(
       await page.goto("https://example.com");
 
       // TODO: implement eval logic
-      await stagehand.observe("find the button");
+      await v3.observe("find the button");
 
       return {
         _success: true,

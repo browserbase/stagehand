@@ -65,4 +65,17 @@ describe("discovery", () => {
     expect(tasks[0].name).toBe("navigation/open");
     expect(tasks[0].tier).toBe("core");
   });
+
+  it("rejects empty tier-qualified category targets", async () => {
+    const root = makeTempRoot();
+    const tasksRoot = path.join(root, "tasks");
+
+    writeFile(path.join(root, "core", "tasks", "navigation", "open.ts"));
+
+    const registry = await discoverTasks(tasksRoot, false);
+
+    expect(() => resolveTarget(registry, "core:not_real")).toThrow(
+      /No tasks found matching "core:not_real"/,
+    );
+  });
 });

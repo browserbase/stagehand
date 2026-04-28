@@ -13,6 +13,11 @@
  *   4. Config defaults (evals.config.json)
  *   5. Ambient EVAL_* env vars consumed downstream by runner/suites
  */
+import {
+  DEFAULT_BENCH_HARNESS,
+  parseBenchHarness,
+  type Harness,
+} from "../../framework/benchTypes.js";
 
 export interface RunFlags {
   target?: string;
@@ -24,6 +29,7 @@ export interface RunFlags {
   api?: boolean;
   tool?: string;
   startup?: string;
+  harness?: string;
   limit?: number;
   sample?: number;
   filter?: Array<[string, string]>;
@@ -53,6 +59,7 @@ export interface ResolvedRunOptions {
   useApi: boolean;
   coreToolSurface?: string;
   coreStartupProfile?: string;
+  harness: Harness;
   datasetFilter?: string;
   envOverrides: Record<string, string>;
   dryRun: boolean;
@@ -60,17 +67,12 @@ export interface ResolvedRunOptions {
 }
 
 /**
- * Suites wired into framework/runner.ts. `webbench` and `osworld` were
- * advertised by the legacy CLI but never made it to the unified path.
+ * Suites wired into the unified runner. GAIA/WebTailBench remain legacy-only;
+ * WebBench never had a unified suite implementation.
  */
-const SUPPORTED_BENCHMARKS = new Set([
-  "gaia",
-  "webvoyager",
-  "onlineMind2Web",
-  "webtailbench",
-]);
+const SUPPORTED_BENCHMARKS = new Set(["webvoyager", "onlineMind2Web"]);
 
-const RETIRED_BENCHMARKS = new Set(["webbench", "osworld"]);
+const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "webtailbench", "osworld"]);
 
 const BOOLEAN_FLAGS = new Set(["api", "dry-run", "legacy"]);
 const VALUE_FLAGS = new Set([
@@ -83,6 +85,7 @@ const VALUE_FLAGS = new Set([
   "provider",
   "tool",
   "startup",
+  "harness",
   "filter",
 ]);
 
@@ -98,9 +101,59 @@ const FLAG_ALIASES: Record<string, string> = {
   d: "detailed",
 };
 
+function parsePositiveInteger(raw: string, optionName: string): number {
+  if (!/^[0-9]+$/.test(raw)) {
+    throw new Error(`--${optionName} must be a positive integer`);
+  }
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`--${optionName} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function normalizeEnvironment(
+  raw: string,
+  source: string,
+): "local" | "browserbase" {
+  const normalized = raw.toLowerCase();
+  if (normalized !== "local" && normalized !== "browserbase") {
+    throw new Error(`${source} must be "local" or "browserbase"`);
+  }
+  return normalized;
+}
+
+function parseFilter(raw: string): [string, string] {
+  const eq = raw.indexOf("=");
+  if (eq <= 0 || eq === raw.length - 1) {
+    throw new Error('--filter must be in "key=value" form');
+  }
+
+  const key = raw.slice(0, eq);
+  const value = raw.slice(eq + 1);
+  if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(key)) {
+    throw new Error(
+      "--filter key must start with a letter and contain only letters, numbers, or underscores",
+    );
+  }
+
+  return [key, value];
+}
+
+function readPositiveInteger(
+  value: number | undefined | null,
+  source: string,
+): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${source} must be a positive integer`);
+  }
+  return value;
+}
+
 /**
  * Parse an argv or REPL-token stream into a RunFlags structure. The first
- * non-flag token becomes `target`; later positional args are ignored.
+ * non-flag token becomes `target`; later positional args are rejected.
  */
 export function parseRunArgs(tokens: string[]): RunFlags {
   const flags: RunFlags = {};
@@ -128,25 +181,24 @@ export function parseRunArgs(tokens: string[]): RunFlags {
 
       const value = tokens[i + 1];
       if (value === undefined || value.startsWith("-")) {
-        i++;
-        continue;
+        throw new Error(`Missing value for "${tok}"`);
       }
 
       switch (name) {
         case "trials":
-          flags.trials = parseInt(value, 10);
+          flags.trials = parsePositiveInteger(value, name);
           break;
         case "concurrency":
-          flags.concurrency = parseInt(value, 10);
+          flags.concurrency = parsePositiveInteger(value, name);
           break;
         case "limit":
-          flags.limit = parseInt(value, 10);
+          flags.limit = parsePositiveInteger(value, name);
           break;
         case "sample":
-          flags.sample = parseInt(value, 10);
+          flags.sample = parsePositiveInteger(value, name);
           break;
         case "env":
-          flags.env = value.toLowerCase();
+          flags.env = normalizeEnvironment(value, "--env");
           break;
         case "model":
           flags.model = value;
@@ -160,11 +212,11 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         case "startup":
           flags.startup = value;
           break;
+        case "harness":
+          flags.harness = value;
+          break;
         case "filter": {
-          const eq = value.indexOf("=");
-          if (eq > 0) {
-            filters.push([value.slice(0, eq), value.slice(eq + 1)]);
-          }
+          filters.push(parseFilter(value));
           break;
         }
         default:
@@ -176,6 +228,8 @@ export function parseRunArgs(tokens: string[]): RunFlags {
 
     if (flags.target === undefined) {
       flags.target = tok;
+    } else {
+      throw new Error(`Unexpected argument "${tok}"`);
     }
     i++;
   }
@@ -190,7 +244,7 @@ export function parseRunArgs(tokens: string[]): RunFlags {
  * downstream runner / suites.
  *
  *   "all" → undefined (resolveTarget treats undefined as all bench tasks)
- *   "b:gaia" / "benchmark:gaia" → "agent/gaia" + EVAL_DATASET + EVAL_GAIA_*
+ *   "b:webvoyager" / "benchmark:webvoyager" → "agent/webvoyager" + EVAL_DATASET + EVAL_WEBVOYAGER_*
  *   other → passed through unchanged
  */
 export function applyBenchmarkShorthand(
@@ -214,13 +268,18 @@ export function applyBenchmarkShorthand(
 
   const benchmarkName = match[2];
 
-  if (RETIRED_BENCHMARKS.has(benchmarkName)) {
-    throw new Error(
-      `Benchmark "${benchmarkName}" was removed from the unified runner. Supported: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
-    );
+  if (LEGACY_ONLY_BENCHMARKS.has(benchmarkName)) {
+    if (!flags.legacy) {
+      throw new Error(
+        `Benchmark "${benchmarkName}" is legacy-only. Use --legacy or choose one of: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
+      );
+    }
   }
 
-  if (!SUPPORTED_BENCHMARKS.has(benchmarkName)) {
+  if (
+    !SUPPORTED_BENCHMARKS.has(benchmarkName) &&
+    !LEGACY_ONLY_BENCHMARKS.has(benchmarkName)
+  ) {
     throw new Error(
       `Unknown benchmark "${benchmarkName}". Supported: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
     );
@@ -264,16 +323,16 @@ export function resolveRunOptions(
 ): ResolvedRunOptions {
   const parseIntEnv = (value: string | undefined): number | undefined => {
     if (!value) return undefined;
-    const parsed = parseInt(value, 10);
-    return Number.isNaN(parsed) ? undefined : parsed;
+    return parsePositiveInteger(value, "environment value");
   };
 
-  const envLower =
+  const rawEnv =
     flags.env ??
-    env.STAGEHAND_BROWSER_TARGET?.toLowerCase() ??
+    env.STAGEHAND_BROWSER_TARGET ??
     defaults.env ??
-    env.EVAL_ENV?.toLowerCase() ??
+    env.EVAL_ENV ??
     "local";
+  const envLower = normalizeEnvironment(rawEnv, "Environment");
   const environment = envLower === "browserbase" ? "BROWSERBASE" : "LOCAL";
 
   const {
@@ -293,16 +352,17 @@ export function resolveRunOptions(
     ((env.USE_API ?? "").toLowerCase() === "true");
   const trials =
     flags.trials ??
-    defaults.trials ??
+    readPositiveInteger(defaults.trials, "defaults.trials") ??
     parseIntEnv(env.EVAL_TRIAL_COUNT) ??
     3;
   const concurrency =
     flags.concurrency ??
-    defaults.concurrency ??
+    readPositiveInteger(defaults.concurrency, "defaults.concurrency") ??
     parseIntEnv(env.EVAL_MAX_CONCURRENCY) ??
     3;
 
   const datasetFilter = shorthandDatasetFilter ?? env.EVAL_DATASET ?? undefined;
+  const harness = parseBenchHarness(flags.harness ?? DEFAULT_BENCH_HARNESS);
 
   envOverrides.EVAL_ENV = environment;
   envOverrides.USE_API = String(Boolean(useApi));
@@ -326,6 +386,7 @@ export function resolveRunOptions(
     useApi: Boolean(useApi),
     coreToolSurface: flags.tool ?? core.tool,
     coreStartupProfile: flags.startup ?? core.startup,
+    harness,
     datasetFilter,
     envOverrides,
     dryRun: flags.dryRun ?? false,

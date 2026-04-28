@@ -2,7 +2,7 @@ import path from "path";
 import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
-import { getCurrentDirPath } from "../runtimePaths.js";
+import { getPackageRootDir } from "../runtimePaths.js";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
 
 function normalizeModelEntries(
@@ -18,10 +18,8 @@ function normalizeModelEntries(
 export const buildWebVoyagerTestcases = (
   models: string[] | AgentModelEntry[],
 ): Testcase[] => {
-  const moduleDir = getCurrentDirPath();
   const voyagerFilePath = path.join(
-    moduleDir,
-    "..",
+    getPackageRootDir(),
     "datasets",
     "webvoyager",
     "WebVoyager_data.jsonl",

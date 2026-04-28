@@ -2,7 +2,7 @@ import path from "path";
 import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
-import { getCurrentDirPath } from "../runtimePaths.js";
+import { getPackageRootDir } from "../runtimePaths.js";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
 
 function normalizeModelEntries(
@@ -18,10 +18,8 @@ function normalizeModelEntries(
 export const buildOnlineMind2WebTestcases = (
   models: string[] | AgentModelEntry[],
 ): Testcase[] => {
-  const moduleDir = getCurrentDirPath();
   const mind2webFilePath = path.join(
-    moduleDir,
-    "..",
+    getPackageRootDir(),
     "datasets",
     "onlineMind2Web",
     "onlineMind2Web.jsonl",

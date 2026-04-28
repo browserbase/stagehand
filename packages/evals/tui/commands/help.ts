@@ -49,7 +49,7 @@ export function printRunHelp(): void {
     row(`${cyan("act")} / ${cyan("extract")} / ${cyan("agent")}`, "Category (searched across tiers)"),
     row(cyan("dropdown"), "Specific task name"),
     row(cyan("navigation/open"), "Task with its category prefix"),
-    row(`${cyan("b:gaia")} / ${cyan("benchmark:gaia")}`, "Benchmark suite shorthand"),
+    row(`${cyan("b:webvoyager")} / ${cyan("benchmark:onlineMind2Web")}`, "Benchmark suite shorthand"),
     "",
     `  ${bold("Options:")}`,
     "",
@@ -67,6 +67,7 @@ export function printRunHelp(): void {
     "",
     `  ${bold("Benchmark options:")}`,
     "",
+    row(`${cyan("--harness")} ${dim("<name>")}`, `Bench harness ${gray("(stagehand; claude_code/codex planned)")}`),
     row(`${cyan("-l, --limit")} ${dim("<n>")}`, "Max cases to run"),
     row(`${cyan("-s, --sample")} ${dim("<n>")}`, "Random sample before limit"),
     row(`${cyan("-f, --filter")} ${dim("key=value")}`, `Benchmark-specific filter ${gray("(repeatable)")}`),
@@ -80,7 +81,7 @@ export function printRunHelp(): void {
     `    ${dim("$")} evals run act -t 3 -c 5`,
     `    ${dim("$")} evals run navigation/open --tool understudy_code`,
     `    ${dim("$")} evals run b:webvoyager -l 10`,
-    `    ${dim("$")} evals run b:gaia -l 25 -f level=1`,
+    `    ${dim("$")} evals run b:onlineMind2Web -l 25`,
     "",
   ]);
 }

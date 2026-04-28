@@ -7,7 +7,7 @@
 
 import * as readline from "node:readline";
 import { printBanner } from "./banner.js";
-import { bb, dim, red } from "./format.js";
+import { bb, dim, red, yellow } from "./format.js";
 import {
   printHelp,
   printRunHelp,
@@ -20,12 +20,7 @@ import { printList } from "./commands/list.js";
 import { handleConfig } from "./commands/config.js";
 import { handleExperiments } from "./commands/experiments.js";
 import { runCommand } from "./commands/run.js";
-import {
-  applyScaffoldEdit,
-  formatScaffoldPreview,
-  scaffoldTask,
-  type ScaffoldedTask,
-} from "./commands/new.js";
+import { scaffoldTask } from "./commands/new.js";
 import { parseRunArgs, resolveRunOptions } from "./commands/parse.js";
 import { readConfig } from "./commands/config.js";
 import { discoverTasks } from "../framework/discovery.js";
@@ -79,39 +74,41 @@ export async function startRepl(entryDir: string): Promise<void> {
     output: process.stdout,
     prompt: `${bb("evals")} ${dim(">")} `,
   });
-  const defaultPrompt = `${bb("evals")} ${dim(">")} `;
-  const editPrompt = `${bb("edit")} ${dim(">")} `;
-  let editSession: { task: ScaffoldedTask; lines: string[] } | null = null;
+
+  // Esc → abort the in-flight run (cooperative). A second Esc within the
+  // double-press window escalates to aggressive: the runner closes V3
+  // sessions immediately so the in-flight task throws.
+  let currentAbort: AbortController | null = null;
+  let lastEscAt = 0;
+  const DOUBLE_ESC_WINDOW_MS = 1500;
+
+  const onKeypress = (
+    _str: string,
+    key: { name?: string; ctrl?: boolean } | undefined,
+  ): void => {
+    if (!key || key.name !== "escape") return;
+    if (!currentAbort) return; // no run in flight; let readline handle Esc
+    const now = Date.now();
+    const isDouble = now - lastEscAt < DOUBLE_ESC_WINDOW_MS;
+    lastEscAt = now;
+    if (isDouble) {
+      console.log(red("\n  ✗ Aborting immediately…"));
+      currentAbort.abort("aggressive");
+    } else {
+      console.log(
+        yellow(
+          "\n  ⚠ Aborting after current task… (press Esc again to abort immediately)",
+        ),
+      );
+      currentAbort.abort("cooperative");
+    }
+  };
+  process.stdin.on("keypress", onKeypress);
 
   rl.prompt();
 
   rl.on("line", async (line) => {
     const trimmed = line.trim();
-    if (editSession) {
-      try {
-        if (trimmed === ".") {
-          editSession.task = applyScaffoldEdit(editSession.task, editSession.lines);
-          console.log(formatScaffoldPreview(editSession.task));
-          registry = await discoverTasks(resolvedTasksRoot, false);
-          rl.setPrompt(defaultPrompt);
-          editSession = null;
-        } else if (trimmed === "/skip") {
-          console.log(dim(`  Kept scaffolded editable section in ${editSession.task.displayPath}.`));
-          registry = await discoverTasks(resolvedTasksRoot, false);
-          rl.setPrompt(defaultPrompt);
-          editSession = null;
-        } else {
-          editSession.lines.push(line);
-        }
-      } catch (err) {
-        console.error(red(`  Error: ${(err as Error).message}`));
-        rl.setPrompt(defaultPrompt);
-        editSession = null;
-      }
-      rl.prompt();
-      return;
-    }
-
     if (!trimmed) {
       rl.prompt();
       return;
@@ -137,7 +134,12 @@ export async function startRepl(entryDir: string): Promise<void> {
             process.env,
             configFile.core,
           );
-          await runCommand(resolved, registry);
+          currentAbort = new AbortController();
+          try {
+            await runCommand(resolved, registry, currentAbort.signal);
+          } finally {
+            currentAbort = null;
+          }
           break;
         }
 
@@ -179,9 +181,7 @@ export async function startRepl(entryDir: string): Promise<void> {
           {
             const task = scaffoldTask(args);
             if (task) {
-              console.log(formatScaffoldPreview(task));
-              editSession = { task, lines: [] };
-              rl.setPrompt(editPrompt);
+              registry = await discoverTasks(resolvedTasksRoot, false);
             }
           }
           break;
@@ -211,7 +211,12 @@ export async function startRepl(entryDir: string): Promise<void> {
             process.env,
             configFile.core,
           );
-          await runCommand(resolved, registry);
+          currentAbort = new AbortController();
+          try {
+            await runCommand(resolved, registry, currentAbort.signal);
+          } finally {
+            currentAbort = null;
+          }
           break;
         }
       }

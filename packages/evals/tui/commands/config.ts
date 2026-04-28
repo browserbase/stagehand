@@ -217,14 +217,32 @@ function parseValue(
   raw: string,
 ): string | number | boolean | null | typeof parseError {
   if (raw === "null" || raw === "none") return null;
+  if (key === "env") {
+    const normalized = raw.toLowerCase();
+    if (normalized !== "local" && normalized !== "browserbase") {
+      console.error(red("  env must be local or browserbase"));
+      return parseError;
+    }
+    return normalized;
+  }
   if (key === "trials" || key === "concurrency") {
-    const n = parseInt(raw, 10);
-    if (Number.isNaN(n)) {
-      console.error(red(`  ${key} must be a number`));
+    if (!/^[0-9]+$/.test(raw)) {
+      console.error(red(`  ${key} must be a positive integer`));
+      return parseError;
+    }
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n) || n <= 0) {
+      console.error(red(`  ${key} must be a positive integer`));
       return parseError;
     }
     return n;
   }
-  if (key === "api" || key === "verbose") return raw === "true";
+  if (key === "api" || key === "verbose") {
+    if (raw !== "true" && raw !== "false") {
+      console.error(red(`  ${key} must be true or false`));
+      return parseError;
+    }
+    return raw === "true";
+  }
   return raw;
 }

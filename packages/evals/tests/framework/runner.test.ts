@@ -103,7 +103,7 @@ describe("runner: single-task agent model detection", () => {
   it("detects external_agent_benchmarks for a single benchmark task", () => {
     const benchTasks = [
       makeTask({
-        name: "agent/gaia",
+        name: "agent/webvoyager",
         categories: ["external_agent_benchmarks"],
         primaryCategory: "agent",
       }),
@@ -165,7 +165,7 @@ describe("runner: single-task agent model detection", () => {
   it("uses agent and CUA model entries for direct suite benchmarks", () => {
     const benchTasks = [
       makeTask({
-        name: "agent/gaia",
+        name: "agent/webvoyager",
         categories: ["external_agent_benchmarks"],
         primaryCategory: "agent",
       }),

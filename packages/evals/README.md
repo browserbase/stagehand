@@ -37,7 +37,7 @@ pnpm evals run observe
 pnpm evals run extract/extract_text
 
 # Run external benchmarks
-pnpm evals run benchmark:gaia
+pnpm evals run benchmark:webvoyager
 ```
 
 ### `list` - View available evals
@@ -111,14 +111,11 @@ pnpm evals run extract --api
 ### Running Benchmarks
 
 ```bash
-# GAIA with sampling
-pnpm evals run b:gaia -s 100 -l 25 -f level=1
-
 # WebVoyager with limit
 pnpm evals run b:webvoyager -l 50
 
-# WebTailBench
-pnpm evals run b:webtailbench -l 25
+# OnlineMind2Web
+pnpm evals run b:onlineMind2Web -l 25
 ```
 
 ## Available Benchmarks
@@ -127,21 +124,9 @@ pnpm evals run b:webtailbench -l 25
 
 Real-world web interaction tasks for evaluating web agents.
 
-### GAIA (`b:gaia`)
-
-General AI Assistant benchmark for complex reasoning.
-
-**Filters:**
-
-- `level`: 1, 2, 3 (difficulty levels)
-
 ### WebVoyager (`b:webvoyager`)
 
 Web navigation and task completion benchmark.
-
-### WebTailBench (`b:webtailbench`)
-
-Long-tail web automation tasks.
 
 ## Configuration
 

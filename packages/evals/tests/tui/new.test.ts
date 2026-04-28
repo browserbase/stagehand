@@ -56,39 +56,20 @@ describe("scaffoldTask", () => {
     expect(task?.displayPath).toBe("tasks/bench/act/my_task.ts");
   });
 
-  it("formats a preview with the generated task code", async () => {
-    const { scaffoldTask, formatScaffoldPreview } = await import(
-      "../../tui/commands/new.js"
-    );
+  it("returns generated content without entering a repl edit flow", async () => {
+    const { scaffoldTask } = await import("../../tui/commands/new.js");
 
     const task = scaffoldTask(["bench", "observe", "test"]);
-    expect(task).toBeTruthy();
-
-    const preview = formatScaffoldPreview(task!);
-    expect(preview).toContain("Generated task:");
-    expect(preview).toContain("tasks/bench/observe/test.ts");
-    expect(preview).toContain('await page.goto("https://example.com");');
-    expect(preview).toContain("// TODO: implement eval logic");
-    expect(preview).not.toContain('defineBenchTask');
+    expect(task?.content).toContain('await page.goto("https://example.com");');
+    expect(task?.content).toContain("// TODO: implement eval logic");
   });
 
-  it("inserts repl-authored code after the TODO comment with task indentation", async () => {
-    const { applyScaffoldEdit, formatScaffoldPreview, scaffoldTask } = await import(
-      "../../tui/commands/new.js"
-    );
+  it("rejects category path traversal", async () => {
+    const { scaffoldTask } = await import("../../tui/commands/new.js");
 
-    const task = scaffoldTask(["bench", "observe", "test"]);
-    expect(task).toBeTruthy();
+    const task = scaffoldTask(["bench", "../../outside", "my_task"]);
 
-    const updated = applyScaffoldEdit(task!, [
-      'const result = await page.title();',
-      'logger.log({ result });',
-    ]);
-
-    expect(updated.content).toContain("      // TODO: implement eval logic\n      const result = await page.title();\n      logger.log({ result });");
-
-    const preview = formatScaffoldPreview(updated);
-    expect(preview).toContain("const result = await page.title();");
-    expect(preview).toContain("logger.log({ result });");
+    expect(task).toBeNull();
+    expect(fs.existsSync(path.join(packageRoot, "outside"))).toBe(false);
   });
 });

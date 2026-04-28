@@ -84,6 +84,7 @@ describe("CLI entrypoint", () => {
     expect(payload.envOverrides.EVAL_ENV).toBe("BROWSERBASE");
     expect(payload.envOverrides.USE_API).toBe("true");
     expect(payload.envOverrides.EVAL_PROVIDER).toBe("openai");
+    expect(payload.runOptions.harness).toBe("stagehand");
     expect(payload.runOptions.verbose).toBe(false);
   });
 
@@ -119,7 +120,7 @@ describe("CLI entrypoint", () => {
   });
 });
 
-describe("core config", () => {
+describe.sequential("core config", () => {
   // Tests mutate packages/evals/evals.config.json. Snapshot beforeAll,
   // reset to snapshot before each test, restore afterAll.
   let snapshot: string;
@@ -209,10 +210,10 @@ describe("core config", () => {
     "auto-resets startup when a tool change invalidates it",
     async () => {
       resetConfig();
-      // understudy_code supports tool_attach_browserbase; browse_cli does not.
-      await runCli(["config", "core", "set", "tool", "understudy_code"]);
+      // cdp_code supports tool_attach_local_cdp; browse_cli does not.
+      await runCli(["config", "core", "set", "tool", "cdp_code"]);
       await runCli([
-        "config", "core", "set", "startup", "tool_attach_browserbase",
+        "config", "core", "set", "startup", "tool_attach_local_cdp",
       ]);
       const { stdout, code } = await runCli([
         "config", "core", "set", "tool", "browse_cli",

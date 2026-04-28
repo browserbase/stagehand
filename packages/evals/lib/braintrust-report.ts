@@ -19,7 +19,21 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
-import { loginToState, init as initExperiment } from "braintrust";
+
+type BraintrustModule = typeof import("braintrust");
+type BraintrustState = Awaited<ReturnType<BraintrustModule["loginToState"]>>;
+
+let braintrustPromise: Promise<BraintrustModule> | undefined;
+
+function loadBraintrust(): Promise<BraintrustModule> {
+  braintrustPromise ??= import("braintrust");
+  return braintrustPromise;
+}
+
+async function loginBraintrust(apiKey: string): Promise<BraintrustState> {
+  const { loginToState } = await loadBraintrust();
+  return loginToState({ apiKey });
+}
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -339,6 +353,7 @@ async function fetchExperimentEventsInternal(
   apiKey: string,
 ): Promise<ExperimentEvent[]> {
   try {
+    const { init: initExperiment } = await loadBraintrust();
     const experiment = initExperiment(project, {
       experiment: experimentName,
       open: true,
@@ -368,7 +383,7 @@ function buildExperimentUrl(
 }
 
 async function lookupExperiment(
-  state: Awaited<ReturnType<typeof loginToState>>,
+  state: BraintrustState,
   project: string,
   input: string,
 ): Promise<BraintrustExperimentRow | null> {
@@ -385,7 +400,7 @@ async function lookupExperiment(
 }
 
 async function fetchExperimentDataForRow(
-  state: Awaited<ReturnType<typeof loginToState>>,
+  state: BraintrustState,
   project: string,
   experiment: BraintrustExperimentRow,
   label: string,
@@ -432,7 +447,7 @@ async function fetchExperimentDataForRow(
 }
 
 async function fetchRecentExperimentDataForRow(
-  state: Awaited<ReturnType<typeof loginToState>>,
+  state: BraintrustState,
   project: string,
   experiment: BraintrustExperimentRow,
 ): Promise<RecentExperimentData> {
@@ -478,7 +493,7 @@ export async function fetchExperimentData(
   options: FetchOptions = {},
 ): Promise<ExperimentData> {
   const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginToState({ apiKey });
+  const state = await loginBraintrust(apiKey);
   const experiment = await lookupExperiment(state, project, input.experiment);
   if (!experiment) {
     throw new Error(
@@ -497,7 +512,7 @@ export async function fetchManyExperimentData(
   options: FetchOptions = {},
 ): Promise<ExperimentData[]> {
   const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginToState({ apiKey });
+  const state = await loginBraintrust(apiKey);
   return Promise.all(
     inputs.map(async (input) => {
       const experiment = await lookupExperiment(state, project, input.experiment);
@@ -523,7 +538,7 @@ export async function listRecentExperiments(
   options: FetchOptions = {},
 ): Promise<RecentExperimentData[]> {
   const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginToState({ apiKey });
+  const state = await loginBraintrust(apiKey);
   const response = (await state.apiConn().get_json("/v1/experiment", {
     project_name: project,
     org_name: state.orgName,
@@ -543,7 +558,7 @@ export async function resolveExperimentAcrossProjects(
   options: FetchOptions = {},
 ): Promise<ExperimentData> {
   const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginToState({ apiKey });
+  const state = await loginBraintrust(apiKey);
   const matches: ExperimentData[] = [];
 
   for (const project of projects) {
@@ -573,7 +588,7 @@ export async function resolveExperimentProjectAcrossProjects(
   options: FetchOptions = {},
 ): Promise<ResolvedExperimentProject> {
   const apiKey = resolveApiKey(options.apiKey);
-  const state = await loginToState({ apiKey });
+  const state = await loginBraintrust(apiKey);
   const matches: ResolvedExperimentProject[] = [];
 
   for (const project of projects) {

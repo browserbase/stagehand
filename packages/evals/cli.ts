@@ -61,10 +61,9 @@ const ENTRY_DIR = getCurrentDirPath();
 const args = process.argv.slice(2);
 
 (async () => {
-  // All dynamic imports — braintrust transitively loads here, AFTER
-  // silence-warnings has patched console.warn.
-  const { flush } = await import("braintrust");
-  const { startRepl } = await import("./tui/repl.js");
+  // Keep heavy command modules behind their command branches. The run stack
+  // imports Braintrust transitively, and importing it for `help`/`config path`
+  // makes quiet commands print optional OpenTelemetry warnings.
   const {
     printHelp,
     printRunHelp,
@@ -73,15 +72,6 @@ const args = process.argv.slice(2);
     printConfigHelp,
     printExperimentsHelp,
   } = await import("./tui/commands/help.js");
-  const { printList } = await import("./tui/commands/list.js");
-  const { handleConfig, readConfig } = await import("./tui/commands/config.js");
-  const { handleExperiments } = await import("./tui/commands/experiments.js");
-  const { runCommand } = await import("./tui/commands/run.js");
-  const { scaffoldTask } = await import("./tui/commands/new.js");
-  const { parseRunArgs, resolveRunOptions } = await import(
-    "./tui/commands/parse.js"
-  );
-  const { discoverTasks } = await import("./framework/discovery.js");
 
   // Best-effort shutdown: flush Braintrust telemetry and exit with the
   // conventional signal code. Does not guarantee in-flight task
@@ -93,6 +83,13 @@ const args = process.argv.slice(2);
     shuttingDown = true;
     const code = signal === "SIGINT" ? 130 : 143;
     try {
+      const { cleanupActiveRunResources } = await import("./framework/runner.js");
+      await cleanupActiveRunResources();
+    } catch {
+      // ignore
+    }
+    try {
+      const { flush } = await import("braintrust");
       await flush();
     } catch {
       // ignore
@@ -102,7 +99,29 @@ const args = process.argv.slice(2);
   process.on("SIGINT", () => void handleSignal("SIGINT"));
   process.on("SIGTERM", () => void handleSignal("SIGTERM"));
 
+  // Argv mode: Esc behaves like Ctrl+C. The REPL has its own keypress
+  // handler that does cooperative-then-aggressive abort instead — this
+  // path is only active when no arg-less REPL is running.
+  //
+  // Note: raw mode disables the OS-level Ctrl+C → SIGINT translation,
+  // so we forward it ourselves.
+  if (args.length > 0 && process.stdin.isTTY) {
+    const readline = await import("node:readline");
+    readline.emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode?.(true);
+    process.stdin.on("keypress", (_str, key) => {
+      if (!key) return;
+      if (key.name === "escape") void handleSignal("SIGINT");
+      else if (key.ctrl && key.name === "c") void handleSignal("SIGINT");
+    });
+  }
+
   async function executeRun(tokens: string[]): Promise<void> {
+    const { readConfig } = await import("./tui/commands/config.js");
+    const { runCommand } = await import("./tui/commands/run.js");
+    const { parseRunArgs, resolveRunOptions } = await import(
+      "./tui/commands/parse.js"
+    );
     const flags = parseRunArgs(tokens);
     const configFile = readConfig(ENTRY_DIR);
     const resolved = resolveRunOptions(
@@ -114,6 +133,7 @@ const args = process.argv.slice(2);
 
     if (flags.legacy) {
       const { runLegacy } = await import("./tui/commands/legacy.js");
+      const { discoverTasks } = await import("./framework/discovery.js");
       const registry = await discoverTasks(getRuntimeTasksRoot(), false);
       await runLegacy(resolved, flags, registry);
       return; // unreachable — runLegacy calls process.exit
@@ -124,6 +144,7 @@ const args = process.argv.slice(2);
 
   try {
     if (args.length === 0) {
+      const { startRepl } = await import("./tui/repl.js");
       await startRepl(ENTRY_DIR);
       return;
     }
@@ -151,6 +172,8 @@ const args = process.argv.slice(2);
           subArgs.includes("--detailed") || subArgs.includes("-d");
         const tierFilter = subArgs.find((a) => !a.startsWith("-"));
         const tasksRoot = getRuntimeTasksRoot();
+        const { discoverTasks } = await import("./framework/discovery.js");
+        const { printList } = await import("./tui/commands/list.js");
         const registry = await discoverTasks(tasksRoot, false);
         printList(registry, tierFilter, detailed);
         return;
@@ -161,6 +184,7 @@ const args = process.argv.slice(2);
           printConfigHelp();
           return;
         }
+        const { handleConfig } = await import("./tui/commands/config.js");
         await handleConfig(subArgs, ENTRY_DIR);
         return;
       }
@@ -170,6 +194,7 @@ const args = process.argv.slice(2);
           printExperimentsHelp();
           return;
         }
+        const { handleExperiments } = await import("./tui/commands/experiments.js");
         await handleExperiments(subArgs);
         return;
       }
@@ -179,6 +204,7 @@ const args = process.argv.slice(2);
           printNewHelp();
           return;
         }
+        const { scaffoldTask } = await import("./tui/commands/new.js");
         scaffoldTask(subArgs);
         return;
       }

@@ -665,7 +665,6 @@ function handleRun(args: string[]): void {
 
       // Map to the actual eval name
       const benchmarkMap: Record<string, string> = {
-        webbench: "agent/webbench",
         gaia: "agent/gaia",
         webvoyager: "agent/webvoyager",
         osworld: "agent/osworld",
