@@ -529,6 +529,15 @@ test.describe("flow logger integration", () => {
       expect(
         directChildrenOfType(events, actRoot, "LlmResponseEvent"),
       ).toHaveLength(1);
+      const agentRootLlmResponses = directChildrenOfType(
+        events,
+        agentRoot,
+        "LlmResponseEvent",
+      );
+      expect(agentRootLlmResponses[0].data.output).toContain("tool call: act(");
+      expect(agentRootLlmResponses[1].data.output).toContain(
+        "tool call: done(",
+      );
       assertNoFloatingLlmEvents(events);
       assertNoFloatingCdpEvents(events);
     } finally {
@@ -826,6 +835,9 @@ test.describe("flow logger integration", () => {
       expectDirectParent(pageScreenshotCompleted, pageScreenshot);
       expect(llmRequests).toHaveLength(3);
       expect(llmResponses).toHaveLength(3);
+      expect(llmResponses[0].data.output).toContain("tool call: goto(");
+      expect(llmResponses[1].data.output).toContain("tool call: screenshot(");
+      expect(llmResponses[2].data.output).toContain("tool call: done(");
 
       for (const event of [...llmRequests, ...llmResponses]) {
         expect(event.eventParentIds).toEqual([root.eventId]);
