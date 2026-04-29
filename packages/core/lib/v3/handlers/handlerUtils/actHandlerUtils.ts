@@ -146,8 +146,10 @@ const METHOD_HANDLER_MAP: Record<
 export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
   const { locator, xpath, args } = ctx;
   try {
-    const text = args[0]?.toString() || "";
-    await locator.selectOption(text);
+    const values = args.map((arg) => arg.toString());
+    await locator.selectOption(
+      values.length <= 1 ? (values[0] ?? "") : values,
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
