@@ -49,6 +49,8 @@ export default defineBenchTask(
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );
