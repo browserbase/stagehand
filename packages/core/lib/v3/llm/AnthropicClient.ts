@@ -17,6 +17,7 @@ import {
 } from "./LLMClient.js";
 import { CreateChatCompletionResponseError } from "../types/public/sdkErrors.js";
 import { toJsonSchema } from "../zodCompat.js";
+import { unwrapToolResponse } from "./unwrapToolResponse.js";
 
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;
@@ -247,7 +248,7 @@ export class AnthropicClient extends LLMClient {
     if (options.response_model) {
       const toolUse = response.content.find((c) => c.type === "tool_use");
       if (toolUse && "input" in toolUse) {
-        const result = toolUse.input;
+        const result = unwrapToolResponse(toolUse.input);
 
         const finalParsedResponse = {
           data: result,
