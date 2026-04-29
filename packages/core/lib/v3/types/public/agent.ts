@@ -748,6 +748,15 @@ export interface DragAndDropToolResult {
   screenshotBase64?: string;
 }
 
+export interface ClickAndHoldToolResult {
+  success: boolean;
+  describe?: string;
+  duration?: number;
+  coordinates?: number[];
+  error?: string;
+  screenshotBase64?: string;
+}
+
 export interface FillFormField {
   action: string;
   value: string;
