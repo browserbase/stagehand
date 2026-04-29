@@ -1,29 +1,14 @@
 import path from "path";
 import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
-import {
-  AVAILABLE_CUA_MODELS,
-  type AvailableModel,
-} from "@browserbasehq/stagehand";
+import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
 import { getCurrentDirPath } from "../runtimePaths.js";
-import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
-
-function normalizeModelEntries(
-  models: string[] | AgentModelEntry[],
-): AgentModelEntry[] {
-  if (models.length === 0) return [];
-  if (typeof models[0] === "string") {
-    return (models as string[]).map((modelName) => {
-      const mode = (AVAILABLE_CUA_MODELS as readonly string[]).includes(
-        modelName,
-      )
-        ? "cua"
-        : "hybrid";
-      return { modelName, mode, cua: mode === "cua" };
-    });
-  }
-  return models as AgentModelEntry[];
-}
+import {
+  readJsonlFile,
+  parseJsonlRows,
+  applySampling,
+  normalizeAgentModelEntries,
+} from "../utils.js";
 
 export const buildGAIATestcases = (
   models: string[] | AgentModelEntry[],
@@ -76,7 +61,7 @@ export const buildGAIATestcases = (
   const gaiaRows = applySampling(filteredCandidates, sampleCount, maxCases);
 
   const allTestcases: Testcase[] = [];
-  for (const modelEntry of normalizeModelEntries(models)) {
+  for (const modelEntry of normalizeAgentModelEntries(models)) {
     for (const row of gaiaRows) {
       const finalAnswer = (row as Record<string, unknown>)[
         "Final answer"

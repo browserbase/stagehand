@@ -3,10 +3,9 @@ import { loadBrowserbaseSdk } from "../runtime/coreDeps.js";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
 function loadBrowserbaseCredentials(): { apiKey: string; projectId?: string } {
-  const apiKey =
-    process.env.BROWSERBASE_API_KEY ?? process.env.BB_API_KEY ?? "";
+  const apiKey = process.env.BROWSERBASE_API_KEY || process.env.BB_API_KEY || "";
   const projectId =
-    process.env.BROWSERBASE_PROJECT_ID ?? process.env.BB_PROJECT_ID;
+    process.env.BROWSERBASE_PROJECT_ID || process.env.BB_PROJECT_ID;
 
   if (!apiKey) {
     throw new Error(

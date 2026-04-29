@@ -16,6 +16,10 @@ export function resolveLocalChromeExecutablePath(): string | undefined {
 
   const candidates = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
   ];
 
   for (const candidate of candidates) {
@@ -124,13 +128,23 @@ export async function launchRunnerProvidedLocalChrome(): Promise<{
     stdio: "ignore",
   });
 
-  const wsUrl = await waitForDebuggerUrl(port, 15_000);
-
-  return {
-    wsUrl,
-    cleanup: async () => {
+  const cleanup = async () => {
+    try {
       await terminateChrome(child);
+    } finally {
       await rm(userDataDir, { recursive: true, force: true }).catch(() => {});
-    },
+    }
   };
+
+  try {
+    const wsUrl = await waitForDebuggerUrl(port, 15_000);
+
+    return {
+      wsUrl,
+      cleanup,
+    };
+  } catch (error) {
+    await cleanup();
+    throw error;
+  }
 }

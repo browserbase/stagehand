@@ -70,4 +70,29 @@ describe("runner-provided Browserbase target", () => {
       projectId: "test-project-id",
     });
   });
+
+  it("falls back to BB_* credentials when Browserbase env vars are empty", async () => {
+    process.env.BROWSERBASE_API_KEY = "";
+    process.env.BROWSERBASE_PROJECT_ID = "";
+    process.env.BB_API_KEY = "fallback-api-key";
+    process.env.BB_PROJECT_ID = "fallback-project-id";
+    createMock.mockResolvedValue({
+      id: "session-456",
+      connectUrl: "wss://connect.browserbase.test/devtools/browser/session-456",
+    });
+
+    const { launchRunnerProvidedBrowserbaseChrome } = await import(
+      "../../core/targets/browserbase.js"
+    );
+
+    const target = await launchRunnerProvidedBrowserbaseChrome();
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "fallback-project-id",
+      }),
+    );
+
+    await target.cleanup();
+  });
 });

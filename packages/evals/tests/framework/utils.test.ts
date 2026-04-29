@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { generateExperimentName, logLineToString } from "../../utils.js";
+import {
+  generateExperimentName,
+  logLineToString,
+  normalizeAgentModelEntries,
+} from "../../utils.js";
 
 const originalColumns = process.stdout.columns;
 
@@ -58,5 +62,39 @@ describe("generateExperimentName", () => {
 
     expect(output.split("\n").every((line) => line.length <= 59)).toBe(true);
     expect(output.endsWith("…")).toBe(true);
+  });
+});
+
+describe("normalizeAgentModelEntries", () => {
+  it("infers CUA mode for CUA-capable string models", () => {
+    expect(
+      normalizeAgentModelEntries([
+        "google/gemini-3-flash-preview",
+        "openai/gpt-4.1-mini",
+      ]),
+    ).toEqual([
+      {
+        modelName: "google/gemini-3-flash-preview",
+        mode: "cua",
+        cua: true,
+      },
+      {
+        modelName: "openai/gpt-4.1-mini",
+        mode: "hybrid",
+        cua: false,
+      },
+    ]);
+  });
+
+  it("preserves explicit model entries", () => {
+    const entries = [
+      {
+        modelName: "openai/gpt-4.1-mini",
+        mode: "dom" as const,
+        cua: false,
+      },
+    ];
+
+    expect(normalizeAgentModelEntries(entries)).toBe(entries);
   });
 });

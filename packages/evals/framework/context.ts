@@ -75,6 +75,12 @@ export async function buildCoreContext(
     options.startupProfile ??
     resolveDefaultCoreStartupProfile(toolSurface, environment);
 
+  if (!tool.supportedStartupProfiles.includes(startupProfile)) {
+    throw new Error(
+      `Tool surface "${toolSurface}" does not support startup profile "${startupProfile}".`,
+    );
+  }
+
   if (environment === "LOCAL") {
     await ensureCoreFixtureServer([...coreFixtureRoutes]);
   }

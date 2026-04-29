@@ -8,8 +8,9 @@
  *   and eval name or category.
  */
 import fs from "fs";
-import { LogLine } from "@browserbasehq/stagehand";
+import { AVAILABLE_CUA_MODELS, LogLine } from "@browserbasehq/stagehand";
 import stringComparison from "string-comparison";
+import type { AgentModelEntry } from "./types/evals.js";
 const { jaroWinkler } = stringComparison;
 
 /**
@@ -225,4 +226,18 @@ export function applySampling<T>(
     }
     return result;
   }
+}
+
+export function normalizeAgentModelEntries(
+  models: string[] | AgentModelEntry[],
+): AgentModelEntry[] {
+  if (models.length === 0) return [];
+  if (typeof models[0] !== "string") return models as AgentModelEntry[];
+
+  return (models as string[]).map((modelName) => {
+    const mode = (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName)
+      ? "cua"
+      : "hybrid";
+    return { modelName, mode, cua: mode === "cua" };
+  });
 }

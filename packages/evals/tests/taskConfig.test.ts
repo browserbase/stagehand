@@ -45,7 +45,7 @@ describe("getModelList", () => {
     const models = getModelList();
     expect(models.length).toBeGreaterThan(0);
     // Default set includes these three
-    expect(models).toContain("google/gemini-2.0-flash");
+    expect(models).toContain("google/gemini-2.5-flash");
     expect(models).toContain("openai/gpt-4.1-mini");
     expect(models).toContain("anthropic/claude-haiku-4-5");
   });
