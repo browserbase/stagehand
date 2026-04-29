@@ -736,6 +736,8 @@ jobs:
                 "Experiment: \(.experimentName)",
                 "Passed: \(.passed | length)",
                 "Failed: \(.failed | length)",
+                "Braintrust scores:",
+                ((.scores // {}) | to_entries[] | "  \(.key): \((.value.score * 100))%"),
                 "Category scores:",
                 (.categories | to_entries[] | "  \(.key): \(.value)%")
               ' eval-summary.json
@@ -769,15 +771,16 @@ jobs:
             echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
           fi
 
-          category_score=$(jq -r --arg category "${{ matrix.category }}" '.categories[$category] // empty' eval-summary.json)
-          if [ -z "$category_score" ]; then
-            echo "${{ matrix.category }} category score not found in eval summary. Failing CI."
+          primary_score=$(jq -r '(.scores["Exact match"].score // .scores["Pass"].score // empty)' eval-summary.json)
+          if [ -z "$primary_score" ]; then
+            echo "Braintrust primary score not found in eval summary. Failing CI."
             exit 1
           fi
 
-          echo "${{ matrix.category }} category score: $category_score%"
-          if (( $(echo "$category_score < 80" | bc -l) )); then
-            echo "${{ matrix.category }} category score is below 80%. Failing CI."
+          primary_score_percent=$(jq -rn --arg score "$primary_score" '$score | tonumber * 100')
+          printf '${{ matrix.category }} Braintrust score: %.2f%%\n' "$primary_score_percent"
+          if (( $(echo "$primary_score < 0.8" | bc -l) )); then
+            echo "${{ matrix.category }} Braintrust score is below 80%. Failing CI."
             exit 1
           fi
 

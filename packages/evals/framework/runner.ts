@@ -445,25 +445,37 @@ export async function runEvals(
       typeof result.output === "boolean"
         ? { _success: result.output }
         : result.output;
+    const categories = Array.isArray(result.metadata?.categories)
+      ? result.metadata.categories.filter(
+          (category): category is string => typeof category === "string",
+        )
+      : undefined;
+
     return {
       input: result.input,
       output,
       name: result.input.name,
       score: output._success ? 1 : 0,
+      ...(categories && { categories }),
     };
   });
 
+  const resolvedExperimentName =
+    evalResult.summary?.experimentName ?? experimentName;
+  const resolvedExperimentUrl = evalResult.summary?.experimentUrl;
+
   await generateSummary(
     summaryResults,
-    evalResult.summary?.experimentName ?? experimentName,
-    evalResult.summary?.experimentUrl,
+    resolvedExperimentName,
+    resolvedExperimentUrl,
+    evalResult.summary?.scores,
   );
 
   const passed = summaryResults.filter((r) => r.output._success).length;
   const failed = summaryResults.filter((r) => !r.output._success).length;
 
   return {
-    experimentName,
+    experimentName: resolvedExperimentName,
     summary: { passed, failed, total: summaryResults.length },
     results: summaryResults,
   };

@@ -157,7 +157,22 @@ describe("core runner", () => {
             output: await config.task(testcase.input),
           });
         }
-        return { results };
+        return {
+          summary: {
+            experimentName: "navigation/open-3fb31541",
+            experimentUrl:
+              "https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/navigation/open-3fb31541",
+            scores: {
+              Pass: {
+                name: "Pass",
+                score: 1,
+                improvements: 0,
+                regressions: 0,
+              },
+            },
+          },
+          results,
+        };
       },
     );
 
@@ -184,6 +199,20 @@ describe("core runner", () => {
       score: 1,
     });
     expect(flushMock).toHaveBeenCalledTimes(1);
+    expect(generateSummaryMock).toHaveBeenCalledWith(
+      expect.any(Array),
+      "navigation/open-3fb31541",
+      "https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/navigation/open-3fb31541",
+      {
+        Pass: {
+          name: "Pass",
+          score: 1,
+          improvements: 0,
+          regressions: 0,
+        },
+      },
+    );
+    expect(result.experimentName).toBe("navigation/open-3fb31541");
     expect(capturedEvalOptions.reporter.name).toBe(
       "stagehand-evals-silent-reporter",
     );

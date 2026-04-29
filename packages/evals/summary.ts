@@ -10,6 +10,7 @@ export const generateSummary = async (
   results: SummaryResult[],
   experimentName: string,
   experimentUrl?: string,
+  scores?: Record<string, unknown>,
 ) => {
   const getTaskBasename = (taskName: string): string => {
     if (!taskName.includes("/")) return taskName;
@@ -36,12 +37,19 @@ export const generateSummary = async (
     return taskName.includes("/") ? [taskName.split("/")[0]] : [];
   };
 
+  const resolveResultCategories = (result: SummaryResult): string[] => {
+    const resultCategories = result.categories ?? [];
+    return resultCategories.length > 0
+      ? resultCategories
+      : resolveCategories(result.input.name);
+  };
+
   const passed = results
     .filter((r) => r.output._success)
     .map((r) => ({
       eval: r.input.name,
       model: r.input.modelName,
-      categories: resolveCategories(r.input.name),
+      categories: resolveResultCategories(r),
     }));
 
   const failed = results
@@ -49,25 +57,20 @@ export const generateSummary = async (
     .map((r) => ({
       eval: r.input.name,
       model: r.input.modelName,
-      categories: resolveCategories(r.input.name),
+      categories: resolveResultCategories(r),
     }));
 
   const categorySuccessCounts: Record<
     string,
     { total: number; success: number }
   > = {};
-  const taskNames = [...new Set(results.map((r) => r.input.name))];
-  for (const taskName of taskNames) {
-    const taskCategories = resolveCategories(taskName);
-    const taskResults = results.filter((r) => r.input.name === taskName);
-    const successCount = taskResults.filter((r) => r.output._success).length;
-
-    for (const cat of taskCategories) {
+  for (const result of results) {
+    for (const cat of resolveResultCategories(result)) {
       if (!categorySuccessCounts[cat]) {
         categorySuccessCounts[cat] = { total: 0, success: 0 };
       }
-      categorySuccessCounts[cat].total += taskResults.length;
-      categorySuccessCounts[cat].success += successCount;
+      categorySuccessCounts[cat].total += 1;
+      categorySuccessCounts[cat].success += result.output._success ? 1 : 0;
     }
   }
 
@@ -87,6 +90,7 @@ export const generateSummary = async (
   const formattedSummary = {
     experimentName,
     ...(experimentUrl && { experimentUrl }),
+    ...(scores && { scores }),
     passed,
     failed,
     categories,

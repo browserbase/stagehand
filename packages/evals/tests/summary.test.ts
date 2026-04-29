@@ -55,4 +55,28 @@ describe("generateSummary", () => {
     expect(summary.passed[0].categories).toEqual(["observe", "regression"]);
     expect(summary.failed[0].categories).toEqual(["observe", "regression"]);
   });
+
+  it("includes Braintrust scores when provided", async () => {
+    await generateSummary(
+      [
+        makeResult("observe/observe_github", true),
+        makeResult("observe/observe_github", false),
+      ],
+      "regression-b0b8a8f2",
+      "https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/regression-b0b8a8f2",
+      {
+        "Exact match": {
+          name: "Exact match",
+          score: 0.875,
+          improvements: 0,
+          regressions: 0,
+        },
+      },
+    );
+
+    const summary = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
+
+    expect(summary.scores["Exact match"].score).toBe(0.875);
+    expect(summary.categories.regression).toBe(50);
+  });
 });
