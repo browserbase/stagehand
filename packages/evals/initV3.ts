@@ -49,8 +49,8 @@ type InitV3Args = {
 export type V3InitResult = {
   v3: V3;
   logger: EvalLogger;
-  debugUrl?: string; // not exposed by v3; placeholder for parity
-  sessionUrl?: string; // not exposed by v3; placeholder for parity
+  debugUrl?: string;
+  sessionUrl?: string;
   modelName: AvailableModel;
   agent?: AgentInstance;
 };
@@ -175,8 +175,8 @@ export async function initV3({
   return {
     v3,
     logger,
-    debugUrl: "",
-    sessionUrl: "",
+    debugUrl: v3.browserbaseDebugURL,
+    sessionUrl: v3.browserbaseSessionURL,
     modelName,
     agent,
   };

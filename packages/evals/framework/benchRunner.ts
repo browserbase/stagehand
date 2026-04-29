@@ -4,10 +4,23 @@ import type { EvalInput } from "../types/evals.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { RunEvalsOptions } from "./runner.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
-import { getBenchHarness } from "./benchHarness.js";
+import { getBenchHarness, type BenchHarnessContext } from "./benchHarness.js";
 import { buildBenchMatrixRow } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
+
+function withBenchSessionUrls(
+  result: TaskResult,
+  ctx: BenchHarnessContext | undefined,
+): TaskResult {
+  if (!ctx) return result;
+
+  return {
+    ...result,
+    sessionUrl: result.sessionUrl || ctx.sessionUrl || undefined,
+    debugUrl: result.debugUrl || ctx.debugUrl || undefined,
+  };
+}
 
 export async function executeBenchTask(
   input: EvalInput,
@@ -27,6 +40,7 @@ export async function executeBenchTask(
   );
   let cleanup: () => Promise<void> = async () => {};
   let unregisterCleanup: (() => void) | undefined;
+  let harnessCtx: BenchHarnessContext | undefined;
 
   try {
     if (harness.execute) {
@@ -50,7 +64,7 @@ export async function executeBenchTask(
     cleanup = onceAsync(startedHarness.cleanup);
     unregisterCleanup = registerActiveRunCleanup(cleanup);
 
-    const harnessCtx = startedHarness.ctx;
+    harnessCtx = startedHarness.ctx;
     const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
     if (taskModule.definition) {
       const ctx = {
@@ -63,18 +77,24 @@ export async function executeBenchTask(
         debugUrl: harnessCtx.debugUrl,
         sessionUrl: harnessCtx.sessionUrl,
       };
-      return (await taskModule.definition.fn(ctx)) as TaskResult;
+      return withBenchSessionUrls(
+        (await taskModule.definition.fn(ctx)) as TaskResult,
+        harnessCtx,
+      );
     }
     if (taskModule.legacyFn) {
-      return taskModule.legacyFn({
-        v3: harnessCtx.v3,
-        logger,
-        debugUrl: harnessCtx.debugUrl,
-        sessionUrl: harnessCtx.sessionUrl,
-        modelName: input.modelName,
-        agent: harnessCtx.agent,
-        input,
-      });
+      return withBenchSessionUrls(
+        await taskModule.legacyFn({
+          v3: harnessCtx.v3,
+          logger,
+          debugUrl: harnessCtx.debugUrl,
+          sessionUrl: harnessCtx.sessionUrl,
+          modelName: input.modelName,
+          agent: harnessCtx.agent,
+          input,
+        }),
+        harnessCtx,
+      );
     }
 
     throw new EvalsError(`No valid task export found in ${task.filePath}`);
@@ -94,14 +114,17 @@ export async function executeBenchTask(
         },
       },
     });
-    return {
-      _success: false,
-      error:
-        error instanceof Error
-          ? JSON.parse(JSON.stringify(error, null, 2))
-          : String(error),
-      logs: logger.getLogs(),
-    };
+    return withBenchSessionUrls(
+      {
+        _success: false,
+        error:
+          error instanceof Error
+            ? JSON.parse(JSON.stringify(error, null, 2))
+            : String(error),
+        logs: logger.getLogs(),
+      },
+      harnessCtx,
+    );
   } finally {
     await cleanup();
     unregisterCleanup?.();
