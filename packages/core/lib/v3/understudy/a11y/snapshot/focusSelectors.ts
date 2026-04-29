@@ -199,69 +199,18 @@ export async function resolveCssFocusFrameAndTail(
   return { targetFrameId: ctxFrameId, tailSelector, absPrefix };
 }
 
-/** Resolve an XPath to a Runtime remoteObjectId in the given CDP session. */
-export async function resolveObjectIdForXPath(
+/**
+ * Evaluate a Runtime expression with a single retry when the execution context
+ * has been destroyed (e.g. due to navigation). Only retries when `frameId` is
+ * provided and the error message contains 'Cannot find context with specified id'.
+ */
+async function evaluateWithStaleContextRetry(
   session: CDPSessionLike,
-  xpath: string,
-  frameId?: string,
+  expression: string,
+  contextId: number | undefined,
+  frameId: string | undefined,
 ): Promise<string | null> {
-  let contextId: number | undefined;
   try {
-    if (frameId) {
-      contextId = await executionContexts
-        .waitForMainWorld(session, frameId, 800)
-        .catch(
-          () => executionContexts.getMainWorld(session, frameId) ?? undefined,
-        );
-    }
-  } catch {
-    contextId = undefined;
-  }
-  const expr = buildLocatorInvocation("resolveXPathMainWorld", [
-    JSON.stringify(xpath),
-    "0",
-  ]);
-  const { result, exceptionDetails } = await session.send<{
-    result: { objectId?: string | undefined };
-    exceptionDetails?: Protocol.Runtime.ExceptionDetails;
-  }>("Runtime.evaluate", {
-    expression: expr,
-    returnByValue: false,
-    contextId,
-    awaitPromise: true,
-  });
-  if (exceptionDetails) return null;
-  return result?.objectId ?? null;
-}
-
-/** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
-export async function resolveObjectIdForCss(
-  session: CDPSessionLike,
-  selector: string,
-  frameId?: string,
-): Promise<string | null> {
-  let contextId: number | undefined;
-  try {
-    if (frameId) {
-      contextId = await executionContexts
-        .waitForMainWorld(session, frameId, 800)
-        .catch(
-          () => executionContexts.getMainWorld(session, frameId) ?? undefined,
-        );
-    }
-  } catch {
-    contextId = undefined;
-  }
-  const primaryExpr = buildLocatorInvocation("resolveCssSelector", [
-    JSON.stringify(selector),
-    "0",
-  ]);
-  const fallbackExpr = buildLocatorInvocation("resolveCssSelectorPierce", [
-    JSON.stringify(selector),
-    "0",
-  ]);
-
-  const evaluate = async (expression: string): Promise<string | null> => {
     const { result, exceptionDetails } = await session.send<{
       result: { objectId?: string | undefined };
       exceptionDetails?: Protocol.Runtime.ExceptionDetails;
@@ -273,11 +222,92 @@ export async function resolveObjectIdForCss(
     });
     if (exceptionDetails) return null;
     return result?.objectId ?? null;
-  };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (!msg.includes("Cannot find context with specified id") || !frameId)
+      return null;
+    const freshCtx =
+      executionContexts.getMainWorld(session, frameId) ?? undefined;
+    try {
+      const { result, exceptionDetails } = await session.send<{
+        result: { objectId?: string | undefined };
+        exceptionDetails?: Protocol.Runtime.ExceptionDetails;
+      }>("Runtime.evaluate", {
+        expression,
+        returnByValue: false,
+        contextId: freshCtx,
+        awaitPromise: true,
+      });
+      if (exceptionDetails) return null;
+      return result?.objectId ?? null;
+    } catch {
+      return null;
+    }
+  }
+}
 
-  const primary = await evaluate(primaryExpr);
+/** Obtain the initial execution context for a frame, if provided. */
+async function resolveInitialContext(
+  session: CDPSessionLike,
+  frameId: string | undefined,
+): Promise<number | undefined> {
+  try {
+    if (frameId) {
+      return await executionContexts
+        .waitForMainWorld(session, frameId, 800)
+        .catch(
+          () => executionContexts.getMainWorld(session, frameId) ?? undefined,
+        );
+    }
+  } catch {
+    // fall through
+  }
+  return undefined;
+}
+
+/** Resolve an XPath to a Runtime remoteObjectId in the given CDP session. */
+export async function resolveObjectIdForXPath(
+  session: CDPSessionLike,
+  xpath: string,
+  frameId?: string,
+): Promise<string | null> {
+  const contextId = await resolveInitialContext(session, frameId);
+  const expr = buildLocatorInvocation("resolveXPathMainWorld", [
+    JSON.stringify(xpath),
+    "0",
+  ]);
+  return evaluateWithStaleContextRetry(session, expr, contextId, frameId);
+}
+
+/** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
+export async function resolveObjectIdForCss(
+  session: CDPSessionLike,
+  selector: string,
+  frameId?: string,
+): Promise<string | null> {
+  const contextId = await resolveInitialContext(session, frameId);
+  const primaryExpr = buildLocatorInvocation("resolveCssSelector", [
+    JSON.stringify(selector),
+    "0",
+  ]);
+  const fallbackExpr = buildLocatorInvocation("resolveCssSelectorPierce", [
+    JSON.stringify(selector),
+    "0",
+  ]);
+
+  const primary = await evaluateWithStaleContextRetry(
+    session,
+    primaryExpr,
+    contextId,
+    frameId,
+  );
   if (primary) return primary;
-  return evaluate(fallbackExpr);
+  return evaluateWithStaleContextRetry(
+    session,
+    fallbackExpr,
+    contextId,
+    frameId,
+  );
 }
 
 export function listChildrenOf(

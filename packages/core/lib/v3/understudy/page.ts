@@ -1361,16 +1361,35 @@ export class Page {
         })()`;
     }
 
-    const { result, exceptionDetails } =
-      await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
-        "Runtime.evaluate",
-        {
-          expression,
-          contextId: ctxId,
-          returnByValue: true,
-          awaitPromise: true,
-        },
-      );
+    let result: Protocol.Runtime.EvaluateResponse["result"];
+    let exceptionDetails: Protocol.Runtime.EvaluateResponse["exceptionDetails"];
+    try {
+      ({ result, exceptionDetails } =
+        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression,
+            contextId: ctxId,
+            returnByValue: true,
+            awaitPromise: true,
+          },
+        ));
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (!errMsg.includes("Cannot find context with specified id"))
+        throw error;
+      const freshCtxId = await this.mainWorldExecutionContextId();
+      ({ result, exceptionDetails } =
+        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression,
+            contextId: freshCtxId,
+            returnByValue: true,
+            awaitPromise: true,
+          },
+        ));
+    }
 
     if (exceptionDetails) {
       const msg =
