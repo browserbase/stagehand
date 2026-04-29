@@ -17,6 +17,9 @@ export function splitModelName(model: string): {
   modelName: string;
 } {
   const firstSlashIndex = model.indexOf("/");
+  if (firstSlashIndex === -1) {
+    return { provider: "", modelName: model };
+  }
   const provider = model.substring(0, firstSlashIndex);
   const modelName = model.substring(firstSlashIndex + 1);
   return { provider, modelName };
