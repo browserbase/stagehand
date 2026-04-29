@@ -450,11 +450,14 @@ export type AgentType =
 
 export const AVAILABLE_CUA_MODELS = [
   "openai/gpt-5.4",
+  "openai/gpt-5.4-mini",
+  "openai/gpt-5.5",
   "openai/computer-use-preview",
   "openai/computer-use-preview-2025-03-11",
   "anthropic/claude-opus-4-5-20251101",
   "anthropic/claude-opus-4-6",
   "anthropic/claude-sonnet-4-6",
+  "anthropic/claude-haiku-4-5",
   "anthropic/claude-haiku-4-5-20251001",
   "anthropic/claude-sonnet-4-20250514",
   "anthropic/claude-sonnet-4-5-20250929",
