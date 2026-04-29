@@ -25,7 +25,7 @@ export default defineBenchTask(
 
       const possibleLocators = [
         `div._rightCol_18olp_594`,
-        `div._section_18olp_165 _results_18olp_345`,
+        `div._section_18olp_165._results_18olp_345`,
       ];
 
       // Precompute candidate backendNodeIds
