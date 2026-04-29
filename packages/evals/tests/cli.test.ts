@@ -89,6 +89,34 @@ describe("CLI entrypoint", () => {
     expect(payload.runOptions.verbose).toBe(false);
   });
 
+  it("renders --preview as a human-readable plan", async () => {
+    const { stdout, code } = await runCli(["run", "act", "--preview"]);
+    expect(code).toBe(0);
+
+    // Header + sections — strip ANSI before substring checks.
+    // eslint-disable-next-line no-control-regex
+    const plain = stdout.replace(/\[[0-9;]*m/g, "");
+    expect(plain).toMatch(/Target:\s+act/);
+    expect(plain).toMatch(/Combinations \(/);
+    expect(plain).toMatch(/Tasks \(/);
+    expect(plain).toMatch(/Total:\s+\d+ run/);
+    // Should NOT be JSON.
+    expect(() => JSON.parse(stdout)).toThrow();
+  });
+
+  it("rejects --preview combined with --dry-run", async () => {
+    const { stdout, stderr, code } = await runCli([
+      "run",
+      "act",
+      "--dry-run",
+      "--preview",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout + stderr).toContain(
+      "--preview and --dry-run are mutually exclusive",
+    );
+  });
+
   it("fails fast on unknown flags instead of consuming the target", async () => {
     const { stdout, stderr, code } = await runCli([
       "run",

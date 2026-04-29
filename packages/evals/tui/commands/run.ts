@@ -10,6 +10,7 @@
 import { bold, dim, cyan, separator } from "../format.js";
 import { ProgressRenderer } from "../progress.js";
 import { printModelSummary, printResultsTable } from "../results.js";
+import { renderPreview } from "../preview.js";
 import { discoverTasks, resolveTarget } from "../../framework/discovery.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 import {
@@ -27,14 +28,142 @@ import {
 } from "../../framework/benchTypes.js";
 
 type RunProgressEvent = {
-  type: "started" | "passed" | "failed" | "error";
-  taskName: string;
+  type: "planned" | "started" | "passed" | "failed" | "error";
+  taskName?: string;
   modelName?: string;
   durationMs?: number;
   error?: string;
+  total?: number;
 };
 
 const LEGACY_ONLY_BENCHMARK_TARGETS = new Set(["agent/gaia"]);
+const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
+
+function formatNumber(value: number): string {
+  return NUMBER_FORMATTER.format(value);
+}
+
+function formatCount(count: number, singular: string, plural = `${singular}s`) {
+  return `${formatNumber(count)} ${count === 1 ? singular : plural}`;
+}
+
+function uniqueStringValues(
+  rows: Array<Record<string, unknown>>,
+  key: string,
+  options: { exclude?: readonly string[]; requireTruthy?: boolean } = {},
+): string[] {
+  const excluded = new Set(options.exclude ?? []);
+  const values = new Set<string>();
+  for (const row of rows) {
+    const value = row[key];
+    if (value === null || value === undefined) continue;
+    const str = String(value);
+    if (options.requireTruthy && !str) continue;
+    if (excluded.has(str)) continue;
+    values.add(str);
+  }
+  return [...values];
+}
+
+function buildRunTargetLabel(options: ResolvedRunOptions): string {
+  return options.target ?? options.normalizedTarget ?? "bench";
+}
+
+function buildPlanLine(
+  options: ResolvedRunOptions,
+  matrix: Array<Record<string, unknown>>,
+): string {
+  const matrixRows = matrix.length;
+  const trials = options.trials;
+  const taskCount = uniqueStringValues(matrix, "task").length;
+  const modelCount = uniqueStringValues(matrix, "model", {
+    exclude: ["none"],
+  }).length;
+  const modeCount = uniqueStringValues(matrix, "agentMode", {
+    requireTruthy: true,
+  }).length;
+  const modelModeConfigCount = new Set(
+    matrix
+      .filter((row) => row.model !== undefined && row.model !== "none")
+      .map((row) => `${String(row.model)}\u0000${String(row.agentMode ?? "")}`),
+  ).size;
+  const harnessCount = uniqueStringValues(matrix, "harness").length;
+  const toolSurfaceCount = uniqueStringValues(matrix, "toolSurface", {
+    requireTruthy: true,
+  }).length;
+  const useSeparateModelAndModeFactors =
+    modelCount > 0 &&
+    modeCount > 0 &&
+    modelModeConfigCount === modelCount * modeCount;
+  const modelModeFactor =
+    modelCount === 0
+      ? 1
+      : useSeparateModelAndModeFactors
+        ? modelCount * modeCount
+        : modelModeConfigCount;
+
+  const nonBaseFactors = [
+    modelModeFactor,
+    harnessCount > 1 ? harnessCount : 1,
+    toolSurfaceCount > 1 ? toolSurfaceCount : 1,
+  ];
+  const nonBaseProduct = nonBaseFactors.reduce(
+    (product, value) => product * value,
+    1,
+  );
+  const canFactorCleanly =
+    nonBaseProduct > 0 && matrixRows % nonBaseProduct === 0;
+  const baseCount = canFactorCleanly ? matrixRows / nonBaseProduct : matrixRows;
+  const hasDatasetCases =
+    uniqueStringValues(matrix, "dataset", {
+      requireTruthy: true,
+    }).length > 0;
+  const baseLabel =
+    hasDatasetCases || !canFactorCleanly || baseCount !== taskCount
+      ? "case"
+      : "task";
+
+  const factors = [formatCount(baseCount, baseLabel)];
+  if (canFactorCleanly) {
+    if (useSeparateModelAndModeFactors) {
+      factors.push(formatCount(modelCount, "model"));
+      factors.push(formatCount(modeCount, "mode"));
+    } else if (modeCount > 0 && modelModeConfigCount > 0) {
+      factors.push(formatCount(modelModeConfigCount, "model/mode config"));
+    } else if (modelCount > 0) {
+      factors.push(formatCount(modelCount, "model"));
+    }
+    if (harnessCount > 1) factors.push(formatCount(harnessCount, "harness"));
+    if (toolSurfaceCount > 1) {
+      factors.push(formatCount(toolSurfaceCount, "tool surface"));
+    }
+  }
+  factors.push(formatCount(trials, "trial"));
+
+  const runs = matrixRows * trials;
+  return `${factors.join(" × ")} = ${formatCount(runs, "run")}`;
+}
+
+function buildRunContextLine(
+  options: ResolvedRunOptions,
+  tasks: DiscoveredTask[],
+  matrix: Array<Record<string, unknown>>,
+): string {
+  const parts = [`${bold("Env:")} ${cyan(options.environment)}`];
+  if (tasks.some((task) => task.tier === "bench")) {
+    parts.push(`${bold("Harness:")} ${options.harness}`);
+  }
+
+  const toolSurfaces = uniqueStringValues(matrix, "toolSurface", {
+    requireTruthy: true,
+  });
+  if (toolSurfaces.length === 1) {
+    parts.push(`${bold("Tool:")} ${toolSurfaces[0]}`);
+  }
+
+  parts.push(`${bold("Concurrency:")} ${options.concurrency}`);
+  return parts.join("  ");
+}
 
 function isExplicitLegacyOnlyTarget(target?: string): boolean {
   return Boolean(target && LEGACY_ONLY_BENCHMARK_TARGETS.has(target));
@@ -69,11 +198,13 @@ export async function runCommand(
     registry = await discoverTasks(resolvedTasksRoot, false);
   }
 
+  const planMode = options.dryRun || options.preview;
+
   let tasks: DiscoveredTask[];
   try {
     tasks = resolveTarget(registry, options.normalizedTarget);
   } catch (err) {
-    if (options.dryRun) {
+    if (planMode) {
       await emitDryRun(options, [], registry, (err as Error).message);
       process.exitCode = 1;
       return;
@@ -83,7 +214,7 @@ export async function runCommand(
 
   if (isExplicitLegacyOnlyTarget(options.normalizedTarget)) {
     const message = `Benchmark "${options.normalizedTarget}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`;
-    if (options.dryRun) {
+    if (planMode) {
       await emitDryRun(options, tasks, registry, message);
       process.exitCode = 1;
       return;
@@ -98,7 +229,7 @@ export async function runCommand(
     const message = options.normalizedTarget
       ? `No runnable tasks found matching "${options.normalizedTarget}".`
       : "No runnable tasks found.";
-    if (options.dryRun) {
+    if (planMode) {
       await emitDryRun(options, tasks, registry, message, skippedTasks);
       process.exitCode = 1;
       return;
@@ -116,7 +247,7 @@ export async function runCommand(
     );
   }
 
-  if (options.dryRun) {
+  if (planMode) {
     await emitDryRun(options, tasks, registry, undefined, skippedTasks);
     return;
   }
@@ -129,29 +260,23 @@ export async function runCommand(
       `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand or --harness claude_code for executable bench runs.`,
     );
   }
-  const tierBreakdown = new Map<string, number>();
-  for (const t of tasks) {
-    tierBreakdown.set(t.tier, (tierBreakdown.get(t.tier) ?? 0) + 1);
-  }
-  const breakdown = [...tierBreakdown.entries()]
-    .map(([tier, count]) => `${count} ${tier}`)
-    .join(", ");
+  const matrix = await buildDryRunMatrix(options, tasks, registry);
 
-  console.log(
-    `\n  ${bold("Running:")} ${tasks.length} task(s) ${dim(`(${breakdown})`)}`,
-  );
+  console.log(`\n  ${bold("Running:")} ${cyan(buildRunTargetLabel(options))}`);
+  console.log(`  ${bold("Plan:")} ${buildPlanLine(options, matrix)}`);
   if (skippedTasks.length > 0) {
     console.log(
       `  ${bold("Skipped:")} ${skippedTasks.length} legacy-only task(s) ${dim(skippedTasks.map((task) => task.name).join(", "))}`,
     );
   }
-  console.log(
-    `  ${bold("Env:")} ${cyan(options.environment)}  ${bold("Trials:")} ${options.trials}  ${bold("Concurrency:")} ${options.concurrency}`,
-  );
+  console.log(`  ${buildRunContextLine(options, tasks, matrix)}`);
   console.log(separator());
   console.log("");
 
-  const progress = new ProgressRenderer({ animated: !options.verbose });
+  const progress = new ProgressRenderer({
+    animated: !options.verbose,
+    progressBar: options.verbose,
+  });
   const categoryFilter = deriveCategoryFilter(
     registry,
     options.normalizedTarget,
@@ -182,15 +307,17 @@ export async function runCommand(
           verbose: options.verbose,
           signal,
           onProgress: (event: RunProgressEvent) => {
-            if (event.type === "started") {
+            if (event.type === "planned") {
+              progress.onPlanned(event.total ?? 0);
+            } else if (event.type === "started" && event.taskName) {
               progress.onStart(event.taskName, event.modelName);
-            } else if (event.type === "passed") {
+            } else if (event.type === "passed" && event.taskName) {
               progress.onPass(
                 event.taskName,
                 event.modelName,
                 event.durationMs,
               );
-            } else if (event.type === "failed") {
+            } else if (event.type === "failed" && event.taskName) {
               progress.onFail(event.taskName, event.modelName, event.error);
             }
           },
@@ -241,12 +368,16 @@ export function canExecuteBenchHarness(harness: Harness): boolean {
 }
 
 /**
- * Emit a deterministic JSON plan for --dry-run. Test-support only — not
- * part of the public CLI contract.
+ * Build the deterministic plan payload and render it.
  *
- * Shape is fixed:
- *   { target, normalizedTarget, tasks (sorted), envOverrides (sorted),
- *     runOptions (sorted keys), error? }
+ * Mode is chosen by ResolvedRunOptions.preview:
+ *   - false (default, --dry-run) → JSON.stringify to stdout. Shape is fixed:
+ *     { target, normalizedTarget, tasks (sorted), envOverrides (sorted),
+ *       runOptions (sorted keys), matrix, error? }. Test-support only —
+ *     not part of the public CLI contract.
+ *   - true (--preview) → renderPreview prints a human-readable table.
+ *
+ * The payload built here is the single source of truth for both renderers.
  */
 async function emitDryRun(
   options: ResolvedRunOptions,
@@ -290,7 +421,11 @@ async function emitDryRun(
   };
   if (error) payload.error = error;
 
-  console.log(JSON.stringify(payload, null, 2));
+  if (options.preview) {
+    renderPreview(payload);
+  } else {
+    console.log(JSON.stringify(payload, null, 2));
+  }
 }
 
 async function buildDryRunMatrix(

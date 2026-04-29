@@ -94,7 +94,7 @@ export function resolveBenchModelEntries(
     harness === "stagehand" ? resolveRequestedAgentModes(options) : undefined;
 
   if (options.modelOverride) {
-    const modes =
+    const baseModes =
       isAgentCategory && requestedAgentModes
         ? requestedAgentModes
         : [
@@ -102,14 +102,23 @@ export function resolveBenchModelEntries(
               ? resolveAgentModeForModel(options.modelOverride)
               : "hybrid",
           ];
-    return {
-      effectiveCategory,
-      isAgentCategory,
-      modelEntries: modes.map((mode) => ({
+    const modelEntries = uniqueAgentModelEntries(
+      baseModes.map((mode) => ({
         modelName: options.modelOverride,
         mode,
         cua: mode === "cua",
       })),
+    );
+    const compatibleEntries =
+      isAgentCategory && requestedAgentModes
+        ? expandAgentEntriesForRequestedModes(modelEntries, requestedAgentModes)
+        : modelEntries;
+    assertCompatibleAgentModelEntries(compatibleEntries, requestedAgentModes);
+
+    return {
+      effectiveCategory,
+      isAgentCategory,
+      modelEntries: compatibleEntries,
     };
   }
 
@@ -124,15 +133,65 @@ export function resolveBenchModelEntries(
     isAgentCategory,
     modelEntries:
       isAgentCategory && requestedAgentModes
-        ? modelEntries.flatMap((entry) =>
-            requestedAgentModes.map((mode) => ({
-              modelName: entry.modelName,
-              mode,
-              cua: mode === "cua",
-            })),
-          )
+        ? expandAgentEntriesForRequestedModes(modelEntries, requestedAgentModes)
         : modelEntries,
   };
+}
+
+function expandAgentEntriesForRequestedModes(
+  entries: AgentModelEntry[],
+  requestedModes: AgentToolMode[],
+): AgentModelEntry[] {
+  const expanded = entries.flatMap((entry) => {
+    if (isCuaCapableModel(entry.modelName)) {
+      return requestedModes.map((mode) => ({
+        modelName: entry.modelName,
+        mode,
+        cua: mode === "cua",
+      }));
+    }
+
+    return requestedModes
+      .filter((mode) => mode !== "cua")
+      .map((mode) => ({
+        modelName: entry.modelName,
+        mode,
+        cua: false,
+      }));
+  });
+
+  return uniqueAgentModelEntries(expanded);
+}
+
+function isCuaCapableModel(modelName: string): boolean {
+  return (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName);
+}
+
+function uniqueAgentModelEntries(
+  entries: AgentModelEntry[],
+): AgentModelEntry[] {
+  const seen = new Set<string>();
+  return entries.filter((entry) => {
+    const key = `${entry.modelName}:${entry.mode}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function assertCompatibleAgentModelEntries(
+  entries: AgentModelEntry[],
+  requestedModes?: AgentToolMode[],
+): void {
+  if (entries.length > 0 || !requestedModes || requestedModes.length === 0) {
+    return;
+  }
+
+  throw new EvalsError(
+    `No compatible agent model entries for requested mode(s): ${requestedModes.join(
+      ", ",
+    )}. Non-CUA models require "dom" or "hybrid"; CUA-capable models are required for "cua".`,
+  );
 }
 
 function resolveDefaultModelEntries(

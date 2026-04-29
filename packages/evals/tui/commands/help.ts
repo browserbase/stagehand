@@ -104,6 +104,13 @@ export function printRunHelp(): void {
       `Benchmark-specific filter ${gray("(repeatable)")}`,
     ),
     "",
+    `  ${bold("Inspect:")}`,
+    "",
+    row(
+      cyan("--preview"),
+      `Print a human-readable plan ${gray("(combinations + tasks)")} and exit`,
+    ),
+    "",
     `  ${bold("Escape hatch:")}`,
     "",
     row(
@@ -118,6 +125,7 @@ export function printRunHelp(): void {
     `    ${dim("$")} evals run b:webvoyager -l 10`,
     `    ${dim("$")} evals run b:onlineMind2Web -l 25`,
     `    ${dim("$")} evals run b:webtailbench -l 10`,
+    `    ${dim("$")} evals run agent --preview`,
     "",
   ]);
 }

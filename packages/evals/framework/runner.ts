@@ -36,11 +36,12 @@ export { cleanupActiveRunResources } from "./activeRunCleanup.js";
 import { resolveDefaultCoreStartupProfile } from "./context.js";
 
 export interface RunProgressEvent {
-  type: "started" | "passed" | "failed" | "error";
-  taskName: string;
+  type: "planned" | "started" | "passed" | "failed" | "error";
+  taskName?: string;
   modelName?: string;
   durationMs?: number;
   error?: string;
+  total?: number;
 }
 
 export interface RunEvalsOptions {
@@ -303,6 +304,10 @@ export async function runEvals(
   const environment = options.environment ?? "LOCAL";
 
   const testcases = generateTestcases(options.tasks, options);
+  options.onProgress?.({
+    type: "planned",
+    total: testcases.length,
+  });
   if (testcases.length === 0) {
     console.log("No testcases to run.");
     return {

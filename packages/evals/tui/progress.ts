@@ -33,6 +33,7 @@ interface TaskProgress {
 
 type ProgressRendererOptions = {
   animated?: boolean;
+  progressBar?: boolean;
 };
 
 const DOTS2_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
@@ -50,9 +51,19 @@ export class ProgressRenderer {
   private renderedLines = 0;
   private cursorHidden = false;
   private blockInitialized = false;
+  private progressBar: boolean;
+  private total?: number;
 
   constructor(options: ProgressRendererOptions = {}) {
     this.animated = options.animated ?? false;
+    this.progressBar = options.progressBar ?? false;
+  }
+
+  onPlanned(total: number): void {
+    this.total = total;
+    if (this.progressBar && total > 0) {
+      this.printProgressBar();
+    }
   }
 
   onStart(taskName: string, model?: string): void {
@@ -76,6 +87,9 @@ export class ProgressRenderer {
       durationMs,
     });
     this.passed++;
+    if (this.progressBar) {
+      this.printProgressBar();
+    }
     if (this.animated) {
       this.renderAnimated();
       this.stopTickerIfIdle();
@@ -94,6 +108,9 @@ export class ProgressRenderer {
     const key = model ? `${taskName}:${model}` : taskName;
     this.tasks.set(key, { name: taskName, model, status: "failed", error });
     this.failed++;
+    if (this.progressBar) {
+      this.printProgressBar();
+    }
     if (this.animated) {
       this.renderAnimated();
       this.stopTickerIfIdle();
@@ -317,6 +334,25 @@ export class ProgressRenderer {
     return `  ${dim(`… ${hiddenCount} earlier task${hiddenCount === 1 ? "" : "s"} hidden (${total} total)`)}`;
   }
 
+  private printProgressBar(): void {
+    const total = this.total ?? this.started;
+    if (total <= 0) return;
+
+    const completed = this.passed + this.failed;
+    const width = getTerminalWidth();
+    const barWidth = Math.max(12, Math.min(34, Math.floor(width * 0.24)));
+    const filled = Math.min(
+      barWidth,
+      Math.round((completed / total) * barWidth),
+    );
+    const empty = Math.max(0, barWidth - filled);
+    const pct = Math.round((completed / total) * 100);
+    const bar = `${green("█".repeat(filled))}${dim("░".repeat(empty))}`;
+    const detail = `${pct}% | ${completed}/${total} datapoints`;
+
+    writeLine(`  ${bar} ${dim("|")} ${detail}`);
+  }
+
   private getRowLayout(
     hasModel: boolean,
     status: string,
@@ -326,9 +362,12 @@ export class ProgressRenderer {
     const contentWidth = Math.max(32, width - 6);
     const statusWidth = Math.max(7, visibleLength(status));
     const durationWidth = duration ? visibleLength(duration) + 1 : 0;
-    let modelWidth = hasModel
-      ? Math.min(30, Math.max(12, Math.floor(contentWidth * 0.28)))
-      : 0;
+    const longestModel = this.getLongestModelLength();
+    const preferredModelWidth =
+      hasModel && longestModel > 0
+        ? Math.min(longestModel, Math.max(12, Math.floor(contentWidth * 0.34)))
+        : 0;
+    let modelWidth = preferredModelWidth;
     let taskWidth =
       contentWidth -
       statusWidth -
@@ -336,18 +375,23 @@ export class ProgressRenderer {
       (hasModel ? modelWidth + 1 : 0) -
       1;
 
-    if (hasModel && taskWidth < 18) {
-      const deficit = 18 - taskWidth;
-      modelWidth = Math.max(10, modelWidth - deficit);
+    if (hasModel && taskWidth < 28) {
+      const compactModelWidth = Math.min(modelWidth, 24);
+      modelWidth = Math.max(10, compactModelWidth);
       taskWidth = contentWidth - statusWidth - durationWidth - modelWidth - 2;
     }
 
-    if (hasModel && taskWidth < 18) {
-      modelWidth = 0;
-      taskWidth = contentWidth - statusWidth - durationWidth - 1;
-    }
-
     return { taskWidth, modelWidth, statusWidth };
+  }
+
+  private getLongestModelLength(): number {
+    return Math.max(
+      0,
+      ...[...this.tasks.values()]
+        .map((task) => task.model)
+        .filter((model): model is string => Boolean(model))
+        .map((model) => visibleLength(model)),
+    );
   }
 
   private startTicker(): void {

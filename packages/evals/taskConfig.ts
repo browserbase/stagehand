@@ -11,7 +11,9 @@ import path from "path";
 import {
   AgentProvider,
   AVAILABLE_CUA_MODELS,
-  AvailableModel,
+  type AgentToolMode,
+  type AvailableCuaModel,
+  type AvailableModel,
   providerEnvVarMap,
 } from "@browserbasehq/stagehand";
 import { AgentModelEntry } from "./types/evals.js";
@@ -228,44 +230,92 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
       "anthropic/claude-haiku-4-5",
     ];
 
-const AGENT_MODELS = process.env.EVAL_AGENT_MODELS
-  ? process.env.EVAL_AGENT_MODELS.split(",")
-  : ["anthropic/claude-sonnet-4-20250514"];
+const DEFAULT_AGENT_MODELS_STANDARD = [
+  "anthropic/claude-haiku-4-5",
+  "openai/gpt-5.4-mini",
+  "google/gemini-3-flash-preview",
+];
 
-const AGENT_MODELS_CUA = process.env.EVAL_AGENT_MODELS_CUA
-  ? process.env.EVAL_AGENT_MODELS_CUA.split(",")
-  : AVAILABLE_CUA_MODELS.filter((modelName) => {
-      try {
-        const provider = AgentProvider.getAgentProvider(modelName);
-        return provider in providerEnvVarMap;
-      } catch {
-        return false;
-      }
-    });
+const DEFAULT_AGENT_MODELS_CUA = [
+  "anthropic/claude-haiku-4-5",
+  "openai/gpt-5.4-mini",
+  "google/gemini-3-flash-preview",
+] satisfies readonly AvailableCuaModel[];
+
+const DEFAULT_AGENT_MODEL_MODES = [
+  "dom",
+  "hybrid",
+] as const satisfies readonly AgentToolMode[];
 
 const isCuaModel = (modelName: string): boolean =>
   (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName);
 
-const AGENT_MODEL_ENTRIES: AgentModelEntry[] = [
-  ...AGENT_MODELS.map((modelName) => ({
-    modelName,
-    mode: "hybrid" as const,
-    cua: false,
-  })),
-  ...AGENT_MODELS_CUA.map((modelName) => ({
-    modelName,
-    mode: isCuaModel(modelName) ? ("cua" as const) : ("hybrid" as const),
-    cua: isCuaModel(modelName),
-  })),
-];
+function parseModelList(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+}
 
-const DEFAULT_AGENT_MODELS = AGENT_MODEL_ENTRIES.map((e) => e.modelName);
+function hasProviderEnvSupport(modelName: string): boolean {
+  try {
+    const provider = AgentProvider.getAgentProvider(modelName);
+    return provider in providerEnvVarMap;
+  } catch {
+    return false;
+  }
+}
+
+function getConfiguredAgentModels(): string[] {
+  return process.env.EVAL_AGENT_MODELS
+    ? parseModelList(process.env.EVAL_AGENT_MODELS)
+    : [...DEFAULT_AGENT_MODELS_STANDARD];
+}
+
+function getConfiguredCuaAgentModels(): string[] {
+  return process.env.EVAL_AGENT_MODELS_CUA
+    ? parseModelList(process.env.EVAL_AGENT_MODELS_CUA)
+    : DEFAULT_AGENT_MODELS_CUA.filter(hasProviderEnvSupport);
+}
+
+function uniqueAgentEntries(entries: AgentModelEntry[]): AgentModelEntry[] {
+  const seen = new Set<string>();
+  return entries.filter((entry) => {
+    const key = `${entry.modelName}:${entry.mode}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildAgentModelEntries(): AgentModelEntry[] {
+  return uniqueAgentEntries([
+    ...getConfiguredAgentModels().flatMap((modelName) =>
+      DEFAULT_AGENT_MODEL_MODES.map((mode) => ({
+        modelName,
+        mode,
+        cua: false,
+      })),
+    ),
+    ...getConfiguredCuaAgentModels()
+      .filter(isCuaModel)
+      .map((modelName) => ({
+        modelName,
+        mode: "cua" as const,
+        cua: true,
+      })),
+  ]);
+}
+
+function getDefaultAgentModels(): string[] {
+  return [...new Set(buildAgentModelEntries().map((entry) => entry.modelName))];
+}
 
 const getModelList = (category?: string): string[] => {
   const provider = process.env.EVAL_PROVIDER?.toLowerCase();
 
   if (category === "agent" || category === "external_agent_benchmarks") {
-    return DEFAULT_AGENT_MODELS;
+    return getDefaultAgentModels();
   }
 
   if (provider) {
@@ -307,7 +357,7 @@ const MODELS: AvailableModel[] = getModelList().map((model) => {
   return model as AvailableModel;
 });
 
-const getAgentModelEntries = (): AgentModelEntry[] => AGENT_MODEL_ENTRIES;
+const getAgentModelEntries = (): AgentModelEntry[] => buildAgentModelEntries();
 
 export { tasksByName, MODELS, tasksConfig, getModelList, getAgentModelEntries };
 export type { AgentModelEntry };

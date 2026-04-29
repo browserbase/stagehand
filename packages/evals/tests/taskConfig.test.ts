@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AgentProvider, providerEnvVarMap } from "@browserbasehq/stagehand";
+import {
+  AgentProvider,
+  AVAILABLE_CUA_MODELS,
+  providerEnvVarMap,
+} from "@browserbasehq/stagehand";
 
 type TaskConfigModule = typeof import("../taskConfig.js");
 
@@ -99,6 +103,76 @@ describe("getAgentModelEntries", () => {
     expect(cuaEntries.map((entry) => entry.modelName)).not.toContain(
       "microsoft/fara-7b",
     );
+  });
+
+  it("runs configured standard agent models in dom and hybrid modes", async () => {
+    process.env.EVAL_AGENT_MODELS = "openai/gpt-4.1-mini";
+    process.env.EVAL_AGENT_MODELS_CUA = " ";
+
+    const { getAgentModelEntries } = await loadTaskConfig();
+    const entries = getAgentModelEntries();
+    const modes = entries
+      .filter((entry) => entry.modelName === "openai/gpt-4.1-mini")
+      .map((entry) => entry.mode)
+      .sort();
+
+    expect(modes).toEqual(["dom", "hybrid"]);
+    expect(entries.every((entry) => entry.cua === false)).toBe(true);
+  });
+
+  it("keeps the default CUA matrix intentionally smaller than all CUA models", async () => {
+    const { getAgentModelEntries } = await loadTaskConfig();
+    const cuaModels = [
+      ...new Set(
+        getAgentModelEntries()
+          .filter((entry) => entry.cua)
+          .map((entry) => entry.modelName),
+      ),
+    ];
+
+    expect(cuaModels.length).toBeGreaterThan(0);
+    expect(cuaModels.length).toBeLessThan(AVAILABLE_CUA_MODELS.length);
+    expect(cuaModels).not.toContain("microsoft/fara-7b");
+  });
+
+  it("runs CUA-capable EVAL_AGENT_MODELS entries in dom and hybrid modes", async () => {
+    process.env.EVAL_AGENT_MODELS =
+      "openai/gpt-5.4,google/gemini-3-flash-preview";
+    process.env.EVAL_AGENT_MODELS_CUA = " ";
+
+    const { getAgentModelEntries } = await loadTaskConfig();
+    const entries = getAgentModelEntries();
+    const standardModes = entries
+      .filter((entry) => entry.modelName === "openai/gpt-5.4")
+      .map((entry) => entry.mode)
+      .sort();
+    const cuaEntries = entries.filter(
+      (entry) => entry.modelName === "google/gemini-3-flash-preview",
+    );
+
+    expect(standardModes).toEqual(["dom", "hybrid"]);
+    expect(cuaEntries.map((entry) => entry.mode).sort()).toEqual([
+      "dom",
+      "hybrid",
+    ]);
+    expect(cuaEntries.every((entry) => entry.cua === false)).toBe(true);
+  });
+
+  it("does not run non-CUA models from EVAL_AGENT_MODELS_CUA as CUA", async () => {
+    process.env.EVAL_AGENT_MODELS = " ";
+    process.env.EVAL_AGENT_MODELS_CUA =
+      "openai/gpt-4.1-mini,google/gemini-3-flash-preview";
+
+    const { getAgentModelEntries } = await loadTaskConfig();
+    const entries = getAgentModelEntries();
+
+    expect(entries).toEqual([
+      {
+        modelName: "google/gemini-3-flash-preview",
+        mode: "cua",
+        cua: true,
+      },
+    ]);
   });
 });
 

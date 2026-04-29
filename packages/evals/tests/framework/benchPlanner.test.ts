@@ -152,6 +152,169 @@ describe("benchPlanner", () => {
     );
   });
 
+  it("runs configured non-CUA agent models in dom and hybrid modes", async () => {
+    const testcases = await withEnvOverrides(
+      {
+        EVAL_AGENT_MODELS: "openai/gpt-4.1-mini",
+        EVAL_AGENT_MODELS_CUA: " ",
+        EVAL_MAX_K: "1",
+        EVAL_WEBVOYAGER_LIMIT: "1",
+      },
+      async () =>
+        generateBenchTestcases(
+          [
+            makeTask({
+              name: "agent/webvoyager",
+              primaryCategory: "agent",
+              categories: ["external_agent_benchmarks"],
+            }),
+          ],
+          {
+            datasetFilter: "webvoyager",
+            harness: "stagehand",
+          },
+        ),
+    );
+
+    expect(testcases).toHaveLength(2);
+    expect(
+      testcases.map((testcase) => testcase.input.agentMode).sort(),
+    ).toEqual(["dom", "hybrid"]);
+    expect(
+      testcases.every(
+        (testcase) => testcase.input.modelName === "openai/gpt-4.1-mini",
+      ),
+    ).toBe(true);
+  });
+
+  it("can run CUA-capable models in requested dom and hybrid modes", async () => {
+    const testcases = await withEnvOverrides(
+      {
+        EVAL_AGENT_MODELS: "openai/gpt-4.1-mini",
+        EVAL_AGENT_MODELS_CUA: "google/gemini-3-flash-preview",
+        EVAL_MAX_K: "1",
+        EVAL_WEBVOYAGER_LIMIT: "1",
+      },
+      async () =>
+        generateBenchTestcases(
+          [
+            makeTask({
+              name: "agent/webvoyager",
+              primaryCategory: "agent",
+              categories: ["external_agent_benchmarks"],
+            }),
+          ],
+          {
+            datasetFilter: "webvoyager",
+            harness: "stagehand",
+            agentModes: ["dom", "hybrid"],
+          },
+        ),
+    );
+
+    expect(
+      testcases.map((testcase) => testcase.input.agentMode).sort(),
+    ).toEqual(["dom", "dom", "hybrid", "hybrid"]);
+    expect(
+      testcases
+        .filter(
+          (testcase) =>
+            testcase.input.modelName === "google/gemini-3-flash-preview",
+        )
+        .map((testcase) => testcase.input.agentMode)
+        .sort(),
+    ).toEqual(["dom", "hybrid"]);
+  });
+
+  it("can select only CUA entries with explicit cua mode", async () => {
+    const testcases = await withEnvOverrides(
+      {
+        EVAL_AGENT_MODELS: "openai/gpt-4.1-mini",
+        EVAL_AGENT_MODELS_CUA: "google/gemini-3-flash-preview",
+        EVAL_MAX_K: "1",
+        EVAL_WEBVOYAGER_LIMIT: "1",
+      },
+      async () =>
+        generateBenchTestcases(
+          [
+            makeTask({
+              name: "agent/webvoyager",
+              primaryCategory: "agent",
+              categories: ["external_agent_benchmarks"],
+            }),
+          ],
+          {
+            datasetFilter: "webvoyager",
+            harness: "stagehand",
+            agentModes: ["cua"],
+          },
+        ),
+    );
+
+    expect(testcases).toHaveLength(1);
+    expect(testcases[0].input.modelName).toBe("google/gemini-3-flash-preview");
+    expect(testcases[0].input.agentMode).toBe("cua");
+    expect(testcases[0].input.isCUA).toBe(true);
+  });
+
+  it("rejects non-CUA model overrides in explicit cua mode", async () => {
+    await expect(
+      withEnvOverrides(
+        {
+          EVAL_MAX_K: "1",
+          EVAL_WEBVOYAGER_LIMIT: "1",
+        },
+        async () =>
+          generateBenchTestcases(
+            [
+              makeTask({
+                name: "agent/webvoyager",
+                primaryCategory: "agent",
+                categories: ["external_agent_benchmarks"],
+              }),
+            ],
+            {
+              modelOverride: "openai/gpt-4.1-mini",
+              datasetFilter: "webvoyager",
+              harness: "stagehand",
+              agentMode: "cua",
+            },
+          ),
+      ),
+    ).rejects.toThrow(/CUA-capable models are required/);
+  });
+
+  it("does not run non-CUA models in requested cua mode", async () => {
+    const testcases = await withEnvOverrides(
+      {
+        EVAL_AGENT_MODELS: "openai/gpt-4.1-mini",
+        EVAL_AGENT_MODELS_CUA: "google/gemini-3-flash-preview",
+        EVAL_MAX_K: "1",
+        EVAL_WEBVOYAGER_LIMIT: "1",
+      },
+      async () =>
+        generateBenchTestcases(
+          [
+            makeTask({
+              name: "agent/webvoyager",
+              primaryCategory: "agent",
+              categories: ["external_agent_benchmarks"],
+            }),
+          ],
+          {
+            datasetFilter: "webvoyager",
+            harness: "stagehand",
+            agentModes: ["cua"],
+          },
+        ),
+    );
+
+    expect(testcases.map((testcase) => testcase.input.modelName)).toEqual([
+      "google/gemini-3-flash-preview",
+    ]);
+    expect(testcases[0].input.agentMode).toBe("cua");
+  });
+
   it("does not expand non-agent model overrides across agent modes", () => {
     const testcases = generateBenchTestcases([makeTask()], {
       modelOverride: "openai/gpt-4.1-mini",

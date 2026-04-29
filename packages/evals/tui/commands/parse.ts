@@ -37,6 +37,7 @@ export interface RunFlags {
   sample?: number;
   filter?: Array<[string, string]>;
   dryRun?: boolean;
+  preview?: boolean;
   /** Spawn the pre-refactor index.eval.ts runner instead of the unified path. */
   legacy?: boolean;
 }
@@ -69,6 +70,7 @@ export interface ResolvedRunOptions {
   datasetFilter?: string;
   envOverrides: Record<string, string>;
   dryRun: boolean;
+  preview: boolean;
   verbose: boolean;
 }
 
@@ -84,7 +86,7 @@ const SUPPORTED_BENCHMARKS = new Set([
 
 const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "osworld"]);
 
-const BOOLEAN_FLAGS = new Set(["api", "dry-run", "legacy"]);
+const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "legacy"]);
 const VALUE_FLAGS = new Set([
   "trials",
   "concurrency",
@@ -203,6 +205,7 @@ export function parseRunArgs(tokens: string[]): RunFlags {
       if (BOOLEAN_FLAGS.has(name)) {
         if (name === "api") flags.api = true;
         else if (name === "dry-run") flags.dryRun = true;
+        else if (name === "preview") flags.preview = true;
         else if (name === "legacy") flags.legacy = true;
         i++;
         continue;
@@ -274,6 +277,13 @@ export function parseRunArgs(tokens: string[]): RunFlags {
   }
 
   if (filters.length > 0) flags.filter = filters;
+
+  if (flags.dryRun && flags.preview) {
+    throw new Error(
+      "--preview and --dry-run are mutually exclusive\n  Use --dry-run for JSON output\n  Use --preview for the human-readable table",
+    );
+  }
+
   return flags;
 }
 
@@ -434,6 +444,7 @@ export function resolveRunOptions(
     datasetFilter,
     envOverrides,
     dryRun: flags.dryRun ?? false,
+    preview: flags.preview ?? false,
     verbose: defaults.verbose ?? false,
   };
 }

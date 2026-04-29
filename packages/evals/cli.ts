@@ -106,15 +106,26 @@ const args = process.argv.slice(2);
   //
   // Note: raw mode disables the OS-level Ctrl+C → SIGINT translation,
   // so we forward it ourselves.
+  let cleanupArgvInput = (): void => {};
   if (args.length > 0 && process.stdin.isTTY) {
     const readline = await import("node:readline");
+    const wasRaw = process.stdin.isRaw;
     readline.emitKeypressEvents(process.stdin);
-    process.stdin.setRawMode?.(true);
-    process.stdin.on("keypress", (_str, key) => {
+    const onKeypress = (
+      _str: string,
+      key: { name?: string; ctrl?: boolean } | undefined,
+    ): void => {
       if (!key) return;
       if (key.name === "escape") void handleSignal("SIGINT");
       else if (key.ctrl && key.name === "c") void handleSignal("SIGINT");
-    });
+    };
+    process.stdin.setRawMode?.(true);
+    process.stdin.on("keypress", onKeypress);
+    cleanupArgvInput = () => {
+      process.stdin.off("keypress", onKeypress);
+      process.stdin.setRawMode?.(Boolean(wasRaw));
+      process.stdin.pause();
+    };
   }
 
   async function executeRun(tokens: string[]): Promise<void> {
@@ -226,6 +237,8 @@ const args = process.argv.slice(2);
     }
   } catch (err) {
     console.error(red(`Error: ${(err as Error).message}`));
-    process.exit(1);
+    process.exitCode = 1;
+  } finally {
+    cleanupArgvInput();
   }
 })();

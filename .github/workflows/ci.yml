@@ -25,7 +25,7 @@ env:
   BROWSERBASE_FLOW_LOGS: "1"
   LLM_MAX_MS: "15000"
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.5-flash,anthropic/claude-haiku-4-5"
-  EVAL_AGENT_MODELS: "openai/gpt-5.4,anthropic/claude-sonnet-4-6"
+  EVAL_AGENT_MODELS: "openai/gpt-5.4-mini,anthropic/claude-haiku-4-5,google/gemini-3-flash-preview"
   EVAL_CATEGORIES: "regression,observe,act,combination,extract,targeted_extract,agent"
   EVAL_MAX_CONCURRENCY: 25
   EVAL_TRIAL_COUNT: 3
