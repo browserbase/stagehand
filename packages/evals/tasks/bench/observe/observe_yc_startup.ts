@@ -24,8 +24,8 @@ export default defineBenchTask(
       }
 
       const possibleLocators = [
-        `div._rightCol_zhfs4_592`,
-        `div._section_zhfs4_163._results_zhfs4_343`,
+        `div._rightCol_18olp_594`,
+        `div._section_18olp_165 _results_18olp_345`,
       ];
 
       // Precompute candidate backendNodeIds

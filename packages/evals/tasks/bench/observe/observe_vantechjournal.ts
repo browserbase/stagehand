@@ -20,8 +20,8 @@ export default defineBenchTask(
       }
 
       const expectedLocators = [
-        "xpath=/html/body/div[2]/div/section/div/div/div[3]/a",
-        "xpath=/html/body/div[2]/div/section/div/div/div[3]/a/span",
+        "xpath=/html/body/div[2]/div/div/section/div/div/div[3]/a",
+        "xpath=/html/body/div[2]/div/div/section/div/div/div[3]/a/span",
       ];
 
       const expectedIds: number[] = [];
