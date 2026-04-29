@@ -12,6 +12,7 @@ export default defineBenchTask(
       await v3.act('type "OpenAI" into the search bar');
 
       await v3.act("press enter");
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       const expectedUrl =
         "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
