@@ -10,6 +10,8 @@
 import fs from "fs";
 import { LogLine } from "@browserbasehq/stagehand";
 import stringComparison from "string-comparison";
+import type { AgentModelEntry } from "./types/evals.js";
+import { inferDefaultStagehandAgentMode } from "./framework/agentModelModes.js";
 const { jaroWinkler } = stringComparison;
 
 /**
@@ -82,27 +84,43 @@ export function generateTimestamp(): string {
 
 /**
  * generateExperimentName:
- * Creates a unique name for the experiment based on optional evalName or category,
- * the environment (e.g., dev or CI), and the current timestamp.
- * This is used to label the output files and directories.
+ * Returns just the target label. Braintrust handles uniqueness via IDs.
+ * All context (env, tool, startup) goes into experiment metadata instead.
  */
 export function generateExperimentName({
   evalName,
   category,
-  environment,
 }: {
   evalName?: string;
   category?: string;
-  environment: string;
+  environment?: string;
+  toolSurface?: string;
+  startupProfile?: string;
 }): string {
-  const timestamp = generateTimestamp();
-  if (evalName) {
-    return `${evalName}_${environment.toLowerCase()}_${timestamp}`;
+  if (evalName) return evalName;
+  if (category) return category;
+  return "all";
+}
+
+function clipLogLine(line: string): string {
+  const terminalWidth = process.stdout.columns;
+  const maxWidth =
+    typeof terminalWidth === "number" && terminalWidth > 8
+      ? terminalWidth - 1
+      : 119;
+
+  if (line.length <= maxWidth) {
+    return line;
   }
-  if (category) {
-    return `${category}_${environment.toLowerCase()}_${timestamp}`;
-  }
-  return `all_${environment.toLowerCase()}_${timestamp}`;
+
+  return `${line.slice(0, maxWidth - 1)}…`;
+}
+
+function clipLogOutput(output: string): string {
+  return output
+    .split("\n")
+    .map((line) => clipLogLine(line))
+    .join("\n");
 }
 
 export function logLineToString(logLine: LogLine): string {
@@ -112,11 +130,15 @@ export function logLineToString(logLine: LogLine): string {
       const errorValue = logLine.auxiliary.error?.value ?? "";
       const traceValue = logLine.auxiliary.trace?.value ?? "";
       const traceSuffix = traceValue ? `\n ${traceValue}` : "";
-      return `${timestamp}::[stagehand:${logLine.category}] ${logLine.message}\n ${errorValue}${traceSuffix}`;
+      return clipLogOutput(
+        `${timestamp}::[stagehand:${logLine.category}] ${logLine.message}\n ${errorValue}${traceSuffix}`,
+      );
     }
-    return `${timestamp}::[stagehand:${logLine.category}] ${logLine.message} ${
-      logLine.auxiliary ? JSON.stringify(logLine.auxiliary) : ""
-    }`;
+    return clipLogOutput(
+      `${timestamp}::[stagehand:${logLine.category}] ${logLine.message} ${
+        logLine.auxiliary ? JSON.stringify(logLine.auxiliary) : ""
+      }`,
+    );
   } catch (error) {
     console.error(`Error logging line:`, error);
     return "error logging line";
@@ -205,4 +227,16 @@ export function applySampling<T>(
     }
     return result;
   }
+}
+
+export function normalizeAgentModelEntries(
+  models: string[] | AgentModelEntry[],
+): AgentModelEntry[] {
+  if (models.length === 0) return [];
+  if (typeof models[0] !== "string") return models as AgentModelEntry[];
+
+  return (models as string[]).map((modelName) => {
+    const mode = inferDefaultStagehandAgentMode(modelName);
+    return { modelName, mode, cua: mode === "cua" };
+  });
 }

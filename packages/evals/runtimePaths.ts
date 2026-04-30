@@ -20,6 +20,8 @@ const INTERNAL_FRAME_NAMES = new Set([
   "getCurrentDirPath",
   "getRepoRootDir",
   "getPackageRootDir",
+  "resolveRuntimeTasksRoot",
+  "getRuntimeTasksRoot",
   "createRequireFromCaller",
   "isMainModule",
 ]);
@@ -112,6 +114,22 @@ export const getRepoRootDir = (): string => {
 
 export const getPackageRootDir = (): string =>
   `${getRepoRootDir()}${PACKAGE_SEGMENT.slice(0, -1)}`;
+
+export const resolveRuntimeTasksRoot = (
+  callerFilePath: string,
+  packageRootDir: string,
+): string => {
+  const normalizedCaller = normalizePath(callerFilePath);
+  if (normalizedCaller.includes("/dist/")) {
+    const compiledTasksRoot = `${packageRootDir}/dist/esm/tasks`;
+    return compiledTasksRoot;
+  }
+
+  return path.join(packageRootDir, "tasks");
+};
+
+export const getRuntimeTasksRoot = (): string =>
+  resolveRuntimeTasksRoot(getCurrentFilePath(), getPackageRootDir());
 
 export const createRequireFromCaller = () =>
   createRequire(getCurrentFilePath());

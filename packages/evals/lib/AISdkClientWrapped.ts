@@ -10,7 +10,6 @@ import {
   Tool,
 } from "ai";
 import * as ai from "ai";
-import { wrapAISDK } from "braintrust";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import {
@@ -22,8 +21,18 @@ import {
   toJsonSchema,
 } from "@browserbasehq/stagehand";
 
-// Wrap AI SDK functions with Braintrust for tracing
-const { generateObject, generateText } = wrapAISDK(ai);
+let wrappedAiPromise:
+  | Promise<ReturnType<(typeof import("braintrust"))["wrapAISDK"]>>
+  | undefined;
+
+async function loadWrappedAISDK(): Promise<
+  ReturnType<(typeof import("braintrust"))["wrapAISDK"]>
+> {
+  wrappedAiPromise ??= import("braintrust").then(({ wrapAISDK }) =>
+    wrapAISDK(ai),
+  );
+  return wrappedAiPromise;
+}
 
 export class AISdkClientWrapped extends LLMClient {
   public type = "aisdk" as const;
@@ -138,6 +147,7 @@ export class AISdkClientWrapped extends LLMClient {
       },
     );
 
+    const { generateObject, generateText } = await loadWrappedAISDK();
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
@@ -265,34 +275,40 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       }
     }
 
-    const textResponse = await generateText({
-      model: this.model,
-      messages: formattedMessages,
-      tools: Object.keys(tools).length > 0 ? tools : undefined,
-      toolChoice:
-        Object.keys(tools).length > 0
-          ? options.tool_choice === "required"
-            ? "required"
-            : options.tool_choice === "none"
-              ? "none"
-              : "auto"
-          : undefined,
-      temperature,
-    });
+    const textResponse: Awaited<ReturnType<typeof generateText>> =
+      await generateText({
+        model: this.model,
+        messages: formattedMessages,
+        tools: Object.keys(tools).length > 0 ? tools : undefined,
+        toolChoice:
+          Object.keys(tools).length > 0
+            ? options.tool_choice === "required"
+              ? "required"
+              : options.tool_choice === "none"
+                ? "none"
+                : "auto"
+            : undefined,
+        temperature,
+      });
 
-    // Transform AI SDK response to match LLMResponse format expected by operator handler
-    const transformedToolCalls = (textResponse.toolCalls || []).map(
-      (toolCall) => ({
-        id:
-          toolCall.toolCallId ||
-          `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: "function",
-        function: {
-          name: toolCall.toolName,
-          arguments: JSON.stringify(toolCall.input),
-        },
-      }),
-    );
+    // Transform AI SDK response to match LLMResponse format expected by operator handler.
+    type WrappedToolCall = {
+      toolCallId?: string;
+      toolName: string;
+      input: unknown;
+    };
+    const transformedToolCalls = (
+      (textResponse.toolCalls || []) as WrappedToolCall[]
+    ).map((toolCall) => ({
+      id:
+        toolCall.toolCallId ||
+        `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: "function",
+      function: {
+        name: toolCall.toolName,
+        arguments: JSON.stringify(toolCall.input),
+      },
+    }));
 
     const result = {
       id: `chatcmpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

@@ -1,13 +1,19 @@
-import type { Testcase, EvalInput } from "../types/evals.js";
+import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
-import { getCurrentDirPath } from "../runtimePaths.js";
-import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
+import { getPackageRootDir } from "../runtimePaths.js";
+import {
+  readJsonlFile,
+  parseJsonlRows,
+  applySampling,
+  normalizeAgentModelEntries,
+} from "../utils.js";
 
-export const buildWebTailBenchTestcases = (models: string[]): Testcase[] => {
-  const moduleDir = getCurrentDirPath();
+export const buildWebTailBenchTestcases = (
+  models: string[] | AgentModelEntry[],
+): Testcase[] => {
   const webtailbenchFilePath =
-    moduleDir + "/../datasets/webtailbench/WebTailBench_data.jsonl";
+    getPackageRootDir() + "/datasets/webtailbench/WebTailBench_data.jsonl";
 
   const lines = readJsonlFile(webtailbenchFilePath);
 
@@ -39,11 +45,13 @@ export const buildWebTailBenchTestcases = (models: string[]): Testcase[] => {
   const rows = applySampling(candidates, sampleCount, maxCases);
 
   const allTestcases: Testcase[] = [];
-  for (const model of models) {
+  for (const modelEntry of normalizeAgentModelEntries(models)) {
     for (const row of rows) {
       const input: EvalInput = {
         name: "agent/webtailbench",
-        modelName: model as AvailableModel,
+        modelName: modelEntry.modelName as AvailableModel,
+        agentMode: modelEntry.mode,
+        isCUA: modelEntry.mode === "cua",
         params: {
           id: row.id,
           category: row.category,
@@ -56,10 +64,12 @@ export const buildWebTailBenchTestcases = (models: string[]): Testcase[] => {
       allTestcases.push({
         input,
         name: input.name,
-        tags: [model, "webtailbench"],
+        tags: [modelEntry.modelName, modelEntry.mode, "webtailbench"],
         metadata: {
-          model: model as AvailableModel,
+          model: modelEntry.modelName as AvailableModel,
           test: `${input.name}:${row.id}`,
+          tier: "bench",
+          task: input.name,
           category: taskCategories[0] || "agent",
           categories: taskCategories,
           dataset: "webtailbench",

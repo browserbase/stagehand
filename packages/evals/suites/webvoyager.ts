@@ -1,15 +1,20 @@
 import path from "path";
-import type { Testcase, EvalInput } from "../types/evals.js";
+import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
-import { getCurrentDirPath } from "../runtimePaths.js";
-import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
+import { getPackageRootDir } from "../runtimePaths.js";
+import {
+  readJsonlFile,
+  parseJsonlRows,
+  applySampling,
+  normalizeAgentModelEntries,
+} from "../utils.js";
 
-export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
-  const moduleDir = getCurrentDirPath();
+export const buildWebVoyagerTestcases = (
+  models: string[] | AgentModelEntry[],
+): Testcase[] => {
   const voyagerFilePath = path.join(
-    moduleDir,
-    "..",
+    getPackageRootDir(),
     "datasets",
     "webvoyager",
     "WebVoyager_data.jsonl",
@@ -49,11 +54,13 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
   const rows = applySampling(candidates, sampleCount, maxCases);
 
   const allTestcases: Testcase[] = [];
-  for (const model of models) {
+  for (const modelEntry of normalizeAgentModelEntries(models)) {
     for (const row of rows) {
       const input: EvalInput = {
         name: "agent/webvoyager",
-        modelName: model as AvailableModel,
+        modelName: modelEntry.modelName as AvailableModel,
+        agentMode: modelEntry.mode,
+        isCUA: modelEntry.mode === "cua",
         params: {
           id: row.id,
           web: row.web,
@@ -67,12 +74,15 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
         input,
         name: input.name,
         tags: [
-          model,
+          modelEntry.modelName,
+          modelEntry.mode,
           "webvoyager", // Simple dataset tag
         ],
         metadata: {
-          model: model as AvailableModel,
+          model: modelEntry.modelName as AvailableModel,
           test: `${input.name}:${row.id}`,
+          tier: "bench",
+          task: input.name,
           category: taskCategories[0] || "agent",
           categories: taskCategories,
           dataset: "webvoyager",

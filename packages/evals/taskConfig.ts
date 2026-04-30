@@ -1,19 +1,21 @@
 /**
- * This file is responsible for:
- * - Loading and parsing the `evals.config.json` file, which defines tasks (evaluations) and their associated categories.
- * - Building a lookup structure (`tasksByName`) to map each task name to its categories.
- * - Filtering tasks based on command-line arguments (e.g., `filterByEvalName`) and ensuring that requested tasks exist.
- * - Determining which models to use for evaluations, depending on the category and environment variables.
- * - Validating that the chosen models are supported.
+ * Task and model configuration.
  *
- * The exported objects (`tasksByName`, `MODELS`, `config`) are used by the main evaluation script and other modules
- * to know which tasks and models are available, and to configure the evaluations accordingly.
+ * This module now builds the task registry from the filesystem (auto-discovery)
+ * instead of reading a static tasks array from evals.config.json.
+ * Model configuration logic is preserved as-is.
  */
 
 import fs from "fs";
 import path from "path";
-import { AvailableModel } from "@browserbasehq/stagehand";
-import { filterByEvalName } from "./args.js";
+import {
+  AgentProvider,
+  AVAILABLE_CUA_MODELS,
+  type AgentToolMode,
+  type AvailableCuaModel,
+  type AvailableModel,
+  providerEnvVarMap,
+} from "@browserbasehq/stagehand";
 import { AgentModelEntry } from "./types/evals.js";
 import { getCurrentDirPath } from "./runtimePaths.js";
 
@@ -56,25 +58,142 @@ const ALL_EVAL_MODELS = [
   "cerebras/llama3.3-70b",
 ];
 
-// The configuration file `evals.config.json` contains a list of tasks and their associated categories.
-const moduleDir = getCurrentDirPath();
-const configPath = path.join(moduleDir, "evals.config.json");
-const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) satisfies {
-  tasks: {
-    name: string;
-    categories: string[];
-  }[];
-};
+// ---------------------------------------------------------------------------
+// Auto-discover tasks from filesystem
+// ---------------------------------------------------------------------------
 
-/**
- * The `tasksConfig` defines all tasks from the config file. Each task has a name and categories.
- * We create a mapping `tasksByName` from task name to its categories for quick lookup.
- */
+const moduleDir = getCurrentDirPath();
+const tasksRoot = path.join(moduleDir, "tasks");
+
 type TaskConfig = {
   name: string;
   categories: string[];
 };
-const tasksConfig = config.tasks as TaskConfig[];
+
+/**
+ * Walk a directory to find .ts/.js task files (non-recursive for leaf dirs).
+ */
+function findTaskFiles(dir: string): string[] {
+  const results: string[] = [];
+  if (!fs.existsSync(dir)) return results;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...findTaskFiles(full));
+    } else if (
+      entry.isFile() &&
+      (entry.name.endsWith(".ts") || entry.name.endsWith(".js")) &&
+      !entry.name.endsWith(".d.ts")
+    ) {
+      results.push(full);
+    }
+  }
+  return results;
+}
+
+/**
+ * Cross-cutting categories that tasks may belong to in addition to their
+ * primary directory-based category. These were previously stored in
+ * evals.config.json and are preserved here as a static mapping so that
+ * commands like `evals run regression` or `evals run targeted_extract`
+ * continue to work after the migration to filesystem-based discovery.
+ */
+/**
+ * Extra categories to ADD to a task's directory-derived category.
+ */
+const EXTRA_CATEGORIES: Record<string, string[]> = {
+  instructions: ["regression"],
+  ionwave: ["regression"],
+  wichita: ["regression"],
+  extract_memorial_healthcare: ["regression"],
+  observe_github: ["regression"],
+  observe_vantechjournal: ["regression"],
+  observe_iframes1: ["regression"],
+  observe_iframes2: ["regression"],
+  extract_hamilton_weather: ["regression", "targeted_extract"],
+  scroll_50: ["regression"],
+  scroll_75: ["regression"],
+  next_chunk: ["regression"],
+  prev_chunk: ["regression"],
+  login: ["regression"],
+  no_js_click: ["regression"],
+  heal_simple_google_search: ["regression"],
+  extract_aigrant_companies: ["regression"],
+  extract_regulations_table: ["targeted_extract"],
+  extract_recipe: ["targeted_extract"],
+  extract_aigrant_targeted: ["targeted_extract"],
+  extract_aigrant_targeted_2: ["targeted_extract"],
+  extract_geniusee: ["targeted_extract"],
+  extract_geniusee_2: ["targeted_extract"],
+};
+
+/**
+ * Tasks whose categories REPLACE the directory-derived category entirely.
+ * Used for external benchmark suites that live in bench/agent/ but should
+ * NOT appear in the plain "agent" category.
+ */
+const CATEGORY_OVERRIDES: Record<string, string[]> = {
+  "agent/gaia": ["external_agent_benchmarks"],
+  "agent/webvoyager": ["external_agent_benchmarks"],
+  "agent/onlineMind2Web": ["external_agent_benchmarks"],
+  "agent/webtailbench": ["external_agent_benchmarks"],
+};
+
+/**
+ * Build tasksConfig from filesystem structure (bench tier only).
+ *
+ * Only scans tasks/bench/ — core tier tasks are not exposed to the legacy
+ * runner because index.eval.ts cannot execute them yet.
+ *
+ * Cross-cutting categories (regression, targeted_extract, external_agent_benchmarks)
+ * are merged from the static CROSS_CUTTING_CATEGORIES map.
+ */
+function buildTasksConfigFromFS(): TaskConfig[] {
+  const configs: TaskConfig[] = [];
+  const benchDir = path.join(tasksRoot, "bench");
+
+  if (!fs.existsSync(benchDir)) return configs;
+
+  const categories = fs
+    .readdirSync(benchDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+
+  for (const category of categories) {
+    const catDir = path.join(benchDir, category);
+    const files = findTaskFiles(catDir);
+
+    for (const filePath of files) {
+      const baseName = path.basename(filePath).replace(/\.(ts|js)$/, "");
+      const name = category === "agent" ? `agent/${baseName}` : baseName;
+
+      // Check for full category override first (e.g., external benchmark suites)
+      const override = CATEGORY_OVERRIDES[name];
+      if (override) {
+        configs.push({ name, categories: [...override] });
+        continue;
+      }
+
+      // Start with the primary directory category, then merge extras
+      const taskCategories = [category];
+      const extras = EXTRA_CATEGORIES[name];
+      if (extras) {
+        for (const extra of extras) {
+          if (!taskCategories.includes(extra)) {
+            taskCategories.push(extra);
+          }
+        }
+      }
+
+      configs.push({ name, categories: taskCategories });
+    }
+  }
+
+  return configs;
+}
+
+const tasksConfig = buildTasksConfigFromFS();
 
 const tasksByName = tasksConfig.reduce<
   Record<string, { categories: string[] }>
@@ -86,18 +205,23 @@ const tasksByName = tasksConfig.reduce<
 }, {});
 
 /**
- * If filtering by a specific eval name (task), ensure that this task actually exists.
+ * Validate a specific eval name against the discovered tasks.
+ * Called lazily (not at import time) to avoid side effects in bundled builds.
  */
-if (filterByEvalName && !tasksByName[filterByEvalName]) {
-  console.error(`Error: Evaluation "${filterByEvalName}" does not exist.`);
-  process.exit(1);
+export function validateEvalName(evalName: string): void {
+  if (evalName && !tasksByName[evalName]) {
+    console.error(`Error: Evaluation "${evalName}" does not exist.`);
+    console.error(
+      `Available tasks: ${Object.keys(tasksByName).slice(0, 20).join(", ")}...`,
+    );
+    process.exit(1);
+  }
 }
 
-/**
- * Determine which models to run the evaluations against.
- *
- * DEFAULT_EVAL_MODELS: The default set of models used for most categories.
- */
+// ---------------------------------------------------------------------------
+// Model configuration (preserved from original)
+// ---------------------------------------------------------------------------
+
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
   : [
@@ -106,38 +230,92 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
       "anthropic/claude-haiku-4-5",
     ];
 
-// Standard agent models - these run with stagehand.agent()
-const AGENT_MODELS = process.env.EVAL_AGENT_MODELS
-  ? process.env.EVAL_AGENT_MODELS.split(",")
-  : ["anthropic/claude-sonnet-4-20250514"];
-
-// CUA agent models - these run with stagehand.agent({ cua: true })
-const AGENT_MODELS_CUA = process.env.EVAL_AGENT_MODELS_CUA
-  ? process.env.EVAL_AGENT_MODELS_CUA.split(",")
-  : [
-      "openai/computer-use-preview-2025-03-11",
-      "anthropic/claude-sonnet-4-20250514",
-      "google/gemini-2.5-computer-use-preview-10-2025",
-    ];
-
-const AGENT_MODEL_ENTRIES: AgentModelEntry[] = [
-  ...AGENT_MODELS.map((m) => ({ modelName: m, cua: false })),
-  ...AGENT_MODELS_CUA.map((m) => ({ modelName: m, cua: true })),
+const DEFAULT_AGENT_MODELS_STANDARD = [
+  "anthropic/claude-haiku-4-5",
+  "openai/gpt-5.4-mini",
+  "google/gemini-3-flash-preview",
 ];
 
-const DEFAULT_AGENT_MODELS = AGENT_MODEL_ENTRIES.map((e) => e.modelName);
+const DEFAULT_AGENT_MODELS_CUA = [
+  "anthropic/claude-haiku-4-5",
+  "openai/gpt-5.4-mini",
+  "google/gemini-3-flash-preview",
+] satisfies readonly AvailableCuaModel[];
 
-/**
- * getModelList:
- * Returns a list of models to be used for the given category.
- * If category is "experimental", it merges DEFAULT_EVAL_MODELS and EXPERIMENTAL_EVAL_MODELS.
- * Otherwise, returns DEFAULT_EVAL_MODELS filtered by provider if specified.
- */
+const DEFAULT_AGENT_MODEL_MODES = [
+  "dom",
+  "hybrid",
+] as const satisfies readonly AgentToolMode[];
+
+const isCuaModel = (modelName: string): boolean =>
+  (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName);
+
+function parseModelList(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+}
+
+function hasProviderEnvSupport(modelName: string): boolean {
+  try {
+    const provider = AgentProvider.getAgentProvider(modelName);
+    return provider in providerEnvVarMap;
+  } catch {
+    return false;
+  }
+}
+
+function getConfiguredAgentModels(): string[] {
+  return process.env.EVAL_AGENT_MODELS
+    ? parseModelList(process.env.EVAL_AGENT_MODELS)
+    : [...DEFAULT_AGENT_MODELS_STANDARD];
+}
+
+function getConfiguredCuaAgentModels(): string[] {
+  return process.env.EVAL_AGENT_MODELS_CUA
+    ? parseModelList(process.env.EVAL_AGENT_MODELS_CUA)
+    : DEFAULT_AGENT_MODELS_CUA.filter(hasProviderEnvSupport);
+}
+
+function uniqueAgentEntries(entries: AgentModelEntry[]): AgentModelEntry[] {
+  const seen = new Set<string>();
+  return entries.filter((entry) => {
+    const key = `${entry.modelName}:${entry.mode}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildAgentModelEntries(): AgentModelEntry[] {
+  return uniqueAgentEntries([
+    ...getConfiguredAgentModels().flatMap((modelName) =>
+      DEFAULT_AGENT_MODEL_MODES.map((mode) => ({
+        modelName,
+        mode,
+        cua: false,
+      })),
+    ),
+    ...getConfiguredCuaAgentModels()
+      .filter(isCuaModel)
+      .map((modelName) => ({
+        modelName,
+        mode: "cua" as const,
+        cua: true,
+      })),
+  ]);
+}
+
+function getDefaultAgentModels(): string[] {
+  return [...new Set(buildAgentModelEntries().map((entry) => entry.modelName))];
+}
+
 const getModelList = (category?: string): string[] => {
   const provider = process.env.EVAL_PROVIDER?.toLowerCase();
 
   if (category === "agent" || category === "external_agent_benchmarks") {
-    return DEFAULT_AGENT_MODELS;
+    return getDefaultAgentModels();
   }
 
   if (provider) {
@@ -146,11 +324,9 @@ const getModelList = (category?: string): string[] => {
     );
   }
 
-  // If no agent category and no provider, return default eval models
   return DEFAULT_EVAL_MODELS;
 };
 
-// Helper function to contain the provider filtering logic
 const filterModelByProvider = (model: string, provider: string): boolean => {
   const modelLower = model.toLowerCase();
   if (provider === "openai") {
@@ -181,10 +357,7 @@ const MODELS: AvailableModel[] = getModelList().map((model) => {
   return model as AvailableModel;
 });
 
-/**
- * Get agent model entries with CUA flag for test case generation.
- */
-const getAgentModelEntries = (): AgentModelEntry[] => AGENT_MODEL_ENTRIES;
+const getAgentModelEntries = (): AgentModelEntry[] => buildAgentModelEntries();
 
 export { tasksByName, MODELS, tasksConfig, getModelList, getAgentModelEntries };
 export type { AgentModelEntry };

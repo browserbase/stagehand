@@ -1,0 +1,237 @@
+flowchart TB
+    subgraph Entrypoints["Entrypoints and Distribution"]
+        CLI["cli.ts<br/>single-shot argv"]
+        REPL["tui/repl.ts<br/>interactive shell<br/>Esc abort support"]
+        BuildCLI["scripts/build-cli.ts<br/>bundled dist/cli bin"]
+        BuildESM["scripts/build-esm.ts<br/>dist/esm + assets + datasets"]
+        LegacyCLI["cli-legacy.ts / index.eval.ts<br/>--legacy escape hatch"]
+    end
+
+    subgraph TUI["TUI Command Layer"]
+        Help["help<br/>usage text"]
+        List["list<br/>registry views"]
+        ConfigCmd["config<br/>read/write defaults"]
+        ConfigCore["config core<br/>tool surface + startup<br/>profile defaults"]
+        NewTask["new<br/>task scaffold"]
+        Experiments["experiments<br/>Braintrust inspect/compare"]
+        RunCmd["run<br/>progress + dry-run plan"]
+        Parse["parse.ts<br/>flag validation<br/>target shorthand<br/>env override scope"]
+        ConfigFile[("evals.config.json<br/>defaults, core config,<br/>benchmark metadata")]
+    end
+
+    subgraph Registry["Task Registry and Target Resolution"]
+        RuntimePaths["runtimePaths.ts<br/>source vs dist roots"]
+        Discovery["framework/discovery.ts<br/>filesystem scan<br/>category overrides<br/>lazy/eager metadata"]
+        Resolver["resolveTarget()<br/>tier, category, task,<br/>partial name"]
+        CoreTasks[("core/tasks/*<br/>deterministic tool tasks")]
+        BenchTasks[("tasks/bench/*<br/>act, extract, observe,<br/>agent, combination, suites")]
+        DefineTask["framework/defineTask.ts<br/>defineCoreTask<br/>defineBenchTask"]
+    end
+
+    subgraph Planning["Run Planning"]
+        ResolvedOptions["ResolvedRunOptions<br/>env, trials, concurrency,<br/>model, provider, api,<br/>harness, agent mode"]
+        BenchPlanner["framework/benchPlanner.ts<br/>model matrix<br/>suite expansion<br/>metadata/tags"]
+        TaskConfig["taskConfig.ts<br/>default models<br/>agent model entries"]
+        Datasets[("datasets/*<br/>WebVoyager<br/>OnlineMind2Web<br/>WebTailBench")]
+        DryRun["dry-run JSON<br/>tasks, skippedTasks,<br/>envOverrides, runOptions"]
+    end
+
+    subgraph Runner["Unified Runner"]
+        RunEvals["framework/runner.ts<br/>generate testcases<br/>Braintrust Eval wrapper<br/>progress callbacks"]
+        BraintrustAdapter["framework/braintrust.ts<br/>lazy import<br/>traced spans"]
+        Cleanup["activeRunCleanup.ts<br/>signal cleanup<br/>registered session cleanup"]
+        Scoring["scoring.ts<br/>passRate<br/>exactMatch<br/>errorMatch"]
+        Summary["summary.ts<br/>local run summary"]
+    end
+
+    subgraph CoreTier["Core Tier Execution"]
+        CoreContext["framework/context.ts<br/>buildCoreContext"]
+        FixtureServer["core/fixtures<br/>local deterministic pages"]
+        CoreTargets["core/targets<br/>local Chrome<br/>Browserbase CDP"]
+        CoreTools["core/tools registry<br/>understudy_code<br/>playwright_code<br/>cdp_code<br/>playwright_mcp<br/>chrome_devtools_mcp<br/>browse_cli"]
+        CoreAssertions["assertions + metrics<br/>adapter-backed results"]
+        CoreDeps["core/runtime/coreDeps.ts<br/>browserbase + ws<br/>lazy require"]
+    end
+
+    subgraph BenchTier["Bench Tier Execution"]
+        BenchRunner["framework/benchRunner.ts<br/>load task module<br/>execute bench task"]
+        TaskLoader["framework/taskLoader.ts<br/>defineBenchTask + legacy<br/>module loader"]
+        HarnessRegistry["framework/benchHarness.ts<br/>stagehand + claude_code<br/>codex"]
+        InitV3["initV3.ts<br/>V3 session + agent"]
+        AISDK["AISdkClientWrapped<br/>provider/model client"]
+        ClaudeCodeRunner["framework/claudeCodeRunner.ts<br/>Claude Code SDK adapter<br/>prompt + result parse"]
+        ClaudeCodeToolAdapter["framework/claudeCodeToolAdapter.ts<br/>tool-surface handoff<br/>browse_cli wrapper"]
+        ExternalHarnessPlan["framework/externalHarnessPlan.ts<br/>webvoyager / onlineMind2Web /<br/>webtailbench task plan"]
+        BenchSuites["suites/*<br/>dataset-backed suite cases"]
+        BenchTaskDefs["bench task modules<br/>defineBenchTask or legacy fn"]
+    end
+
+    subgraph Reporting["Reporting and Inspection"]
+        Progress["tui/progress.ts<br/>live task table"]
+        ResultsView["tui/results.ts<br/>model summary<br/>results table"]
+        ReportLib["lib/braintrust-report.ts<br/>experiment fetch<br/>comparison data"]
+        RenderReport["scripts/render-braintrust-core-report.ts<br/>core report rendering"]
+    end
+
+    subgraph External["External Systems"]
+        Braintrust["Braintrust<br/>experiments, spans,<br/>scores, comparisons"]
+        Browserbase["Browserbase<br/>remote browser sessions"]
+        LocalBrowser["Local Chromium<br/>fixture-backed sessions"]
+        Providers["LLM Providers<br/>OpenAI, Anthropic,<br/>Google, others"]
+        Stagehand["Stagehand package<br/>V3, AgentProvider,<br/>available models"]
+        ClaudeCodeSDK["@anthropic-ai/claude-agent-sdk<br/>external Claude Code agent<br/>headless run"]
+    end
+
+    %% Entrypoints
+    CLI --> Parse
+    CLI --> RunCmd
+    CLI --> List
+    CLI --> ConfigCmd
+    CLI --> Experiments
+    CLI --> NewTask
+    CLI --> Help
+    REPL --> Parse
+    REPL --> RunCmd
+    BuildCLI --> CLI
+    BuildESM --> RuntimePaths
+    LegacyCLI --> LegacyRunner["legacy runner path<br/>pre-refactor behavior"]
+
+    %% TUI and config
+    ConfigCmd <--> ConfigFile
+    ConfigCmd --> ConfigCore
+    ConfigCore <--> ConfigFile
+    ConfigCore --> CoreTools
+    Parse --> ConfigFile
+    Parse --> ResolvedOptions
+    Parse --> DryRun
+    RunCmd --> ResolvedOptions
+    RunCmd --> RuntimePaths
+    RunCmd --> Discovery
+    List --> Discovery
+    NewTask --> CoreTasks
+    NewTask --> BenchTasks
+    Experiments --> ReportLib
+
+    %% Registry
+    RuntimePaths --> CoreTasks
+    RuntimePaths --> BenchTasks
+    CoreTasks --> Discovery
+    BenchTasks --> Discovery
+    DefineTask --> CoreTasks
+    DefineTask --> BenchTasks
+    Discovery --> Resolver
+    Resolver --> RunCmd
+
+    %% Planning
+    RunCmd --> BenchPlanner
+    RunCmd --> DryRun
+    ResolvedOptions --> BenchPlanner
+    TaskConfig --> BenchPlanner
+    Datasets --> BenchSuites
+    BenchSuites --> BenchPlanner
+    BenchPlanner --> RunEvals
+    Resolver --> RunEvals
+
+    %% Runner
+    RunCmd --> RunEvals
+    RunEvals --> BraintrustAdapter
+    RunEvals --> Cleanup
+    RunEvals --> Scoring
+    RunEvals --> Summary
+    RunEvals --> CoreContext
+    RunEvals --> BenchRunner
+    RunEvals --> Progress
+    Progress --> ResultsView
+
+    %% Core path
+    CoreContext --> FixtureServer
+    CoreContext --> CoreTargets
+    CoreContext --> CoreTools
+    CoreContext --> CoreAssertions
+    CoreTargets --> LocalBrowser
+    CoreTargets --> Browserbase
+    CoreTools --> LocalBrowser
+    CoreTools --> Browserbase
+    CoreTargets --> CoreDeps
+    CoreTools --> CoreDeps
+
+    %% Bench path
+    BenchRunner --> HarnessRegistry
+    BenchRunner --> TaskLoader
+    TaskLoader --> BenchTaskDefs
+    HarnessRegistry --> InitV3
+    InitV3 --> Stagehand
+    InitV3 --> Browserbase
+    InitV3 --> LocalBrowser
+    HarnessRegistry --> AISDK
+    AISDK --> Providers
+    BenchRunner --> BenchTaskDefs
+    BenchTaskDefs --> Stagehand
+    BenchSuites --> Datasets
+
+    %% Claude Code external harness path
+    HarnessRegistry --> ClaudeCodeRunner
+    HarnessRegistry --> ClaudeCodeToolAdapter
+    HarnessRegistry --> ExternalHarnessPlan
+    ClaudeCodeToolAdapter --> CoreTools
+    ClaudeCodeToolAdapter --> CoreTargets
+    ClaudeCodeRunner --> ClaudeCodeSDK
+    ClaudeCodeSDK --> Providers
+
+    %% Reporting and external
+    BraintrustAdapter --> Braintrust
+    ReportLib --> Braintrust
+    RenderReport --> ReportLib
+    Summary --> Braintrust
+    Stagehand --> Providers
+
+    %% Styling
+    style Entrypoints fill:#263238,stroke:#111111,stroke-width:3px,color:#ffffff
+    style TUI fill:#0d47a1,stroke:#082d69,stroke-width:3px,color:#ffffff
+    style Registry fill:#1b5e20,stroke:#0d3010,stroke-width:3px,color:#ffffff
+    style Planning fill:#6a1b9a,stroke:#4a148c,stroke-width:3px,color:#ffffff
+    style Runner fill:#004d40,stroke:#00251f,stroke-width:3px,color:#ffffff
+    style CoreTier fill:#bf360c,stroke:#7f2207,stroke-width:3px,color:#ffffff
+    style BenchTier fill:#1565c0,stroke:#0d47a1,stroke-width:3px,color:#ffffff
+    style Reporting fill:#4e342e,stroke:#2d1b17,stroke-width:3px,color:#ffffff
+    style External fill:#7f0000,stroke:#4d0000,stroke-width:3px,color:#ffffff
+
+    style CLI fill:#eceff1,stroke:#263238,stroke-width:2px,color:#000000
+    style REPL fill:#eceff1,stroke:#263238,stroke-width:2px,color:#000000
+    style BuildCLI fill:#cfd8dc,stroke:#263238,stroke-width:2px,color:#000000
+    style BuildESM fill:#cfd8dc,stroke:#263238,stroke-width:2px,color:#000000
+    style LegacyCLI fill:#ffcdd2,stroke:#b71c1c,stroke-width:2px,color:#000000
+    style LegacyRunner fill:#ffcdd2,stroke:#b71c1c,stroke-width:2px,color:#000000
+
+    style Parse fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000000
+    style RunCmd fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000000
+    style ConfigCore fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000000
+    style ConfigFile fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px,color:#000000
+    style Discovery fill:#c8e6c9,stroke:#1b5e20,stroke-width:2px,color:#000000
+    style Resolver fill:#a5d6a7,stroke:#1b5e20,stroke-width:2px,color:#000000
+    style CoreTasks fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000000
+    style BenchTasks fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000000
+
+    style BenchPlanner fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px,color:#000000
+    style Datasets fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000000
+    style RunEvals fill:#b2dfdb,stroke:#004d40,stroke-width:2px,color:#000000
+    style BraintrustAdapter fill:#e0f2f1,stroke:#004d40,stroke-width:2px,color:#000000
+    style Cleanup fill:#e0f2f1,stroke:#004d40,stroke-width:2px,color:#000000
+
+    style CoreContext fill:#ffe0b2,stroke:#bf360c,stroke-width:2px,color:#000000
+    style CoreTargets fill:#ffcc80,stroke:#bf360c,stroke-width:2px,color:#000000
+    style CoreTools fill:#ffcc80,stroke:#bf360c,stroke-width:2px,color:#000000
+    style CoreDeps fill:#ffe0b2,stroke:#bf360c,stroke-width:2px,color:#000000
+    style BenchRunner fill:#bbdefb,stroke:#1565c0,stroke-width:2px,color:#000000
+    style HarnessRegistry fill:#90caf9,stroke:#1565c0,stroke-width:2px,color:#000000
+    style InitV3 fill:#90caf9,stroke:#1565c0,stroke-width:2px,color:#000000
+    style TaskLoader fill:#bbdefb,stroke:#1565c0,stroke-width:2px,color:#000000
+    style ClaudeCodeRunner fill:#90caf9,stroke:#1565c0,stroke-width:2px,color:#000000
+    style ClaudeCodeToolAdapter fill:#90caf9,stroke:#1565c0,stroke-width:2px,color:#000000
+    style ExternalHarnessPlan fill:#bbdefb,stroke:#1565c0,stroke-width:2px,color:#000000
+
+    style Braintrust fill:#ffcdd2,stroke:#7f0000,stroke-width:2px,color:#000000
+    style Browserbase fill:#ffcdd2,stroke:#7f0000,stroke-width:2px,color:#000000
+    style Providers fill:#ffcdd2,stroke:#7f0000,stroke-width:2px,color:#000000
+    style Stagehand fill:#ffcdd2,stroke:#7f0000,stroke-width:2px,color:#000000
+    style ClaudeCodeSDK fill:#ffcdd2,stroke:#7f0000,stroke-width:2px,color:#000000

@@ -29,3 +29,7 @@ packages/core/test-results/
 coverage/
 ctrf/
 .stagehand-sea/
+.playwright*/
+**/.playwright*/
+packages/evals/playwright-mcp-screenshot-*.png
+packages/evals/chrome-devtools-mcp-screenshot-*.png
