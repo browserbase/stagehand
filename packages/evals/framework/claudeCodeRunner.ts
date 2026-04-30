@@ -7,6 +7,8 @@ import type { PreparedClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
 
 type ClaudeSdkMessage = Record<string, unknown>;
 type ClaudeQuery = AsyncIterable<ClaudeSdkMessage>;
+type MetricValue = { count: number; value: number };
+
 export type ClaudeAgentSdk = {
   query: (input: {
     prompt: string;
@@ -141,7 +143,7 @@ export async function runClaudeCodeAgent({
     readCsvEnv("EVAL_CLAUDE_CODE_ALLOWED_TOOLS", ["WebFetch", "WebSearch"]);
   const permissionMode =
     process.env.EVAL_CLAUDE_CODE_PERMISSION_MODE ?? "default";
-  const maxTurns = readPositiveIntEnv("EVAL_CLAUDE_CODE_MAX_TURNS", 20);
+  const maxTurns = readPositiveIntEnv("EVAL_CLAUDE_CODE_MAX_TURNS", 50);
   const pathToClaudeCodeExecutable =
     process.env.EVAL_CLAUDE_CODE_EXECUTABLE || undefined;
 
@@ -161,6 +163,7 @@ export async function runClaudeCodeAgent({
         ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
         ...(toolAdapter?.env && { env: toolAdapter.env }),
         maxTurns,
+        ...(toolAdapter?.mcpServers && { mcpServers: toolAdapter.mcpServers }),
         model: normalizeClaudeCodeModel(model),
         pathToClaudeCodeExecutable,
         permissionMode,
@@ -227,21 +230,107 @@ export async function runClaudeCodeAgent({
     claudeCodeStatus: status,
     ...(stopReason && { claudeCodeStopReason: stopReason }),
     logs: logger.getLogs(),
-    metrics: {
-      claude_code_turns: {
-        count: 1,
-        value: Number(resultMessage?.num_turns ?? 0),
-      },
-      claude_code_duration_ms: {
-        count: 1,
-        value: Number(resultMessage?.duration_ms ?? 0),
-      },
-      claude_code_cost_usd: {
-        count: 1,
-        value: Number(resultMessage?.total_cost_usd ?? 0),
-      },
-    },
+    metrics: buildClaudeCodeMetrics(resultMessage),
   };
+}
+
+function buildClaudeCodeMetrics(
+  resultMessage: ClaudeSdkMessage | undefined,
+): Record<string, MetricValue> {
+  const tokenUsage = extractClaudeCodeTokenUsage(resultMessage);
+
+  return {
+    claude_code_turns: metricValue(resultMessage?.num_turns),
+    claude_code_duration_ms: metricValue(resultMessage?.duration_ms),
+    claude_code_cost_usd: metricValue(resultMessage?.total_cost_usd),
+    claude_code_input_tokens: metricValue(tokenUsage.inputTokens),
+    claude_code_output_tokens: metricValue(tokenUsage.outputTokens),
+    claude_code_cache_creation_input_tokens: metricValue(
+      tokenUsage.cacheCreationInputTokens,
+    ),
+    claude_code_cache_read_input_tokens: metricValue(
+      tokenUsage.cacheReadInputTokens,
+    ),
+    claude_code_total_tokens: metricValue(tokenUsage.totalTokens),
+  };
+}
+
+function extractClaudeCodeTokenUsage(
+  resultMessage: ClaudeSdkMessage | undefined,
+): {
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+  totalTokens: number;
+} {
+  const usage = isRecord(resultMessage?.usage) ? resultMessage.usage : undefined;
+
+  const inputTokens =
+    readNumber(usage, "input_tokens") ??
+    sumModelUsage(resultMessage, "inputTokens");
+  const outputTokens =
+    readNumber(usage, "output_tokens") ??
+    sumModelUsage(resultMessage, "outputTokens");
+  const cacheCreationInputTokens =
+    readNumber(usage, "cache_creation_input_tokens") ??
+    sumModelUsage(resultMessage, "cacheCreationInputTokens");
+  const cacheReadInputTokens =
+    readNumber(usage, "cache_read_input_tokens") ??
+    sumModelUsage(resultMessage, "cacheReadInputTokens");
+  const totalTokens =
+    inputTokens +
+    outputTokens +
+    cacheCreationInputTokens +
+    cacheReadInputTokens;
+
+  return {
+    inputTokens,
+    outputTokens,
+    cacheCreationInputTokens,
+    cacheReadInputTokens,
+    totalTokens,
+  };
+}
+
+function sumModelUsage(
+  resultMessage: ClaudeSdkMessage | undefined,
+  key: string,
+): number {
+  if (!isRecord(resultMessage?.modelUsage)) return 0;
+
+  let total = 0;
+  for (const usage of Object.values(resultMessage.modelUsage)) {
+    if (!isRecord(usage)) continue;
+    total += readNumber(usage, key) ?? 0;
+  }
+  return total;
+}
+
+function metricValue(value: unknown): MetricValue {
+  return {
+    count: 1,
+    value: toFiniteNumber(value),
+  };
+}
+
+function readNumber(
+  record: Record<string, unknown> | undefined,
+  key: string,
+): number | undefined {
+  if (!record || !(key in record)) return undefined;
+  return toFiniteNumber(record[key]);
+}
+
+function toFiniteNumber(value: unknown): number {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number(value)
+        : 0;
+
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function resolveClaudeCodeStatus(

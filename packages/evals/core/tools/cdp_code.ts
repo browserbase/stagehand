@@ -34,7 +34,7 @@ const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "tabs",
 ];
 
-type CdpEventMessage = {
+export type CdpEventMessage = {
   method: string;
   params?: Record<string, unknown>;
   sessionId?: string;
@@ -156,7 +156,7 @@ async function resolveWebSocketEndpoint(input: {
   return payload.webSocketDebuggerUrl;
 }
 
-class CdpConnection {
+export class CdpConnection {
   private readonly pending = new Map<
     number,
     {

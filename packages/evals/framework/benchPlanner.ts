@@ -29,7 +29,7 @@ import {
 } from "./claudeCodeToolAdapter.js";
 
 const DEFAULT_CLAUDE_CODE_MODELS: AvailableModel[] = [
-  "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+  "anthropic/claude-sonnet-4-6" as AvailableModel,
 ];
 
 export interface BenchPlanOptions {

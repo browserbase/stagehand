@@ -29,9 +29,28 @@ describe("claude code tool adapter resolution", () => {
     );
   });
 
+  it("supports code tool surfaces as Claude Code run tools", () => {
+    expect(resolveClaudeCodeToolSurface("playwright_code")).toBe(
+      "playwright_code",
+    );
+    expect(resolveClaudeCodeStartupProfile("playwright_code", "LOCAL")).toBe(
+      "runner_provided_local_cdp",
+    );
+    expect(
+      resolveClaudeCodeStartupProfile("playwright_code", "BROWSERBASE"),
+    ).toBe("runner_provided_browserbase_cdp");
+    expect(resolveClaudeCodeToolSurface("cdp_code")).toBe("cdp_code");
+    expect(resolveClaudeCodeStartupProfile("cdp_code", "LOCAL")).toBe(
+      "runner_provided_local_cdp",
+    );
+    expect(resolveClaudeCodeStartupProfile("cdp_code", "BROWSERBASE")).toBe(
+      "runner_provided_browserbase_cdp",
+    );
+  });
+
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool browse_cli/,
+      /supports --tool browse_cli, playwright_code, or cdp_code/,
     );
   });
 

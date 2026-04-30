@@ -135,4 +135,82 @@ describe("claude code runner helpers", () => {
     expect(result.claudeCodeStatus).toBe("max_turns");
     expect(String(result.error)).toContain("maximum number of turns");
   });
+
+  it("reports Claude Code token usage as Braintrust metrics", async () => {
+    const sdk: ClaudeAgentSdk = {
+      query: async function* () {
+        yield {
+          type: "result",
+          subtype: "success",
+          result:
+            'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
+          duration_ms: 1234,
+          num_turns: 3,
+          total_cost_usd: 0.045,
+          usage: {
+            input_tokens: 100,
+            output_tokens: 25,
+            cache_creation_input_tokens: 10,
+            cache_read_input_tokens: 5,
+          },
+        };
+      },
+    };
+
+    const result = await runClaudeCodeAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+    });
+    const metrics = result.metrics as Record<string, { value: number }>;
+
+    expect(metrics.claude_code_input_tokens.value).toBe(100);
+    expect(metrics.claude_code_output_tokens.value).toBe(25);
+    expect(metrics.claude_code_cache_creation_input_tokens.value).toBe(10);
+    expect(metrics.claude_code_cache_read_input_tokens.value).toBe(5);
+    expect(metrics.claude_code_total_tokens.value).toBe(140);
+  });
+
+  it("forwards adapter MCP servers into the Claude Code SDK query", async () => {
+    let capturedOptions: Record<string, unknown> | undefined;
+    const mcpServers = {
+      stagehand_browser: { type: "sdk", name: "stagehand_browser" },
+    };
+    const sdk: ClaudeAgentSdk = {
+      query: async function* (input) {
+        capturedOptions = input.options;
+        yield {
+          type: "result",
+          subtype: "success",
+          result:
+            'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
+        };
+      },
+    };
+
+    await runClaudeCodeAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+      toolAdapter: {
+        toolSurface: "playwright_code",
+        startupProfile: "runner_provided_local_cdp",
+        cwd: "/tmp/stagehand-evals-test",
+        env: {},
+        allowedTools: ["Bash", "mcp__stagehand_browser__run"],
+        settingSources: [],
+        promptInstructions: "Use run.",
+        mcpServers,
+        cleanup: async () => {},
+      },
+    });
+
+    expect(capturedOptions?.mcpServers).toBe(mcpServers);
+    expect(capturedOptions?.allowedTools).toEqual([
+      "Bash",
+      "mcp__stagehand_browser__run",
+    ]);
+  });
 });
