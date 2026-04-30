@@ -867,8 +867,7 @@ function buildCdpRuntime(
     ): Promise<CdpEventMessage> | (() => void) => {
       if (typeof listenerOrTimeout === "function") {
         const listener = listenerOrTimeout;
-        let unsubscribe: (() => void) | undefined;
-        unsubscribe = onCdpEvent(
+        const unsubscribe = onCdpEvent(
           connection,
           activePage.sessionId,
           method,
