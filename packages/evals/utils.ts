@@ -8,9 +8,10 @@
  *   and eval name or category.
  */
 import fs from "fs";
-import { AVAILABLE_CUA_MODELS, LogLine } from "@browserbasehq/stagehand";
+import { LogLine } from "@browserbasehq/stagehand";
 import stringComparison from "string-comparison";
 import type { AgentModelEntry } from "./types/evals.js";
+import { inferDefaultStagehandAgentMode } from "./framework/agentModelModes.js";
 const { jaroWinkler } = stringComparison;
 
 /**
@@ -235,9 +236,7 @@ export function normalizeAgentModelEntries(
   if (typeof models[0] !== "string") return models as AgentModelEntry[];
 
   return (models as string[]).map((modelName) => {
-    const mode = (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName)
-      ? "cua"
-      : "hybrid";
+    const mode = inferDefaultStagehandAgentMode(modelName);
     return { modelName, mode, cua: mode === "cua" };
   });
 }

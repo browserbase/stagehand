@@ -170,7 +170,7 @@ describe("deriveCategoryFilter", () => {
       dataset: "webvoyager",
       model: "openai/gpt-4.1-mini",
       harness: "stagehand",
-      agentMode: "hybrid",
+      agentMode: "dom",
       environment: "BROWSERBASE",
       useApi: false,
     });

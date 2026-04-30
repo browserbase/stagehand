@@ -1,8 +1,4 @@
-import {
-  AVAILABLE_CUA_MODELS,
-  type AgentToolMode,
-  type AvailableModel,
-} from "@browserbasehq/stagehand";
+import type { AgentToolMode, AvailableModel } from "@browserbasehq/stagehand";
 import { EvalsError } from "../errors.js";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
@@ -31,6 +27,10 @@ import {
   resolveCodexStartupProfile,
   resolveCodexToolSurface,
 } from "./codexToolAdapter.js";
+import {
+  inferDefaultStagehandAgentMode,
+  isCuaCapableModel,
+} from "./agentModelModes.js";
 
 const DEFAULT_CLAUDE_CODE_MODELS: AvailableModel[] = [
   "anthropic/claude-sonnet-4-6" as AvailableModel,
@@ -170,10 +170,6 @@ function expandAgentEntriesForRequestedModes(
   return uniqueAgentModelEntries(expanded);
 }
 
-function isCuaCapableModel(modelName: string): boolean {
-  return (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName);
-}
-
 function uniqueAgentModelEntries(
   entries: AgentModelEntry[],
 ): AgentModelEntry[] {
@@ -260,9 +256,7 @@ function resolveRequestedAgentModes(
 }
 
 function resolveAgentModeForModel(modelName: string): AgentToolMode {
-  return (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName)
-    ? "cua"
-    : "hybrid";
+  return inferDefaultStagehandAgentMode(modelName);
 }
 
 export function inferBenchTaskKind(task: DiscoveredTask): BenchTaskKind {

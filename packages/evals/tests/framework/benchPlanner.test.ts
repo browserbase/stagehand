@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  AVAILABLE_CUA_MODELS,
-  type AvailableModel,
-} from "@browserbasehq/stagehand";
+import type { AvailableModel } from "@browserbasehq/stagehand";
 import type { DiscoveredTask } from "../../framework/types.js";
 import {
   buildBenchMatrixRow,
@@ -68,8 +65,8 @@ describe("benchPlanner", () => {
     expect(testcase.metadata.environment).toBe("LOCAL");
   });
 
-  it("marks explicit computer-use model overrides as CUA", () => {
-    const cuaModel = AVAILABLE_CUA_MODELS[0];
+  it("marks explicit CUA-only model overrides as CUA", () => {
+    const cuaModel = "openai/computer-use-preview" as AvailableModel;
     const [testcase] = generateBenchTestcases(
       [
         makeTask({
@@ -89,6 +86,29 @@ describe("benchPlanner", () => {
     expect(testcase.input.isCUA).toBe(true);
     expect(testcase.input.agentMode).toBe("cua");
     expect(testcase.tags).toContain("cua");
+  });
+
+  it("defaults hybrid-capable CUA model overrides to hybrid", () => {
+    const [testcase] = generateBenchTestcases(
+      [
+        makeTask({
+          name: "agent/webvoyager",
+          primaryCategory: "agent",
+          categories: ["external_agent_benchmarks"],
+        }),
+      ],
+      {
+        modelOverride: "openai/gpt-5.4-mini",
+        datasetFilter: "webvoyager",
+        harness: "stagehand",
+      },
+    );
+
+    expect(testcase.input.modelName).toBe("openai/gpt-5.4-mini");
+    expect(testcase.input.isCUA).toBe(false);
+    expect(testcase.input.agentMode).toBe("hybrid");
+    expect(testcase.tags).toContain("hybrid");
+    expect(testcase.tags).not.toContain("cua");
   });
 
   it("lets an explicit agent mode override inferred suite mode", () => {
@@ -462,7 +482,7 @@ describe("benchPlanner", () => {
 
     expect(testcases).toHaveLength(1);
     expect(testcases[0].input.name).toBe("agent/webvoyager");
-    expect(testcases[0].input.agentMode).toBe("hybrid");
+    expect(testcases[0].input.agentMode).toBe("dom");
     expect(testcases[0].input.isCUA).toBe(false);
     expect(testcases[0].input.params?.id).toBeTruthy();
     expect(testcases[0].metadata.dataset).toBe("webvoyager");
@@ -497,7 +517,7 @@ describe("benchPlanner", () => {
 
     expect(testcases).toHaveLength(1);
     expect(testcases[0].input.name).toBe("agent/onlineMind2Web");
-    expect(testcases[0].input.agentMode).toBe("hybrid");
+    expect(testcases[0].input.agentMode).toBe("dom");
     expect(testcases[0].input.isCUA).toBe(false);
     expect(testcases[0].input.params?.task_id).toBeTruthy();
     expect(testcases[0].metadata.dataset).toBe("onlineMind2Web");
@@ -528,7 +548,7 @@ describe("benchPlanner", () => {
 
     expect(testcases).toHaveLength(1);
     expect(testcases[0].input.name).toBe("agent/webtailbench");
-    expect(testcases[0].input.agentMode).toBe("hybrid");
+    expect(testcases[0].input.agentMode).toBe("dom");
     expect(testcases[0].input.isCUA).toBe(false);
     expect(testcases[0].input.params?.id).toBeTruthy();
     expect(testcases[0].metadata.dataset).toBe("webtailbench");

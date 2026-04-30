@@ -66,22 +66,28 @@ describe("generateExperimentName", () => {
 });
 
 describe("normalizeAgentModelEntries", () => {
-  it("infers CUA mode for CUA-capable string models", () => {
+  it("infers default Stagehand agent modes for string models", () => {
     expect(
       normalizeAgentModelEntries([
         "google/gemini-3-flash-preview",
         "openai/gpt-4.1-mini",
+        "openai/computer-use-preview",
       ]),
     ).toEqual([
       {
         modelName: "google/gemini-3-flash-preview",
-        mode: "cua",
-        cua: true,
+        mode: "hybrid",
+        cua: false,
       },
       {
         modelName: "openai/gpt-4.1-mini",
-        mode: "hybrid",
+        mode: "dom",
         cua: false,
+      },
+      {
+        modelName: "openai/computer-use-preview",
+        mode: "cua",
+        cua: true,
       },
     ]);
   });
