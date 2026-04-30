@@ -22,6 +22,7 @@ import {
   extractLlmPromptSummary,
 } from "../flowlogger/FlowLogger.js";
 import { toJsonSchema } from "../zodCompat.js";
+import { unwrapToolResponse } from "./AnthropicClient.js";
 
 type ProviderOptionValue = string | number | boolean | null;
 type ProviderOptionMap = Record<string, ProviderOptionValue>;
@@ -248,13 +249,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             : {}),
         });
       } catch (err) {
-        // Log error response to maintain request/response pairing
-        FlowLogger.logLlmResponse({
-          requestId: llmRequestId,
-          model: this.model.modelId,
-          output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
-        });
-
         if (NoObjectGeneratedError.isInstance(err)) {
           this.logger?.({
             category: "AISDK error",
@@ -288,8 +282,59 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             },
           });
 
+          // Attempt to recover from $PARAMETER_NAME wrapper (common with Anthropic models)
+          if (err.text) {
+            try {
+              const parsed = JSON.parse(err.text);
+              const unwrapped = unwrapToolResponse(parsed);
+              if (unwrapped !== parsed) {
+                const validated =
+                  options.response_model.schema.parse(unwrapped);
+                this.logger?.({
+                  category: "aisdk",
+                  message: "recovered from $PARAMETER_NAME wrapper",
+                  level: 1,
+                });
+
+                FlowLogger.logLlmResponse({
+                  requestId: llmRequestId,
+                  model: this.model.modelId,
+                  output: JSON.stringify(validated),
+                  inputTokens: err.usage?.inputTokens,
+                  outputTokens: err.usage?.outputTokens,
+                });
+
+                return {
+                  data: validated,
+                  usage: {
+                    prompt_tokens: err.usage?.inputTokens ?? 0,
+                    completion_tokens: err.usage?.outputTokens ?? 0,
+                    reasoning_tokens: err.usage?.reasoningTokens ?? 0,
+                    cached_input_tokens: err.usage?.cachedInputTokens ?? 0,
+                    total_tokens: err.usage?.totalTokens ?? 0,
+                  },
+                } as T;
+              }
+            } catch {
+              // Recovery failed, throw original error
+            }
+          }
+
+          // Log error response only when recovery was not attempted or failed
+          FlowLogger.logLlmResponse({
+            requestId: llmRequestId,
+            model: this.model.modelId,
+            output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+          });
           throw err;
         }
+        // Log error response to maintain request/response pairing
+        // (only reached if recovery was not attempted or not applicable)
+        FlowLogger.logLlmResponse({
+          requestId: llmRequestId,
+          model: this.model.modelId,
+          output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+        });
         throw err;
       }
 

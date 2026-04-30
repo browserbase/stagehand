@@ -17,6 +17,27 @@ import {
 } from "./LLMClient.js";
 import { CreateChatCompletionResponseError } from "../types/public/sdkErrors.js";
 import { toJsonSchema } from "../zodCompat.js";
+/**
+ * Unwrap Anthropic's $PARAMETER_NAME wrapper from tool responses.
+ *
+ * Some Anthropic models wrap tool_use output in a `{ $PARAMETER_NAME: { ... } }`
+ * envelope. This helper detects and strips that wrapper so downstream Zod
+ * validation sees the expected flat structure.
+ */
+export function unwrapToolResponse<T>(data: T): T {
+  if (
+    data !== null &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    Object.keys(data as Record<string, unknown>).length === 1
+  ) {
+    const key = Object.keys(data as Record<string, unknown>)[0];
+    if (key.startsWith("$")) {
+      return (data as Record<string, unknown>)[key] as T;
+    }
+  }
+  return data;
+}
 
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;
@@ -247,7 +268,7 @@ export class AnthropicClient extends LLMClient {
     if (options.response_model) {
       const toolUse = response.content.find((c) => c.type === "tool_use");
       if (toolUse && "input" in toolUse) {
-        const result = toolUse.input;
+        const result = unwrapToolResponse(toolUse.input);
 
         const finalParsedResponse = {
           data: result,
