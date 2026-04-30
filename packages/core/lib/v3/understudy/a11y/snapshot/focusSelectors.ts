@@ -1,8 +1,8 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
+import { Frame } from "../../frame.js";
 import { Page } from "../../page.js";
-import { executionContexts } from "../../executionContextRegistry.js";
-import { buildLocatorInvocation } from "../../locatorInvocation.js";
+import { FrameSelectorResolver } from "../../selectorResolver.js";
 import { StagehandIframeError } from "../../../types/public/sdkErrors.js";
 import type {
   Axis,
@@ -199,85 +199,45 @@ export async function resolveCssFocusFrameAndTail(
   return { targetFrameId: ctxFrameId, tailSelector, absPrefix };
 }
 
+function createFocusResolverFrame(
+  session: CDPSessionLike,
+  frameId: string,
+): Frame {
+  return new Frame(session, frameId, "a11y-focus", false);
+}
+
+async function resolveObjectIdWithSelectorResolver(
+  session: CDPSessionLike,
+  rawSelector: string,
+  frameId: string,
+): Promise<string | null> {
+  try {
+    const frame = createFocusResolverFrame(session, frameId);
+    const resolver = new FrameSelectorResolver(frame);
+    const query = FrameSelectorResolver.parseSelector(rawSelector);
+    const resolved = await resolver.resolveFirst(query);
+    return resolved?.objectId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Resolve an XPath to a Runtime remoteObjectId in the given CDP session. */
 export async function resolveObjectIdForXPath(
   session: CDPSessionLike,
   xpath: string,
-  frameId?: string,
+  frameId: string,
 ): Promise<string | null> {
-  let contextId: number | undefined;
-  try {
-    if (frameId) {
-      contextId = await executionContexts
-        .waitForMainWorld(session, frameId, 800)
-        .catch(
-          () => executionContexts.getMainWorld(session, frameId) ?? undefined,
-        );
-    }
-  } catch {
-    contextId = undefined;
-  }
-  const expr = buildLocatorInvocation("resolveXPathMainWorld", [
-    JSON.stringify(xpath),
-    "0",
-  ]);
-  const { result, exceptionDetails } = await session.send<{
-    result: { objectId?: string | undefined };
-    exceptionDetails?: Protocol.Runtime.ExceptionDetails;
-  }>("Runtime.evaluate", {
-    expression: expr,
-    returnByValue: false,
-    contextId,
-    awaitPromise: true,
-  });
-  if (exceptionDetails) return null;
-  return result?.objectId ?? null;
+  return resolveObjectIdWithSelectorResolver(session, xpath, frameId);
 }
 
 /** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
 export async function resolveObjectIdForCss(
   session: CDPSessionLike,
   selector: string,
-  frameId?: string,
+  frameId: string,
 ): Promise<string | null> {
-  let contextId: number | undefined;
-  try {
-    if (frameId) {
-      contextId = await executionContexts
-        .waitForMainWorld(session, frameId, 800)
-        .catch(
-          () => executionContexts.getMainWorld(session, frameId) ?? undefined,
-        );
-    }
-  } catch {
-    contextId = undefined;
-  }
-  const primaryExpr = buildLocatorInvocation("resolveCssSelector", [
-    JSON.stringify(selector),
-    "0",
-  ]);
-  const fallbackExpr = buildLocatorInvocation("resolveCssSelectorPierce", [
-    JSON.stringify(selector),
-    "0",
-  ]);
-
-  const evaluate = async (expression: string): Promise<string | null> => {
-    const { result, exceptionDetails } = await session.send<{
-      result: { objectId?: string | undefined };
-      exceptionDetails?: Protocol.Runtime.ExceptionDetails;
-    }>("Runtime.evaluate", {
-      expression,
-      returnByValue: false,
-      contextId,
-      awaitPromise: true,
-    });
-    if (exceptionDetails) return null;
-    return result?.objectId ?? null;
-  };
-
-  const primary = await evaluate(primaryExpr);
-  if (primary) return primary;
-  return evaluate(fallbackExpr);
+  return resolveObjectIdWithSelectorResolver(session, selector, frameId);
 }
 
 export function listChildrenOf(

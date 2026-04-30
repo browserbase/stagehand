@@ -304,7 +304,7 @@ test.describe("Page.waitForSelector tests", () => {
     });
   });
 
-  test.describe("Closed shadow DOM (via piercer)", () => {
+  test.describe("Closed shadow DOM", () => {
     test("finds element inside closed shadow DOM via custom element", async () => {
       const page = v3.context.pages()[0];
       await page.goto(
@@ -326,7 +326,7 @@ test.describe("Page.waitForSelector tests", () => {
       );
       await page.waitForTimeout(100);
 
-      // The piercer hooks attachShadow and stores closed shadow roots
+      // Closed shadow roots are discovered via CDP and supplied to the resolver.
       const result = await page.waitForSelector("#closed-btn", {
         pierceShadow: true,
         timeout: 5000,

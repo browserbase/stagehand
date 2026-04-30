@@ -1,9 +1,9 @@
 import { JSDOM } from "jsdom";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
-  countXPathMatches,
-  resolveXPathAtIndex,
-} from "../../lib/v3/dom/locatorScripts/xpathResolver.js";
+  countXPathWithRoots,
+  queryXPathWithRoots,
+} from "../../lib/v3/dom/selectorRuntime/index.js";
 
 type DomGlobals = {
   window: Window & typeof globalThis;
@@ -84,7 +84,7 @@ describe("xpathResolver composed traversal", () => {
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = '<div id="shadow-1"></div><div id="shadow-2"></div>';
 
-    expect(countXPathMatches("//div")).toBe(4);
+    expect(countXPathWithRoots.call(document, "//div")).toBe(4);
   });
 
   it("resolves nth over composed tree in document-order DFS", () => {
@@ -97,9 +97,15 @@ describe("xpathResolver composed traversal", () => {
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = '<div id="shadow-1"></div><div id="shadow-2"></div>';
 
-    expect(resolveXPathAtIndex("//div", 0)?.id).toBe("light-1");
-    expect(resolveXPathAtIndex("//div", 1)?.id).toBe("shadow-1");
-    expect(resolveXPathAtIndex("//div", 2)?.id).toBe("shadow-2");
-    expect(resolveXPathAtIndex("//div", 3)?.id).toBe("light-2");
+    const matches = queryXPathWithRoots.call(
+      document,
+      "//div",
+      Number.MAX_SAFE_INTEGER,
+    );
+
+    expect(matches[0]?.id).toBe("light-1");
+    expect(matches[1]?.id).toBe("shadow-1");
+    expect(matches[2]?.id).toBe("shadow-2");
+    expect(matches[3]?.id).toBe("light-2");
   });
 });

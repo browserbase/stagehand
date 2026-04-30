@@ -33,9 +33,11 @@ import type { Locator } from "./locator.js";
 import {
   StagehandInvalidArgumentError,
   StagehandEvalError,
+  TimeoutError,
 } from "../types/public/sdkErrors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
-import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { locatorScriptSources } from "../dom/build/locatorScripts.generated.js";
+import { FrameSelectorResolver } from "./selectorResolver.js";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -1317,13 +1319,185 @@ export class Page {
     const elapsed = Date.now() - startTime;
     const remainingTimeout = Math.max(0, timeout - elapsed);
 
-    const expression = buildLocatorInvocation("waitForSelector", [
-      JSON.stringify(finalSelector),
-      JSON.stringify(state),
-      String(remainingTimeout),
-      String(pierceShadow),
-    ]);
-    return targetFrame.evaluate(expression);
+    if (!pierceShadow) {
+      const query = FrameSelectorResolver.parseSelector(finalSelector);
+      const expression = `(() => {
+        const query = ${JSON.stringify(query)};
+        const state = ${JSON.stringify(state)};
+        const timeout = ${remainingTimeout};
+        const normalizeText = (value) =>
+          typeof value === "string" ? value.trim().toLowerCase() : "";
+        const findByText = (needle) => {
+          const queryText = normalizeText(needle);
+          if (!queryText) return null;
+          const skipTags = new Set([
+            "SCRIPT",
+            "STYLE",
+            "TEMPLATE",
+            "NOSCRIPT",
+            "HEAD",
+            "TITLE",
+            "LINK",
+            "META",
+            "HTML",
+            "BODY",
+          ]);
+          const extractText = (element) => {
+            const tag = element.tagName ? element.tagName.toUpperCase() : "";
+            if (skipTags.has(tag)) return "";
+            try {
+              const inner = element.innerText;
+              if (typeof inner === "string" && inner.trim()) return inner.trim();
+            } catch {
+              // ignore
+            }
+            const text = element.textContent;
+            return typeof text === "string" ? text.trim() : "";
+          };
+          const root = document.documentElement || document.body;
+          if (!root) return null;
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+          const matches = [];
+          while (walker.nextNode()) {
+            const node = walker.currentNode;
+            if (!(node instanceof Element)) continue;
+            const text = extractText(node);
+            if (text && text.toLowerCase().includes(queryText)) {
+              matches.push(node);
+            }
+          }
+          for (const candidate of matches) {
+            let covered = false;
+            for (const other of matches) {
+              if (candidate === other) continue;
+              try {
+                if (candidate.contains(other)) {
+                  covered = true;
+                  break;
+                }
+              } catch {
+                // ignore
+              }
+            }
+            if (!covered) return candidate;
+          }
+          return null;
+        };
+        const resolve = () => {
+          if (query.kind === "xpath") {
+            try {
+              return document.evaluate(
+                query.value,
+                document,
+                null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE,
+                null,
+              ).singleNodeValue;
+            } catch {
+              return null;
+            }
+          }
+          if (query.kind === "text") {
+            return findByText(query.value);
+          }
+          try {
+            return document.querySelector(query.value);
+          } catch {
+            return null;
+          }
+        };
+        const isVisible = (el) => {
+          if (!el) return false;
+          try {
+            const style = window.getComputedStyle(el);
+            if (!style || style.display === "none" || style.visibility === "hidden") {
+              return false;
+            }
+            const opacity = parseFloat(style.opacity ?? "1");
+            if (!Number.isFinite(opacity) || opacity === 0) {
+              return false;
+            }
+            const rect = el.getBoundingClientRect();
+            return !!(
+              rect &&
+              Math.max(rect.width, rect.height) !== 0 &&
+              el.getClientRects().length !== 0
+            );
+          } catch {
+            return false;
+          }
+        };
+        return new Promise((resolvePromise) => {
+          const deadline = Date.now() + timeout;
+          const tick = () => {
+            const el = resolve();
+            const attached = !!el;
+            if (state === "attached" && attached) return resolvePromise(true);
+            if (state === "detached" && !attached) return resolvePromise(true);
+            if (state === "visible" && attached && isVisible(el)) return resolvePromise(true);
+            if (state === "hidden" && (!attached || !isVisible(el))) return resolvePromise(true);
+            if (Date.now() >= deadline) {
+              return resolvePromise(false);
+            }
+            setTimeout(tick, 100);
+          };
+          tick();
+        });
+      })()`;
+      const matched = await targetFrame.evaluate<boolean>(expression);
+      if (matched) return true;
+      throw new TimeoutError(
+        `Timeout waiting for selector "${finalSelector}" to be ${state}`,
+        remainingTimeout,
+      );
+    }
+
+    const resolver = new FrameSelectorResolver(targetFrame);
+    const query = FrameSelectorResolver.parseSelector(finalSelector);
+    const deadline = Date.now() + remainingTimeout;
+
+    while (Date.now() <= deadline) {
+      const resolved = await resolver.resolveFirst(query);
+      try {
+        const attached = !!resolved;
+        if (state === "attached" && attached) return true;
+        if (state === "detached" && !attached) return true;
+
+        if (state === "visible" || state === "hidden") {
+          const visible = resolved
+            ? await targetFrame.session
+                .send<Protocol.Runtime.CallFunctionOnResponse>(
+                  "Runtime.callFunctionOn",
+                  {
+                    objectId: resolved.objectId,
+                    functionDeclaration: locatorScriptSources.isElementVisible,
+                    returnByValue: true,
+                  },
+                )
+                .then((result) => result.result.value === true)
+                .catch(() => false)
+            : false;
+
+          if (state === "visible" && attached && visible) return true;
+          if (state === "hidden" && (!attached || !visible)) return true;
+        }
+      } finally {
+        if (resolved?.objectId) {
+          await targetFrame.session
+            .send("Runtime.releaseObject", { objectId: resolved.objectId })
+            .catch(() => {});
+        }
+      }
+
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await this.waitForTimeout(Math.min(100, remaining));
+    }
+
+    throw new TimeoutError(
+      `Timeout waiting for selector "${finalSelector}" to be ${state}`,
+      remainingTimeout,
+    );
   }
 
   /**

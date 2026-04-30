@@ -4,7 +4,7 @@ import { a11yForFrame } from "../../lib/v3/understudy/a11y/snapshot/a11yTree.js"
 import type { AccessibilityTreeResult } from "../../lib/v3/types/private/index.js";
 import * as focusSelectors from "../../lib/v3/understudy/a11y/snapshot/focusSelectors.js";
 import { MockCDPSession } from "./helpers/mockCDPSession.js";
-import { executionContexts } from "../../lib/v3/understudy/executionContextRegistry.js";
+import { FrameSelectorResolver } from "../../lib/v3/understudy/selectorResolver.js";
 import { tryScopedSnapshot } from "../../lib/v3/understudy/a11y/snapshot/capture.js";
 import type {
   FrameContext,
@@ -153,35 +153,30 @@ describe("resolveObjectIdForXPath", () => {
     vi.restoreAllMocks();
   });
 
-  it("evaluates in the target frame's main world when available", async () => {
-    vi.spyOn(executionContexts, "waitForMainWorld").mockResolvedValue(42);
-    vi.spyOn(executionContexts, "getMainWorld").mockReturnValue(undefined);
-    const session = new MockCDPSession({
-      "Runtime.evaluate": async (params) => {
-        expect(params?.contextId).toBe(42);
-        return { result: { objectId: "node-obj" } };
-      },
-    });
+  it("uses the shared selector resolver in the target frame when available", async () => {
+    const resolveFirstSpy = vi
+      .spyOn(FrameSelectorResolver.prototype, "resolveFirst")
+      .mockResolvedValue({ objectId: "node-obj", nodeId: null });
+    const session = new MockCDPSession({});
 
     const objectId = await focusSelectors.resolveObjectIdForXPath(
       session,
       "//div",
       "frame-1",
     );
+
     expect(objectId).toBe("node-obj");
+    expect(resolveFirstSpy).toHaveBeenCalledWith({
+      kind: "xpath",
+      value: "//div",
+    });
   });
 
-  it("returns null when evaluation throws or reports exception details", async () => {
-    vi.spyOn(executionContexts, "waitForMainWorld").mockRejectedValue(
-      new Error("missing"),
+  it("returns null when shared selector resolution fails", async () => {
+    vi.spyOn(FrameSelectorResolver.prototype, "resolveFirst").mockRejectedValue(
+      new Error("bad"),
     );
-    vi.spyOn(executionContexts, "getMainWorld").mockReturnValue(undefined);
-    const session = new MockCDPSession({
-      "Runtime.evaluate": async () => ({
-        result: {},
-        exceptionDetails: { exception: { description: "bad" } },
-      }),
-    });
+    const session = new MockCDPSession({});
 
     const objectId = await focusSelectors.resolveObjectIdForXPath(
       session,
@@ -197,54 +192,28 @@ describe("resolveObjectIdForCss", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns primary evaluation result when available", async () => {
-    vi.spyOn(executionContexts, "waitForMainWorld").mockResolvedValue(7);
-    const session = new MockCDPSession({
-      "Runtime.evaluate": async () => ({
-        result: { objectId: "primary-obj" },
-      }),
-    });
+  it("uses the shared selector resolver for css when frame context is available", async () => {
+    const resolveFirstSpy = vi
+      .spyOn(FrameSelectorResolver.prototype, "resolveFirst")
+      .mockResolvedValue({ objectId: "primary-obj", nodeId: null });
+    const session = new MockCDPSession({});
     const objectId = await focusSelectors.resolveObjectIdForCss(
       session,
       ".btn",
       "frame-1",
     );
     expect(objectId).toBe("primary-obj");
+    expect(resolveFirstSpy).toHaveBeenCalledWith({
+      kind: "css",
+      value: ".btn",
+    });
   });
 
-  it("falls back to the pierce selector when the primary lookup fails", async () => {
-    let call = 0;
-    const session = new MockCDPSession({
-      "Runtime.evaluate": async (params) => {
-        call++;
-        if (call === 1) {
-          expect(String(params?.expression)).toContain("resolveCssSelector");
-          return { result: {} };
-        }
-        expect(String(params?.expression)).toContain(
-          "resolveCssSelectorPierce",
-        );
-        return { result: { objectId: "css-obj" } };
-      },
-    });
-
-    const objectId = await focusSelectors.resolveObjectIdForCss(
-      session,
-      ".btn",
-      undefined,
+  it("returns null when shared css selector resolution fails", async () => {
+    vi.spyOn(FrameSelectorResolver.prototype, "resolveFirst").mockRejectedValue(
+      new Error("fail"),
     );
-    expect(objectId).toBe("css-obj");
-  });
-
-  it("returns null when both primary and fallback evaluations throw", async () => {
-    vi.spyOn(executionContexts, "waitForMainWorld").mockResolvedValue(11);
-    vi.spyOn(executionContexts, "getMainWorld").mockReturnValue(undefined);
-    const session = new MockCDPSession({
-      "Runtime.evaluate": async () => ({
-        result: {},
-        exceptionDetails: { exception: { description: "fail" } },
-      }),
-    });
+    const session = new MockCDPSession({});
 
     const objectId = await focusSelectors.resolveObjectIdForCss(
       session,
