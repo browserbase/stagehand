@@ -238,8 +238,9 @@ Hybrid mode uses both DOM-based and coordinate-based tools (act, click, type, dr
 
 **Recommended models for hybrid mode:**
 
-- `google/gemini-3-flash-preview`
-- `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`
+- Any Anthropic model (e.g. `anthropic/claude-sonnet-4-20250514`, `anthropic/claude-haiku-4-5-20251001`)
+- OpenAI: `openai/gpt-5.4`, `openai/gpt-5.4-mini`
+- Google: `google/gemini-3.1-flash-lite-preview`, `google/gemini-3-flash-preview`, `google/gemini-3.1-pro-preview`
 
 ```typescript
 const stagehand = new Stagehand({
@@ -262,8 +263,9 @@ await agent.execute({
 
 **Agent modes:**
 
-- `"dom"` (default): Uses DOM-based tools (act, fillForm) - works with any model
-- `"hybrid"`: Uses both DOM-based and coordinate-based tools (act, click, type, dragAndDrop) - requires grounding-capable models
+- `"dom"`: Uses DOM-based tools (act, fillForm) - works with any model
+- `"hybrid"`: Uses both DOM-based and coordinate-based tools (act, click, type, dragAndDrop) - auto-selected for supported models (Claude, GPT-5.4, Gemini 3)
+- When no mode is specified, hybrid is auto-selected for supported models; otherwise falls back to dom
 - `"cua"`: Uses Computer Use Agent providers
 
 ## Advanced Features
