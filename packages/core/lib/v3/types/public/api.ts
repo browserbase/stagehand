@@ -55,36 +55,509 @@ export const LocalBrowserLaunchOptionsSchema = z
   .strict()
   .meta({ id: "LocalBrowserLaunchOptions" });
 
-/** Detailed model configuration object */
-export const ModelConfigObjectSchema = z
+export const ProviderConfigSchema = z
   .object({
-    provider: z
-      .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
-      .optional()
-      .meta({
-        description:
-          "AI provider for the model (or provide a baseURL endpoint instead)",
-        example: "openai",
-      }),
-    modelName: z.string().meta({
+    provider: z.string().meta({
       description:
-        "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-      example: "openai/gpt-5.4-mini",
+        "Provider identifier derived from modelName (for example: bedrock or vertex)",
+      example: "bedrock",
     }),
-    apiKey: z.string().optional().meta({
-      description: "API key for the model provider",
-      example: "sk-some-openai-api-key",
-    }),
-    baseURL: z.string().url().optional().meta({
-      description: "Base URL for the model provider",
-      example: "https://api.openai.com/v1",
-    }),
-    headers: z.record(z.string(), z.string()).optional().meta({
+    options: z.record(z.string(), z.unknown()).optional().meta({
       description:
-        "Custom headers sent with every request to the model provider",
+        "Provider-native options forwarded to the server/runtime. This is wire-only; the public SDK constructor uses model.providerOptions instead.",
     }),
   })
+  .passthrough()
+  .meta({ id: "ProviderConfig" });
+
+const BEDROCK_ALLOWED_PROVIDER_OPTION_KEYS = new Set([
+  "region",
+  "apiKey",
+  "accessKeyId",
+  "secretAccessKey",
+  "sessionToken",
+  "baseURL",
+  "headers",
+]);
+
+const VERTEX_ALLOWED_PROVIDER_OPTION_KEYS = new Set([
+  "project",
+  "location",
+  "baseURL",
+  "headers",
+  "googleAuthOptions",
+]);
+
+const VERTEX_GOOGLE_AUTH_ALLOWED_KEYS = new Set([
+  "credentials",
+  "scopes",
+  "projectId",
+  "universeDomain",
+]);
+
+const GOOGLE_SERVICE_ACCOUNT_ALLOWED_KEYS = new Set([
+  "type",
+  "project_id",
+  "private_key_id",
+  "private_key",
+  "client_email",
+  "client_id",
+  "auth_uri",
+  "token_uri",
+  "auth_provider_x509_cert_url",
+  "client_x509_cert_url",
+  "universe_domain",
+]);
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function getStringRecord(value: unknown): Record<string, string> | undefined {
+  const record = getRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  if (Object.values(record).some((item) => typeof item !== "string")) {
+    return undefined;
+  }
+
+  return record as Record<string, string>;
+}
+
+function addUnsupportedOptionIssues({
+  providerName,
+  options,
+  allowedKeys,
+  ctx,
+  pathPrefix,
+}: {
+  providerName: string;
+  options: Record<string, unknown> | undefined;
+  allowedKeys: Set<string>;
+  ctx: z.RefinementCtx;
+  pathPrefix: (string | number)[];
+}) {
+  if (!options) {
+    return;
+  }
+
+  for (const key of Object.keys(options)) {
+    if (allowedKeys.has(key)) {
+      continue;
+    }
+
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `${providerName} configs do not support ${[
+        ...pathPrefix,
+        key,
+      ].join(".")}.`,
+      path: [...pathPrefix, key],
+    });
+  }
+}
+
+function addExpectedStringIssue(
+  value: unknown,
+  path: (string | number)[],
+  message: string,
+  ctx: z.RefinementCtx,
+) {
+  if (value !== undefined && typeof value !== "string") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message,
+      path,
+    });
+  }
+}
+
+function prefixedPath(
+  pathPrefix: (string | number)[],
+  path: (string | number)[],
+): (string | number)[] {
+  return [...pathPrefix, ...path];
+}
+
+function getProviderFromModelName(modelName?: string): string | undefined {
+  return typeof modelName === "string" && modelName.includes("/")
+    ? modelName.split("/", 1)[0]
+    : undefined;
+}
+
+function getProviderConfigMismatchMessage({
+  modelName,
+  providerConfig,
+}: {
+  modelName?: string;
+  providerConfig?: { provider?: string };
+}): string | undefined {
+  const modelProvider = getProviderFromModelName(modelName);
+  const provider =
+    typeof providerConfig?.provider === "string"
+      ? providerConfig.provider
+      : undefined;
+
+  if (modelProvider && provider && provider !== modelProvider) {
+    return `providerConfig.provider "${provider}" must match the model provider "${modelProvider}"`;
+  }
+
+  return undefined;
+}
+
+function addBedrockAuthIssues(
+  providerConfig: { options?: Record<string, unknown> } | undefined,
+  ctx: z.RefinementCtx,
+  providerConfigPath: (string | number)[] = ["providerConfig"],
+) {
+  const providerOptions = providerConfig?.options;
+  const region =
+    typeof providerOptions?.region === "string" ? providerOptions.region : "";
+  const accessKeyId =
+    typeof providerOptions?.accessKeyId === "string"
+      ? providerOptions.accessKeyId
+      : "";
+  const secretAccessKey =
+    typeof providerOptions?.secretAccessKey === "string"
+      ? providerOptions.secretAccessKey
+      : "";
+  const sessionToken =
+    typeof providerOptions?.sessionToken === "string"
+      ? providerOptions.sessionToken
+      : "";
+
+  if (!region) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Bedrock configs require providerConfig.options.region.",
+      path: prefixedPath(providerConfigPath, ["options", "region"]),
+    });
+  }
+
+  const hasAccessKeyId = accessKeyId.length > 0;
+  const hasSecretAccessKey = secretAccessKey.length > 0;
+  const hasSessionToken = sessionToken.length > 0;
+
+  if (hasAccessKeyId !== hasSecretAccessKey) {
+    if (!hasAccessKeyId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Bedrock AWS credentials require providerConfig.options.accessKeyId when secretAccessKey is provided.",
+        path: prefixedPath(providerConfigPath, ["options", "accessKeyId"]),
+      });
+    }
+    if (!hasSecretAccessKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Bedrock AWS credentials require providerConfig.options.secretAccessKey when accessKeyId is provided.",
+        path: prefixedPath(providerConfigPath, ["options", "secretAccessKey"]),
+      });
+    }
+  }
+
+  if (hasSessionToken && (!hasAccessKeyId || !hasSecretAccessKey)) {
+    if (!hasAccessKeyId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Bedrock sessionToken requires providerConfig.options.accessKeyId.",
+        path: prefixedPath(providerConfigPath, ["options", "accessKeyId"]),
+      });
+    }
+    if (!hasSecretAccessKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Bedrock sessionToken requires providerConfig.options.secretAccessKey.",
+        path: prefixedPath(providerConfigPath, ["options", "secretAccessKey"]),
+      });
+    }
+  }
+}
+
+function addBedrockValidationIssues(
+  providerOptions: Record<string, unknown> | undefined,
+  ctx: z.RefinementCtx,
+  providerConfigPath: (string | number)[] = ["providerConfig"],
+) {
+  addUnsupportedOptionIssues({
+    providerName: "Bedrock",
+    options: providerOptions,
+    allowedKeys: BEDROCK_ALLOWED_PROVIDER_OPTION_KEYS,
+    ctx,
+    pathPrefix: prefixedPath(providerConfigPath, ["options"]),
+  });
+
+  const headers = providerOptions?.headers;
+  if (headers !== undefined && !getStringRecord(headers)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Bedrock providerConfig.options.headers must be a string-to-string record.",
+      path: prefixedPath(providerConfigPath, ["options", "headers"]),
+    });
+  }
+
+  addExpectedStringIssue(
+    providerOptions?.apiKey,
+    prefixedPath(providerConfigPath, ["options", "apiKey"]),
+    "Bedrock providerConfig.options.apiKey must be a string.",
+    ctx,
+  );
+  addExpectedStringIssue(
+    providerOptions?.baseURL,
+    prefixedPath(providerConfigPath, ["options", "baseURL"]),
+    "Bedrock providerConfig.options.baseURL must be a string.",
+    ctx,
+  );
+}
+
+function addVertexValidationIssues(
+  providerOptions: Record<string, unknown> | undefined,
+  ctx: z.RefinementCtx,
+  providerConfigPath: (string | number)[] = ["providerConfig"],
+) {
+  addUnsupportedOptionIssues({
+    providerName: "Vertex",
+    options: providerOptions,
+    allowedKeys: VERTEX_ALLOWED_PROVIDER_OPTION_KEYS,
+    ctx,
+    pathPrefix: prefixedPath(providerConfigPath, ["options"]),
+  });
+
+  addExpectedStringIssue(
+    providerOptions?.project,
+    prefixedPath(providerConfigPath, ["options", "project"]),
+    "Vertex providerConfig.options.project must be a string.",
+    ctx,
+  );
+  addExpectedStringIssue(
+    providerOptions?.location,
+    prefixedPath(providerConfigPath, ["options", "location"]),
+    "Vertex providerConfig.options.location must be a string.",
+    ctx,
+  );
+  addExpectedStringIssue(
+    providerOptions?.baseURL,
+    prefixedPath(providerConfigPath, ["options", "baseURL"]),
+    "Vertex providerConfig.options.baseURL must be a string.",
+    ctx,
+  );
+
+  const headers = providerOptions?.headers;
+  if (headers !== undefined && !getStringRecord(headers)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Vertex providerConfig.options.headers must be a string-to-string record.",
+      path: prefixedPath(providerConfigPath, ["options", "headers"]),
+    });
+  }
+
+  const googleAuthOptions = providerOptions?.googleAuthOptions;
+  if (googleAuthOptions === undefined) {
+    return;
+  }
+
+  const googleAuthRecord = getRecord(googleAuthOptions);
+  if (!googleAuthRecord) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Vertex providerConfig.options.googleAuthOptions must be an object.",
+      path: prefixedPath(providerConfigPath, ["options", "googleAuthOptions"]),
+    });
+    return;
+  }
+
+  addUnsupportedOptionIssues({
+    providerName: "Vertex",
+    options: googleAuthRecord,
+    allowedKeys: VERTEX_GOOGLE_AUTH_ALLOWED_KEYS,
+    ctx,
+    pathPrefix: prefixedPath(providerConfigPath, [
+      "options",
+      "googleAuthOptions",
+    ]),
+  });
+
+  const credentials = googleAuthRecord.credentials;
+  if (credentials !== undefined) {
+    const credentialRecord = getRecord(credentials);
+    if (!credentialRecord) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Vertex providerConfig.options.googleAuthOptions.credentials must be an object.",
+        path: prefixedPath(providerConfigPath, [
+          "options",
+          "googleAuthOptions",
+          "credentials",
+        ]),
+      });
+    } else {
+      addUnsupportedOptionIssues({
+        providerName: "Vertex",
+        options: credentialRecord,
+        allowedKeys: GOOGLE_SERVICE_ACCOUNT_ALLOWED_KEYS,
+        ctx,
+        pathPrefix: prefixedPath(providerConfigPath, [
+          "options",
+          "googleAuthOptions",
+          "credentials",
+        ]),
+      });
+
+      for (const [key, value] of Object.entries(credentialRecord)) {
+        if (
+          GOOGLE_SERVICE_ACCOUNT_ALLOWED_KEYS.has(key) &&
+          value !== undefined &&
+          typeof value !== "string"
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Vertex providerConfig.options.googleAuthOptions.credentials.${key} must be a string.`,
+            path: [
+              ...prefixedPath(providerConfigPath, [
+                "options",
+                "googleAuthOptions",
+                "credentials",
+              ]),
+              key,
+            ],
+          });
+        }
+      }
+    }
+  }
+
+  const scopes = googleAuthRecord.scopes;
+  if (
+    scopes !== undefined &&
+    typeof scopes !== "string" &&
+    !(Array.isArray(scopes) && scopes.every((item) => typeof item === "string"))
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Vertex providerConfig.options.googleAuthOptions.scopes must be a string or string array.",
+      path: prefixedPath(providerConfigPath, [
+        "options",
+        "googleAuthOptions",
+        "scopes",
+      ]),
+    });
+  }
+
+  addExpectedStringIssue(
+    googleAuthRecord.projectId,
+    prefixedPath(providerConfigPath, [
+      "options",
+      "googleAuthOptions",
+      "projectId",
+    ]),
+    "Vertex providerConfig.options.googleAuthOptions.projectId must be a string.",
+    ctx,
+  );
+  addExpectedStringIssue(
+    googleAuthRecord.universeDomain,
+    prefixedPath(providerConfigPath, [
+      "options",
+      "googleAuthOptions",
+      "universeDomain",
+    ]),
+    "Vertex providerConfig.options.googleAuthOptions.universeDomain must be a string.",
+    ctx,
+  );
+}
+
+const modelConfigSharedShape = {
+  provider: z
+    .enum(["openai", "anthropic", "google", "microsoft", "bedrock", "vertex"])
+    .optional()
+    .meta({
+      description:
+        "AI provider for the model (or provide a baseURL endpoint instead)",
+      example: "openai",
+    }),
+  modelName: z.string().meta({
+    description:
+      "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+    example: "openai/gpt-5.4-mini",
+  }),
+  apiKey: z.string().optional().meta({
+    description: "API key for the model provider",
+    example: "sk-some-openai-api-key",
+  }),
+  baseURL: z.string().url().optional().meta({
+    description: "Base URL for the model provider",
+    example: "https://api.openai.com/v1",
+  }),
+  headers: z.record(z.string(), z.string()).optional().meta({
+    description: "Custom headers sent with every request to the model provider",
+  }),
+  providerConfig: ProviderConfigSchema.optional(),
+} as const;
+
+function validateProviderConfig(
+  value: {
+    modelName?: string;
+    providerConfig?: { provider?: string; options?: Record<string, unknown> };
+  },
+  ctx: z.RefinementCtx,
+  providerConfigPath: (string | number)[] = ["providerConfig"],
+) {
+  const mismatchMessage = getProviderConfigMismatchMessage(value);
+
+  if (mismatchMessage) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: mismatchMessage,
+      path: prefixedPath(providerConfigPath, ["provider"]),
+    });
+  }
+
+  const modelProvider = getProviderFromModelName(value.modelName);
+  const provider =
+    typeof value.providerConfig?.provider === "string"
+      ? value.providerConfig.provider
+      : undefined;
+  const providerOptions = getRecord(value.providerConfig?.options);
+
+  if (provider === "bedrock" || modelProvider === "bedrock") {
+    addBedrockAuthIssues(value.providerConfig, ctx, providerConfigPath);
+    addBedrockValidationIssues(providerOptions, ctx, providerConfigPath);
+  }
+
+  if (provider === "vertex" || modelProvider === "vertex") {
+    addVertexValidationIssues(providerOptions, ctx, providerConfigPath);
+  }
+}
+
+/** Detailed model configuration object */
+export const ModelConfigObjectSchema = z
+  .object(modelConfigSharedShape)
+  .passthrough()
+  .superRefine((value, ctx) => validateProviderConfig(value, ctx))
   .meta({ id: "ModelConfigObject" });
+
+/** Session-level model client options (wire-only). */
+export const ModelClientOptionsSchema = z
+  .object({
+    provider: modelConfigSharedShape.provider,
+    apiKey: modelConfigSharedShape.apiKey,
+    baseURL: modelConfigSharedShape.baseURL,
+    headers: modelConfigSharedShape.headers,
+    providerConfig: modelConfigSharedShape.providerConfig,
+  })
+  .passthrough()
+  .meta({ id: "ModelClientOptions" });
 
 /** Model configuration */
 export const ModelConfigSchema = ModelConfigObjectSchema.meta({
@@ -319,6 +792,10 @@ export const SessionStartRequestSchema = z
       description: "Model name to use for AI operations",
       example: "openai/gpt-5.4-mini",
     }),
+    modelClientOptions: ModelClientOptionsSchema.optional().meta({
+      description:
+        "Hosted-session model options. The public Stagehand constructor fills this from model.providerOptions/apiKey when env='BROWSERBASE'.",
+    }),
     domSettleTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms to wait for DOM to settle",
       example: 5000,
@@ -361,6 +838,16 @@ export const SessionStartRequestSchema = z
       description: "Timeout in ms for act operations (deprecated, v2 only)",
     }),
   })
+  .superRefine((value, ctx) =>
+    validateProviderConfig(
+      {
+        modelName: value.modelName,
+        providerConfig: value.modelClientOptions?.providerConfig,
+      },
+      ctx,
+      ["modelClientOptions", "providerConfig"],
+    ),
+  )
   .meta({ id: "SessionStartRequest" });
 
 export const SessionStartResultSchema = z
@@ -779,6 +1266,10 @@ export const AgentExecuteResponseSchema = wrapResponse(
 
 export const NavigateOptionsSchema = z
   .object({
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string (e.g., 'openai/gpt-5-nano')",
+    }),
     referer: z.string().optional().meta({
       description: "Referer header to send with the request",
     }),
@@ -1081,6 +1572,7 @@ export const Operations = {
 // Shared types
 export type Action = z.infer<typeof ActionSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+export type ModelClientOptions = z.infer<typeof ModelClientOptionsSchema>;
 export type BrowserConfig = z.infer<typeof BrowserConfigSchema>;
 export type SessionIdParams = z.infer<typeof SessionIdParamsSchema>;
 

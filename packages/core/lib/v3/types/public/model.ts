@@ -1,4 +1,5 @@
 import type { ClientOptions as AnthropicClientOptionsBase } from "@anthropic-ai/sdk";
+import type { AmazonBedrockProviderSettings as AmazonBedrockProviderSettingsBase } from "@ai-sdk/amazon-bedrock";
 import type { GoogleVertexProviderSettings as GoogleVertexProviderSettingsBase } from "@ai-sdk/google-vertex";
 import type {
   LanguageModelV2,
@@ -31,14 +32,45 @@ export interface GoogleServiceAccountCredentials {
   universe_domain?: string;
 }
 
-export type GoogleVertexProviderSettings = Pick<
-  GoogleVertexProviderSettingsBase,
-  "project" | "location" | "headers"
+export type GoogleVertexProviderSettings = Omit<
+  Partial<
+    Pick<
+      GoogleVertexProviderSettingsBase,
+      "project" | "location" | "baseURL" | "headers"
+    >
+  >,
+  "headers"
 > & {
+  headers?: Record<string, string>;
   googleAuthOptions?: {
     credentials?: GoogleServiceAccountCredentials;
+    scopes?: string | string[];
+    projectId?: string;
+    universeDomain?: string;
   };
 };
+
+export type BedrockProviderOptions = Omit<
+  Partial<
+    Pick<
+      AmazonBedrockProviderSettingsBase,
+      | "region"
+      | "accessKeyId"
+      | "secretAccessKey"
+      | "sessionToken"
+      | "apiKey"
+      | "baseURL"
+      | "headers"
+    >
+  >,
+  "headers"
+> & {
+  headers?: Record<string, string>;
+};
+
+export type ProviderOptions =
+  | BedrockProviderOptions
+  | GoogleVertexProviderSettings;
 
 export type AnthropicJsonSchemaObject = {
   definitions?: {
@@ -116,6 +148,12 @@ export type ClientOptions = (
   apiKey?: string;
   provider?: AgentProviderType;
   baseURL?: string;
+  /**
+   * Provider-native auth/options for providers that do not fit the generic
+   * apiKey/baseURL shape. Stagehand normalizes these for local runs and
+   * serializes them to the hosted API wire format when env="BROWSERBASE".
+   */
+  providerOptions?: ProviderOptions;
   /** OpenAI organization ID */
   organization?: string;
   /** Delay between agent actions in ms */
