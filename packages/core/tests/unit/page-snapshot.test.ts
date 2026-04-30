@@ -28,6 +28,9 @@ describe("Page.snapshot", () => {
     expect(captureSpy).toHaveBeenCalledWith(fakePage, {
       pierceShadow: true,
       includeIframes: false,
+      interactive: undefined,
+      maxDepth: undefined,
+      focusSelector: undefined,
     });
   });
 
@@ -43,6 +46,41 @@ describe("Page.snapshot", () => {
     expect(captureSpy).toHaveBeenCalledWith(fakePage, {
       pierceShadow: true,
       includeIframes: undefined,
+      interactive: undefined,
+      maxDepth: undefined,
+      focusSelector: undefined,
     });
+  });
+
+  it("forwards snapshot filtering options and drops maps for absent refs", async () => {
+    vi.spyOn(fs, "writeFile").mockResolvedValue();
+    const captureSpy = vi
+      .spyOn(snapshotModule, "captureHybridSnapshot")
+      .mockResolvedValue({
+        combinedTree: "[keep] button: Save",
+        combinedXpathMap: { keep: "/html/body/button", drop: "/html/body/p" },
+        combinedUrlMap: {
+          keep: "https://example.com/save",
+          drop: "https://example.com",
+        },
+        perFrame: [],
+      });
+
+    const fakePage = {} as Page;
+    const snapshot = await Page.prototype.snapshot.call(fakePage, {
+      interactive: true,
+      maxDepth: 3,
+      focusSelector: "#app",
+    });
+
+    expect(captureSpy).toHaveBeenCalledWith(fakePage, {
+      pierceShadow: true,
+      includeIframes: undefined,
+      interactive: true,
+      maxDepth: 3,
+      focusSelector: "#app",
+    });
+    expect(snapshot.xpathMap).toEqual({ keep: "/html/body/button" });
+    expect(snapshot.urlMap).toEqual({ keep: "https://example.com/save" });
   });
 });
