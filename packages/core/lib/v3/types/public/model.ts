@@ -137,8 +137,8 @@ export type ClientOptions = (
   environment?: string;
   /** Max images for Microsoft FARA agent */
   maxImages?: number;
-  /** Temperature for model inference */
-  temperature?: number;
+  /** Temperature for model inference. Set null or omit to use the model/provider default. */
+  temperature?: number | null;
   /** Custom headers sent with every request to the provider */
   headers?: Record<string, string>;
   /** Reasoning effort for reasoning-capable models (e.g., "none", "low", "medium", "high") */

@@ -115,4 +115,27 @@ describe("StagehandAPIClient - optional modelApiKey", () => {
     const [, requestInit] = fetchSpy.mock.calls[0];
     expect(requestInit.headers["x-model-api-key"]).toBeUndefined();
   });
+
+  it("should send nullable temperature in the session start body", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(createSessionStartResponse("sess-temperature"));
+    globalThis.fetch = fetchSpy;
+
+    const client = new StagehandAPIClient({
+      apiKey: "test-api-key",
+      logger,
+    });
+
+    await client.init({
+      modelName: "openai/gpt-5-mini",
+      temperature: null,
+    });
+
+    const [, requestInit] = fetchSpy.mock.calls[0];
+    expect(JSON.parse(requestInit.body as string)).toMatchObject({
+      modelName: "openai/gpt-5-mini",
+      temperature: null,
+    });
+  });
 });

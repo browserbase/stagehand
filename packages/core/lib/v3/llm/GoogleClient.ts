@@ -234,7 +234,7 @@ export class GoogleClient extends LLMClient {
 
     const generationConfig = {
       maxOutputTokens: maxOutputTokens,
-      temperature: temperature,
+      ...(temperature !== undefined ? { temperature } : {}),
       topP: top_p,
       responseMimeType: response_model ? "application/json" : undefined,
       responseSchema: response_model

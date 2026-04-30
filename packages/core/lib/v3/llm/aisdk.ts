@@ -153,6 +153,8 @@ export class AISdkClient extends LLMClient {
     // Kimi models only support temperature=1
     const isKimi = this.model.modelId.includes("kimi");
     const temperature = isKimi ? 1 : isOpus47 ? undefined : options.temperature;
+    const temperatureOption =
+      typeof temperature === "number" ? { temperature } : {};
 
     // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
     const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
@@ -242,7 +244,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           model: this.model,
           messages: formattedMessages,
           schema: options.response_model.schema,
-          temperature,
+          ...temperatureOption,
           ...(Object.keys(providerOptions).length > 0
             ? { providerOptions }
             : {}),
@@ -373,7 +375,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
                 ? "none"
                 : "auto"
             : undefined,
-        temperature,
+        ...temperatureOption,
       });
     } catch (err) {
       // Log error response to maintain request/response pairing

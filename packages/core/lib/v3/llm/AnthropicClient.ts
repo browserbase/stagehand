@@ -173,7 +173,9 @@ export class AnthropicClient extends LLMClient {
       system: systemMessage
         ? (systemMessage.content as string | TextBlockParam[]) // we can cast because we already filtered out image content
         : undefined,
-      temperature: options.temperature,
+      ...(options.temperature !== undefined
+        ? { temperature: options.temperature }
+        : {}),
     });
 
     logger({

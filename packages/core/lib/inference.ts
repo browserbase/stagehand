@@ -30,6 +30,11 @@ function withLlmTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
   );
 }
 
+function getExplicitTemperature(llmClient: LLMClient) {
+  const temperature = llmClient.clientOptions?.temperature;
+  return typeof temperature === "number" ? temperature : undefined;
+}
+
 export async function extract<T extends StagehandZodObject>({
   instruction,
   domElements,
@@ -64,7 +69,7 @@ export async function extract<T extends StagehandZodObject>({
   type MetadataResponse = z.infer<typeof metadataSchema>;
 
   const isUsingAnthropic = llmClient.type === "anthropic";
-  const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
+  const temperature = getExplicitTemperature(llmClient);
 
   const extractCallMessages: ChatMessage[] = [
     buildExtractSystemPrompt(isUsingAnthropic, userProvidedInstructions),
@@ -95,7 +100,7 @@ export async function extract<T extends StagehandZodObject>({
           schema,
           name: "Extraction",
         },
-        temperature: isGPT5 ? 1 : 0.1,
+        ...(temperature !== undefined ? { temperature } : {}),
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
@@ -162,7 +167,7 @@ export async function extract<T extends StagehandZodObject>({
           name: "Metadata",
           schema: metadataSchema,
         },
-        temperature: isGPT5 ? 1 : 0.1,
+        ...(temperature !== undefined ? { temperature } : {}),
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
@@ -257,7 +262,7 @@ export async function observe({
   supportedActions?: string[];
   variables?: Variables;
 }) {
-  const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
+  const temperature = getExplicitTemperature(llmClient);
 
   const observeSchema = z.object({
     elements: z
@@ -331,7 +336,7 @@ export async function observe({
         schema: observeSchema,
         name: "Observation",
       },
-      temperature: isGPT5 ? 1 : 0.1,
+      ...(temperature !== undefined ? { temperature } : {}),
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
@@ -408,7 +413,7 @@ export async function act({
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
 }) {
-  const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
+  const temperature = getExplicitTemperature(llmClient);
 
   const actSchema = z.object({
     action: z
@@ -478,7 +483,7 @@ export async function act({
         schema: actSchema,
         name: "act",
       },
-      temperature: isGPT5 ? 1 : 0.1,
+      ...(temperature !== undefined ? { temperature } : {}),
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
