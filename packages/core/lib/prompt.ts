@@ -63,13 +63,24 @@ ONLY print the content using the print_extracted_data tool provided.
   };
 }
 
+/**
+ * Wraps raw DOM/webpage content in a clear boundary to reduce the risk of
+ * indirect prompt injection. Any occurrence of the boundary marker inside the
+ * content is escaped to prevent premature closure.
+ */
+export function sanitizeDomForPrompt(domElements: string): string {
+  const START = "<<<<STAGEHAND_DOM_BEGIN>>>>";
+  const END = "<<<<STAGEHAND_DOM_END>>>>";
+  const escaped = domElements.replaceAll(END, "<STAGEHAND_DOM_END_ESCAPED>");
+  return `${START}\n${escaped}\n${END}`;
+}
+
 export function buildExtractUserPrompt(
   instruction: string,
   domElements: string,
   isUsingPrintExtractedDataTool: boolean = false,
 ): ChatMessage {
-  let content = `Instruction: ${instruction}
-DOM: ${domElements}`;
+  let content = `Instruction: ${instruction}\nDOM: ${sanitizeDomForPrompt(domElements)}`;
 
   if (isUsingPrintExtractedDataTool) {
     content += `
@@ -154,8 +165,7 @@ export function buildObserveUserMessage(
 ): ChatMessage {
   return {
     role: "user",
-    content: `instruction: ${instruction}
-Accessibility Tree: \n${domElements}\n`,
+    content: `instruction: ${instruction}\nAccessibility Tree: \n${sanitizeDomForPrompt(domElements)}\n`,
   };
 }
 
