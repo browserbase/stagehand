@@ -85,7 +85,6 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       browserbaseSessionID,
       experimental,
       browser,
-      temperature,
     } = body;
     if (!modelName) {
       return error(reply, "Missing required model name");
@@ -192,7 +191,6 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       browserbaseApiKey: bbApiKey,
       browserbaseProjectId: bbProjectId,
       modelName,
-      temperature: temperature ?? null,
       domSettleTimeoutMs,
       verbose,
       systemPrompt,

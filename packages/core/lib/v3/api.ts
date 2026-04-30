@@ -210,7 +210,6 @@ export class StagehandAPIClient {
     selfHeal,
     browserbaseSessionCreateParams,
     browserbaseSessionID,
-    temperature,
     // browser,  TODO for local browsers
   }: ClientSessionStartParams): Promise<Api.SessionStartResult> {
     this.modelApiKey = modelApiKey;
@@ -237,7 +236,6 @@ export class StagehandAPIClient {
       selfHeal,
       browserbaseSessionCreateParams,
       browserbaseSessionID,
-      temperature,
       // browser, TODO: only send when connected to local fastify
     };
 

@@ -92,53 +92,10 @@ describe("AISdkClient structured output provider options", () => {
       logger: vi.fn(),
     });
 
-    expect(mockGenerateObject.mock.calls[0][0]).not.toHaveProperty(
-      "temperature",
-    );
-  });
-
-  it("omits temperature when no temperature is provided", async () => {
-    const client = new AISdkClient({
-      model: createModel("openai/gpt-4.1"),
-      logger: vi.fn(),
-    });
-
-    await client.createChatCompletion({
-      options: {
-        messages: [{ role: "user", content: "hello" }],
-        response_model: {
-          name: "test",
-          schema: z.object({ ok: z.boolean() }),
-        },
-      },
-      logger: vi.fn(),
-    });
-
-    expect(mockGenerateObject.mock.calls[0][0]).not.toHaveProperty(
-      "temperature",
-    );
-  });
-
-  it("sets temperature to 1 for Kimi structured calls", async () => {
-    const client = new AISdkClient({
-      model: createModel("groq/moonshotai/kimi-k2-instruct"),
-      logger: vi.fn(),
-    });
-
-    await client.createChatCompletion({
-      options: {
-        messages: [{ role: "user", content: "hello" }],
-        response_model: {
-          name: "test",
-          schema: z.object({ ok: z.boolean() }),
-        },
-      },
-      logger: vi.fn(),
-    });
-
-    expect(mockGenerateObject.mock.calls[0][0]).toHaveProperty(
-      "temperature",
-      1,
+    expect(mockGenerateObject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        temperature: undefined,
+      }),
     );
   });
 });

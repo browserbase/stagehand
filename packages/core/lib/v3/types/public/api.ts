@@ -21,15 +21,6 @@ export {
 // Shared Components
 // =============================================================================
 
-const TemperatureSchema = z.number().nullable().optional().meta({
-  description:
-    "Optional model temperature. Set null or omit to use the model/provider default.",
-  example: null,
-  override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
-    jsonSchema.default = null;
-  },
-});
-
 /** Browser launch options for local browsers */
 export const LocalBrowserLaunchOptionsSchema = z
   .object({
@@ -92,7 +83,6 @@ export const ModelConfigObjectSchema = z
       description:
         "Custom headers sent with every request to the model provider",
     }),
-    temperature: TemperatureSchema,
   })
   .meta({ id: "ModelConfigObject" });
 
@@ -329,7 +319,6 @@ export const SessionStartRequestSchema = z
       description: "Model name to use for AI operations",
       example: "openai/gpt-5.4-mini",
     }),
-    temperature: TemperatureSchema,
     domSettleTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms to wait for DOM to settle",
       example: 5000,

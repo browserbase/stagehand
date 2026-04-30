@@ -142,9 +142,7 @@ export class CerebrasClient extends LLMClient {
               ]
             : []),
         ],
-        ...(options.temperature !== undefined
-          ? { temperature: options.temperature }
-          : {}),
+        temperature: options.temperature || 0.7,
         max_tokens: options.maxOutputTokens,
         tools: tools,
         tool_choice: options.tool_choice || "auto",

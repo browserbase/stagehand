@@ -23,8 +23,6 @@ export interface CreateSessionParams {
   browserType: "local" | "browserbase";
   /** Model name (e.g., "openai/gpt-4o") */
   modelName: string;
-  /** Optional model temperature; null/undefined means provider default. */
-  temperature?: number | null;
   /** Verbosity level */
   verbose?: 0 | 1 | 2;
   /** Custom system prompt */

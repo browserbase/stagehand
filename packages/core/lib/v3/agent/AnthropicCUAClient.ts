@@ -76,10 +76,7 @@ export class AnthropicCUAClient extends AgentClient {
     }
 
     // Track user-specified temperature so we can warn if adaptive thinking overrides it
-    this.userTemperature =
-      typeof clientOptions?.temperature === "number"
-        ? clientOptions.temperature
-        : undefined;
+    this.userTemperature = clientOptions?.temperature;
 
     // Store client options for reference
     this.clientOptions = {

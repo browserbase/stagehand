@@ -123,8 +123,8 @@ export class MicrosoftCUAClient extends AgentClient {
     }
 
     // Temperature
-    if (typeof clientOptions?.temperature === "number") {
-      this.temperature = clientOptions.temperature;
+    if (clientOptions?.temperature !== undefined) {
+      this.temperature = clientOptions.temperature as number;
     }
   }
 
