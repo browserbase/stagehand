@@ -1,0 +1,25 @@
+packages/server-v3/openapi.v3.yaml
+  e0a3024c84b4a350 203-210,468-475,1272-1279
+packages/core/lib/v3/types/public/model.ts
+  e0a3024c84b4a350 140-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "9902f2fbeaaddd29182f8d0a1c5322f56e6db9ba",
+  "prompts": {
+    "e0a3024c84b4a350": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dd059-cd19-7493-8094-75c5c85cb962",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 26,
+      "total_deletions": 2,
+      "accepted_lines": 26,
+      "overriden_lines": 0
+    }
+  }
+}
