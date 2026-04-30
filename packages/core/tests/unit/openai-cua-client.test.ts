@@ -87,6 +87,54 @@ describe("OpenAICUAClient", () => {
     ]);
   });
 
+  it("returns a success result when a custom tool completes with undefined", async () => {
+    const client = createClient();
+    const toolExecute = vi.fn(async () => undefined);
+
+    (
+      client as unknown as {
+        tools: Record<
+          string,
+          {
+            execute: typeof toolExecute;
+          }
+        >;
+      }
+    ).tools = {
+      fillUsername: {
+        execute: toolExecute,
+      },
+    };
+
+    const result = await (
+      client as unknown as {
+        takeAction: (
+          output: unknown[],
+          logger: (msg: unknown) => void,
+        ) => Promise<unknown[]>;
+      }
+    ).takeAction(
+      [
+        {
+          type: "function_call",
+          name: "fillUsername",
+          call_id: "call-1",
+          arguments: "{}",
+        },
+      ],
+      vi.fn(),
+    );
+
+    expect(toolExecute).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([
+      {
+        type: "function_call_output",
+        call_id: "call-1",
+        output: "Tool executed successfully",
+      },
+    ]);
+  });
+
   it("does NOT auto-continue follow-up questions without a captcha context", async () => {
     const client = createClient();
     // No captcha context note — no tool should be exposed

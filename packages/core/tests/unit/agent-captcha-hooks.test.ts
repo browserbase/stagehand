@@ -72,7 +72,10 @@ class FakeCuaClient {
   public captureScreenshot = vi.fn(async () => null);
   public setViewport = vi.fn();
   public setCurrentUrl = vi.fn();
-  public setScreenshotProvider = vi.fn();
+  public screenshotProvider?: () => Promise<string>;
+  public setScreenshotProvider = vi.fn((provider: () => Promise<string>) => {
+    this.screenshotProvider = provider;
+  });
   public setSafetyConfirmationHandler = vi.fn();
 
   setActionHandler(
@@ -136,6 +139,41 @@ describe("agent captcha hooks", () => {
       logs.push(line);
     };
     fakeCuaClient = new FakeCuaClient();
+  });
+
+  it("keeps the CUA client URL in sync when the screenshot provider captures the active page", async () => {
+    new V3CuaAgentHandler(
+      {
+        context: {
+          awaitActivePage: async () => page,
+        },
+        bus: { emit: vi.fn() },
+        isCaptchaAutoSolveEnabled: false,
+        isAdvancedStealth: false,
+        configuredViewport: { width: 1288, height: 711 },
+        isAgentReplayActive: () => false,
+        updateMetrics: vi.fn(),
+      } as never,
+      logger,
+      {
+        modelName: "anthropic/claude-haiku-4-5-20251001",
+        clientOptions: { waitBetweenActions: 1 },
+      } as never,
+    );
+
+    await vi.waitFor(() => {
+      expect(fakeCuaClient.setCurrentUrl).toHaveBeenCalledWith(
+        "https://example.com",
+      );
+    });
+    fakeCuaClient.setCurrentUrl.mockClear();
+
+    await expect(fakeCuaClient.screenshotProvider?.()).resolves.toBe(
+      Buffer.from("fake-image").toString("base64"),
+    );
+    expect(fakeCuaClient.setCurrentUrl).toHaveBeenCalledWith(
+      "https://example.com",
+    );
   });
 
   it("blocks regular agent prepareStep until the solver finishes and injects one solved message", async () => {
