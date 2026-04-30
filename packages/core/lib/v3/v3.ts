@@ -79,6 +79,7 @@ import {
   MissingEnvironmentVariableError,
   StagehandInitError,
   AgentStreamResult,
+  AgentAbortError,
 } from "./types/public/index.js";
 import { V3Context } from "./understudy/context.js";
 import { Page } from "./understudy/page.js";
@@ -128,6 +129,15 @@ export function resolveModelConfiguration(
   }
 
   return { modelName: DEFAULT_MODEL_NAME };
+}
+
+function throwAgentAbortIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) {
+    return;
+  }
+
+  const reason = signal.reason ? String(signal.reason) : "aborted";
+  throw new AgentAbortError(reason);
 }
 
 /**
@@ -2151,15 +2161,19 @@ export class V3 {
       withInstanceLogContext(
         this.instanceId,
         async (): Promise<AgentResult | AgentStreamResult> => {
+          const executeOptions =
+            typeof instructionOrOptions === "object"
+              ? instructionOrOptions
+              : null;
+
           validateExperimentalFeatures({
             isExperimental: this.experimental,
             agentConfig: options,
-            executeOptions:
-              typeof instructionOrOptions === "object"
-                ? instructionOrOptions
-                : null,
+            executeOptions,
             isStreaming,
           });
+
+          throwAgentAbortIfAborted(executeOptions?.signal);
 
           // Streaming mode
           if (isStreaming) {
