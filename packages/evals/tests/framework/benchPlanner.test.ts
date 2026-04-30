@@ -370,6 +370,42 @@ describe("benchPlanner", () => {
     expect(testcases[0].metadata.agentMode).toBeUndefined();
   });
 
+  it("keeps codex as a harness-level matrix with browse_cli metadata", async () => {
+    const testcases = await withEnvOverrides(
+      {
+        EVAL_MAX_K: "1",
+        EVAL_WEBVOYAGER_LIMIT: "1",
+      },
+      async () =>
+        generateBenchTestcases(
+          [
+            makeTask({
+              name: "agent/webvoyager",
+              primaryCategory: "agent",
+              categories: ["external_agent_benchmarks"],
+            }),
+          ],
+          {
+            modelOverride: "openai/gpt-5.4-mini",
+            datasetFilter: "webvoyager",
+            harness: "codex",
+            agentModes: ["dom", "hybrid"],
+          },
+        ),
+    );
+
+    expect(testcases).toHaveLength(1);
+    expect(testcases[0].input.modelName).toBe("openai/gpt-5.4-mini");
+    expect(testcases[0].input.agentMode).toBeUndefined();
+    expect(testcases[0].input.isCUA).toBeUndefined();
+    expect(testcases[0].tags).toContain("harness/codex");
+    expect(testcases[0].metadata.harness).toBe("codex");
+    expect(testcases[0].metadata.toolSurface).toBe("browse_cli");
+    expect(testcases[0].metadata.startupProfile).toBe("tool_launch_local");
+    expect(testcases[0].metadata.toolCommand).toBe("browse");
+    expect(testcases[0].metadata.agentMode).toBeUndefined();
+  });
+
   it("rejects unsupported Claude Code tasks from broad targets", async () => {
     const generate = () =>
       withEnvOverrides(

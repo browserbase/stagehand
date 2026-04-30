@@ -36,6 +36,24 @@ export interface PreparedClaudeCodeToolAdapter {
   cleanup: () => Promise<void>;
 }
 
+export interface PreparedBrowseCliHarnessAdapter {
+  toolSurface: "browse_cli";
+  startupProfile: StartupProfile;
+  cwd: string;
+  env: Record<string, string>;
+  promptInstructions: string;
+  metadata: BrowseCliToolMetadata;
+  cleanup: () => Promise<void>;
+}
+
+export interface BrowseCliHarnessAdapterInput {
+  startupProfile: StartupProfile;
+  environment: "LOCAL" | "BROWSERBASE";
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+  logCategory: string;
+}
+
 const BROWSE_CLI_ENTRYPOINT = path.join(
   getRepoRootDir(),
   "packages",
@@ -220,6 +238,53 @@ async function prepareBrowseCliAdapter(
     startupProfile: StartupProfile;
   },
 ): Promise<PreparedClaudeCodeToolAdapter> {
+  const adapter = await prepareBrowseCliHarnessAdapter({
+    startupProfile: input.startupProfile,
+    environment: input.environment,
+    plan: input.plan,
+    logger: input.logger,
+    logCategory: "claude_code",
+  });
+
+  if (allowUnsandboxedLocalClaudeCode()) {
+    input.logger.warn({
+      category: "claude_code",
+      message: `${ALLOW_UNSANDBOXED_LOCAL_ENV}=true: raw Bash auto-approval is enabled for Claude Code. Use only in an isolated checkout/container.`,
+      level: 0,
+    });
+  }
+
+  return {
+    ...adapter,
+    allowedTools: getBrowseCliAllowedTools(),
+    settingSources: ["project"],
+    canUseTool: async (toolName, commandInput) => {
+      if (toolName === "Skill") {
+        return { behavior: "allow", updatedInput: commandInput };
+      }
+      if (toolName !== "Bash") {
+        return {
+          behavior: "deny",
+          message: "Only Skill and Bash are allowed.",
+        };
+      }
+
+      const command = readCommand(commandInput);
+      if (!isAllowedBrowseCommand(command)) {
+        return {
+          behavior: "deny",
+          message: "Only browse commands are allowed for this eval harness.",
+        };
+      }
+
+      return { behavior: "allow", updatedInput: commandInput };
+    },
+  };
+}
+
+export async function prepareBrowseCliHarnessAdapter(
+  input: BrowseCliHarnessAdapterInput,
+): Promise<PreparedBrowseCliHarnessAdapter> {
   if (!fs.existsSync(BROWSE_CLI_ENTRYPOINT)) {
     throw new EvalsError(
       `browse_cli requires a built CLI entrypoint at ${BROWSE_CLI_ENTRYPOINT}. Run pnpm --dir packages/cli build first.`,
@@ -244,8 +309,8 @@ async function prepareBrowseCliAdapter(
   const wrapperPath = path.join(cwd, "browse");
   await installBrowserSkill(cwd);
   input.logger.log({
-    category: "claude_code",
-    message: `Installed browser skill for Claude Code at ${path.join(cwd, ".claude", "skills", "browser", "SKILL.md")}`,
+    category: input.logCategory,
+    message: `Installed browser skill at ${path.join(cwd, ".claude", "skills", "browser", "SKILL.md")}`,
     level: 1,
   });
   const env = {
@@ -266,43 +331,14 @@ async function prepareBrowseCliAdapter(
   );
 
   await runBrowseSetup(wrapperPath, input.environment, input.logger, env, cwd);
-  if (allowUnsandboxedLocalClaudeCode()) {
-    input.logger.warn({
-      category: "claude_code",
-      message: `${ALLOW_UNSANDBOXED_LOCAL_ENV}=true: raw Bash auto-approval is enabled for Claude Code. Use only in an isolated checkout/container.`,
-      level: 0,
-    });
-  }
 
   return {
     toolSurface: "browse_cli",
     startupProfile: input.startupProfile,
     cwd,
     env,
-    allowedTools: getBrowseCliAllowedTools(),
-    settingSources: ["project"],
-    canUseTool: async (toolName, commandInput) => {
-      if (toolName === "Skill") {
-        return { behavior: "allow", updatedInput: commandInput };
-      }
-      if (toolName !== "Bash") {
-        return {
-          behavior: "deny",
-          message: "Only Skill and Bash are allowed.",
-        };
-      }
-
-      const command = readCommand(commandInput);
-      if (!isAllowedBrowseCommand(command)) {
-        return {
-          behavior: "deny",
-          message: "Only browse commands are allowed for this eval harness.",
-        };
-      }
-
-      return { behavior: "allow", updatedInput: commandInput };
-    },
     promptInstructions: buildBrowseCliPromptInstructions(input.plan),
+    metadata: getBrowseCliToolMetadata(),
     cleanup: async () => {
       await runBrowseCommand(
         wrapperPath,
@@ -946,7 +982,7 @@ async function attachActiveCdpPage(
   };
 }
 
-function waitForCdpEvent(
+export function waitForCdpEvent(
   connection: CdpConnection,
   sessionId: string,
   method: string,
@@ -954,7 +990,7 @@ function waitForCdpEvent(
 ): Promise<CdpEventMessage> {
   let timeout: NodeJS.Timeout | undefined;
   let unsubscribe: (() => void) | undefined;
-  return new Promise((resolve, reject) => {
+  const promise = new Promise<CdpEventMessage>((resolve, reject) => {
     const cleanup = () => {
       if (timeout) clearTimeout(timeout);
       unsubscribe?.();
@@ -974,6 +1010,13 @@ function waitForCdpEvent(
       reject(new Error(`Timed out waiting for CDP event "${method}"`));
     }, timeoutMs);
   });
+
+  // Claude-generated snippets often assign an event wait promise before a CDP
+  // action and may abandon it after another branch finishes. Keep the promise
+  // rejectable for awaited callers, but prevent abandoned waits from crashing
+  // the eval process as unhandled rejections.
+  promise.catch((): undefined => undefined);
+  return promise;
 }
 
 function buildRunToolConsole(
@@ -1115,9 +1158,7 @@ function clip(value: string, maxLength: number): string {
     : `${value.slice(0, maxLength - 1)}…`;
 }
 
-function isPromiseLike(
-  value: unknown,
-): value is PromiseLike<unknown> & {
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> & {
   catch: (handler: (error: unknown) => void) => unknown;
 } {
   return (

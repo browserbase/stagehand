@@ -16,6 +16,8 @@ import type { V3InitResult } from "../initV3.js";
 import type { EvalInput } from "../types/evals.js";
 import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
 import { prepareClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
+import { runCodexAgent } from "./codexRunner.js";
+import { prepareCodexToolAdapter } from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
@@ -221,9 +223,52 @@ export const claudeCodeHarness: BenchHarness = {
   },
 };
 
+export const codexHarness: BenchHarness = {
+  harness: "codex",
+  supportedTaskKinds: ["agent", "suite"],
+  supportsApi: false,
+  async execute({
+    input,
+    row,
+    logger,
+    signal,
+  }: BenchHarnessExecuteInput): Promise<TaskResult> {
+    const plan = buildExternalHarnessTaskPlan(input);
+    if (row.config.harness !== "codex") {
+      throw new EvalsError(
+        `Expected codex harness config, received "${row.config.harness}".`,
+      );
+    }
+    const toolAdapter = await prepareCodexToolAdapter({
+      toolSurface: row.config.toolSurface,
+      startupProfile: row.config.startupProfile,
+      environment: row.config.environment,
+      plan,
+      logger,
+    });
+    try {
+      return await runCodexAgent({
+        plan,
+        model: input.modelName,
+        logger,
+        toolAdapter,
+        signal,
+      });
+    } finally {
+      await toolAdapter.cleanup();
+    }
+  },
+  async start(): Promise<StartedBenchHarness> {
+    throw new EvalsError(
+      "Codex harness execution uses the external harness execute path. Use --dry-run to inspect its bench matrix, or run with --harness codex.",
+    );
+  },
+};
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
+  ["codex", codexHarness],
 ]);
 
 export function getBenchHarness(harness: Harness): BenchHarness {

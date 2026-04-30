@@ -264,7 +264,9 @@ function extractClaudeCodeTokenUsage(
   cacheReadInputTokens: number;
   totalTokens: number;
 } {
-  const usage = isRecord(resultMessage?.usage) ? resultMessage.usage : undefined;
+  const usage = isRecord(resultMessage?.usage)
+    ? resultMessage.usage
+    : undefined;
 
   const inputTokens =
     readNumber(usage, "input_tokens") ??

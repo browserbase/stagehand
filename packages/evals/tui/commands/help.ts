@@ -87,7 +87,7 @@ export function printRunHelp(): void {
     "",
     row(
       `${cyan("--harness")} ${dim("<name>")}`,
-      `Bench harness ${gray("(stagehand executable; claude_code/codex dry-run)")}`,
+      `Bench harness ${gray("(stagehand | claude_code | codex)")}`,
     ),
     row(
       `${cyan("--agent-mode")} ${dim("<mode>")}`,

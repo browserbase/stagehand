@@ -10,7 +10,8 @@ flowchart TB
     subgraph TUI["TUI Command Layer"]
         Help["help<br/>usage text"]
         List["list<br/>registry views"]
-        ConfigCmd["config<br/>defaults + core tool setup"]
+        ConfigCmd["config<br/>read/write defaults"]
+        ConfigCore["config core<br/>tool surface + startup<br/>profile defaults"]
         NewTask["new<br/>task scaffold"]
         Experiments["experiments<br/>Braintrust inspect/compare"]
         RunCmd["run<br/>progress + dry-run plan"]
@@ -47,14 +48,15 @@ flowchart TB
         CoreContext["framework/context.ts<br/>buildCoreContext"]
         FixtureServer["core/fixtures<br/>local deterministic pages"]
         CoreTargets["core/targets<br/>local Chrome<br/>Browserbase CDP"]
-        CoreTools["core/tools registry<br/>understudy_code<br/>playwright_code<br/>cdp_code<br/>MCP + browse_cli"]
+        CoreTools["core/tools registry<br/>understudy_code<br/>playwright_code<br/>cdp_code<br/>playwright_mcp<br/>chrome_devtools_mcp<br/>browse_cli"]
         CoreAssertions["assertions + metrics<br/>adapter-backed results"]
+        CoreDeps["core/runtime/coreDeps.ts<br/>browserbase + ws<br/>lazy require"]
     end
 
     subgraph BenchTier["Bench Tier Execution"]
         BenchRunner["framework/benchRunner.ts<br/>load task module<br/>execute bench task"]
         TaskLoader["framework/taskLoader.ts<br/>defineBenchTask + legacy<br/>module loader"]
-        HarnessRegistry["framework/benchHarness.ts<br/>stagehand + claude_code<br/>(codex slot pending)"]
+        HarnessRegistry["framework/benchHarness.ts<br/>stagehand + claude_code<br/>codex"]
         InitV3["initV3.ts<br/>V3 session + agent"]
         AISDK["AISdkClientWrapped<br/>provider/model client"]
         ClaudeCodeRunner["framework/claudeCodeRunner.ts<br/>Claude Code SDK adapter<br/>prompt + result parse"]
@@ -96,6 +98,9 @@ flowchart TB
 
     %% TUI and config
     ConfigCmd <--> ConfigFile
+    ConfigCmd --> ConfigCore
+    ConfigCore <--> ConfigFile
+    ConfigCore --> CoreTools
     Parse --> ConfigFile
     Parse --> ResolvedOptions
     Parse --> DryRun
@@ -147,6 +152,8 @@ flowchart TB
     CoreTargets --> Browserbase
     CoreTools --> LocalBrowser
     CoreTools --> Browserbase
+    CoreTargets --> CoreDeps
+    CoreTools --> CoreDeps
 
     %% Bench path
     BenchRunner --> HarnessRegistry
@@ -198,6 +205,7 @@ flowchart TB
 
     style Parse fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000000
     style RunCmd fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000000
+    style ConfigCore fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000000
     style ConfigFile fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px,color:#000000
     style Discovery fill:#c8e6c9,stroke:#1b5e20,stroke-width:2px,color:#000000
     style Resolver fill:#a5d6a7,stroke:#1b5e20,stroke-width:2px,color:#000000
@@ -213,6 +221,7 @@ flowchart TB
     style CoreContext fill:#ffe0b2,stroke:#bf360c,stroke-width:2px,color:#000000
     style CoreTargets fill:#ffcc80,stroke:#bf360c,stroke-width:2px,color:#000000
     style CoreTools fill:#ffcc80,stroke:#bf360c,stroke-width:2px,color:#000000
+    style CoreDeps fill:#ffe0b2,stroke:#bf360c,stroke-width:2px,color:#000000
     style BenchRunner fill:#bbdefb,stroke:#1565c0,stroke-width:2px,color:#000000
     style HarnessRegistry fill:#90caf9,stroke:#1565c0,stroke-width:2px,color:#000000
     style InitV3 fill:#90caf9,stroke:#1565c0,stroke-width:2px,color:#000000
