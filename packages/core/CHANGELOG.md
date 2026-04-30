@@ -1,5 +1,13 @@
 # @browserbasehq/stagehand
 
+## 3.3.1
+
+### Patch Changes
+
+- [#2047](https://github.com/browserbase/stagehand/pull/2047) [`a87c1fc`](https://github.com/browserbase/stagehand/commit/a87c1fc435be83dbf14eab9edc6c421454ef7be4) Thanks [@tkattkat](https://github.com/tkattkat)! - Set default agent mode to hybrid with auto routing to dom for non compatible models
+
+- [#2065](https://github.com/browserbase/stagehand/pull/2065) [`9ff70dd`](https://github.com/browserbase/stagehand/commit/9ff70dd26cf4e03dce00ddcdc2d3b5e8d116781c) Thanks [@miguelg719](https://github.com/miguelg719)! - Add support for CUA models: openai/gpt-5.4-mini, openai/gpt-5.5, and anthropic/claude-haiku-4-5
+
 ## 3.3.0
 
 ### Minor Changes
