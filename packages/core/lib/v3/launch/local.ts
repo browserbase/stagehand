@@ -17,8 +17,8 @@ interface LaunchLocalOptions {
    * - `true`  — drop **all** chrome-launcher defaults (only Stagehand's own
    *   flags and user-supplied `chromeFlags` will be used).
    * - `string[]` — drop only the listed flags from chrome-launcher defaults.
-   *   Matching is substring-based so `"--disable-extensions"` also removes
-   *   `"--disable-extensions-except-for-..."` if such a flag existed.
+   *   Matching is exact (e.g. `["--disable-extensions"]` removes only that
+   *   flag, not `--disable-extensions-file-access-from-files`).
    */
   ignoreDefaultArgs?: boolean | string[];
 }
@@ -58,9 +58,7 @@ export async function launchLocalChrome(
     ignoreDefaultFlags = true;
     const excludeArgs = opts.ignoreDefaultArgs;
     const clDefaults = Launcher.defaultFlags?.() ?? [];
-    const kept = clDefaults.filter(
-      (f) => !excludeArgs.some((ex) => f.includes(ex)),
-    );
+    const kept = clDefaults.filter((f) => !excludeArgs.includes(f));
     chromeFlags.unshift(...kept);
   }
 
