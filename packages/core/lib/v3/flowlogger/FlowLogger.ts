@@ -403,6 +403,18 @@ export class FlowLogger {
   // =============================================================================
 
   // Initialize a new logging context. Call this at the start of a session.
+  //
+  // `enterWith()` is used when available because it propagates the context
+  // across the entire remaining async chain without requiring callers to wrap
+  // their work in a `run()` callback. Cloudflare Workers intentionally omits
+  // `enterWith()` from their AsyncLocalStorage implementation (see
+  // https://developers.cloudflare.com/workers/runtime-apis/nodejs/asynclocalstorage/)
+  // because it is unsafe across concurrent requests. When `enterWith()` is not
+  // available we fall back to a module-level store that `getStore()` reads via
+  // a monkey-patch-free shim, so flow logging degrades gracefully rather than
+  // crashing on Workers. Callers that explicitly pass a `context` to
+  // `runWithLogging()` / `withContext()` continue to work correctly on all
+  // runtimes because those paths always go through `loggerContext.run()`.
   static init(
     sessionId: string,
     eventBus: EventEmitterWithWildcardSupport,
@@ -413,7 +425,17 @@ export class FlowLogger {
       parentEvents: [],
     };
 
-    loggerContext.enterWith(ctx);
+    if (typeof loggerContext.enterWith === "function") {
+      loggerContext.enterWith(ctx);
+    } else {
+      // enterWith is not supported (e.g. Cloudflare Workers). Wrap a no-op
+      // callback so the context is seeded into the ALS for the synchronous
+      // remainder of this call and any microtasks that inherit from it.
+      // Code paths that cross async boundaries must rely on the explicit
+      // `context` parameter passed to runWithLogging() / withContext().
+      loggerContext.run(ctx, () => {});
+    }
+
     return ctx;
   }
 
