@@ -7,6 +7,7 @@
 import type {
   AvailableCuaModel,
   AvailableModel,
+  AgentToolMode,
   AgentInstance,
   ClientOptions,
   LLMClient,
@@ -20,7 +21,7 @@ import {
   modelToAgentProviderMap,
   V3,
 } from "@browserbasehq/stagehand";
-import { env } from "./env.js";
+import { getEnv } from "./env.js";
 import { EvalLogger } from "./logger.js";
 
 type InitV3Args = {
@@ -29,11 +30,11 @@ type InitV3Args = {
   domSettleTimeoutMs?: number; // retained for parity; v3 handlers accept timeouts per-call
   logger: EvalLogger;
   createAgent?: boolean; // only create an agent for agent tasks
+  agentMode?: AgentToolMode;
   isCUA?: boolean;
   configOverrides?: {
-    localBrowserLaunchOptions?: Partial<
-      Pick<LocalBrowserLaunchOptions, "headless" | "args">
-    >;
+    env?: "LOCAL" | "BROWSERBASE";
+    localBrowserLaunchOptions?: Partial<LocalBrowserLaunchOptions>;
     // Back-compat alias for args
     chromeFlags?: string[];
     browserbaseSessionCreateParams?: V3Options["browserbaseSessionCreateParams"];
@@ -42,13 +43,14 @@ type InitV3Args = {
   };
   actTimeoutMs?: number; // retained for parity (v3 agent tools don't use this globally)
   modelName: AvailableModel;
+  verbose?: boolean;
 };
 
 export type V3InitResult = {
   v3: V3;
   logger: EvalLogger;
-  debugUrl?: string; // not exposed by v3; placeholder for parity
-  sessionUrl?: string; // not exposed by v3; placeholder for parity
+  debugUrl?: string;
+  sessionUrl?: string;
   modelName: AvailableModel;
   agent?: AgentInstance;
 };
@@ -60,11 +62,17 @@ export async function initV3({
   configOverrides,
   modelName,
   createAgent,
+  agentMode,
   isCUA,
+  verbose = false,
 }: InitV3Args): Promise<V3InitResult> {
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
-  if (isCUA) {
+  const resolvedAgentMode: AgentToolMode | undefined =
+    agentMode ?? (isCUA ? "cua" : undefined);
+  const isCuaMode = resolvedAgentMode === "cua";
+
+  if (isCuaMode) {
     if (process.env.OPENAI_API_KEY)
       internalModel = "openai/gpt-4.1-mini" as AvailableModel;
     else if (
@@ -81,7 +89,7 @@ export async function initV3({
   }
 
   const resolvedModelConfig: ModelConfiguration =
-    !isCUA && modelClientOptions
+    !isCuaMode && modelClientOptions
       ? ({
           ...modelClientOptions,
           modelName: internalModel,
@@ -89,10 +97,11 @@ export async function initV3({
       : internalModel;
 
   const v3Options: V3Options = {
-    env,
+    env: configOverrides?.env ?? getEnv(),
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
     localBrowserLaunchOptions: {
+      ...(configOverrides?.localBrowserLaunchOptions ?? {}),
       headless: configOverrides?.localBrowserLaunchOptions?.headless ?? false,
       args:
         configOverrides?.localBrowserLaunchOptions?.args ??
@@ -103,7 +112,7 @@ export async function initV3({
       typeof configOverrides?.experimental === "boolean"
         ? configOverrides.experimental && process.env.USE_API !== "true" // experimental only when not using API
         : false,
-    verbose: 2,
+    verbose: verbose ? 2 : 0,
     browserbaseSessionCreateParams:
       configOverrides?.browserbaseSessionCreateParams,
     browserbaseSessionID: configOverrides?.browserbaseSessionID,
@@ -114,7 +123,7 @@ export async function initV3({
     logger: logger.log.bind(logger),
   };
 
-  if (!isCUA && llmClient) {
+  if (!isCuaMode && llmClient) {
     v3Options.llmClient = llmClient;
   }
 
@@ -126,7 +135,7 @@ export async function initV3({
 
   let agent: AgentInstance | undefined;
   if (createAgent) {
-    if (isCUA) {
+    if (isCuaMode) {
       const shortModelName = modelName.includes("/")
         ? modelName.split("/")[1]
         : modelName;
@@ -150,13 +159,14 @@ export async function initV3({
           : (modelName as AvailableCuaModel);
 
       agent = v3.agent({
-        cua: true,
+        mode: "cua",
         model: cuaModel,
         systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, YOU WILL ALWAYS BE PROVIDED WITH AN OPENED PAGE, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
       });
     } else {
       agent = v3.agent({
         model: modelName,
+        mode: resolvedAgentMode ?? "hybrid",
         executionModel: "google/gemini-2.5-flash",
       });
     }
@@ -165,8 +175,8 @@ export async function initV3({
   return {
     v3,
     logger,
-    debugUrl: "",
-    sessionUrl: "",
+    debugUrl: v3.browserbaseDebugURL,
+    sessionUrl: v3.browserbaseSessionURL,
     modelName,
     agent,
   };

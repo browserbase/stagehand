@@ -37,7 +37,7 @@ pnpm evals run observe
 pnpm evals run extract/extract_text
 
 # Run external benchmarks
-pnpm evals run benchmark:gaia
+pnpm evals run benchmark:webvoyager
 ```
 
 ### `list` - View available evals
@@ -111,14 +111,11 @@ pnpm evals run extract --api
 ### Running Benchmarks
 
 ```bash
-# WebBench with filters
-pnpm evals run b:webbench -l 10 -f difficulty=easy -f category=READ
-
-# GAIA with sampling
-pnpm evals run b:gaia -s 100 -l 25 -f level=1
-
 # WebVoyager with limit
 pnpm evals run b:webvoyager -l 50
+
+# OnlineMind2Web
+pnpm evals run b:onlineMind2Web -l 25
 ```
 
 ## Available Benchmarks
@@ -127,36 +124,9 @@ pnpm evals run b:webvoyager -l 50
 
 Real-world web interaction tasks for evaluating web agents.
 
-### GAIA (`b:gaia`)
-
-General AI Assistant benchmark for complex reasoning.
-
-**Filters:**
-
-- `level`: 1, 2, 3 (difficulty levels)
-
 ### WebVoyager (`b:webvoyager`)
 
 Web navigation and task completion benchmark.
-
-### WebBench (`b:webbench`)
-
-Real-world web automation tasks across live websites.
-
-**Filters:**
-
-- `difficulty`: easy, hard
-- `category`: READ, CREATE, UPDATE, DELETE, FILE_MANIPULATION
-- `use_hitl`: true/false
-
-### OSWorld (`b:osworld`)
-
-Chrome browser automation tasks from the OSWorld benchmark.
-
-**Filters:**
-
-- `source`: Mind2Web, test_task_1, etc.
-- `evaluation_type`: url_match, string_match, dom_state, custom
 
 ## Configuration
 

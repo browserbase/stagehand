@@ -1,11 +1,18 @@
 import path from "path";
-import type { Testcase, EvalInput } from "../types/evals.js";
+import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
 import { getCurrentDirPath } from "../runtimePaths.js";
-import { readJsonlFile, parseJsonlRows, applySampling } from "../utils.js";
+import {
+  readJsonlFile,
+  parseJsonlRows,
+  applySampling,
+  normalizeAgentModelEntries,
+} from "../utils.js";
 
-export const buildGAIATestcases = (models: string[]): Testcase[] => {
+export const buildGAIATestcases = (
+  models: string[] | AgentModelEntry[],
+): Testcase[] => {
   const moduleDir = getCurrentDirPath();
   const gaiaFilePath =
     process.env.EVAL_GAIA_FILE ||
@@ -54,14 +61,16 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
   const gaiaRows = applySampling(filteredCandidates, sampleCount, maxCases);
 
   const allTestcases: Testcase[] = [];
-  for (const model of models) {
+  for (const modelEntry of normalizeAgentModelEntries(models)) {
     for (const row of gaiaRows) {
       const finalAnswer = (row as Record<string, unknown>)[
         "Final answer"
       ] as unknown;
       const input: EvalInput = {
         name: "agent/gaia",
-        modelName: model as AvailableModel,
+        modelName: modelEntry.modelName as AvailableModel,
+        agentMode: modelEntry.mode,
+        isCUA: modelEntry.mode === "cua",
         params: {
           id: row.id,
           level: row.Level,
@@ -74,7 +83,8 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
         input,
         name: input.name,
         tags: [
-          model,
+          modelEntry.modelName,
+          modelEntry.mode,
           input.name,
           ...(
             tasksConfig.find((t) => t.name === input.name)?.categories || []
@@ -83,8 +93,10 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
           row.Level ? `gaia/level/${row.Level}` : "gaia/level/unknown",
         ],
         metadata: {
-          model: model as AvailableModel,
+          model: modelEntry.modelName as AvailableModel,
           test: `${input.name}:${row.id}`,
+          tier: "bench",
+          task: input.name,
         },
         expected: true,
       });

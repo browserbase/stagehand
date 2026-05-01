@@ -67,10 +67,12 @@ function parseLogLine(logLine: LogLine): LogLineEval {
  */
 export class EvalLogger {
   private logs: LogLineEval[] = [];
+  private echo: boolean;
   stagehand?: V3;
 
-  constructor() {
+  constructor(echo = true) {
     this.logs = [];
+    this.echo = echo;
   }
 
   /**
@@ -89,7 +91,9 @@ export class EvalLogger {
    * and then stores the parsed log line in `this.logs`.
    */
   log(logLine: LogLine) {
-    console.log(logLineToString(logLine));
+    if (this.echo) {
+      console.log(logLineToString(logLine));
+    }
     this.logs.push(parseLogLine(logLine));
   }
 
@@ -99,7 +103,9 @@ export class EvalLogger {
    * Useful for capturing and differentiating error-level logs.
    */
   error(logLine: LogLine) {
-    console.error(logLineToString(logLine));
+    if (this.echo) {
+      console.error(logLineToString(logLine));
+    }
     this.logs.push(parseLogLine(logLine));
   }
 
@@ -109,7 +115,9 @@ export class EvalLogger {
    * Helps differentiate warnings from regular info logs.
    */
   warn(logLine: LogLine) {
-    console.warn(logLineToString(logLine));
+    if (this.echo) {
+      console.warn(logLineToString(logLine));
+    }
     this.logs.push(parseLogLine(logLine));
   }
 

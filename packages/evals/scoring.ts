@@ -4,36 +4,21 @@
 
 import { EvalArgs, EvalInput, EvalResult } from "./types/evals.js";
 
-function formatTaskOutput(output: unknown): string {
-  let value: string | undefined;
-  if (typeof output === "string") {
-    value = output;
-  } else if (output instanceof Error) {
-    value = output.stack ?? `${output.name}: ${output.message}`;
-  } else {
-    try {
-      value = JSON.stringify(output, (_key, current) => {
-        if (current instanceof Error) {
-          return {
-            name: current.name,
-            message: current.message,
-            stack: current.stack,
-          };
-        }
-        return current;
-      });
-    } catch {
-      value = undefined;
-    }
-    if (value === undefined) {
-      value = String(output);
-    }
+function scorePass(
+  args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
+): number {
+  const expected = args.expected ?? true;
+  if (expected === true) {
+    return typeof args.output === "boolean"
+      ? args.output
+        ? 1
+        : 0
+      : args.output._success
+        ? 1
+        : 0;
   }
 
-  if (value.length > 160) {
-    return `${value.slice(0, 157)}...`;
-  }
-  return value;
+  return args.output === expected ? 1 : 0;
 }
 
 /**
@@ -48,30 +33,22 @@ function formatTaskOutput(output: unknown): string {
 export function exactMatch(
   args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
 ): EvalResult {
-  console.log(
-    `Task "${args.input.name}" returned: ${formatTaskOutput(args.output)}`,
-  );
-
-  const expected = args.expected ?? true;
-  if (expected === true) {
-    // If we expect a success (true), then we check the output's _success flag.
-    return {
-      name: "Exact match",
-      score:
-        typeof args.output === "boolean"
-          ? args.output
-            ? 1
-            : 0
-          : args.output._success
-            ? 1
-            : 0,
-    };
-  }
-
-  // If expected is not true, just directly compare the output to expected.
   return {
     name: "Exact match",
-    score: args.output === expected ? 1 : 0,
+    score: scorePass(args),
+  };
+}
+
+/**
+ * Scoring function: passRate
+ * Used by core deterministic tasks so Braintrust reports pass/fail rather than exact match.
+ */
+export function passRate(
+  args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
+): EvalResult {
+  return {
+    name: "Pass",
+    score: scorePass(args),
   };
 }
 
@@ -87,10 +64,6 @@ export function errorMatch(
     unknown
   >,
 ): EvalResult {
-  console.log(
-    `Task "${args.input.name}" returned: ${formatTaskOutput(args.output)}`,
-  );
-
   return {
     name: "Error rate",
     score:

@@ -28,6 +28,7 @@ import {
   tasksConfig,
   getModelList,
   getAgentModelEntries,
+  validateEvalName,
 } from "./taskConfig.js";
 import { Eval } from "braintrust";
 import { SummaryResult, Testcase, EvalInput } from "./types/evals.js";
@@ -42,7 +43,8 @@ import {
   getAISDKLanguageModel,
 } from "@browserbasehq/stagehand";
 import { AISdkClientWrapped } from "./lib/AISdkClientWrapped.js";
-import { env } from "./env.js";
+import { getEnv } from "./env.js";
+const env = getEnv();
 import { initV3 } from "./initV3.js";
 import { generateSummary } from "./summary.js";
 import { buildGAIATestcases } from "./suites/gaia.js";
@@ -56,6 +58,56 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const moduleDir = getCurrentDirPath();
+
+/**
+ * Resolve a task module path by searching the new directory structure.
+ *
+ * Task names like "dropdown" or "agent/gaia" need to be found under
+ * tasks/bench/<category>/. We scan bench subdirectories for a matching file.
+ * Falls back to the old flat tasks/ layout for backward compatibility.
+ */
+function resolveTaskModulePath(
+  baseDir: string,
+  taskName: string,
+): string | undefined {
+  const extensions = [".js", ".ts"];
+
+  // If the task name includes "agent/", look in bench/agent/
+  if (taskName.startsWith("agent/")) {
+    const baseName = taskName.split("/").pop()!;
+    for (const ext of extensions) {
+      const p = path.join(baseDir, "tasks", "bench", "agent", baseName + ext);
+      if (fs.existsSync(p)) return p;
+    }
+  }
+
+  // Search all bench subdirectories
+  const benchDir = path.join(baseDir, "tasks", "bench");
+  if (fs.existsSync(benchDir)) {
+    const categories = fs
+      .readdirSync(benchDir, { withFileTypes: true })
+      .filter((d: fs.Dirent) => d.isDirectory())
+      .map((d: fs.Dirent) => d.name);
+
+    const baseName = taskName.includes("/")
+      ? taskName.split("/").pop()!
+      : taskName;
+    for (const cat of categories) {
+      for (const ext of extensions) {
+        const p = path.join(benchDir, cat, baseName + ext);
+        if (fs.existsSync(p)) return p;
+      }
+    }
+  }
+
+  // Fallback: old flat layout (tasks/<name>.ts)
+  for (const ext of extensions) {
+    const p = path.join(baseDir, "tasks", taskName + ext);
+    if (fs.existsSync(p)) return p;
+  }
+
+  return undefined;
+}
 
 /**
  * Read max concurrency and trial count from environment variables set in args.ts.
@@ -277,6 +329,11 @@ const generateFilteredTestcases = (): Testcase[] => {
  * - Collect and summarize results using `generateSummary`.
  */
 (async () => {
+  // Validate eval name if specified (previously done at import time in args.ts)
+  if (filterByEvalName) {
+    validateEvalName(filterByEvalName);
+  }
+
   // Generate a unique name for the experiment
   const experimentName: string = generateExperimentName({
     evalName: filterByEvalName || undefined,
@@ -292,6 +349,17 @@ const generateFilteredTestcases = (): Testcase[] => {
     // Run the evaluations with the braintrust Eval function
     const evalResult = await Eval(braintrustProjectName, {
       experimentName,
+      metadata: {
+        environment: env,
+        tier: "bench",
+        ...(USE_API && { api: true }),
+        ...(process.env.EVAL_PROVIDER && {
+          provider: process.env.EVAL_PROVIDER,
+        }),
+        ...(process.env.EVAL_MODEL_OVERRIDE && {
+          model: process.env.EVAL_MODEL_OVERRIDE,
+        }),
+      },
       data: generateFilteredTestcases,
       // Each test is a function that runs the corresponding task module
       task: async (input: EvalInput) => {
@@ -301,27 +369,39 @@ const generateFilteredTestcases = (): Testcase[] => {
         let v3ToClose: Awaited<ReturnType<typeof initV3>>["v3"] | null = null;
 
         try {
-          const taskBasePath = path.join(moduleDir, "tasks", input.name);
-          const taskCandidates = [`${taskBasePath}.js`, `${taskBasePath}.ts`];
-          const taskModulePath = taskCandidates.find((candidate) =>
-            fs.existsSync(candidate),
-          );
+          // Search for the task module in the new directory structure.
+          // Tasks now live under tasks/bench/<category>/<name>.ts
+          // We check both old and new paths for backward compatibility.
+          const taskModulePath = resolveTaskModulePath(moduleDir, input.name);
 
           if (!taskModulePath) {
             throw new StagehandEvalError(
-              `Failed to find task module for ${input.name}. Tried paths:\n` +
-                taskCandidates.map((candidate) => `- ${candidate}`).join("\n"),
+              `Failed to find task module for ${input.name}. ` +
+                `Searched in tasks/bench/**/ and tasks/ directories.`,
             );
           }
 
           const taskModule = await import(pathToFileURL(taskModulePath).href);
 
-          // Extract the task function
+          // Extract the task function — supports both:
+          //   1. Legacy: named export matching filename (e.g., export const dropdown = ...)
+          //   2. New: default export from defineBenchTask (e.g., export default defineBenchTask(...))
           const taskName = input.name.includes("/")
             ? input.name.split("/").pop() // Get the last part of the path for nested tasks
             : input.name;
 
-          const taskFunction = taskModule[taskName];
+          let taskFunction = taskModule[taskName];
+
+          // Check for defineBenchTask default export
+          if (typeof taskFunction !== "function" && taskModule.default) {
+            const defaultExport = taskModule.default;
+            if (
+              defaultExport.__taskDefinition === true &&
+              typeof defaultExport.fn === "function"
+            ) {
+              taskFunction = defaultExport.fn;
+            }
+          }
 
           if (typeof taskFunction !== "function") {
             throw new StagehandEvalError(

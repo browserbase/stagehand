@@ -61,14 +61,3 @@ fs.writeFileSync(
   '{\n  "type": "module"\n}\n',
 );
 fs.chmodSync(`${repoRoot}/packages/evals/dist/cli/cli.js`, 0o755);
-
-/* ── auto-link the `evals` binary globally ── */
-const link = spawnSync("npm", ["link", "--force"], {
-  stdio: "inherit",
-  cwd: `${repoRoot}/packages/evals`,
-});
-if (link.status !== 0) {
-  console.warn(
-    "⚠  npm link failed (non-fatal) – you can run `npm link` manually from packages/evals",
-  );
-}

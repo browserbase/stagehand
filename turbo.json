@@ -291,6 +291,7 @@
       "outputs": ["dist/cli/**"],
       "inputs": [
         "cli.ts",
+        "framework/**",
         "evals.config.json",
         "scripts/**",
         "!dist/cli/**"

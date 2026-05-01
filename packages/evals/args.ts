@@ -88,7 +88,6 @@ const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
       "extract",
       "experimental",
       "targeted_extract",
-      "regression_llm_providers",
       "regression",
       "agent",
       "external_agent_benchmarks",
@@ -142,7 +141,7 @@ function buildUsage(detailed = false): string {
     (default ${chalk.dim("25")})
 
   ${chalk.cyan("--dataset".padEnd(12))} ${"filter to specific benchmark".padEnd(24)}
-    (optional)              [${chalk.yellow("gaia")}, ${chalk.yellow("webvoyager")}, ${chalk.yellow("webbench")}, ${chalk.yellow("osworld")}, ${chalk.yellow("onlineMind2Web")}]
+    (optional)              [${chalk.yellow("gaia")}, ${chalk.yellow("webvoyager")}, ${chalk.yellow("osworld")}, ${chalk.yellow("onlineMind2Web")}]
 
 
     ${chalk.magenta.underline("Positional filters\n")}
@@ -168,27 +167,6 @@ function buildUsage(detailed = false): string {
 
   const externalBenchmarksSection = dedent`
     ${chalk.magenta.underline("\nExternal Benchmarks\n")}
-    
-    ${chalk.cyan.bold("WebBench")} - 5,607 real-world web automation tasks across 452 live websites
-    
-      ${chalk.dim("Run:")} ${chalk.green("pnpm run evals")} ${chalk.cyan("name=")}${chalk.yellow("agent/webbench")}
-      
-      ${chalk.dim("Or:")}  ${chalk.green("EVAL_DATASET=webbench pnpm run evals")}
-      
-      ${chalk.gray("Environment Variables:")}
-      
-      EVAL_WEBBENCH_LIMIT       max tasks to run (default: 25)
-      EVAL_WEBBENCH_SAMPLE      random sample count before limit
-      EVAL_WEBBENCH_DIFFICULTY  filter: [${chalk.yellow("easy")}, ${chalk.yellow("hard")}] (254 easy, 61 hard tasks)
-      EVAL_WEBBENCH_CATEGORY    filter: [${chalk.yellow("READ")}, ${chalk.yellow("CREATE")}, ${chalk.yellow("UPDATE")}, ${chalk.yellow("DELETE")}, ${chalk.yellow("FILE_MANIPULATION")}]
-      EVAL_WEBBENCH_USE_HITL    use only HITL dataset with difficulty ratings (true/false)
-      
-      ${chalk.dim("Examples:")}
-      
-      ${chalk.green("EVAL_WEBBENCH_DIFFICULTY=easy EVAL_WEBBENCH_LIMIT=10 pnpm run evals name=agent/webbench")}
-      
-      ${chalk.green("EVAL_DATASET=webbench EVAL_WEBBENCH_CATEGORY=READ pnpm run evals")}
-    
     
     ${chalk.cyan.bold("GAIA")} - General AI Assistant benchmark for complex reasoning
     
