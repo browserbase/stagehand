@@ -377,9 +377,8 @@ export interface AgentExecuteOptionsBase {
    *
    * Accepts both simple values and rich objects with descriptions (same type as `act`).
    *
-   * **Note:** Not supported in CUA mode (`mode: "cua"`). Requires `experimental: true`.
+   * **Note:** Not supported in CUA mode (`mode: "cua"`).
    *
-   * @experimental
    * @example
    * ```typescript
    * // Simple values
