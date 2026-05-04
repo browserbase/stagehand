@@ -1,0 +1,27 @@
+packages/core/lib/v3/llm/CerebrasClient.ts
+  7b6250fa2154b086 145
+packages/core/lib/v3/llm/GroqClient.ts
+  7b6250fa2154b086 145
+packages/core/tests/unit/inference-temperature.test.ts
+  7b6250fa2154b086 1-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "7d62aa1f724f41073e0da18ab26549e78b856b91",
+  "prompts": {
+    "7b6250fa2154b086": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df0f7-2416-7510-8834-c53bd74960d0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Filip Michalsky",
+      "messages": [],
+      "total_additions": 87,
+      "total_deletions": 11,
+      "accepted_lines": 87,
+      "overriden_lines": 0
+    }
+  }
+}
