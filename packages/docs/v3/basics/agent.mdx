@@ -486,14 +486,13 @@ const result = await agent.execute({
 
 Use variables to pass sensitive data (like passwords, API keys, or personal information) to the agent without exposing the actual values to the LLM. The agent sees only variable names and descriptions, while the actual values are substituted at runtime.
 
-<Note>**Non-CUA agents only.** Variables require `experimental: true` and are not available with Computer Use Agents.</Note>
+<Note>**Non-CUA agents only.** Variables are not available with Computer Use Agents.</Note>
 
 ### Basic Usage
 
 ```typescript
 const stagehand = new Stagehand({
   env: "LOCAL",
-  experimental: true, // Required for variables
 });
 await stagehand.init();
 
