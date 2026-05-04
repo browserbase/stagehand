@@ -219,13 +219,27 @@ export class FrameRegistry {
   ): void {
     const walk = (tree: Protocol.Page.FrameTree, parent: FrameId | null) => {
       this.ensureNode(tree.frame.id);
+      const info = this.frames.get(tree.frame.id)!;
+      const previousParent = info.parentId;
+      const nextParent =
+        parent ?? tree.frame.parentId ?? previousParent ?? null;
+
       // topology
-      this.frames.get(tree.frame.id)!.parentId = parent;
-      if (parent) this.frames.get(parent)!.children.add(tree.frame.id);
+      if (previousParent && previousParent !== nextParent) {
+        this.frames.get(previousParent)?.children.delete(tree.frame.id);
+      }
+      info.parentId = nextParent;
+      if (nextParent) {
+        this.ensureNode(nextParent);
+        this.frames.get(nextParent)!.children.add(tree.frame.id);
+      }
       // last-seen frame
-      this.frames.get(tree.frame.id)!.lastSeen = tree.frame;
+      info.lastSeen =
+        nextParent && !tree.frame.parentId
+          ? { ...tree.frame, parentId: nextParent }
+          : tree.frame;
       // ownership (only if unknown)
-      if (!this.frames.get(tree.frame.id)!.ownerSessionId) {
+      if (!info.ownerSessionId) {
         this.setOwnerSessionIdInternal(tree.frame.id, sessionId);
       }
       for (const c of tree.childFrames ?? []) walk(c, tree.frame.id);
