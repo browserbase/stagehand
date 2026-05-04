@@ -115,12 +115,6 @@ export function validateExperimentalFeatures(
     if (executeOptions.output) {
       features.push("output schema");
     }
-    if (
-      executeOptions.variables &&
-      Object.keys(executeOptions.variables).length > 0
-    ) {
-      features.push("variables");
-    }
   }
 
   if (features.length > 0) {
