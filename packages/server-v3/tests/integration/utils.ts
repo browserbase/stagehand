@@ -29,6 +29,7 @@ const SESSION_START_MAX_ATTEMPTS = (() => {
 // =============================================================================
 
 export const {
+  STAGEHAND_BASE_URL,
   STAGEHAND_API_URL,
   OPENAI_API_KEY,
   GEMINI_API_KEY,
@@ -47,7 +48,7 @@ export function requireEnv(name: string, value: string | undefined): string {
 }
 
 export function getBaseUrl(): string {
-  return STAGEHAND_API_URL ?? "http://127.0.0.1:3107";
+  return STAGEHAND_API_URL ?? STAGEHAND_BASE_URL ?? "http://127.0.0.1:3107";
 }
 
 // =============================================================================

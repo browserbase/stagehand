@@ -186,6 +186,7 @@ export class StagehandAPIClient {
   private serverCache: boolean;
   private lastFinishedEventData: Record<string, unknown> | null = null;
   private latestAgentCacheEntry: AgentCacheTransferPayload | null = null;
+  private warnedStagehandBaseUrl = false;
 
   constructor({
     apiKey,
@@ -861,11 +862,27 @@ export class StagehandAPIClient {
       defaultHeaders["Content-Type"] = "application/json";
     }
 
-    // Use STAGEHAND_API_URL env var if set, otherwise use region-based URL
+    // Use STAGEHAND_API_URL when set. STAGEHAND_BASE_URL is a legacy alias.
     // Ensure /v1 suffix is present for consistency
+    const configuredBaseUrl =
+      process.env.STAGEHAND_API_URL ?? process.env.STAGEHAND_BASE_URL;
+    if (
+      !process.env.STAGEHAND_API_URL &&
+      process.env.STAGEHAND_BASE_URL &&
+      !this.warnedStagehandBaseUrl
+    ) {
+      this.logger({
+        category: "config",
+        message:
+          "STAGEHAND_BASE_URL is deprecated. Use STAGEHAND_API_URL instead.",
+        level: 0,
+      });
+      this.warnedStagehandBaseUrl = true;
+    }
+
     let baseUrl: string;
-    if (process.env.STAGEHAND_API_URL) {
-      const envUrl = process.env.STAGEHAND_API_URL.replace(/\/+$/, "");
+    if (configuredBaseUrl) {
+      const envUrl = configuredBaseUrl.replace(/\/+$/, "");
       // Append /v1 if not already present
       baseUrl = envUrl.endsWith("/v1") ? envUrl : `${envUrl}/v1`;
     } else {

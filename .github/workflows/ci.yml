@@ -471,7 +471,7 @@ jobs:
 
     env:
       BB_ENV: local
-      STAGEHAND_BASE_URL: http://stagehand-api.localhost:3106
+      STAGEHAND_API_URL: http://stagehand-api.localhost:3106
       STAGEHAND_BROWSER_TARGET: local
       STAGEHAND_SERVER_TARGET: sea
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
