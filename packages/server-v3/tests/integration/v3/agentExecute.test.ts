@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
 
+import { chromium } from "playwright";
 import {
   assertFetchOk,
   assertFetchStatus,
@@ -202,6 +203,97 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
       "Response should have result",
       ctx,
     );
+  });
+});
+
+// ===========================================================================
+// V3 Agent Execute Variables
+// ===========================================================================
+
+describe("POST /v1/sessions/:id/agentExecute (V3) - Variables", () => {
+  let sessionId: string;
+  let cdpUrl: string;
+  const headers = getHeaders("3.0.0");
+
+  before(async () => {
+    ({ sessionId, cdpUrl } = await createSessionWithCdp(headers));
+  });
+
+  after(async () => {
+    if (sessionId) {
+      await endSession(sessionId, headers);
+      sessionId = "";
+    }
+  });
+
+  it("should execute agent with flat and rich variables", async () => {
+    const url = getBaseUrl();
+    const email = "agent-flat@example.com";
+    const password = "Tr0ub4dor&3";
+    const company = "Acme Browserbase";
+
+    const browser = await chromium.connectOverCDP(cdpUrl);
+    try {
+      const page = browser.contexts()[0]!.pages()[0]!;
+      await page.setContent(
+        "<html><body><form>" +
+          "<label>Email <input id=\"email\" name=\"email\" autocomplete=\"username\" /></label>" +
+          "<label>Password <input id=\"password\" name=\"password\" type=\"password\" autocomplete=\"current-password\" /></label>" +
+          "<label>Company <input id=\"company\" name=\"company\" /></label>" +
+          "</form></body></html>",
+      );
+    } finally {
+      await browser.close();
+    }
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(url + "/v1/sessions/" + sessionId + "/agentExecute", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agentConfig: { mode: "dom" },
+        executeOptions: {
+          instruction:
+            "Fill the email field with %email%, the password field with %password%, and the company field with %company%.",
+          maxSteps: 6,
+          variables: {
+            email,
+            password: {
+              value: password,
+              description: "The password to enter in the password field",
+            },
+            company: {
+              value: company,
+              description: "The company name to enter in the company field",
+            },
+          },
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "V3 agent execute with variables should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+
+    const verifyBrowser = await chromium.connectOverCDP(cdpUrl);
+    try {
+      const page = verifyBrowser.contexts()[0]!.pages()[0]!;
+      const values = await page.evaluate(() => ({
+        email: (document.querySelector<HTMLInputElement>("#email")!).value,
+        password: (document.querySelector<HTMLInputElement>("#password")!).value,
+        company: (document.querySelector<HTMLInputElement>("#company")!).value,
+      }));
+
+      assert.deepEqual(values, { email, password, company });
+    } finally {
+      await verifyBrowser.close();
+    }
   });
 });
 
