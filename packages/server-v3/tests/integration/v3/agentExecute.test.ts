@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
 
-import { chromium } from "playwright";
 import {
   assertFetchOk,
   assertFetchStatus,
@@ -212,11 +211,10 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Basic Config", () => {
 
 describe("POST /v1/sessions/:id/agentExecute (V3) - Variables", () => {
   let sessionId: string;
-  let cdpUrl: string;
   const headers = getHeaders("3.0.0");
 
   before(async () => {
-    ({ sessionId, cdpUrl } = await createSessionWithCdp(headers));
+    sessionId = await createSession(headers);
   });
 
   after(async () => {
@@ -229,22 +227,21 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Variables", () => {
   it("should execute agent with flat and rich variables", async () => {
     const url = getBaseUrl();
     const email = "agent-flat@example.com";
-    const password = "Tr0ub4dor&3";
+    const secretCode = "Tr0ub4dor&3";
     const company = "Acme Browserbase";
+    const formHtml =
+      "<html><body><form>" +
+      "<label>Email <input id=\"email\" name=\"email\" /></label>" +
+      "<label>Secret code <input id=\"secretCode\" name=\"secretCode\" /></label>" +
+      "<label>Company <input id=\"company\" name=\"company\" /></label>" +
+      "</form></body></html>";
 
-    const browser = await chromium.connectOverCDP(cdpUrl);
-    try {
-      const page = browser.contexts()[0]!.pages()[0]!;
-      await page.setContent(
-        "<html><body><form>" +
-          "<label>Email <input id=\"email\" name=\"email\" autocomplete=\"username\" /></label>" +
-          "<label>Password <input id=\"password\" name=\"password\" type=\"password\" autocomplete=\"current-password\" /></label>" +
-          "<label>Company <input id=\"company\" name=\"company\" /></label>" +
-          "</form></body></html>",
-      );
-    } finally {
-      await browser.close();
-    }
+    const navResponse = await navigateSession(
+      sessionId,
+      "data:text/html," + encodeURIComponent(formHtml),
+      headers,
+    );
+    assert.equal(navResponse.status, HTTP_OK, "Navigate should succeed");
 
     const ctx = await fetchWithContext<{
       success: boolean;
@@ -256,13 +253,13 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Variables", () => {
         agentConfig: { mode: "dom" },
         executeOptions: {
           instruction:
-            "Fill the email field with %email%, the password field with %password%, and the company field with %company%.",
+            "Fill the email field with %email%, the secret code field with %secretCode%, and the company field with %company%.",
           maxSteps: 6,
           variables: {
             email,
-            password: {
-              value: password,
-              description: "The password to enter in the password field",
+            secretCode: {
+              value: secretCode,
+              description: "The secret code to enter in the secret code field",
             },
             company: {
               value: company,
@@ -281,19 +278,45 @@ describe("POST /v1/sessions/:id/agentExecute (V3) - Variables", () => {
     assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
     assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
 
-    const verifyBrowser = await chromium.connectOverCDP(cdpUrl);
-    try {
-      const page = verifyBrowser.contexts()[0]!.pages()[0]!;
-      const values = await page.evaluate(() => ({
-        email: (document.querySelector<HTMLInputElement>("#email")!).value,
-        password: (document.querySelector<HTMLInputElement>("#password")!).value,
-        company: (document.querySelector<HTMLInputElement>("#company")!).value,
-      }));
+    const extractCtx = await fetchWithContext<{
+      success: boolean;
+      data?: {
+        result: { email?: string; secretCode?: string; company?: string };
+      };
+    }>(url + "/v1/sessions/" + sessionId + "/extract", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        instruction:
+          "Extract the current values from the email, secret code, and company input fields. Return the exact input values.",
+        schema: {
+          type: "object",
+          properties: {
+            email: { type: "string" },
+            secretCode: { type: "string" },
+            company: { type: "string" },
+          },
+          required: ["email", "secretCode", "company"],
+        },
+      }),
+    });
 
-      assert.deepEqual(values, { email, password, company });
-    } finally {
-      await verifyBrowser.close();
-    }
+    assertFetchStatus(extractCtx, HTTP_OK, "Extract should succeed");
+    assertFetchOk(
+      extractCtx.body !== null,
+      "Extract response body should be parseable",
+      extractCtx,
+    );
+    assertFetchOk(
+      extractCtx.body.success,
+      "Extract response should indicate success",
+      extractCtx,
+    );
+    assert.deepEqual(extractCtx.body.data?.result, {
+      email,
+      secretCode,
+      company,
+    });
   });
 });
 
