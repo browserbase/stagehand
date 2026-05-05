@@ -235,6 +235,7 @@ export async function tryScopedSnapshot(
           ownerSessionIndexForFrame(page, targetFrameId, sessionToIndex),
           exclusionIntervalsByFrame,
         ),
+        selectAll: options?.selectAll,
         tagNameMap,
         experimental: options?.experimental ?? false,
         scrollableMap,

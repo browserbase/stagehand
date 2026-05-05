@@ -70,6 +70,7 @@ export class ObserveHandler {
       timeout,
       selector,
       ignoreSelectors,
+      selectAll,
       model,
       variables,
     } = params;
@@ -104,6 +105,7 @@ export class ObserveHandler {
       experimental: this.experimental,
       focusSelector: focusSelector || undefined,
       ignoreSelectors,
+      selectAll,
     });
 
     const combinedTree = snapshot.combinedTree;
@@ -149,39 +151,52 @@ export class ObserveHandler {
     // Map elementIds -> selectors via combinedXpathMap
     const elementsWithSelectors = (
       await Promise.all(
-        observationResponse.elements.map(async (element) => {
-          const { elementId, ...rest } = element; // rest may or may not have method/arguments
-          if (typeof elementId === "string" && elementId.includes("-")) {
-            const lookUpIndex = elementId as EncodedId;
-            const xpath = combinedXpathMap[lookUpIndex];
-            const trimmedXpath = trimTrailingTextNode(xpath);
-            if (!trimmedXpath) return undefined;
+        observationResponse.elements.map(
+          async (element: (typeof observationResponse.elements)[number]) => {
+            const { elementId, ...rest } = element; // rest may or may not have method/arguments
+            if (typeof elementId === "string" && elementId.includes("-")) {
+              const lookUpIndex = elementId as EncodedId;
+              const xpath = combinedXpathMap[lookUpIndex];
+              const trimmedXpath = trimTrailingTextNode(xpath);
+              if (!trimmedXpath) return undefined;
 
-            // For dragAndDrop, convert element ID in arguments to xpath (target element)
-            let resolvedArgs = rest.arguments;
-            if (
-              rest.method === "dragAndDrop" &&
-              Array.isArray(rest.arguments) &&
-              rest.arguments.length > 0
-            ) {
-              const targetArg = rest.arguments[0];
-              // Check if argument looks like an element ID (e.g., "1-67")
+              // For dragAndDrop, convert element ID in arguments to xpath (target element)
+              let resolvedArgs = rest.arguments;
               if (
-                typeof targetArg === "string" &&
-                /^\d+-\d+$/.test(targetArg)
+                rest.method === "dragAndDrop" &&
+                Array.isArray(rest.arguments) &&
+                rest.arguments.length > 0
               ) {
-                const argXpath = combinedXpathMap[targetArg as EncodedId];
-                const trimmedArgXpath = trimTrailingTextNode(argXpath);
-                if (trimmedArgXpath) {
-                  resolvedArgs = [
-                    `xpath=${trimmedArgXpath}`,
-                    ...rest.arguments.slice(1),
-                  ];
+                const targetArg = rest.arguments[0];
+                // Check if argument looks like an element ID (e.g., "1-67")
+                if (
+                  typeof targetArg === "string" &&
+                  /^\d+-\d+$/.test(targetArg)
+                ) {
+                  const argXpath = combinedXpathMap[targetArg as EncodedId];
+                  const trimmedArgXpath = trimTrailingTextNode(argXpath);
+                  if (trimmedArgXpath) {
+                    resolvedArgs = [
+                      `xpath=${trimmedArgXpath}`,
+                      ...rest.arguments.slice(1),
+                    ];
+                  } else {
+                    // Target element lookup failed, filter out this action
+                    v3Logger({
+                      category: "observation",
+                      message: "dragAndDrop target element lookup failed",
+                      level: 0,
+                      auxiliary: {
+                        targetElementId: { value: targetArg, type: "string" },
+                        sourceElementId: { value: elementId, type: "string" },
+                      },
+                    });
+                    return undefined;
+                  }
                 } else {
-                  // Target element lookup failed, filter out this action
                   v3Logger({
                     category: "observation",
-                    message: "dragAndDrop target element lookup failed",
+                    message: "dragAndDrop target element invalid ID format",
                     level: 0,
                     auxiliary: {
                       targetElementId: { value: targetArg, type: "string" },
@@ -190,39 +205,28 @@ export class ObserveHandler {
                   });
                   return undefined;
                 }
-              } else {
-                v3Logger({
-                  category: "observation",
-                  message: "dragAndDrop target element invalid ID format",
-                  level: 0,
-                  auxiliary: {
-                    targetElementId: { value: targetArg, type: "string" },
-                    sourceElementId: { value: elementId, type: "string" },
-                  },
-                });
-                return undefined;
               }
-            }
 
+              return {
+                ...rest,
+                arguments: resolvedArgs,
+                selector: `xpath=${trimmedXpath}`,
+              } as {
+                description: string;
+                method?: string;
+                arguments?: string[];
+                selector: string;
+              };
+            }
+            // shadow-root fallback:
             return {
-              ...rest,
-              arguments: resolvedArgs,
-              selector: `xpath=${trimmedXpath}`,
-            } as {
-              description: string;
-              method?: string;
-              arguments?: string[];
-              selector: string;
+              description: "an element inside a shadow DOM",
+              method: "not-supported",
+              arguments: [],
+              selector: "not-supported",
             };
-          }
-          // shadow-root fallback:
-          return {
-            description: "an element inside a shadow DOM",
-            method: "not-supported",
-            arguments: [],
-            selector: "not-supported",
-          };
-        }),
+          },
+        ),
       )
     ).filter(<T>(e: T | undefined): e is T => e !== undefined);
 

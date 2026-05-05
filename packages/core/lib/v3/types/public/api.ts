@@ -517,6 +517,11 @@ export const ExtractOptionsSchema = z
           "Selectors for elements and subtrees that should be excluded from extraction",
         example: ["nav", ".cookie-banner", "#sidebar-ads"],
       }),
+    selectAll: z.boolean().optional().meta({
+      description:
+        "When true, apply selector scoping to all matching elements instead of only the first match",
+      example: true,
+    }),
   })
   .optional()
   .meta({ id: "ExtractOptions" });
@@ -597,6 +602,11 @@ export const ObserveOptionsSchema = z
           "Selectors for elements and subtrees that should be excluded from observation",
         example: ["nav", ".cookie-banner", "#sidebar-ads"],
       }),
+    selectAll: z.boolean().optional().meta({
+      description:
+        "When true, apply selector scoping to all matching elements instead of only the first match",
+      example: true,
+    }),
   })
   .optional()
   .meta({ id: "ObserveOptions" });

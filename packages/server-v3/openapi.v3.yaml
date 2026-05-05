@@ -622,6 +622,11 @@ components:
           type: array
           items:
             type: string
+        selectAll:
+          description: When true, apply selector scoping to all matching elements instead
+            of only the first match
+          example: true
+          type: boolean
     ExtractRequest:
       type: object
       properties:
@@ -695,6 +700,11 @@ components:
           type: array
           items:
             type: string
+        selectAll:
+          description: When true, apply selector scoping to all matching elements instead
+            of only the first match
+          example: true
+          type: boolean
     ObserveRequest:
       type: object
       properties:
@@ -1630,6 +1640,11 @@ components:
           type: array
           items:
             type: string
+        selectAll:
+          description: When true, apply selector scoping to all matching elements instead
+            of only the first match
+          example: true
+          type: boolean
       additionalProperties: false
     ExtractResultOutput:
       type: object
@@ -1681,6 +1696,11 @@ components:
           type: array
           items:
             type: string
+        selectAll:
+          description: When true, apply selector scoping to all matching elements instead
+            of only the first match
+          example: true
+          type: boolean
       additionalProperties: false
     ObserveResultOutput:
       type: object

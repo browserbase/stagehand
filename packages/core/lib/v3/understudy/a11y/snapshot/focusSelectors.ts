@@ -205,6 +205,16 @@ export async function resolveObjectIdForXPath(
   xpath: string,
   frameId?: string,
 ): Promise<string | null> {
+  const objectIds = await resolveObjectIdsForXPath(session, xpath, frameId, 1);
+  return objectIds[0] ?? null;
+}
+
+export async function resolveObjectIdsForXPath(
+  session: CDPSessionLike,
+  xpath: string,
+  frameId?: string,
+  limit = Number.POSITIVE_INFINITY,
+): Promise<string[]> {
   let contextId: number | undefined;
   try {
     if (frameId) {
@@ -217,21 +227,13 @@ export async function resolveObjectIdForXPath(
   } catch {
     contextId = undefined;
   }
-  const expr = buildLocatorInvocation("resolveXPathMainWorld", [
-    JSON.stringify(xpath),
-    "0",
-  ]);
-  const { result, exceptionDetails } = await session.send<{
-    result: { objectId?: string | undefined };
-    exceptionDetails?: Protocol.Runtime.ExceptionDetails;
-  }>("Runtime.evaluate", {
-    expression: expr,
-    returnByValue: false,
+  return resolveIndexedObjectIds(
+    session,
     contextId,
-    awaitPromise: true,
-  });
-  if (exceptionDetails) return null;
-  return result?.objectId ?? null;
+    "resolveXPathMainWorld",
+    xpath,
+    limit,
+  );
 }
 
 /** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
@@ -240,6 +242,16 @@ export async function resolveObjectIdForCss(
   selector: string,
   frameId?: string,
 ): Promise<string | null> {
+  const objectIds = await resolveObjectIdsForCss(session, selector, frameId, 1);
+  return objectIds[0] ?? null;
+}
+
+export async function resolveObjectIdsForCss(
+  session: CDPSessionLike,
+  selector: string,
+  frameId?: string,
+  limit = Number.POSITIVE_INFINITY,
+): Promise<string[]> {
   let contextId: number | undefined;
   try {
     if (frameId) {
@@ -252,32 +264,65 @@ export async function resolveObjectIdForCss(
   } catch {
     contextId = undefined;
   }
-  const primaryExpr = buildLocatorInvocation("resolveCssSelector", [
-    JSON.stringify(selector),
-    "0",
-  ]);
-  const fallbackExpr = buildLocatorInvocation("resolveCssSelectorPierce", [
-    JSON.stringify(selector),
-    "0",
-  ]);
 
-  const evaluate = async (expression: string): Promise<string | null> => {
+  const primary = await resolveIndexedObjectIds(
+    session,
+    contextId,
+    "resolveCssSelector",
+    selector,
+    limit,
+  );
+
+  if (primary.length > 0) return primary;
+  return resolveIndexedObjectIds(
+    session,
+    contextId,
+    "resolveCssSelectorPierce",
+    selector,
+    limit,
+  );
+}
+
+async function resolveIndexedObjectIds(
+  session: CDPSessionLike,
+  contextId: number | undefined,
+  resolverName:
+    | "resolveCssSelector"
+    | "resolveCssSelectorPierce"
+    | "resolveXPathMainWorld",
+  selector: string,
+  limit: number,
+): Promise<string[]> {
+  const normalizedLimit =
+    Number.isFinite(limit) && limit > 0
+      ? Math.floor(limit)
+      : Number.MAX_SAFE_INTEGER;
+
+  const objectIds: string[] = [];
+
+  for (let index = 0; index < normalizedLimit; index += 1) {
+    const expr = buildLocatorInvocation(resolverName, [
+      JSON.stringify(selector),
+      String(index),
+    ]);
+
     const { result, exceptionDetails } = await session.send<{
       result: { objectId?: string | undefined };
       exceptionDetails?: Protocol.Runtime.ExceptionDetails;
     }>("Runtime.evaluate", {
-      expression,
+      expression: expr,
       returnByValue: false,
       contextId,
       awaitPromise: true,
     });
-    if (exceptionDetails) return null;
-    return result?.objectId ?? null;
-  };
+    if (exceptionDetails) return [];
+    const objectId = result?.objectId ?? null;
 
-  const primary = await evaluate(primaryExpr);
-  if (primary) return primary;
-  return evaluate(fallbackExpr);
+    if (!objectId) break;
+    objectIds.push(objectId);
+  }
+
+  return objectIds;
 }
 
 export function listChildrenOf(

@@ -18,6 +18,7 @@ export interface ExtractHandlerParams<T extends StagehandZodSchema> {
   timeout?: number;
   selector?: string;
   ignoreSelectors?: string[];
+  selectAll?: boolean;
   page: Page;
 }
 
@@ -28,6 +29,7 @@ export interface ObserveHandlerParams {
   timeout?: number;
   selector?: string;
   ignoreSelectors?: string[];
+  selectAll?: boolean;
   page: Page;
 }
 

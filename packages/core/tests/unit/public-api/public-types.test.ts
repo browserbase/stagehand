@@ -153,6 +153,7 @@ describe("Stagehand public API types", () => {
       timeout?: number;
       selector?: string;
       ignoreSelectors?: string[];
+      selectAll?: boolean;
       page?: Stagehand.AnyPage;
       serverCache?: boolean;
     };
@@ -169,6 +170,7 @@ describe("Stagehand public API types", () => {
       timeout?: number;
       selector?: string;
       ignoreSelectors?: string[];
+      selectAll?: boolean;
       page?: Stagehand.AnyPage;
       serverCache?: boolean;
     };

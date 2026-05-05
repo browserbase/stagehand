@@ -111,9 +111,11 @@ describe("a11yForFrame", () => {
     const resolveSpy = vi
       .spyOn(focusSelectors, "resolveObjectIdForXPath")
       .mockResolvedValue("object-1");
+    const resolveAllSpy = vi.spyOn(focusSelectors, "resolveObjectIdsForXPath");
 
     const opts: A11yOptions = {
       focusSelector: "xpath=//a",
+      selectAll: false,
       experimental: false,
       tagNameMap: { "enc-101": "a" },
       scrollableMap: {},
@@ -125,7 +127,69 @@ describe("a11yForFrame", () => {
     expect(result.scopeApplied).toBe(true);
     expect(result.outline).not.toContain("RootWebArea");
     expect(resolveSpy).toHaveBeenCalled();
+    expect(resolveAllSpy).not.toHaveBeenCalled();
     resolveSpy.mockRestore();
+  });
+
+  it("scopes the tree to all matched selector roots when selectAll is true", async () => {
+    const nodes: Protocol.Accessibility.AXNode[] = [
+      {
+        nodeId: "1",
+        role: { type: stringType, value: "RootWebArea" },
+        backendDOMNodeId: 100,
+        childIds: ["2", "3"],
+        ignored: false,
+      },
+      {
+        nodeId: "2",
+        role: { type: stringType, value: "link" },
+        name: { type: stringType, value: "Docs" },
+        backendDOMNodeId: 101,
+        parentId: "1",
+        childIds: [],
+        ignored: false,
+      },
+      {
+        nodeId: "3",
+        role: { type: stringType, value: "link" },
+        name: { type: stringType, value: "Blog" },
+        backendDOMNodeId: 102,
+        parentId: "1",
+        childIds: [],
+        ignored: false,
+      },
+    ];
+    const session = new MockCDPSession({
+      ...baseHandlers,
+      "Accessibility.getFullAXTree": async () => ({ nodes }),
+      "DOM.describeNode": async ({ objectId }) => ({
+        node: {
+          backendNodeId:
+            objectId === "object-1" ? 101 : objectId === "object-2" ? 102 : 999,
+        },
+      }),
+    });
+
+    vi.spyOn(focusSelectors, "resolveObjectIdForCss").mockResolvedValue(null);
+    const resolveAllSpy = vi
+      .spyOn(focusSelectors, "resolveObjectIdsForCss")
+      .mockResolvedValue(["object-1", "object-2"]);
+
+    const opts: A11yOptions = {
+      focusSelector: ".card",
+      selectAll: true,
+      experimental: false,
+      tagNameMap: { "enc-101": "a", "enc-102": "a" },
+      scrollableMap: {},
+      encode: (backend) => `enc-${backend}`,
+    };
+
+    const result = await a11yForFrame(session, "frame-1", opts);
+
+    expect(result.scopeApplied).toBe(true);
+    expect(result.outline).toContain("Docs");
+    expect(result.outline).toContain("Blog");
+    expect(resolveAllSpy).toHaveBeenCalledWith(session, ".card", "frame-1");
   });
 
   it("falls back to full tree when resolveObjectId throws", async () => {
@@ -295,6 +359,28 @@ describe("resolveObjectIdForCss", () => {
   });
 });
 
+describe("resolveObjectIdsForCss", () => {
+  it("collects all primary matches before stopping", async () => {
+    let call = 0;
+    const session = new MockCDPSession({
+      "Runtime.evaluate": async () => {
+        call += 1;
+        if (call === 1) return { result: { objectId: "css-1" } };
+        if (call === 2) return { result: { objectId: "css-2" } };
+        return { result: {} };
+      },
+    });
+
+    const objectIds = await focusSelectors.resolveObjectIdsForCss(
+      session,
+      ".card",
+      undefined,
+    );
+
+    expect(objectIds).toEqual(["css-1", "css-2"]);
+  });
+});
+
 describe("tryScopedSnapshot", () => {
   const ordinal = (frameId: string) => (frameId === "frame-1" ? 0 : 1);
   const context: FrameContext = {
@@ -392,6 +478,41 @@ describe("tryScopedSnapshot", () => {
     );
     expect(domMapsSpy).toHaveBeenCalled();
     expect(a11ySpy).toHaveBeenCalled();
+  });
+
+  it("forwards selectAll to the a11y scoping helper", async () => {
+    const session = new MockCDPSession({});
+    vi.spyOn(domTree, "domMapsForSession").mockResolvedValue({
+      tagNameMap: { "1-10": "div" },
+      xpathMap: { "1-10": "/div[1]" },
+      scrollableMap: {},
+    });
+    const a11ySpy = vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
+      outline: "[1-10] div",
+      urlMap: {},
+      scopeApplied: true,
+    } as AccessibilityTreeResult);
+    vi.spyOn(focusSelectors, "resolveCssFocusFrameAndTail").mockResolvedValue({
+      targetFrameId: "frame-2",
+      tailSelector: ".card",
+      absPrefix: "",
+    });
+
+    await tryScopedSnapshot(
+      makePage(session),
+      { focusSelector: ".card", selectAll: true },
+      context,
+      true,
+    );
+
+    expect(a11ySpy).toHaveBeenCalledWith(
+      session,
+      "frame-2",
+      expect.objectContaining({
+        focusSelector: ".card",
+        selectAll: true,
+      }),
+    );
   });
 
   it("returns null and logs fallback when scope is not applied", async () => {
