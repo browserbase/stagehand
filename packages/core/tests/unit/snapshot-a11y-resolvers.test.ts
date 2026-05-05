@@ -379,6 +379,28 @@ describe("resolveObjectIdsForCss", () => {
 
     expect(objectIds).toEqual(["css-1", "css-2"]);
   });
+
+  it("preserves already-resolved matches when a later evaluation errors", async () => {
+    let call = 0;
+    const session = new MockCDPSession({
+      "Runtime.evaluate": async () => {
+        call += 1;
+        if (call === 1) return { result: { objectId: "css-1" } };
+        return {
+          result: {},
+          exceptionDetails: { exception: { description: "fail" } },
+        };
+      },
+    });
+
+    const objectIds = await focusSelectors.resolveObjectIdsForCss(
+      session,
+      ".card",
+      undefined,
+    );
+
+    expect(objectIds).toEqual(["css-1"]);
+  });
 });
 
 describe("tryScopedSnapshot", () => {

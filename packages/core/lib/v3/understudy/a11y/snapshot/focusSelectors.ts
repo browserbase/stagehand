@@ -315,7 +315,7 @@ async function resolveIndexedObjectIds(
       contextId,
       awaitPromise: true,
     });
-    if (exceptionDetails) return [];
+    if (exceptionDetails) return objectIds;
     const objectId = result?.objectId ?? null;
 
     if (!objectId) break;
