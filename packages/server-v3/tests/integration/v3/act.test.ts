@@ -394,15 +394,23 @@ describe("POST /v1/sessions/:id/act (V3) - variables", () => {
 
   it("should substitute simple variable into typed value", async () => {
     const url = getBaseUrl();
+    const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<ActResponse>(
       `${url}/v1/sessions/${varsSessionId}/act`,
       {
         method: "POST",
-        headers: getHeaders("3.0.0"),
+        headers: {
+          ...getHeaders("3.0.0"),
+          "x-model-api-key": "",
+        },
         body: JSON.stringify({
           input: "type %username% into the email field",
           options: {
+            model: {
+              modelName: "openai/gpt-4.1-mini",
+              apiKey: openaiApiKey,
+            },
             variables: {
               username: "john@example.com",
             },
@@ -414,6 +422,11 @@ describe("POST /v1/sessions/:id/act (V3) - variables", () => {
     assertFetchStatus(ctx, HTTP_OK, "act with simple variable should succeed");
     assertFetchOk(ctx.body !== null, "Response should have body", ctx);
     assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+    assertFetchOk(
+      !!ctx.body.data?.result?.success,
+      `act result should be success, got: ${ctx.body.data?.result?.message ?? "<no message>"}`,
+      ctx,
+    );
 
     const emailValue = await readInputValue(EMAIL_XPATH);
     assert.equal(
@@ -425,15 +438,23 @@ describe("POST /v1/sessions/:id/act (V3) - variables", () => {
 
   it("should substitute rich variable (with description) into typed value", async () => {
     const url = getBaseUrl();
+    const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
 
     const ctx = await fetchWithContext<ActResponse>(
       `${url}/v1/sessions/${varsSessionId}/act`,
       {
         method: "POST",
-        headers: getHeaders("3.0.0"),
+        headers: {
+          ...getHeaders("3.0.0"),
+          "x-model-api-key": "",
+        },
         body: JSON.stringify({
           input: "type %password% into the password field",
           options: {
+            model: {
+              modelName: "openai/gpt-4.1-mini",
+              apiKey: openaiApiKey,
+            },
             variables: {
               password: {
                 value: "secret123",
@@ -448,6 +469,11 @@ describe("POST /v1/sessions/:id/act (V3) - variables", () => {
     assertFetchStatus(ctx, HTTP_OK, "act with rich variable should succeed");
     assertFetchOk(ctx.body !== null, "Response should have body", ctx);
     assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+    assertFetchOk(
+      !!ctx.body.data?.result?.success,
+      `act result should be success, got: ${ctx.body.data?.result?.message ?? "<no message>"}`,
+      ctx,
+    );
 
     const passwordValue = await readInputValue(PASSWORD_XPATH);
     assert.equal(
