@@ -164,35 +164,59 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
       data?: { result: unknown[]; actionId?: string };
     }
 
-    const ctx = await fetchWithContext<ObserveResponse>(
-      `${url}/v1/sessions/${sessionId}/observe`,
-      {
-        method: "POST",
-        headers: getHeaders("3.0.0"),
-        body: JSON.stringify({
-          instruction: "Find any link on the page",
-          options: {
-            variables: {
-              username: "john@example.com",
-            },
-          },
-        }),
-      },
+    const navResponse = await navigateSession(
+      sessionId,
+      "https://browserbase.github.io/stagehand-eval-sites/sites/login/",
+      getHeaders("3.0.0"),
+    );
+    assert.equal(
+      navResponse.status,
+      HTTP_OK,
+      "Navigate to login should succeed",
     );
 
-    assertFetchStatus(ctx, HTTP_OK, "Observe with variables should succeed");
-    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
-    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
-    assertFetchOk(
-      ctx.body.data !== undefined,
-      "Response should have data",
-      ctx,
-    );
-    assertFetchOk(
-      Array.isArray(ctx.body.data.result),
-      "Result should be an array of observed elements",
-      ctx,
-    );
+    try {
+      const ctx = await fetchWithContext<ObserveResponse>(
+        `${url}/v1/sessions/${sessionId}/observe`,
+        {
+          method: "POST",
+          headers: getHeaders("3.0.0"),
+          body: JSON.stringify({
+            instruction: "Find the field for entering %username%",
+            options: {
+              variables: {
+                username: "john@example.com",
+                password: "secret123",
+              },
+            },
+          }),
+        },
+      );
+
+      assertFetchStatus(ctx, HTTP_OK, "Observe with variables should succeed");
+      assertFetchOk(
+        ctx.body !== null,
+        "Response body should be parseable",
+        ctx,
+      );
+      assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+      assertFetchOk(
+        ctx.body.data !== undefined,
+        "Response should have data",
+        ctx,
+      );
+      assertFetchOk(
+        Array.isArray(ctx.body.data.result),
+        "Result should be an array of observed elements",
+        ctx,
+      );
+    } finally {
+      await navigateSession(
+        sessionId,
+        "https://example.com",
+        getHeaders("3.0.0"),
+      );
+    }
   });
 
   it("should observe with rich variables option", async () => {
@@ -203,42 +227,69 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
       data?: { result: unknown[]; actionId?: string };
     }
 
-    const ctx = await fetchWithContext<ObserveResponse>(
-      `${url}/v1/sessions/${sessionId}/observe`,
-      {
-        method: "POST",
-        headers: getHeaders("3.0.0"),
-        body: JSON.stringify({
-          instruction: "Find any link on the page",
-          options: {
-            variables: {
-              username: {
-                value: "john@example.com",
-                description: "The login email",
-              },
-            },
-          },
-        }),
-      },
+    const navResponse = await navigateSession(
+      sessionId,
+      "https://browserbase.github.io/stagehand-eval-sites/sites/login/",
+      getHeaders("3.0.0"),
+    );
+    assert.equal(
+      navResponse.status,
+      HTTP_OK,
+      "Navigate to login should succeed",
     );
 
-    assertFetchStatus(
-      ctx,
-      HTTP_OK,
-      "Observe with rich variables should succeed",
-    );
-    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
-    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
-    assertFetchOk(
-      ctx.body.data !== undefined,
-      "Response should have data",
-      ctx,
-    );
-    assertFetchOk(
-      Array.isArray(ctx.body.data.result),
-      "Result should be an array of observed elements",
-      ctx,
-    );
+    try {
+      const ctx = await fetchWithContext<ObserveResponse>(
+        `${url}/v1/sessions/${sessionId}/observe`,
+        {
+          method: "POST",
+          headers: getHeaders("3.0.0"),
+          body: JSON.stringify({
+            instruction: "Find the field for entering %username%",
+            options: {
+              variables: {
+                username: {
+                  value: "john@example.com",
+                  description: "The login email",
+                },
+                password: {
+                  value: "secret123",
+                  description: "The login password",
+                },
+              },
+            },
+          }),
+        },
+      );
+
+      assertFetchStatus(
+        ctx,
+        HTTP_OK,
+        "Observe with rich variables should succeed",
+      );
+      assertFetchOk(
+        ctx.body !== null,
+        "Response body should be parseable",
+        ctx,
+      );
+      assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+      assertFetchOk(
+        ctx.body.data !== undefined,
+        "Response should have data",
+        ctx,
+      );
+      assertFetchOk(
+        Array.isArray(ctx.body.data.result),
+        "Result should be an array of observed elements",
+        ctx,
+      );
+    } finally {
+      await navigateSession(
+        sessionId,
+        "https://example.com",
+        getHeaders("3.0.0"),
+      );
+    }
   });
 
   it("should observe without instruction (observe all)", async () => {

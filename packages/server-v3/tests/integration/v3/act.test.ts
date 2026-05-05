@@ -348,6 +348,117 @@ describe("POST /v1/sessions/:id/act (V3)", () => {
 });
 
 // =============================================================================
+// Variables Tests (V3) - Substitute %variableName% placeholders into act input
+// =============================================================================
+
+describe("POST /v1/sessions/:id/act (V3) - variables", () => {
+  const LOGIN_URL =
+    "https://browserbase.github.io/stagehand-eval-sites/sites/login/";
+  const EMAIL_XPATH = "/html/body/main/form/div[1]/input";
+  const PASSWORD_XPATH = "/html/body/main/form/div[2]/input";
+
+  let varsSessionId: string;
+  let varsCdpUrl: string;
+
+  before(async () => {
+    ({ sessionId: varsSessionId, cdpUrl: varsCdpUrl } =
+      await createSessionWithCdp(getHeaders("3.0.0")));
+  });
+
+  beforeEach(async () => {
+    const navResponse = await navigateSession(
+      varsSessionId,
+      LOGIN_URL,
+      getHeaders("3.0.0"),
+    );
+    assert.equal(
+      navResponse.status,
+      HTTP_OK,
+      "Navigate to login should succeed",
+    );
+  });
+
+  after(async () => {
+    await endSession(varsSessionId, getHeaders("3.0.0"));
+  });
+
+  async function readInputValue(xpath: string): Promise<string> {
+    const browser = await chromium.connectOverCDP(varsCdpUrl);
+    try {
+      const pages = browser.contexts()[0]!.pages();
+      return await pages[0]!.locator(`xpath=${xpath}`).inputValue();
+    } finally {
+      await browser.close();
+    }
+  }
+
+  it("should substitute simple variable into typed value", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<ActResponse>(
+      `${url}/v1/sessions/${varsSessionId}/act`,
+      {
+        method: "POST",
+        headers: getHeaders("3.0.0"),
+        body: JSON.stringify({
+          input: "type %username% into the email field",
+          options: {
+            variables: {
+              username: "john@example.com",
+            },
+          },
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "act with simple variable should succeed");
+    assertFetchOk(ctx.body !== null, "Response should have body", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+
+    const emailValue = await readInputValue(EMAIL_XPATH);
+    assert.equal(
+      emailValue,
+      "john@example.com",
+      "Email field should contain substituted variable value",
+    );
+  });
+
+  it("should substitute rich variable (with description) into typed value", async () => {
+    const url = getBaseUrl();
+
+    const ctx = await fetchWithContext<ActResponse>(
+      `${url}/v1/sessions/${varsSessionId}/act`,
+      {
+        method: "POST",
+        headers: getHeaders("3.0.0"),
+        body: JSON.stringify({
+          input: "type %password% into the password field",
+          options: {
+            variables: {
+              password: {
+                value: "secret123",
+                description: "The user's password",
+              },
+            },
+          },
+        }),
+      },
+    );
+
+    assertFetchStatus(ctx, HTTP_OK, "act with rich variable should succeed");
+    assertFetchOk(ctx.body !== null, "Response should have body", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+
+    const passwordValue = await readInputValue(PASSWORD_XPATH);
+    assert.equal(
+      passwordValue,
+      "secret123",
+      "Password field should contain substituted variable value",
+    );
+  });
+});
+
+// =============================================================================
 // SSE Streaming Tests (V3)
 // =============================================================================
 
