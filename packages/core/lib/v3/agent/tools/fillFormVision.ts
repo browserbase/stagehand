@@ -64,9 +64,12 @@ MANDATORY USE CASES (always use fillFormVision for these):
       try {
         const page = await v3.context.awaitActivePage();
 
-        // Process coordinates and substitute variables for each field
-        // Keep original values (with %tokens%) for logging/caching, substituted values for typing
-        const processedFields = fields.map((field) => {
+        // Process coordinates per field. Keep the original `value` (with any
+        // `%variableName%` tokens) so substituted secrets never leak through
+        // the tool result, replay cache, returned AgentResult.actions, or
+        // anything that logs the action. Variables are substituted only at
+        // typing time below.
+        const safeFields = fields.map((field) => {
           const processed = processCoordinates(
             field.coordinates.x,
             field.coordinates.y,
@@ -74,9 +77,8 @@ MANDATORY USE CASES (always use fillFormVision for these):
             v3,
           );
           return {
-            ...field,
-            originalValue: field.value, // Keep original with %tokens% for cache
-            value: substituteVariables(field.value, variables),
+            action: field.action,
+            value: field.value,
             coordinates: { x: processed.x, y: processed.y },
           };
         });
@@ -97,7 +99,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
         const shouldCollectXpath = v3.isAgentReplayActive();
         const actions: Action[] = [];
 
-        for (const field of processedFields) {
+        for (const field of safeFields) {
           // Click the field, only requesting XPath when caching is enabled
           const xpath = await page.click(
             field.coordinates.x,
@@ -106,10 +108,12 @@ MANDATORY USE CASES (always use fillFormVision for these):
               returnXpath: shouldCollectXpath,
             },
           );
-          await page.type(field.value);
+          // Substitute variables only at the moment of typing so the resolved
+          // value never leaves this scope.
+          await page.type(substituteVariables(field.value, variables));
 
-          // Build Action with XPath for deterministic replay (only when caching)
-          // Use originalValue (with %tokens%) so cache stores references, not sensitive values
+          // Build Action with XPath for deterministic replay (only when caching).
+          // Store the placeholder value so cache entries don't contain secrets.
           if (shouldCollectXpath) {
             const normalizedXpath = ensureXPath(xpath);
             if (normalizedXpath) {
@@ -117,7 +121,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
                 selector: normalizedXpath,
                 description: field.action,
                 method: "type",
-                arguments: [field.originalValue],
+                arguments: [field.value],
               });
             }
           }
@@ -140,7 +144,7 @@ MANDATORY USE CASES (always use fillFormVision for these):
 
         return {
           success: true,
-          playwrightArguments: processedFields,
+          playwrightArguments: safeFields,
           screenshotBase64,
         };
       } catch (error) {
