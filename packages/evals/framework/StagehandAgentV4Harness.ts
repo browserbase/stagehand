@@ -37,6 +37,14 @@ const STAGEHAND_V4_LOAD_STATE_ORDER: Record<StagehandV4LoadState, number> = {
   networkidle: 4,
 };
 
+function isInternalStagehandV4PageUrl(url: string | undefined): boolean {
+  return (
+    url == null ||
+    url === "about:blank" ||
+    /^chrome(?:-[a-z]+)?:\/\//u.test(url)
+  );
+}
+
 type StagehandV4PageState = {
   targetId?: string;
   title: string;
@@ -400,9 +408,10 @@ function createStagehandV4PageFacade(
         stagehandV4.cdp.Stagehand.BrowserPageGoto({
           url,
           selector:
-            pageState.targetId != null
+            pageState.targetId != null &&
+            !isInternalStagehandV4PageUrl(pageState.url)
               ? { targetId: pageState.targetId }
-              : { active: true },
+              : { active: false },
         }),
         loaded,
       ]);
@@ -652,6 +661,13 @@ function updatePageStateFromStagehandV4Event(
 ): void {
   if (!isRecord(event)) return;
   const targetId = targetIdFromStagehandV4Event(event);
+  if (
+    targetId != null &&
+    pageState.targetId != null &&
+    targetId !== pageState.targetId
+  ) {
+    return;
+  }
   if (targetId != null) pageState.targetId = targetId;
   if (typeof event.url === "string") pageState.url = event.url;
   if (isRecord(event.selector) && typeof event.selector.url === "string") {
