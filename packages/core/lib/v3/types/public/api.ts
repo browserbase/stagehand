@@ -298,7 +298,11 @@ export const BrowserbaseRegionSchema = z
 /** Browserbase session creation parameters */
 export const BrowserbaseSessionCreateParamsSchema = z
   .object({
-    projectId: z.string().optional(),
+    projectId: z.string().optional().meta({
+      deprecated: true,
+      description:
+        "Deprecated. Browserbase API keys are now project-scoped, so this field is no longer required.",
+    }),
     browserSettings: BrowserbaseBrowserSettingsSchema.optional(),
     extensionId: z.string().optional(),
     keepAlive: z.boolean().optional(),
@@ -983,7 +987,8 @@ export const openApiSecuritySchemes = {
     type: "apiKey",
     in: "header",
     name: "x-bb-project-id",
-    description: "Browserbase project ID",
+    description:
+      "Deprecated. Browserbase API keys are now project-scoped, so this header is no longer required.",
   },
   ModelApiKey: {
     type: "apiKey",

@@ -229,8 +229,8 @@ client_settings:
     BROWSERBASE_PROJECT_ID:
       type: string
       read_env: BROWSERBASE_PROJECT_ID
-      description: Your [Browserbase Project ID](https://www.browserbase.com/settings)
-      nullable: false
+      description: Deprecated. Browserbase API keys are now project-scoped, so this value is no longer required.
+      nullable: true
       auth:
         security_scheme: BBProjectIdAuth
     MODEL_API_KEY:

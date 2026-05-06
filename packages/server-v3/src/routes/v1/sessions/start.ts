@@ -112,13 +112,12 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     const browserType = browser?.type ?? "browserbase";
 
     let bbApiKey: string | undefined;
-    let bbProjectId: string | undefined;
+    let browserbaseProjectId: string | undefined;
     let browserbaseSessionId: string | undefined;
     let connectUrl: string | undefined;
 
     if (browserType === "browserbase") {
       bbApiKey = getOptionalHeader(request, "x-bb-api-key");
-      bbProjectId = getOptionalHeader(request, "x-bb-project-id");
 
       if (!bbApiKey) {
         return error(
@@ -132,6 +131,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       if (browserbaseSessionID) {
         const existing = await bb.sessions.retrieve(browserbaseSessionID);
         browserbaseSessionId = existing?.id;
+        browserbaseProjectId = existing?.projectId;
         connectUrl = existing?.connectUrl;
         if (!browserbaseSessionId) {
           return error(reply, "Failed to retrieve browserbase session");
@@ -140,10 +140,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
           return error(reply, "Browserbase session missing connectUrl");
         }
       } else {
-        const resolvedProjectId =
-          browserbaseSessionCreateParams?.projectId ?? bbProjectId;
         const createPayload = {
-          ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
           ...browserbaseSessionCreateParams,
           browserSettings: {
             ...(browserbaseSessionCreateParams?.browserSettings ?? {}),
@@ -164,6 +161,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
         )) as SessionRetrieveResponse;
 
         browserbaseSessionId = created?.id;
+        browserbaseProjectId = created?.projectId;
         connectUrl = created?.connectUrl;
         if (!browserbaseSessionId) {
           return error(reply, "Failed to create browserbase session");
@@ -189,7 +187,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
           ? (browserbaseSessionId ?? browserbaseSessionID)
           : undefined,
       browserbaseApiKey: bbApiKey,
-      browserbaseProjectId: bbProjectId,
+      browserbaseProjectId,
       modelName,
       domSettleTimeoutMs,
       verbose,

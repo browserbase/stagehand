@@ -51,18 +51,16 @@ export async function createStreamingResponse<TV3>({
   const browserType = sessionConfig.browserType ?? "local";
 
   let browserbaseApiKey = sessionConfig.browserbaseApiKey;
-  let browserbaseProjectId = sessionConfig.browserbaseProjectId;
+  const browserbaseProjectId = sessionConfig.browserbaseProjectId;
 
   if (browserType === "browserbase") {
     browserbaseApiKey =
       browserbaseApiKey ?? getOptionalHeader(request, "x-bb-api-key");
-    browserbaseProjectId =
-      browserbaseProjectId ?? getOptionalHeader(request, "x-bb-project-id");
 
     if (!browserbaseApiKey || !browserbaseProjectId) {
       return reply.status(StatusCodes.BAD_REQUEST).send({
         error:
-          "Browserbase API key and project ID are required for browserbase sessions",
+          "Browserbase API key and resolved project ID are required for browserbase sessions",
       });
     }
   }
