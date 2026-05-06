@@ -9,6 +9,7 @@ import { tryScopedSnapshot } from "../../lib/v3/understudy/a11y/snapshot/capture
 import type {
   FrameContext,
   A11yOptions,
+  SessionDomIndex,
 } from "../../lib/v3/types/private/index.js";
 import type { Page } from "../../lib/v3/understudy/page.js";
 import * as domTree from "../../lib/v3/understudy/a11y/snapshot/domTree.js";
@@ -146,6 +147,45 @@ describe("a11yForFrame", () => {
     const result = await a11yForFrame(session, "frame-1", opts);
     expect(result.scopeApplied).toBe(false);
   });
+
+  it("filters ignored backend nodes from outline and url map", async () => {
+    const nodes = [
+      ...baseAxNodes(),
+      {
+        nodeId: "3",
+        role: { type: stringType, value: "link" },
+        name: { type: stringType, value: "Ignore me" },
+        backendDOMNodeId: 102,
+        parentId: "1",
+        childIds: [] as string[],
+        properties: [
+          {
+            name: "url",
+            value: { type: stringType, value: "https://ignored.example.com" },
+          },
+        ],
+        ignored: false,
+      },
+    ];
+
+    const session = new MockCDPSession({
+      ...baseHandlers,
+      "Accessibility.getFullAXTree": async () => ({ nodes }),
+    });
+
+    const result = await a11yForFrame(session, "frame-1", {
+      focusSelector: undefined,
+      isIgnoredBackendNode: (backendNodeId) => backendNodeId === 102,
+      experimental: false,
+      tagNameMap: { "enc-100": "#document", "enc-101": "a", "enc-102": "a" },
+      scrollableMap: {},
+      encode: (backend) => `enc-${backend}`,
+    });
+
+    expect(result.outline).toContain("Docs");
+    expect(result.outline).not.toContain("Ignore me");
+    expect(result.urlMap["enc-102"]).toBeUndefined();
+  });
 });
 
 describe("resolveObjectIdForXPath", () => {
@@ -265,6 +305,40 @@ describe("tryScopedSnapshot", () => {
       ["frame-2", "frame-1"],
     ]),
   };
+  const sessionIndex: SessionDomIndex = {
+    rootBackend: 100,
+    absByBe: new Map([
+      [100, "/"],
+      [101, "/html[1]"],
+      [102, "/html[1]/body[1]"],
+      [200, "/html[1]/body[1]/iframe[1]"],
+      [201, "/html[1]/body[1]/iframe[1]/div[1]"],
+    ]),
+    tagByBe: new Map(),
+    scrollByBe: new Map(),
+    docRootOf: new Map([
+      [100, 100],
+      [101, 100],
+      [102, 100],
+      [200, 200],
+      [201, 200],
+    ]),
+    contentDocRootByIframe: new Map(),
+    enterByBe: new Map([
+      [100, 0],
+      [101, 1],
+      [102, 2],
+      [200, 3],
+      [201, 4],
+    ]),
+    exitByBe: new Map([
+      [101, 5],
+      [102, 6],
+      [201, 7],
+      [200, 8],
+      [100, 9],
+    ]),
+  };
 
   const makePage = (session: MockCDPSession, overrides?: Partial<Page>): Page =>
     ({
@@ -308,6 +382,8 @@ describe("tryScopedSnapshot", () => {
       { focusSelector: ".btn" },
       context,
       true,
+      new Map([[session.id, sessionIndex]]),
+      new Map(),
     );
 
     expect(result).not.toBeNull();
@@ -337,6 +413,8 @@ describe("tryScopedSnapshot", () => {
       { focusSelector: ".btn" },
       context,
       false,
+      new Map([[session.id, sessionIndex]]),
+      new Map(),
     );
 
     expect(result).toBeNull();
@@ -349,6 +427,8 @@ describe("tryScopedSnapshot", () => {
       {},
       context,
       true,
+      new Map(),
+      new Map(),
     );
     expect(result).toBeNull();
   });
@@ -376,6 +456,8 @@ describe("tryScopedSnapshot", () => {
       { focusSelector: "xpath=//div" },
       context,
       true,
+      new Map([[session.id, sessionIndex]]),
+      new Map(),
     );
 
     expect(result).not.toBeNull();
@@ -394,9 +476,56 @@ describe("tryScopedSnapshot", () => {
       { focusSelector: ".bad" },
       context,
       true,
+      new Map([[session.id, sessionIndex]]),
+      new Map(),
     );
 
     expect(result).toBeNull();
     expect(loggerSpy).toHaveBeenCalled();
+  });
+
+  it("filters ignored xpath entries in the scoped snapshot", async () => {
+    const session = new MockCDPSession({});
+    vi.spyOn(domTree, "domMapsForSession").mockResolvedValue({
+      tagNameMap: { "1-10": "div", "1-11": "div" },
+      xpathMap: { "1-10": "/div[1]", "1-11": "/div[2]" },
+      scrollableMap: {},
+    });
+    vi.spyOn(a11yTree, "a11yForFrame").mockResolvedValue({
+      outline: "[1-11] div",
+      urlMap: {},
+      scopeApplied: true,
+    } as AccessibilityTreeResult);
+    vi.spyOn(focusSelectors, "resolveCssFocusFrameAndTail").mockResolvedValue({
+      targetFrameId: "frame-2",
+      tailSelector: ".btn-inner",
+      absPrefix: "/html/body/iframe[1]",
+    });
+
+    const scopedIndex: SessionDomIndex = {
+      ...sessionIndex,
+      enterByBe: new Map([
+        [10, 0],
+        [11, 3],
+      ]),
+      exitByBe: new Map([
+        [10, 2],
+        [11, 4],
+      ]),
+    };
+
+    const result = await tryScopedSnapshot(
+      makePage(session),
+      { focusSelector: ".btn" },
+      context,
+      true,
+      new Map([[session.id, scopedIndex]]),
+      new Map([["frame-2", [{ start: 0, end: 2 }]]]),
+    );
+
+    expect(result?.combinedXpathMap["1-10"]).toBeUndefined();
+    expect(result?.combinedXpathMap["1-11"]).toBe(
+      "/html/body/iframe[1]/div[2]",
+    );
   });
 });

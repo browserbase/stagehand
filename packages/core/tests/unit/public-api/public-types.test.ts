@@ -152,6 +152,7 @@ describe("Stagehand public API types", () => {
       model?: Stagehand.ModelConfiguration;
       timeout?: number;
       selector?: string;
+      ignoreSelectors?: string[];
       page?: Stagehand.AnyPage;
       serverCache?: boolean;
     };

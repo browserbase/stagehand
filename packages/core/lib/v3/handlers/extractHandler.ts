@@ -109,7 +109,15 @@ export class ExtractHandler {
   async extract<T extends StagehandZodSchema>(
     params: ExtractHandlerParams<T>,
   ): Promise<InferStagehandSchema<T> | { pageText: string }> {
-    const { instruction, schema, page, selector, timeout, model } = params;
+    const {
+      instruction,
+      schema,
+      page,
+      selector,
+      ignoreSelectors,
+      timeout,
+      model,
+    } = params;
 
     const llmClient = this.resolveLlmClient(model);
 
@@ -126,6 +134,7 @@ export class ExtractHandler {
       const snap = await captureHybridSnapshot(page, {
         experimental: this.experimental,
         focusSelector: focusSelector || undefined,
+        ignoreSelectors,
       });
       ensureTimeRemaining();
 
@@ -147,6 +156,7 @@ export class ExtractHandler {
     const { combinedTree, combinedUrlMap } = await captureHybridSnapshot(page, {
       experimental: this.experimental,
       focusSelector: focusSelector,
+      ignoreSelectors,
     });
 
     v3Logger({

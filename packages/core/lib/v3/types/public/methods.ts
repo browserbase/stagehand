@@ -54,6 +54,7 @@ export interface ExtractOptions {
   model?: ModelConfiguration;
   timeout?: number;
   selector?: string;
+  ignoreSelectors?: string[];
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   /**
    * Override the instance-level serverCache setting for this request.

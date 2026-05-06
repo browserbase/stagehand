@@ -608,6 +608,16 @@ components:
           description: CSS selector to scope extraction to a specific element
           example: "#main-content"
           type: string
+        ignoreSelectors:
+          description: Selectors for elements and subtrees that should be excluded from
+            extraction
+          example:
+            - nav
+            - .cookie-banner
+            - "#sidebar-ads"
+          type: array
+          items:
+            type: string
     ExtractRequest:
       type: object
       properties:
@@ -1589,6 +1599,16 @@ components:
           description: CSS selector to scope extraction to a specific element
           example: "#main-content"
           type: string
+        ignoreSelectors:
+          description: Selectors for elements and subtrees that should be excluded from
+            extraction
+          example:
+            - nav
+            - .cookie-banner
+            - "#sidebar-ads"
+          type: array
+          items:
+            type: string
       additionalProperties: false
     ExtractResultOutput:
       type: object

@@ -266,19 +266,39 @@ export async function buildSessionDomIndex(
   const scrollByBe = new Map<number, boolean>();
   const docRootOf = new Map<number, number>();
   const contentDocRootByIframe = new Map<number, number>();
+  const enterByBe = new Map<number, number>();
+  const exitByBe = new Map<number, number>();
 
-  type Entry = { node: Protocol.DOM.Node; xp: string; docRootBe: number };
+  type Entry = {
+    node: Protocol.DOM.Node;
+    xp: string;
+    docRootBe: number;
+    phase: "enter" | "exit";
+  };
   const rootBe = root.backendNodeId!;
-  const stack: Entry[] = [{ node: root, xp: "/", docRootBe: rootBe }];
+  const stack: Entry[] = [
+    { node: root, xp: "/", docRootBe: rootBe, phase: "enter" },
+  ];
+  let dfsIndex = 0;
 
   while (stack.length) {
-    const { node, xp, docRootBe } = stack.pop()!;
+    const { node, xp, docRootBe, phase } = stack.pop()!;
+    if (phase === "exit") {
+      if (node.backendNodeId) {
+        exitByBe.set(node.backendNodeId, dfsIndex++);
+      }
+      continue;
+    }
+
     if (node.backendNodeId) {
+      enterByBe.set(node.backendNodeId, dfsIndex++);
       absByBe.set(node.backendNodeId, xp || "/");
       tagByBe.set(node.backendNodeId, enrichedTagName(node));
       if (node?.isScrollable === true) scrollByBe.set(node.backendNodeId, true);
       docRootOf.set(node.backendNodeId, docRootBe);
     }
+
+    stack.push({ node, xp, docRootBe, phase: "exit" });
 
     const kids = node.children ?? [];
     if (kids.length) {
@@ -286,18 +306,33 @@ export async function buildSessionDomIndex(
       for (let i = kids.length - 1; i >= 0; i--) {
         const child = kids[i]!;
         const step = segs[i]!;
-        stack.push({ node: child, xp: joinXPath(xp, step), docRootBe });
+        stack.push({
+          node: child,
+          xp: joinXPath(xp, step),
+          docRootBe,
+          phase: "enter",
+        });
       }
     }
 
     for (const sr of node.shadowRoots ?? []) {
-      stack.push({ node: sr, xp: joinXPath(xp, "//"), docRootBe });
+      stack.push({
+        node: sr,
+        xp: joinXPath(xp, "//"),
+        docRootBe,
+        phase: "enter",
+      });
     }
 
     const cd = node.contentDocument as Protocol.DOM.Node | undefined;
     if (cd && typeof cd.backendNodeId === "number") {
       contentDocRootByIframe.set(node.backendNodeId!, cd.backendNodeId);
-      stack.push({ node: cd, xp, docRootBe: cd.backendNodeId });
+      stack.push({
+        node: cd,
+        xp,
+        docRootBe: cd.backendNodeId,
+        phase: "enter",
+      });
     }
   }
 
@@ -308,6 +343,8 @@ export async function buildSessionDomIndex(
     scrollByBe,
     docRootOf,
     contentDocRootByIframe,
+    enterByBe,
+    exitByBe,
   };
 }
 

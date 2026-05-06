@@ -42,16 +42,6 @@ export async function a11yForFrame(
     }>("Accessibility.getFullAXTree"));
   }
 
-  const urlMap: Record<string, string> = {};
-  for (const n of nodes) {
-    const be = n.backendDOMNodeId;
-    if (typeof be !== "number") continue;
-    const url = extractUrlFromAXNode(n);
-    if (!url) continue;
-    const enc = opts.encode(be);
-    urlMap[enc] = url;
-  }
-
   let scopeApplied = false;
   const nodesForOutline = await (async () => {
     const sel = opts.focusSelector?.trim();
@@ -92,7 +82,22 @@ export async function a11yForFrame(
     }
   })();
 
-  const decorated = decorateRoles(nodesForOutline, opts);
+  const filteredNodes = nodesForOutline.filter((node) => {
+    const be = node.backendDOMNodeId;
+    return typeof be !== "number" || !opts.isIgnoredBackendNode?.(be);
+  });
+
+  const urlMap: Record<string, string> = {};
+  for (const n of filteredNodes) {
+    const be = n.backendDOMNodeId;
+    if (typeof be !== "number") continue;
+    const url = extractUrlFromAXNode(n);
+    if (!url) continue;
+    const enc = opts.encode(be);
+    urlMap[enc] = url;
+  }
+
+  const decorated = decorateRoles(filteredNodes, opts);
   const { tree } = await buildHierarchicalTree(decorated, opts);
 
   const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
