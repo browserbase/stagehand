@@ -70,7 +70,7 @@ describe.each([
       }),
   ],
 ])("%s temperature handling", (_name, createClient) => {
-  it("does not replace missing temperature with a provider default", async () => {
+  it("falls back to 0.7 when temperature is not provided", async () => {
     const client = createClient();
     const create = installMockClient(client);
 
@@ -83,7 +83,7 @@ describe.each([
 
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
-        temperature: undefined,
+        temperature: 0.7,
       }),
     );
   });
