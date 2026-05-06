@@ -752,6 +752,10 @@ export const AgentExecuteOptionsSchema = z
       description: "Timeout in milliseconds for each agent tool call",
       example: 30000,
     }),
+    variables: VariablesSchema.optional().meta({
+      description:
+        "Variables available to the agent via %variableName% syntax in supported tools",
+    }),
   })
   .meta({ id: "AgentExecuteOptions" });
 

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
 
+import { chromium } from "playwright";
+
 import {
   assertFetchOk,
   assertFetchStatus,
@@ -938,6 +940,165 @@ describe("POST /v1/sessions/:id/agentExecute - agentConfig.mode (V3)", () => {
       ctx.body.data.result !== undefined,
       "Response should have result",
       ctx,
+    );
+  });
+});
+
+// =============================================================================
+// V3 Variables Tests - executeOptions.variables substitution into agent tool calls
+// =============================================================================
+
+describe("POST /v1/sessions/:id/agentExecute (V3) - variables", () => {
+  const LOGIN_URL =
+    "https://browserbase.github.io/stagehand-eval-sites/sites/login/";
+  const EMAIL_XPATH = "/html/body/main/form/div[1]/input";
+  const PASSWORD_XPATH = "/html/body/main/form/div[2]/input";
+
+  let sessionId: string;
+  let cdpUrl: string;
+  const headers = getHeaders("3.0.0");
+
+  before(async () => {
+    ({ sessionId, cdpUrl } = await createSessionWithCdp(headers));
+  });
+
+  beforeEach(async () => {
+    const navResponse = await navigateSession(sessionId, LOGIN_URL, headers);
+    assert.equal(
+      navResponse.status,
+      HTTP_OK,
+      "Navigate to login should succeed",
+    );
+  });
+
+  after(async () => {
+    if (sessionId) {
+      await endSession(sessionId, headers);
+      sessionId = "";
+    }
+  });
+
+  async function readInputValue(xpath: string): Promise<string> {
+    const browser = await chromium.connectOverCDP(cdpUrl);
+    try {
+      const pages = browser.contexts()[0]!.pages();
+      return await pages[0]!.locator(`xpath=${xpath}`).inputValue();
+    } finally {
+      await browser.close();
+    }
+  }
+
+  it("should substitute simple variables into agent tool calls", async () => {
+    const url = getBaseUrl();
+    const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "x-model-api-key": "",
+      },
+      body: JSON.stringify({
+        agentConfig: {
+          model: {
+            modelName: "openai/gpt-4.1-nano",
+            apiKey: openaiApiKey,
+          },
+        },
+        executeOptions: {
+          instruction:
+            "Type %username% into the email field and %password% into the password field. Do not submit the form.",
+          maxSteps: 5,
+          variables: {
+            username: "john@example.com",
+            password: "secret123",
+          },
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Agent execute with simple variables should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+
+    const emailValue = await readInputValue(EMAIL_XPATH);
+    const passwordValue = await readInputValue(PASSWORD_XPATH);
+    assert.equal(
+      emailValue,
+      "john@example.com",
+      "Email field should contain substituted username variable value",
+    );
+    assert.equal(
+      passwordValue,
+      "secret123",
+      "Password field should contain substituted password variable value",
+    );
+  });
+
+  it("should substitute rich variables (with descriptions) into agent tool calls", async () => {
+    const url = getBaseUrl();
+    const openaiApiKey = requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
+
+    const ctx = await fetchWithContext<{
+      success: boolean;
+      data?: { result: unknown; actionId?: string };
+    }>(`${url}/v1/sessions/${sessionId}/agentExecute`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "x-model-api-key": "",
+      },
+      body: JSON.stringify({
+        agentConfig: {
+          model: {
+            modelName: "openai/gpt-4.1-nano",
+            apiKey: openaiApiKey,
+          },
+        },
+        executeOptions: {
+          instruction:
+            "Type %username% into the email field and %password% into the password field. Do not submit the form.",
+          maxSteps: 5,
+          variables: {
+            username: {
+              value: "alice@example.com",
+              description: "The login email",
+            },
+            password: {
+              value: "rich-pw-456",
+              description: "The login password",
+            },
+          },
+        },
+      }),
+    });
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Agent execute with rich variables should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+
+    const emailValue = await readInputValue(EMAIL_XPATH);
+    const passwordValue = await readInputValue(PASSWORD_XPATH);
+    assert.equal(
+      emailValue,
+      "alice@example.com",
+      "Email field should contain substituted username variable value",
+    );
+    assert.equal(
+      passwordValue,
+      "rich-pw-456",
+      "Password field should contain substituted password variable value",
     );
   });
 });

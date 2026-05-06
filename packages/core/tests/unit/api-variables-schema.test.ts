@@ -35,4 +35,30 @@ describe("API variable schemas", () => {
 
     expect(result.success).toBe(true);
   });
+
+  it("preserves variables for agent execute requests", () => {
+    const result = Api.AgentExecuteRequestSchema.safeParse({
+      agentConfig: { mode: "dom" },
+      executeOptions: {
+        instruction: "fill the form with %username% and %password%",
+        variables: {
+          username: "john@example.com",
+          password: {
+            value: "secret-password",
+            description: "The login password",
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw result.error;
+    expect(result.data.executeOptions.variables).toEqual({
+      username: "john@example.com",
+      password: {
+        value: "secret-password",
+        description: "The login password",
+      },
+    });
+  });
 });

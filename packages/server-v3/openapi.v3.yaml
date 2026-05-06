@@ -861,6 +861,9 @@ components:
           description: Timeout in milliseconds for each agent tool call
           example: 30000
           type: number
+        variables:
+          description: Variables available to the agent via %variableName% syntax in supported tools
+          $ref: "#/components/schemas/Variables"
       required:
         - instruction
     AgentExecuteRequest:
@@ -1794,6 +1797,9 @@ components:
           description: Timeout in milliseconds for each agent tool call
           example: 30000
           type: number
+        variables:
+          description: Variables available to the agent via %variableName% syntax in supported tools
+          $ref: "#/components/schemas/Variables"
       required:
         - instruction
       additionalProperties: false
