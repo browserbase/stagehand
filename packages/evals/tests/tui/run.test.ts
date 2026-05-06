@@ -115,7 +115,7 @@ describe("deriveCategoryFilter", () => {
         concurrency: 1,
         environment: "LOCAL",
         useApi: false,
-        harness: "stagehand",
+        harness: "stagehand_v3",
         envOverrides: {},
         dryRun: true,
         preview: false,
@@ -149,7 +149,7 @@ describe("deriveCategoryFilter", () => {
         environment: "BROWSERBASE",
         model: "openai/gpt-4.1-mini",
         useApi: false,
-        harness: "stagehand",
+        harness: "stagehand_v3",
         datasetFilter: "webvoyager",
         envOverrides: {
           EVAL_MAX_K: "1",
@@ -169,7 +169,7 @@ describe("deriveCategoryFilter", () => {
       task: "agent/webvoyager",
       dataset: "webvoyager",
       model: "openai/gpt-4.1-mini",
-      harness: "stagehand",
+      harness: "stagehand_v3",
       agentMode: "dom",
       environment: "BROWSERBASE",
       useApi: false,
@@ -195,7 +195,7 @@ describe("deriveCategoryFilter", () => {
         environment: "BROWSERBASE",
         model: "openai/gpt-4.1-mini",
         useApi: false,
-        harness: "stagehand",
+        harness: "stagehand_v3",
         agentModes: ["dom", "hybrid"],
         datasetFilter: "webvoyager",
         envOverrides: {
@@ -413,7 +413,8 @@ describe("deriveCategoryFilter", () => {
   });
 
   it("allows executable harnesses without env gates", () => {
-    expect(canExecuteBenchHarness("stagehand")).toBe(true);
+    expect(canExecuteBenchHarness("stagehand_v3")).toBe(true);
+    expect(canExecuteBenchHarness("stagehand_v4")).toBe(true);
     expect(canExecuteBenchHarness("claude_code")).toBe(true);
     expect(canExecuteBenchHarness("codex")).toBe(true);
   });
@@ -442,7 +443,7 @@ describe("deriveCategoryFilter", () => {
         environment: "BROWSERBASE",
         model: "openai/gpt-4.1-mini",
         useApi: false,
-        harness: "stagehand",
+        harness: "stagehand_v3",
         agentModes: ["dom", "hybrid"],
         envOverrides: {},
         dryRun: false,
@@ -460,7 +461,7 @@ describe("deriveCategoryFilter", () => {
       "Plan: 2 tasks × 1 model × 2 modes × 4 trials = 16 runs",
     );
     expect(output).toContain(
-      "Env: BROWSERBASE  Harness: stagehand  Concurrency: 25",
+      "Env: BROWSERBASE  Harness: stagehand_v3  Concurrency: 25",
     );
     expect(runEvalsMock).toHaveBeenCalledOnce();
   });
@@ -516,7 +517,7 @@ describe("buildCombinations (preview column-pruning)", () => {
           category: null,
           dataset: null,
           model,
-          harness: "stagehand",
+          harness: "stagehand_v3",
           agentMode,
           environment: "BROWSERBASE",
           useApi: false,

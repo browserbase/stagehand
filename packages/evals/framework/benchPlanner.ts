@@ -97,15 +97,16 @@ export function resolveBenchModelEntries(
     effectiveCategory === "agent" ||
     effectiveCategory === "external_agent_benchmarks";
   const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
-  const requestedAgentModes =
-    harness === "stagehand" ? resolveRequestedAgentModes(options) : undefined;
+  const requestedAgentModes = isStagehandAgentHarness(harness)
+    ? resolveRequestedAgentModes(options)
+    : undefined;
 
   if (options.modelOverride) {
     const baseModes =
       isAgentCategory && requestedAgentModes
         ? requestedAgentModes
         : [
-            harness === "stagehand"
+            isStagehandAgentHarness(harness)
               ? resolveAgentModeForModel(options.modelOverride)
               : "hybrid",
           ];
@@ -345,9 +346,9 @@ function buildBenchHarnessConfig(input: {
   startupProfile?: StartupProfile;
   dataset?: string;
 }): BenchHarnessConfig {
-  if (input.harness === "stagehand") {
+  if (isStagehandAgentHarness(input.harness)) {
     return {
-      harness: "stagehand",
+      harness: input.harness,
       model: input.model,
       provider: input.provider,
       environment: input.environment,
@@ -461,7 +462,11 @@ export function generateBenchTestcases(
 }
 
 function rowUsesStagehand(options: Pick<BenchPlanOptions, "harness">): boolean {
-  return (options.harness ?? DEFAULT_BENCH_HARNESS) === "stagehand";
+  return isStagehandAgentHarness(options.harness ?? DEFAULT_BENCH_HARNESS);
+}
+
+function isStagehandAgentHarness(harness: Harness): boolean {
+  return harness === "stagehand_v3" || harness === "stagehand_v4";
 }
 
 function resolveBenchRowToolSurface(
@@ -473,6 +478,19 @@ function resolveBenchRowToolSurface(
   }
   if (harness === "codex") {
     return resolveCodexToolSurface(requested);
+  }
+  if (harness === "stagehand_v4") {
+    if (requested && requested !== "understudy_v4") {
+      throw new EvalsError(
+        `stagehand_v4 uses the UnderstudyV4Tools surface. Received --tool ${requested}.`,
+      );
+    }
+    return requested ?? "understudy_v4";
+  }
+  if (harness === "stagehand_v3" && requested === "understudy_v4") {
+    throw new EvalsError(
+      "Use --harness stagehand_v4 for the UnderstudyV4Tools surface.",
+    );
   }
   return requested;
 }

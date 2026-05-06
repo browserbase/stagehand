@@ -96,7 +96,7 @@ describe("bench runner", () => {
         tasks: [task],
         registry: makeRegistry([task]),
         environment: "BROWSERBASE",
-        harness: "stagehand",
+        harness: "stagehand_v3",
         verbose: false,
       },
     );

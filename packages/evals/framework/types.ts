@@ -23,6 +23,8 @@ import type {
   ToolSurface,
 } from "../core/contracts/tool.js";
 import type { EvalLogger } from "../logger.js";
+import type { Harness } from "./benchTypes.js";
+import type { UnderstudyV4NativeRuntime } from "./UnderstudyV4Tools.js";
 
 /** Page type inferred from V3.context.pages()[0] */
 type Page = ReturnType<V3["context"]["pages"]>[number];
@@ -70,6 +72,8 @@ export interface CoreTaskContext {
 export interface BenchTaskContext {
   /** Stagehand V3 instance. */
   v3: V3;
+  /** Native Stagehand v4 SDK proxy. Present for the stagehand_v4 harness. */
+  stagehandV4?: UnderstudyV4NativeRuntime;
   /** Agent instance (created when the task lives under agent/). */
   agent?: AgentInstance;
   /** Playwright page (convenience — same as v3.context.pages()[0]). */
@@ -128,6 +132,12 @@ export interface MetricsCollector {
   getSummary(): Record<string, Record<string, number>>;
 }
 
+export type BenchTaskFn = (ctx: BenchTaskContext) => Promise<void | TaskResult>;
+
+export type BenchTaskImplementations = Partial<Record<Harness, BenchTaskFn>> & {
+  default?: BenchTaskFn;
+};
+
 export interface TaskDefinition {
   /** Marker to identify defineTask outputs during discovery. */
   __taskDefinition: true;
@@ -135,6 +145,8 @@ export interface TaskDefinition {
   meta: TaskMeta | BenchTaskMeta;
   /** The task function. */
   fn: (ctx: CoreTaskContext | BenchTaskContext) => Promise<void | TaskResult>;
+  /** Optional harness-native bench implementations. */
+  benchFns?: BenchTaskImplementations;
   /** Which tier this task was defined for (set during discovery from directory). */
   tier?: Tier;
 }

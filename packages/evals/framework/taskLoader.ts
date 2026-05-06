@@ -7,6 +7,7 @@ export interface LoadedTaskDefinition {
   __taskDefinition: true;
   meta: unknown;
   fn: (ctx: unknown) => Promise<unknown>;
+  benchFns?: Record<string, ((ctx: unknown) => Promise<unknown>) | undefined>;
 }
 
 export type LegacyTaskFn = (ctx: unknown) => Promise<TaskResult>;
