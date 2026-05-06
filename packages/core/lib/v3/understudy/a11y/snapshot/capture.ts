@@ -340,8 +340,8 @@ export async function collectPerFrameMaps(
     const parentId = context.parentByFrame.get(frameId);
     const sameSessionAsParent =
       !!parentId && ownerSession(page, parentId) === sess;
-    let docRootBe = idx.rootBackend;
-    docRootBe = await resolveFrameDocRootBackendId(
+
+    const docRootBe = await resolveFrameDocRootBackendId(
       page,
       frameId,
       idx,
