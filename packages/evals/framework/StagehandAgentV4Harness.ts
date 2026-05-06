@@ -699,14 +699,17 @@ function normalizeV4Action(
   action: Record<string, unknown>,
 ): Record<string, unknown> {
   const method =
-    typeof action.method === "string" ? normalizeV4ActionMethod(action.method) : null;
+    typeof action.method === "string"
+      ? normalizeV4ActionMethod(action.method)
+      : null;
   const selector = normalizeV4Selector(action.selector);
   let args: Record<string, unknown> = {};
   if (isRecord(action.arguments)) {
     args = action.arguments;
   } else if (Array.isArray(action.arguments)) {
-    const positional = action.arguments
-      .filter((value): value is string => typeof value === "string");
+    const positional = action.arguments.filter(
+      (value): value is string => typeof value === "string",
+    );
     const first = positional[0];
     if (method === "type") {
       args = { text: first ?? "" };
