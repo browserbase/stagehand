@@ -1,0 +1,51 @@
+packages/evals/framework/context.ts
+  s_d0af2e6332c496::t_a1a4e5b9e999eb 47
+packages/evals/tests/framework/context.test.ts
+  s_d0af2e6332c496::t_e63b703d537661 16-18,43-45
+packages/evals/core/tools/cdp_code.ts
+  s_d0af2e6332c496::t_a20c7eb428ef0f 22,43-52,169,366,1028,1033,1043-1048,1202,1229
+packages/evals/ARCHITECTURE.mmd
+  s_d0af2e6332c496::t_a1a4e5b9e999eb 51
+packages/evals/tests/core/tool-registry.test.ts
+  s_d0af2e6332c496::t_e63b703d537661 8,17
+packages/evals/core/contracts/tool.ts
+  s_d0af2e6332c496::t_a1a4e5b9e999eb 23
+packages/evals/tests/framework/claudeCodeToolAdapter.test.ts
+  s_d0af2e6332c496::t_e63b703d537661 55-61,66
+packages/evals/core/tools/registry.ts
+  s_d0af2e6332c496::t_a1a4e5b9e999eb 5,15,30-31
+packages/evals/framework/claudeCodeToolAdapter.ts
+  s_d0af2e6332c496::t_008abe49151872 12-20,146-151,203-208,211,223-224,229,245-249
+  s_d0af2e6332c496::t_1f36626acab208 844,892,927,956-1068,1070,1156-1169,1171,1206
+  s_d0af2e6332c496::t_845d0bd8aafef0 1252
+  s_d0af2e6332c496::t_d2bd7bec926eed 607-721
+  s_d0af2e6332c496::t_8a57e5e0dd721e 1333-1353
+packages/evals/tui/commands/help.ts
+  s_d0af2e6332c496::t_e63b703d537661 82,203
+packages/evals/core/tools/modcdp_code.ts
+  s_d0af2e6332c496::t_2ce435b54d1775 11
+  s_d0af2e6332c496::t_f0fa071a668465 84-88,91-100,107
+  s_d0af2e6332c496::t_44f5e4226974fe 1-10,12-50,52-54,64-81,89,101-106,108-210
+  s_d0af2e6332c496::t_1ad75538419b1d 51,55-63,82-83,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "1d2d056fd2bd75084d9e90d028f74934374c0308",
+  "prompts": {},
+  "humans": {
+    "h_70788aaa4025cd": {
+      "author": "Nick Sweeting"
+    }
+  },
+  "sessions": {
+    "s_d0af2e6332c496": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df8eb-3100-7001-b1f1-b1ece2015b22",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
