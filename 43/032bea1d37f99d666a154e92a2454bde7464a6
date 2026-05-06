@@ -1,0 +1,24 @@
+packages/evals/framework/StagehandAgentV4Harness.ts
+  s_d0af2e6332c496::t_dcdaee0052b3fc 262,372
+  s_d0af2e6332c496::t_48b22d98d86d2d 40-45
+  s_d0af2e6332c496::t_464ecd7bb761ad 282-286,290,293
+  s_d0af2e6332c496::t_eb99ceab6d1d5e 376-386,417-424
+  s_d0af2e6332c496::t_18707f37cec8b0 453-536,538-560
+  s_d0af2e6332c496::t_46a1ccce96e028 25-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "43032bea1d37f99d666a154e92a2454bde7464a6",
+  "prompts": {},
+  "sessions": {
+    "s_d0af2e6332c496": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df8eb-3100-7001-b1f1-b1ece2015b22",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
