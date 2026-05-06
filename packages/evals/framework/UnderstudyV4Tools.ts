@@ -71,10 +71,7 @@ export interface UnderstudyV4NativeRuntime {
   cdp: {
     on(eventName: string, listener: (event: unknown) => void): void;
     off(eventName: string, listener: (event: unknown) => void): void;
-    Mod: Record<
-      string,
-      (params?: Record<string, unknown>) => Promise<unknown>
-    >;
+    Mod: Record<string, (params?: Record<string, unknown>) => Promise<unknown>>;
     Stagehand: Record<
       string,
       (params?: Record<string, unknown>) => Promise<unknown>
@@ -212,7 +209,9 @@ export async function startUnderstudyV4Tools(input: {
           listeners.add(listener);
           if (!subscribedEvents.has(eventName)) {
             subscribedEvents.add(eventName);
-            child.stdin.write(`${JSON.stringify({ type: "subscribe", name: eventName })}\n`);
+            child.stdin.write(
+              `${JSON.stringify({ type: "subscribe", name: eventName })}\n`,
+            );
           }
         },
         off(eventName, listener) {
@@ -387,10 +386,24 @@ async function closeBridge(
 
 function parseBridgeMessage(
   line: string,
-): BridgeReadyMessage | BridgeResultMessage | BridgeEventMessage | BridgeErrorMessage | null {
+):
+  | BridgeReadyMessage
+  | BridgeResultMessage
+  | BridgeEventMessage
+  | BridgeErrorMessage
+  | null {
   try {
-    const parsed = JSON.parse(line) as BridgeReadyMessage | BridgeResultMessage | BridgeEventMessage | BridgeErrorMessage;
-    if (parsed.type === "ready" || parsed.type === "result" || parsed.type === "event" || parsed.type === "error") {
+    const parsed = JSON.parse(line) as
+      | BridgeReadyMessage
+      | BridgeResultMessage
+      | BridgeEventMessage
+      | BridgeErrorMessage;
+    if (
+      parsed.type === "ready" ||
+      parsed.type === "result" ||
+      parsed.type === "event" ||
+      parsed.type === "error"
+    ) {
       return parsed;
     }
   } catch {
@@ -452,9 +465,11 @@ async function runBridgeChild(): Promise<void> {
     if (message.type === "subscribe") {
       if (!client) throw new Error("Understudy v4 tools were not initialized.");
       const name = message.name;
-      if (typeof name !== "string") throw new Error("Event subscription requires an event name.");
+      if (typeof name !== "string")
+        throw new Error("Event subscription requires an event name.");
       if (!eventSubscriptions.has(name)) {
-        const listener = (event: unknown): void => writeBridgeMessage({ type: "event", name, event });
+        const listener = (event: unknown): void =>
+          writeBridgeMessage({ type: "event", name, event });
         eventSubscriptions.set(name, listener);
         client.cdp.on(name, listener);
       }
@@ -483,7 +498,9 @@ async function runBridgeChild(): Promise<void> {
         if (!command) {
           throw new Error(
             `The v4 SDK does not expose ${
-              message.type === "command" ? commandName : `Stagehand.${commandName}`
+              message.type === "command"
+                ? commandName
+                : `Stagehand.${commandName}`
             }.`,
           );
         }
@@ -543,11 +560,16 @@ function understudyV4ClientOptions(
   environment: "LOCAL" | "BROWSERBASE",
 ): Record<string, unknown> {
   if (process.env.STAGEHAND_V4_CDP_URL) {
-    return { cdp_url: process.env.STAGEHAND_V4_CDP_URL, rebuild_extension: false };
+    return {
+      cdp_url: process.env.STAGEHAND_V4_CDP_URL,
+      rebuild_extension: false,
+    };
   }
   if (environment === "BROWSERBASE") {
     if (!process.env.BROWSERBASE_API_KEY) {
-      throw new Error("BROWSERBASE_API_KEY is required for understudy_v4_code.");
+      throw new Error(
+        "BROWSERBASE_API_KEY is required for understudy_v4_code.",
+      );
     }
     return {
       rebuild_extension: false,
@@ -605,7 +627,11 @@ function commandForPath(
 }
 
 function writeBridgeMessage(
-  message: BridgeReadyMessage | BridgeResultMessage | BridgeEventMessage | BridgeErrorMessage,
+  message:
+    | BridgeReadyMessage
+    | BridgeResultMessage
+    | BridgeEventMessage
+    | BridgeErrorMessage,
 ): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }

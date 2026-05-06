@@ -4,9 +4,9 @@ import { prepareCoreBrowserTarget } from "../../core/targets/index.js";
 
 describe("resolveDefaultCoreStartupProfile", () => {
   it("uses runner-provided local CDP for code surfaces in LOCAL", () => {
-    expect(resolveDefaultCoreStartupProfile("understudy_v3_code", "LOCAL")).toBe(
-      "runner_provided_local_cdp",
-    );
+    expect(
+      resolveDefaultCoreStartupProfile("understudy_v3_code", "LOCAL"),
+    ).toBe("runner_provided_local_cdp");
     expect(resolveDefaultCoreStartupProfile("playwright_code", "LOCAL")).toBe(
       "runner_provided_local_cdp",
     );

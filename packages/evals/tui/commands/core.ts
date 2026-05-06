@@ -147,7 +147,9 @@ async function setCoreKey(
       console.error(
         red("  Cannot set startup without a tool. Set core.tool first."),
       );
-      console.log(dim(`  Example: evals core config set tool understudy_v3_code`));
+      console.log(
+        dim(`  Example: evals core config set tool understudy_v3_code`),
+      );
       process.exitCode = 1;
       return;
     }
