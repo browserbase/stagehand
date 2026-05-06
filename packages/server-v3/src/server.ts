@@ -17,6 +17,7 @@ import {
 import { StatusCodes } from "http-status-codes";
 
 import { logging } from "./lib/logging/index.js";
+import { getListenHostConfig } from "./lib/listenHost.js";
 import {
   destroySessionStore,
   initializeSessionStore,
@@ -258,8 +259,13 @@ const start = async () => {
     appWithTypes.route(readinessRoute);
     await app.ready();
 
+    const listenHost = getListenHostConfig();
+    if (listenHost.warning) {
+      app.log.warn(listenHost.warning);
+    }
+
     await app.listen({
-      host: "0.0.0.0",
+      host: listenHost.host,
       port: parseInt(process.env.PORT ?? "3000", 10),
     });
     console.log("Routes registered:", app.printRoutes());
