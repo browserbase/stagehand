@@ -442,12 +442,211 @@ function createStagehandV4PageFacade(
       );
       return isRecord(result) && "value" in result ? result.value : result;
     },
-    locator() {
-      throw new Error(
-        "stagehand_v4 evals must use v4 protocol actions instead of v3 page.locator().",
+    locator(selector: unknown) {
+      return createStagehandV4LocatorFacade(
+        stagehandV4,
+        pageState,
+        [],
+        selector,
+      );
+    },
+    frameLocator(selector: unknown) {
+      return createStagehandV4FrameLocatorFacade(
+        stagehandV4,
+        pageState,
+        [selector],
       );
     },
   };
+}
+
+function createStagehandV4FrameLocatorFacade(
+  stagehandV4: UnderstudyV4NativeRuntime,
+  pageState: StagehandV4PageState,
+  frameSelectors: unknown[],
+): Record<string, unknown> {
+  return {
+    frameLocator(selector: unknown) {
+      return createStagehandV4FrameLocatorFacade(stagehandV4, pageState, [
+        ...frameSelectors,
+        selector,
+      ]);
+    },
+    locator(selector: unknown) {
+      return createStagehandV4LocatorFacade(
+        stagehandV4,
+        pageState,
+        frameSelectors,
+        selector,
+      );
+    },
+    async evaluate(expressionOrFn: unknown, arg?: unknown) {
+      const expression =
+        typeof expressionOrFn === "function"
+          ? `(${expressionOrFn.toString()})(...${JSON.stringify(arg === undefined ? [] : [arg])})`
+          : String(expressionOrFn);
+      return await evaluateStagehandV4LocatorScript(
+        stagehandV4,
+        pageState,
+        frameSelectors,
+        null,
+        "evaluate",
+        expression,
+      );
+    },
+  };
+}
+
+function createStagehandV4LocatorFacade(
+  stagehandV4: UnderstudyV4NativeRuntime,
+  pageState: StagehandV4PageState,
+  frameSelectors: unknown[],
+  selector: unknown,
+): Record<string, unknown> {
+  const read = async (method: string) =>
+    await evaluateStagehandV4LocatorScript(
+      stagehandV4,
+      pageState,
+      frameSelectors,
+      selector,
+      method,
+    );
+  return {
+    first() {
+      return createStagehandV4LocatorFacade(
+        stagehandV4,
+        pageState,
+        frameSelectors,
+        selector,
+      );
+    },
+    async inputValue() {
+      return await read("inputValue");
+    },
+    async isChecked() {
+      return await read("isChecked");
+    },
+    async textContent() {
+      return await read("textContent");
+    },
+    async innerText() {
+      return await read("innerText");
+    },
+    async innerHtml() {
+      return await read("innerHtml");
+    },
+    async innerHTML() {
+      return await read("innerHtml");
+    },
+    async click() {
+      if (frameSelectors.length > 0) {
+        await read("click");
+        return;
+      }
+      await stagehandV4.cdp.Stagehand.BrowserPageClick({
+        selector: {
+          ...normalizeV4Selector(selector),
+          ...(pageState.targetId != null ? { targetId: pageState.targetId } : {}),
+        },
+      });
+    },
+    async backendNodeId() {
+      if (frameSelectors.length > 0) {
+        throw new Error(
+          "stagehand_v4 frame locator backendNodeId assertions require a selector returned by v4 observe.",
+        );
+      }
+      const result = unwrapStagehandV4Result(
+        await stagehandV4.cdp.Stagehand.BrowserPageRequestElementInfo({
+          selector: {
+            ...normalizeV4Selector(selector),
+            ...(pageState.targetId != null
+              ? { targetId: pageState.targetId }
+              : {}),
+          },
+        }),
+      );
+      if (isRecord(result) && typeof result.backendNodeId === "number") {
+        return result.backendNodeId;
+      }
+      throw new Error("stagehand_v4 locator could not resolve backendNodeId.");
+    },
+  };
+}
+
+async function evaluateStagehandV4LocatorScript(
+  stagehandV4: UnderstudyV4NativeRuntime,
+  pageState: StagehandV4PageState,
+  frameSelectors: unknown[],
+  selector: unknown,
+  method: string,
+  expression?: string,
+): Promise<unknown> {
+  const result = unwrapStagehandV4Result(
+    await stagehandV4.cdp.Stagehand.BrowserPageEvaluate({
+      ...(pageState.targetId != null ? { targetId: pageState.targetId } : {}),
+      awaitPromise: true,
+      expression: `(() => {
+        const frameSelectors = ${JSON.stringify(frameSelectors.map(normalizeV4Selector))};
+        const selector = ${JSON.stringify(selector == null ? null : normalizeV4Selector(selector))};
+        const method = ${JSON.stringify(method)};
+        const expression = ${JSON.stringify(expression ?? null)};
+
+        const normalizeCss = (value) => String(value).replace(/\\s*>>\\s*/g, " ");
+        const resolve = (doc, input) => {
+          if (!input) return null;
+          if (input.xpath) {
+            return doc.evaluate(
+              String(input.xpath).replace(/^xpath=/, ""),
+              doc,
+              null,
+              XPathResult.FIRST_ORDERED_NODE_TYPE,
+              null,
+            ).singleNodeValue;
+          }
+          if (input.css) return doc.querySelector(normalizeCss(input.css));
+          if (input.text) {
+            const walker = doc.createTreeWalker(doc.body ?? doc.documentElement, NodeFilter.SHOW_ELEMENT);
+            while (walker.nextNode()) {
+              const candidate = walker.currentNode;
+              if ((candidate.innerText || candidate.textContent || "").includes(input.text)) return candidate;
+            }
+          }
+          return null;
+        };
+
+        let doc = document;
+        let win = window;
+        for (const frameSelector of frameSelectors) {
+          const frame = resolve(doc, frameSelector);
+          if (!frame || !frame.contentWindow || !frame.contentDocument) {
+            throw new Error("Unable to resolve frame locator.");
+          }
+          win = frame.contentWindow;
+          doc = frame.contentDocument;
+        }
+
+        if (method === "evaluate") {
+          return win.eval(expression);
+        }
+
+        const element = resolve(doc, selector);
+        if (!element) throw new Error("Unable to resolve locator.");
+        if (method === "inputValue") return element.value ?? "";
+        if (method === "isChecked") return Boolean(element.checked);
+        if (method === "textContent") return element.textContent;
+        if (method === "innerText") return element.innerText ?? element.textContent ?? "";
+        if (method === "innerHtml") return element.innerHTML ?? "";
+        if (method === "click") {
+          element.click();
+          return null;
+        }
+        throw new Error("Unsupported stagehand_v4 locator method: " + method);
+      })()`,
+      returnByValue: true,
+    }),
+  );
+  return isRecord(result) && "value" in result ? result.value : result;
 }
 
 async function waitForStagehandV4LoadState(
