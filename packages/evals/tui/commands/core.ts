@@ -40,6 +40,20 @@ export async function handleCore(
     return;
   }
 
+  if (sub === "help" || sub === "-h" || sub === "--help") {
+    const { printConfigCoreHelp } = await import("./help.js");
+    printConfigCoreHelp();
+    return;
+  }
+
+  // Per-sub `--help`/`-h`/`help` (as verb's first argument) → core help.
+  // Leaf values like `set tool help` are not intercepted.
+  if (args.includes("--help") || args.includes("-h") || args[1] === "help") {
+    const { printConfigCoreHelp } = await import("./help.js");
+    printConfigCoreHelp();
+    return;
+  }
+
   if (sub === "path") {
     console.log(resolveConfigPath(entryDir));
     return;

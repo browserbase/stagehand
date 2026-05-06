@@ -212,6 +212,38 @@ export function printConfigHelp(): void {
   ]);
 }
 
+export function printConfigCoreHelp(): void {
+  print([
+    "",
+    `  ${dustyCyanHeader("evals config core")} ${dim("[subcommand]")}`,
+    "",
+    "  Configure core tier tool + startup defaults.",
+    "",
+    `  ${bold("Subcommands:")}`,
+    "",
+    row(dim("(none)"), "Print current core configuration"),
+    row(cyan("path"), "Print the config file path"),
+    row(
+      `${cyan("set")} ${dim("<tool|startup> <value>")}`,
+      `Set core ${cyan("tool")} or ${cyan("startup")}`,
+    ),
+    row(
+      `${cyan("reset")} ${dim("[key]")}`,
+      "Reset one key or the whole core section",
+    ),
+    row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
+    "",
+    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    "",
+    `  ${bold("Examples:")}`,
+    "",
+    `    ${dim("$")} evals config core set tool understudy_code`,
+    `    ${dim("$")} evals config core set startup tool_launch_local`,
+    `    ${dim("$")} evals config core reset`,
+    "",
+  ]);
+}
+
 export function printExperimentsHelp(
   subcommand?: "list" | "show" | "open" | "compare",
 ): void {

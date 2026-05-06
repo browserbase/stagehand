@@ -75,9 +75,17 @@ export async function handleExperiments(args: string[]): Promise<void> {
     return;
   }
 
+  // `help` as the leading positional after a verb is treated as a help
+  // request (`experiments list help` ≡ `experiments list --help`). Leaf
+  // values like `experiments show help` (an experiment literally named
+  // "help") would also intercept — but no such experiment exists, and the
+  // consistent surface is worth the trade.
+  const wantsSubHelp =
+    rest.includes("-h") || rest.includes("--help") || rest[0] === "help";
+
   switch (subcommand) {
     case "list": {
-      if (rest.includes("-h") || rest.includes("--help")) {
+      if (wantsSubHelp) {
         const { printExperimentsHelp } = await import("./help.js");
         printExperimentsHelp("list");
         return;
@@ -86,7 +94,7 @@ export async function handleExperiments(args: string[]): Promise<void> {
       return;
     }
     case "show": {
-      if (rest.includes("-h") || rest.includes("--help")) {
+      if (wantsSubHelp) {
         const { printExperimentsHelp } = await import("./help.js");
         printExperimentsHelp("show");
         return;
@@ -95,7 +103,7 @@ export async function handleExperiments(args: string[]): Promise<void> {
       return;
     }
     case "open": {
-      if (rest.includes("-h") || rest.includes("--help")) {
+      if (wantsSubHelp) {
         const { printExperimentsHelp } = await import("./help.js");
         printExperimentsHelp("open");
         return;
@@ -104,7 +112,7 @@ export async function handleExperiments(args: string[]): Promise<void> {
       return;
     }
     case "compare": {
-      if (rest.includes("-h") || rest.includes("--help")) {
+      if (wantsSubHelp) {
         const { printExperimentsHelp } = await import("./help.js");
         printExperimentsHelp("compare");
         return;

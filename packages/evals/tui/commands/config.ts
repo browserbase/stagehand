@@ -161,9 +161,26 @@ export async function handleConfig(
 
   const sub = args[0];
 
+  if (sub === "help" || sub === "-h" || sub === "--help") {
+    const { printConfigHelp } = await import("./help.js");
+    printConfigHelp();
+    return;
+  }
+
   if (sub === "core") {
     const { handleCore } = await import("./core.js");
     await handleCore(args.slice(1), entryDir);
+    return;
+  }
+
+  // Per-sub `--help`/`-h`/`help` falls back to the top-level config help
+  // (which already documents every leaf subcommand). Core has its own help
+  // and is handled above. We only treat `help` as a help indicator when it's
+  // the verb's first argument — leaf values like `set provider help` aren't
+  // intercepted.
+  if (args.includes("--help") || args.includes("-h") || args[1] === "help") {
+    const { printConfigHelp } = await import("./help.js");
+    printConfigHelp();
     return;
   }
 
