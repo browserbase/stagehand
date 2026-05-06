@@ -73,7 +73,7 @@ export interface BenchTaskContext {
   /** Stagehand V3 instance. */
   v3: V3;
   /** Native Stagehand v4 SDK proxy. Present for the stagehand_v4 harness. */
-  stagehandV4?: UnderstudyV4NativeRuntime;
+  v4?: UnderstudyV4NativeRuntime;
   /** Agent instance (created when the task lives under agent/). */
   agent?: AgentInstance;
   /** Playwright page (convenience — same as v3.context.pages()[0]). */

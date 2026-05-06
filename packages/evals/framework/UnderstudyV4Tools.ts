@@ -123,7 +123,7 @@ export async function startUnderstudyV4Tools(input: {
     const message = parseBridgeMessage(line);
     if (!message) {
       input.logger.log({
-        category: "understudy_v4",
+        category: "understudy_v4_code",
         message: line,
         level: 1,
       });
@@ -159,7 +159,7 @@ export async function startUnderstudyV4Tools(input: {
   child.stderr.on("data", (chunk: Buffer) => {
     for (const line of chunk.toString("utf8").split(/\r?\n/).filter(Boolean)) {
       input.logger.warn({
-        category: "understudy_v4",
+        category: "understudy_v4_code",
         message: line,
         level: 1,
       });
@@ -186,7 +186,7 @@ export async function startUnderstudyV4Tools(input: {
 
   const ready = await readyPromise;
   input.logger.log({
-    category: "understudy_v4",
+    category: "understudy_v4_code",
     message: `Connected v4 tools at ${ready.cdpUrl}`,
     level: 1,
   });
@@ -279,7 +279,7 @@ function buildUnderstudyV4ToolSet(
       inputSchema: ai.jsonSchema(schema),
       execute: async (args) => {
         logger.log({
-          category: "understudy_v4",
+          category: "understudy_v4_code",
           message: `Agent calling v4 tool: ${name}`,
           level: 1,
           auxiliary: {
@@ -547,7 +547,7 @@ function understudyV4ClientOptions(
   }
   if (environment === "BROWSERBASE") {
     if (!process.env.BROWSERBASE_API_KEY) {
-      throw new Error("BROWSERBASE_API_KEY is required for understudy_v4.");
+      throw new Error("BROWSERBASE_API_KEY is required for understudy_v4_code.");
     }
     return {
       rebuild_extension: false,

@@ -51,9 +51,9 @@ export const StagehandAgentV4Harness: BenchHarness = {
         `Expected stagehand_v4 harness config, received "${row.config.harness}".`,
       );
     }
-    if (row.config.toolSurface !== "understudy_v4") {
+    if (row.config.toolSurface !== "understudy_v4_code") {
       throw new EvalsError(
-        `StagehandAgentV4Harness requires --tool understudy_v4; received "${row.config.toolSurface ?? "default"}".`,
+        `StagehandAgentV4Harness requires --tool understudy_v4_code; received "${row.config.toolSurface ?? "default"}".`,
       );
     }
     if (row.config.useApi) {
@@ -88,7 +88,7 @@ export const StagehandAgentV4Harness: BenchHarness = {
           },
         })) as { error?: unknown; logTree?: unknown };
         logger.log({
-          category: "understudy_v4",
+          category: "understudy_v4_code",
           message:
             typeof result.logTree === "string"
               ? `v4 bus.logTree()\n${result.logTree}`
@@ -99,7 +99,7 @@ export const StagehandAgentV4Harness: BenchHarness = {
         });
       } catch (dashboardError) {
         logger.warn({
-          category: "understudy_v4",
+          category: "understudy_v4_code",
           message: `Unable to print v4 bus.logTree(): ${
             dashboardError instanceof Error
               ? dashboardError.message
@@ -163,7 +163,7 @@ export const StagehandAgentV4Harness: BenchHarness = {
         row,
         logger,
         v3: v3Result.v3,
-        stagehandV4: understudyV4Tools.stagehandV4,
+        v4: understudyV4Tools.stagehandV4,
         agent: v3Result.agent,
         page: v4Page as unknown as Page,
         debugUrl: v3Result.debugUrl ?? "",

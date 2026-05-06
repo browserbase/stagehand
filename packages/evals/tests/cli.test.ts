@@ -173,7 +173,7 @@ describe.sequential("core config", () => {
     const { stdout, code } = await runCli(["config", "core"]);
     expect(code).toBe(0);
     expect(stdout).toContain("Core configuration");
-    expect(stdout).toContain("runner default: understudy_code");
+    expect(stdout).toContain("runner default: understudy_v3_code");
   });
 
   it("persists tool via `config core set tool`", async () => {
@@ -183,18 +183,18 @@ describe.sequential("core config", () => {
       "core",
       "set",
       "tool",
-      "understudy_code",
+      "understudy_v3_code",
     ]);
     expect(setResult.code).toBe(0);
-    expect(setResult.stdout).toContain("Set core.tool to understudy_code");
+    expect(setResult.stdout).toContain("Set core.tool to understudy_v3_code");
 
     const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
-    expect(saved.core?.tool).toBe("understudy_code");
+    expect(saved.core?.tool).toBe("understudy_v3_code");
   });
 
   it("flows persisted core.tool into run dry-run output", async () => {
     resetConfig();
-    await runCli(["config", "core", "set", "tool", "understudy_code"]);
+    await runCli(["config", "core", "set", "tool", "understudy_v3_code"]);
 
     const { stdout, code } = await runCli([
       "run",
@@ -203,7 +203,7 @@ describe.sequential("core config", () => {
     ]);
     expect(code).toBe(0);
     const payload = JSON.parse(stdout);
-    expect(payload.runOptions.coreToolSurface).toBe("understudy_code");
+    expect(payload.runOptions.coreToolSurface).toBe("understudy_v3_code");
   });
 
   it("rejects unknown tool", async () => {
@@ -271,7 +271,7 @@ describe.sequential("core config", () => {
 
   it("reset clears the whole core section", async () => {
     resetConfig();
-    await runCli(["config", "core", "set", "tool", "understudy_code"]);
+    await runCli(["config", "core", "set", "tool", "understudy_v3_code"]);
     const { code } = await runCli(["config", "core", "reset"]);
     expect(code).toBe(0);
 

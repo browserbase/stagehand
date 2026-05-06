@@ -122,7 +122,7 @@ describe("core runner", () => {
           },
           startupProfile: "runner_provided_local_cdp",
           adapter: {
-            name: "understudy_code",
+            name: "understudy_v3_code",
             family: "understudy",
             surface: "code",
             metadata: {
@@ -183,7 +183,7 @@ describe("core runner", () => {
       concurrency: 1,
       trials: 1,
       environment: "LOCAL",
-      coreToolSurface: "understudy_code",
+      coreToolSurface: "understudy_v3_code",
       coreStartupProfile: "runner_provided_local_cdp",
     });
 
