@@ -19,4 +19,14 @@ describe("buildObserveSystemPrompt", () => {
       "return the matching %variableName% placeholder",
     );
   });
+
+  it("instructs the model to copy complete bracketed element IDs", () => {
+    const prompt = buildObserveSystemPrompt(undefined, ["click"]);
+
+    expect(prompt.content).toContain(
+      "Always copy the complete ID exactly as shown inside the brackets into elementId",
+    );
+    expect(prompt.content).toContain('return elementId "0-18372"');
+    expect(prompt.content).toContain('never return only "18372"');
+  });
 });
