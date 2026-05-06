@@ -373,7 +373,6 @@ export class V3AgentHandler {
         messages: prependSystemMessage(systemPrompt, messages),
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
-        temperature: 1,
         toolChoice: "auto",
 
         prepareStep: this.createPrepareStep(
@@ -511,7 +510,6 @@ export class V3AgentHandler {
         messages: prependSystemMessage(systemPrompt, messages),
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
-        temperature: 1,
         toolChoice: "auto",
         prepareStep: this.createPrepareStep(
           callbacks?.prepareStep,
