@@ -54,11 +54,24 @@ export async function captureHybridSnapshot(
 ): Promise<HybridSnapshot> {
   const pierce = options?.pierceShadow ?? true;
   const includeIframes = options?.includeIframes !== false;
+  const hasIgnoreSelectors = (options?.ignoreSelectors?.length ?? 0) > 0;
 
   const context = buildFrameContext(page);
   const framesInScope = includeIframes ? [...context.frames] : [context.rootId];
   if (!framesInScope.includes(context.rootId)) {
     framesInScope.unshift(context.rootId);
+  }
+
+  if (!hasIgnoreSelectors) {
+    const scopedSnapshot = await tryScopedSnapshot(
+      page,
+      options,
+      context,
+      pierce,
+      new Map<string, SessionDomIndex>(),
+      new Map(),
+    );
+    if (scopedSnapshot) return scopedSnapshot;
   }
 
   const sessionToIndex = await buildSessionIndexes(page, framesInScope, pierce);
@@ -73,16 +86,17 @@ export async function captureHybridSnapshot(
     sessionToIndex,
     ignoreRootsByFrame,
   );
-
-  const scopedSnapshot = await tryScopedSnapshot(
-    page,
-    options,
-    context,
-    pierce,
-    sessionToIndex,
-    exclusionIntervalsByFrame,
-  );
-  if (scopedSnapshot) return scopedSnapshot;
+  if (hasIgnoreSelectors) {
+    const scopedSnapshot = await tryScopedSnapshot(
+      page,
+      options,
+      context,
+      pierce,
+      sessionToIndex,
+      exclusionIntervalsByFrame,
+    );
+    if (scopedSnapshot) return scopedSnapshot;
+  }
 
   const { perFrameMaps, perFrameOutlines } = await collectPerFrameMaps(
     page,
