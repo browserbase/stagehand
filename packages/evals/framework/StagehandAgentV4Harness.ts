@@ -698,12 +698,51 @@ function loadStateTimeoutMs(options: unknown): number {
 function normalizeV4Action(
   action: Record<string, unknown>,
 ): Record<string, unknown> {
+  const method =
+    typeof action.method === "string" ? normalizeV4ActionMethod(action.method) : null;
+  const selector = normalizeV4Selector(action.selector);
+  let args: Record<string, unknown> = {};
+  if (isRecord(action.arguments)) {
+    args = action.arguments;
+  } else if (Array.isArray(action.arguments)) {
+    const positional = action.arguments
+      .filter((value): value is string => typeof value === "string");
+    const first = positional[0];
+    if (method === "type") {
+      args = { text: first ?? "" };
+    } else if (method === "keys") {
+      args = { key: first ?? "", method: "press" };
+    } else if (method === "goto") {
+      args = { url: first ?? "" };
+    } else if (method === "wait") {
+      const ms = Number(first);
+      args = { ms: Number.isFinite(ms) ? ms : 1000 };
+    } else if (method === "scroll" || method === "scrollTo") {
+      const numberValue = first?.endsWith("%")
+        ? Number.parseFloat(first)
+        : Number(first);
+      args = first?.includes("%")
+        ? { percent: first }
+        : method === "scroll"
+          ? { deltaY: Number.isFinite(numberValue) ? numberValue : 0 }
+          : { y: Number.isFinite(numberValue) ? numberValue : 0 };
+    } else if (method === "dragAndDrop") {
+      args = {
+        from: selector,
+        to: normalizeV4Selector(first) ?? selector,
+      };
+    }
+  }
   return {
     ...action,
-    selector: normalizeV4Selector(action.selector),
-    method: typeof action.method === "string" ? action.method : null,
-    arguments: Array.isArray(action.arguments) ? action.arguments : null,
+    selector,
+    method,
+    arguments: args,
   };
+}
+
+function normalizeV4ActionMethod(method: string): string {
+  return method === "press" ? "keys" : method;
 }
 
 function selectorParam(
