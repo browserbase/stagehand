@@ -1,0 +1,42 @@
+packages/evals/framework/StagehandAgentV4Harness.ts
+  s_d0af2e6332c496::t_220e5c5037f8a4 54,56,91,102,166
+packages/evals/framework/types.ts
+  s_d0af2e6332c496::t_220e5c5037f8a4 76
+packages/evals/core/tools/registry.ts
+  s_d0af2e6332c496::t_ee6b549d4a96c7 7,11,22-23
+packages/evals/framework/benchPlanner.ts
+  s_d0af2e6332c496::t_3f2f65d0fc3c17 100-102,111,351,393-395,418,421,427,480,485,487,565-566
+packages/evals/framework/context.ts
+  s_d0af2e6332c496::t_7232e795ac71cc 43,71
+packages/evals/ARCHITECTURE.mmd
+  s_d0af2e6332c496::t_0c93ff000d4f48 51
+packages/evals/framework/benchHarness.ts
+  s_d0af2e6332c496::t_220e5c5037f8a4 31
+packages/evals/framework/benchRunner.ts
+  s_d0af2e6332c496::t_220e5c5037f8a4 76,94
+packages/evals/core/tools/understudy_v3_code.ts
+  s_d0af2e6332c496::t_ee6b549d4a96c7 1-548
+packages/evals/core/contracts/tool.ts
+  s_d0af2e6332c496::t_7232e795ac71cc 20-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "8567cfc6f0cd4369808104cb7f33b70654f938c1",
+  "prompts": {},
+  "humans": {
+    "h_70788aaa4025cd": {
+      "author": "Nick Sweeting"
+    }
+  },
+  "sessions": {
+    "s_d0af2e6332c496": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df8eb-3100-7001-b1f1-b1ece2015b22",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
