@@ -22,6 +22,27 @@ import type {
 } from "./benchHarness.js";
 
 type Page = ReturnType<V3["context"]["pages"]>[number];
+type StagehandV4LoadState =
+  | "init"
+  | "domcontentloaded"
+  | "loaded"
+  | "networkidle2"
+  | "networkidle";
+
+const STAGEHAND_V4_LOAD_STATE_ORDER: Record<StagehandV4LoadState, number> = {
+  init: 0,
+  domcontentloaded: 1,
+  loaded: 2,
+  networkidle2: 3,
+  networkidle: 4,
+};
+
+type StagehandV4PageState = {
+  targetId?: string;
+  title: string;
+  url: string;
+  loadState?: StagehandV4LoadState;
+};
 
 function isAgentTask(task: BenchHarnessStartInput["task"]): boolean {
   return (
@@ -238,11 +259,7 @@ async function installStagehandV4BenchFacade(
   v3: V3,
   stagehandV4: UnderstudyV4NativeRuntime,
 ): Promise<Record<string, unknown>> {
-  const pageState: {
-    targetId?: string;
-    title: string;
-    url: string;
-  } = {
+  const pageState: StagehandV4PageState = {
     title: "",
     url: "about:blank",
   };
@@ -262,16 +279,18 @@ async function installStagehandV4BenchFacade(
   await refreshPageInfo().catch(() => {});
 
   const updatePageStateFromBrowserEvent = (event: unknown): void => {
-    if (!isRecord(event)) return;
-    if (typeof event.targetId === "string") pageState.targetId = event.targetId;
-    if (typeof event.url === "string") pageState.url = event.url;
+    updatePageStateFromStagehandV4Event(pageState, event);
+  };
+  const updatePageStateFromNavigationEvent = (event: unknown): void => {
+    updatePageStateFromStagehandV4Event(pageState, event);
+    pageState.loadState = "init";
   };
   stagehandV4.cdp.on(
     "Stagehand.BrowserPageNavigated",
-    updatePageStateFromBrowserEvent,
+    updatePageStateFromNavigationEvent,
   );
   stagehandV4.cdp.on(
-    "Stagehand.BrowserPageLoaded",
+    "Stagehand.BrowserPageLoadStateChanged",
     updatePageStateFromBrowserEvent,
   );
 
@@ -350,30 +369,21 @@ async function installStagehandV4BenchFacade(
 
 function createStagehandV4PageFacade(
   stagehandV4: UnderstudyV4NativeRuntime,
-  pageState: {
-    targetId?: string;
-    title: string;
-    url: string;
-  },
+  pageState: StagehandV4PageState,
   refreshPageInfo: () => Promise<void>,
 ): Record<string, unknown> {
   return {
-    async goto(url: string) {
-      let timer: ReturnType<typeof setTimeout>;
-      const loaded = new Promise<void>((resolve, reject) => {
-        const onLoaded = (): void => {
-          clearTimeout(timer);
-          stagehandV4.cdp.off("Stagehand.BrowserPageLoaded", onLoaded);
-          resolve();
-        };
-        timer = setTimeout(() => {
-          stagehandV4.cdp.off("Stagehand.BrowserPageLoaded", onLoaded);
-          reject(
-            new Error("Timed out waiting for Stagehand.BrowserPageLoaded."),
-          );
-        }, 30_000);
-        stagehandV4.cdp.on("Stagehand.BrowserPageLoaded", onLoaded);
-      });
+    async goto(url: string, options?: unknown) {
+      pageState.loadState = "init";
+      const loaded = waitForStagehandV4LoadState(
+        stagehandV4,
+        pageState,
+        isRecord(options) && "waitUntil" in options
+          ? options.waitUntil
+          : undefined,
+        loadStateTimeoutMs(options),
+        false,
+      );
       const [rawResult] = await Promise.all([
         stagehandV4.cdp.Stagehand.BrowserPageGoto({
           url,
@@ -404,21 +414,14 @@ function createStagehandV4PageFacade(
       await refreshPageInfo();
       return pageState.title;
     },
-    async waitForLoadState() {
-      await new Promise<void>((resolve, reject) => {
-        const onLoaded = (): void => {
-          clearTimeout(timer);
-          stagehandV4.cdp.off("Stagehand.BrowserPageLoaded", onLoaded);
-          resolve();
-        };
-        const timer = setTimeout(() => {
-          stagehandV4.cdp.off("Stagehand.BrowserPageLoaded", onLoaded);
-          reject(
-            new Error("Timed out waiting for Stagehand.BrowserPageLoaded."),
-          );
-        }, 30_000);
-        stagehandV4.cdp.on("Stagehand.BrowserPageLoaded", onLoaded);
-      });
+    async waitForLoadState(state?: unknown, options?: unknown) {
+      await waitForStagehandV4LoadState(
+        stagehandV4,
+        pageState,
+        state,
+        loadStateTimeoutMs(options),
+        true,
+      );
       await refreshPageInfo();
     },
     async evaluate(expressionOrFn: unknown, arg?: unknown) {
@@ -445,6 +448,114 @@ function createStagehandV4PageFacade(
       );
     },
   };
+}
+
+async function waitForStagehandV4LoadState(
+  stagehandV4: UnderstudyV4NativeRuntime,
+  pageState: StagehandV4PageState,
+  state: unknown,
+  timeoutMs: number,
+  acceptCurrentState: boolean,
+): Promise<void> {
+  const expectedState = normalizeStagehandV4LoadState(state);
+  if (
+    acceptCurrentState &&
+    pageState.loadState != null &&
+    STAGEHAND_V4_LOAD_STATE_ORDER[pageState.loadState] >=
+      STAGEHAND_V4_LOAD_STATE_ORDER[expectedState]
+  ) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const onLoadStateChanged = (event: unknown): void => {
+      const eventTargetId = targetIdFromStagehandV4Event(event);
+      if (
+        eventTargetId != null &&
+        pageState.targetId != null &&
+        eventTargetId !== pageState.targetId
+      ) {
+        return;
+      }
+      updatePageStateFromStagehandV4Event(pageState, event);
+      if (
+        pageState.loadState != null &&
+        STAGEHAND_V4_LOAD_STATE_ORDER[pageState.loadState] >=
+          STAGEHAND_V4_LOAD_STATE_ORDER[expectedState]
+      ) {
+        clearTimeout(timer);
+        stagehandV4.cdp.off(
+          "Stagehand.BrowserPageLoadStateChanged",
+          onLoadStateChanged,
+        );
+        resolve();
+      }
+    };
+    const timer = setTimeout(() => {
+      stagehandV4.cdp.off(
+        "Stagehand.BrowserPageLoadStateChanged",
+        onLoadStateChanged,
+      );
+      reject(
+        new Error(
+          `Timed out waiting for Stagehand.BrowserPageLoadStateChanged(${expectedState}).`,
+        ),
+      );
+    }, timeoutMs);
+    stagehandV4.cdp.on(
+      "Stagehand.BrowserPageLoadStateChanged",
+      onLoadStateChanged,
+    );
+  });
+}
+
+function updatePageStateFromStagehandV4Event(
+  pageState: StagehandV4PageState,
+  event: unknown,
+): void {
+  if (!isRecord(event)) return;
+  const targetId = targetIdFromStagehandV4Event(event);
+  if (targetId != null) pageState.targetId = targetId;
+  if (typeof event.url === "string") pageState.url = event.url;
+  if (isRecord(event.selector) && typeof event.selector.url === "string") {
+    pageState.url = event.selector.url;
+  }
+  if (isStagehandV4LoadState(event.loadState)) {
+    pageState.loadState = event.loadState;
+  }
+}
+
+function targetIdFromStagehandV4Event(event: unknown): string | undefined {
+  if (!isRecord(event)) return undefined;
+  if (typeof event.targetId === "string") return event.targetId;
+  if (isRecord(event.selector) && typeof event.selector.targetId === "string") {
+    return event.selector.targetId;
+  }
+  return undefined;
+}
+
+function normalizeStagehandV4LoadState(state: unknown): StagehandV4LoadState {
+  if (state == null || state === "load" || state === "loaded") return "loaded";
+  if (isStagehandV4LoadState(state)) return state;
+  throw new Error(`Unsupported stagehand_v4 waitForLoadState state: ${state}`);
+}
+
+function isStagehandV4LoadState(value: unknown): value is StagehandV4LoadState {
+  return (
+    value === "init" ||
+    value === "domcontentloaded" ||
+    value === "loaded" ||
+    value === "networkidle2" ||
+    value === "networkidle"
+  );
+}
+
+function loadStateTimeoutMs(options: unknown): number {
+  if (!isRecord(options)) return 30_000;
+  const timeout = options.timeoutMs ?? options.timeout;
+  return typeof timeout === "number" && Number.isFinite(timeout)
+    ? Math.max(0, timeout)
+    : 30_000;
 }
 
 function normalizeV4Action(
