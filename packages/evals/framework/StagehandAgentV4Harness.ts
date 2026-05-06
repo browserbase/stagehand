@@ -355,6 +355,18 @@ async function installStagehandV4BenchFacade(
     const options = (typeof a === "string" ? (isZodSchema(b) ? c : b) : a) as
       | Record<string, unknown>
       | undefined;
+    if (schema == null) {
+      const summary = unwrapStagehandV4Result(
+        await stagehandV4.cdp.Stagehand.BrowserPageDOMSummary({
+          ...selectorParam(options),
+        }),
+      );
+      const pageText =
+        isRecord(summary) && typeof summary.pageText === "string"
+          ? summary.pageText
+          : "";
+      return { extraction: pageText, pageText };
+    }
     const result = await stagehandV4.cdp.Stagehand.AIExtract({
       ...(instruction != null ? { instruction } : {}),
       ...(schema != null ? { schema: schema as Record<string, unknown> } : {}),
