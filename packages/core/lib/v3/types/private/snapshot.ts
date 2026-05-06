@@ -8,6 +8,11 @@ export type SnapshotOptions = {
    */
   focusSelector?: string;
   /**
+   * Exclude matching elements and their descendants from the captured snapshot.
+   * Each selector may be XPath (prefixed with `xpath=` or starting with `/`) or CSS.
+   */
+  ignoreSelectors?: string[];
+  /**
    * Pierce shadow DOM when calling DOM.getDocument. Defaults to true to retain the
    * existing behaviour.
    */
@@ -54,6 +59,8 @@ export type SessionDomIndex = {
   scrollByBe: Map<number, boolean>;
   docRootOf: Map<number, number>;
   contentDocRootByIframe: Map<number, number>;
+  enterByBe: Map<number, number>;
+  exitByBe: Map<number, number>;
 };
 
 export type FrameDomMaps = {
@@ -104,6 +111,7 @@ export type A11yNode = {
 
 export type A11yOptions = {
   focusSelector?: string;
+  isIgnoredBackendNode?: (backendNodeId: number) => boolean;
   experimental: boolean;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;

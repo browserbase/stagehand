@@ -505,6 +505,14 @@ export const ExtractOptionsSchema = z
       description: "CSS selector to scope extraction to a specific element",
       example: "#main-content",
     }),
+    ignoreSelectors: z
+      .array(z.string())
+      .optional()
+      .meta({
+        description:
+          "Selectors for elements and subtrees that should be excluded from extraction",
+        example: ["nav", ".cookie-banner", "#sidebar-ads"],
+      }),
   })
   .optional()
   .meta({ id: "ExtractOptions" });

@@ -1,6 +1,12 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Page } from "../../page.js";
+import { Frame } from "../../frame.js";
+import {
+  FrameSelectorResolver,
+  type ResolvedNode,
+  type SelectorQuery,
+} from "../../selectorResolver.js";
 import { v3Logger } from "../../../logger.js";
 import type {
   FrameContext,
@@ -14,6 +20,7 @@ import { a11yForFrame } from "./a11yTree.js";
 import {
   resolveCssFocusFrameAndTail,
   resolveFocusFrameAndTail,
+  listChildrenOf,
 } from "./focusSelectors.js";
 import {
   buildSessionDomIndex,
@@ -23,6 +30,12 @@ import {
 import { injectSubtrees } from "./treeFormatUtils.js";
 import { ownerSession, parentSession } from "./sessions.js";
 import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
+
+type IgnoredNodeMap = Map<string, Set<number>>;
+type Interval = { start: number; end: number };
+type ExclusionIntervalsByFrame = Map<string, Interval[]>;
+type ChildFrameHost = { childFrameId: string; hostBackendNodeId: number };
+type ChildFramesByParent = Map<string, ChildFrameHost[]>;
 
 /**
  * Capture a hybrid DOM + Accessibility snapshot for the provided page.
@@ -48,23 +61,51 @@ export async function captureHybridSnapshot(
 ): Promise<HybridSnapshot> {
   const pierce = options?.pierceShadow ?? true;
   const includeIframes = options?.includeIframes !== false;
+  const hasIgnoreSelectors = (options?.ignoreSelectors?.length ?? 0) > 0;
 
   const context = buildFrameContext(page);
-
-  const scopedSnapshot = await tryScopedSnapshot(
-    page,
-    options,
-    context,
-    pierce,
-  );
-  if (scopedSnapshot) return scopedSnapshot;
-
   const framesInScope = includeIframes ? [...context.frames] : [context.rootId];
   if (!framesInScope.includes(context.rootId)) {
     framesInScope.unshift(context.rootId);
   }
 
+  if (!hasIgnoreSelectors) {
+    const scopedSnapshot = await tryScopedSnapshot(
+      page,
+      options,
+      context,
+      pierce,
+      new Map<string, SessionDomIndex>(),
+      new Map(),
+    );
+    if (scopedSnapshot) return scopedSnapshot;
+  }
+
   const sessionToIndex = await buildSessionIndexes(page, framesInScope, pierce);
+  const ignoredNodesByFrame = await resolveIgnoredNodes(
+    page,
+    options?.ignoreSelectors,
+    context,
+    sessionToIndex,
+  );
+  const exclusionIntervalsByFrame = await buildFrameExclusionIntervals(
+    page,
+    context,
+    sessionToIndex,
+    ignoredNodesByFrame,
+  );
+  if (hasIgnoreSelectors) {
+    const scopedSnapshot = await tryScopedSnapshot(
+      page,
+      options,
+      context,
+      pierce,
+      sessionToIndex,
+      exclusionIntervalsByFrame,
+    );
+    if (scopedSnapshot) return scopedSnapshot;
+  }
+
   const { perFrameMaps, perFrameOutlines } = await collectPerFrameMaps(
     page,
     context,
@@ -72,6 +113,7 @@ export async function captureHybridSnapshot(
     options,
     pierce,
     framesInScope,
+    exclusionIntervalsByFrame,
   );
   const { absPrefix, iframeHostEncByChild } = await computeFramePrefixes(
     page,
@@ -121,6 +163,8 @@ export async function tryScopedSnapshot(
   options: SnapshotOptions | undefined,
   context: FrameContext,
   pierce: boolean,
+  sessionToIndex: Map<string, SessionDomIndex>,
+  exclusionIntervalsByFrame: ExclusionIntervalsByFrame,
 ): Promise<HybridSnapshot | null> {
   const requestedFocus = options?.focusSelector?.trim();
   if (!requestedFocus) return null;
@@ -186,6 +230,11 @@ export async function tryScopedSnapshot(
       targetFrameId,
       {
         focusSelector: tailSelector || undefined,
+        isIgnoredBackendNode: makeIsIgnoredBackendNode(
+          targetFrameId,
+          ownerSessionIndexForFrame(page, targetFrameId, sessionToIndex),
+          exclusionIntervalsByFrame,
+        ),
         tagNameMap,
         experimental: options?.experimental ?? false,
         scrollableMap,
@@ -195,13 +244,34 @@ export async function tryScopedSnapshot(
     );
 
     const scopedXpathMap: Record<string, string> = {};
+    const isIgnoredBackendNode = makeIsIgnoredBackendNode(
+      targetFrameId,
+      ownerSessionIndexForFrame(page, targetFrameId, sessionToIndex),
+      exclusionIntervalsByFrame,
+    );
     const abs = absPrefix ?? "";
     const isRoot = !abs || abs === "/";
     if (isRoot) {
-      Object.assign(scopedXpathMap, xpathMap);
+      for (const [encId, xp] of Object.entries(xpathMap)) {
+        const backendNodeId = parseEncodedBackendNodeId(encId);
+        if (
+          typeof backendNodeId === "number" &&
+          isIgnoredBackendNode?.(backendNodeId)
+        ) {
+          continue;
+        }
+        scopedXpathMap[encId] = xp;
+      }
     } else {
       // Prefix relative XPaths so the scoped result matches the global encoding.
       for (const [encId, xp] of Object.entries(xpathMap)) {
+        const backendNodeId = parseEncodedBackendNodeId(encId);
+        if (
+          typeof backendNodeId === "number" &&
+          isIgnoredBackendNode?.(backendNodeId)
+        ) {
+          continue;
+        }
         scopedXpathMap[encId] = prefixXPath(abs, xp);
       }
     }
@@ -272,6 +342,7 @@ export async function collectPerFrameMaps(
   options: SnapshotOptions | undefined,
   pierce: boolean,
   frameIds: string[],
+  exclusionIntervalsByFrame: ExclusionIntervalsByFrame,
 ): Promise<{
   perFrameMaps: Map<string, FrameDomMaps>;
   perFrameOutlines: Array<{ frameId: string; outline: string }>;
@@ -291,31 +362,29 @@ export async function collectPerFrameMaps(
     const parentId = context.parentByFrame.get(frameId);
     const sameSessionAsParent =
       !!parentId && ownerSession(page, parentId) === sess;
-    let docRootBe = idx.rootBackend;
-    if (sameSessionAsParent) {
-      try {
-        const { backendNodeId } = await sess.send<{ backendNodeId?: number }>(
-          "DOM.getFrameOwner",
-          { frameId },
-        );
-        if (typeof backendNodeId === "number") {
-          const cdBe = idx.contentDocRootByIframe.get(backendNodeId);
-          if (typeof cdBe === "number") docRootBe = cdBe;
-        }
-      } catch {
-        //
-      }
-    }
+
+    const docRootBe = await resolveFrameDocRootBackendId(
+      page,
+      frameId,
+      idx,
+      sameSessionAsParent,
+    );
 
     const tagNameMap: Record<string, string> = {};
     const xpathMap: Record<string, string> = {};
     const scrollableMap: Record<string, boolean> = {};
+    const isIgnoredBackendNode = makeIsIgnoredBackendNode(
+      frameId,
+      idx,
+      exclusionIntervalsByFrame,
+    );
     const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
     const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
 
     for (const [be, nodeAbs] of idx.absByBe.entries()) {
       const nodeDocRoot = idx.docRootOf.get(be);
       if (nodeDocRoot !== docRootBe) continue;
+      if (isIgnoredBackendNode?.(be)) continue;
 
       // Translate absolute XPaths into document-relative ones for this frame.
       const rel = relativizeXPath(baseAbs, nodeAbs);
@@ -327,6 +396,7 @@ export async function collectPerFrameMaps(
     }
 
     const { outline, urlMap } = await a11yForFrame(sess, frameId, {
+      isIgnoredBackendNode,
       experimental: options?.experimental ?? false,
       tagNameMap,
       scrollableMap,
@@ -338,6 +408,327 @@ export async function collectPerFrameMaps(
   }
 
   return { perFrameMaps, perFrameOutlines };
+}
+
+export async function resolveIgnoredNodes(
+  page: Page,
+  ignoreSelectors: string[] | undefined,
+  context: FrameContext,
+  sessionToIndex: Map<string, SessionDomIndex>,
+): Promise<IgnoredNodeMap> {
+  const ignoredNodesByFrame: IgnoredNodeMap = new Map();
+
+  for (const rawSelector of ignoreSelectors ?? []) {
+    const selector = rawSelector.trim();
+    if (!selector) continue;
+
+    try {
+      const resolved = await resolveIgnoredNodesForSelector(
+        page,
+        selector,
+        context,
+        sessionToIndex,
+      );
+      for (const match of resolved) {
+        const nodes =
+          ignoredNodesByFrame.get(match.frameId) ?? new Set<number>();
+        nodes.add(match.backendNodeId);
+        ignoredNodesByFrame.set(match.frameId, nodes);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return ignoredNodesByFrame;
+}
+
+async function resolveIgnoredNodesForSelector(
+  page: Page,
+  selector: string,
+  context: FrameContext,
+  sessionToIndex: Map<string, SessionDomIndex>,
+): Promise<Array<{ frameId: string; backendNodeId: number }>> {
+  const looksLikeXPath = /^xpath=/i.test(selector) || selector.startsWith("/");
+
+  if (looksLikeXPath) {
+    const hit = await resolveFocusFrameAndTail(
+      page,
+      normalizeXPath(selector),
+      context.parentByFrame,
+      context.rootId,
+    );
+    const targetFrameId = hit.targetFrameId;
+    const tailXPath = hit.tailXPath || "/";
+    if (tailXPath === "/") {
+      const idx = ownerSessionIndexForFrame(
+        page,
+        targetFrameId,
+        sessionToIndex,
+      );
+      if (!idx) return [];
+      const parentId = context.parentByFrame.get(targetFrameId);
+      const sameSessionAsParent =
+        !!parentId &&
+        ownerSession(page, parentId) === ownerSession(page, targetFrameId);
+      const backendNodeId = await resolveFrameDocRootBackendId(
+        page,
+        targetFrameId,
+        idx,
+        sameSessionAsParent,
+      );
+      return [{ frameId: targetFrameId, backendNodeId }];
+    }
+    return resolveIgnoredNodesInFrame(page, targetFrameId, {
+      kind: "xpath",
+      value: tailXPath,
+    });
+  }
+
+  const hit = await resolveCssFocusFrameAndTail(
+    page,
+    selector,
+    context.parentByFrame,
+    context.rootId,
+  );
+  const targetFrameId = hit.targetFrameId;
+  return resolveIgnoredNodesInFrame(page, targetFrameId, {
+    kind: "css",
+    value: hit.tailSelector || selector,
+  });
+}
+
+async function resolveIgnoredNodesInFrame(
+  page: Page,
+  frameId: string,
+  query: SelectorQuery,
+): Promise<Array<{ frameId: string; backendNodeId: number }>> {
+  const session = ownerSession(page, frameId);
+  const frame = new Frame(session, frameId, "", false);
+  const resolver = new FrameSelectorResolver(frame);
+  const resolvedNodes = await resolver.resolveAll(query);
+  if (!resolvedNodes.length) return [];
+
+  const backendNodeIds = await describeResolvedNodes(session, resolvedNodes);
+  return backendNodeIds.map((backendNodeId) => ({ frameId, backendNodeId }));
+}
+
+async function describeResolvedNodes(
+  session: CDPSessionLike,
+  resolvedNodes: ResolvedNode[],
+): Promise<number[]> {
+  const backendNodeIds = new Set<number>();
+
+  try {
+    for (const resolvedNode of resolvedNodes) {
+      const desc = await session.send<Protocol.DOM.DescribeNodeResponse>(
+        "DOM.describeNode",
+        { objectId: resolvedNode.objectId },
+      );
+      const backendNodeId = desc.node.backendNodeId;
+      if (typeof backendNodeId === "number") {
+        backendNodeIds.add(backendNodeId);
+      }
+    }
+  } finally {
+    await Promise.all(
+      resolvedNodes.map((resolvedNode) =>
+        session
+          .send("Runtime.releaseObject", { objectId: resolvedNode.objectId })
+          .catch(() => {}),
+      ),
+    );
+  }
+
+  return [...backendNodeIds];
+}
+
+export async function buildFrameExclusionIntervals(
+  page: Page,
+  context: FrameContext,
+  sessionToIndex: Map<string, SessionDomIndex>,
+  ignoredNodesByFrame: IgnoredNodeMap,
+): Promise<ExclusionIntervalsByFrame> {
+  const intervalsByFrame: ExclusionIntervalsByFrame = new Map();
+  if (!ignoredNodesByFrame.size) return intervalsByFrame;
+  const childFramesByParent = await resolveChildFramesByParent(page, context);
+  const excludedFrames = new Set<string>();
+
+  const pushInterval = (frameId: string, start: number, end: number) => {
+    const intervals = intervalsByFrame.get(frameId) ?? [];
+    intervals.push({ start, end });
+    intervalsByFrame.set(frameId, intervals);
+  };
+
+  const excludeFrameSubtree = async (frameId: string): Promise<void> => {
+    if (excludedFrames.has(frameId)) return;
+    excludedFrames.add(frameId);
+
+    const idx = ownerSessionIndexForFrame(page, frameId, sessionToIndex);
+    if (!idx) return;
+    const parentId = context.parentByFrame.get(frameId);
+    const sameSessionAsParent =
+      !!parentId &&
+      ownerSession(page, parentId) === ownerSession(page, frameId);
+    const docRootBe = await resolveFrameDocRootBackendId(
+      page,
+      frameId,
+      idx,
+      sameSessionAsParent,
+    );
+    const start = idx.enterByBe.get(docRootBe);
+    const end = idx.exitByBe.get(docRootBe);
+    if (typeof start === "number" && typeof end === "number") {
+      pushInterval(frameId, start, end);
+    }
+
+    for (const childFrameId of listChildrenOf(context.parentByFrame, frameId)) {
+      await excludeFrameSubtree(childFrameId);
+    }
+  };
+
+  const excludeIgnoredNode = async (
+    frameId: string,
+    backendNodeId: number,
+  ): Promise<void> => {
+    const idx = ownerSessionIndexForFrame(page, frameId, sessionToIndex);
+    if (!idx) return;
+    const start = idx.enterByBe.get(backendNodeId);
+    const end = idx.exitByBe.get(backendNodeId);
+    if (typeof start !== "number" || typeof end !== "number") return;
+
+    pushInterval(frameId, start, end);
+    for (const childFrame of childFramesByParent.get(frameId) ?? []) {
+      const hostEnter = idx.enterByBe.get(childFrame.hostBackendNodeId);
+      if (typeof hostEnter !== "number") continue;
+      if (hostEnter < start || hostEnter > end) continue;
+      await excludeFrameSubtree(childFrame.childFrameId);
+    }
+  };
+
+  for (const [frameId, backendNodeIds] of ignoredNodesByFrame.entries()) {
+    for (const backendNodeId of backendNodeIds) {
+      await excludeIgnoredNode(frameId, backendNodeId);
+    }
+  }
+
+  for (const [frameId, intervals] of intervalsByFrame.entries()) {
+    intervals.sort((a, b) => a.start - b.start || a.end - b.end);
+    const merged: Interval[] = [];
+    for (const interval of intervals) {
+      const prev = merged[merged.length - 1];
+      if (!prev || interval.start > prev.end) {
+        merged.push({ ...interval });
+        continue;
+      }
+      if (interval.end > prev.end) prev.end = interval.end;
+    }
+    intervalsByFrame.set(frameId, merged);
+  }
+
+  return intervalsByFrame;
+}
+
+async function resolveChildFramesByParent(
+  page: Page,
+  context: FrameContext,
+): Promise<ChildFramesByParent> {
+  const childFramesByParent: ChildFramesByParent = new Map();
+
+  for (const frameId of context.frames) {
+    const parentId = context.parentByFrame.get(frameId);
+    if (!parentId) continue;
+
+    const session = parentSession(page, context.parentByFrame, frameId);
+    if (!session) continue;
+
+    try {
+      const { backendNodeId } = await session.send<{ backendNodeId?: number }>(
+        "DOM.getFrameOwner",
+        { frameId },
+      );
+      if (typeof backendNodeId !== "number") continue;
+      const childFrames = childFramesByParent.get(parentId) ?? [];
+      childFrames.push({
+        childFrameId: frameId,
+        hostBackendNodeId: backendNodeId,
+      });
+      childFramesByParent.set(parentId, childFrames);
+    } catch {
+      continue;
+    }
+  }
+
+  return childFramesByParent;
+}
+
+function makeIsIgnoredBackendNode(
+  frameId: string,
+  idx: SessionDomIndex | undefined,
+  exclusionIntervalsByFrame: ExclusionIntervalsByFrame,
+): ((backendNodeId: number) => boolean) | undefined {
+  if (!idx) return undefined;
+  const intervals = exclusionIntervalsByFrame.get(frameId);
+  if (!intervals?.length) return undefined;
+
+  return (backendNodeId: number): boolean => {
+    const enter = idx.enterByBe.get(backendNodeId);
+    if (typeof enter !== "number") return false;
+
+    let lo = 0;
+    let hi = intervals.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const interval = intervals[mid]!;
+      if (enter < interval.start) {
+        hi = mid - 1;
+      } else if (enter > interval.end) {
+        lo = mid + 1;
+      } else {
+        return true;
+      }
+    }
+    return false;
+  };
+}
+
+function parseEncodedBackendNodeId(encodedId: string): number | undefined {
+  const parts = encodedId.split("-");
+  if (parts.length !== 2) return undefined;
+  const backendNodeId = Number(parts[1]);
+  return Number.isFinite(backendNodeId) ? backendNodeId : undefined;
+}
+
+function ownerSessionIndexForFrame(
+  page: Page,
+  frameId: string,
+  sessionToIndex: Map<string, SessionDomIndex>,
+): SessionDomIndex | undefined {
+  const session = ownerSession(page, frameId);
+  return sessionToIndex.get(session.id ?? "root");
+}
+
+async function resolveFrameDocRootBackendId(
+  page: Page,
+  frameId: string,
+  idx: SessionDomIndex,
+  sameSessionAsParent: boolean,
+): Promise<number> {
+  if (!sameSessionAsParent) return idx.rootBackend;
+  const session = ownerSession(page, frameId);
+  try {
+    const { backendNodeId } = await session.send<{ backendNodeId?: number }>(
+      "DOM.getFrameOwner",
+      { frameId },
+    );
+    if (typeof backendNodeId === "number") {
+      const docRootBe = idx.contentDocRootByIframe.get(backendNodeId);
+      if (typeof docRootBe === "number") return docRootBe;
+    }
+  } catch {
+    //
+  }
+  return idx.rootBackend;
 }
 
 /**
