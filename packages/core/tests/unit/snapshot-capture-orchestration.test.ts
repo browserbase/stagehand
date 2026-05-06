@@ -364,7 +364,7 @@ describe("captureHybridSnapshot", () => {
     expect(result.combinedUrlMap["0-100"]).toBe("https://frame-1.test");
     expect(domMapsSpy).toHaveBeenCalled();
     expect(a11ySpy).toHaveBeenCalled();
-    expect(buildIndexSpy).toHaveBeenCalled();
+    expect(buildIndexSpy).not.toHaveBeenCalled();
   });
 
   it("scoped snapshot still succeeds when iframe inclusion is disabled", async () => {
@@ -401,7 +401,7 @@ describe("captureHybridSnapshot", () => {
     expect(result.combinedUrlMap["0-100"]).toBe("https://frame-1.test");
     expect(domMapsSpy).toHaveBeenCalled();
     expect(a11ySpy).toHaveBeenCalled();
-    expect(buildIndexSpy).toHaveBeenCalled();
+    expect(buildIndexSpy).not.toHaveBeenCalled();
   });
 
   it("filters ignored nodes out of the merged snapshot artifacts", async () => {
