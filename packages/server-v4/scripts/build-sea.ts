@@ -23,6 +23,7 @@ import esbuild from "esbuild";
 import { getRepoRootDir } from "./runtimePaths.js";
 
 const repoDir = getRepoRootDir();
+const seaFuse = "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2";
 
 const argValue = (name: string) => {
   const prefix = `--${name}=`;
@@ -119,6 +120,14 @@ const runOptional = (
   spawnSync(cmd, args, { stdio: "ignore", ...opts });
 };
 
+const hasSeaFuse = (binaryPath: string): boolean => {
+  try {
+    return fs.readFileSync(binaryPath).includes(Buffer.from(seaFuse));
+  } catch {
+    return false;
+  }
+};
+
 const download = (url: string, dest: string): Promise<void> =>
   new Promise((resolve, reject) => {
     https
@@ -167,15 +176,20 @@ const resolveNodeBinary = async (): Promise<string> => {
       `Cross-platform builds are not supported. Host=${process.platform}, target=${targetPlatform}`,
     );
   }
-  if (targetArch === process.arch) {
+  if (targetArch === process.arch && hasSeaFuse(process.execPath)) {
     return process.execPath;
+  }
+  if (targetArch === process.arch) {
+    console.warn(
+      `Current Node binary at ${process.execPath} does not include ${seaFuse}; falling back to the official ${process.version} distribution for SEA injection.`,
+    );
   }
 
   const version = process.version;
   const distPlatform = targetPlatform === "win32" ? "win" : targetPlatform;
   const archiveBase = `node-${version}-${distPlatform}-${targetArch}`;
   const archiveExt = distPlatform === "win" ? "zip" : "tar.xz";
-  const tmpRoot = `${os.tmpdir()}/stagehand-sea/${archiveBase}`;
+  const tmpRoot = `${os.tmpdir()}/stagehand-server-v4-sea/${archiveBase}`;
   const archivePath = `${tmpRoot}/${archiveBase}.${archiveExt}`;
   const extractRoot = `${tmpRoot}/${archiveBase}`;
   const binaryPath =
@@ -184,6 +198,11 @@ const resolveNodeBinary = async (): Promise<string> => {
       : `${extractRoot}/bin/node`;
 
   if (fs.existsSync(binaryPath)) {
+    if (!hasSeaFuse(binaryPath)) {
+      throw new Error(
+        `Node binary at ${binaryPath} does not include ${seaFuse}; unable to build SEA binary. Delete ${tmpRoot} and retry.`,
+      );
+    }
     return binaryPath;
   }
 
@@ -207,6 +226,11 @@ const resolveNodeBinary = async (): Promise<string> => {
 
   if (!fs.existsSync(binaryPath)) {
     throw new Error(`Missing Node binary at ${binaryPath}`);
+  }
+  if (!hasSeaFuse(binaryPath)) {
+    throw new Error(
+      `Node binary at ${binaryPath} does not include ${seaFuse}; unable to build SEA binary. Delete ${tmpRoot} and retry.`,
+    );
   }
   return binaryPath;
 };
@@ -477,7 +501,7 @@ const main = async () => {
     "NODE_SEA_BLOB",
     `${repoDir}/packages/server-v4/dist/sea/sea-prep.blob`,
     "--sentinel-fuse",
-    "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2",
+    seaFuse,
   ];
   if (targetPlatform === "darwin") {
     postjectArgs.push("--macho-segment-name", "NODE_SEA");
