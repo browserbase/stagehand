@@ -1363,7 +1363,7 @@ export function summarizeBenchCases(
 
 function agentConfigKey(benchCase: BenchCaseRow): string {
   return [
-    benchCase.harness ?? "stagehand",
+    benchCase.harness ?? "stagehand_v3",
     benchCase.provider ?? "",
     benchCase.environment ?? "",
     benchCase.api === undefined ? "" : benchCase.api ? "api" : "local",
@@ -1375,7 +1375,7 @@ function agentConfigKey(benchCase: BenchCaseRow): string {
 
 function agentConfigLabel(benchCase: BenchCaseRow): string {
   const parts = [
-    benchCase.harness ?? "stagehand",
+    benchCase.harness ?? "stagehand_v3",
     benchCase.agentMode,
     benchCase.provider,
     benchCase.environment,

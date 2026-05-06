@@ -5,6 +5,8 @@
  * the file lives in during auto-discovery.
  */
 import type {
+  BenchTaskFn,
+  BenchTaskImplementations,
   BenchTaskContext,
   BenchTaskMeta,
   CoreTaskContext,
@@ -34,8 +36,31 @@ export function defineCoreTask(
  */
 export function defineBenchTask(
   meta: BenchTaskMeta,
-  fn: (ctx: BenchTaskContext) => Promise<void | TaskResult>,
+  fn: BenchTaskFn,
+): TaskDefinition;
+export function defineBenchTask(
+  meta: BenchTaskMeta,
+  fn: BenchTaskImplementations,
+): TaskDefinition;
+export function defineBenchTask(
+  meta: BenchTaskMeta,
+  fn: BenchTaskFn | BenchTaskImplementations,
 ): TaskDefinition {
+  if (typeof fn !== "function") {
+    return {
+      __taskDefinition: true,
+      meta,
+      fn:
+        fn.default ??
+        (async () => {
+          throw new Error(
+            `No default bench implementation is defined for "${meta.name ?? "unnamed task"}".`,
+          );
+        }),
+      benchFns: fn,
+    };
+  }
+
   return {
     __taskDefinition: true,
     meta,

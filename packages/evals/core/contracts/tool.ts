@@ -18,6 +18,7 @@ import type {
 
 export type ToolSurface =
   | "understudy_code"
+  | "understudy_v4"
   | "playwright_code"
   | "cdp_code"
   | "playwright_mcp"

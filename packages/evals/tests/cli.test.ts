@@ -245,7 +245,7 @@ describe("CLI entrypoint", () => {
     expect(payload.envOverrides.EVAL_ENV).toBe("BROWSERBASE");
     expect(payload.envOverrides.USE_API).toBe("true");
     expect(payload.envOverrides.EVAL_PROVIDER).toBe("openai");
-    expect(payload.runOptions.harness).toBe("stagehand");
+    expect(payload.runOptions.harness).toBe("stagehand_v3");
     expect(payload.runOptions.verbose).toBe(false);
   });
 

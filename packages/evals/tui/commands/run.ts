@@ -23,6 +23,7 @@ import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
 import {
+  DEFAULT_BENCH_HARNESS,
   isExecutableBenchHarness,
   type Harness,
 } from "../../framework/benchTypes.js";
@@ -239,11 +240,11 @@ export async function runCommand(
 
   if (
     options.useApi &&
-    options.harness !== "stagehand" &&
+    (options.harness ?? DEFAULT_BENCH_HARNESS) !== "stagehand_v3" &&
     tasks.some((t) => t.tier === "bench")
   ) {
     throw new Error(
-      `Harness "${options.harness}" does not support --api. Use --harness stagehand for API-backed bench runs.`,
+      `Harness "${options.harness}" does not support --api. Use --harness stagehand_v3 for API-backed bench runs.`,
     );
   }
 
@@ -257,8 +258,17 @@ export async function runCommand(
     tasks.some((t) => t.tier === "bench")
   ) {
     throw new Error(
-      `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand, --harness claude_code, or --harness codex for executable bench runs.`,
+      `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand_v3, --harness stagehand_v4, --harness claude_code, or --harness codex for executable bench runs.`,
     );
+  }
+  if (
+    options.harness === "stagehand_v4" &&
+    tasks.some((t) => t.tier === "bench")
+  ) {
+    const { assertUnderstudyV4SdkAvailable } = await import(
+      "../../framework/UnderstudyV4Tools.js"
+    );
+    assertUnderstudyV4SdkAvailable();
   }
   const matrix = await buildDryRunMatrix(options, tasks, registry);
 

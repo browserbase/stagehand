@@ -18,7 +18,7 @@ describe("resolveRunOptions", () => {
 
   it("defaults to the stagehand bench harness", () => {
     const resolved = resolveRunOptions({}, {}, {});
-    expect(resolved.harness).toBe("stagehand");
+    expect(resolved.harness).toBe("stagehand_v3");
   });
 
   it("accepts known bench harnesses", () => {

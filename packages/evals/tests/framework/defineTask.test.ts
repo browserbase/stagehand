@@ -44,6 +44,25 @@ describe("defineBenchTask", () => {
 
     expect((result.meta as any).models).toEqual(["openai/gpt-4o"]);
   });
+
+  it("preserves harness-native bench implementations", async () => {
+    const stagehandV3 = vi.fn(async () => ({ _success: true, version: 3 }));
+    const stagehandV4 = vi.fn(async () => ({ _success: true, version: 4 }));
+    const result = defineBenchTask(
+      { name: "native_versions" },
+      {
+        stagehand_v3: stagehandV3 as any,
+        stagehand_v4: stagehandV4 as any,
+      },
+    );
+
+    await expect(result.benchFns?.stagehand_v4?.({} as any)).resolves.toEqual({
+      _success: true,
+      version: 4,
+    });
+    expect(stagehandV3).toHaveBeenCalledTimes(0);
+    expect(stagehandV4).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("defineTask", () => {
