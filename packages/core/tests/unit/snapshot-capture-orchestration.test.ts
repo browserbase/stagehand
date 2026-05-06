@@ -10,6 +10,7 @@ import * as capture from "../../lib/v3/understudy/a11y/snapshot/capture.js";
 import * as a11yTree from "../../lib/v3/understudy/a11y/snapshot/a11yTree.js";
 import * as domTree from "../../lib/v3/understudy/a11y/snapshot/domTree.js";
 import * as focusSelectors from "../../lib/v3/understudy/a11y/snapshot/focusSelectors.js";
+import { FrameSelectorResolver } from "../../lib/v3/understudy/selectorResolver.js";
 import { MockCDPSession } from "./helpers/mockCDPSession.js";
 
 const makeProtocolFrame = (id: string): Protocol.Page.Frame =>
@@ -408,7 +409,16 @@ describe("captureHybridSnapshot", () => {
     const session = new MockCDPSession(
       {
         "DOM.getFrameOwner": async () => ({ backendNodeId: 150 }),
-        "DOM.describeNode": async () => ({ node: { backendNodeId: 201 } }),
+        "DOM.describeNode": async (params) => ({
+          node: {
+            backendNodeId:
+              params?.objectId === "ignored-object-a"
+                ? 201
+                : params?.objectId === "ignored-object-b"
+                  ? 202
+                  : 0,
+          },
+        }),
       },
       "session-a",
     );
@@ -421,22 +431,35 @@ describe("captureHybridSnapshot", () => {
     });
 
     const idx = makeSessionIndex();
+    idx.absByBe.set(202, "/html[1]/body[1]/iframe[1]/aside[1]");
+    idx.tagByBe.set(202, "aside");
+    idx.docRootOf.set(202, 200);
+    idx.enterByBe.set(202, 6);
+    idx.exitByBe.set(202, 7);
+    idx.exitByBe.set(201, 8);
+    idx.exitByBe.set(200, 9);
+    idx.exitByBe.set(150, 10);
+    idx.exitByBe.set(100, 11);
     vi.spyOn(domTree, "buildSessionDomIndex").mockResolvedValue(idx);
     vi.spyOn(focusSelectors, "resolveCssFocusFrameAndTail").mockResolvedValue({
       targetFrameId: "frame-2",
       tailSelector: ".ad",
       absPrefix: "/html/body/iframe[1]",
     });
-    vi.spyOn(focusSelectors, "resolveObjectIdForCss").mockResolvedValue(
-      "ignored-object",
-    );
+    vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([
+      { objectId: "ignored-object-a", nodeId: null },
+      { objectId: "ignored-object-b", nodeId: null },
+    ]);
     vi.spyOn(a11yTree, "a11yForFrame").mockImplementation(
       async (_sess, frameId, opts) => ({
-        outline: opts.isIgnoredBackendNode?.(201)
-          ? `outline-${frameId}-filtered`
-          : `outline-${frameId}`,
+        outline:
+          opts.isIgnoredBackendNode?.(201) && opts.isIgnoredBackendNode?.(202)
+            ? `outline-${frameId}-filtered`
+            : `outline-${frameId}`,
         urlMap:
-          frameId === "frame-2" && opts.isIgnoredBackendNode?.(201)
+          frameId === "frame-2" &&
+          opts.isIgnoredBackendNode?.(201) &&
+          opts.isIgnoredBackendNode?.(202)
             ? {}
             : { [`url-${frameId}`]: `https://${frameId}.test` },
         scopeApplied: false,
@@ -448,10 +471,64 @@ describe("captureHybridSnapshot", () => {
     });
 
     expect(snapshot.combinedXpathMap["1-201"]).toBeUndefined();
+    expect(snapshot.combinedXpathMap["1-202"]).toBeUndefined();
     expect(snapshot.combinedUrlMap["url-frame-2"]).toBeUndefined();
     expect(
       snapshot.perFrame?.find((frame) => frame.frameId === "frame-2")?.outline,
     ).toContain("filtered");
+  });
+
+  it("excludes child frame subtrees when an ignored node is an iframe host", async () => {
+    const session = new MockCDPSession(
+      {
+        "DOM.getFrameOwner": async () => ({ backendNodeId: 150 }),
+        "DOM.describeNode": async (params) => ({
+          node: { backendNodeId: params?.objectId === "iframe-host" ? 150 : 0 },
+        }),
+      },
+      "session-a",
+    );
+    const page = makePage({
+      asProtocolFrameTree: () =>
+        makeFrameTree("frame-1", [makeFrameTree("frame-2")]),
+      listAllFrameIds: () => ["frame-1", "frame-2"],
+      getSessionForFrame: () => session,
+      getOrdinal: (frameId: string) => (frameId === "frame-1" ? 0 : 1),
+    });
+
+    vi.spyOn(domTree, "buildSessionDomIndex").mockResolvedValue(
+      makeSessionIndex(),
+    );
+    vi.spyOn(focusSelectors, "resolveCssFocusFrameAndTail").mockResolvedValue({
+      targetFrameId: "frame-1",
+      tailSelector: "iframe.ad",
+      absPrefix: "",
+    });
+    vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([
+      { objectId: "iframe-host", nodeId: null },
+    ]);
+    vi.spyOn(a11yTree, "a11yForFrame").mockImplementation(
+      async (_sess, frameId, opts) => ({
+        outline:
+          frameId === "frame-2" && opts.isIgnoredBackendNode?.(200)
+            ? ""
+            : `outline-${frameId}`,
+        urlMap:
+          frameId === "frame-2" && opts.isIgnoredBackendNode?.(200)
+            ? {}
+            : { [`url-${frameId}`]: `https://${frameId}.test` },
+        scopeApplied: false,
+      }),
+    );
+
+    const snapshot = await capture.captureHybridSnapshot(page, {
+      ignoreSelectors: ["iframe.ad"],
+    });
+
+    expect(snapshot.combinedXpathMap["1-200"]).toBeUndefined();
+    expect(snapshot.combinedXpathMap["1-201"]).toBeUndefined();
+    expect(snapshot.combinedUrlMap["url-frame-2"]).toBeUndefined();
+    expect(snapshot.combinedTree).not.toContain("outline-frame-2");
   });
 
   it("collects per-frame data and merges it when no scoped snapshot is available", async () => {

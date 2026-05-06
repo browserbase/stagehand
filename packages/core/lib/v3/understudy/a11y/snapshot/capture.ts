@@ -1,6 +1,12 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Page } from "../../page.js";
+import { Frame } from "../../frame.js";
+import {
+  FrameSelectorResolver,
+  type ResolvedNode,
+  type SelectorQuery,
+} from "../../selectorResolver.js";
 import { v3Logger } from "../../../logger.js";
 import type {
   FrameContext,
@@ -14,8 +20,7 @@ import { a11yForFrame } from "./a11yTree.js";
 import {
   resolveCssFocusFrameAndTail,
   resolveFocusFrameAndTail,
-  resolveObjectIdForCss,
-  resolveObjectIdForXPath,
+  listChildrenOf,
 } from "./focusSelectors.js";
 import {
   buildSessionDomIndex,
@@ -26,9 +31,11 @@ import { injectSubtrees } from "./treeFormatUtils.js";
 import { ownerSession, parentSession } from "./sessions.js";
 import { normalizeXPath, prefixXPath } from "./xpathUtils.js";
 
-type IgnoreRootMap = Map<string, Set<number>>;
+type IgnoredNodeMap = Map<string, Set<number>>;
 type Interval = { start: number; end: number };
 type ExclusionIntervalsByFrame = Map<string, Interval[]>;
+type ChildFrameHost = { childFrameId: string; hostBackendNodeId: number };
+type ChildFramesByParent = Map<string, ChildFrameHost[]>;
 
 /**
  * Capture a hybrid DOM + Accessibility snapshot for the provided page.
@@ -75,16 +82,17 @@ export async function captureHybridSnapshot(
   }
 
   const sessionToIndex = await buildSessionIndexes(page, framesInScope, pierce);
-  const ignoreRootsByFrame = await resolveIgnoreSelectorRoots(
+  const ignoredNodesByFrame = await resolveIgnoredNodes(
     page,
     options?.ignoreSelectors,
     context,
     sessionToIndex,
   );
-  const exclusionIntervalsByFrame = buildFrameExclusionIntervals(
+  const exclusionIntervalsByFrame = await buildFrameExclusionIntervals(
     page,
+    context,
     sessionToIndex,
-    ignoreRootsByFrame,
+    ignoredNodesByFrame,
   );
   if (hasIgnoreSelectors) {
     const scopedSnapshot = await tryScopedSnapshot(
@@ -402,43 +410,45 @@ export async function collectPerFrameMaps(
   return { perFrameMaps, perFrameOutlines };
 }
 
-export async function resolveIgnoreSelectorRoots(
+export async function resolveIgnoredNodes(
   page: Page,
   ignoreSelectors: string[] | undefined,
   context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
-): Promise<IgnoreRootMap> {
-  const rootsByFrame: IgnoreRootMap = new Map();
+): Promise<IgnoredNodeMap> {
+  const ignoredNodesByFrame: IgnoredNodeMap = new Map();
 
   for (const rawSelector of ignoreSelectors ?? []) {
     const selector = rawSelector.trim();
     if (!selector) continue;
 
     try {
-      const resolved = await resolveIgnoreSelectorRoot(
+      const resolved = await resolveIgnoredNodesForSelector(
         page,
         selector,
         context,
         sessionToIndex,
       );
-      if (!resolved) continue;
-      const roots = rootsByFrame.get(resolved.frameId) ?? new Set<number>();
-      roots.add(resolved.backendNodeId);
-      rootsByFrame.set(resolved.frameId, roots);
+      for (const match of resolved) {
+        const nodes =
+          ignoredNodesByFrame.get(match.frameId) ?? new Set<number>();
+        nodes.add(match.backendNodeId);
+        ignoredNodesByFrame.set(match.frameId, nodes);
+      }
     } catch {
       continue;
     }
   }
 
-  return rootsByFrame;
+  return ignoredNodesByFrame;
 }
 
-async function resolveIgnoreSelectorRoot(
+async function resolveIgnoredNodesForSelector(
   page: Page,
   selector: string,
   context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
-): Promise<{ frameId: string; backendNodeId: number } | null> {
+): Promise<Array<{ frameId: string; backendNodeId: number }>> {
   const looksLikeXPath = /^xpath=/i.test(selector) || selector.startsWith("/");
 
   if (looksLikeXPath) {
@@ -450,14 +460,13 @@ async function resolveIgnoreSelectorRoot(
     );
     const targetFrameId = hit.targetFrameId;
     const tailXPath = hit.tailXPath || "/";
-    const session = ownerSession(page, targetFrameId);
     if (tailXPath === "/") {
       const idx = ownerSessionIndexForFrame(
         page,
         targetFrameId,
         sessionToIndex,
       );
-      if (!idx) return null;
+      if (!idx) return [];
       const parentId = context.parentByFrame.get(targetFrameId);
       const sameSessionAsParent =
         !!parentId &&
@@ -468,25 +477,12 @@ async function resolveIgnoreSelectorRoot(
         idx,
         sameSessionAsParent,
       );
-      return { frameId: targetFrameId, backendNodeId };
+      return [{ frameId: targetFrameId, backendNodeId }];
     }
-    const objectId = await resolveObjectIdForXPath(
-      session,
-      tailXPath,
-      targetFrameId,
-    );
-    if (!objectId) return null;
-    try {
-      const desc = await session.send<Protocol.DOM.DescribeNodeResponse>(
-        "DOM.describeNode",
-        { objectId },
-      );
-      const backendNodeId = desc.node.backendNodeId;
-      if (typeof backendNodeId !== "number") return null;
-      return { frameId: targetFrameId, backendNodeId };
-    } finally {
-      await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
-    }
+    return resolveIgnoredNodesInFrame(page, targetFrameId, {
+      kind: "xpath",
+      value: tailXPath,
+    });
   }
 
   const hit = await resolveCssFocusFrameAndTail(
@@ -496,47 +492,127 @@ async function resolveIgnoreSelectorRoot(
     context.rootId,
   );
   const targetFrameId = hit.targetFrameId;
-  const session = ownerSession(page, targetFrameId);
-  const objectId = await resolveObjectIdForCss(
-    session,
-    hit.tailSelector || selector,
-    targetFrameId,
-  );
-  if (!objectId) return null;
-  try {
-    const desc = await session.send<Protocol.DOM.DescribeNodeResponse>(
-      "DOM.describeNode",
-      { objectId },
-    );
-    const backendNodeId = desc.node.backendNodeId;
-    if (typeof backendNodeId !== "number") return null;
-    return { frameId: targetFrameId, backendNodeId };
-  } finally {
-    await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
-  }
+  return resolveIgnoredNodesInFrame(page, targetFrameId, {
+    kind: "css",
+    value: hit.tailSelector || selector,
+  });
 }
 
-export function buildFrameExclusionIntervals(
+async function resolveIgnoredNodesInFrame(
   page: Page,
+  frameId: string,
+  query: SelectorQuery,
+): Promise<Array<{ frameId: string; backendNodeId: number }>> {
+  const session = ownerSession(page, frameId);
+  const frame = new Frame(session, frameId, "", false);
+  const resolver = new FrameSelectorResolver(frame);
+  const resolvedNodes = await resolver.resolveAll(query);
+  if (!resolvedNodes.length) return [];
+
+  const backendNodeIds = await describeResolvedNodes(session, resolvedNodes);
+  return backendNodeIds.map((backendNodeId) => ({ frameId, backendNodeId }));
+}
+
+async function describeResolvedNodes(
+  session: CDPSessionLike,
+  resolvedNodes: ResolvedNode[],
+): Promise<number[]> {
+  const backendNodeIds = new Set<number>();
+
+  try {
+    for (const resolvedNode of resolvedNodes) {
+      const desc = await session.send<Protocol.DOM.DescribeNodeResponse>(
+        "DOM.describeNode",
+        { objectId: resolvedNode.objectId },
+      );
+      const backendNodeId = desc.node.backendNodeId;
+      if (typeof backendNodeId === "number") {
+        backendNodeIds.add(backendNodeId);
+      }
+    }
+  } finally {
+    await Promise.all(
+      resolvedNodes.map((resolvedNode) =>
+        session
+          .send("Runtime.releaseObject", { objectId: resolvedNode.objectId })
+          .catch(() => {}),
+      ),
+    );
+  }
+
+  return [...backendNodeIds];
+}
+
+export async function buildFrameExclusionIntervals(
+  page: Page,
+  context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
-  ignoreRootsByFrame: IgnoreRootMap,
-): ExclusionIntervalsByFrame {
+  ignoredNodesByFrame: IgnoredNodeMap,
+): Promise<ExclusionIntervalsByFrame> {
   const intervalsByFrame: ExclusionIntervalsByFrame = new Map();
+  if (!ignoredNodesByFrame.size) return intervalsByFrame;
+  const childFramesByParent = await resolveChildFramesByParent(page, context);
+  const excludedFrames = new Set<string>();
 
-  for (const [frameId, rootBackendIds] of ignoreRootsByFrame.entries()) {
+  const pushInterval = (frameId: string, start: number, end: number) => {
+    const intervals = intervalsByFrame.get(frameId) ?? [];
+    intervals.push({ start, end });
+    intervalsByFrame.set(frameId, intervals);
+  };
+
+  const excludeFrameSubtree = async (frameId: string): Promise<void> => {
+    if (excludedFrames.has(frameId)) return;
+    excludedFrames.add(frameId);
+
     const idx = ownerSessionIndexForFrame(page, frameId, sessionToIndex);
-    if (!idx) continue;
-    const intervals: Interval[] = [];
-
-    for (const backendNodeId of rootBackendIds) {
-      const start = idx.enterByBe.get(backendNodeId);
-      const end = idx.exitByBe.get(backendNodeId);
-      if (typeof start !== "number" || typeof end !== "number") continue;
-      intervals.push({ start, end });
+    if (!idx) return;
+    const parentId = context.parentByFrame.get(frameId);
+    const sameSessionAsParent =
+      !!parentId &&
+      ownerSession(page, parentId) === ownerSession(page, frameId);
+    const docRootBe = await resolveFrameDocRootBackendId(
+      page,
+      frameId,
+      idx,
+      sameSessionAsParent,
+    );
+    const start = idx.enterByBe.get(docRootBe);
+    const end = idx.exitByBe.get(docRootBe);
+    if (typeof start === "number" && typeof end === "number") {
+      pushInterval(frameId, start, end);
     }
 
-    if (!intervals.length) continue;
+    for (const childFrameId of listChildrenOf(context.parentByFrame, frameId)) {
+      await excludeFrameSubtree(childFrameId);
+    }
+  };
 
+  const excludeIgnoredNode = async (
+    frameId: string,
+    backendNodeId: number,
+  ): Promise<void> => {
+    const idx = ownerSessionIndexForFrame(page, frameId, sessionToIndex);
+    if (!idx) return;
+    const start = idx.enterByBe.get(backendNodeId);
+    const end = idx.exitByBe.get(backendNodeId);
+    if (typeof start !== "number" || typeof end !== "number") return;
+
+    pushInterval(frameId, start, end);
+    for (const childFrame of childFramesByParent.get(frameId) ?? []) {
+      const hostEnter = idx.enterByBe.get(childFrame.hostBackendNodeId);
+      if (typeof hostEnter !== "number") continue;
+      if (hostEnter < start || hostEnter > end) continue;
+      await excludeFrameSubtree(childFrame.childFrameId);
+    }
+  };
+
+  for (const [frameId, backendNodeIds] of ignoredNodesByFrame.entries()) {
+    for (const backendNodeId of backendNodeIds) {
+      await excludeIgnoredNode(frameId, backendNodeId);
+    }
+  }
+
+  for (const [frameId, intervals] of intervalsByFrame.entries()) {
     intervals.sort((a, b) => a.start - b.start || a.end - b.end);
     const merged: Interval[] = [];
     for (const interval of intervals) {
@@ -551,6 +627,39 @@ export function buildFrameExclusionIntervals(
   }
 
   return intervalsByFrame;
+}
+
+async function resolveChildFramesByParent(
+  page: Page,
+  context: FrameContext,
+): Promise<ChildFramesByParent> {
+  const childFramesByParent: ChildFramesByParent = new Map();
+
+  for (const frameId of context.frames) {
+    const parentId = context.parentByFrame.get(frameId);
+    if (!parentId) continue;
+
+    const session = parentSession(page, context.parentByFrame, frameId);
+    if (!session) continue;
+
+    try {
+      const { backendNodeId } = await session.send<{ backendNodeId?: number }>(
+        "DOM.getFrameOwner",
+        { frameId },
+      );
+      if (typeof backendNodeId !== "number") continue;
+      const childFrames = childFramesByParent.get(parentId) ?? [];
+      childFrames.push({
+        childFrameId: frameId,
+        hostBackendNodeId: backendNodeId,
+      });
+      childFramesByParent.set(parentId, childFrames);
+    } catch {
+      continue;
+    }
+  }
+
+  return childFramesByParent;
 }
 
 function makeIsIgnoredBackendNode(
