@@ -1,0 +1,273 @@
+name: Manual Evals
+
+on:
+  workflow_dispatch:
+    inputs:
+      eval_suite:
+        description: Eval suite to run.
+        required: true
+        type: choice
+        options:
+          - agent
+          - all
+          - external_agent_benchmarks
+      external_benchmark:
+        description: External agent benchmark to run when eval_suite is external_agent_benchmarks.
+        required: false
+        default: webvoyager
+        type: choice
+        options:
+          - webvoyager
+          - onlineMind2Web
+          - webtailbench
+      model:
+        description: Provider-qualified model name, for example openai/gpt-5.4-mini.
+        required: true
+        type: string
+      agent_mode:
+        description: Agent mode for agent evals. Auto lets the eval runner infer the mode from the model.
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - dom
+          - hybrid
+          - cua
+      trials:
+        description: Number of trials per eval.
+        required: false
+        default: 1
+        type: number
+      concurrency:
+        description: Maximum eval concurrency.
+        required: false
+        default: 50
+        type: number
+
+permissions:
+  contents: read
+
+env:
+  BROWSERBASE_FLOW_LOGS: "1"
+  LLM_MAX_MS: "15000"
+  BROWSERBASE_REGION_DISTRIBUTION: "us-west-2=30,us-east-1=30,eu-central-1=20,ap-southeast-1=20"
+  PUPPETEER_SKIP_DOWNLOAD: "1"
+  PLAYWRIGHT_SKIP_DOWNLOAD: "1"
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  prepare:
+    name: Prepare Eval Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - id: matrix
+        name: Build eval matrix
+        shell: bash
+        env:
+          EVAL_SUITE: ${{ inputs.eval_suite }}
+          EXTERNAL_BENCHMARK: ${{ inputs.external_benchmark }}
+        run: |
+          set -euo pipefail
+
+          case "$EVAL_SUITE" in
+            agent)
+              matrix='[{"target":"agent","label":"agent","safe_target":"agent"}]'
+              ;;
+            all)
+              matrix='[
+                {"target":"act","label":"act","safe_target":"act"},
+                {"target":"extract","label":"extract","safe_target":"extract"},
+                {"target":"observe","label":"observe","safe_target":"observe"}
+              ]'
+              ;;
+            external_agent_benchmarks)
+              case "$EXTERNAL_BENCHMARK" in
+                webvoyager|onlineMind2Web|webtailbench)
+                  ;;
+                *)
+                  echo "Unsupported external benchmark: $EXTERNAL_BENCHMARK" >&2
+                  exit 1
+                  ;;
+              esac
+
+              matrix=$(jq -nc \
+                --arg target "agent/${EXTERNAL_BENCHMARK}" \
+                --arg label "external-agent-benchmark-${EXTERNAL_BENCHMARK}" \
+                --arg safe_target "agent-${EXTERNAL_BENCHMARK}" \
+                '[{target: $target, label: $label, safe_target: $safe_target}]')
+              ;;
+            *)
+              echo "Unsupported eval suite: $EVAL_SUITE" >&2
+              exit 1
+              ;;
+          esac
+
+          matrix=$(jq -c . <<< "$matrix")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  run-build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+          node-version: 20.x
+
+      - name: Run Build
+        run: pnpm exec turbo run build
+
+      - name: Save Turbo cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'turbo.json') }}-${{ github.sha }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          include-hidden-files: true
+          path: |
+            package.json
+            packages/core/dist/**
+            packages/core/lib/version.ts
+            packages/core/lib/dom/build/**
+            packages/core/lib/v3/dom/build/**
+            packages/cli/dist/**
+            packages/evals/dist/**
+          retention-days: 1
+
+  run-evals:
+    name: evals/${{ matrix.label }}
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - run-build
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      STAGEHAND_BROWSER_TARGET: browserbase
+      STAGEHAND_SERVER_TARGET: local
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
+          node-version: 20.x
+
+      - name: Select Browserbase region
+        uses: ./.github/actions/select-browserbase-region
+        with:
+          distribution: ${{ env.BROWSERBASE_REGION_DISTRIBUTION }}
+
+      - name: Run Evals - ${{ matrix.label }}
+        id: run-evals
+        env:
+          NODE_V8_COVERAGE: coverage/manual-evals/${{ matrix.safe_target }}
+          EVAL_TARGET: ${{ matrix.target }}
+          EVAL_MODEL: ${{ inputs.model }}
+          EVAL_TRIALS: ${{ inputs.trials }}
+          EVAL_CONCURRENCY: ${{ inputs.concurrency }}
+          EVAL_AGENT_MODE: ${{ inputs.agent_mode }}
+        shell: bash
+        run: |
+          set +e
+
+          agent_mode_args=()
+          if [[ -n "${EVAL_AGENT_MODE:-}" && "$EVAL_AGENT_MODE" != "auto" ]]; then
+            agent_mode_args=(--agent-mode "$EVAL_AGENT_MODE")
+          fi
+
+          pnpm exec turbo run test:evals --only --filter=@browserbasehq/stagehand-evals -- \
+            run "$EVAL_TARGET" \
+            -e browserbase \
+            -t "$EVAL_TRIALS" \
+            -c "$EVAL_CONCURRENCY" \
+            -m "$EVAL_MODEL" \
+            "${agent_mode_args[@]}"
+          eval_status=$?
+          set -e
+
+          if [ -f eval-summary.json ]; then
+            {
+              echo "summary_text<<EOF"
+              jq -r '
+                "Experiment: \(.experimentName)",
+                "Passed: \(.passed | length)",
+                "Failed: \(.failed | length)",
+                "Braintrust scores:",
+                ((.scores // {}) | to_entries[] | "  \(.key): \((.value.score * 100))%"),
+                "Category scores:",
+                (.categories | to_entries[] | "  \(.key): \(.value)%")
+              ' eval-summary.json
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+          exit "$eval_status"
+
+      - name: Log Evals Performance - ${{ matrix.label }}
+        if: always()
+        env:
+          EVAL_STDOUT_SUMMARY: ${{ steps.run-evals.outputs.summary_text }}
+        shell: bash
+        run: |
+          if [ -n "${EVAL_STDOUT_SUMMARY:-}" ]; then
+            echo "### Evals Summary (${{ matrix.label }})" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' "$EVAL_STDOUT_SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ ! -f eval-summary.json ]; then
+            echo "Eval summary not found for ${{ matrix.label }}. Failing workflow."
+            exit 1
+          fi
+
+          experimentUrl=$(jq -r '.experimentUrl // empty' eval-summary.json)
+          if [ -n "$experimentUrl" ]; then
+            echo "View results at ${experimentUrl}"
+          else
+            experimentName=$(jq -r '.experimentName' eval-summary.json)
+            echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
+          fi
+
+          primary_score=$(jq -r '(.scores["Exact match"].score // .scores["Pass"].score // empty)' eval-summary.json)
+          if [ -n "$primary_score" ]; then
+            primary_score_percent=$(jq -rn --arg score "$primary_score" '$score | tonumber * 100')
+            printf '${{ matrix.label }} Braintrust score: %.2f%%\n' "$primary_score_percent"
+          else
+            echo "Braintrust primary score not found in eval summary."
+          fi
+
+      - uses: ./.github/actions/upload-ctrf-report
+        if: always()
+        with:
+          name: ctrf/manual-evals/${{ matrix.safe_target }}.json
+          path: ctrf/evals/${{ matrix.safe_target }}.json
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage/manual-evals/${{ matrix.safe_target }}
+          path: coverage/manual-evals/${{ matrix.safe_target }}
