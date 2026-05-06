@@ -9,7 +9,15 @@ import type { EvalLogger } from "../logger.js";
 import { getRepoRootDir } from "../runtimePaths.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { prepareCoreBrowserTarget } from "../core/targets/index.js";
-import { CdpConnection, type CdpEventMessage } from "../core/tools/cdp_code.js";
+import {
+  CdpConnection,
+  type CdpConnectionLike,
+  type CdpEventMessage,
+} from "../core/tools/cdp_code.js";
+import {
+  ModCdpConnection,
+  type ModCDPClientLike,
+} from "../core/tools/modcdp_code.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 
 export interface ClaudeCodeToolAdapterInput {
@@ -135,6 +143,12 @@ type CdpRuntime = {
   wait(ms: number): Promise<void>;
 };
 
+type ModCdpRuntime = CdpRuntime & {
+  readonly client: ModCDPClientLike;
+  readonly Mod: unknown;
+  readonly Custom: unknown;
+};
+
 export interface BrowseCliToolMetadata {
   toolCommand: "browse";
   browseCliEntrypoint: string;
@@ -186,9 +200,15 @@ export async function prepareClaudeCodeToolAdapter(
         toolSurface,
         startupProfile,
       });
+    case "modcdp_code":
+      return prepareModCdpCodeAdapter({
+        ...input,
+        toolSurface,
+        startupProfile,
+      });
     default:
       throw new EvalsError(
-        `Claude Code harness supports --tool browse_cli, playwright_code, or cdp_code for execution right now; received "${toolSurface}".`,
+        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, or modcdp_code for execution right now; received "${toolSurface}".`,
       );
   }
 }
@@ -200,12 +220,13 @@ export function resolveClaudeCodeToolSurface(
   if (
     requested === "browse_cli" ||
     requested === "playwright_code" ||
-    requested === "cdp_code"
+    requested === "cdp_code" ||
+    requested === "modcdp_code"
   ) {
     return requested;
   }
   throw new EvalsError(
-    `Claude Code harness supports --tool browse_cli, playwright_code, or cdp_code for execution right now; received "${requested}".`,
+    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, or modcdp_code for execution right now; received "${requested}".`,
   );
 }
 
@@ -221,7 +242,11 @@ export function resolveClaudeCodeStartupProfile(
       ? "tool_create_browserbase"
       : "tool_launch_local";
   }
-  if (toolSurface === "playwright_code" || toolSurface === "cdp_code") {
+  if (
+    toolSurface === "playwright_code" ||
+    toolSurface === "cdp_code" ||
+    toolSurface === "modcdp_code"
+  ) {
     return environment === "BROWSERBASE"
       ? "runner_provided_browserbase_cdp"
       : "runner_provided_local_cdp";
@@ -579,6 +604,121 @@ async function prepareCdpCodeAdapter(
   }
 }
 
+async function prepareModCdpCodeAdapter(
+  input: ClaudeCodeToolAdapterInput & {
+    toolSurface: "modcdp_code";
+    startupProfile: StartupProfile;
+  },
+): Promise<PreparedClaudeCodeToolAdapter> {
+  if (
+    input.startupProfile !== "runner_provided_local_cdp" &&
+    input.startupProfile !== "runner_provided_browserbase_cdp"
+  ) {
+    throw new EvalsError(
+      `modcdp_code startup profile "${input.startupProfile}" is not valid for Claude Code. Use runner_provided_local_cdp or runner_provided_browserbase_cdp.`,
+    );
+  }
+
+  const cwd = await fsp.mkdtemp(
+    path.join(os.tmpdir(), "stagehand-evals-claude-modcdp-"),
+  );
+  const env = { ...process.env } as Record<string, string>;
+  let connection: ModCdpConnection | undefined;
+  let targetCleanup: () => Promise<void> = async () => {};
+
+  try {
+    const target = await prepareCoreBrowserTarget({
+      environment: input.environment,
+      toolSurface: "modcdp_code",
+      startupProfile: input.startupProfile,
+    });
+    targetCleanup = target.cleanup;
+    if (!target.providedEndpoint?.url) {
+      throw new EvalsError(
+        `modcdp_code requires a runner-provided CDP endpoint for startup profile "${input.startupProfile}".`,
+      );
+    }
+
+    connection = await ModCdpConnection.connect(target.providedEndpoint);
+    const activePage = await attachActiveCdpPage(connection);
+    const mcpServers = await buildModCdpRunMcpServers({
+      connection,
+      activePage,
+      plan: input.plan,
+      logger: input.logger,
+    });
+
+    input.logger.log({
+      category: "claude_code",
+      message: `Initialized modcdp_code browser runtime for Claude Code run tool.`,
+      level: 1,
+      auxiliary: {
+        startupProfile: {
+          value: input.startupProfile,
+          type: "string",
+        },
+        environment: {
+          value: input.environment,
+          type: "string",
+        },
+        targetId: {
+          value: activePage.targetId,
+          type: "string",
+        },
+        sessionId: {
+          value: activePage.sessionId,
+          type: "string",
+        },
+        ...(target.metadata && {
+          targetMetadata: {
+            value: JSON.stringify(target.metadata),
+            type: "object",
+          },
+        }),
+      },
+    });
+
+    return {
+      toolSurface: "modcdp_code",
+      startupProfile: input.startupProfile,
+      cwd,
+      env,
+      allowedTools: ["Bash", RUN_TOOL_NAME],
+      settingSources: [],
+      mcpServers,
+      canUseTool: async (toolName, commandInput) => {
+        if (toolName === RUN_TOOL_NAME || toolName === "Bash") {
+          return { behavior: "allow", updatedInput: commandInput };
+        }
+        return {
+          behavior: "deny",
+          message: `Use Bash for inspection and ${RUN_TOOL_NAME} for ModCDP browser automation.`,
+        };
+      },
+      promptInstructions: buildModCdpCodePromptInstructions(input.plan),
+      cleanup: async () => {
+        try {
+          await connection?.close();
+        } catch {
+          // best-effort only
+        } finally {
+          await targetCleanup();
+          await fsp.rm(cwd, { recursive: true, force: true });
+        }
+      },
+    };
+  } catch (error) {
+    try {
+      await connection?.close();
+    } catch {
+      // best-effort only
+    }
+    await targetCleanup();
+    await fsp.rm(cwd, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 async function buildPlaywrightRunMcpServers(input: {
   browser: Browser;
   context: BrowserContext;
@@ -701,7 +841,7 @@ async function executePlaywrightSnippet(input: {
 }
 
 async function buildCdpRunMcpServers(input: {
-  connection: CdpConnection;
+  connection: CdpConnectionLike;
   activePage: ActiveCdpPage;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
@@ -749,7 +889,7 @@ async function buildCdpRunMcpServers(input: {
 
 async function executeCdpRunTool(input: {
   code: string;
-  connection: CdpConnection;
+  connection: CdpConnectionLike;
   activePage: ActiveCdpPage;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
@@ -784,7 +924,7 @@ async function executeCdpRunTool(input: {
 
 async function executeCdpSnippet(input: {
   code: string;
-  connection: CdpConnection;
+  connection: CdpConnectionLike;
   activePage: ActiveCdpPage;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
@@ -813,8 +953,123 @@ async function executeCdpSnippet(input: {
   );
 }
 
+async function buildModCdpRunMcpServers(input: {
+  connection: ModCdpConnection;
+  activePage: ActiveCdpPage;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<Record<string, unknown>> {
+  const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as {
+    createSdkMcpServer: SdkMcpServerFactory;
+    tool: SdkToolFactory;
+  };
+
+  const runTool = sdk.tool(
+    "run",
+    [
+      "Execute JavaScript against the initialized ModCDP browser client.",
+      "The snippet runs inside an async function with modcdp, z, startUrl, task, and console in scope.",
+      "Use await directly. Return a JSON-serializable value when useful.",
+    ].join(" "),
+    {
+      code: z
+        .string()
+        .describe(
+          "JavaScript function body to execute. modcdp/z/startUrl/task are already in scope.",
+        ),
+    },
+    async ({ code }) => {
+      return executeModCdpRunTool({
+        code,
+        connection: input.connection,
+        activePage: input.activePage,
+        plan: input.plan,
+        logger: input.logger,
+      });
+    },
+    { alwaysLoad: true },
+  );
+
+  return {
+    [RUN_TOOL_SERVER]: sdk.createSdkMcpServer({
+      name: RUN_TOOL_SERVER,
+      version: "1.0.0",
+      tools: [runTool],
+      alwaysLoad: true,
+    }),
+  };
+}
+
+async function executeModCdpRunTool(input: {
+  code: string;
+  connection: ModCdpConnection;
+  activePage: ActiveCdpPage;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<ClaudeToolResult> {
+  try {
+    const result = await withTimeout(
+      executeModCdpSnippet(input),
+      readPositiveIntEnv("EVAL_CLAUDE_CODE_RUN_TOOL_TIMEOUT_MS", 60_000),
+    );
+    const text = stringifyToolResult(result);
+    input.logger.log({
+      category: "claude_code",
+      message: `run tool completed: ${clip(text, 500)}`,
+      level: 1,
+    });
+    return {
+      content: [{ type: "text", text }],
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    input.logger.warn({
+      category: "claude_code",
+      message: `run tool failed: ${message}`,
+      level: 1,
+    });
+    return {
+      isError: true,
+      content: [{ type: "text", text: message }],
+    };
+  }
+}
+
+async function executeModCdpSnippet(input: {
+  code: string;
+  connection: ModCdpConnection;
+  activePage: ActiveCdpPage;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<unknown> {
+  const AsyncFunction = Object.getPrototypeOf(async function () {})
+    .constructor as new (
+    ...args: string[]
+  ) => (...values: unknown[]) => Promise<unknown>;
+  const fn = new AsyncFunction(
+    "modcdp",
+    "z",
+    "startUrl",
+    "task",
+    "console",
+    input.code,
+  );
+  return fn(
+    buildModCdpRuntime(input.connection, input.activePage, input.logger),
+    z,
+    input.plan.startUrl,
+    {
+      dataset: input.plan.dataset,
+      id: input.plan.taskId,
+      startUrl: input.plan.startUrl,
+      instruction: input.plan.instruction,
+    },
+    buildRunToolConsole(input.logger),
+  );
+}
+
 function buildCdpRuntime(
-  connection: CdpConnection,
+  connection: CdpConnectionLike,
   activePage: ActiveCdpPage,
   logger: EvalLogger,
 ): CdpRuntime {
@@ -900,8 +1155,22 @@ function buildCdpRuntime(
   };
 }
 
+function buildModCdpRuntime(
+  connection: ModCdpConnection,
+  activePage: ActiveCdpPage,
+  logger: EvalLogger,
+): ModCdpRuntime {
+  const client = connection.client;
+  return {
+    ...buildCdpRuntime(connection, activePage, logger),
+    client,
+    Mod: client.Mod,
+    Custom: client.Custom,
+  };
+}
+
 function onCdpEvent(
-  connection: CdpConnection,
+  connection: CdpConnectionLike,
   sessionId: string,
   method: string,
   listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
@@ -936,7 +1205,7 @@ function onCdpEvent(
 }
 
 async function attachActiveCdpPage(
-  connection: CdpConnection,
+  connection: CdpConnectionLike,
 ): Promise<ActiveCdpPage> {
   const targets = await connection.send<{
     targetInfos: Array<{
@@ -982,7 +1251,7 @@ async function attachActiveCdpPage(
 }
 
 export function waitForCdpEvent(
-  connection: CdpConnection,
+  connection: CdpConnectionLike,
   sessionId: string,
   method: string,
   timeoutMs: number,
@@ -1057,6 +1326,88 @@ function buildCdpCodePromptInstructions(plan: ExternalHarnessTaskPlan): string {
     "Use cdp.send(method, params) for page-scoped CDP commands and cdp.browser(method, params) for browser-level commands.",
     "Helpers available: cdp.on(method, listener), cdp.once(method), cdp.waitForEvent(method, timeoutMs), cdp.wait(ms), cdp.targetId, cdp.sessionId.",
     'The first browser action should usually be: const loaded = cdp.waitForEvent("Page.loadEventFired"); await cdp.send("Page.navigate", { url: startUrl }); await loaded.',
+    "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
+    "Do not edit repository files.",
+    "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+  ].join("\n");
+}
+
+function buildModCdpCodePromptInstructions(
+  plan: ExternalHarnessTaskPlan,
+): string {
+  void plan;
+  return [
+    "Browser tool surface: modcdp_code.",
+    `Use the ${RUN_TOOL_NAME} tool for browser automation. It exposes an initialized modcdp object, startUrl, and task object.`,
+    "modcdp.client is the typed ModCDPClient. modcdp.Mod is the generated Mod.* command surface and modcdp.Custom is the generated Custom.* command surface.",
+    "z from Zod is available for ModCDP command/event schemas.",
+    "Use modcdp.send(method, params) for page-scoped CDP commands and modcdp.browser(method, params) for browser-level CDP commands.",
+    "Helpers available: modcdp.on(method, listener), modcdp.once(method), modcdp.waitForEvent(method, timeoutMs), modcdp.wait(ms), modcdp.targetId, modcdp.sessionId.",
+    "ModCDP primitive 1: Mod.evaluate evaluates an expression through the extended CDP protocol, with chrome.* and a cdp bridge available.",
+    "ModCDP primitive 2: Mod.addCustomCommand extends CDP with a Custom.* method that can be called like any other protocol command.",
+    "ModCDP primitive 3: Mod.addCustomEvent extends CDP with a Custom.* event that can be emitted and listened for like any other protocol event.",
+    "ModCDP primitive 4: Mod.addMiddleware modifies CDP requests, responses, or events by exact name, wildcard prefix, or *.",
+    "ModCDP string-form examples:",
+    [
+      "```js",
+      "// Use it like a normal CDP connection: send normal CDP and register for normal CDP events.",
+      'console.log(await modcdp.browser("Browser.getVersion"));',
+      'modcdp.on("Target.targetInfoChanged", console.log);',
+      "",
+      "// Evaluate with chrome.* and a cdp bridge available.",
+      'const tab = await modcdp.send("Mod.evaluate", {',
+      '  expression: "(await chrome.tabs.query({ active: true }))[0]",',
+      "});",
+      "",
+      "// Extend CDP with a Custom.* command, then call it with send().",
+      'await modcdp.send("Mod.addCustomCommand", {',
+      '  name: "Custom.tabIdFromTargetId",',
+      "  paramsSchema: { targetId: modcdp.client.types.zod.Target.TargetID },",
+      "  resultSchema: { tabId: z.number().nullable() },",
+      "  expression: `async ({ targetId }) => ({",
+      "    tabId: (await chrome.debugger.getTargets()).find(t => t.id === targetId)?.tabId ?? null",
+      "  })`,",
+      "});",
+      'const { targetInfos } = await modcdp.browser("Target.getTargets");',
+      'const pageTarget = targetInfos.find((targetInfo) => targetInfo.type === "page");',
+      'console.log(await modcdp.send("Custom.tabIdFromTargetId", { targetId: pageTarget.targetId }));',
+      "",
+      "// Extend CDP with a Custom.* event, then listen for it with on().",
+      'await modcdp.send("Mod.addCustomEvent", {',
+      '  name: "Page.foregroundPageChanged",',
+      "  eventSchema: {",
+      "    targetId: modcdp.client.types.zod.Target.TargetID.nullable(),",
+      "    tabId: z.number(),",
+      "  },",
+      "});",
+      'await modcdp.send("Mod.evaluate", {',
+      "  expression: `chrome.tabs.onActivated.addListener(async ({ tabId }) =>",
+      '    cdp.emit("Page.foregroundPageChanged", {',
+      "      tabId,",
+      "      targetId: (await chrome.debugger.getTargets()).find(t => t.tabId === tabId)?.id ?? null",
+      "    })",
+      "  )`,",
+      "});",
+      'modcdp.on("Page.foregroundPageChanged", console.log);',
+      "",
+      "// Modify existing CDP command results on the wire.",
+      'await modcdp.send("Mod.addMiddleware", {',
+      '  name: "Target.getTargets",',
+      '  phase: "response",',
+      "  expression: `async (payload, next) => {",
+      "    for (const targetInfo of payload.targetInfos) {",
+      '      const { tabId } = await cdp.send("Custom.tabIdFromTargetId", {',
+      "        targetId: targetInfo.targetId,",
+      "      });",
+      "      targetInfo.tabId = tabId;",
+      "    }",
+      "    return next(payload);",
+      "  }`,",
+      "});",
+      'console.log(await modcdp.browser("Target.getTargets"));',
+      "```",
+    ].join("\n"),
+    'The first browser action should usually be: const loaded = modcdp.waitForEvent("Page.loadEventFired"); await modcdp.send("Page.navigate", { url: startUrl }); await loaded.',
     "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
     "Do not edit repository files.",
     "Return useful JSON-serializable values from run snippets so you can inspect progress.",

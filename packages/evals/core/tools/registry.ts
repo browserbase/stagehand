@@ -2,6 +2,7 @@ import type { CoreTool, ToolSurface } from "../contracts/tool.js";
 import { BrowseCliTool } from "./browse_cli.js";
 import { CdpCodeTool } from "./cdp_code.js";
 import { ChromeDevtoolsMcpTool } from "./chrome_devtools_mcp.js";
+import { ModCdpCodeTool } from "./modcdp_code.js";
 import { PlaywrightCodeTool } from "./playwright_code.js";
 import { PlaywrightMcpTool } from "./playwright_mcp.js";
 import { UnderstudyCodeTool } from "./understudy_code.js";
@@ -11,6 +12,7 @@ export function listCoreTools(): ToolSurface[] {
     "understudy_code",
     "playwright_code",
     "cdp_code",
+    "modcdp_code",
     "playwright_mcp",
     "chrome_devtools_mcp",
     "browse_cli",
@@ -25,6 +27,8 @@ export function getCoreTool(toolSurface: ToolSurface): CoreTool {
       return new PlaywrightCodeTool();
     case "cdp_code":
       return new CdpCodeTool();
+    case "modcdp_code":
+      return new ModCdpCodeTool();
     case "playwright_mcp":
       return new PlaywrightMcpTool();
     case "chrome_devtools_mcp":

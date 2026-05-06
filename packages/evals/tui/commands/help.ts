@@ -79,7 +79,7 @@ export function printRunHelp(): void {
     "",
     row(
       `${cyan("--tool")} ${dim("<surface>")}`,
-      `Core tool surface ${gray("(understudy_code, playwright_code, ...)")}`,
+      `Core tool surface ${gray("(understudy_code, playwright_code, cdp_code, modcdp_code, ...)")}`,
     ),
     row(`${cyan("--startup")} ${dim("<profile>")}`, "Core startup profile"),
     "",
@@ -200,7 +200,7 @@ export function printConfigHelp(): void {
     ),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, modcdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
     "",
     `  ${bold("Examples:")}`,
     "",
