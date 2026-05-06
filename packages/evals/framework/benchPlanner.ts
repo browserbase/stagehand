@@ -97,7 +97,9 @@ export function resolveBenchModelEntries(
     effectiveCategory === "agent" ||
     effectiveCategory === "external_agent_benchmarks";
   const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
-  const requestedAgentModes = isStagehandAgentHarness(harness)
+  const usesStagehandHarness =
+    harness === "stagehand_v3" || harness === "stagehand_v4";
+  const requestedAgentModes = usesStagehandHarness
     ? resolveRequestedAgentModes(options)
     : undefined;
 
@@ -106,7 +108,7 @@ export function resolveBenchModelEntries(
       isAgentCategory && requestedAgentModes
         ? requestedAgentModes
         : [
-            isStagehandAgentHarness(harness)
+            usesStagehandHarness
               ? resolveAgentModeForModel(options.modelOverride)
               : "hybrid",
           ];
@@ -346,7 +348,7 @@ function buildBenchHarnessConfig(input: {
   startupProfile?: StartupProfile;
   dataset?: string;
 }): BenchHarnessConfig {
-  if (isStagehandAgentHarness(input.harness)) {
+  if (input.harness === "stagehand_v3" || input.harness === "stagehand_v4") {
     return {
       harness: input.harness,
       model: input.model,
@@ -388,6 +390,9 @@ export function generateBenchTestcases(
     modelEntries,
   );
   const allTestcases = [...suiteTestcases.testcases];
+  const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
+  const usesStagehandHarness =
+    harness === "stagehand_v3" || harness === "stagehand_v4";
 
   if (options.harness === "claude_code" || options.harness === "codex") {
     if (suiteTestcases.remainingTasks.length > 0) {
@@ -410,16 +415,16 @@ export function generateBenchTestcases(
         model,
         options,
         undefined,
-        isAgentCategory && rowUsesStagehand(options)
+        isAgentCategory && usesStagehandHarness
           ? entry.mode === "cua"
           : undefined,
-        isAgentCategory && rowUsesStagehand(options)
+        isAgentCategory && usesStagehandHarness
           ? (options.agentMode ?? entry.mode)
           : undefined,
       );
       const agentMode = row.agentMode;
       const includeStagehandAgentMode =
-        isAgentCategory && rowUsesStagehand(options) && agentMode;
+        isAgentCategory && usesStagehandHarness && agentMode;
       allTestcases.push({
         input: {
           name: task.name,
@@ -461,14 +466,6 @@ export function generateBenchTestcases(
   return allTestcases;
 }
 
-function rowUsesStagehand(options: Pick<BenchPlanOptions, "harness">): boolean {
-  return isStagehandAgentHarness(options.harness ?? DEFAULT_BENCH_HARNESS);
-}
-
-function isStagehandAgentHarness(harness: Harness): boolean {
-  return harness === "stagehand_v3" || harness === "stagehand_v4";
-}
-
 function resolveBenchRowToolSurface(
   harness: Harness,
   requested?: ToolSurface,
@@ -480,14 +477,14 @@ function resolveBenchRowToolSurface(
     return resolveCodexToolSurface(requested);
   }
   if (harness === "stagehand_v4") {
-    if (requested && requested !== "understudy_v4") {
+    if (requested && requested !== "understudy_v4_code") {
       throw new EvalsError(
         `stagehand_v4 uses the UnderstudyV4Tools surface. Received --tool ${requested}.`,
       );
     }
-    return requested ?? "understudy_v4";
+    return requested ?? "understudy_v4_code";
   }
-  if (harness === "stagehand_v3" && requested === "understudy_v4") {
+  if (harness === "stagehand_v3" && requested === "understudy_v4_code") {
     throw new EvalsError(
       "Use --harness stagehand_v4 for the UnderstudyV4Tools surface.",
     );
@@ -565,7 +562,8 @@ function withBenchMetadata(
   task: DiscoveredTask,
   options: BenchPlanOptions,
 ): Testcase {
-  const isStagehand = rowUsesStagehand(options);
+  const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
+  const isStagehand = harness === "stagehand_v3" || harness === "stagehand_v4";
   const agentMode = isStagehand
     ? (options.agentMode ?? testcase.input.agentMode)
     : undefined;

@@ -73,7 +73,7 @@ export async function executeBenchTask(
         taskModule.definition.fn;
       const ctx = {
         v3: harnessCtx.v3,
-        stagehandV4: harnessCtx.stagehandV4,
+        v4: harnessCtx.v4,
         agent: harnessCtx.agent,
         page: harnessCtx.page,
         logger,
@@ -91,7 +91,7 @@ export async function executeBenchTask(
       return withBenchSessionUrls(
         await taskModule.legacyFn({
           v3: harnessCtx.v3,
-          stagehandV4: harnessCtx.stagehandV4,
+          v4: harnessCtx.v4,
           logger,
           debugUrl: harnessCtx.debugUrl,
           sessionUrl: harnessCtx.sessionUrl,

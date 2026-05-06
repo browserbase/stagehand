@@ -102,7 +102,7 @@ export function printCoreConfig(entryDir: string): void {
 
   console.log(`\n  ${bold("Core configuration:")}\n`);
   console.log(
-    `    ${cyan("tool")}     ${core.tool ?? gray("(runner default: understudy_code)")}`,
+    `    ${cyan("tool")}     ${core.tool ?? gray("(runner default: understudy_v3_code)")}`,
   );
   console.log(
     `    ${cyan("startup")}  ${core.startup ?? gray("(inferred from tool + env)")}`,
@@ -161,7 +161,7 @@ async function setCoreKey(
       console.error(
         red("  Cannot set startup without a tool. Set core.tool first."),
       );
-      console.log(dim(`  Example: evals core config set tool understudy_code`));
+      console.log(dim(`  Example: evals core config set tool understudy_v3_code`));
       process.exitCode = 1;
       return;
     }

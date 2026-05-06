@@ -28,7 +28,7 @@ export interface BenchHarnessContext {
   row: BenchMatrixRow;
   logger: EvalLogger;
   v3?: V3;
-  stagehandV4?: UnderstudyV4NativeRuntime;
+  v4?: UnderstudyV4NativeRuntime;
   agent?: AgentInstance;
   page?: Page;
   debugUrl: string;
