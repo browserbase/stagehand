@@ -10,7 +10,10 @@ import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
 import { endBrowserbaseSession } from "../browserbaseCleanup.js";
 import { EvalsError } from "../errors.js";
 import type { V3InitResult } from "../initV3.js";
-import { startUnderstudyV4Tools, type UnderstudyV4NativeRuntime } from "./UnderstudyV4Tools.js";
+import {
+  startUnderstudyV4Tools,
+  type UnderstudyV4NativeRuntime,
+} from "./UnderstudyV4Tools.js";
 import type {
   BenchHarness,
   BenchHarnessStartInput,
@@ -145,7 +148,10 @@ export const StagehandAgentV4Harness: BenchHarness = {
         await printV4BusLogTree();
         return await closeV3();
       };
-      const v4Page = await installStagehandV4BenchFacade(v3Result.v3, understudyV4Tools.stagehandV4);
+      const v4Page = await installStagehandV4BenchFacade(
+        v3Result.v3,
+        understudyV4Tools.stagehandV4,
+      );
 
       if (createAgent) {
         v3Result.agent = v3Result.v3.agent({
@@ -260,10 +266,20 @@ async function installStagehandV4BenchFacade(
     if (typeof event.targetId === "string") pageState.targetId = event.targetId;
     if (typeof event.url === "string") pageState.url = event.url;
   };
-  stagehandV4.cdp.on("Stagehand.BrowserPageNavigated", updatePageStateFromBrowserEvent);
-  stagehandV4.cdp.on("Stagehand.BrowserPageLoaded", updatePageStateFromBrowserEvent);
+  stagehandV4.cdp.on(
+    "Stagehand.BrowserPageNavigated",
+    updatePageStateFromBrowserEvent,
+  );
+  stagehandV4.cdp.on(
+    "Stagehand.BrowserPageLoaded",
+    updatePageStateFromBrowserEvent,
+  );
 
-  const page = createStagehandV4PageFacade(stagehandV4, pageState, refreshPageInfo);
+  const page = createStagehandV4PageFacade(
+    stagehandV4,
+    pageState,
+    refreshPageInfo,
+  );
   const pages = (): Record<string, unknown>[] => [page];
 
   const context = v3.context as unknown as Record<string, unknown>;
@@ -273,9 +289,14 @@ async function installStagehandV4BenchFacade(
     return page;
   };
 
-  v3.observe = (async (a?: string | Record<string, unknown>, b?: Record<string, unknown>) => {
+  v3.observe = (async (
+    a?: string | Record<string, unknown>,
+    b?: Record<string, unknown>,
+  ) => {
     const instruction = typeof a === "string" ? a : undefined;
-    const options = (typeof a === "string" ? b : a) as Record<string, unknown> | undefined;
+    const options = (typeof a === "string" ? b : a) as
+      | Record<string, unknown>
+      | undefined;
     const result = await stagehandV4.cdp.Stagehand.AIObserve({
       ...(instruction != null ? { instruction } : {}),
       ...selectorParam(options),
@@ -285,7 +306,10 @@ async function installStagehandV4BenchFacade(
     return Array.isArray(observed) ? observed : [];
   }) as V3["observe"];
 
-  v3.act = (async (input: string | Record<string, unknown>, options?: Record<string, unknown>) => {
+  v3.act = (async (
+    input: string | Record<string, unknown>,
+    options?: Record<string, unknown>,
+  ) => {
     const result = await stagehandV4.cdp.Stagehand.AIAct(
       typeof input === "string"
         ? {
@@ -309,7 +333,9 @@ async function installStagehandV4BenchFacade(
   ) => {
     const instruction = typeof a === "string" ? a : undefined;
     const schema = isZodSchema(b) ? z.toJSONSchema(b) : undefined;
-    const options = (typeof a === "string" ? (isZodSchema(b) ? c : b) : a) as Record<string, unknown> | undefined;
+    const options = (typeof a === "string" ? (isZodSchema(b) ? c : b) : a) as
+      | Record<string, unknown>
+      | undefined;
     const result = await stagehandV4.cdp.Stagehand.AIExtract({
       ...(instruction != null ? { instruction } : {}),
       ...(schema != null ? { schema: schema as Record<string, unknown> } : {}),
@@ -342,20 +368,26 @@ function createStagehandV4PageFacade(
         };
         timer = setTimeout(() => {
           stagehandV4.cdp.off("Stagehand.BrowserPageLoaded", onLoaded);
-          reject(new Error("Timed out waiting for Stagehand.BrowserPageLoaded."));
+          reject(
+            new Error("Timed out waiting for Stagehand.BrowserPageLoaded."),
+          );
         }, 30_000);
         stagehandV4.cdp.on("Stagehand.BrowserPageLoaded", onLoaded);
       });
       const [rawResult] = await Promise.all([
         stagehandV4.cdp.Stagehand.BrowserPageGoto({
           url,
-          selector: pageState.targetId != null ? { targetId: pageState.targetId } : { active: true },
+          selector:
+            pageState.targetId != null
+              ? { targetId: pageState.targetId }
+              : { active: true },
         }),
         loaded,
       ]);
       const result = unwrapStagehandV4Result(rawResult);
       if (isRecord(result)) {
-        if (typeof result.targetId === "string") pageState.targetId = result.targetId;
+        if (typeof result.targetId === "string")
+          pageState.targetId = result.targetId;
         if (typeof result.url === "string") pageState.url = result.url;
       }
       await refreshPageInfo();
@@ -374,15 +406,16 @@ function createStagehandV4PageFacade(
     },
     async waitForLoadState() {
       await new Promise<void>((resolve, reject) => {
-        let timer: ReturnType<typeof setTimeout>;
         const onLoaded = (): void => {
           clearTimeout(timer);
           stagehandV4.cdp.off("Stagehand.BrowserPageLoaded", onLoaded);
           resolve();
         };
-        timer = setTimeout(() => {
+        const timer = setTimeout(() => {
           stagehandV4.cdp.off("Stagehand.BrowserPageLoaded", onLoaded);
-          reject(new Error("Timed out waiting for Stagehand.BrowserPageLoaded."));
+          reject(
+            new Error("Timed out waiting for Stagehand.BrowserPageLoaded."),
+          );
         }, 30_000);
         stagehandV4.cdp.on("Stagehand.BrowserPageLoaded", onLoaded);
       });
@@ -395,7 +428,9 @@ function createStagehandV4PageFacade(
           : String(expressionOrFn);
       const result = unwrapStagehandV4Result(
         await stagehandV4.cdp.Stagehand.BrowserPageEvaluate({
-          ...(pageState.targetId != null ? { targetId: pageState.targetId } : {}),
+          ...(pageState.targetId != null
+            ? { targetId: pageState.targetId }
+            : {}),
           arg: isJsonValue(arg) ? arg : undefined,
           awaitPromise: true,
           expression,
@@ -405,12 +440,16 @@ function createStagehandV4PageFacade(
       return isRecord(result) && "value" in result ? result.value : result;
     },
     locator() {
-      throw new Error("stagehand_v4 evals must use v4 protocol actions instead of v3 page.locator().");
+      throw new Error(
+        "stagehand_v4 evals must use v4 protocol actions instead of v3 page.locator().",
+      );
     },
   };
 }
 
-function normalizeV4Action(action: Record<string, unknown>): Record<string, unknown> {
+function normalizeV4Action(
+  action: Record<string, unknown>,
+): Record<string, unknown> {
   return {
     ...action,
     selector: normalizeV4Selector(action.selector),
@@ -419,26 +458,37 @@ function normalizeV4Action(action: Record<string, unknown>): Record<string, unkn
   };
 }
 
-function selectorParam(options: Record<string, unknown> | undefined): Record<string, unknown> {
+function selectorParam(
+  options: Record<string, unknown> | undefined,
+): Record<string, unknown> {
   const selector = normalizeV4Selector(options?.selector);
   return selector == null ? {} : { selector };
 }
 
-function normalizeV4Selector(value: unknown): Record<string, unknown> | undefined {
+function normalizeV4Selector(
+  value: unknown,
+): Record<string, unknown> | undefined {
   if (value == null) return undefined;
   if (isRecord(value)) return value;
   if (typeof value !== "string" || value.length === 0) return undefined;
-  if (value.startsWith("xpath=")) return { xpath: value.slice("xpath=".length) };
+  if (value.startsWith("xpath="))
+    return { xpath: value.slice("xpath=".length) };
   if (value.startsWith("/") || value.startsWith("(")) return { xpath: value };
   return { css: value };
 }
 
-function workflowOptionsParam(options: Record<string, unknown> | undefined): Record<string, unknown> {
+function workflowOptionsParam(
+  options: Record<string, unknown> | undefined,
+): Record<string, unknown> {
   if (!options) return {};
   const workflowOptions: Record<string, unknown> = {};
-  if (typeof options.timeout === "number") workflowOptions.timeout = options.timeout;
-  if (isJsonValue(options.variables)) workflowOptions.variables = options.variables;
-  return Object.keys(workflowOptions).length === 0 ? {} : { options: workflowOptions };
+  if (typeof options.timeout === "number")
+    workflowOptions.timeout = options.timeout;
+  if (isJsonValue(options.variables))
+    workflowOptions.variables = options.variables;
+  return Object.keys(workflowOptions).length === 0
+    ? {}
+    : { options: workflowOptions };
 }
 
 function unwrapStagehandV4Result(value: unknown): unknown {
@@ -459,7 +509,12 @@ function isZodSchema(value: unknown): value is z.ZodType {
 
 function isJsonValue(value: unknown): boolean {
   if (value == null) return true;
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  )
+    return true;
   if (Array.isArray(value)) return value.every(isJsonValue);
   if (!isRecord(value)) return false;
   return Object.values(value).every(isJsonValue);
