@@ -192,6 +192,77 @@ describe("a11yForFrame", () => {
     expect(resolveAllSpy).toHaveBeenCalledWith(session, ".card", "frame-1");
   });
 
+  it("keeps successful selectAll matches when one describeNode call fails", async () => {
+    const nodes: Protocol.Accessibility.AXNode[] = [
+      {
+        nodeId: "1",
+        role: { type: stringType, value: "RootWebArea" },
+        backendDOMNodeId: 100,
+        childIds: ["2", "3"],
+        ignored: false,
+      },
+      {
+        nodeId: "2",
+        role: { type: stringType, value: "link" },
+        name: { type: stringType, value: "Docs" },
+        backendDOMNodeId: 101,
+        parentId: "1",
+        childIds: [],
+        ignored: false,
+      },
+      {
+        nodeId: "3",
+        role: { type: stringType, value: "link" },
+        name: { type: stringType, value: "Blog" },
+        backendDOMNodeId: 102,
+        parentId: "1",
+        childIds: [],
+        ignored: false,
+      },
+    ];
+    const session = new MockCDPSession({
+      ...baseHandlers,
+      "Accessibility.getFullAXTree": async () => ({ nodes }),
+      "DOM.describeNode": async ({ objectId }) => {
+        if (objectId === "object-2") {
+          throw new Error("stale object");
+        }
+
+        return {
+          node: {
+            backendNodeId: 101,
+          },
+        };
+      },
+    });
+
+    vi.spyOn(focusSelectors, "resolveObjectIdForCss").mockResolvedValue(null);
+    vi.spyOn(focusSelectors, "resolveObjectIdsForCss").mockResolvedValue([
+      "object-1",
+      "object-2",
+    ]);
+
+    const opts: A11yOptions = {
+      focusSelector: ".card",
+      selectAll: true,
+      experimental: false,
+      tagNameMap: { "enc-101": "a", "enc-102": "a" },
+      scrollableMap: {},
+      encode: (backend) => `enc-${backend}`,
+    };
+
+    const result = await a11yForFrame(session, "frame-1", opts);
+
+    expect(result.scopeApplied).toBe(true);
+    expect(result.outline).toContain("Docs");
+    expect(result.outline).not.toContain("Blog");
+    expect(result.outline).not.toContain("RootWebArea");
+    expect(session.callsFor("Runtime.releaseObject")).toEqual([
+      { params: { objectId: "object-1" } },
+      { params: { objectId: "object-2" } },
+    ]);
+  });
+
   it("falls back to full tree when resolveObjectId throws", async () => {
     const session = new MockCDPSession({
       ...baseHandlers,

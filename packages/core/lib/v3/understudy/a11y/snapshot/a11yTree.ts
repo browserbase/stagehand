@@ -73,14 +73,22 @@ export async function a11yForFrame(
       const targetBackendNodeIds = new Set<number>();
 
       for (const objectId of objectIds) {
-        const desc = await session.send<{ node?: { backendNodeId?: number } }>(
-          "DOM.describeNode",
-          { objectId },
-        );
+        try {
+          const desc = await session.send<{
+            node?: { backendNodeId?: number };
+          }>("DOM.describeNode", { objectId });
 
-        const backendNodeId = desc.node?.backendNodeId;
-        if (typeof backendNodeId === "number") {
-          targetBackendNodeIds.add(backendNodeId);
+          const backendNodeId = desc.node?.backendNodeId;
+          if (typeof backendNodeId === "number") {
+            targetBackendNodeIds.add(backendNodeId);
+          }
+        } catch {
+          // Keep any successfully resolved matches instead of falling back to an
+          // unscoped tree because one candidate object went stale.
+        } finally {
+          await session
+            .send("Runtime.releaseObject", { objectId })
+            .catch(() => {});
         }
       }
 
