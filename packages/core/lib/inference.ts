@@ -262,7 +262,7 @@ export async function observe({
             .string()
             .regex(/^\d+-\d+$/)
             .describe(
-              "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'.",
+              "the exact ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'. For example, if the accessibility tree shows [0-18372], return '0-18372', not '18372'.",
             ),
           description: z
             .string()

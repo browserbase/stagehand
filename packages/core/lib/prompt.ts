@@ -137,7 +137,9 @@ You will be given:
 2. a hierarchical accessibility tree showing the semantic structure of the page. The tree is a hybrid of the DOM and the accessibility tree.
 
 Return an array of elements that match the instruction if they exist, otherwise return an empty array.
-When returning elements, include the appropriate method from the supported actions list.${actionsString}${variablesString}. When choosing non-left click actions, provide right or middle as the argument.`;
+When returning elements, include the appropriate method from the supported actions list.${actionsString}${variablesString}. When choosing non-left click actions, provide right or middle as the argument.
+
+Each element in the accessibility tree has an ID in square brackets, like [0-18372]. The ID has two parts: frame ordinal and backend node ID. Always copy the complete ID exactly as shown inside the brackets into elementId, including the frame ordinal and hyphen. For example, if the tree shows [0-18372], return elementId "0-18372"; never return only "18372".`;
   const content = observeSystemPrompt.replace(/\s+/g, " ");
 
   return {
