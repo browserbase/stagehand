@@ -2292,4 +2292,3 @@ servers:
 security:
   - BrowserbaseApiKey: []
     BrowserbaseProjectId: []
-    ModelApiKey: []
