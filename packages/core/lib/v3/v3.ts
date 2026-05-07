@@ -1516,6 +1516,7 @@ export class V3 {
         variables: options?.variables,
         timeout: options?.timeout,
         selector: options?.selector,
+        ignoreSelectors: options?.ignoreSelectors,
         page: page!,
       };
 
@@ -1537,6 +1538,8 @@ export class V3 {
         {
           instruction,
           variables: options?.variables,
+          selector: options?.selector,
+          ignoreSelectors: options?.ignoreSelectors,
           timeout: options?.timeout,
         },
         results,

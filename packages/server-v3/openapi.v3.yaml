@@ -685,6 +685,16 @@ components:
           description: CSS selector to scope observation to a specific element
           example: nav
           type: string
+        ignoreSelectors:
+          description: Selectors for elements and subtrees that should be excluded from
+            observation
+          example:
+            - nav
+            - .cookie-banner
+            - "#sidebar-ads"
+          type: array
+          items:
+            type: string
     ObserveRequest:
       type: object
       properties:
@@ -1661,6 +1671,16 @@ components:
           description: CSS selector to scope observation to a specific element
           example: nav
           type: string
+        ignoreSelectors:
+          description: Selectors for elements and subtrees that should be excluded from
+            observation
+          example:
+            - nav
+            - .cookie-banner
+            - "#sidebar-ads"
+          type: array
+          items:
+            type: string
       additionalProperties: false
     ObserveResultOutput:
       type: object

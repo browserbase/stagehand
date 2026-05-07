@@ -27,6 +27,7 @@ export interface ObserveHandlerParams {
   variables?: Variables;
   timeout?: number;
   selector?: string;
+  ignoreSelectors?: string[];
   page: Page;
 }
 

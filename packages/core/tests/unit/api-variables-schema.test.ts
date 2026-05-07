@@ -30,10 +30,16 @@ describe("API variable schemas", () => {
           },
           rememberMe: true,
         },
+        ignoreSelectors: [".cookie-banner", "#sidebar-ads"],
       },
     });
 
     expect(result.success).toBe(true);
+    if (!result.success) throw result.error;
+    expect(result.data.options?.ignoreSelectors).toEqual([
+      ".cookie-banner",
+      "#sidebar-ads",
+    ]);
   });
 
   it("preserves variables for agent execute requests", () => {

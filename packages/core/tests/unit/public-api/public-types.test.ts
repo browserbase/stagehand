@@ -168,6 +168,7 @@ describe("Stagehand public API types", () => {
       variables?: Stagehand.Variables;
       timeout?: number;
       selector?: string;
+      ignoreSelectors?: string[];
       page?: Stagehand.AnyPage;
       serverCache?: boolean;
     };
