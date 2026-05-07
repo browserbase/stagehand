@@ -862,7 +862,8 @@ components:
           example: 30000
           type: number
         variables:
-          description: Variables available to the agent via %variableName% syntax in supported tools
+          description: Variables available to the agent via %variableName% syntax in
+            supported tools
           $ref: "#/components/schemas/Variables"
       required:
         - instruction
@@ -1798,7 +1799,8 @@ components:
           example: 30000
           type: number
         variables:
-          description: Variables available to the agent via %variableName% syntax in supported tools
+          description: Variables available to the agent via %variableName% syntax in
+            supported tools
           $ref: "#/components/schemas/Variables"
       required:
         - instruction
