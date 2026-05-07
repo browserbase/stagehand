@@ -154,6 +154,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       case "-h":
         process.stdout.write(`${usage()}\n`);
         process.exit(0);
+        break;
       case "--experiment":
         experiment = requireValue(args, arg);
         break;
