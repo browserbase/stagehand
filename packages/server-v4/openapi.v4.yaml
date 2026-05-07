@@ -33,7 +33,8 @@ components:
       type: apiKey
       in: header
       name: x-bb-project-id
-      description: Browserbase project ID
+      description: Deprecated. Browserbase API keys are now project-scoped, so this
+        header is no longer required.
     ModelApiKey:
       type: apiKey
       in: header
@@ -832,6 +833,9 @@ components:
       type: object
       properties:
         projectId:
+          deprecated: true
+          description: Deprecated. Browserbase API keys are now project-scoped, so this
+            field is no longer required.
           type: string
         browserSettings:
           $ref: "#/components/schemas/BrowserbaseBrowserSettings"
@@ -6448,6 +6452,9 @@ components:
       type: object
       properties:
         projectId:
+          deprecated: true
+          description: Deprecated. Browserbase API keys are now project-scoped, so this
+            field is no longer required.
           type: string
         browserSettings:
           $ref: "#/components/schemas/BrowserbaseBrowserSettingsOutput"
