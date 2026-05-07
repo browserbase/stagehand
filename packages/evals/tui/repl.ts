@@ -113,10 +113,11 @@ export async function startRepl(entryDir: string): Promise<void> {
     const tokens = tokenize(trimmed);
     const command = tokens[0].toLowerCase();
     const args = tokens.slice(1);
-    // `help` as the leading positional is an alias for `--help` so it stays
-    // consistent across every command (`run help` ≡ `run --help`).
+    // Help is only triggered when `--help`/`-h`/`help` sits immediately
+    // after the command. Later positions are arguments or flag values and
+    // must not be swallowed.
     const wantsHelp =
-      args.includes("--help") || args.includes("-h") || args[0] === "help";
+      args[0] === "--help" || args[0] === "-h" || args[0] === "help";
 
     try {
       switch (command) {

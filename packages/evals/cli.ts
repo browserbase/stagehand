@@ -158,12 +158,12 @@ const args = process.argv.slice(2);
 
     const command = args[0].toLowerCase();
     const subArgs = args.slice(1);
-    // `help` as the leading positional is an alias for `--help` so it stays
-    // consistent across every command (`evals run help` ≡ `evals run --help`).
+    // Help is only triggered when `--help`/`-h`/`help` sits immediately
+    // after the command. Later positions are arguments or flag values and
+    // must not be swallowed (e.g. `evals run act --help` would otherwise
+    // print run help instead of erroring on the unknown `--help` flag).
     const wantsHelp =
-      subArgs.includes("--help") ||
-      subArgs.includes("-h") ||
-      subArgs[0] === "help";
+      subArgs[0] === "--help" || subArgs[0] === "-h" || subArgs[0] === "help";
 
     switch (command) {
       case "run": {

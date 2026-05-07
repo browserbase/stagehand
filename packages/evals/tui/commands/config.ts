@@ -173,12 +173,11 @@ export async function handleConfig(
     return;
   }
 
-  // Per-sub `--help`/`-h`/`help` falls back to the top-level config help
-  // (which already documents every leaf subcommand). Core has its own help
-  // and is handled above. We only treat `help` as a help indicator when it's
-  // the verb's first argument — leaf values like `set provider help` aren't
-  // intercepted.
-  if (args.includes("--help") || args.includes("-h") || args[1] === "help") {
+  // Per-sub help. We only intercept when the help token is at args[1] —
+  // immediately after the verb — so leaf values at args[2+] (e.g.
+  // `set model --help`) are never swallowed as help and reach `parseValue`
+  // unchanged. Core has its own help and is handled above.
+  if (args[1] === "--help" || args[1] === "-h" || args[1] === "help") {
     const { printConfigHelp } = await import("./help.js");
     printConfigHelp();
     return;

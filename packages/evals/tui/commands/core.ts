@@ -46,9 +46,9 @@ export async function handleCore(
     return;
   }
 
-  // Per-sub `--help`/`-h`/`help` (as verb's first argument) → core help.
-  // Leaf values like `set tool help` are not intercepted.
-  if (args.includes("--help") || args.includes("-h") || args[1] === "help") {
+  // Per-sub help. Only intercepted at args[1] (immediately after the verb)
+  // so leaf values like `set tool --help` aren't swallowed as help.
+  if (args[1] === "--help" || args[1] === "-h" || args[1] === "help") {
     const { printConfigCoreHelp } = await import("./help.js");
     printConfigCoreHelp();
     return;

@@ -141,6 +141,22 @@ describe("CLI entrypoint", () => {
     },
   );
 
+  // Regression: help interception must not reach into value positions.
+  // `config set <key> <value>` must surface a parse/value error, not silently
+  // print help — otherwise `--help` would be a magical sentinel anywhere.
+  it("does not swallow `--help` as a value in `config set`", async () => {
+    const { stdout, stderr, code } = await runCli([
+      "config",
+      "set",
+      "trials",
+      "--help",
+    ]);
+    expect(code).toBe(1);
+    const output = stdout + stderr;
+    expect(output).not.toContain("Commands:");
+    expect(output).toContain("trials must be a positive integer");
+  });
+
   it("exports resolved bench flags into env overrides during dry-run", async () => {
     const { stdout, code } = await runCli([
       "run",

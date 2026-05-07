@@ -75,13 +75,11 @@ export async function handleExperiments(args: string[]): Promise<void> {
     return;
   }
 
-  // `help` as the leading positional after a verb is treated as a help
-  // request (`experiments list help` ≡ `experiments list --help`). Leaf
-  // values like `experiments show help` (an experiment literally named
-  // "help") would also intercept — but no such experiment exists, and the
-  // consistent surface is worth the trade.
+  // Help is only intercepted at rest[0] — immediately after the verb — so
+  // leaf positionals (e.g. a second experiment id in `compare a b --help`)
+  // and option values are never swallowed as help.
   const wantsSubHelp =
-    rest.includes("-h") || rest.includes("--help") || rest[0] === "help";
+    rest[0] === "--help" || rest[0] === "-h" || rest[0] === "help";
 
   switch (subcommand) {
     case "list": {
