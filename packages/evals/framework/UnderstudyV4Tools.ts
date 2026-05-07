@@ -187,6 +187,11 @@ export async function startUnderstudyV4Tools(input: {
     message: `Connected v4 tools at ${ready.cdpUrl}`,
     level: 1,
   });
+  input.logger.log({
+    category: "understudy_v4_code",
+    message: `v4 stagehand_session_id=${ready.stagehand_session_id ?? "unknown"}`,
+    level: 1,
+  });
   const callCommand = (name: string, args: Record<string, unknown>) =>
     callBridge(child, pending, nextId++, "command", name, args);
   const callTool = (name: string, args: Record<string, unknown>) =>
@@ -579,7 +584,6 @@ function understudyV4ClientOptions(
     };
   }
   return {
-    rebuild_extension: false,
     local_browser_launch_options: {
       headless: process.env.EVAL_HEADLESS !== "false",
       ...(process.env.CHROME_PATH

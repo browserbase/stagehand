@@ -50,7 +50,23 @@ type StagehandV4PageState = {
   title: string;
   url: string;
   loadState?: StagehandV4LoadState;
+  frames: StagehandV4FrameState[];
 };
+
+type StagehandV4FrameState = {
+  frameId: string;
+  targetId?: string;
+  url?: string;
+};
+
+type StagehandV4HistoryEntry = {
+  method: string;
+  parameters: unknown;
+  result: unknown;
+  timestamp: string;
+};
+
+const STAGEHAND_V4_PAGE_STATE = Symbol("stagehand_v4_page_state");
 
 function isAgentTask(task: BenchHarnessStartInput["task"]): boolean {
   return (
@@ -180,6 +196,7 @@ export const StagehandAgentV4Harness: BenchHarness = {
       const v4Page = await installStagehandV4BenchFacade(
         v3Result.v3,
         understudyV4Tools.stagehandV4,
+        input.modelName,
       );
 
       if (createAgent) {
@@ -266,11 +283,28 @@ function buildStagehandAgentV4SystemPrompt(
 async function installStagehandV4BenchFacade(
   v3: V3,
   stagehandV4: UnderstudyV4NativeRuntime,
+  modelName: string,
 ): Promise<Record<string, unknown>> {
   const pageState: StagehandV4PageState = {
+    frames: [],
     title: "",
     url: "about:blank",
   };
+  const history: StagehandV4HistoryEntry[] = [];
+  const recordHistory = (
+    method: string,
+    parameters: unknown,
+    result: unknown,
+  ): void => {
+    history.push({
+      method,
+      parameters,
+      result,
+      timestamp: new Date().toISOString(),
+    });
+  };
+  const pageCache = new Map<string, Record<string | symbol, unknown>>();
+  const pageOrder: string[] = [];
 
   const refreshPageInfo = async (): Promise<void> => {
     const info = unwrapStagehandV4Result(
@@ -282,39 +316,95 @@ async function installStagehandV4BenchFacade(
     if (typeof info.targetId === "string") pageState.targetId = info.targetId;
     if (typeof info.title === "string") pageState.title = info.title;
     if (typeof info.url === "string") pageState.url = info.url;
+    if (info.loadState != null)
+      pageState.loadState = normalizeStagehandV4LoadState(info.loadState);
+    await refreshFrameStates(stagehandV4, pageState).catch(() => {});
+  };
+
+  const refreshPages = async (): Promise<Record<string, unknown>[]> => {
+    const rawPages = unwrapStagehandV4Result(
+      await stagehandV4.cdp.Stagehand.BrowserRequestTabList({}),
+    );
+    const pages = Array.isArray(rawPages)
+      ? rawPages.filter((page): page is Record<string, unknown> =>
+          isRecord(page),
+        )
+      : [];
+    for (const pageInfo of pages) {
+      const targetId =
+        typeof pageInfo.targetId === "string" ? pageInfo.targetId : null;
+      if (targetId == null) continue;
+      if (!pageOrder.includes(targetId)) pageOrder.push(targetId);
+      let facade = pageCache.get(targetId);
+      if (facade == null) {
+        const state: StagehandV4PageState = {
+          frames: [],
+          targetId,
+          title: "",
+          url: "about:blank",
+        };
+        facade = createStagehandV4PageFacade(
+          stagehandV4,
+          state,
+          async () => {
+            await refreshSinglePageInfo(stagehandV4, state);
+          },
+          recordHistory,
+        );
+        pageCache.set(targetId, facade);
+      }
+      const state = facade[STAGEHAND_V4_PAGE_STATE];
+      if (!isStagehandV4PageState(state)) continue;
+      state.targetId = targetId;
+      state.title =
+        typeof pageInfo.title === "string" ? pageInfo.title : state.title;
+      state.url = typeof pageInfo.url === "string" ? pageInfo.url : state.url;
+      await refreshFrameStates(stagehandV4, state).catch(() => {});
+    }
+    return pageOrder
+      .map((targetId) => pageCache.get(targetId))
+      .filter((page): page is Record<string, unknown> => page != null);
   };
 
   await refreshPageInfo().catch(() => {});
-
-  const updatePageStateFromBrowserEvent = (event: unknown): void => {
-    updatePageStateFromStagehandV4Event(pageState, event);
-  };
-  const updatePageStateFromNavigationEvent = (event: unknown): void => {
-    updatePageStateFromStagehandV4Event(pageState, event);
-    pageState.loadState = "init";
-  };
-  stagehandV4.cdp.on(
-    "Stagehand.BrowserPageNavigated",
-    updatePageStateFromNavigationEvent,
-  );
-  stagehandV4.cdp.on(
-    "Stagehand.BrowserPageLoadStateChanged",
-    updatePageStateFromBrowserEvent,
-  );
+  await refreshPages().catch(() => {});
 
   const page = createStagehandV4PageFacade(
     stagehandV4,
     pageState,
     refreshPageInfo,
+    recordHistory,
   );
-  const pages = (): Record<string, unknown>[] => [page];
+  if (pageState.targetId != null) {
+    if (!pageOrder.includes(pageState.targetId))
+      pageOrder.push(pageState.targetId);
+    pageCache.set(pageState.targetId, page);
+  }
+  const pages = (): Record<string, unknown>[] => {
+    const cached = pageOrder
+      .map((targetId) => pageCache.get(targetId))
+      .filter((entry): entry is Record<string, unknown> => entry != null);
+    return cached.length > 0 ? cached : [page];
+  };
 
   const context = v3.context as unknown as Record<string, unknown>;
   context.pages = pages;
   context.awaitActivePage = async () => {
+    await refreshPages().catch(() => {});
+    const activePage = unwrapStagehandV4Result(
+      await stagehandV4.cdp.Stagehand.BrowserRequestActivePage({}),
+    );
+    if (isRecord(activePage) && typeof activePage.targetId === "string") {
+      const cached = pageCache.get(activePage.targetId);
+      if (cached != null) return cached;
+    }
     await refreshPageInfo();
     return page;
   };
+  Object.defineProperty(v3, "history", {
+    configurable: true,
+    get: () => Promise.resolve([...history]),
+  });
 
   v3.observe = (async (
     a?: string | Record<string, unknown>,
@@ -327,29 +417,48 @@ async function installStagehandV4BenchFacade(
     const result = await stagehandV4.cdp.Stagehand.AIObserve({
       ...(instruction != null ? { instruction } : {}),
       ...selectorParam(options),
-      ...workflowOptionsParam(options),
+      ...workflowOptionsParam(options, modelName),
     });
     const observed = unwrapStagehandV4Result(result);
-    return Array.isArray(observed) ? observed : [];
+    const output = Array.isArray(observed) ? observed : [];
+    recordHistory("observe", { instruction, options }, output);
+    return output;
   }) as V3["observe"];
 
   v3.act = (async (
     input: string | Record<string, unknown>,
     options?: Record<string, unknown>,
   ) => {
+    const workflowOptions = workflowOptionsParam(options, modelName);
     const result = await stagehandV4.cdp.Stagehand.AIAct(
       typeof input === "string"
         ? {
             instruction: input,
-            ...workflowOptionsParam(options),
+            ...selectorParam(options),
+            ...workflowOptions,
           }
         : {
             action: normalizeV4Action(input),
-            ...workflowOptionsParam(options),
+            ...selectorParam(options),
+            ...workflowOptions,
+            options: {
+              ...(isRecord(workflowOptions.options)
+                ? workflowOptions.options
+                : {}),
+              selfHeal: true,
+            },
           },
     );
     const unwrapped = unwrapStagehandV4Result(result);
     await refreshPageInfo().catch(() => {});
+    await refreshPages().catch(() => {});
+    recordHistory(
+      "act",
+      typeof input === "string"
+        ? { instruction: input, options }
+        : { action: input, options },
+      unwrapped,
+    );
     return unwrapped;
   }) as V3["act"];
 
@@ -363,7 +472,7 @@ async function installStagehandV4BenchFacade(
     const options = (typeof a === "string" ? (isZodSchema(b) ? c : b) : a) as
       | Record<string, unknown>
       | undefined;
-    if (schema == null) {
+    if (instruction == null && schema == null) {
       const summary = unwrapStagehandV4Result(
         await stagehandV4.cdp.Stagehand.BrowserPageDOMSummary({
           ...selectorParam(options),
@@ -373,15 +482,17 @@ async function installStagehandV4BenchFacade(
         isRecord(summary) && typeof summary.pageText === "string"
           ? summary.pageText
           : "";
-      return { extraction: pageText, pageText };
+      return { pageText, extraction: pageText };
     }
     const result = await stagehandV4.cdp.Stagehand.AIExtract({
       ...(instruction != null ? { instruction } : {}),
       ...(schema != null ? { schema: schema as Record<string, unknown> } : {}),
       ...selectorParam(options),
-      ...workflowOptionsParam(options),
+      ...workflowOptionsParam(options, modelName),
     });
-    return unwrapStagehandV4Result(result);
+    const extracted = unwrapStagehandV4Result(result);
+    recordHistory("extract", { instruction, schema, options }, extracted);
+    return extracted;
   }) as V3["extract"];
 
   return page;
@@ -391,30 +502,32 @@ function createStagehandV4PageFacade(
   stagehandV4: UnderstudyV4NativeRuntime,
   pageState: StagehandV4PageState,
   refreshPageInfo: () => Promise<void>,
+  recordHistory?: (
+    method: string,
+    parameters: unknown,
+    result: unknown,
+  ) => void,
 ): Record<string, unknown> {
   return {
+    [STAGEHAND_V4_PAGE_STATE]: pageState,
     async goto(url: string, options?: unknown) {
       pageState.loadState = "init";
-      const loaded = waitForStagehandV4LoadState(
-        stagehandV4,
-        pageState,
+      const selector =
+        pageState.targetId != null
+          ? { targetId: pageState.targetId }
+          : { active: true };
+      if (!("targetId" in selector)) {
+        delete pageState.targetId;
+      }
+      const waitUntil =
         isRecord(options) && "waitUntil" in options
           ? options.waitUntil
-          : undefined,
-        loadStateTimeoutMs(options),
-        false,
-      );
-      const [rawResult] = await Promise.all([
-        stagehandV4.cdp.Stagehand.BrowserPageGoto({
-          url,
-          selector:
-            pageState.targetId != null &&
-            !isInternalStagehandV4PageUrl(pageState.url)
-              ? { targetId: pageState.targetId }
-              : { active: false },
-        }),
-        loaded,
-      ]);
+          : undefined;
+      const rawResult = await stagehandV4.cdp.Stagehand.BrowserPageGoto({
+        url,
+        selector,
+        waitUntil: normalizeStagehandV4LoadState(waitUntil),
+      });
       const result = unwrapStagehandV4Result(rawResult);
       if (isRecord(result)) {
         if (typeof result.targetId === "string")
@@ -422,11 +535,13 @@ function createStagehandV4PageFacade(
         if (typeof result.url === "string") pageState.url = result.url;
       }
       await refreshPageInfo();
-      return {
+      const response = {
         ok: () => true,
         status: () => 200,
         url: () => pageState.url,
       };
+      recordHistory?.("navigate", { url, options }, result);
+      return response;
     },
     url() {
       return pageState.url;
@@ -435,13 +550,17 @@ function createStagehandV4PageFacade(
       await refreshPageInfo();
       return pageState.title;
     },
+    frames() {
+      return pageState.frames.map((frameState) =>
+        createStagehandV4FrameFacade(stagehandV4, frameState),
+      );
+    },
     async waitForLoadState(state?: unknown, options?: unknown) {
       await waitForStagehandV4LoadState(
         stagehandV4,
         pageState,
         state,
         loadStateTimeoutMs(options),
-        true,
       );
       await refreshPageInfo();
     },
@@ -470,6 +589,36 @@ function createStagehandV4PageFacade(
       return createStagehandV4FrameLocatorFacade(stagehandV4, pageState, [
         selector,
       ]);
+    },
+  };
+}
+
+function createStagehandV4FrameFacade(
+  stagehandV4: UnderstudyV4NativeRuntime,
+  frameState: StagehandV4FrameState,
+): Record<string, unknown> {
+  return {
+    async evaluate(expressionOrFn: unknown, arg?: unknown) {
+      const expression =
+        typeof expressionOrFn === "function"
+          ? `(${expressionOrFn.toString()})(...${JSON.stringify(arg === undefined ? [] : [arg])})`
+          : String(expressionOrFn);
+      const result = unwrapStagehandV4Result(
+        await stagehandV4.cdp.Stagehand.BrowserPageEvaluate({
+          ...(frameState.targetId != null
+            ? { targetId: frameState.targetId }
+            : {}),
+          arg: isJsonValue(arg) ? arg : undefined,
+          awaitPromise: true,
+          expression,
+          frameId: frameState.frameId,
+          returnByValue: true,
+        }),
+      );
+      return isRecord(result) && "value" in result ? result.value : result;
+    },
+    url() {
+      return frameState.url ?? "about:blank";
     },
   };
 }
@@ -494,11 +643,11 @@ function createStagehandV4FrameLocatorFacade(
         typeof expressionOrFn === "function"
           ? `(${expressionOrFn.toString()})(...${JSON.stringify(arg === undefined ? [] : [arg])})`
           : String(expressionOrFn);
-      if (frameSelectors.length > 0) {
-        throw new Error(
-          "stagehand_v4 frameLocator.evaluate is not implemented by the v4 protocol-backed eval facade yet.",
-        );
-      }
+      const frameId = await resolveStagehandV4FrameLocator(
+        stagehandV4,
+        pageState,
+        frameSelectors,
+      );
       const result = unwrapStagehandV4Result(
         await stagehandV4.cdp.Stagehand.BrowserPageEvaluate({
           ...(pageState.targetId != null
@@ -507,6 +656,7 @@ function createStagehandV4FrameLocatorFacade(
           arg: isJsonValue(arg) ? arg : undefined,
           awaitPromise: true,
           expression,
+          ...(frameId != null ? { frameId } : {}),
           returnByValue: true,
         }),
       );
@@ -519,12 +669,23 @@ function createStagehandV4LocatorFacade(
   stagehandV4: UnderstudyV4NativeRuntime,
   pageState: StagehandV4PageState,
   selector: unknown,
+  frameSelectors: unknown[] = [],
 ): Record<string, unknown> {
   const read = async () =>
-    await requestStagehandV4ElementInfo(stagehandV4, pageState, selector);
+    await requestStagehandV4ElementInfo(
+      stagehandV4,
+      pageState,
+      selector,
+      frameSelectors,
+    );
   return {
     first() {
-      return createStagehandV4LocatorFacade(stagehandV4, pageState, selector);
+      return createStagehandV4LocatorFacade(
+        stagehandV4,
+        pageState,
+        selector,
+        frameSelectors,
+      );
     },
     async inputValue() {
       return (await read()).inputValue ?? "";
@@ -547,7 +708,12 @@ function createStagehandV4LocatorFacade(
     },
     async click() {
       await stagehandV4.cdp.Stagehand.BrowserPageClick({
-        selector: stagehandV4SelectorFor(pageState, selector),
+        selector: await stagehandV4SelectorFor(
+          stagehandV4,
+          pageState,
+          selector,
+          frameSelectors,
+        ),
       });
     },
     async backendNodeId() {
@@ -560,6 +726,7 @@ async function requestStagehandV4ElementInfo(
   stagehandV4: UnderstudyV4NativeRuntime,
   pageState: StagehandV4PageState,
   selector: unknown,
+  frameSelectors: unknown[] = [],
 ): Promise<{
   backendNodeId: number;
   checked?: boolean | null;
@@ -570,7 +737,12 @@ async function requestStagehandV4ElementInfo(
 }> {
   const result = unwrapStagehandV4Result(
     await stagehandV4.cdp.Stagehand.BrowserPageRequestElementInfo({
-      selector: stagehandV4SelectorFor(pageState, selector),
+      selector: await stagehandV4SelectorFor(
+        stagehandV4,
+        pageState,
+        selector,
+        frameSelectors,
+      ),
     }),
   );
   if (isRecord(result) && typeof result.backendNodeId === "number") {
@@ -586,14 +758,165 @@ async function requestStagehandV4ElementInfo(
   throw new Error("stagehand_v4 locator could not resolve element info.");
 }
 
-function stagehandV4SelectorFor(
+async function refreshSinglePageInfo(
+  stagehandV4: UnderstudyV4NativeRuntime,
+  pageState: StagehandV4PageState,
+): Promise<void> {
+  const info = unwrapStagehandV4Result(
+    await stagehandV4.cdp.Stagehand.BrowserPageRequestInfo({
+      ...(pageState.targetId != null ? { targetId: pageState.targetId } : {}),
+    }),
+  );
+  if (!isRecord(info)) return;
+  if (typeof info.targetId === "string") pageState.targetId = info.targetId;
+  if (typeof info.title === "string") pageState.title = info.title;
+  if (typeof info.url === "string") pageState.url = info.url;
+  if (info.loadState != null)
+    pageState.loadState = normalizeStagehandV4LoadState(info.loadState);
+  await refreshFrameStates(stagehandV4, pageState);
+}
+
+async function refreshFrameStates(
+  stagehandV4: UnderstudyV4NativeRuntime,
+  pageState: StagehandV4PageState,
+): Promise<void> {
+  if (pageState.targetId == null || isInternalStagehandV4PageUrl(pageState.url))
+    return;
+  const rawFrameTree = unwrapStagehandV4Result(
+    await stagehandV4.cdp.Stagehand.BrowserPageRequestFullFrameTree({
+      targetId: pageState.targetId,
+    }),
+  );
+  if (!isRecord(rawFrameTree) || !isRecord(rawFrameTree.frameTree)) return;
+  const frames: StagehandV4FrameState[] = [];
+  collectStagehandV4Frames(rawFrameTree.frameTree, pageState.targetId, frames);
+  pageState.frames = frames;
+}
+
+function collectStagehandV4Frames(
+  frameTree: Record<string, unknown>,
+  targetId: string,
+  frames: StagehandV4FrameState[],
+): void {
+  const frame = isRecord(frameTree.frame) ? frameTree.frame : null;
+  if (frame != null && typeof frame.id === "string") {
+    frames.push({
+      frameId: frame.id,
+      targetId,
+      url: typeof frame.url === "string" ? frame.url : undefined,
+    });
+  }
+  const childFrames = Array.isArray(frameTree.childFrames)
+    ? frameTree.childFrames
+    : [];
+  for (const childFrame of childFrames) {
+    if (isRecord(childFrame)) {
+      collectStagehandV4Frames(childFrame, targetId, frames);
+    }
+  }
+}
+
+async function stagehandV4SelectorFor(
+  stagehandV4: UnderstudyV4NativeRuntime,
   pageState: StagehandV4PageState,
   selector: unknown,
-): Record<string, unknown> {
+  frameSelectors: unknown[] = [],
+): Promise<Record<string, unknown>> {
+  if (pageState.targetId == null) {
+    await refreshSinglePageInfo(stagehandV4, pageState).catch(() => {});
+  }
+  const frameId = await resolveStagehandV4FrameLocator(
+    stagehandV4,
+    pageState,
+    frameSelectors,
+  );
   return {
     ...normalizeV4Selector(selector),
     ...(pageState.targetId != null ? { targetId: pageState.targetId } : {}),
+    ...(frameId != null ? { frameId } : {}),
   };
+}
+
+async function resolveStagehandV4FrameLocator(
+  stagehandV4: UnderstudyV4NativeRuntime,
+  pageState: StagehandV4PageState,
+  frameSelectors: unknown[],
+): Promise<string | undefined> {
+  if (frameSelectors.length === 0) return undefined;
+  if (pageState.targetId == null) {
+    await refreshSinglePageInfo(stagehandV4, pageState).catch(() => {});
+  }
+  let frameId: string | undefined;
+  for (const frameSelector of frameSelectors) {
+    const selector = {
+      ...normalizeV4Selector(frameSelector),
+      ...(pageState.targetId != null ? { targetId: pageState.targetId } : {}),
+      ...(frameId != null ? { frameId } : {}),
+    };
+    const located = unwrapStagehandV4Result(
+      await stagehandV4.cdp.Stagehand.BrowserPageLocate({ selector }).catch(
+        (error: unknown): never => {
+          throw new Error(
+            `stagehand_v4 frameLocator could not locate ${JSON.stringify(selector)}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        },
+      ),
+    );
+    if (!isRecord(located)) {
+      throw new Error(
+        "stagehand_v4 frameLocator could not resolve iframe selector.",
+      );
+    }
+    const summary = unwrapStagehandV4Result(
+      await stagehandV4.cdp.Stagehand.BrowserPageDOMSummary({
+        hydrate: { ax: false },
+        selector: {
+          ...(pageState.targetId != null
+            ? { targetId: pageState.targetId }
+            : {}),
+        },
+      }),
+    );
+    frameId = childFrameIdForLocatedFrameOwner(summary, located);
+  }
+  return frameId;
+}
+
+function childFrameIdForLocatedFrameOwner(
+  summary: unknown,
+  located: Record<string, unknown>,
+): string {
+  const frameGraph = isRecord(summary) ? summary.frameGraph : null;
+  if (!isRecord(frameGraph) || !isRecord(frameGraph.ownerChainByFrameId)) {
+    throw new Error(
+      "stagehand_v4 frameLocator could not read the frame graph.",
+    );
+  }
+  const backendNodeId =
+    typeof located.backendNodeId === "number" ? located.backendNodeId : null;
+  const ownerFrameId =
+    typeof located.frameId === "string" ? located.frameId : null;
+  if (backendNodeId == null || ownerFrameId == null) {
+    throw new Error(
+      "stagehand_v4 frameLocator resolved selector without a frame owner.",
+    );
+  }
+  for (const [candidateFrameId, chain] of Object.entries(
+    frameGraph.ownerChainByFrameId,
+  )) {
+    if (!Array.isArray(chain)) continue;
+    const owner = chain.at(-1);
+    if (
+      isRecord(owner) &&
+      owner.backendNodeId === backendNodeId &&
+      owner.frameId === ownerFrameId
+    ) {
+      return candidateFrameId;
+    }
+  }
+  throw new Error("stagehand_v4 frameLocator could not find a child frame.");
 }
 
 async function waitForStagehandV4LoadState(
@@ -601,94 +924,33 @@ async function waitForStagehandV4LoadState(
   pageState: StagehandV4PageState,
   state: unknown,
   timeoutMs: number,
-  acceptCurrentState: boolean,
 ): Promise<void> {
   const expectedState = normalizeStagehandV4LoadState(state);
-  if (
-    acceptCurrentState &&
-    pageState.loadState != null &&
-    STAGEHAND_V4_LOAD_STATE_ORDER[pageState.loadState] >=
-      STAGEHAND_V4_LOAD_STATE_ORDER[expectedState]
-  ) {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const onLoadStateChanged = (event: unknown): void => {
-      const eventTargetId = targetIdFromStagehandV4Event(event);
-      if (
-        eventTargetId != null &&
-        pageState.targetId != null &&
-        eventTargetId !== pageState.targetId
-      ) {
-        return;
-      }
-      updatePageStateFromStagehandV4Event(pageState, event);
-      if (
-        pageState.loadState != null &&
-        STAGEHAND_V4_LOAD_STATE_ORDER[pageState.loadState] >=
-          STAGEHAND_V4_LOAD_STATE_ORDER[expectedState]
-      ) {
-        clearTimeout(timer);
-        stagehandV4.cdp.off(
-          "Stagehand.BrowserPageLoadStateChanged",
-          onLoadStateChanged,
-        );
-        resolve();
-      }
-    };
-    const timer = setTimeout(() => {
-      stagehandV4.cdp.off(
-        "Stagehand.BrowserPageLoadStateChanged",
-        onLoadStateChanged,
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    await refreshSinglePageInfo(stagehandV4, pageState).catch(() => {});
+    if (
+      pageState.loadState != null &&
+      STAGEHAND_V4_LOAD_STATE_ORDER[pageState.loadState] >=
+        STAGEHAND_V4_LOAD_STATE_ORDER[expectedState]
+    ) {
+      return;
+    }
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      throw new Error(
+        `Timed out waiting for stagehand_v4 page loadState=${expectedState}.`,
       );
-      reject(
-        new Error(
-          `Timed out waiting for Stagehand.BrowserPageLoadStateChanged(${expectedState}).`,
-        ),
-      );
-    }, timeoutMs);
-    stagehandV4.cdp.on(
-      "Stagehand.BrowserPageLoadStateChanged",
-      onLoadStateChanged,
+    }
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(100, remainingMs)),
     );
-  });
-}
-
-function updatePageStateFromStagehandV4Event(
-  pageState: StagehandV4PageState,
-  event: unknown,
-): void {
-  if (!isRecord(event)) return;
-  const targetId = targetIdFromStagehandV4Event(event);
-  if (
-    targetId != null &&
-    pageState.targetId != null &&
-    targetId !== pageState.targetId
-  ) {
-    return;
   }
-  if (targetId != null) pageState.targetId = targetId;
-  if (typeof event.url === "string") pageState.url = event.url;
-  if (isRecord(event.selector) && typeof event.selector.url === "string") {
-    pageState.url = event.selector.url;
-  }
-  if (isStagehandV4LoadState(event.loadState)) {
-    pageState.loadState = event.loadState;
-  }
-}
-
-function targetIdFromStagehandV4Event(event: unknown): string | undefined {
-  if (!isRecord(event)) return undefined;
-  if (typeof event.targetId === "string") return event.targetId;
-  if (isRecord(event.selector) && typeof event.selector.targetId === "string") {
-    return event.selector.targetId;
-  }
-  return undefined;
 }
 
 function normalizeStagehandV4LoadState(state: unknown): StagehandV4LoadState {
   if (state == null || state === "load" || state === "loaded") return "loaded";
+  if (state === "networkalmostidle") return "networkidle2";
   if (isStagehandV4LoadState(state)) return state;
   throw new Error(`Unsupported stagehand_v4 waitForLoadState state: ${state}`);
 }
@@ -727,7 +989,9 @@ function normalizeV4Action(
       (value): value is string => typeof value === "string",
     );
     const first = positional[0];
-    if (method === "type") {
+    if (method === "fill") {
+      args = { value: first ?? "" };
+    } else if (method === "type") {
       args = { text: first ?? "" };
     } else if (method === "keys") {
       args = { key: first ?? "", method: "press" };
@@ -767,8 +1031,16 @@ function normalizeV4ActionMethod(method: string): string {
 function selectorParam(
   options: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
+  const pageSelector = stagehandV4PageSelector(options?.page);
   const selector = normalizeV4Selector(options?.selector);
-  return selector == null ? {} : { selector };
+  const mergedSelector =
+    pageSelector == null && selector == null
+      ? undefined
+      : {
+          ...(pageSelector ?? {}),
+          ...(selector ?? {}),
+        };
+  return mergedSelector == null ? {} : { selector: mergedSelector };
 }
 
 function normalizeV4Selector(
@@ -780,18 +1052,44 @@ function normalizeV4Selector(
   if (value.startsWith("xpath="))
     return { xpath: value.slice("xpath=".length) };
   if (value.startsWith("/") || value.startsWith("(")) return { xpath: value };
-  return { css: value };
+  return {
+    css: value
+      .split(/\s*>>\s*/u)
+      .filter(Boolean)
+      .join(" "),
+  };
+}
+
+function stagehandV4PageSelector(
+  page: unknown,
+): Record<string, unknown> | undefined {
+  if (page == null) return undefined;
+  const state = (page as Record<symbol, unknown>)[STAGEHAND_V4_PAGE_STATE];
+  if (!isStagehandV4PageState(state) || state.targetId == null)
+    return undefined;
+  return { targetId: state.targetId };
+}
+
+function isStagehandV4PageState(value: unknown): value is StagehandV4PageState {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.frames) &&
+    typeof value.title === "string" &&
+    typeof value.url === "string"
+  );
 }
 
 function workflowOptionsParam(
   options: Record<string, unknown> | undefined,
+  modelName: string,
 ): Record<string, unknown> {
-  if (!options) return {};
-  const workflowOptions: Record<string, unknown> = {};
-  if (typeof options.timeout === "number")
+  const workflowOptions: Record<string, unknown> = { model: modelName };
+  if (typeof options?.timeout === "number")
     workflowOptions.timeout = options.timeout;
-  if (isJsonValue(options.variables))
+  if (options != null && isJsonValue(options.variables))
     workflowOptions.variables = options.variables;
+  if (isRecord(options?.model)) workflowOptions.model = options.model;
+  if (typeof options?.model === "string") workflowOptions.model = options.model;
   return Object.keys(workflowOptions).length === 0
     ? {}
     : { options: workflowOptions };
