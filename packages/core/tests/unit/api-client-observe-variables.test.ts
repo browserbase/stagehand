@@ -75,6 +75,7 @@ describe("StagehandAPIClient variable serialization", () => {
           },
           password: "secret",
         },
+        ignoreSelectors: [".cookie-banner"],
       },
     });
 
@@ -90,6 +91,7 @@ describe("StagehandAPIClient variable serialization", () => {
             },
             password: "secret",
           },
+          ignoreSelectors: [".cookie-banner"],
         },
         frameId: undefined,
       },

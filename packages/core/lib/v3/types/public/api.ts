@@ -589,6 +589,14 @@ export const ObserveOptionsSchema = z
       description: "CSS selector to scope observation to a specific element",
       example: "nav",
     }),
+    ignoreSelectors: z
+      .array(z.string())
+      .optional()
+      .meta({
+        description:
+          "Selectors for elements and subtrees that should be excluded from observation",
+        example: ["nav", ".cookie-banner", "#sidebar-ads"],
+      }),
   })
   .optional()
   .meta({ id: "ObserveOptions" });

@@ -64,7 +64,15 @@ export class ObserveHandler {
   }
 
   async observe(params: ObserveHandlerParams): Promise<Action[]> {
-    const { instruction, page, timeout, selector, model, variables } = params;
+    const {
+      instruction,
+      page,
+      timeout,
+      selector,
+      ignoreSelectors,
+      model,
+      variables,
+    } = params;
 
     const llmClient = this.resolveLlmClient(model);
 
@@ -95,6 +103,7 @@ export class ObserveHandler {
     const snapshot = await captureHybridSnapshot(page, {
       experimental: this.experimental,
       focusSelector: focusSelector || undefined,
+      ignoreSelectors,
     });
 
     const combinedTree = snapshot.combinedTree;

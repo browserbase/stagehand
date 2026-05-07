@@ -958,6 +958,50 @@ describe("No-timeout success paths", () => {
     expect(result[0]?.arguments).toEqual(["%username%"]);
   });
 
+  it("observe() forwards ignoreSelectors to snapshot capture", async () => {
+    const captureHybridSnapshotMock = vi.mocked(captureHybridSnapshot);
+    captureHybridSnapshotMock.mockResolvedValue({
+      combinedTree: "tree content",
+      combinedXpathMap: { "1-0": "/html/body/button" },
+      combinedUrlMap: {},
+    });
+
+    const observeInferenceMock = vi.mocked(observeInference);
+    observeInferenceMock.mockResolvedValue({
+      elements: [
+        {
+          elementId: "1-0",
+          description: "Submit button",
+        },
+      ],
+    } as ReturnType<typeof observeInference> extends Promise<infer T>
+      ? T
+      : never);
+
+    vi.mocked(createTimeoutGuard).mockImplementation(() => {
+      return vi.fn(() => {
+        // No-op - never throws
+      });
+    });
+
+    const handler = buildObserveHandler();
+    const fakePage = {
+      mainFrame: vi.fn().mockReturnValue({}),
+    } as unknown as Page;
+
+    await handler.observe({
+      instruction: "find buttons",
+      ignoreSelectors: [".cookie-banner", "#sidebar-ads"],
+      page: fakePage,
+    });
+
+    expect(captureHybridSnapshotMock).toHaveBeenCalledWith(fakePage, {
+      experimental: false,
+      focusSelector: undefined,
+      ignoreSelectors: [".cookie-banner", "#sidebar-ads"],
+    });
+  });
+
   it("act() with zero timeout behaves as no timeout", async () => {
     const waitForDomNetworkQuietMock = vi.mocked(waitForDomNetworkQuiet);
     waitForDomNetworkQuietMock.mockResolvedValue(undefined);
