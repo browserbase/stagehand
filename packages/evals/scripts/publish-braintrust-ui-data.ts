@@ -52,7 +52,8 @@ type UiDataset = {
 type BenchmarkUpdate = {
   key: string;
   label: string;
-  row: UiBenchmarkRow;
+  experimentId: string;
+  rows: UiBenchmarkRow[];
   summary: {
     passed: number;
     total: number;
@@ -70,6 +71,7 @@ type PublishResult = {
     label: string;
   };
   row: UiBenchmarkRow;
+  rows: UiBenchmarkRow[];
   summary: {
     passed: number;
     total: number;
@@ -84,6 +86,7 @@ const DEFAULT_DATASET_ID = "stagehand-evals";
 const DEFAULT_OUTPUT_PATH = "evals-ui-data.json";
 
 const BENCHMARK_LABELS = new Map<string, string>([
+  ["custom", "Custom"],
   ["gaia", "GAIA"],
   ["onlineMind2Web", "Online Mind2Web"],
   ["online-mind2web", "Online Mind2Web"],
@@ -294,6 +297,17 @@ function benchmarkSource(benchCase: BenchCaseRow): string | undefined {
   );
 }
 
+function isKnownBenchmarkKey(value: string): boolean {
+  return BENCHMARK_LABELS.has(value);
+}
+
+function isPlainAgentRun(cases: BenchCaseRow[]): boolean {
+  return cases.every(
+    (benchCase) =>
+      benchCase.category === "agent" || benchCase.suite.startsWith("agent/"),
+  );
+}
+
 function uniqueValues(values: Array<string | undefined>): string[] {
   return [
     ...new Set(values.filter((value): value is string => Boolean(value))),
@@ -307,6 +321,23 @@ function inferBenchmark(cases: BenchCaseRow[]): { key: string; label: string } {
       .filter((source): source is string => Boolean(source))
       .map((source) => source.trim()),
   );
+
+  const knownKeys = uniqueValues(keys.filter(isKnownBenchmarkKey));
+
+  if (knownKeys.length === 1) {
+    const key = knownKeys[0];
+    return { key, label: BENCHMARK_LABELS.get(key) ?? humanize(key) };
+  }
+
+  if (knownKeys.length > 1) {
+    throw new Error(
+      `Expected one benchmark per Braintrust experiment, found: ${knownKeys.join(", ")}.`,
+    );
+  }
+
+  if (isPlainAgentRun(cases)) {
+    return { key: "custom", label: BENCHMARK_LABELS.get("custom")! };
+  }
 
   if (keys.length === 0) {
     throw new Error(
@@ -386,6 +417,26 @@ function inferModel(cases: BenchCaseRow[]): {
   };
 }
 
+function modelGroupKey(benchCase: BenchCaseRow): string {
+  return [
+    benchCase.model ?? "unknown-model",
+    benchCase.agentMode ?? "default",
+  ].join("\0");
+}
+
+function groupCasesByModel(cases: BenchCaseRow[]): BenchCaseRow[][] {
+  const groups = new Map<string, BenchCaseRow[]>();
+
+  for (const benchCase of cases) {
+    const key = modelGroupKey(benchCase);
+    const group = groups.get(key) ?? [];
+    group.push(benchCase);
+    groups.set(key, group);
+  }
+
+  return [...groups.values()];
+}
+
 function mean(values: number[]): number | undefined {
   if (values.length === 0) return undefined;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -419,24 +470,31 @@ function experimentTimestamp(experiment: ExperimentData): number {
   return Number.isFinite(createdAt) ? createdAt : Date.now();
 }
 
-function toBenchmarkUpdate(experiment: ExperimentData): BenchmarkUpdate {
-  if (experiment.mode !== "bench" || experiment.benchCases.length === 0) {
-    throw new Error(
-      `Experiment "${experiment.experimentName}" is not a benchmark experiment.`,
-    );
-  }
+function rowIdForModelGroup(
+  experimentId: string,
+  groups: BenchCaseRow[][],
+  cases: BenchCaseRow[],
+): string {
+  if (groups.length === 1) return experimentId;
 
-  const benchmark = inferBenchmark(experiment.benchCases);
-  const model = inferModel(experiment.benchCases);
-  const total = experiment.benchCases.length;
-  const passed = experiment.benchCases.filter(
-    (benchCase) => benchCase.success,
-  ).length;
+  const model = cases[0]?.model ?? "unknown-model";
+  const agentMode = cases[0]?.agentMode ?? "default";
+  return `${experimentId}:${slugify(model)}:${slugify(agentMode)}`;
+}
+
+function benchmarkRow(
+  experiment: ExperimentData,
+  cases: BenchCaseRow[],
+  rowId: string,
+): UiBenchmarkRow {
+  const model = inferModel(cases);
+  const total = cases.length;
+  const passed = cases.filter((benchCase) => benchCase.success).length;
   const passPercent = total > 0 ? round((passed / total) * 100) : 0;
-  const durations = experiment.benchCases
+  const durations = cases
     .map((benchCase) => benchCase.durationMs)
     .filter((value): value is number => typeof value === "number");
-  const costs = experiment.benchCases
+  const costs = cases
     .map(caseCost)
     .filter((value): value is number => typeof value === "number");
   const totalCost =
@@ -447,30 +505,55 @@ function toBenchmarkUpdate(experiment: ExperimentData): BenchmarkUpdate {
         )
       : null;
   const agentModes = uniqueValues(
-    experiment.benchCases.map((benchCase) => benchCase.agentMode),
+    cases.map((benchCase) => benchCase.agentMode),
   );
   const agentMode = agentModes.length === 1 ? agentModes[0] : undefined;
 
   return {
+    id: rowId,
+    modelName: model.modelName,
+    provider: model.provider,
+    providerKey: model.providerKey,
+    accuracy: passPercent,
+    speedSeconds:
+      durations.length > 0 ? round((mean(durations) ?? 0) / 1000) : null,
+    costPerTask:
+      totalCost !== null && total > 0 ? round(totalCost / total, 6) : null,
+    totalCost,
+    timestamp: experimentTimestamp(experiment),
+    experimentName: experiment.experimentName,
+    experimentUrl: experiment.experimentUrl,
+    projectName: experiment.projectName,
+    ...(agentMode ? { agentMode } : {}),
+  };
+}
+
+function toBenchmarkUpdate(experiment: ExperimentData): BenchmarkUpdate {
+  if (experiment.mode !== "bench" || experiment.benchCases.length === 0) {
+    throw new Error(
+      `Experiment "${experiment.experimentName}" is not a benchmark experiment.`,
+    );
+  }
+
+  const benchmark = inferBenchmark(experiment.benchCases);
+  const total = experiment.benchCases.length;
+  const passed = experiment.benchCases.filter(
+    (benchCase) => benchCase.success,
+  ).length;
+  const passPercent = total > 0 ? round((passed / total) * 100) : 0;
+  const groups = groupCasesByModel(experiment.benchCases);
+
+  return {
     key: benchmark.key,
     label: benchmark.label,
-    row: {
-      id: experiment.experimentId,
-      modelName: model.modelName,
-      provider: model.provider,
-      providerKey: model.providerKey,
-      accuracy: passPercent,
-      speedSeconds:
-        durations.length > 0 ? round((mean(durations) ?? 0) / 1000) : null,
-      costPerTask:
-        totalCost !== null && total > 0 ? round(totalCost / total, 6) : null,
-      totalCost,
-      timestamp: experimentTimestamp(experiment),
-      experimentName: experiment.experimentName,
-      experimentUrl: experiment.experimentUrl,
-      projectName: experiment.projectName,
-      ...(agentMode ? { agentMode } : {}),
-    },
+    experimentId: experiment.experimentId,
+    rows: groups.map((cases) =>
+      benchmarkRow(
+        experiment,
+        cases,
+        rowIdForModelGroup(experiment.experimentId, groups, cases),
+      ),
+    ),
     summary: {
       passed,
       total,
@@ -574,6 +657,12 @@ function upsertResult(
   datasetId: string,
   timestamp: number,
 ): UiDataset {
+  const updateRowIds = new Set(update.rows.map((row) => row.id));
+  const isUpdatedExperimentRow = (row: UiBenchmarkRow): boolean =>
+    updateRowIds.has(row.id) ||
+    row.id === update.experimentId ||
+    row.id.startsWith(`${update.experimentId}:`);
+
   const dataset: UiDataset = existing
     ? {
         id: existing.id,
@@ -581,7 +670,7 @@ function upsertResult(
         benchmarks: existing.benchmarks.map((benchmark) => ({
           key: benchmark.key,
           label: benchmark.label,
-          rows: benchmark.rows.filter((row) => row.id !== update.row.id),
+          rows: benchmark.rows.filter((row) => !isUpdatedExperimentRow(row)),
         })),
       }
     : { id: datasetId, timestamp, benchmarks: [] };
@@ -595,7 +684,7 @@ function upsertResult(
   }
 
   benchmark.label = update.label;
-  benchmark.rows.push(update.row);
+  benchmark.rows.push(...update.rows);
   dataset.benchmarks = dataset.benchmarks
     .filter((candidate) => candidate.rows.length > 0)
     .map((candidate) => ({
@@ -609,13 +698,13 @@ function upsertResult(
 
 function experimentDataset(update: BenchmarkUpdate): UiDataset {
   return {
-    id: update.row.id,
-    timestamp: update.row.timestamp ?? Date.now(),
+    id: update.experimentId,
+    timestamp: update.rows[0]?.timestamp ?? Date.now(),
     benchmarks: [
       {
         key: update.key,
         label: update.label,
-        rows: [update.row],
+        rows: update.rows,
       },
     ],
   };
@@ -710,7 +799,7 @@ async function main(): Promise<void> {
   ];
 
   if (args.writeExperimentKey) {
-    const experimentKey = `${args.experimentKeyPrefix}:${update.row.id}`;
+    const experimentKey = `${args.experimentKeyPrefix}:${update.experimentId}`;
     keys.push(experimentKey);
     writes.push({ key: experimentKey, value: experimentDataset(update) });
   }
@@ -731,7 +820,8 @@ async function main(): Promise<void> {
       key: update.key,
       label: update.label,
     },
-    row: update.row,
+    row: update.rows[0]!,
+    rows: update.rows,
     summary: update.summary,
   };
 
