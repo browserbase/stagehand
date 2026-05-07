@@ -64,7 +64,6 @@ export async function extract<T extends StagehandZodObject>({
   type MetadataResponse = z.infer<typeof metadataSchema>;
 
   const isUsingAnthropic = llmClient.type === "anthropic";
-  const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
 
   const extractCallMessages: ChatMessage[] = [
     buildExtractSystemPrompt(isUsingAnthropic, userProvidedInstructions),
@@ -95,7 +94,6 @@ export async function extract<T extends StagehandZodObject>({
           schema,
           name: "Extraction",
         },
-        temperature: isGPT5 ? 1 : 0.1,
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
@@ -162,7 +160,6 @@ export async function extract<T extends StagehandZodObject>({
           name: "Metadata",
           schema: metadataSchema,
         },
-        temperature: isGPT5 ? 1 : 0.1,
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
@@ -257,8 +254,6 @@ export async function observe({
   supportedActions?: string[];
   variables?: Variables;
 }) {
-  const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
-
   const observeSchema = z.object({
     elements: z
       .array(
@@ -331,7 +326,6 @@ export async function observe({
         schema: observeSchema,
         name: "Observation",
       },
-      temperature: isGPT5 ? 1 : 0.1,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
@@ -408,8 +402,6 @@ export async function act({
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
 }) {
-  const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
-
   const actSchema = z.object({
     action: z
       .object({
@@ -478,7 +470,6 @@ export async function act({
         schema: actSchema,
         name: "act",
       },
-      temperature: isGPT5 ? 1 : 0.1,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
