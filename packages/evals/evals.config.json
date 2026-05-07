@@ -6,7 +6,7 @@
     "provider": null,
     "model": null,
     "api": false,
-    "verbose": true
+    "verbose": false
   },
   "benchmarks": {
     "webvoyager": {
