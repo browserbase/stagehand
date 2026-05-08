@@ -50,6 +50,7 @@ await (async () => {
 
 import { red } from "./tui/format.js";
 import { getCurrentDirPath, getRuntimeTasksRoot } from "./runtimePaths.js";
+import type { TaskRegistry } from "./framework/types.js";
 
 /**
  * Directory of the running entry module. Differs between source and
@@ -60,13 +61,6 @@ const ENTRY_DIR = getCurrentDirPath();
 const args = process.argv.slice(2);
 
 (async () => {
-  // Keep heavy command modules behind their command branches. The run stack
-  // imports Braintrust transitively, and importing it for `help`/`config path`
-  // makes quiet commands print optional OpenTelemetry warnings.
-  const { printHelp, printRunHelp, printListHelp, printNewHelp } = await import(
-    "./tui/commands/help.js"
-  );
-
   // Best-effort shutdown: flush Braintrust telemetry and exit with the
   // conventional signal code. Does not guarantee in-flight task
   // cancellation upstream; the goal is clean process shutdown with no
@@ -123,32 +117,6 @@ const args = process.argv.slice(2);
     };
   }
 
-  async function executeRun(tokens: string[]): Promise<void> {
-    const { readConfig } = await import("./tui/commands/config.js");
-    const { runCommand } = await import("./tui/commands/run.js");
-    const { parseRunArgs, resolveRunOptions } = await import(
-      "./tui/commands/parse.js"
-    );
-    const flags = parseRunArgs(tokens);
-    const configFile = readConfig(ENTRY_DIR);
-    const resolved = resolveRunOptions(
-      flags,
-      configFile.defaults,
-      process.env,
-      configFile.core,
-    );
-
-    if (flags.legacy) {
-      const { runLegacy } = await import("./tui/commands/legacy.js");
-      const { discoverTasks } = await import("./framework/discovery.js");
-      const registry = await discoverTasks(getRuntimeTasksRoot(), false);
-      await runLegacy(resolved, flags, registry);
-      return; // unreachable — runLegacy calls process.exit
-    }
-
-    await runCommand(resolved);
-  }
-
   try {
     if (args.length === 0) {
       const { startRepl } = await import("./tui/repl.js");
@@ -156,77 +124,31 @@ const args = process.argv.slice(2);
       return;
     }
 
-    const command = args[0].toLowerCase();
-    const subArgs = args.slice(1);
-    // Help is only triggered when `--help`/`-h`/`help` sits immediately
-    // after the command. Later positions are arguments or flag values and
-    // must not be swallowed (e.g. `evals run act --help` would otherwise
-    // print run help instead of erroring on the unknown `--help` flag).
-    const wantsHelp =
-      subArgs[0] === "--help" || subArgs[0] === "-h" || subArgs[0] === "help";
+    const { buildCommandTree, dispatch, tokenizeArgv } = await import(
+      "./tui/commandTree.js"
+    );
 
-    switch (command) {
-      case "run": {
-        if (wantsHelp) {
-          printRunHelp();
-          return;
-        }
-        await executeRun(subArgs);
-        return;
-      }
-
-      case "list": {
-        if (wantsHelp) {
-          printListHelp();
-          return;
-        }
-        const detailed =
-          subArgs.includes("--detailed") || subArgs.includes("-d");
-        const tierFilter = subArgs.find((a) => !a.startsWith("-"));
-        const tasksRoot = getRuntimeTasksRoot();
+    let registry: TaskRegistry | null = null;
+    const getRegistry = async (): Promise<TaskRegistry> => {
+      if (!registry) {
         const { discoverTasks } = await import("./framework/discovery.js");
-        const { printList } = await import("./tui/commands/list.js");
-        const registry = await discoverTasks(tasksRoot, false);
-        printList(registry, tierFilter, detailed);
-        return;
+        registry = await discoverTasks(getRuntimeTasksRoot(), false);
       }
+      return registry;
+    };
 
-      case "config": {
-        const { handleConfig } = await import("./tui/commands/config.js");
-        await handleConfig(subArgs, ENTRY_DIR);
-        return;
-      }
+    const tree = buildCommandTree();
 
-      case "experiments": {
-        const { handleExperiments } = await import(
-          "./tui/commands/experiments.js"
-        );
-        await handleExperiments(subArgs);
-        return;
-      }
-
-      case "new": {
-        if (wantsHelp) {
-          printNewHelp();
-          return;
-        }
-        const { scaffoldTask } = await import("./tui/commands/new.js");
-        scaffoldTask(subArgs);
-        return;
-      }
-
-      case "help":
-      case "--help":
-      case "-h":
-        printHelp();
-        return;
-
-      default: {
-        // Unknown first arg → treat as run target: `evals act` == `evals run act`
-        await executeRun(args);
-        return;
-      }
-    }
+    const tokens = tokenizeArgv(args);
+    await dispatch(tree, tokens, {
+      entryDir: ENTRY_DIR,
+      getRegistry,
+      setRegistry: (r) => {
+        registry = r;
+      },
+      abortRef: null,
+      contextPath: null,
+    });
   } catch (err) {
     console.error(red(`Error: ${(err as Error).message}`));
     process.exitCode = 1;

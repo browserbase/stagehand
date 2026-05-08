@@ -17,6 +17,6 @@ ${c.bbBold}╚══════╝  ╚═══╝  ╚═╝  ╚═╝╚═
 export function printBanner(): void {
   console.log(BANNER_ART);
   console.log(
-    `${c.dim}  Type ${c.reset}help${c.dim} for commands, ${c.reset}exit${c.dim} to quit${c.reset}\n`,
+    `${c.dim}  Type ${c.reset}help${c.dim} for commands, ${c.reset}..${c.dim} to leave a context, ${c.reset}exit${c.dim} to quit${c.reset}\n`,
   );
 }
