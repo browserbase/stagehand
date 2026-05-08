@@ -75,9 +75,15 @@ export async function handleExperiments(args: string[]): Promise<void> {
     return;
   }
 
+  // Help is only intercepted at rest[0] — immediately after the verb — so
+  // leaf positionals (e.g. a second experiment id in `compare a b --help`)
+  // and option values are never swallowed as help.
+  const wantsSubHelp =
+    rest[0] === "--help" || rest[0] === "-h" || rest[0] === "help";
+
   switch (subcommand) {
     case "list": {
-      if (rest.includes("-h") || rest.includes("--help")) {
+      if (wantsSubHelp) {
         const { printExperimentsHelp } = await import("./help.js");
         printExperimentsHelp("list");
         return;
@@ -86,7 +92,7 @@ export async function handleExperiments(args: string[]): Promise<void> {
       return;
     }
     case "show": {
-      if (rest.includes("-h") || rest.includes("--help")) {
+      if (wantsSubHelp) {
         const { printExperimentsHelp } = await import("./help.js");
         printExperimentsHelp("show");
         return;
@@ -95,7 +101,7 @@ export async function handleExperiments(args: string[]): Promise<void> {
       return;
     }
     case "open": {
-      if (rest.includes("-h") || rest.includes("--help")) {
+      if (wantsSubHelp) {
         const { printExperimentsHelp } = await import("./help.js");
         printExperimentsHelp("open");
         return;
@@ -104,7 +110,7 @@ export async function handleExperiments(args: string[]): Promise<void> {
       return;
     }
     case "compare": {
-      if (rest.includes("-h") || rest.includes("--help")) {
+      if (wantsSubHelp) {
         const { printExperimentsHelp } = await import("./help.js");
         printExperimentsHelp("compare");
         return;

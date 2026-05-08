@@ -161,9 +161,25 @@ export async function handleConfig(
 
   const sub = args[0];
 
+  if (sub === "help" || sub === "-h" || sub === "--help") {
+    const { printConfigHelp } = await import("./help.js");
+    printConfigHelp();
+    return;
+  }
+
   if (sub === "core") {
     const { handleCore } = await import("./core.js");
     await handleCore(args.slice(1), entryDir);
+    return;
+  }
+
+  // Per-sub help. We only intercept when the help token is at args[1] —
+  // immediately after the verb — so leaf values at args[2+] (e.g.
+  // `set model --help`) are never swallowed as help and reach `parseValue`
+  // unchanged. Core has its own help and is handled above.
+  if (args[1] === "--help" || args[1] === "-h" || args[1] === "help") {
+    const { printConfigHelp } = await import("./help.js");
+    printConfigHelp();
     return;
   }
 

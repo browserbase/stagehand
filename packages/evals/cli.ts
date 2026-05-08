@@ -63,14 +63,9 @@ const args = process.argv.slice(2);
   // Keep heavy command modules behind their command branches. The run stack
   // imports Braintrust transitively, and importing it for `help`/`config path`
   // makes quiet commands print optional OpenTelemetry warnings.
-  const {
-    printHelp,
-    printRunHelp,
-    printListHelp,
-    printNewHelp,
-    printConfigHelp,
-    printExperimentsHelp,
-  } = await import("./tui/commands/help.js");
+  const { printHelp, printRunHelp, printListHelp, printNewHelp } = await import(
+    "./tui/commands/help.js"
+  );
 
   // Best-effort shutdown: flush Braintrust telemetry and exit with the
   // conventional signal code. Does not guarantee in-flight task
@@ -163,7 +158,12 @@ const args = process.argv.slice(2);
 
     const command = args[0].toLowerCase();
     const subArgs = args.slice(1);
-    const wantsHelp = subArgs.includes("--help") || subArgs.includes("-h");
+    // Help is only triggered when `--help`/`-h`/`help` sits immediately
+    // after the command. Later positions are arguments or flag values and
+    // must not be swallowed (e.g. `evals run act --help` would otherwise
+    // print run help instead of erroring on the unknown `--help` flag).
+    const wantsHelp =
+      subArgs[0] === "--help" || subArgs[0] === "-h" || subArgs[0] === "help";
 
     switch (command) {
       case "run": {
@@ -192,20 +192,12 @@ const args = process.argv.slice(2);
       }
 
       case "config": {
-        if (wantsHelp) {
-          printConfigHelp();
-          return;
-        }
         const { handleConfig } = await import("./tui/commands/config.js");
         await handleConfig(subArgs, ENTRY_DIR);
         return;
       }
 
       case "experiments": {
-        if (wantsHelp && subArgs.length === 0) {
-          printExperimentsHelp();
-          return;
-        }
         const { handleExperiments } = await import(
           "./tui/commands/experiments.js"
         );

@@ -13,8 +13,6 @@ import {
   printRunHelp,
   printListHelp,
   printNewHelp,
-  printConfigHelp,
-  printExperimentsHelp,
 } from "./commands/help.js";
 import { printList } from "./commands/list.js";
 import { handleConfig } from "./commands/config.js";
@@ -115,7 +113,11 @@ export async function startRepl(entryDir: string): Promise<void> {
     const tokens = tokenize(trimmed);
     const command = tokens[0].toLowerCase();
     const args = tokens.slice(1);
-    const wantsHelp = args.includes("--help") || args.includes("-h");
+    // Help is only triggered when `--help`/`-h`/`help` sits immediately
+    // after the command. Later positions are arguments or flag values and
+    // must not be swallowed.
+    const wantsHelp =
+      args[0] === "--help" || args[0] === "-h" || args[0] === "help";
 
     try {
       switch (command) {
@@ -153,19 +155,11 @@ export async function startRepl(entryDir: string): Promise<void> {
         }
 
         case "config": {
-          if (wantsHelp) {
-            printConfigHelp();
-            break;
-          }
           await handleConfig(args, entryDir);
           break;
         }
 
         case "experiments": {
-          if (wantsHelp && args.length === 0) {
-            printExperimentsHelp();
-            break;
-          }
           await handleExperiments(args);
           break;
         }

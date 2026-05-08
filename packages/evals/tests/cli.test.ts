@@ -67,6 +67,96 @@ describe("CLI entrypoint", () => {
     expect(stdout).toContain("--out");
   });
 
+  // Help is reachable three ways at every level: `--help`, `-h`, and the
+  // bare word `help` as the first positional after the verb. Each row pairs
+  // an argv with a substring that must appear in the resulting help output.
+  const helpCases: Array<{ args: string[]; contains: string }> = [
+    { args: ["help"], contains: "Commands:" },
+    { args: ["--help"], contains: "Commands:" },
+    { args: ["-h"], contains: "Commands:" },
+    { args: ["run", "help"], contains: "evals run" },
+    { args: ["run", "--help"], contains: "evals run" },
+    { args: ["run", "-h"], contains: "evals run" },
+    { args: ["list", "help"], contains: "evals list" },
+    { args: ["list", "--help"], contains: "evals list" },
+    { args: ["list", "-h"], contains: "evals list" },
+    { args: ["new", "help"], contains: "evals new" },
+    { args: ["new", "--help"], contains: "evals new" },
+    { args: ["new", "-h"], contains: "evals new" },
+    { args: ["config", "help"], contains: "evals config" },
+    { args: ["config", "--help"], contains: "evals config" },
+    { args: ["config", "-h"], contains: "evals config" },
+    { args: ["config", "set", "help"], contains: "evals config" },
+    { args: ["config", "set", "--help"], contains: "evals config" },
+    { args: ["config", "reset", "help"], contains: "evals config" },
+    { args: ["config", "path", "help"], contains: "evals config" },
+    { args: ["config", "core", "help"], contains: "evals config core" },
+    { args: ["config", "core", "--help"], contains: "evals config core" },
+    { args: ["config", "core", "-h"], contains: "evals config core" },
+    { args: ["config", "core", "set", "help"], contains: "evals config core" },
+    {
+      args: ["config", "core", "set", "--help"],
+      contains: "evals config core",
+    },
+    {
+      args: ["config", "core", "reset", "help"],
+      contains: "evals config core",
+    },
+    { args: ["config", "core", "path", "help"], contains: "evals config core" },
+    {
+      args: ["config", "core", "setup", "help"],
+      contains: "evals config core",
+    },
+    { args: ["experiments", "help"], contains: "evals experiments" },
+    { args: ["experiments", "--help"], contains: "evals experiments" },
+    { args: ["experiments", "-h"], contains: "evals experiments" },
+    {
+      args: ["experiments", "list", "help"],
+      contains: "evals experiments list",
+    },
+    {
+      args: ["experiments", "list", "--help"],
+      contains: "evals experiments list",
+    },
+    {
+      args: ["experiments", "show", "help"],
+      contains: "evals experiments show",
+    },
+    {
+      args: ["experiments", "open", "help"],
+      contains: "evals experiments open",
+    },
+    {
+      args: ["experiments", "compare", "help"],
+      contains: "evals experiments compare",
+    },
+  ];
+
+  it.each(helpCases)(
+    "accepts $args as a help invocation",
+    async ({ args, contains }) => {
+      const { stdout, code } = await runCli(args);
+      expect(code).toBe(0);
+      expect(stdout).toContain(contains);
+    },
+  );
+
+  // Regression: help interception must not reach into value positions.
+  // `config set <key> <value>` must surface a parse/value error, not silently
+  // print help — otherwise `--help` would be a magical sentinel anywhere.
+  it("does not swallow `--help` as a value in `config set`", async () => {
+    const { stdout, stderr, code } = await runCli([
+      "config",
+      "set",
+      "trials",
+      "--help",
+    ]);
+    expect(code).toBe(1);
+    const output = stdout + stderr;
+    expect(output).not.toContain("Commands:");
+    expect(output).toContain("trials must be a positive integer");
+  });
+
   it("exports resolved bench flags into env overrides during dry-run", async () => {
     const { stdout, code } = await runCli([
       "run",
