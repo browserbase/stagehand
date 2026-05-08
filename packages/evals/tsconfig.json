@@ -5,6 +5,7 @@
     "rootDir": ".",
     "outDir": "dist/esm",
     "noEmit": false,
+    "types": ["node"],
     "paths": {
       "@browserbasehq/stagehand": ["../core/dist/esm/index.d.ts"]
     }
