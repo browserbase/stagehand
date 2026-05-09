@@ -60,7 +60,21 @@
   "license": "MIT",
   "peerDependencies": {
     "deepmerge": "^4.3.1",
+    "patchright-core": "^1.55.2",
+    "playwright-core": "^1.55.1",
+    "puppeteer-core": "^24.43.0",
     "zod": "^3.25.76 || ^4.2.0"
+  },
+  "peerDependenciesMeta": {
+    "patchright-core": {
+      "optional": true
+    },
+    "playwright-core": {
+      "optional": true
+    },
+    "puppeteer-core": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
@@ -96,14 +110,10 @@
     "@langchain/core": "^0.3.80",
     "bufferutil": "^4.0.9",
     "chrome-launcher": "^1.2.0",
-    "ollama-ai-provider-v2": "^1.5.0",
-    "patchright-core": "^1.55.2",
-    "playwright": "^1.59.1",
-    "playwright-core": "^1.59.1",
-    "puppeteer-core": "^24.43.0"
+    "ollama-ai-provider-v2": "^1.5.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "^1.55.1",
     "@types/adm-zip": "^0.5.7",
     "@types/jsdom": "^27.0.0",
     "@types/node": "^20.11.30",
@@ -113,9 +123,11 @@
     "chalk": "^5.4.1",
     "eslint": "10.0.2",
     "jsdom": "^29.1.1",
-    "playwright": "^1.52.0",
-    "playwright-core": "^1.54.1",
+    "patchright-core": "^1.55.2",
+    "playwright": "^1.55.1",
+    "playwright-core": "^1.55.1",
     "prettier": "^3.2.5",
+    "puppeteer-core": "^24.43.0",
     "tsx": "*",
     "vitest": "^4.0.8",
     "zod": "^3.25.76 || ^4.2.0"
