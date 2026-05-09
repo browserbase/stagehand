@@ -596,6 +596,8 @@ describe("tryScopedSnapshot", () => {
       { focusSelector: ".card", selectAll: true },
       context,
       true,
+      new Map(),
+      new Map(),
     );
 
     expect(a11ySpy).toHaveBeenCalledWith(
