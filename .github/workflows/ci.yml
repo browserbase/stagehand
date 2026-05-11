@@ -335,6 +335,24 @@ jobs:
       - name: Run CLI Tests
         run: pnpm exec turbo run test:cli --filter=@browserbasehq/browse-cli
 
+  run-evals-unit-tests:
+    name: Evals Unit Tests
+    runs-on: ubuntu-latest
+    needs: [run-build, determine-changes]
+    if: needs.determine-changes.outputs.evals == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
+
+      - name: Run Evals Unit Tests
+        run: pnpm --filter @browserbasehq/stagehand-evals run test:unit
+
   discover-core-tests:
     runs-on: ubuntu-latest
     needs: [determine-changes]
