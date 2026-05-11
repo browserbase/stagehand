@@ -78,8 +78,15 @@ function loadPackageEnv(): Record<string, string> {
 /**
  * Resolve a single env var, checking process.env first then the package .env.
  * Returns the value + which source it came from.
+ *
+ * Exported so callers that need the actual value (e.g. the doctor's
+ * `--probe` flag) can use the same resolution as `snapshotEnv()`. The
+ * snapshot itself intentionally exposes only `state` + `source`, not the
+ * value — exposing raw key material via the doctor JSON would be a leak.
  */
-function resolve(name: string): { value: string; source: KeySource } {
+export function resolveKey(
+  name: string,
+): { value: string; source: KeySource } {
   const fromProcess = process.env[name];
   if (fromProcess && fromProcess.length > 0) {
     return { value: fromProcess, source: "process-env" };
@@ -92,7 +99,7 @@ function resolve(name: string): { value: string; source: KeySource } {
 }
 
 function providerEntry(name: string): ProviderKeyEntry {
-  const r = resolve(name);
+  const r = resolveKey(name);
   return {
     state: r.value ? "set" : "missing",
     source: r.source,
@@ -101,7 +108,7 @@ function providerEntry(name: string): ProviderKeyEntry {
 
 function googleEntry(): GoogleKeyEntry {
   // Prefer the canonical GOOGLE_GENERATIVE_AI_API_KEY name; fall back to GEMINI_API_KEY.
-  const a = resolve("GOOGLE_GENERATIVE_AI_API_KEY");
+  const a = resolveKey("GOOGLE_GENERATIVE_AI_API_KEY");
   if (a.value) {
     return {
       state: "set",
@@ -109,7 +116,7 @@ function googleEntry(): GoogleKeyEntry {
       var: "GOOGLE_GENERATIVE_AI_API_KEY",
     };
   }
-  const b = resolve("GEMINI_API_KEY");
+  const b = resolveKey("GEMINI_API_KEY");
   if (b.value) {
     return { state: "set", source: b.source, var: "GEMINI_API_KEY" };
   }
@@ -117,18 +124,32 @@ function googleEntry(): GoogleKeyEntry {
 }
 
 function browserbaseEntry(): BrowserbaseKeyEntry {
-  const canonApi = resolve("BROWSERBASE_API_KEY");
-  const canonProj = resolve("BROWSERBASE_PROJECT_ID");
-  const aliasApi = resolve("BB_API_KEY");
-  const aliasProj = resolve("BB_PROJECT_ID");
+  const canonApi = resolveKey("BROWSERBASE_API_KEY");
+  const canonProj = resolveKey("BROWSERBASE_PROJECT_ID");
+  const aliasApi = resolveKey("BB_API_KEY");
+  const aliasProj = resolveKey("BB_PROJECT_ID");
 
-  const apiSet = canonApi.value.length > 0 || aliasApi.value.length > 0;
-  const projSet = canonProj.value.length > 0 || aliasProj.value.length > 0;
+  const canonApiPresent = canonApi.value.length > 0;
+  const aliasApiPresent = aliasApi.value.length > 0;
+  const canonProjPresent = canonProj.value.length > 0;
+  const aliasProjPresent = aliasProj.value.length > 0;
 
-  // viaAlias is true only when ALL present BB values come from the alias names.
-  const viaAlias =
-    (apiSet && !canonApi.value && !!aliasApi.value) ||
-    (projSet && !canonProj.value && !!aliasProj.value);
+  const apiSet = canonApiPresent || aliasApiPresent;
+  const projSet = canonProjPresent || aliasProjPresent;
+
+  // `viaAlias` is true iff at least one BB var is present AND every present
+  // BB var was resolved only via its BB_* alias (no canonical name won).
+  // Drives the dim "(via BB_API_KEY)" note in the doctor — if the user set
+  // the canonical name for one and the alias for the other, the note would
+  // be misleading, so we suppress it.
+  const apiAbsent = !apiSet;
+  const projAbsent = !projSet;
+  const apiOnlyAlias = aliasApiPresent && !canonApiPresent;
+  const projOnlyAlias = aliasProjPresent && !canonProjPresent;
+  const anyPresent = !apiAbsent || !projAbsent;
+  const allPresentAreAlias =
+    (apiAbsent || apiOnlyAlias) && (projAbsent || projOnlyAlias);
+  const viaAlias = anyPresent && allPresentAreAlias;
 
   return {
     apiKey: apiSet ? "set" : "missing",

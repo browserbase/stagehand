@@ -33,7 +33,11 @@ import {
   padRight,
 } from "../format.js";
 import { readConfig, resolveConfigPath } from "./config.js";
-import { snapshotEnv, type EnvSnapshot } from "../welcomeStatus.js";
+import {
+  resolveKey,
+  snapshotEnv,
+  type EnvSnapshot,
+} from "../welcomeStatus.js";
 import { getPackageRootDir, getRuntimeTasksRoot } from "../../runtimePaths.js";
 import { discoverTasks } from "../../framework/discovery.js";
 import type { TaskRegistry } from "../../framework/types.js";
@@ -119,7 +123,12 @@ function readStagehandVersion(): string | null {
 }
 
 function detectMode(entryDir: string): "source" | "dist" {
-  return entryDir.includes("/dist/") ? "dist" : "source";
+  // Anchor on the actual built location (`packages/evals/dist/cli`) so a
+  // user whose checkout happens to live under a path containing `/dist/`
+  // (e.g. `~/work/dist/stagehand/...`) isn't misclassified.
+  return entryDir.endsWith("/dist/cli") || entryDir.endsWith("\\dist\\cli")
+    ? "dist"
+    : "source";
 }
 
 function summarizeConfig(entryDir: string): ConfigSummary {
@@ -390,9 +399,16 @@ async function runOpenAIProbe(
 ): Promise<{ ok: boolean; error?: string }> {
   if (keys.openai.state !== "set")
     return { ok: false, error: "OPENAI_API_KEY missing" };
+  // Use the SAME resolution as the snapshot — i.e. check process.env AND
+  // packages/evals/.env. If we only read process.env here, a key stored
+  // only in the package-local .env would show "✓ set" in the snapshot but
+  // probe with an empty bearer token and silently fail with an auth error.
+  const { value: apiKey } = resolveKey("OPENAI_API_KEY");
+  if (!apiKey) {
+    return { ok: false, error: "OPENAI_API_KEY missing after resolution" };
+  }
   // Tiny no-op model list call — cheaper than a chat completion.
   try {
-    const apiKey = process.env.OPENAI_API_KEY ?? "";
     const res = await fetch("https://api.openai.com/v1/models?limit=1", {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
@@ -401,7 +417,10 @@ async function runOpenAIProbe(
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return {
+      ok: false,
+      error: (err as Error).message,
+    };
   }
 }
 

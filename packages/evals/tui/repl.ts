@@ -95,12 +95,18 @@ export async function startRepl(
       printTipLine();
     }
     console.log("");
+    // Mark the marker pre-prompt so even an immediate Ctrl+C counts as
+    // "first-run complete" — we don't want to re-prompt on every relaunch
+    // when the user dismisses the welcome.
+    //
+    // Gated on `!quiet`: a `evals --quiet` invocation (often used by CI /
+    // automation that pipes into the REPL) must NOT burn the first-run
+    // marker, since the user never had a chance to see the welcome.
+    // `EVALS_NO_WELCOME=1`, on the other hand, IS an explicit dismissal,
+    // so it still marks the marker via the `else` branch above already
+    // having rendered the tip line — the user knows they're in the REPL.
+    markFirstRunComplete(entryDir);
   }
-
-  // Mark the marker pre-prompt so even an immediate Ctrl+C counts as
-  // "first-run complete" — we don't want to re-prompt on every relaunch
-  // when the user dismisses the welcome.
-  markFirstRunComplete(entryDir);
 
   const rl = readline.createInterface({
     input: process.stdin,

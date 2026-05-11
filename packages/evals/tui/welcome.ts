@@ -105,6 +105,6 @@ export function printExtendedWelcome(ctx: WelcomeContext): void {
  */
 export function printTipLine(): void {
   console.log(
-    `  ${dim("Type")} ${cyan("help")}${dim(",")} ${cyan("exit")} ${dim("to quit · ")}${cyan("evals doctor")}${dim(" for diagnostics")}`,
+    `  ${dim("Type")} ${cyan("help")} ${dim("for commands,")} ${cyan("exit")} ${dim("to quit")}`,
   );
 }

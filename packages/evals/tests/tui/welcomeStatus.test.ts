@@ -103,6 +103,29 @@ describe("snapshotEnv", () => {
     expect(s.browserbase.viaAlias).toBe(false);
   });
 
+  it("does NOT flag viaAlias when canonical + alias are mixed (one of each)", () => {
+    // viaAlias should mean "all present BB values are alias-only". If the
+    // user set BROWSERBASE_API_KEY (canonical) AND BB_PROJECT_ID (alias),
+    // the dim "(via BB_API_KEY)" hint would be misleading — suppress it.
+    process.env.BROWSERBASE_API_KEY = "bb-key";
+    process.env.BB_PROJECT_ID = "bb-proj";
+    __resetPackageEnvCacheForTests();
+    const s = snapshotEnv();
+    expect(s.browserbase.apiKey).toBe("set");
+    expect(s.browserbase.projectId).toBe("set");
+    expect(s.browserbase.viaAlias).toBe(false);
+  });
+
+  it("flags viaAlias when only one BB var is present and it came via alias", () => {
+    process.env.BB_API_KEY = "bb-key";
+    // BROWSERBASE_PROJECT_ID intentionally absent
+    __resetPackageEnvCacheForTests();
+    const s = snapshotEnv();
+    expect(s.browserbase.apiKey).toBe("set");
+    expect(s.browserbase.projectId).toBe("missing");
+    expect(s.browserbase.viaAlias).toBe(true);
+  });
+
   it("partial BB — one of two vars set", () => {
     process.env.BROWSERBASE_API_KEY = "bb-key";
     __resetPackageEnvCacheForTests();

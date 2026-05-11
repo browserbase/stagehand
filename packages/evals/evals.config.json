@@ -18,5 +18,9 @@
     "webtailbench": {
       "limit": 25
     }
+  },
+  "_meta": {
+    "firstRunCompletedAt": "2026-05-11T06:11:37.268Z",
+    "version": 1
   }
 }
