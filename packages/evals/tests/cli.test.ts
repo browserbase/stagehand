@@ -239,6 +239,29 @@ describe("CLI entrypoint", () => {
       path.join(repoRoot, "packages", "evals", "evals.config.json"),
     );
   });
+
+  it("treats `>` as equivalent to a space separator (argv form)", async () => {
+    const direct = await runCli(["config", "path"]);
+    const piped = await runCli(["config", ">", "path"]);
+    expect(piped.code).toBe(0);
+    expect(piped.stdout).toBe(direct.stdout);
+  });
+
+  it("supports `>` chaining across multiple levels", async () => {
+    const direct = await runCli(["config", "core", "path"]);
+    const piped = await runCli(["config", ">", "core", ">", "path"]);
+    expect(piped.code).toBe(0);
+    expect(piped.stdout).toBe(direct.stdout);
+  });
+
+  it("strips a leading `evals` sigil token (no-op at root)", async () => {
+    // From a shell, `evals evals run act --dry-run` should resolve like
+    // `evals run act --dry-run` — the leading `evals` arg is the sigil.
+    const { stdout, code } = await runCli(["evals", "run", "act", "--dry-run"]);
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout);
+    expect(payload.normalizedTarget).toBe("act");
+  });
 });
 
 describe.sequential("core config", () => {
