@@ -352,17 +352,17 @@ importers:
         specifier: ^0.13.8
         version: 0.13.8(arktype@2.1.20)(typescript@5.9.3)(zod@4.2.1)
       fastify:
-        specifier: ^5.3.2
-        version: 5.6.2
+        specifier: ^5.8.5
+        version: 5.8.5
       fastify-metrics:
         specifier: ^12.1.0
-        version: 12.1.0(fastify@5.6.2)
+        version: 12.1.0(fastify@5.8.5)
       fastify-plugin:
         specifier: ^4.5.1
         version: 4.5.1
       fastify-zod-openapi:
         specifier: ^5.5.0
-        version: 5.5.0(@fastify/swagger-ui@5.2.3)(@fastify/swagger@9.6.1)(fastify@5.6.2)(zod@4.2.1)
+        version: 5.5.0(@fastify/swagger-ui@5.2.3)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1)
       http-status-codes:
         specifier: ^2.3.0
         version: 2.3.0
@@ -440,17 +440,17 @@ importers:
         specifier: 1.0.0-beta.20
         version: 1.0.0-beta.20(@electric-sql/pglite@0.4.2)(@opentelemetry/api@1.9.0)(@types/mssql@9.1.11(@azure/core-client@1.10.1))(arktype@2.1.20)(mssql@11.0.1(@azure/core-client@1.10.1))(postgres@3.4.8)(zod@4.2.1)
       fastify:
-        specifier: ^5.3.2
-        version: 5.6.2
+        specifier: ^5.8.5
+        version: 5.8.5
       fastify-metrics:
         specifier: ^12.1.0
-        version: 12.1.0(fastify@5.6.2)
+        version: 12.1.0(fastify@5.8.5)
       fastify-plugin:
         specifier: ^4.5.1
         version: 4.5.1
       fastify-zod-openapi:
         specifier: ^5.5.0
-        version: 5.5.0(@fastify/swagger-ui@5.2.3)(@fastify/swagger@9.6.1)(fastify@5.6.2)(zod@4.2.1)
+        version: 5.5.0(@fastify/swagger-ui@5.2.3)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1)
       http-status-codes:
         specifier: ^2.3.0
         version: 2.3.0
@@ -4113,8 +4113,8 @@ packages:
       '@fastify/swagger-ui':
         optional: true
 
-  fastify@5.6.2:
-    resolution: {integrity: sha512-dPugdGnsvYkBlENLhCgX8yhyGCsCPrpA8lFWbTNU428l+YOnLgYHR69hzV8HWPC79n536EqzqQtvhtdaCE0dKg==}
+  fastify@5.8.5:
+    resolution: {integrity: sha512-Yqptv59pQzPgQUSIm87hMqHJmdkb1+GPxdE6vW6FRyVE9G86mt7rOghitiU4JHRaTyDUk9pfeKmDeu70lAwM4Q==}
 
   fastq@1.19.1:
     resolution: {integrity: sha512-GwLTyxkCXjXbxqIhTsMI2Nui8huMPtnxg7krajPJAjnEG/iiOS7i+zCtWGZR9G0NBKbXKh6X9m9UIsYX/N6vvQ==}
@@ -5854,10 +5854,6 @@ packages:
 
   pino-std-serializers@7.0.0:
     resolution: {integrity: sha512-e906FRY0+tV27iq4juKzSYPbUj2do2X2JX4EzSca1631EB2QJQUqGbDuERal7LCtOpxl6x3+nvo9NPZcmjkiFA==}
-
-  pino@10.1.0:
-    resolution: {integrity: sha512-0zZC2ygfdqvqK8zJIr1e+wT1T/L+LF6qvqvbzEQ6tiMAoTqEVK9a1K3YRu8HEUvGEvNqZyPJTtb2sNIoTkB83w==}
-    hasBin: true
 
   pino@9.14.0:
     resolution: {integrity: sha512-8OEwKp5juEvb/MjpIc4hjqfgCNysrS94RIOMXYvpYCdm/jglrKEiAYmiumbmGhCvs+IcInsphYDFwqrjr7398w==}
@@ -8373,9 +8369,9 @@ snapshots:
 
   '@fastify/ajv-compiler@4.0.5':
     dependencies:
-      ajv: 8.17.1
-      ajv-formats: 3.0.1(ajv@8.17.1)
-      fast-uri: 3.0.6
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      fast-uri: 3.1.2
 
   '@fastify/cors@11.1.0':
     dependencies:
@@ -9278,7 +9274,7 @@ snapshots:
       extract-zip: 2.0.1
       progress: 2.0.3
       proxy-agent: 6.5.0
-      semver: 7.7.3
+      semver: 7.7.4
       tar-fs: 3.1.2
       unbzip2-stream: 1.4.3
       yargs: 17.7.2
@@ -11442,9 +11438,9 @@ snapshots:
 
   fast-uri@3.1.2: {}
 
-  fastify-metrics@12.1.0(fastify@5.6.2):
+  fastify-metrics@12.1.0(fastify@5.8.5):
     dependencies:
-      fastify: 5.6.2
+      fastify: 5.8.5
       fastify-plugin: 5.1.0
       prom-client: 15.1.3
 
@@ -11452,11 +11448,11 @@ snapshots:
 
   fastify-plugin@5.1.0: {}
 
-  fastify-zod-openapi@5.5.0(@fastify/swagger-ui@5.2.3)(@fastify/swagger@9.6.1)(fastify@5.6.2)(zod@4.2.1):
+  fastify-zod-openapi@5.5.0(@fastify/swagger-ui@5.2.3)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1):
     dependencies:
       '@fastify/error': 4.2.0
       fast-json-stringify: 6.1.1
-      fastify: 5.6.2
+      fastify: 5.8.5
       fastify-plugin: 5.1.0
       zod: 4.2.1
       zod-openapi: 5.4.5(zod@4.2.1)
@@ -11464,7 +11460,7 @@ snapshots:
       '@fastify/swagger': 9.6.1
       '@fastify/swagger-ui': 5.2.3
 
-  fastify@5.6.2:
+  fastify@5.8.5:
     dependencies:
       '@fastify/ajv-compiler': 4.0.5
       '@fastify/error': 4.2.0
@@ -11475,11 +11471,11 @@ snapshots:
       fast-json-stringify: 6.1.1
       find-my-way: 9.3.0
       light-my-request: 6.6.0
-      pino: 10.1.0
+      pino: 9.14.0
       process-warning: 5.0.0
       rfdc: 1.4.1
       secure-json-parse: 4.1.0
-      semver: 7.7.3
+      semver: 7.7.4
       toad-cache: 3.7.0
 
   fastq@1.19.1:
@@ -13771,20 +13767,6 @@ snapshots:
       strip-json-comments: 3.1.1
 
   pino-std-serializers@7.0.0: {}
-
-  pino@10.1.0:
-    dependencies:
-      '@pinojs/redact': 0.4.0
-      atomic-sleep: 1.0.0
-      on-exit-leak-free: 2.1.2
-      pino-abstract-transport: 2.0.0
-      pino-std-serializers: 7.0.0
-      process-warning: 5.0.0
-      quick-format-unescaped: 4.0.4
-      real-require: 0.2.0
-      safe-stable-stringify: 2.5.0
-      sonic-boom: 4.2.0
-      thread-stream: 3.1.0
 
   pino@9.14.0:
     dependencies:
