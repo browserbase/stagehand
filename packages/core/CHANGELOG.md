@@ -1,5 +1,35 @@
 # @browserbasehq/stagehand
 
+## 3.4.0
+
+### Minor Changes
+
+- [#2084](https://github.com/browserbase/stagehand/pull/2084) [`0641d44`](https://github.com/browserbase/stagehand/commit/0641d44a849062f5f7ce6a36a34ee95f9840efaa) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add ignoreSelectors param to extract()
+
+- [#2096](https://github.com/browserbase/stagehand/pull/2096) [`a11603d`](https://github.com/browserbase/stagehand/commit/a11603d09d80f5e2fc341d154a0b90fe9fa48d1c) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add ignoreSelectors to observe()
+
+### Patch Changes
+
+- [#2080](https://github.com/browserbase/stagehand/pull/2080) [`21c78b3`](https://github.com/browserbase/stagehand/commit/21c78b3a50fd20cbec7ca8aa5f766f55e17b0f78) Thanks [@miguelg719](https://github.com/miguelg719)! - Add variables support to v3 agentExecute API schema and remove experimental requirement
+
+- [#2077](https://github.com/browserbase/stagehand/pull/2077) [`f437f73`](https://github.com/browserbase/stagehand/commit/f437f738d23951cf460a30d3d285d1eba4c78ea2) Thanks [@monadoid](https://github.com/monadoid)! - Fix frame registry handling for OOPIF pages
+
+- [#2098](https://github.com/browserbase/stagehand/pull/2098) [`a783b99`](https://github.com/browserbase/stagehand/commit/a783b99fb947968b685050314bd1df256d7a1f5a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump transitive deps to patched versions
+
+- [#2089](https://github.com/browserbase/stagehand/pull/2089) [`8d2f354`](https://github.com/browserbase/stagehand/commit/8d2f3541427ca7c9c6d9a831601a6a5babc48502) Thanks [@shrey150](https://github.com/shrey150)! - Strengthen observe prompts so LLMs return complete encoded element IDs.
+
+- [#2047](https://github.com/browserbase/stagehand/pull/2047) [`a87c1fc`](https://github.com/browserbase/stagehand/commit/a87c1fc435be83dbf14eab9edc6c421454ef7be4) Thanks [@tkattkat](https://github.com/tkattkat)! - Set default agent mode to hybrid with auto routing to dom for non compatible models
+
+- [#2101](https://github.com/browserbase/stagehand/pull/2101) [`26e6c96`](https://github.com/browserbase/stagehand/commit/26e6c960ca2894dc459ca40c9f31eb01e6d92053) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - move playwright-core, puppeteer-core, patchright-core from optional dependencies to peer dependencies
+
+- [#2068](https://github.com/browserbase/stagehand/pull/2068) [`1d176c4`](https://github.com/browserbase/stagehand/commit/1d176c466e25eb0cb03d9986b51d5cdb35a2e56b) Thanks [@filip-michalsky](https://github.com/filip-michalsky)! - Remove the default temperature setting from v3 agent AI SDK calls so reasoning models that do not support temperature run without provider warnings.
+
+- [#2040](https://github.com/browserbase/stagehand/pull/2040) [`1fa9613`](https://github.com/browserbase/stagehand/commit/1fa96130abbee2197a4e7f208878d06cba10c70b) Thanks [@monadoid](https://github.com/monadoid)! - Prefer `STAGEHAND_API_URL` for Stagehand API overrides while retaining `STAGEHAND_BASE_URL` as a deprecated fallback.
+
+- [#2065](https://github.com/browserbase/stagehand/pull/2065) [`9ff70dd`](https://github.com/browserbase/stagehand/commit/9ff70dd26cf4e03dce00ddcdc2d3b5e8d116781c) Thanks [@miguelg719](https://github.com/miguelg719)! - Add support for CUA models: openai/gpt-5.4-mini, openai/gpt-5.5, and anthropic/claude-haiku-4-5
+
+- [#2039](https://github.com/browserbase/stagehand/pull/2039) [`7640381`](https://github.com/browserbase/stagehand/commit/76403819b8f33d8d2670b6bea521a76f5ecc274e) Thanks [@monadoid](https://github.com/monadoid)! - Deprecate Browserbase project ID configuration.
+
 ## 3.3.0
 
 ### Minor Changes
