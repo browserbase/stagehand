@@ -272,7 +272,11 @@ export async function dispatch(
       if (result.context.length === 0) {
         const runNode = findChild(root, "run");
         if (runNode?.handler) {
-          await runNode.handler(tokens, ctx);
+          // Strip a leading "evals" sigil so parseRunArgs doesn't
+          // misinterpret it as a target or flag.
+          const forwarded =
+            tokens[0]?.toLowerCase() === "evals" ? tokens.slice(1) : tokens;
+          await runNode.handler(forwarded, ctx);
           return;
         }
       }

@@ -396,6 +396,14 @@ describe("dispatch", () => {
     expect(h.run).toHaveBeenCalledWith(["act"], ctx);
   });
 
+  it("strips the `evals` sigil before falling back to run", async () => {
+    const h = makeHandlers();
+    const tree = makeTree(h);
+    const ctx = makeCtx();
+    await dispatch(tree, ["evals", "act"], ctx);
+    expect(h.run).toHaveBeenCalledWith(["act"], ctx);
+  });
+
   it("rejects REPL-only metas in argv mode", async () => {
     const h = makeHandlers();
     const tree = makeTree(h);
