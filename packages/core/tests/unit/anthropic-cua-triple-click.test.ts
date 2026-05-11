@@ -26,9 +26,14 @@ describe("AnthropicCUAClient triple_click handling", () => {
     const anthropic = new Anthropic({ apiKey: "test" });
     mockCreate = anthropic.beta.messages.create as ReturnType<typeof vi.fn>;
 
-    client = new AnthropicCUAClient("anthropic", "claude-sonnet-4-5-20250929", undefined, {
-      apiKey: "test-key",
-    });
+    client = new AnthropicCUAClient(
+      "anthropic",
+      "claude-sonnet-4-5-20250929",
+      undefined,
+      {
+        apiKey: "test-key",
+      },
+    );
     client.setViewport(1280, 720);
     client.setScreenshotProvider(async () => "fake-base64-screenshot");
 
