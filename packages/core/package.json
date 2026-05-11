@@ -82,7 +82,7 @@
     "@browserbasehq/sdk": "^2.10.0",
     "@google/genai": "^1.22.0",
     "@langchain/openai": "^0.4.9",
-    "@modelcontextprotocol/sdk": "^1.17.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^5.0.133",
     "devtools-protocol": "^0.0.1464554",
     "fetch-cookie": "^3.1.0",
