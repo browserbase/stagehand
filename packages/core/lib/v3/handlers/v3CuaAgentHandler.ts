@@ -324,6 +324,7 @@ export class V3CuaAgentHandler {
         }
         return { success: true };
       }
+      case "triple_click":
       case "tripleClick": {
         const { x, y } = action;
         if (recording) {
