@@ -84,9 +84,7 @@ function loadPackageEnv(): Record<string, string> {
  * snapshot itself intentionally exposes only `state` + `source`, not the
  * value — exposing raw key material via the doctor JSON would be a leak.
  */
-export function resolveKey(
-  name: string,
-): { value: string; source: KeySource } {
+export function resolveKey(name: string): { value: string; source: KeySource } {
   const fromProcess = process.env[name];
   if (fromProcess && fromProcess.length > 0) {
     return { value: fromProcess, source: "process-env" };

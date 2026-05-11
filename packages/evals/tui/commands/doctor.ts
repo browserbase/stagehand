@@ -33,11 +33,7 @@ import {
   padRight,
 } from "../format.js";
 import { readConfig, resolveConfigPath } from "./config.js";
-import {
-  resolveKey,
-  snapshotEnv,
-  type EnvSnapshot,
-} from "../welcomeStatus.js";
+import { resolveKey, snapshotEnv, type EnvSnapshot } from "../welcomeStatus.js";
 import { getPackageRootDir, getRuntimeTasksRoot } from "../../runtimePaths.js";
 import { discoverTasks } from "../../framework/discovery.js";
 import type { TaskRegistry } from "../../framework/types.js";
