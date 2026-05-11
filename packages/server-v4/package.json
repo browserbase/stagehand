@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-server-v4",
-  "version": "3.6.3",
+  "version": "3.6.4",
   "description": "Stagehand API server v4",
   "type": "module",
   "private": true,
