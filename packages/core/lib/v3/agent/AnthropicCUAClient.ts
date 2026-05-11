@@ -901,6 +901,17 @@ export class AnthropicCUAClient extends AgentClient {
               (input.coordinate ? (input.coordinate as number[])[1] : 0),
             ...input,
           };
+        } else if (action === "triple_click" || action === "tripleClick") {
+          return {
+            type: "tripleClick",
+            x:
+              (input.x as number) ||
+              (input.coordinate ? (input.coordinate as number[])[0] : 0),
+            y:
+              (input.y as number) ||
+              (input.coordinate ? (input.coordinate as number[])[1] : 0),
+            ...input,
+          };
         } else if (action === "scroll") {
           // Convert Anthropic's coordinate, scroll_amount and scroll_direction into scroll_x and scroll_y
           const x =
