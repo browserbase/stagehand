@@ -50,6 +50,14 @@ if (fs.existsSync(distConfigPath)) {
         ...existing.defaults,
       };
     }
+    // Preserve the first-run welcome marker across rebuilds so a contributor
+    // who's already seen the welcome on the dist path doesn't see it again
+    // after every `pnpm run build:cli`. If the source has _meta and dist
+    // doesn't (fresh dist install), the source value is inherited via the
+    // sourceConfig literal — already correct.
+    if (existing._meta) {
+      sourceConfig._meta = { ...sourceConfig._meta, ...existing._meta };
+    }
   } catch {
     // invalid existing config – overwrite entirely
   }

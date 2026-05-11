@@ -17,6 +17,7 @@ import {
 import { printList } from "./commands/list.js";
 import { handleConfig } from "./commands/config.js";
 import { handleExperiments } from "./commands/experiments.js";
+import { handleDoctor } from "./commands/doctor.js";
 import { runCommand } from "./commands/run.js";
 import { scaffoldTask } from "./commands/new.js";
 import { parseRunArgs, resolveRunOptions } from "./commands/parse.js";
@@ -24,6 +25,9 @@ import { readConfig } from "./commands/config.js";
 import { discoverTasks } from "../framework/discovery.js";
 import type { TaskRegistry } from "../framework/types.js";
 import { getRuntimeTasksRoot } from "../runtimePaths.js";
+import { printExtendedWelcome, printTipLine } from "./welcome.js";
+import { snapshotEnv, renderInlineWarning } from "./welcomeStatus.js";
+import { isFirstRun, markFirstRunComplete } from "./welcomeState.js";
 
 function tokenize(input: string): string[] {
   const tokens: string[] = [];
@@ -52,18 +56,51 @@ function tokenize(input: string): string[] {
   return tokens;
 }
 
-export async function startRepl(entryDir: string): Promise<void> {
-  printBanner();
+export type ReplOptions = {
+  /** Suppress banner, welcome, and any inline warnings. Output is just the prompt. */
+  quiet?: boolean;
+};
+
+export async function startRepl(
+  entryDir: string,
+  options: ReplOptions = {},
+): Promise<void> {
+  const quiet = options.quiet === true;
+  const noWelcome = quiet || Boolean(process.env.EVALS_NO_WELCOME);
 
   const resolvedTasksRoot = getRuntimeTasksRoot();
   let registry: TaskRegistry;
   try {
     registry = await discoverTasks(resolvedTasksRoot, false);
-    console.log(dim(`  Discovered ${registry.tasks.length} tasks\n`));
   } catch (err) {
     console.error(red(`  Failed to discover tasks: ${(err as Error).message}`));
     process.exit(1);
   }
+
+  // ─── Onboarding chrome ───────────────────────────────────────────────
+  // First-run-only welcome panel; otherwise just the banner + tip line.
+  // The only inline output about env state is the zero-keys warning,
+  // surfaced when no welcome panel is shown. Discovery count is NOT
+  // printed (use `list` or `evals doctor` instead).
+  if (!quiet) {
+    printBanner();
+    const showExtendedWelcome = !noWelcome && isFirstRun(entryDir);
+    if (showExtendedWelcome) {
+      printExtendedWelcome({ snapshot: snapshotEnv(), registry });
+    } else {
+      const warning = renderInlineWarning(snapshotEnv());
+      if (warning && process.stdout.isTTY) {
+        console.log(warning);
+      }
+      printTipLine();
+    }
+    console.log("");
+  }
+
+  // Mark the marker pre-prompt so even an immediate Ctrl+C counts as
+  // "first-run complete" — we don't want to re-prompt on every relaunch
+  // when the user dismisses the welcome.
+  markFirstRunComplete(entryDir);
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -161,6 +198,12 @@ export async function startRepl(entryDir: string): Promise<void> {
 
         case "experiments": {
           await handleExperiments(args);
+          break;
+        }
+
+        case "doctor":
+        case "health": {
+          await handleDoctor(args, entryDir);
           break;
         }
 

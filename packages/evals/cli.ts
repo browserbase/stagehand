@@ -2,13 +2,18 @@
  * Evals CLI entry point.
  *
  * Modes:
- *   - `evals` (no args)          → interactive REPL
- *   - `evals run <target> …`     → single-shot run with rich progress
- *   - `evals list [tier]`        → list discovered tasks
- *   - `evals config [sub]`       → print / get / set defaults
- *   - `evals experiments [sub]`  → inspect / compare Braintrust runs
- *   - `evals new <tier> <cat> <name>` → scaffold a task file
- *   - `evals help` / `-h`        → help
+ *   - `evals` (no args)              → interactive REPL
+ *   - `evals --quiet` / `evals -q`   → REPL with no banner / welcome / inline warnings
+ *   - `evals run <target> …`         → single-shot run with rich progress
+ *   - `evals list [tier]`            → list discovered tasks
+ *   - `evals config [sub]`           → print / get / set defaults
+ *   - `evals experiments [sub]`      → inspect / compare Braintrust runs
+ *   - `evals doctor` / `health`      → env-key + config + discovery health report
+ *   - `evals new <tier> <cat> <name>`→ scaffold a task file
+ *   - `evals help` / `-h`            → help
+ *
+ * Env vars:
+ *   - EVALS_NO_WELCOME=1             → suppress first-run welcome panel (REPL only)
  *
  * No child processes. All runs flow through framework/runEvals in-process.
  *
@@ -95,6 +100,11 @@ const args = process.argv.slice(2);
   process.on("SIGINT", () => void handleSignal("SIGINT"));
   process.on("SIGTERM", () => void handleSignal("SIGTERM"));
 
+  // REPL launch: zero args, or only `--quiet`/`-q` flags. Quiet flags are
+  // REPL-only (they suppress chrome); other args route to the argv switch.
+  const isQuietFlag = (a: string): boolean => a === "--quiet" || a === "-q";
+  const replLaunch = args.length === 0 || args.every(isQuietFlag);
+
   // Argv mode: Esc behaves like Ctrl+C. The REPL has its own keypress
   // handler that does cooperative-then-aggressive abort instead — this
   // path is only active when no arg-less REPL is running.
@@ -102,7 +112,7 @@ const args = process.argv.slice(2);
   // Note: raw mode disables the OS-level Ctrl+C → SIGINT translation,
   // so we forward it ourselves.
   let cleanupArgvInput = (): void => {};
-  if (args.length > 0 && process.stdin.isTTY) {
+  if (!replLaunch && args.length > 0 && process.stdin.isTTY) {
     const readline = await import("node:readline");
     const wasRaw = process.stdin.isRaw;
     readline.emitKeypressEvents(process.stdin);
@@ -149,10 +159,30 @@ const args = process.argv.slice(2);
     await runCommand(resolved);
   }
 
+  const isHelpToken = (token: string | undefined): boolean =>
+    token === "--help" || token === "-h" || token === "help";
+
+  const isConfigHelpInvocation = (tokens: string[]): boolean => {
+    if (isHelpToken(tokens[0])) return true;
+    if (tokens[0] === "core") {
+      return isHelpToken(tokens[1]) || isHelpToken(tokens[2]);
+    }
+    return isHelpToken(tokens[1]);
+  };
+
+  const isExperimentsHelpInvocation = (tokens: string[]): boolean =>
+    isHelpToken(tokens[0]) || isHelpToken(tokens[1]);
+
+  // Whether to write the first-run marker in `finally`. Help-only paths and
+  // the doctor command don't count as "first uses" — they're discovery
+  // actions. The REPL marks itself.
+  let shouldMarkFirstRun = false;
+
   try {
-    if (args.length === 0) {
+    if (replLaunch) {
       const { startRepl } = await import("./tui/repl.js");
-      await startRepl(ENTRY_DIR);
+      const quiet = args.some(isQuietFlag);
+      await startRepl(ENTRY_DIR, { quiet });
       return;
     }
 
@@ -162,8 +192,7 @@ const args = process.argv.slice(2);
     // after the command. Later positions are arguments or flag values and
     // must not be swallowed (e.g. `evals run act --help` would otherwise
     // print run help instead of erroring on the unknown `--help` flag).
-    const wantsHelp =
-      subArgs[0] === "--help" || subArgs[0] === "-h" || subArgs[0] === "help";
+    const wantsHelp = isHelpToken(subArgs[0]);
 
     switch (command) {
       case "run": {
@@ -171,6 +200,7 @@ const args = process.argv.slice(2);
           printRunHelp();
           return;
         }
+        shouldMarkFirstRun = true;
         await executeRun(subArgs);
         return;
       }
@@ -180,6 +210,7 @@ const args = process.argv.slice(2);
           printListHelp();
           return;
         }
+        shouldMarkFirstRun = true;
         const detailed =
           subArgs.includes("--detailed") || subArgs.includes("-d");
         const tierFilter = subArgs.find((a) => !a.startsWith("-"));
@@ -192,16 +223,27 @@ const args = process.argv.slice(2);
       }
 
       case "config": {
+        shouldMarkFirstRun = !isConfigHelpInvocation(subArgs);
         const { handleConfig } = await import("./tui/commands/config.js");
         await handleConfig(subArgs, ENTRY_DIR);
         return;
       }
 
       case "experiments": {
+        shouldMarkFirstRun = !isExperimentsHelpInvocation(subArgs);
         const { handleExperiments } = await import(
           "./tui/commands/experiments.js"
         );
         await handleExperiments(subArgs);
+        return;
+      }
+
+      case "doctor":
+      case "health": {
+        // Doctor is a diagnostic, not a "first use" — don't mark the marker.
+        const { handleDoctor } = await import("./tui/commands/doctor.js");
+        const exitCode = await handleDoctor(subArgs, ENTRY_DIR);
+        if (exitCode !== 0) process.exitCode = exitCode;
         return;
       }
 
@@ -210,6 +252,7 @@ const args = process.argv.slice(2);
           printNewHelp();
           return;
         }
+        shouldMarkFirstRun = true;
         const { scaffoldTask } = await import("./tui/commands/new.js");
         scaffoldTask(subArgs);
         return;
@@ -223,6 +266,7 @@ const args = process.argv.slice(2);
 
       default: {
         // Unknown first arg → treat as run target: `evals act` == `evals run act`
+        shouldMarkFirstRun = true;
         await executeRun(args);
         return;
       }
@@ -231,6 +275,14 @@ const args = process.argv.slice(2);
     console.error(red(`Error: ${(err as Error).message}`));
     process.exitCode = 1;
   } finally {
+    if (shouldMarkFirstRun) {
+      try {
+        const { markFirstRunComplete } = await import("./tui/welcomeState.js");
+        markFirstRunComplete(ENTRY_DIR);
+      } catch {
+        // best-effort
+      }
+    }
     cleanupArgvInput();
   }
 })();

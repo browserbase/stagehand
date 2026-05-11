@@ -29,6 +29,10 @@ export function printHelp(): void {
       "Inspect and compare Braintrust experiment runs",
     ),
     row(`${cyan("new")} ${dim("<tier> <cat> <name>")}`, "Scaffold a new task"),
+    row(
+      `${cyan("doctor")} ${dim("[--json]")}`,
+      "Health report (env keys, config, discovery)",
+    ),
     row(cyan("help"), "Show this help"),
     row(cyan("clear"), "Clear the screen"),
     row(cyan("exit"), "Exit the REPL"),

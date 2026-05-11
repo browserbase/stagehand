@@ -15,6 +15,18 @@ const SOURCE_CONFIG = path.join(
   "evals.config.json",
 );
 
+// File-level snapshot/restore: any `evals run …` invocation through the
+// real CLI writes `_meta.firstRunCompletedAt` into the source config
+// (because the test runs in source mode). Restore at the end so the
+// repo file stays pristine.
+let __fileLevelConfigSnapshot: string;
+beforeAll(() => {
+  __fileLevelConfigSnapshot = fs.readFileSync(SOURCE_CONFIG, "utf-8");
+});
+afterAll(() => {
+  fs.writeFileSync(SOURCE_CONFIG, __fileLevelConfigSnapshot);
+});
+
 async function runCli(
   args: string[],
 ): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -38,6 +50,17 @@ async function runCli(
   }
 }
 
+function resetSourceWelcomeMeta(): void {
+  const config = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+  delete config._meta;
+  fs.writeFileSync(SOURCE_CONFIG, JSON.stringify(config, null, 2) + "\n");
+}
+
+function readSourceWelcomeCompletedAt(): string | undefined {
+  const config = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+  return config._meta?.firstRunCompletedAt;
+}
+
 describe("CLI entrypoint", () => {
   it("shows help", async () => {
     const { stdout, code } = await runCli(["-h"]);
@@ -57,6 +80,39 @@ describe("CLI entrypoint", () => {
     expect(stdout).toContain("show");
     expect(stdout).toContain("open");
     expect(stdout).toContain("compare");
+  });
+
+  it("includes doctor in top-level help", async () => {
+    const { stdout, code } = await runCli(["-h"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("doctor");
+  });
+
+  it("shows doctor help via --help", async () => {
+    const { stdout, code } = await runCli(["doctor", "--help"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("evals doctor");
+    expect(stdout).toContain("--json");
+    // Hidden --probe flag must not appear
+    expect(stdout).not.toContain("--probe");
+  });
+
+  it("doctor --json emits a parseable report", async () => {
+    const { stdout, code } = await runCli(["doctor", "--json"]);
+    // --json always exits 0 regardless of verdict
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout);
+    expect(payload).toHaveProperty("verdict");
+    expect(payload).toHaveProperty("runtime.node");
+    expect(payload).toHaveProperty("keys.openai");
+    expect(Array.isArray(payload.reasons)).toBe(true);
+  });
+
+  it("health is an alias for doctor", async () => {
+    const { stdout, code } = await runCli(["health", "--json"]);
+    expect(code).toBe(0);
+    const payload = JSON.parse(stdout);
+    expect(payload).toHaveProperty("verdict");
   });
 
   it("shows experiments compare help", async () => {
@@ -140,6 +196,20 @@ describe("CLI entrypoint", () => {
       expect(stdout).toContain(contains);
     },
   );
+
+  it("does not mark first-run complete for nested help invocations", async () => {
+    resetSourceWelcomeMeta();
+
+    for (const args of [
+      ["config", "set", "--help"],
+      ["experiments", "compare", "--help"],
+    ]) {
+      const { stdout, code } = await runCli(args);
+      expect(code).toBe(0);
+      expect(stdout).toContain("evals");
+      expect(readSourceWelcomeCompletedAt()).toBeUndefined();
+    }
+  });
 
   // Regression: help interception must not reach into value positions.
   // `config set <key> <value>` must surface a parse/value error, not silently
