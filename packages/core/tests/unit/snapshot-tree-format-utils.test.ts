@@ -28,6 +28,65 @@ describe("formatTreeLine", () => {
       "[frame-1] section: Container\n  [ax-2] button: Submit",
     );
   });
+
+  it("renders a select with child options and only one selected option", () => {
+    const outline = formatTreeLine({
+      role: "select",
+      name: "Select field",
+      nodeId: "ax-4",
+      children: [
+        { role: "option", name: "Option A", nodeId: "ax-5" },
+        {
+          role: "option",
+          name: "Option B",
+          state: "selected",
+          nodeId: "ax-6",
+        },
+        { role: "option", name: "Option C", nodeId: "ax-7" },
+      ],
+    });
+
+    expect(outline).toBe(
+      "[ax-4] select: Select field\n  [ax-5] option: Option A\n  [ax-6] option: Option B [selected]\n  [ax-7] option: Option C",
+    );
+    expect(outline.match(/\[selected]/g)?.length ?? 0).toBe(1);
+  });
+
+  it("renders a radio group with children and only one checked radio", () => {
+    const outline = formatTreeLine({
+      role: "group",
+      name: "Select field",
+      nodeId: "ax-8",
+      children: [
+        { role: "radio", name: "Option A", nodeId: "ax-9" },
+        { role: "radio", name: "Option B", state: "checked", nodeId: "ax-10" },
+        { role: "radio", name: "Option C", nodeId: "ax-11" },
+      ],
+    });
+
+    expect(outline).toBe(
+      "[ax-8] group: Select field\n  [ax-9] radio: Option A\n  [ax-10] radio: Option B [checked]\n  [ax-11] radio: Option C",
+    );
+    expect(outline.match(/\[checked]/g)?.length ?? 0).toBe(1);
+  });
+
+  it("does not render [selected] on combobox/select nodes", () => {
+    const combo = formatTreeLine({
+      role: "combobox",
+      name: "Select field",
+      state: "selected",
+      nodeId: "ax-12",
+    });
+    const select = formatTreeLine({
+      role: "select",
+      name: "Another select",
+      state: "selected",
+      nodeId: "ax-13",
+    });
+
+    expect(combo).toBe("[ax-12] combobox: Select field");
+    expect(select).toBe("[ax-13] select: Another select");
+  });
 });
 
 describe("injectSubtrees", () => {
