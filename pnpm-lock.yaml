@@ -214,21 +214,9 @@ importers:
       ollama-ai-provider-v2:
         specifier: ^1.5.0
         version: 1.5.0(zod@4.2.1)
-      patchright-core:
-        specifier: ^1.55.2
-        version: 1.55.2
-      playwright:
-        specifier: ^1.59.1
-        version: 1.59.1
-      playwright-core:
-        specifier: ^1.59.1
-        version: 1.59.1
-      puppeteer-core:
-        specifier: ^24.43.0
-        version: 24.43.0(bufferutil@4.0.9)
     devDependencies:
       '@playwright/test':
-        specifier: ^1.59.1
+        specifier: ^1.55.1
         version: 1.59.1
       '@types/adm-zip':
         specifier: ^0.5.7
@@ -257,9 +245,21 @@ importers:
       jsdom:
         specifier: ^29.1.1
         version: 29.1.1
+      patchright-core:
+        specifier: ^1.55.2
+        version: 1.55.2
+      playwright:
+        specifier: ^1.55.1
+        version: 1.55.1
+      playwright-core:
+        specifier: ^1.55.1
+        version: 1.59.1
       prettier:
         specifier: ^3.2.5
         version: 3.5.3
+      puppeteer-core:
+        specifier: ^24.43.0
+        version: 24.43.0(bufferutil@4.0.9)
       tsx:
         specifier: '*'
         version: 4.19.4
@@ -303,7 +303,7 @@ importers:
         specifier: ^4.104.0
         version: 4.104.0(ws@8.20.0(bufferutil@4.0.9))(zod@4.2.1)
       playwright:
-        specifier: ^1.55.1
+        specifier: '>=1.55.1 <1.57.0'
         version: 1.55.1
       sharp:
         specifier: ^0.34.5
@@ -373,7 +373,7 @@ importers:
         specifier: ^11.3.0
         version: 11.3.0
       playwright:
-        specifier: 1.55.1
+        specifier: ^1.55.1
         version: 1.55.1
       uuid:
         specifier: ^11.0.5
@@ -461,7 +461,7 @@ importers:
         specifier: ^11.3.0
         version: 11.3.0
       playwright:
-        specifier: 1.55.1
+        specifier: ^1.55.1
         version: 1.55.1
       postgres:
         specifier: ^3.4.8
@@ -9271,7 +9271,6 @@ snapshots:
       - bare-buffer
       - react-native-b4a
       - supports-color
-    optional: true
 
   '@puppeteer/browsers@2.3.0':
     dependencies:
@@ -9690,7 +9689,7 @@ snapshots:
 
   '@types/mssql@9.1.11(@azure/core-client@1.10.1)':
     dependencies:
-      '@types/node': 22.13.1
+      '@types/node': 25.6.2
       tarn: 3.0.2
       tedious: 19.2.1(@azure/core-client@1.10.1)
     transitivePeerDependencies:
@@ -9730,7 +9729,7 @@ snapshots:
 
   '@types/readable-stream@4.0.23':
     dependencies:
-      '@types/node': 22.13.1
+      '@types/node': 25.6.2
 
   '@types/retry@0.12.0': {}
 
@@ -10501,7 +10500,6 @@ snapshots:
       devtools-protocol: 0.0.1608973
       mitt: 3.0.1
       zod: 3.25.76
-    optional: true
 
   ci-info@3.9.0: {}
 
@@ -10799,8 +10797,7 @@ snapshots:
 
   devtools-protocol@0.0.1464554: {}
 
-  devtools-protocol@0.0.1608973:
-    optional: true
+  devtools-protocol@0.0.1608973: {}
 
   didyoumean@1.2.2: {}
 
@@ -13696,8 +13693,7 @@ snapshots:
 
   patch-console@2.0.0: {}
 
-  patchright-core@1.55.2:
-    optional: true
+  patchright-core@1.55.2: {}
 
   path-exists@4.0.0: {}
 
@@ -13982,7 +13978,6 @@ snapshots:
       - react-native-b4a
       - supports-color
       - utf-8-validate
-    optional: true
 
   puppeteer@22.15.0(bufferutil@4.0.9)(typescript@5.9.3):
     dependencies:
@@ -14938,7 +14933,7 @@ snapshots:
       '@azure/identity': 4.13.1
       '@azure/keyvault-keys': 4.10.0(@azure/core-client@1.10.1)
       '@js-joda/core': 5.7.0
-      '@types/node': 22.13.1
+      '@types/node': 25.6.2
       bl: 6.1.6
       iconv-lite: 0.6.3
       js-md4: 0.3.2
@@ -14954,7 +14949,7 @@ snapshots:
       '@azure/identity': 4.13.1
       '@azure/keyvault-keys': 4.10.0(@azure/core-client@1.10.1)
       '@js-joda/core': 5.7.0
-      '@types/node': 22.13.1
+      '@types/node': 25.6.2
       bl: 6.1.6
       iconv-lite: 0.7.2
       js-md4: 0.3.2
@@ -15200,8 +15195,7 @@ snapshots:
       possible-typed-array-names: 1.1.0
       reflect.getprototypeof: 1.0.10
 
-  typed-query-selector@2.12.2:
-    optional: true
+  typed-query-selector@2.12.2: {}
 
   typescript-eslint@8.56.1(eslint@10.0.2(jiti@2.6.1))(typescript@5.8.3):
     dependencies:
@@ -15582,8 +15576,7 @@ snapshots:
 
   web-streams-polyfill@4.0.0-beta.3: {}
 
-  webdriver-bidi-protocol@0.4.1:
-    optional: true
+  webdriver-bidi-protocol@0.4.1: {}
 
   webidl-conversions@3.0.1: {}
 
