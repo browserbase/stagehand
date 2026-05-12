@@ -55,6 +55,7 @@ await (async () => {
 
 import { red } from "./tui/format.js";
 import { getCurrentDirPath, getRuntimeTasksRoot } from "./runtimePaths.js";
+import type { TaskRegistry } from "./framework/types.js";
 
 /**
  * Directory of the running entry module. Differs between source and
@@ -65,13 +66,6 @@ const ENTRY_DIR = getCurrentDirPath();
 const args = process.argv.slice(2);
 
 (async () => {
-  // Keep heavy command modules behind their command branches. The run stack
-  // imports Braintrust transitively, and importing it for `help`/`config path`
-  // makes quiet commands print optional OpenTelemetry warnings.
-  const { printHelp, printRunHelp, printListHelp, printNewHelp } = await import(
-    "./tui/commands/help.js"
-  );
-
   // Best-effort shutdown: flush Braintrust telemetry and exit with the
   // conventional signal code. Does not guarantee in-flight task
   // cancellation upstream; the goal is clean process shutdown with no
@@ -133,49 +127,9 @@ const args = process.argv.slice(2);
     };
   }
 
-  async function executeRun(tokens: string[]): Promise<void> {
-    const { readConfig } = await import("./tui/commands/config.js");
-    const { runCommand } = await import("./tui/commands/run.js");
-    const { parseRunArgs, resolveRunOptions } = await import(
-      "./tui/commands/parse.js"
-    );
-    const flags = parseRunArgs(tokens);
-    const configFile = readConfig(ENTRY_DIR);
-    const resolved = resolveRunOptions(
-      flags,
-      configFile.defaults,
-      process.env,
-      configFile.core,
-    );
-
-    if (flags.legacy) {
-      const { runLegacy } = await import("./tui/commands/legacy.js");
-      const { discoverTasks } = await import("./framework/discovery.js");
-      const registry = await discoverTasks(getRuntimeTasksRoot(), false);
-      await runLegacy(resolved, flags, registry);
-      return; // unreachable — runLegacy calls process.exit
-    }
-
-    await runCommand(resolved);
-  }
-
-  const isHelpToken = (token: string | undefined): boolean =>
-    token === "--help" || token === "-h" || token === "help";
-
-  const isConfigHelpInvocation = (tokens: string[]): boolean => {
-    if (isHelpToken(tokens[0])) return true;
-    if (tokens[0] === "core") {
-      return isHelpToken(tokens[1]) || isHelpToken(tokens[2]);
-    }
-    return isHelpToken(tokens[1]);
-  };
-
-  const isExperimentsHelpInvocation = (tokens: string[]): boolean =>
-    isHelpToken(tokens[0]) || isHelpToken(tokens[1]);
-
   // Whether to write the first-run marker in `finally`. Help-only paths and
   // the doctor command don't count as "first uses" — they're discovery
-  // actions. The REPL marks itself.
+  // actions. The REPL marks itself. Set by the dispatch outcome below.
   let shouldMarkFirstRun = false;
 
   try {
@@ -186,90 +140,37 @@ const args = process.argv.slice(2);
       return;
     }
 
-    const command = args[0].toLowerCase();
-    const subArgs = args.slice(1);
-    // Help is only triggered when `--help`/`-h`/`help` sits immediately
-    // after the command. Later positions are arguments or flag values and
-    // must not be swallowed (e.g. `evals run act --help` would otherwise
-    // print run help instead of erroring on the unknown `--help` flag).
-    const wantsHelp = isHelpToken(subArgs[0]);
+    const { buildCommandTree, dispatch, tokenizeArgv } = await import(
+      "./tui/commandTree.js"
+    );
 
-    switch (command) {
-      case "run": {
-        if (wantsHelp) {
-          printRunHelp();
-          return;
-        }
-        shouldMarkFirstRun = true;
-        await executeRun(subArgs);
-        return;
-      }
-
-      case "list": {
-        if (wantsHelp) {
-          printListHelp();
-          return;
-        }
-        shouldMarkFirstRun = true;
-        const detailed =
-          subArgs.includes("--detailed") || subArgs.includes("-d");
-        const tierFilter = subArgs.find((a) => !a.startsWith("-"));
-        const tasksRoot = getRuntimeTasksRoot();
+    let registry: TaskRegistry | null = null;
+    const getRegistry = async (): Promise<TaskRegistry> => {
+      if (!registry) {
         const { discoverTasks } = await import("./framework/discovery.js");
-        const { printList } = await import("./tui/commands/list.js");
-        const registry = await discoverTasks(tasksRoot, false);
-        printList(registry, tierFilter, detailed);
-        return;
+        registry = await discoverTasks(getRuntimeTasksRoot(), false);
       }
+      return registry;
+    };
 
-      case "config": {
-        shouldMarkFirstRun = !isConfigHelpInvocation(subArgs);
-        const { handleConfig } = await import("./tui/commands/config.js");
-        await handleConfig(subArgs, ENTRY_DIR);
-        return;
-      }
+    const tree = buildCommandTree();
 
-      case "experiments": {
-        shouldMarkFirstRun = !isExperimentsHelpInvocation(subArgs);
-        const { handleExperiments } = await import(
-          "./tui/commands/experiments.js"
-        );
-        await handleExperiments(subArgs);
-        return;
-      }
+    const tokens = tokenizeArgv(args);
+    const outcome = await dispatch(tree, tokens, {
+      entryDir: ENTRY_DIR,
+      getRegistry,
+      setRegistry: (r) => {
+        registry = r;
+      },
+      abortRef: null,
+      contextPath: null,
+    });
 
-      case "doctor":
-      case "health": {
-        // Doctor is a diagnostic, not a "first use" — don't mark the marker.
-        const { handleDoctor } = await import("./tui/commands/doctor.js");
-        const exitCode = await handleDoctor(subArgs, ENTRY_DIR);
-        if (exitCode !== 0) process.exitCode = exitCode;
-        return;
-      }
-
-      case "new": {
-        if (wantsHelp) {
-          printNewHelp();
-          return;
-        }
-        shouldMarkFirstRun = true;
-        const { scaffoldTask } = await import("./tui/commands/new.js");
-        scaffoldTask(subArgs);
-        return;
-      }
-
-      case "help":
-      case "--help":
-      case "-h":
-        printHelp();
-        return;
-
-      default: {
-        // Unknown first arg → treat as run target: `evals act` == `evals run act`
-        shouldMarkFirstRun = true;
-        await executeRun(args);
-        return;
-      }
+    // Only count real handler invocations as "first use". Doctor is a
+    // diagnostic, not a first use; help/meta paths are discovery.
+    if (outcome.kind === "ran") {
+      const top = outcome.absolutePath[0];
+      shouldMarkFirstRun = top !== "doctor";
     }
   } catch (err) {
     console.error(red(`Error: ${(err as Error).message}`));

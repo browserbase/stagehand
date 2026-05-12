@@ -101,7 +101,7 @@ await stagehand.observe("what is the page title?");
 
 ## Advanced Configuration
 
-You can pass additional options to configure the model, timeout, selector scope, and placeholder variables:
+You can pass additional options to configure the model, timeout, selector scope, ignored page regions, and placeholder variables:
 
 ```typescript
 // Custom model configuration
@@ -111,6 +111,22 @@ const actions = await stagehand.observe("find navigation links", {
   selector: "//header" // Focus on specific area
 });
 ```
+
+You can also exclude specific nodes, including their descendant nodes, with `ignoreSelectors`.
+
+```typescript
+const actions = await stagehand.observe("find the main call-to-action buttons", {
+  ignoreSelectors: [
+    "//aside[contains(@class, 'promo-rail')]",
+    "//div[@id='floating-chat-launcher']",
+    "//section[@aria-label='recommended articles']"
+  ]
+});
+```
+
+<Note>
+  `ignoreSelectors` removes all matches for each selector, along with each matched node's descendants. `selector` still scopes observation to a single resolved subtree.
+</Note>
 
 ### Validate Then Act with Variables
 
