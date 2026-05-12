@@ -34,6 +34,7 @@ interface ObserveOptions {
   variables?: Record<string, VariableValue>;
   timeout?: number;
   selector?: string;
+  ignoreSelectors?: string[];
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   serverCache?: boolean;
 }
@@ -95,6 +96,14 @@ type ModelConfiguration =
 
 <ParamField path="selector" type="string" optional>
   Optional XPath selector to focus the observation on a specific part of the page. Useful for narrowing down the search area.
+</ParamField>
+
+<ParamField path="ignoreSelectors" type="string[]" optional>
+  Optional list of selectors to exclude from the observed snapshot before observation runs. Each selector removes all matching elements and their descendants.
+
+  <Note>
+    `ignoreSelectors` applies to all matches for each selector. `selector` keeps its single-target scoping behavior.
+  </Note>
 </ParamField>
 
 <ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
@@ -225,6 +234,20 @@ const actions = await stagehand.observe("find navigation links", {
 // Focus observation on a specific part of the page
 const tableActions = await stagehand.observe("find all table rows", {
   selector: "/html/body/main/table"
+});
+```
+
+</Tab>
+<Tab title="Ignore Elements">
+
+```typescript
+// Exclude parts of the page you do not want observe() to consider
+const actions = await stagehand.observe("find the main call-to-action buttons", {
+  ignoreSelectors: [
+    "//aside[contains(@class, 'promo-rail')]",
+    "//div[@id='floating-chat-launcher']",
+    "//section[@aria-label='recommended articles']"
+  ]
 });
 ```
 
