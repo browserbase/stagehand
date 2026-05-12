@@ -43,6 +43,7 @@ interface ExtractOptions {
   model?: ModelConfiguration;
   timeout?: number;
   selector?: string;
+  ignoreSelectors?: string[];
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   serverCache?: boolean;
 }
@@ -98,12 +99,20 @@ type ModelConfiguration =
   Optional selector (XPath, CSS selector, etc.) to limit extraction scope to a specific part of the page. Reduces token usage and improves accuracy.
 </ParamField>
 
+<ParamField path="ignoreSelectors" type="string[]" optional>
+  Optional list of selectors to exclude from the extracted snapshot before extraction runs. Each selector removes all matching elements and their descendants.
+
+  <Note>
+    `ignoreSelectors` applies to all matches for each selector. `selector` keeps its single-target scoping behavior.
+  </Note>
+</ParamField>
+
 <ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
   Optional: Specify which page to perform the extraction on. Supports multiple browser automation libraries:
-  - **Playwright**: Native Playwright Page objects
+  - **Stagehand Page**: Native Stagehand Page objects
+  - **Playwright**: Playwright Page objects
   - **Puppeteer**: Puppeteer Page objects
   - **Patchright**: Patchright Page objects
-  - **Stagehand Page**: Stagehand's wrapped Page object
 
   If not specified, defaults to the current "active" page in your Stagehand instance.
 </ParamField>

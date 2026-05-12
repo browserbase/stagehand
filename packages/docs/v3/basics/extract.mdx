@@ -204,6 +204,25 @@ const tableData = await stagehand.extract(
 );
 ```
 
+You can also exclude specific nodes (including their descendant nodes) with `ignoreSelectors`.
+
+```typescript
+const article = await stagehand.extract(
+  "extract the article title and body",
+  z.object({
+    title: z.string(),
+    body: z.string()
+  }),
+  {
+    ignoreSelectors: [".ad", ".newsletter-modal", "nav.related-posts"]
+  }
+);
+```
+
+<Note>
+  `ignoreSelectors` removes all matches for each selector, along with each matched node's descendants. `selector` still scopes extraction to a single resolved subtree.
+</Note>
+
 
 ## Best practices
 
