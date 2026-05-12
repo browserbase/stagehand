@@ -60,13 +60,8 @@ export type WelcomeContext = {
 export function printExtendedWelcome(ctx: WelcomeContext): void {
   const lines: string[] = [];
   lines.push("");
-  lines.push(
-    `  ${bold("Welcome to Stagehand evals.")} ${dim("First run detected — showing this once.")}`,
-  );
+  lines.push(`  ${bold("Welcome to Stagehand evals.")}`);
   lines.push("");
-  lines.push(
-    `  ${dim("·")} Run agent benchmarks (${cyan("bench")}) and deterministic CLI perf tests (${cyan("core")}).`,
-  );
   lines.push(
     `  ${dim("·")} Type a command (e.g. ${cyan("list")}) or a run target (e.g. ${cyan("act")}).`,
   );
@@ -87,7 +82,7 @@ export function printExtendedWelcome(ctx: WelcomeContext): void {
     `    ${cyan("list")}                       ${dim("# see what tasks exist")}`,
   );
   lines.push(
-    `    ${cyan("run act")}                    ${dim("# run the act category once (env=local)")}`,
+    `    ${cyan("run agent")}                  ${dim("# run the agent category once (env=local)")}`,
   );
   lines.push(
     `    ${cyan("experiments list")}           ${dim("# recent Braintrust runs (needs BRAINTRUST_API_KEY)")}`,
