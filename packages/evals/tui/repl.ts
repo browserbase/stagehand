@@ -18,18 +18,60 @@ import {
 import { discoverTasks } from "../framework/discovery.js";
 import type { TaskRegistry } from "../framework/types.js";
 import { getRuntimeTasksRoot } from "../runtimePaths.js";
+import { printExtendedWelcome, printTipLine } from "./welcome.js";
+import { snapshotEnv, renderInlineWarning } from "./welcomeStatus.js";
+import { isFirstRun, markFirstRunComplete } from "./welcomeState.js";
 
-export async function startRepl(entryDir: string): Promise<void> {
-  printBanner();
+export type ReplOptions = {
+  /** Suppress banner, welcome, and any inline warnings. Output is just the prompt. */
+  quiet?: boolean;
+};
+
+export async function startRepl(
+  entryDir: string,
+  options: ReplOptions = {},
+): Promise<void> {
+  const quiet = options.quiet === true;
+  const noWelcome = quiet || Boolean(process.env.EVALS_NO_WELCOME);
 
   const resolvedTasksRoot = getRuntimeTasksRoot();
   let registry: TaskRegistry;
   try {
     registry = await discoverTasks(resolvedTasksRoot, false);
-    console.log(dim(`  Discovered ${registry.tasks.length} tasks\n`));
   } catch (err) {
     console.error(red(`  Failed to discover tasks: ${(err as Error).message}`));
     process.exit(1);
+  }
+
+  // ─── Onboarding chrome ───────────────────────────────────────────────
+  // First-run-only welcome panel; otherwise just the banner + tip line.
+  // The only inline output about env state is the zero-keys warning,
+  // surfaced when no welcome panel is shown. Discovery count is NOT
+  // printed (use `list` or `evals doctor` instead).
+  if (!quiet) {
+    printBanner();
+    const showExtendedWelcome = !noWelcome && isFirstRun(entryDir);
+    if (showExtendedWelcome) {
+      printExtendedWelcome({ snapshot: snapshotEnv(), registry });
+    } else {
+      const warning = renderInlineWarning(snapshotEnv());
+      if (warning && process.stdout.isTTY) {
+        console.log(warning);
+      }
+      printTipLine();
+    }
+    console.log("");
+    // Mark the marker pre-prompt so even an immediate Ctrl+C counts as
+    // "first-run complete" — we don't want to re-prompt on every relaunch
+    // when the user dismisses the welcome.
+    //
+    // Gated on `!quiet`: a `evals --quiet` invocation (often used by CI /
+    // automation that pipes into the REPL) must NOT burn the first-run
+    // marker, since the user never had a chance to see the welcome.
+    // `EVALS_NO_WELCOME=1`, on the other hand, IS an explicit dismissal,
+    // so it still marks the marker via the `else` branch above already
+    // having rendered the tip line — the user knows they're in the REPL.
+    markFirstRunComplete(entryDir);
   }
 
   const contextPath: string[] = [];

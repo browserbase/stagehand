@@ -204,24 +204,33 @@ export function renderPrompt(contextPath: readonly string[]): string {
 // Dispatch
 // ---------------------------------------------------------------------------
 
+export type DispatchOutcome =
+  | { kind: "noop" }
+  | { kind: "meta" }
+  | { kind: "help" }
+  | { kind: "ran"; absolutePath: string[] };
+
 /**
  * Resolve `tokens` against the tree and execute the result. Caller owns
  * error handling and prompt reprinting.
+ *
+ * Returns an outcome the caller can inspect — cli.ts uses it to decide
+ * whether the invocation counts as a "first use" for the welcome marker.
  */
 export async function dispatch(
   root: CommandNode,
   tokens: string[],
   ctx: CommandContext,
-): Promise<void> {
+): Promise<DispatchOutcome> {
   const result = resolveCommand(root, ctx.contextPath ?? [], tokens);
 
   switch (result.kind) {
     case "noop":
-      return;
+      return { kind: "noop" };
 
     case "meta":
       await runMeta(result.name, result.args, root, ctx);
-      return;
+      return { kind: "meta" };
 
     case "run": {
       // Help is only triggered when `help` / `--help` / `-h` sits IMMEDIATELY
@@ -233,7 +242,7 @@ export async function dispatch(
         first === "help" || first === "--help" || first === "-h";
       if (wantsHelp && result.node.printHelp) {
         await result.node.printHelp(result.absolutePath);
-        return;
+        return { kind: "help" };
       }
 
       if (result.node.handler) {
@@ -246,6 +255,7 @@ export async function dispatch(
         );
       } else if (result.node.printHelp) {
         await result.node.printHelp(result.absolutePath);
+        return { kind: "help" };
       }
 
       // Descend on bare (REPL only). `config` and `config core` already
@@ -263,7 +273,7 @@ export async function dispatch(
           ctx.setContextPath?.(target);
         }
       }
-      return;
+      return { kind: "ran", absolutePath: result.absolutePath };
     }
 
     case "unknown": {
@@ -277,7 +287,7 @@ export async function dispatch(
           const forwarded =
             tokens[0]?.toLowerCase() === "evals" ? tokens.slice(1) : tokens;
           await runNode.handler(forwarded, ctx);
-          return;
+          return { kind: "ran", absolutePath: ["run"] };
         }
       }
       throw new Error(unknownMessage(result.token, result.context));
@@ -620,11 +630,31 @@ export function buildCommandTree(): CommandNode {
     ],
   };
 
+  const doctorNode: CommandNode = {
+    name: "doctor",
+    aliases: ["health"],
+    summary: "Health report (env keys, config, discovery)",
+    printHelp: async () =>
+      (await import("./commands/doctor.js")).printDoctorHelp(),
+    handler: async (args, ctx) => {
+      const { handleDoctor } = await import("./commands/doctor.js");
+      const exitCode = await handleDoctor(args, ctx.entryDir);
+      if (exitCode !== 0) process.exitCode = exitCode;
+    },
+  };
+
   const root: CommandNode = {
     name: "evals",
     summary: "Stagehand evals CLI",
     printHelp: async () => (await help()).printHelp(),
-    children: [runNode, listNode, configNode, experimentsNode, newNode],
+    children: [
+      runNode,
+      listNode,
+      configNode,
+      experimentsNode,
+      newNode,
+      doctorNode,
+    ],
   };
 
   return root;

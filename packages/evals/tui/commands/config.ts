@@ -36,10 +36,24 @@ export type CoreConfigSection = {
   startup?: string;
 };
 
-type ConfigFile = {
+/**
+ * First-run / welcome metadata. Persisted inside `evals.config.json` so it
+ * follows the same per-mode (source vs. dist) storage as `defaults`/`core`.
+ * Owned by tui/welcomeState.ts; the type lives here because it round-trips
+ * through readConfig/writeConfig.
+ */
+export type WelcomeMeta = {
+  /** ISO 8601 timestamp when the first-run welcome was completed. */
+  firstRunCompletedAt?: string;
+  /** Schema version for the welcome marker (currently 1). */
+  version?: number;
+};
+
+export type ConfigFile = {
   defaults: Defaults;
   benchmarks?: Record<string, unknown>;
   core?: CoreConfigSection;
+  _meta?: WelcomeMeta;
 };
 
 const VALID_KEYS: Array<keyof Defaults> = [
@@ -76,6 +90,7 @@ export function readConfig(entryDir: string): ConfigFile {
       defaults: raw.defaults ?? {},
       benchmarks: raw.benchmarks ?? {},
       core: raw.core ?? undefined,
+      _meta: raw._meta ?? undefined,
     };
   } catch (error) {
     if (
