@@ -20,4 +20,10 @@ export type SnapshotResult = {
 
 export type PageSnapshotOptions = {
   includeIframes?: boolean;
+  /** Only include actionable elements and their structural ancestors. */
+  interactive?: boolean;
+  /** Maximum tree depth to include after pruning. */
+  maxDepth?: number;
+  /** Scope the snapshot to a CSS selector or XPath. */
+  focusSelector?: string;
 };

@@ -19,14 +19,33 @@ describe("formatTreeLine", () => {
         {
           role: "button",
           name: "Submit",
+          encodedId: "frame-2",
           nodeId: "ax-2",
         },
       ],
     });
 
     expect(outline).toBe(
-      "[frame-1] section: Container\n  [ax-2] button: Submit",
+      "[frame-1] section: Container\n  [frame-2] button: Submit",
     );
+  });
+
+  it("omits refs for nodes without encoded ids", () => {
+    const outline = formatTreeLine({
+      role: "main",
+      name: "Content",
+      nodeId: "ax-1",
+      children: [
+        {
+          role: "button",
+          name: "Submit",
+          encodedId: "button-1",
+          nodeId: "ax-2",
+        },
+      ],
+    });
+
+    expect(outline).toBe("main: Content\n  [button-1] button: Submit");
   });
 });
 
