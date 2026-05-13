@@ -1,4 +1,4 @@
-import { ToolSet } from "ai/dist";
+import { ToolSet } from "ai";
 import { AgentProviderType } from "../types/public/agent.js";
 import { LogLine } from "../types/public/logs.js";
 import { ClientOptions } from "../types/public/model.js";
