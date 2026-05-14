@@ -114,13 +114,133 @@ const PROVIDER_PREFIXES = [
 ];
 
 const COST_METRIC_KEYS = [
+  "agent_cost_usd",
+  "agent_total_cost_usd",
+  "agent_estimated_cost_usd",
+  "stagehand_agent_cost_usd",
+  "stagehand_agent_total_cost_usd",
+  "codex_cost_usd",
+  "claude_code_cost_usd",
   "cost_usd",
   "total_cost_usd",
   "estimated_cost_usd",
-  "claude_code_cost_usd",
   "cost",
   "price_usd",
 ];
+
+const TESTED_RUN_INPUT_TOKEN_KEYS = [
+  "agent_input_tokens",
+  "total_input_tokens",
+  "codex_input_tokens",
+  "claude_code_input_tokens",
+];
+
+const TESTED_RUN_CACHED_INPUT_TOKEN_KEYS = [
+  "agent_cached_input_tokens",
+  "total_cached_input_tokens",
+  "codex_cached_input_tokens",
+  "claude_code_cache_read_input_tokens",
+];
+
+const TESTED_RUN_OUTPUT_TOKEN_KEYS = [
+  "agent_output_tokens",
+  "total_output_tokens",
+  "codex_output_tokens",
+  "claude_code_output_tokens",
+];
+
+const TESTED_RUN_INFERENCE_MS_KEYS = [
+  "agent_inference_time_ms",
+  "total_inference_time_ms",
+  "codex_inference_time_ms",
+  "claude_code_inference_time_ms",
+];
+
+type ModelPricing = {
+  input: number;
+  cachedInput?: number;
+  output: number;
+  longContext?: {
+    thresholdTokens: number;
+    input: number;
+    cachedInput?: number;
+    output: number;
+  };
+};
+
+const MODEL_PRICING_USD_PER_1M_TOKENS = new Map<string, ModelPricing>([
+  ["anthropic/claude-opus-4-7", { input: 5, cachedInput: 0.5, output: 25 }],
+  ["claude-opus-4-7", { input: 5, cachedInput: 0.5, output: 25 }],
+  ["anthropic/claude-opus-4-6", { input: 5, cachedInput: 0.5, output: 25 }],
+  ["claude-opus-4-6", { input: 5, cachedInput: 0.5, output: 25 }],
+  ["anthropic/claude-opus-4-5", { input: 5, cachedInput: 0.5, output: 25 }],
+  ["claude-opus-4-5", { input: 5, cachedInput: 0.5, output: 25 }],
+  ["anthropic/claude-sonnet-4-6", { input: 3, cachedInput: 0.3, output: 15 }],
+  ["claude-sonnet-4-6", { input: 3, cachedInput: 0.3, output: 15 }],
+  ["anthropic/claude-sonnet-4-5", { input: 3, cachedInput: 0.3, output: 15 }],
+  ["claude-sonnet-4-5", { input: 3, cachedInput: 0.3, output: 15 }],
+  ["anthropic/claude-haiku-4-5", { input: 1, cachedInput: 0.1, output: 5 }],
+  ["claude-haiku-4-5", { input: 1, cachedInput: 0.1, output: 5 }],
+  ["openai/gpt-5.5", { input: 5, cachedInput: 0.5, output: 30 }],
+  ["gpt-5.5", { input: 5, cachedInput: 0.5, output: 30 }],
+  ["openai/gpt-5.4", { input: 2.5, cachedInput: 0.25, output: 15 }],
+  ["gpt-5.4", { input: 2.5, cachedInput: 0.25, output: 15 }],
+  ["openai/gpt-5.4-mini", { input: 0.75, cachedInput: 0.075, output: 4.5 }],
+  ["gpt-5.4-mini", { input: 0.75, cachedInput: 0.075, output: 4.5 }],
+  [
+    "google/gemini-3-flash-preview",
+    { input: 0.5, cachedInput: 0.05, output: 3 },
+  ],
+  ["gemini-3-flash-preview", { input: 0.5, cachedInput: 0.05, output: 3 }],
+  [
+    "google/gemini-2.5-computer-use-preview-10-2025",
+    {
+      input: 1.25,
+      output: 10,
+      longContext: {
+        thresholdTokens: 200_000,
+        input: 2.5,
+        output: 15,
+      },
+    },
+  ],
+  [
+    "gemini-2.5-computer-use-preview-10-2025",
+    {
+      input: 1.25,
+      output: 10,
+      longContext: {
+        thresholdTokens: 200_000,
+        input: 2.5,
+        output: 15,
+      },
+    },
+  ],
+  [
+    "google/gemini-2.5-computer-use-preview",
+    {
+      input: 1.25,
+      output: 10,
+      longContext: {
+        thresholdTokens: 200_000,
+        input: 2.5,
+        output: 15,
+      },
+    },
+  ],
+  [
+    "gemini-2.5-computer-use-preview",
+    {
+      input: 1.25,
+      output: 10,
+      longContext: {
+        thresholdTokens: 200_000,
+        input: 2.5,
+        output: 15,
+      },
+    },
+  ],
+]);
 
 function usage(): string {
   return [
@@ -453,14 +573,78 @@ function caseCost(benchCase: BenchCaseRow): number | undefined {
     if (typeof value === "number" && Number.isFinite(value)) return value;
   }
 
+  const estimated = estimatedTokenCost(benchCase);
+  if (estimated !== undefined) return estimated;
+
   const matched = Object.entries(benchCase.metrics).find(
     ([key, value]) =>
       /(cost|price|usd)/i.test(key) &&
+      !/(verifier|evaluator|scorer|exactmatch|errormatch)/i.test(key) &&
       typeof value === "number" &&
       Number.isFinite(value),
   );
 
   return matched ? matched[1] : undefined;
+}
+
+function caseSpeedMs(benchCase: BenchCaseRow): number | undefined {
+  return firstMetric(benchCase.metrics, TESTED_RUN_INFERENCE_MS_KEYS);
+}
+
+function firstMetric(
+  metrics: Record<string, number>,
+  keys: string[],
+): number | undefined {
+  for (const key of keys) {
+    const value = metrics[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return undefined;
+}
+
+function modelPricing(model: string | undefined): ModelPricing | undefined {
+  if (!model) return undefined;
+  const normalized = model.trim().toLowerCase();
+  return MODEL_PRICING_USD_PER_1M_TOKENS.get(normalized);
+}
+
+function estimatedTokenCost(benchCase: BenchCaseRow): number | undefined {
+  const basePricing = modelPricing(benchCase.model);
+  if (!basePricing) return undefined;
+
+  // Only use metrics emitted by the tested agent/harness. Braintrust scorer
+  // spans and task logs can contain verifier model usage, usually Gemini, and
+  // must not be billed as the evaluated model.
+  const inputTokens = firstMetric(
+    benchCase.metrics,
+    TESTED_RUN_INPUT_TOKEN_KEYS,
+  );
+  const cachedInputTokens =
+    firstMetric(benchCase.metrics, TESTED_RUN_CACHED_INPUT_TOKEN_KEYS) ?? 0;
+  const outputTokens = firstMetric(
+    benchCase.metrics,
+    TESTED_RUN_OUTPUT_TOKEN_KEYS,
+  );
+
+  if (inputTokens === undefined && outputTokens === undefined) {
+    return undefined;
+  }
+
+  const billableInputTokens = Math.max(
+    (inputTokens ?? 0) - cachedInputTokens,
+    0,
+  );
+  const pricing =
+    basePricing.longContext &&
+    (inputTokens ?? 0) > basePricing.longContext.thresholdTokens
+      ? basePricing.longContext
+      : basePricing;
+  const inputCost =
+    (billableInputTokens * pricing.input +
+      cachedInputTokens * (pricing.cachedInput ?? pricing.input)) /
+    1_000_000;
+  const outputCost = ((outputTokens ?? 0) * pricing.output) / 1_000_000;
+  return inputCost + outputCost;
 }
 
 function experimentTimestamp(experiment: ExperimentData): number {
@@ -492,7 +676,7 @@ function benchmarkRow(
   const passed = cases.filter((benchCase) => benchCase.success).length;
   const passPercent = total > 0 ? round((passed / total) * 100) : 0;
   const durations = cases
-    .map((benchCase) => benchCase.durationMs)
+    .map((benchCase) => caseSpeedMs(benchCase) ?? benchCase.durationMs)
     .filter((value): value is number => typeof value === "number");
   const costs = cases
     .map(caseCost)
