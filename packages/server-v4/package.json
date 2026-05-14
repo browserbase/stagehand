@@ -31,7 +31,7 @@
     "@electric-sql/pglite": "0.4.2",
     "@fastify/cors": "^11.0.1",
     "@fastify/swagger": "^9.6.1",
-    "@fastify/swagger-ui": "^5.2.3",
+    "@fastify/swagger-ui": "^5.2.6",
     "@t3-oss/env-core": "^0.13.11",
     "drizzle-orm": "1.0.0-beta.20",
     "fastify": "^5.8.5",
@@ -43,7 +43,7 @@
     "pino-pretty": "^11.3.0",
     "playwright": "^1.55.1",
     "postgres": "^3.4.8",
-    "uuid": "^11.0.5",
+    "uuid": "^11.1.1",
     "zod": "^4.2.1"
   },
   "devDependencies": {
@@ -57,7 +57,8 @@
     "source-map": "^0.7.4",
     "tsc-alias": "^1.8.10",
     "tsx": "*",
-    "vitest": "^4.0.8"
+    "vite": "^7.3.3",
+    "vitest": "^4.1.6"
   },
   "repository": {
     "type": "git",

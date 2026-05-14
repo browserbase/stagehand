@@ -42,12 +42,12 @@
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.0",
-    "@changesets/cli": "^2.27.9",
+    "@changesets/cli": "^2.31.0",
     "@eslint/js": "^10.0.1",
-    "c8": "^10.1.3",
+    "c8": "^11.0.0",
     "dotenv": "^17.3.1",
     "esbuild": "0.27.2",
-    "eslint": "^10.0.2",
+    "eslint": "^10.3.0",
     "eslint-plugin-security": "^3.0.1",
     "globals": "^15.13.0",
     "husky": "^9.1.7",
@@ -68,14 +68,18 @@
     "url": "https://github.com/browserbase/stagehand/issues"
   },
   "homepage": "https://stagehand.dev",
-  "overrides": {
-    "whatwg-url": "^14.0.0",
-    "jwa": "^2.0.1",
-    "zod": "4.2.1",
-    "tsx": "4.19.4"
-  },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "axios": "^1.15.2",
+      "follow-redirects": "^1.16.0",
+      "jws": "^4.0.1",
+      "lodash": "^4.18.0",
+      "minimatch": "^3.1.4",
+      "uuid": "^11.1.1"
+    }
   },
   "lint-staged": {
     "*": "prettier --write --ignore-unknown"

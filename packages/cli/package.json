@@ -67,9 +67,10 @@
     "@types/ws": "^8.5.13",
     "devtools-protocol": "^0.0.1464554",
     "eslint": "^10.0.2",
-    "tsup": "^8.2.1",
+    "tsup": "^8.5.1",
     "tsx": "^4.10.5",
     "typescript": "5.8.3",
-    "vitest": "^4.0.8"
+    "vite": "^7.3.3",
+    "vitest": "^4.1.6"
   }
 }

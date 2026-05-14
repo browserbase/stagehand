@@ -5,19 +5,32 @@ import {
   resolveCommand,
   tokenizeArgv,
   walkPath,
+  type CommandHandler,
   type CommandContext,
   type CommandNode,
 } from "../../tui/commandTree.js";
 import { tokenize } from "../../tui/tokenize.js";
 import type { TaskRegistry } from "../../framework/types.js";
 
+type HandlerMock = ReturnType<typeof vi.fn> & CommandHandler;
+type PrintHelpMock = ReturnType<typeof vi.fn> &
+  NonNullable<CommandNode["printHelp"]>;
+
 // ---------------------------------------------------------------------------
 // Fake tree — keeps tests independent of the real handlers.
 // ---------------------------------------------------------------------------
 
-function makeTree(
-  handlers: Record<string, ReturnType<typeof vi.fn>>,
-): CommandNode {
+function makeTree(handlers: {
+  run: HandlerMock;
+  config: HandlerMock;
+  configPath: HandlerMock;
+  configCore: HandlerMock;
+  corePath: HandlerMock;
+  experiments: HandlerMock;
+  expList: HandlerMock;
+  compare: HandlerMock;
+  rootHelp: PrintHelpMock;
+}): CommandNode {
   const compare: CommandNode = {
     name: "compare",
     summary: "compare experiments",
@@ -293,15 +306,15 @@ describe("resolveCommand", () => {
 describe("dispatch", () => {
   function makeHandlers() {
     return {
-      run: vi.fn(),
-      config: vi.fn(),
-      configPath: vi.fn(),
-      configCore: vi.fn(),
-      corePath: vi.fn(),
-      experiments: vi.fn(),
-      expList: vi.fn(),
-      compare: vi.fn(),
-      rootHelp: vi.fn(),
+      run: vi.fn() as HandlerMock,
+      config: vi.fn() as HandlerMock,
+      configPath: vi.fn() as HandlerMock,
+      configCore: vi.fn() as HandlerMock,
+      corePath: vi.fn() as HandlerMock,
+      experiments: vi.fn() as HandlerMock,
+      expList: vi.fn() as HandlerMock,
+      compare: vi.fn() as HandlerMock,
+      rootHelp: vi.fn() as PrintHelpMock,
     };
   }
 
@@ -418,7 +431,7 @@ describe("dispatch", () => {
     const tree = makeTree(h);
     // Add a printHelp to compare for this test.
     const compare = tree.children![2].children![1];
-    const printCompareHelp = vi.fn();
+    const printCompareHelp = vi.fn() as PrintHelpMock;
     (compare as { printHelp?: (s: readonly string[]) => void }).printHelp =
       printCompareHelp;
     await dispatch(tree, ["experiments", "compare", "--help"], makeCtx());
@@ -429,7 +442,7 @@ describe("dispatch", () => {
   it("routes bare `help` to the current context's printHelp", async () => {
     const h = makeHandlers();
     const tree = makeTree(h);
-    const printExperimentsHelp = vi.fn();
+    const printExperimentsHelp = vi.fn() as PrintHelpMock;
     (
       tree.children![2] as {
         printHelp?: (s: readonly string[]) => void;
