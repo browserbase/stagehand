@@ -39,7 +39,7 @@ describe("formatTreeLine", () => {
         {
           role: "option",
           name: "Option B",
-          state: "selected",
+          selected: true,
           nodeId: "ax-6",
         },
         { role: "option", name: "Option C", nodeId: "ax-7" },
@@ -59,7 +59,7 @@ describe("formatTreeLine", () => {
       nodeId: "ax-8",
       children: [
         { role: "radio", name: "Option A", nodeId: "ax-9" },
-        { role: "radio", name: "Option B", state: "checked", nodeId: "ax-10" },
+        { role: "radio", name: "Option B", checked: true, nodeId: "ax-10" },
         { role: "radio", name: "Option C", nodeId: "ax-11" },
       ],
     });
@@ -70,22 +70,18 @@ describe("formatTreeLine", () => {
     expect(outline.match(/\[checked]/g)?.length ?? 0).toBe(1);
   });
 
-  it("does not render [selected] on combobox/select nodes", () => {
-    const combo = formatTreeLine({
-      role: "combobox",
-      name: "Select field",
-      state: "selected",
+  it("renders both flags when a node carries both states", () => {
+    const outline = formatTreeLine({
+      role: "menuitemcheckbox",
+      name: "Hybrid state",
+      selected: true,
+      checked: true,
       nodeId: "ax-12",
     });
-    const select = formatTreeLine({
-      role: "select",
-      name: "Another select",
-      state: "selected",
-      nodeId: "ax-13",
-    });
 
-    expect(combo).toBe("[ax-12] combobox: Select field");
-    expect(select).toBe("[ax-13] select: Another select");
+    expect(outline).toBe(
+      "[ax-12] menuitemcheckbox: Hybrid state [selected] [checked]",
+    );
   });
 });
 

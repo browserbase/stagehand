@@ -101,7 +101,8 @@ export type A11yNode = {
   name?: string;
   description?: string;
   value?: string | number | boolean;
-  state?: "selected" | "checked";
+  selected?: boolean;
+  checked?: boolean;
   nodeId: string;
   backendDOMNodeId?: number;
   parentId?: string;

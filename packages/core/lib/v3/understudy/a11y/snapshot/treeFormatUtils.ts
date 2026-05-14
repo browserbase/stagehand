@@ -1,9 +1,4 @@
 import type { A11yNode } from "../../../types/private/snapshot.js";
-import {
-  A11Y_SELECTED_VISIBLE_ROLES,
-  A11Y_STATE_CHECKED,
-  A11Y_STATE_SELECTED,
-} from "./constants.js";
 
 /**
  * Render a formatted outline (with encoded ids) for the accessibility tree.
@@ -21,20 +16,10 @@ export function formatTreeLine(node: A11yNode, level = 0): string {
 }
 
 function formatStateFlags(node: A11yNode): string {
-  const flags: string[] = [];
-
-  if (
-    node.state === A11Y_STATE_CHECKED ||
-    (node.state === A11Y_STATE_SELECTED && shouldRenderSelected(node.role))
-  ) {
-    flags.push(node.state);
-  }
-  return flags.length ? ` [${flags.join(", ")}]` : "";
-}
-
-function shouldRenderSelected(role: string): boolean {
-  const normalizedRole = role.toLowerCase();
-  return A11Y_SELECTED_VISIBLE_ROLES.has(normalizedRole);
+  let flags = "";
+  if (node.selected) flags += " [selected]";
+  if (node.checked) flags += " [checked]";
+  return flags;
 }
 
 /**

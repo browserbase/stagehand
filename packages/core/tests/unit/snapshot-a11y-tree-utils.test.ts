@@ -120,15 +120,13 @@ describe("decorateRoles", () => {
     expect(decorated[0]?.encodedId).toBeUndefined();
   });
 
-  it("maps selected/checked AX states into a single state field", () => {
+  it("maps selected/checked AX properties into boolean fields", () => {
     const nodes = [
       makeAxNode({
         backendDOMNodeId: 12,
         role: axString("option"),
         name: axString("Option B"),
-        properties: [
-          { name: "selected", value: axBool(true) },
-        ],
+        properties: [{ name: "selected", value: axBool(true) }],
       }),
       makeAxNode({
         backendDOMNodeId: 13,
@@ -148,9 +146,9 @@ describe("decorateRoles", () => {
     ];
 
     const decorated = decorateRoles(nodes, defaultOpts);
-    expect(decorated[0]?.state).toBe("selected");
-    expect(decorated[1]?.state).toBe("checked");
-    expect(decorated[2]?.state).toBe("checked");
+    expect(decorated[0]).toMatchObject({ selected: true, checked: undefined });
+    expect(decorated[1]).toMatchObject({ selected: undefined, checked: true });
+    expect(decorated[2]).toMatchObject({ selected: true, checked: true });
   });
 });
 
