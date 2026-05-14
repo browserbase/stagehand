@@ -40,6 +40,9 @@
       "inputs": [
         "**/*.ts",
         "**/*.js",
+        "$TURBO_ROOT$/packages/docs/docs.json",
+        "$TURBO_ROOT$/packages/docs/snippets/**/*.mdx",
+        "$TURBO_ROOT$/packages/docs/v3/**/*.mdx",
         "package.json",
         "tsconfig.json",
         "tsconfig.*.json",
@@ -130,6 +133,9 @@
       "inputs": [
         "**/*.ts",
         "**/*.js",
+        "$TURBO_ROOT$/packages/docs/docs.json",
+        "$TURBO_ROOT$/packages/docs/snippets/**/*.mdx",
+        "$TURBO_ROOT$/packages/docs/v3/**/*.mdx",
         "package.json",
         "tsconfig.json",
         "tsconfig.*.json",
@@ -151,6 +157,9 @@
       "inputs": [
         "**/*.ts",
         "**/*.js",
+        "$TURBO_ROOT$/packages/docs/docs.json",
+        "$TURBO_ROOT$/packages/docs/snippets/**/*.mdx",
+        "$TURBO_ROOT$/packages/docs/v3/**/*.mdx",
         "package.json",
         "tsconfig.json",
         "tsconfig.*.json",
