@@ -47,7 +47,9 @@
   },
   "files": [
     "dist/esm",
-    "dist/cjs"
+    "dist/cjs",
+    "!dist/esm/tests",
+    "!dist/cjs/tests"
   ],
   "keywords": [
     "ai",
