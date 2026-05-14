@@ -47,6 +47,18 @@ describe("AISdkClient structured output provider options", () => {
       "mistral/mistral-large-latest",
       { mistral: { structuredOutputs: true, strictJsonSchema: true } },
     ],
+    [
+      "anthropic/claude-opus-4-7",
+      { anthropic: { structuredOutputMode: "auto" } },
+    ],
+    [
+      "anthropic/claude-sonnet-4-5",
+      { anthropic: { structuredOutputMode: "auto" } },
+    ],
+    [
+      "claude-opus-4-7",
+      { anthropic: { structuredOutputMode: "auto" } },
+    ],
   ])(
     "passes provider structured-output options for %s",
     async (modelId, providerOptions) => {

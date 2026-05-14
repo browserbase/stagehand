@@ -210,6 +210,27 @@ export class AISdkClient extends LLMClient {
           strictJsonSchema: true,
         };
         break;
+      case "anthropic":
+        // @ai-sdk/anthropic defaults to "jsonTool" for structured output, which
+        // returns empty input objects on newer Claude models (e.g. Opus 4.7).
+        // "auto" lets the provider pick the modern outputFormat path on models
+        // that support it while preserving jsonTool for older ones.
+        providerOptions.anthropic = {
+          structuredOutputMode: "auto",
+        };
+        break;
+    }
+
+    // Fallback for bare "claude-..." modelIds (no "anthropic/" prefix): the
+    // inferred provider name above won't match "anthropic", so apply the same
+    // structuredOutputMode opt-in here.
+    if (
+      this.model.modelId.startsWith("claude-") &&
+      !providerOptions.anthropic
+    ) {
+      providerOptions.anthropic = {
+        structuredOutputMode: "auto",
+      };
     }
 
     if (options.response_model) {
