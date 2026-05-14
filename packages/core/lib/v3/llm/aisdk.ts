@@ -179,6 +179,11 @@ export class AISdkClient extends LLMClient {
             : {}),
         };
         break;
+      case "anthropic":
+        providerOptions.anthropic = {
+          structuredOutputMode: "auto",
+        };
+        break;
       case "azure":
         providerOptions.azure = {
           strictJsonSchema: true,
