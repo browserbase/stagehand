@@ -129,7 +129,7 @@
     "prettier": "^3.2.5",
     "puppeteer-core": "^24.43.0",
     "tsx": "*",
-    "vitest": "^4.0.8",
+    "vitest": "^4.1.6",
     "zod": "^3.25.76 || ^4.2.0"
   },
   "repository": {

@@ -57,7 +57,7 @@
     "source-map": "^0.7.4",
     "tsc-alias": "^1.8.10",
     "tsx": "*",
-    "vitest": "^4.0.8"
+    "vitest": "^4.1.6"
   },
   "repository": {
     "type": "git",
