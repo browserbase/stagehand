@@ -1,193 +1,112 @@
-# Stagehand Evals CLI
+# Stagehand Evals
 
-A powerful command-line interface for running Stagehand evaluation suites and benchmarks.
+Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, `combination`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, GAIA).
 
-## Installation
+Driven by an interactive TUI (`evals`) or single-shot CLI (`evals run …`). Tasks are auto-discovered from `tasks/bench/<category>/` — no registration step.
+
+
+## Quickstart
+
+From the stagehand repo root:
 
 ```bash
-# From the stagehand root directory
 pnpm install
-pnpm run build:cli
+pnpm build:cli   # also: pnpm build, if you haven't built the workspace yet
 ```
 
-## Usage
-
-The evals CLI provides a clean, intuitive interface for running evaluations:
+This links an `evals` binary on your `PATH`. Launch the REPL:
 
 ```bash
-pnpm evals <command> <target> [options]
+evals
 ```
 
-## Commands
+![REPL with help output](./assets/readme/help.png)
 
-### `run` - Execute evaluations
-
-Run custom evals or external benchmarks.
+Or run a single target:
 
 ```bash
-# Run all custom evals
-pnpm evals run all
-
-# Run specific category
-pnpm evals run act
-pnpm evals run extract
-pnpm evals run observe
-
-# Run specific eval by name
-pnpm evals run extract/extract_text
-
-# Run external benchmarks
-pnpm evals run benchmark:webvoyager
+evals run extract -t 3 -c 5
+evals run b:webvoyager -l 10
 ```
 
-### `list` - View available evals
+A `.env` in `packages/evals/` is loaded automatically. Provide whichever provider keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, …) and `BROWSERBASE_API_KEY` / `BROWSERBASE_PROJECT_ID` you need.
 
-List all available evaluations and benchmarks.
+## TUI commands
+
+Inside the REPL (or as `evals <command>` from your shell):
+
+| Command | What it does |
+| --- | --- |
+| `run [target] [options]` | Run evals. Target can be a tier, category, task, or benchmark shorthand. |
+| `list [tier] [--detailed]` | List discovered tasks and categories. |
+| `new <tier> <category> <name>` | Scaffold a new task file. |
+| `config [set\|reset\|path]` | Read or write defaults (env, trials, concurrency, model, …). |
+| `experiments` | Inspect and compare Braintrust experiment runs. |
+| `help` | Show command help. Append `--help` to any command for details. |
+
+Use `Esc` to abort an in-flight run without exiting the REPL.
+
+## Run targets
+
+`evals run` accepts any of these shapes:
+
+| Target | Meaning |
+| --- | --- |
+| _(none)_ / `all` | All bench tasks |
+| `bench` | Entire bench tier |
+| `act` / `extract` / `observe` / `agent` / `combination` | A category |
+| `extract/extract_text` | A specific task |
+| `b:webvoyager` / `b:onlineMind2Web` / `b:webtailbench` | Dataset-backed benchmark suite |
+
+`evals list` shows everything that's been discovered:
+
+![evals list output](./assets/readme/list.png)
+
+## Common options
+
+| Flag | Purpose |
+| --- | --- |
+| `-e, --env <local\|browserbase>` | Where the browser runs |
+| `-t, --trials <n>` | Trials per task |
+| `-c, --concurrency <n>` | Max parallel sessions |
+| `-m, --model <id>` / `-p, --provider <name>` | Override the model/provider matrix |
+| `--api` | Run via the Stagehand API instead of the SDK |
+| `--harness <stagehand\|claude_code\|codex>` | Which agent harness drives the bench task |
+| `--agent-mode <dom\|hybrid\|cua>` / `--agent-modes <csv>` | Stagehand agent mode (or matrix) |
+| `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets |
+| `--preview` | Print the resolved plan and exit — no browser, no LLM calls |
+
+Defaults live in `evals.config.json` and can be edited via `evals config set …`.
+
+`--preview` is useful for sanity-checking the plan before paying for a run:
+
+![evals run --preview output](./assets/readme/preview.png)
+
+A live run paints an in-place progress table, then prints a final summary with a per-model breakdown:
+
+![Live bench run](./assets/readme/run.gif)
+
+## Adding a bench task
 
 ```bash
-# List all categories and benchmarks
-pnpm evals list
-
-# Show detailed task list
-pnpm evals list --detailed
+evals new bench extract my_new_task
 ```
 
-### `config` - Manage defaults
+This drops a `defineBenchTask`-based file into `tasks/bench/extract/`. It will show up in `evals list` on next launch — no config edit needed.
 
-Configure default settings for all eval runs.
+```ts
+// tasks/bench/extract/my_new_task.ts
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-```bash
-# View current configuration
-pnpm evals config
-
-# Set default values
-pnpm evals config set env browserbase
-pnpm evals config set trials 5
-pnpm evals config set concurrency 10
-
-# Reset to defaults
-pnpm evals config reset
-pnpm evals config reset trials  # Reset specific key
+export default defineBenchTask({
+  name: "my_new_task",
+  tags: ["regression"],
+  run: async ({ stagehand, logger }) => {
+    // ... drive stagehand, return { _success: boolean, ... }
+  },
+});
 ```
 
-### `help` - Show help
+## Tracing / Observability
 
-```bash
-pnpm evals help
-```
-
-## Options
-
-### Core Options
-
-- `-e, --env` - Environment: `local` or `browserbase` (default: local)
-- `-t, --trials` - Number of trials per eval (default: 3)
-- `-c, --concurrency` - Max parallel sessions (default: 3)
-- `-m, --model` - Model override (e.g., gpt-4o, claude-3.5)
-- `-p, --provider` - Provider override (openai, anthropic, etc.)
-- `--api` - Use Stagehand API instead of SDK
-
-### Benchmark-Specific Options
-
-- `-l, --limit` - Max tasks to run (default: 25)
-- `-s, --sample` - Random sample before limit
-- `-f, --filter` - Benchmark-specific filters (key=value)
-
-## Examples
-
-### Running Custom Evals
-
-```bash
-# Run with custom settings
-pnpm evals run act -e browserbase -t 5 -c 10
-
-# Run with specific model
-pnpm evals run observe -m gpt-4o -p openai
-
-# Run using API
-pnpm evals run extract --api
-```
-
-### Running Benchmarks
-
-```bash
-# WebVoyager with limit
-pnpm evals run b:webvoyager -l 50
-
-# OnlineMind2Web
-pnpm evals run b:onlineMind2Web -l 25
-```
-
-## Available Benchmarks
-
-### OnlineMind2Web (`b:onlineMind2Web`)
-
-Real-world web interaction tasks for evaluating web agents.
-
-### WebVoyager (`b:webvoyager`)
-
-Web navigation and task completion benchmark.
-
-## Configuration
-
-The CLI uses a configuration file at `evals/evals.config.json` which contains:
-
-- **defaults**: Default values for CLI options
-- **benchmarks**: Metadata for external benchmarks
-- **tasks**: Registry of all evaluation tasks
-
-You can modify defaults either through the `config` command or by editing the file directly.
-
-## Environment Variables
-
-While the CLI reduces the need for environment variables, some are still supported for CI/CD:
-
-- `EVAL_ENV` - Override environment setting
-- `EVAL_TRIAL_COUNT` - Override trial count
-- `EVAL_MAX_CONCURRENCY` - Override concurrency
-- `EVAL_PROVIDER` - Override LLM provider
-- `USE_API` - Use Stagehand API
-
-## Development
-
-### Adding New Evals
-
-1. Create your eval file in `evals/tasks/<category>/`
-2. Add it to `evals.config.json` under the `tasks` array
-3. Run with: `pnpm evals run <category>/<eval_name>`
-
-## Troubleshooting
-
-### Command not found
-
-If `evals` command is not found, make sure you've:
-
-1. Run `pnpm install` from the project root
-2. Run `pnpm run build:cli` to compile the CLI
-
-### Build errors
-
-If you encounter build errors:
-
-```bash
-# Clean and rebuild
-rm -rf packages/evals/dist/cli
-pnpm run build:cli
-```
-
-### Permission errors
-
-If you get permission errors:
-
-```bash
-chmod +x packages/evals/dist/cli/cli.js
-```
-
-## Contributing
-
-When adding new features to the CLI:
-
-1. Update the command in `evals/cli.ts`
-2. Add new options to the help text
-3. Update this README with examples
-4. Test with various flag combinations
+Runs stream into Braintrust when `BRAINTRUST_API_KEY` is set; otherwise a local summary prints to stdout. Use `evals experiments` to inspect and diff past Braintrust runs.
