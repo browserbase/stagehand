@@ -84,9 +84,7 @@ Defaults live in `evals.config.json` and can be edited via `evals config set …
 
 A live run paints an in-place progress table, then prints a final summary with a per-model breakdown:
 
-![Live progress table during a run](./assets/readme/progress.png)
-
-![Final results table with by-model breakdown](./assets/readme/results.png)
+![Live bench run](./assets/readme/run.gif)
 
 ## Adding a bench task
 
