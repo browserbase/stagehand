@@ -73,29 +73,10 @@
   },
   "pnpm": {
     "overrides": {
-      "ajv": "^8.20.0",
-      "axios": "^1.16.1",
-      "brace-expansion": "^5.0.6",
-      "express-rate-limit": "^8.5.1",
-      "fast-uri": "^3.1.2",
-      "flatted": "^3.4.2",
+      "axios": "^1.15.2",
       "follow-redirects": "^1.16.0",
-      "hono": "^4.12.18",
-      "ip-address": "^10.1.1",
-      "whatwg-url": "^14.0.0",
-      "jwa": "^2.0.1",
-      "lodash": "^4.18.1",
-      "minimatch": "^10.2.5",
-      "path-to-regexp": "^8.4.2",
-      "picomatch": "^4.0.4",
-      "postcss": "^8.4.38",
-      "socket.io-parser": "^4.2.6",
-      "tar": "^6.2.1",
-      "tsx": "4.19.4",
-      "yaml": "^2.9.0",
-      "js-yaml": "^4.1.1",
-      "mdast-util-to-hast": "^13.2.1",
-      "zod": "4.2.1"
+      "jws": "^4.0.1",
+      "uuid": "^11.1.1"
     }
   },
   "lint-staged": {
