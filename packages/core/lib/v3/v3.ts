@@ -86,6 +86,7 @@ import { V3Context } from "./understudy/context.js";
 import { Page } from "./understudy/page.js";
 import { resolveModel } from "../modelUtils.js";
 import { StagehandAPIClient } from "./api.js";
+import { normalizeClientOptionsForModel } from "./modelProviderOptions.js";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
 import { flattenVariables } from "./agent/utils/variables.js";
 import { FlowLogger, type FlowLoggerContext } from "./flowlogger/FlowLogger.js";
@@ -124,7 +125,10 @@ export function resolveModelConfiguration(
     }
     return {
       modelName,
-      clientOptions: clientOptions as ClientOptions,
+      clientOptions: normalizeClientOptionsForModel(
+        clientOptions as ClientOptions,
+        modelName,
+      ),
       middleware,
     };
   }
@@ -552,7 +556,10 @@ export class V3 {
     } else {
       const { modelName: overrideModelName, middleware, ...rest } = model;
       modelName = overrideModelName;
-      clientOptions = rest as ClientOptions;
+      clientOptions = normalizeClientOptionsForModel(
+        rest as ClientOptions,
+        overrideModelName,
+      );
       perCallMiddleware = middleware;
     }
 
@@ -1090,6 +1097,7 @@ export class V3 {
             const { sessionId, available } = await this.apiClient.init({
               modelName: this.modelName,
               modelApiKey: this.modelClientOptions.apiKey,
+              modelClientOptions: this.modelClientOptions,
               domSettleTimeoutMs: this.domSettleTimeoutMs,
               verbose: this.verbose,
               systemPrompt: this.opts.systemPrompt,

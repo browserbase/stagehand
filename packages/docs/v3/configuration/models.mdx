@@ -141,26 +141,22 @@ await stagehand.init();
 </Tab>
 
 <Tab title="Google Vertex">
-
-<Warning>
-Google Vertex requires `experimental: true` in the Stagehand constructor.
-</Warning>
-
 <CodeGroup>
 ```typescript TypeScript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
-  experimental: true, // required for Vertex
   model: {
     modelName: "vertex/gemini-3-flash-preview",
-    project: "your-gcp-project-id",
-    location: "us-central1",
-    googleAuthOptions: {
-      credentials: {
-        client_email: "your-sa@project.iam.gserviceaccount.com",
-        private_key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
+    providerOptions: {
+      project: "your-gcp-project-id",
+      location: "us-central1",
+      googleAuthOptions: {
+        credentials: {
+          client_email: "your-sa@project.iam.gserviceaccount.com",
+          private_key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
+        },
       },
     },
   },
@@ -173,11 +169,45 @@ await stagehand.init();
 
 The `model` object accepts:
 - `modelName` — The Vertex model, prefixed with `vertex/` (e.g. `vertex/gemini-3-flash-preview`)
-- `project` — Your GCP project ID
-- `location` — Your Vertex AI region (e.g. `us-central1`)
-- `googleAuthOptions.credentials` — Service account credentials with `client_email` and `private_key`
+- `providerOptions.project` — Your GCP project ID
+- `providerOptions.location` — Your Vertex AI region (e.g. `us-central1`)
+- `providerOptions.googleAuthOptions.credentials` — Service account credentials with `client_email` and `private_key`
+- `providerOptions.baseURL`, `providerOptions.headers`, and `providerOptions.googleAuthOptions.{scopes, projectId, universeDomain}` — Optional advanced overrides
 
 [View all supported Vertex AI models →](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models)
+</Tab>
+
+<Tab title="Amazon Bedrock">
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: {
+    modelName: "bedrock/us.amazon.nova-lite-v1:0",
+    providerOptions: {
+      region: "us-east-1",
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      sessionToken: process.env.AWS_SESSION_TOKEN, // optional
+    },
+  },
+});
+
+await stagehand.init();
+```
+
+</CodeGroup>
+
+The `model` object accepts:
+- `modelName` — The Bedrock model, prefixed with `bedrock/` (e.g. `bedrock/us.amazon.nova-lite-v1:0`)
+- `providerOptions.region` — The AWS region for the Bedrock runtime
+- `providerOptions.accessKeyId` and `providerOptions.secretAccessKey` — AWS credentials for SigV4 auth
+- `providerOptions.sessionToken` — Optional temporary session token
+- `providerOptions.apiKey`, `providerOptions.baseURL`, and `providerOptions.headers` — Optional bearer-token or endpoint overrides
+
+[View all supported Bedrock models →](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html)
 </Tab>
 
 <Tab title="Anthropic">
@@ -396,7 +426,7 @@ await stagehand.init();
 
 Amazon Bedrock, Cohere, all [first class models](/v3/configuration/models#first-class-models), and any model from [the Vercel AI SDK](https://sdk.vercel.ai/providers) is supported.
 
-Use this configuration for custom endpoints and custom retry or caching logic.
+Use this configuration for local runs, custom provider middleware, and providers that do not have direct hosted `model` support. If you're using `env: "BROWSERBASE"`, Bedrock and Vertex can also be passed directly with `model.providerOptions` as shown above.
 
 We'll use Amazon Bedrock and Google as examples below.
 
@@ -720,8 +750,8 @@ const stagehand = new Stagehand({
 ```
 
   </Tab>
-<Tab title="All Other Providers">
-For all other providers, use `llmClient`. Here's an example with Hugging Face:
+<Tab title="Other Providers">
+For providers that do not support direct hosted `model` configuration, use `llmClient`. Here's an example with Hugging Face:
 
 ```typescript
 // pnpm add @ai-sdk/huggingface
@@ -922,11 +952,12 @@ The following models work without the `provider/` prefix in the model parameter 
 - Ensure environment variables are loaded (use `dotenv`)
 - Restart your application after updating `.env` file
 
-| Provider   | Environment Variable           |
+| Provider   | Credential / Configuration     |
 | ---------- | ------------------------------ |
 | Model Gateway | `BROWSERBASE_API_KEY` (no provider key needed) |
 | Google     | `GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY` |
-| Vertex | Service account credentials (see [setup](#first-class-models)) |
+| Vertex | `model.providerOptions.project`, `model.providerOptions.location`, and `model.providerOptions.googleAuthOptions.credentials` |
+| Bedrock | `model.providerOptions.region` plus AWS credentials or `model.providerOptions.apiKey` |
 | Anthropic  | `ANTHROPIC_API_KEY`            |
 | OpenAI     | `OPENAI_API_KEY`               |
 | Azure      | `AZURE_API_KEY`                |

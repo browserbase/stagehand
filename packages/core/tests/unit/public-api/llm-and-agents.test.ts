@@ -3,9 +3,22 @@ import * as Stagehand from "@browserbasehq/stagehand";
 
 describe("LLM and Agents public API types", () => {
   describe("ModelConfiguration", () => {
-    it("accepts Vertex headers in model config", () => {
-      const googleConfig = {
-        modelName: "google/gemini-3-flash-preview",
+    it("accepts providerOptions for Bedrock model config", () => {
+      const bedrockConfig = {
+        modelName: "bedrock/us.amazon.nova-lite-v1:0",
+        providerOptions: {
+          region: "us-east-1",
+          accessKeyId: "AKIATEST",
+          secretAccessKey: "secret-test",
+        },
+      } satisfies Stagehand.ModelConfiguration;
+
+      void bedrockConfig;
+    });
+
+    it("accepts legacy top-level Vertex settings in model config", () => {
+      const vertexConfig = {
+        modelName: "vertex/gemini-2.5-pro",
         project: "test-project",
         location: "global",
         headers: {
@@ -13,7 +26,19 @@ describe("LLM and Agents public API types", () => {
         },
       } satisfies Stagehand.ModelConfiguration;
 
-      void googleConfig;
+      void vertexConfig;
+    });
+
+    it("accepts providerOptions for Vertex model config", () => {
+      const vertexConfig = {
+        modelName: "vertex/gemini-2.5-pro",
+        providerOptions: {
+          project: "test-project",
+          location: "global",
+        },
+      } satisfies Stagehand.ModelConfiguration;
+
+      void vertexConfig;
     });
   });
 

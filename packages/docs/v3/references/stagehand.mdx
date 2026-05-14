@@ -161,13 +161,20 @@ interface V3Options {
 
   <Expandable title="Model Configuration Object">
     <ParamField path="modelName" type="string" required>
-      The model name (e.g., "gpt-4o", "claude-sonnet-4-6", "gemini-2.5-flash")
+      The model name in `"provider/model"` format (e.g., `"openai/gpt-5"`, `"vertex/gemini-3-flash-preview"`, `"bedrock/us.amazon.nova-lite-v1:0"`)
     </ParamField>
     <ParamField path="apiKey" type="string" optional>
       API key for the model provider (overrides environment variables)
     </ParamField>
     <ParamField path="baseURL" type="string" optional>
       Base URL for the API endpoint (for custom endpoints or proxies)
+    </ParamField>
+    <ParamField path="providerOptions" type="object" optional>
+      Provider-native configuration for models that do not fit the generic `apiKey` shape. In Browserbase-hosted mode, Stagehand serializes these fields into the API wire format automatically.
+
+      For Bedrock, use `providerOptions.region` plus AWS credentials (`accessKeyId`, `secretAccessKey`, optional `sessionToken`) or `providerOptions.apiKey`.
+
+      For Vertex, use `providerOptions.project`, `providerOptions.location`, and `providerOptions.googleAuthOptions.credentials`. Optional advanced fields include `baseURL`, `headers`, and `googleAuthOptions.{scopes, projectId, universeDomain}`.
     </ParamField>
   </Expandable>
 </ParamField>
@@ -497,7 +504,7 @@ import { Stagehand } from "@browserbasehq/stagehand";
 const stagehand = new Stagehand({
   env: "LOCAL",
   model: {
-    modelName: "gpt-4o",
+    modelName: "openai/gpt-4o",
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: "https://custom-proxy.com/v1"
   },

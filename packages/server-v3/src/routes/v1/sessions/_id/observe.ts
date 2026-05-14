@@ -6,6 +6,7 @@ import { Api } from "@browserbasehq/stagehand";
 
 import { authMiddleware } from "../../../../lib/auth.js";
 import { AppError, withErrorHandling } from "../../../../lib/errorHandler.js";
+import { normalizeApiModelConfig } from "../../../../lib/model.js";
 import { createStreamingResponse } from "../../../../lib/stream.js";
 import { getSessionStore } from "../../../../lib/sessionStoreManager.js";
 
@@ -53,15 +54,7 @@ const observeRouteHandler: RouteHandlerMethod = withErrorHandling(
 
         const safeOptions: ObserveOptions = {
           ...data.options,
-          model:
-            typeof data.options?.model === "string"
-              ? { modelName: data.options.model }
-              : data.options?.model
-                ? {
-                    ...data.options.model,
-                    modelName: data.options.model.modelName ?? "gpt-4o",
-                  }
-                : undefined,
+          model: normalizeApiModelConfig(data.options?.model),
           page,
         };
 
