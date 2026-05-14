@@ -54,7 +54,7 @@ jobs:
       docs-only: ${{ steps.filter.outputs.docs-only }}
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Log GitHub API rate limit
         env:
@@ -82,7 +82,7 @@ jobs:
             exit 1
           fi
 
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
         id: filter
         with:
           filters: |
@@ -129,7 +129,7 @@ jobs:
       label_agent: ${{ steps.load.outputs.label_agent }}
     steps:
       - id: load
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -247,7 +247,7 @@ jobs:
     needs: [run-build]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -280,7 +280,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -292,13 +292,13 @@ jobs:
 
       - name: Save Turbo cache
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'turbo.json') }}-${{ github.sha }}
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: build-artifacts
           include-hidden-files: true
@@ -323,7 +323,7 @@ jobs:
     needs: [run-build, determine-changes]
     if: needs.determine-changes.outputs.cli == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1
 
@@ -341,7 +341,7 @@ jobs:
     needs: [run-build, determine-changes]
     if: needs.determine-changes.outputs.evals == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1
 
@@ -362,7 +362,7 @@ jobs:
       has-core-tests: ${{ steps.set-matrix.outputs.has-core-tests }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1
 
@@ -401,7 +401,7 @@ jobs:
         test: ${{ fromJson(needs.discover-core-tests.outputs.core-tests) }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1
 
@@ -433,7 +433,7 @@ jobs:
       has-integration-tests: ${{ steps.set-matrix.outputs.has-integration-tests }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1
 
@@ -500,7 +500,7 @@ jobs:
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1
 
@@ -510,7 +510,7 @@ jobs:
           restore-turbo-cache: "false"
 
       - name: Download SEA binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: stagehand-server-v3-linux-x64-sourcemap
           path: .
@@ -524,7 +524,7 @@ jobs:
 
       - name: Set up Chrome
         id: setup-chrome-server
-        uses: browser-actions/setup-chrome@v2
+        uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
         with:
           chrome-version: stable
           install-dependencies: true
@@ -562,7 +562,7 @@ jobs:
       has-e2e-tests: ${{ steps.set-matrix.outputs.has-e2e-tests }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1
 
@@ -609,7 +609,7 @@ jobs:
         test: ${{ fromJson(needs.discover-e2e-tests.outputs.e2e-tests) }}
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -618,7 +618,7 @@ jobs:
 
       - name: Set up Chrome
         id: setup-chrome-local-e2e
-        uses: browser-actions/setup-chrome@v2
+        uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
         with:
           chrome-version: stable
           install-dependencies: true
@@ -669,7 +669,7 @@ jobs:
         test: ${{ fromJson(needs.discover-e2e-tests.outputs.e2e-tests) }}
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -725,7 +725,7 @@ jobs:
       STAGEHAND_SERVER_TARGET: local
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
@@ -825,7 +825,7 @@ jobs:
     # if: always()
     if: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1
 
@@ -835,7 +835,7 @@ jobs:
           restore-turbo-cache: "false"
 
       - name: Download V8 coverage artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         continue-on-error: true
         with:
           pattern: coverage-*
@@ -843,7 +843,7 @@ jobs:
           merge-multiple: true
 
       - name: Download CTRF artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         continue-on-error: true
         with:
           pattern: ctrf-*
@@ -857,7 +857,7 @@ jobs:
       - name: Upload merged coverage report
         if: always()
         id: upload-coverage-artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-merged
           # package.json is included to anchor artifact paths at repo root.
@@ -885,7 +885,7 @@ jobs:
 
       - name: Publish merged CTRF report
         if: always()
-        uses: ctrf-io/github-test-reporter@v1
+        uses: ctrf-io/github-test-reporter@0f299074936c32ccaab5be5230511f6b2b9080aa # v1.0.28
         with:
           report-path: './ctrf/**/*.json'
           summary: true
