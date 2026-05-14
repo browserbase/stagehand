@@ -363,8 +363,8 @@ importers:
         specifier: ^9.6.1
         version: 9.6.1
       '@fastify/swagger-ui':
-        specifier: ^5.2.3
-        version: 5.2.3
+        specifier: ^5.2.6
+        version: 5.2.6
       '@t3-oss/env-core':
         specifier: ^0.13.8
         version: 0.13.8(arktype@2.1.27)(typescript@5.9.3)(zod@4.2.1)
@@ -379,7 +379,7 @@ importers:
         version: 4.5.1
       fastify-zod-openapi:
         specifier: ^5.5.0
-        version: 5.5.0(@fastify/swagger-ui@5.2.3)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1)
+        version: 5.5.0(@fastify/swagger-ui@5.2.6)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1)
       http-status-codes:
         specifier: ^2.3.0
         version: 2.3.0
@@ -451,8 +451,8 @@ importers:
         specifier: ^9.6.1
         version: 9.6.1
       '@fastify/swagger-ui':
-        specifier: ^5.2.3
-        version: 5.2.3
+        specifier: ^5.2.6
+        version: 5.2.6
       '@t3-oss/env-core':
         specifier: ^0.13.11
         version: 0.13.11(arktype@2.1.27)(typescript@5.9.3)(zod@4.2.1)
@@ -470,7 +470,7 @@ importers:
         version: 4.5.1
       fastify-zod-openapi:
         specifier: ^5.5.0
-        version: 5.5.0(@fastify/swagger-ui@5.2.3)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1)
+        version: 5.5.0(@fastify/swagger-ui@5.2.6)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1)
       http-status-codes:
         specifier: ^2.3.0
         version: 2.3.0
@@ -1712,11 +1712,11 @@ packages:
   '@fastify/send@4.1.0':
     resolution: {integrity: sha512-TMYeQLCBSy2TOFmV95hQWkiTYgC/SEx7vMdV+wnZVX4tt8VBLKzmH8vV9OzJehV0+XBfg+WxPMt5wp+JBUKsVw==}
 
-  '@fastify/static@8.3.0':
-    resolution: {integrity: sha512-yKxviR5PH1OKNnisIzZKmgZSus0r2OZb8qCSbqmw34aolT4g3UlzYfeBRym+HJ1J471CR8e2ldNub4PubD1coA==}
+  '@fastify/static@9.1.3':
+    resolution: {integrity: sha512-aXrYtsiryLhRxRNaxNqsn7FUISeb7rB9q4eHUPIot5aeQBLNahnz1m6thzm7JWC1poSGXS9XrX8DvuMivp2hkQ==}
 
-  '@fastify/swagger-ui@5.2.3':
-    resolution: {integrity: sha512-e7ivEJi9EpFcxTONqICx4llbpB2jmlI+LI1NQ/mR7QGQnyDOqZybPK572zJtcdHZW4YyYTBHcP3a03f1pOh0SA==}
+  '@fastify/swagger-ui@5.2.6':
+    resolution: {integrity: sha512-OMnms0O5s9wb6wis/K5nlrAMLsgUbr1GA8uphM41IasWe3AFdgxz6r/3bA9HTxlDNUYc2FGGKeqMp3ntxmSiNA==}
 
   '@fastify/swagger@9.6.1':
     resolution: {integrity: sha512-fKlpJqFMWoi4H3EdUkDaMteEYRCfQMEkK0HJJ0eaf4aRlKd8cbq0pVkOfXDXmtvMTXYcnx3E+l023eFDBsA1HA==}
@@ -3805,6 +3805,10 @@ packages:
     resolution: {integrity: sha512-Au9nRL8VNUut/XSzbQA38+M78dzP4D+eqg3gfJHMIHHYa3bg067xj1KxMUWj+VULbiZMowKngFFbKczUrNJ1mg==}
     engines: {node: '>= 0.6'}
 
+  content-disposition@1.1.0:
+    resolution: {integrity: sha512-5jRCH9Z/+DRP7rkvY83B+yGIGX96OYdJmzngqnw2SBSxqCFPd0w2km3s5iawpGX8krnwSGmF0FW5Nhr0Hfai3g==}
+    engines: {node: '>=18'}
+
   content-type@1.0.5:
     resolution: {integrity: sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA==}
     engines: {node: '>= 0.6'}
@@ -4583,6 +4587,9 @@ packages:
 
   fastq@1.19.1:
     resolution: {integrity: sha512-GwLTyxkCXjXbxqIhTsMI2Nui8huMPtnxg7krajPJAjnEG/iiOS7i+zCtWGZR9G0NBKbXKh6X9m9UIsYX/N6vvQ==}
+
+  fastq@1.20.1:
+    resolution: {integrity: sha512-GGToxJ/w1x32s/D2EKND7kTil4n8OVk/9mycTc4VDza13lOvpUZTGX3mFSCtV9ksdGBVzvsyAVLM6mHFThxXxw==}
 
   fault@2.0.1:
     resolution: {integrity: sha512-WtySTkS4OKev5JtpHXnib4Gxiurzh5NCGvWrFaZ34m6JehfTUhKZvn9njTfw48t6JumVQOmrKqpmGcdwxnhqBQ==}
@@ -9107,18 +9114,18 @@ snapshots:
       http-errors: 2.0.1
       mime: 3.0.0
 
-  '@fastify/static@8.3.0':
+  '@fastify/static@9.1.3':
     dependencies:
       '@fastify/accept-negotiator': 2.0.1
       '@fastify/send': 4.1.0
-      content-disposition: 0.5.4
+      content-disposition: 1.1.0
       fastify-plugin: 5.1.0
-      fastq: 1.19.1
-      glob: 11.1.0
+      fastq: 1.20.1
+      glob: 13.0.6
 
-  '@fastify/swagger-ui@5.2.3':
+  '@fastify/swagger-ui@5.2.6':
     dependencies:
-      '@fastify/static': 8.3.0
+      '@fastify/static': 9.1.3
       fastify-plugin: 5.1.0
       openapi-types: 12.1.3
       rfdc: 1.4.1
@@ -10098,7 +10105,7 @@ snapshots:
   '@nodelib/fs.walk@1.2.8':
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
-      fastq: 1.19.1
+      fastq: 1.20.1
 
   '@openai/codex-sdk@0.125.0':
     dependencies:
@@ -11665,6 +11672,8 @@ snapshots:
     dependencies:
       safe-buffer: 5.2.1
 
+  content-disposition@1.1.0: {}
+
   content-type@1.0.5: {}
 
   convert-source-map@2.0.0: {}
@@ -12589,7 +12598,7 @@ snapshots:
 
   fastify-plugin@5.1.0: {}
 
-  fastify-zod-openapi@5.5.0(@fastify/swagger-ui@5.2.3)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1):
+  fastify-zod-openapi@5.5.0(@fastify/swagger-ui@5.2.6)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1):
     dependencies:
       '@fastify/error': 4.2.0
       fast-json-stringify: 6.1.1
@@ -12599,7 +12608,7 @@ snapshots:
       zod-openapi: 5.4.5(zod@4.2.1)
     optionalDependencies:
       '@fastify/swagger': 9.6.1
-      '@fastify/swagger-ui': 5.2.3
+      '@fastify/swagger-ui': 5.2.6
 
   fastify@5.8.5:
     dependencies:
@@ -12620,6 +12629,10 @@ snapshots:
       toad-cache: 3.7.0
 
   fastq@1.19.1:
+    dependencies:
+      reusify: 1.1.0
+
+  fastq@1.20.1:
     dependencies:
       reusify: 1.1.0
 
