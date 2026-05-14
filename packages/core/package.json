@@ -82,7 +82,6 @@
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.10.0",
     "@google/genai": "^1.22.0",
-    "@langchain/openai": "^1.4.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^5.0.133",
     "devtools-protocol": "^0.0.1464554",
@@ -108,7 +107,6 @@
     "@ai-sdk/perplexity": "^2.0.13",
     "@ai-sdk/togetherai": "^1.0.23",
     "@ai-sdk/xai": "^2.0.26",
-    "@langchain/core": "^1.1.46",
     "bufferutil": "^4.0.9",
     "chrome-launcher": "^1.2.0",
     "ollama-ai-provider-v2": "^1.5.0"
