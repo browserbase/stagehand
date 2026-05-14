@@ -61,7 +61,6 @@
   "author": "Browserbase",
   "license": "MIT",
   "peerDependencies": {
-    "deepmerge": "^4.3.1",
     "patchright-core": "^1.55.2",
     "playwright-core": "^1.55.1",
     "puppeteer-core": "^24.43.0",
