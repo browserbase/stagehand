@@ -28,6 +28,61 @@ describe("formatTreeLine", () => {
       "[frame-1] section: Container\n  [ax-2] button: Submit",
     );
   });
+
+  it("renders a select with child options and only one selected option", () => {
+    const outline = formatTreeLine({
+      role: "select",
+      name: "Select field",
+      nodeId: "ax-4",
+      children: [
+        { role: "option", name: "Option A", nodeId: "ax-5" },
+        {
+          role: "option",
+          name: "Option B",
+          selected: true,
+          nodeId: "ax-6",
+        },
+        { role: "option", name: "Option C", nodeId: "ax-7" },
+      ],
+    });
+
+    expect(outline).toBe(
+      "[ax-4] select: Select field\n  [ax-5] option: Option A\n  [ax-6] option: Option B [selected]\n  [ax-7] option: Option C",
+    );
+    expect(outline.match(/\[selected]/g)?.length ?? 0).toBe(1);
+  });
+
+  it("renders a radio group with children and only one checked radio", () => {
+    const outline = formatTreeLine({
+      role: "group",
+      name: "Select field",
+      nodeId: "ax-8",
+      children: [
+        { role: "radio", name: "Option A", nodeId: "ax-9" },
+        { role: "radio", name: "Option B", checked: true, nodeId: "ax-10" },
+        { role: "radio", name: "Option C", nodeId: "ax-11" },
+      ],
+    });
+
+    expect(outline).toBe(
+      "[ax-8] group: Select field\n  [ax-9] radio: Option A\n  [ax-10] radio: Option B [checked]\n  [ax-11] radio: Option C",
+    );
+    expect(outline.match(/\[checked]/g)?.length ?? 0).toBe(1);
+  });
+
+  it("renders both flags when a node carries both states", () => {
+    const outline = formatTreeLine({
+      role: "menuitemcheckbox",
+      name: "Hybrid state",
+      selected: true,
+      checked: true,
+      nodeId: "ax-12",
+    });
+
+    expect(outline).toBe(
+      "[ax-12] menuitemcheckbox: Hybrid state [selected] [checked]",
+    );
+  });
 });
 
 describe("injectSubtrees", () => {

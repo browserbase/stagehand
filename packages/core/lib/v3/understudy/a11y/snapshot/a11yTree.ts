@@ -146,6 +146,8 @@ export function decorateRoles(
       name: n.name?.value,
       description: n.description?.value,
       value: n.value?.value,
+      selected: extractBooleanProperty(n, "selected"),
+      checked: extractBooleanProperty(n, "checked"),
       nodeId: n.nodeId,
       backendDOMNodeId: n.backendDOMNodeId,
       parentId: n.parentId,
@@ -233,6 +235,28 @@ export function extractUrlFromAXNode(
   const urlProp = props.find((p) => p.name === "url");
   const value = urlProp?.value?.value;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+function toBooleanValue(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  if (typeof value === "string") {
+    const normalized = value.toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return undefined;
+}
+
+function extractBooleanProperty(
+  node: Protocol.Accessibility.AXNode,
+  propertyName: string,
+): boolean | undefined {
+  const value = node.properties?.find((p) => p.name === propertyName)?.value
+    ?.value;
+  return toBooleanValue(value);
 }
 
 export function removeRedundantStaticTextChildren(

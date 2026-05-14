@@ -8,10 +8,18 @@ import type { A11yNode } from "../../../types/private/snapshot.js";
 export function formatTreeLine(node: A11yNode, level = 0): string {
   const indent = "  ".repeat(level);
   const labelId = node.encodedId ?? node.nodeId;
-  const label = `[${labelId}] ${node.role}${node.name ? `: ${cleanText(node.name)}` : ""}`;
+  const stateFlags = formatStateFlags(node);
+  const label = `[${labelId}] ${node.role}${node.name ? `: ${cleanText(node.name)}` : ""}${stateFlags}`;
   const kids =
     node.children?.map((c) => formatTreeLine(c, level + 1)).join("\n") ?? "";
   return kids ? `${indent}${label}\n${kids}` : `${indent}${label}`;
+}
+
+function formatStateFlags(node: A11yNode): string {
+  let flags = "";
+  if (node.selected) flags += " [selected]";
+  if (node.checked) flags += " [checked]";
+  return flags;
 }
 
 /**
