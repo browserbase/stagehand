@@ -168,6 +168,66 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
+    GoogleServiceAccountCredentials:
+      type: object
+      properties:
+        type:
+          type: string
+        project_id:
+          type: string
+        private_key_id:
+          type: string
+        private_key:
+          type: string
+        client_email:
+          type: string
+        client_id:
+          type: string
+        auth_uri:
+          type: string
+        token_uri:
+          type: string
+        auth_provider_x509_cert_url:
+          type: string
+        client_x509_cert_url:
+          type: string
+        universe_domain:
+          type: string
+      additionalProperties: {}
+    GoogleAuthOptions:
+      type: object
+      properties:
+        apiKey:
+          description: API key used by google-auth-library for Vertex express mode
+          type: string
+        keyFilename:
+          description: Path to a Google Cloud service account key file
+          type: string
+        keyFile:
+          description: Path to a Google Cloud service account key file
+          type: string
+        credentials:
+          description: Google Cloud service account credentials
+          $ref: "#/components/schemas/GoogleServiceAccountCredentials"
+        clientOptions:
+          description: Additional serializable options passed to the Google auth client
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
+        scopes:
+          description: Google auth scopes for the desired API request
+          anyOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        projectId:
+          description: Google Cloud project ID used by google-auth-library
+          type: string
+        universeDomain:
+          description: Google Cloud universe domain
+          type: string
     ModelConfigObject:
       type: object
       properties:
@@ -181,6 +241,7 @@ components:
             - google
             - microsoft
             - bedrock
+            - vertex
         modelName:
           description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
           example: openai/gpt-5.4-mini
@@ -201,6 +262,17 @@ components:
             type: string
           additionalProperties:
             type: string
+        project:
+          description: Google Cloud project ID for Vertex AI models
+          example: my-gcp-project
+          type: string
+        location:
+          description: Google Cloud location for Vertex AI models
+          example: us-central1
+          type: string
+        googleAuthOptions:
+          description: google-auth-library options used to authenticate Vertex AI models
+          $ref: "#/components/schemas/GoogleAuthOptions"
       required:
         - modelName
     ModelConfig:
@@ -1238,6 +1310,41 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
+    GoogleAuthOptionsOutput:
+      type: object
+      properties:
+        apiKey:
+          description: API key used by google-auth-library for Vertex express mode
+          type: string
+        keyFilename:
+          description: Path to a Google Cloud service account key file
+          type: string
+        keyFile:
+          description: Path to a Google Cloud service account key file
+          type: string
+        credentials:
+          description: Google Cloud service account credentials
+          $ref: "#/components/schemas/GoogleServiceAccountCredentials"
+        clientOptions:
+          description: Additional serializable options passed to the Google auth client
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
+        scopes:
+          description: Google auth scopes for the desired API request
+          anyOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        projectId:
+          description: Google Cloud project ID used by google-auth-library
+          type: string
+        universeDomain:
+          description: Google Cloud universe domain
+          type: string
+      additionalProperties: false
     ModelConfigObjectOutput:
       type: object
       properties:
@@ -1251,6 +1358,7 @@ components:
             - google
             - microsoft
             - bedrock
+            - vertex
         modelName:
           description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
           example: openai/gpt-5.4-mini
@@ -1271,6 +1379,17 @@ components:
             type: string
           additionalProperties:
             type: string
+        project:
+          description: Google Cloud project ID for Vertex AI models
+          example: my-gcp-project
+          type: string
+        location:
+          description: Google Cloud location for Vertex AI models
+          example: us-central1
+          type: string
+        googleAuthOptions:
+          description: google-auth-library options used to authenticate Vertex AI models
+          $ref: "#/components/schemas/GoogleAuthOptionsOutput"
       required:
         - modelName
       additionalProperties: false
