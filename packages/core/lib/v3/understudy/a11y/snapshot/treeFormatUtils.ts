@@ -1,4 +1,9 @@
 import type { A11yNode } from "../../../types/private/snapshot.js";
+import {
+  A11Y_SELECTED_VISIBLE_ROLES,
+  A11Y_STATE_CHECKED,
+  A11Y_STATE_SELECTED,
+} from "./constants.js";
 
 /**
  * Render a formatted outline (with encoded ids) for the accessibility tree.
@@ -8,10 +13,28 @@ import type { A11yNode } from "../../../types/private/snapshot.js";
 export function formatTreeLine(node: A11yNode, level = 0): string {
   const indent = "  ".repeat(level);
   const labelId = node.encodedId ?? node.nodeId;
-  const label = `[${labelId}] ${node.role}${node.name ? `: ${cleanText(node.name)}` : ""}`;
+  const stateFlags = formatStateFlags(node);
+  const label = `[${labelId}] ${node.role}${node.name ? `: ${cleanText(node.name)}` : ""}${stateFlags}`;
   const kids =
     node.children?.map((c) => formatTreeLine(c, level + 1)).join("\n") ?? "";
   return kids ? `${indent}${label}\n${kids}` : `${indent}${label}`;
+}
+
+function formatStateFlags(node: A11yNode): string {
+  const flags: string[] = [];
+
+  if (
+    node.state === A11Y_STATE_CHECKED ||
+    (node.state === A11Y_STATE_SELECTED && shouldRenderSelected(node.role))
+  ) {
+    flags.push(node.state);
+  }
+  return flags.length ? ` [${flags.join(", ")}]` : "";
+}
+
+function shouldRenderSelected(role: string): boolean {
+  const normalizedRole = role.toLowerCase();
+  return A11Y_SELECTED_VISIBLE_ROLES.has(normalizedRole);
 }
 
 /**

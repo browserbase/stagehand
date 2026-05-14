@@ -9,6 +9,14 @@ import {
   resolveObjectIdForCss,
   resolveObjectIdForXPath,
 } from "./focusSelectors.js";
+import {
+  A11Y_STATE_CHECKED,
+  A11Y_STATE_SELECTED,
+  AX_BOOLEAN_FALSE_NUMBER,
+  AX_BOOLEAN_FALSE_STRING,
+  AX_BOOLEAN_TRUE_NUMBER,
+  AX_BOOLEAN_TRUE_STRING,
+} from "./constants.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
 
 /**
@@ -141,11 +149,14 @@ export function decorateRoles(
       role = tag;
     }
 
+    const state = resolveA11yState(n);
+
     return {
       role,
       name: n.name?.value,
       description: n.description?.value,
       value: n.value?.value,
+      state,
       nodeId: n.nodeId,
       backendDOMNodeId: n.backendDOMNodeId,
       parentId: n.parentId,
@@ -233,6 +244,50 @@ export function extractUrlFromAXNode(
   const urlProp = props.find((p) => p.name === "url");
   const value = urlProp?.value?.value;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+
+function toBoolean(
+  value: Protocol.Accessibility.AXValue | undefined,
+): boolean | undefined {
+  const raw = value?.value;
+  if (typeof raw === "boolean") return raw;
+  if (typeof raw === "number") {
+    if (raw === AX_BOOLEAN_TRUE_NUMBER) return true;
+    if (raw === AX_BOOLEAN_FALSE_NUMBER) return false;
+  }
+  if (typeof raw === "string") {
+    const normalized = raw.toLowerCase();
+    if (normalized === AX_BOOLEAN_TRUE_STRING) return true;
+    if (normalized === AX_BOOLEAN_FALSE_STRING) return false;
+  }
+  return undefined;
+}
+
+function extractBooleanState(
+  node: Protocol.Accessibility.AXNode,
+  stateName: string,
+): boolean | undefined {
+  const directValue = (
+    node as unknown as Record<string, Protocol.Accessibility.AXValue | undefined>
+  )[stateName];
+  const direct = toBoolean(directValue);
+  if (direct !== undefined) return direct;
+
+  const fromProperties = node.properties?.find((prop) => prop.name === stateName);
+  return toBoolean(fromProperties?.value);
+}
+
+function resolveA11yState(
+  node: Protocol.Accessibility.AXNode,
+): A11yNode["state"] {
+  const checked = extractBooleanState(node, A11Y_STATE_CHECKED);
+  if (checked === true) return A11Y_STATE_CHECKED;
+
+  const selected = extractBooleanState(node, A11Y_STATE_SELECTED);
+  if (selected === true) return A11Y_STATE_SELECTED;
+
+  return undefined;
 }
 
 export function removeRedundantStaticTextChildren(
