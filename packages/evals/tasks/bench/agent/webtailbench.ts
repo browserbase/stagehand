@@ -1,4 +1,9 @@
-import type { Rubric, TaskSpec } from "@browserbasehq/stagehand";
+import {
+  normalizeRubric,
+  type Rubric,
+  type SerializedRubric,
+  type TaskSpec,
+} from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import {
@@ -31,7 +36,7 @@ export default defineBenchTask(
         category?: string;
         ques?: string;
         web?: string;
-        precomputed_rubric?: Rubric;
+        precomputed_rubric?: Rubric | SerializedRubric;
       };
 
       if (!params.ques) {
@@ -60,7 +65,7 @@ export default defineBenchTask(
         id: params.id ?? `webtailbench/${input.name}`,
         instruction: params.ques,
         initUrl: startUrl,
-        precomputedRubric: params.precomputed_rubric,
+        precomputedRubric: normalizeRubric(params.precomputed_rubric),
       };
 
       const { verdict, trajectory, trajectoryDir, rubric } =
@@ -92,12 +97,8 @@ export default defineBenchTask(
         criterionCount: rubric.items.length,
         stepCount: trajectory.steps.length,
         trajectoryDir,
-        primaryIntent:
-          (verdict.rawSteps as { primaryIntent?: string } | undefined)
-            ?.primaryIntent ?? undefined,
-        reasoning:
-          (verdict.rawSteps as { reasoning?: string } | undefined)?.reasoning ??
-          undefined,
+        primaryIntent: verdict.rawSteps?.primaryIntent,
+        reasoning: verdict.rawSteps?.reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

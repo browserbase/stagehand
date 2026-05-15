@@ -1,5 +1,9 @@
 import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
-import type { AvailableModel, Rubric } from "@browserbasehq/stagehand";
+import {
+  normalizeRubric,
+  type AvailableModel,
+  type SerializedRubric,
+} from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
 import { getPackageRootDir } from "../runtimePaths.js";
 import {
@@ -38,7 +42,7 @@ export const buildWebTailBenchTestcases = (
      * When present, the verifier skips Step 0a generation and uses these
      * upstream criteria directly.
      */
-    precomputed_rubric?: Rubric;
+    precomputed_rubric?: SerializedRubric;
     [key: string]: unknown;
   };
 
@@ -81,7 +85,7 @@ export const buildWebTailBenchTestcases = (
           category: row.category,
           ques: row.ques,
           web: row.web,
-          precomputed_rubric: row.precomputed_rubric,
+          precomputed_rubric: normalizeRubric(row.precomputed_rubric),
         },
       };
       const taskCategories =

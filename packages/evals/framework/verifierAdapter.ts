@@ -25,6 +25,7 @@
  */
 import {
   V3Evaluator,
+  normalizeRubric,
   type AgentInstance,
   type AgentExecuteOptions,
   type AgentResult,
@@ -75,7 +76,7 @@ export async function runWithVerifier(
   // ── Resolve rubric ──────────────────────────────────────────────────────
   let resolvedRubric: Rubric;
   if (taskSpec.precomputedRubric) {
-    resolvedRubric = taskSpec.precomputedRubric;
+    resolvedRubric = normalizeRubric(taskSpec.precomputedRubric)!;
   } else if (process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1") {
     resolvedRubric = await evaluator.generateRubric(taskSpec);
   } else {

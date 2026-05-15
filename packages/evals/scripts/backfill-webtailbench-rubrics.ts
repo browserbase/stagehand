@@ -29,7 +29,7 @@ const JSONL_PATH = path.join(
   "WebTailBench_data.jsonl",
 );
 
-interface Rubric {
+interface SerializedRubric {
   items: Array<Record<string, unknown>>;
 }
 
@@ -38,7 +38,7 @@ interface LocalRow {
   category?: string;
   ques: string;
   web?: string;
-  precomputed_rubric?: Rubric;
+  precomputed_rubric?: SerializedRubric;
 }
 
 /**
@@ -114,12 +114,12 @@ async function main(): Promise<void> {
     );
   }
 
-  const rubricsById = new Map<string, Rubric>();
+  const rubricsById = new Map<string, SerializedRubric>();
   for (let i = 1; i < rows.length; i++) {
     const cols = rows[i];
     if (!cols[idIdx]) continue;
     try {
-      const parsed = JSON.parse(cols[rubricIdx]) as Rubric;
+      const parsed = JSON.parse(cols[rubricIdx]) as SerializedRubric;
       rubricsById.set(cols[idIdx], parsed);
     } catch (e) {
       console.warn(

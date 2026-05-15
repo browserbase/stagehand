@@ -19,8 +19,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { V3 } from "@browserbasehq/stagehand";
-import type { Rubric, TaskSpec } from "@browserbasehq/stagehand";
+import { V3, normalizeRubric } from "@browserbasehq/stagehand";
+import type { SerializedRubric, TaskSpec } from "@browserbasehq/stagehand";
 import { runWithVerifier } from "../framework/verifierAdapter.js";
 
 interface WebTailBenchRow {
@@ -28,7 +28,7 @@ interface WebTailBenchRow {
   category?: string;
   ques: string;
   web?: string;
-  precomputed_rubric?: Rubric;
+  precomputed_rubric?: SerializedRubric;
 }
 
 const DEFAULT_TASK_ID = "united_13";
@@ -104,7 +104,7 @@ async function main(): Promise<void> {
     id: row.id,
     instruction: row.ques,
     initUrl: startUrl,
-    precomputedRubric: row.precomputed_rubric,
+    precomputedRubric: normalizeRubric(row.precomputed_rubric),
   };
 
   console.log("▸ running agent + verifier pipeline");
@@ -154,9 +154,7 @@ async function main(): Promise<void> {
       console.log(`        ${c.justification.slice(0, 200)}`);
     }
   }
-  const raw = verdict.rawSteps as
-    | { primaryIntent?: string; reasoning?: string; rubricSource?: string }
-    | undefined;
+  const raw = verdict.rawSteps;
   console.log(`\n▸ rubric source: ${raw?.rubricSource}`);
   console.log(`▸ primary intent: ${raw?.primaryIntent}`);
 
