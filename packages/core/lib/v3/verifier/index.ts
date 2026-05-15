@@ -1,8 +1,5 @@
 /**
  * Public re-exports for the verifier subsystem.
- *
- * Wave 0 ships the trajectory + verdict types and a stub verifier. The
- * RubricVerifier port (Wave 1+) stays internal until the prompts stabilize.
  */
 export type {
   Trajectory,
