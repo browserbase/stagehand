@@ -1,6 +1,8 @@
 # Verifier Benchmark Matrix
 
 Use this matrix before changing `STAGEHAND_EVALUATOR_BACKEND` defaults.
+`STAGEHAND_EVALUATOR_BACKEND` selects the public evaluator backend; `VERIFIER_*`
+flags tune the verifier internals once that backend is selected.
 
 ```bash
 STAGEHAND_EVALUATOR_BACKEND=legacy
