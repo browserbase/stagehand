@@ -1,4 +1,5 @@
 export * from "./agent.js";
+export * from "./busEvents.js";
 // Export api.ts under namespace to avoid conflicts with methods.ts types
 export * as Api from "./api.js";
 // Also export BrowserbaseRegion directly for convenience

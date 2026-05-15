@@ -41,6 +41,7 @@ import {
   AgentAbortError,
 } from "../types/public/sdkErrors.js";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall.js";
+import { captureAriaTreeProbe } from "../agent/utils/captureAriaTreeProbe.js";
 import {
   CaptchaSolver,
   CAPTCHA_SOLVED_MSG,
@@ -248,12 +249,21 @@ export class V3AgentHandler {
       | GenerateTextOnStepFinishCallback<ToolSet>
       | StreamTextOnStepFinishCallback<ToolSet>,
   ) {
+    // Monotonic step counter scoped to this execute() call. Each tool call in
+    // the agent loop becomes one trajectory step. The counter feeds stepIndex
+    // on the bus events the TrajectoryRecorder subscribes to.
+    let stepCounter = 0;
     return async (event: StepResult<ToolSet>) => {
       this.logger({
         category: "agent",
         message: `Step finished: ${event.finishReason}`,
         level: 2,
       });
+
+      const stepIndicesInTurn: number[] = [];
+      let lastFinalAnswer:
+        | { message: string; output?: Record<string, unknown> }
+        | undefined;
 
       if (event.toolCalls && event.toolCalls.length > 0) {
         for (let i = 0; i < event.toolCalls.length; i++) {
@@ -279,6 +289,13 @@ export class V3AgentHandler {
                 ? `${allReasoning} ${doneReasoning}`.trim()
                 : allReasoning || "Task completed successfully";
             }
+            lastFinalAnswer = {
+              message: state.finalMessage,
+              output:
+                typeof args?.output === "object" && args?.output !== null
+                  ? (args.output as Record<string, unknown>)
+                  : undefined,
+            };
           }
           const mappedActions = mapToolResultToActions({
             toolCallName: toolCall.toolName,
@@ -292,8 +309,100 @@ export class V3AgentHandler {
             action.timestamp = Date.now();
             state.actions.push(action);
           }
+
+          // Emit step_finished_event per tool call. The TrajectoryRecorder
+          // builds one Trajectory.Step per emission. tier-1 evidence (the
+          // bytes the LLM consumed) is captured separately via an
+          // onStepFinish wrapper in the harness (plan §10 Q1).
+          const stepIndex = stepCounter++;
+          stepIndicesInTurn.push(stepIndex);
+          const toolOk =
+            !toolResult ||
+            (typeof toolResult === "object" &&
+              !("error" in toolResult) &&
+              !("isError" in toolResult && toolResult.isError));
+          this.v3.bus.emit("agent_step_finished_event", {
+            stepIndex,
+            actionName: toolCall.toolName,
+            actionArgs:
+              typeof args === "object" && args !== null
+                ? (args as Record<string, unknown>)
+                : {},
+            reasoning: event.text ?? "",
+            toolOutput: {
+              ok: toolOk,
+              result: toolResult,
+              error:
+                toolResult &&
+                typeof toolResult === "object" &&
+                "error" in toolResult &&
+                typeof (toolResult as { error?: unknown }).error === "string"
+                  ? (toolResult as { error: string }).error
+                  : undefined,
+            },
+            finishedAt: new Date().toISOString(),
+          });
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+
+        // Harness probe — take a single screenshot / a11y snapshot per AI SDK
+        // step and attach it to every tool call in that turn. The observation
+        // reflects the settled page state after the batch of tool calls; this
+        // is more faithful than dropping probe evidence for all but the last
+        // tool call, while still avoiding per-tool screenshot overhead.
+        const wantsScreenshotProbe =
+          this.v3.bus.listenerCount("agent_screenshot_taken_event") > 0;
+        const wantsStepObservation =
+          this.v3.bus.listenerCount("agent_step_observed_event") > 0;
+        if (
+          stepIndicesInTurn.length > 0 &&
+          (wantsScreenshotProbe || wantsStepObservation)
+        ) {
+          try {
+            const page = await this.v3.context.awaitActivePage();
+            let screenshot: Buffer | undefined;
+            if (wantsScreenshotProbe) {
+              screenshot = await page.screenshot({ fullPage: false });
+            }
+            let ariaTree: string | undefined;
+            if (wantsStepObservation) {
+              // Capture the a11y tree alongside the URL probe so the verifier
+              // can ground textual claims (prices, names, dates) without OCR.
+              // Best-effort: returns undefined on failure/timeout.
+              ariaTree = await captureAriaTreeProbe(this.v3);
+            }
+            for (const stepIndex of stepIndicesInTurn) {
+              if (screenshot) {
+                // DOM/hybrid: this post-step screenshot is a harness probe
+                // only. The agent's tier-1 evidence is the tool's return value
+                // captured separately in agent_step_finished_event.
+                this.v3.bus.emit("agent_screenshot_taken_event", {
+                  stepIndex,
+                  screenshot,
+                  url: state.currentPageUrl,
+                  evidenceRole: "probe",
+                });
+              }
+              if (wantsStepObservation) {
+                this.v3.bus.emit("agent_step_observed_event", {
+                  stepIndex,
+                  url: state.currentPageUrl,
+                  ariaTree,
+                });
+              }
+            }
+          } catch (e) {
+            this.logger({
+              category: "agent",
+              message: `Warning: harness probe failed: ${getErrorMessage(e)}`,
+              level: 1,
+            });
+          }
+        }
+      }
+
+      if (lastFinalAnswer) {
+        this.v3.bus.emit("agent_final_answer_event", lastFinalAnswer);
       }
 
       if (userCallback) {
