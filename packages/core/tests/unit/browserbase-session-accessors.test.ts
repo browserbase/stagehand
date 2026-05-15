@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { V3 } from "../../lib/v3/v3.js";
+import { AgentAbortError } from "../../lib/v3/types/public/sdkErrors.js";
 
 const MOCK_SESSION_ID = "session-123";
 const MOCK_SESSION_URL = `https://www.browserbase.com/sessions/${MOCK_SESSION_ID}`;
@@ -154,5 +155,33 @@ describe("local accessors", () => {
     } finally {
       await v3.close().catch(() => {});
     }
+  });
+});
+
+describe("agent abort fast path", () => {
+  it("throws AgentAbortError immediately for already-aborted signals", async () => {
+    const v3 = new V3({
+      env: "LOCAL",
+      disableAPI: true,
+      experimental: true,
+      verbose: 0,
+      model: {
+        modelName: "openai/gpt-4.1-mini",
+        apiKey: "test-key",
+      },
+    });
+
+    const controller = new AbortController();
+    controller.abort("unit-test");
+
+    const agent = v3.agent();
+
+    await expect(
+      agent.execute({
+        instruction: "This should not run.",
+        maxSteps: 1,
+        signal: controller.signal,
+      }),
+    ).rejects.toBeInstanceOf(AgentAbortError);
   });
 });

@@ -6,13 +6,18 @@ import { AgentAbortError } from "../../lib/v3/types/public/sdkErrors.js";
 test.describe("Stagehand agent abort signal", () => {
   let v3: V3;
 
-  test.beforeEach(async () => {
-    v3 = new V3({
+  async function createV3(init = true): Promise<V3> {
+    const instance = new V3({
       ...v3TestConfig,
       experimental: true,
     });
-    await v3.init();
-  });
+
+    if (init) {
+      await instance.init();
+    }
+
+    return instance;
+  }
 
   test.afterEach(async () => {
     await v3?.close?.().catch(() => {});
@@ -20,6 +25,8 @@ test.describe("Stagehand agent abort signal", () => {
 
   test("non-streaming: abort signal stops execution and throws AgentAbortError", async () => {
     test.setTimeout(60000);
+
+    v3 = await createV3();
 
     const agent = v3.agent({
       model: "anthropic/claude-haiku-4-5-20251001",
@@ -45,6 +52,8 @@ test.describe("Stagehand agent abort signal", () => {
 
   test("streaming: abort signal stops stream and rejects result with AgentAbortError", async () => {
     test.setTimeout(60000);
+
+    v3 = await createV3();
 
     const agent = v3.agent({
       stream: true,
@@ -91,12 +100,11 @@ test.describe("Stagehand agent abort signal", () => {
   test("non-streaming: already aborted signal throws AgentAbortError immediately", async () => {
     test.setTimeout(20000);
 
+    v3 = await createV3(false);
+
     const agent = v3.agent({
       model: "anthropic/claude-haiku-4-5-20251001",
     });
-
-    const page = v3.context.pages()[0];
-    await page.goto("https://example.com");
 
     // Create an already aborted controller
     const controller = new AbortController();
@@ -113,6 +121,8 @@ test.describe("Stagehand agent abort signal", () => {
 
   test("non-streaming: execution completes normally without abort signal", async () => {
     test.setTimeout(60000);
+
+    v3 = await createV3();
 
     const agent = v3.agent({
       model: "anthropic/claude-haiku-4-5-20251001",
@@ -133,6 +143,8 @@ test.describe("Stagehand agent abort signal", () => {
 
   test("streaming: execution completes normally without abort signal", async () => {
     test.setTimeout(60000);
+
+    v3 = await createV3();
 
     const agent = v3.agent({
       stream: true,
