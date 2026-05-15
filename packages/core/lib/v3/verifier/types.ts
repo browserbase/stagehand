@@ -321,11 +321,11 @@ export interface VerifierRawSteps {
 export interface TaskValidity {
   /** True if the task is underspecified / has multiple valid interpretations. */
   isAmbiguous: boolean;
-  /** Human-readable ambiguity explanation when available. */
+  /** Explanation for why the task is ambiguous, when available. */
   ambiguityReason?: string;
   /** True if the task is impossible / illegal / NSFW / otherwise infeasible. */
   isInvalid: boolean;
-  /** Human-readable invalid-task explanation when available. */
+  /** Explanation for why the task is invalid, when available. */
   invalidReason?: string;
   /** Optional sub-codes from the task-classification taxonomy. */
   ambiguityCodes?: string[];
