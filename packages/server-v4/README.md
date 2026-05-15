@@ -6,7 +6,7 @@ The Stagehand  is a powerful service that provides a RESTful interface for brows
 
 To run the Stagehand API locally, ensure you have the following installed:
 
-- Node.js
+- Node.js `^20.19.0 || >=22.12.0`
 - pnpm
 
 ## 🛠 Installation
@@ -33,4 +33,3 @@ cp .env.example .env
 4. Configure your `.env` file with the environment variables required by `src/lib/env.ts` (BB environment, API base URLs, etc.).
 
 5. `pnpm dev`
-

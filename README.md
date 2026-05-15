@@ -110,6 +110,8 @@ Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full document
 
 ### Build and Run from Source
 
+Stagehand requires Node.js `^20.19.0 || >=22.12.0` and pnpm.
+
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
