@@ -144,7 +144,8 @@ export function parseFailureStepNumbers(
   const out = new Set<number>();
   const addStep = (n: number): boolean => {
     if (!Number.isFinite(n) || n < 0) return out.size < maxExpandedSteps;
-    if (maxStep !== undefined && n > maxStep) return out.size < maxExpandedSteps;
+    if (maxStep !== undefined && n > maxStep)
+      return out.size < maxExpandedSteps;
     out.add(n);
     return out.size < maxExpandedSteps;
   };
