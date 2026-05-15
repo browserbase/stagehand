@@ -282,14 +282,7 @@ export async function runCodexAgent({
     };
 
     const verdict = await evaluator.verify(trajectory, hydratedSpec);
-    const successMode =
-      verifier.successMode ??
-      ((process.env.EVAL_SUCCESS_MODE as
-        | "outcome"
-        | "process"
-        | "both"
-        | undefined) ||
-        "outcome");
+    const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
     const verifiedSuccess = verdictToSuccess(verdict, successMode);
 
     const { directory: trajectoryDir } = await persistAdapterTrajectory({
