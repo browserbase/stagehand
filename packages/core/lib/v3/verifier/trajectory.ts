@@ -27,7 +27,10 @@ export function normalizeRubric(
         );
       }
 
-      const earnedPoints = raw.earnedPoints ?? raw.earned_points;
+      const earnedPoints = normalizeEarnedPoints(
+        raw.earnedPoints ?? raw.earned_points,
+        raw.criterion,
+      );
       return {
         criterion: raw.criterion,
         description: raw.description,
@@ -40,6 +43,25 @@ export function normalizeRubric(
       };
     }),
   };
+}
+
+function normalizeEarnedPoints(
+  value: number | string | undefined,
+  criterion: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number") {
+    if (Number.isFinite(value)) return value;
+  } else {
+    const trimmed = value.trim();
+    if (trimmed === "") return undefined;
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  throw new TypeError(
+    `Rubric criterion "${criterion}" has a non-numeric earnedPoints value`,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
