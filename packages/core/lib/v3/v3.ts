@@ -944,62 +944,14 @@ export class V3 {
             createdTemp = true;
           }
 
-          // Build chrome flags
-          const defaults = [
-            "--remote-allow-origins=*",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--disable-dev-shm-usage",
-            "--site-per-process",
-          ];
-          let chromeFlags: string[];
-          const ignore = lbo.ignoreDefaultArgs;
-          if (ignore === true) {
-            // drop defaults
-            chromeFlags = [];
-          } else if (Array.isArray(ignore)) {
-            chromeFlags = defaults.filter(
-              (f) => !ignore.some((ex) => f.includes(ex)),
-            );
-          } else {
-            chromeFlags = [...defaults];
-          }
-
-          // headless handled by launchLocalChrome
-          if (lbo.devtools) chromeFlags.push("--auto-open-devtools-for-tabs");
-          if (lbo.locale) chromeFlags.push(`--lang=${lbo.locale}`);
           if (!lbo.viewport) {
             lbo.viewport = DEFAULT_VIEWPORT;
           }
-          if (lbo.viewport?.width && lbo.viewport?.height) {
-            chromeFlags.push(
-              `--window-size=${lbo.viewport.width},${lbo.viewport.height + 87}`, // Added pixels to the window to account for the address bar
-            );
-          }
-          if (typeof lbo.deviceScaleFactor === "number") {
-            chromeFlags.push(
-              `--force-device-scale-factor=${Math.max(0.1, lbo.deviceScaleFactor)}`,
-            );
-          }
-          if (lbo.hasTouch) chromeFlags.push("--touch-events=enabled");
-          if (lbo.ignoreHTTPSErrors)
-            chromeFlags.push("--ignore-certificate-errors");
-          if (lbo.proxy?.server)
-            chromeFlags.push(`--proxy-server=${lbo.proxy.server}`);
-          if (lbo.proxy?.bypass)
-            chromeFlags.push(`--proxy-bypass-list=${lbo.proxy.bypass}`);
-
-          // add user-supplied args last
-          if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
 
           const keepAlive = this.keepAlive === true;
           const { ws, chrome } = await launchLocalChrome({
-            chromePath: lbo.executablePath,
-            chromeFlags,
-            port: lbo.port,
-            headless: lbo.headless,
+            ...lbo,
             userDataDir,
-            connectTimeoutMs: lbo.connectTimeoutMs,
             handleSIGINT: !keepAlive,
           });
           if (keepAlive) {

@@ -1,16 +1,19 @@
-import { launch, LaunchedChrome } from "chrome-launcher";
+import { launch, Launcher, LaunchedChrome } from "chrome-launcher";
 import WebSocket from "ws";
 import { ConnectionTimeoutError } from "../types/public/sdkErrors.js";
+import type { LocalBrowserLaunchOptions } from "../types/public/index.js";
 
-interface LaunchLocalOptions {
-  chromePath?: string;
-  chromeFlags?: string[];
-  headless?: boolean;
-  userDataDir?: string;
-  port?: number;
-  connectTimeoutMs?: number;
+interface LaunchLocalOptions extends LocalBrowserLaunchOptions {
   handleSIGINT?: boolean;
 }
+
+const STAGEHAND_DEFAULT_FLAGS = [
+  "--remote-allow-origins=*",
+  "--no-first-run",
+  "--no-default-browser-check",
+  "--disable-dev-shm-usage",
+  "--site-per-process",
+];
 
 export async function launchLocalChrome(
   opts: LaunchLocalOptions,
@@ -23,22 +26,58 @@ export async function launchLocalChrome(
     Math.ceil(connectTimeoutMs / connectionPollInterval),
   );
   const headless = opts.headless ?? false;
+  const ignoredDefaults = Array.isArray(opts.ignoreDefaultArgs)
+    ? opts.ignoreDefaultArgs
+    : null;
+  const stagehandDefaultFlags =
+    opts.ignoreDefaultArgs === true
+      ? []
+      : ignoredDefaults
+        ? STAGEHAND_DEFAULT_FLAGS.filter((f) => !ignoredDefaults.includes(f))
+        : [...STAGEHAND_DEFAULT_FLAGS];
   const chromeFlags = [
+    ...stagehandDefaultFlags,
     headless ? "--headless=new" : undefined,
-    "--remote-allow-origins=*",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-dev-shm-usage",
-    "--site-per-process",
-    ...(opts.chromeFlags ?? []),
+    opts.devtools ? "--auto-open-devtools-for-tabs" : undefined,
+    opts.locale ? `--lang=${opts.locale}` : undefined,
+    opts.viewport?.width && opts.viewport?.height
+      ? `--window-size=${opts.viewport.width},${opts.viewport.height + 87}`
+      : undefined,
+    typeof opts.deviceScaleFactor === "number"
+      ? `--force-device-scale-factor=${Math.max(0.1, opts.deviceScaleFactor)}`
+      : undefined,
+    opts.hasTouch ? "--touch-events=enabled" : undefined,
+    opts.ignoreHTTPSErrors ? "--ignore-certificate-errors" : undefined,
+    opts.proxy?.server ? `--proxy-server=${opts.proxy.server}` : undefined,
+    opts.proxy?.bypass ? `--proxy-bypass-list=${opts.proxy.bypass}` : undefined,
+    ...(opts.args ?? []),
   ].filter((f): f is string => typeof f === "string");
 
+  // Handle ignoreDefaultArgs: selectively remove chrome-launcher's built-in
+  // defaults while keeping Stagehand's own flags (already in chromeFlags).
+  let ignoreDefaultFlags = false;
+  if (opts.ignoreDefaultArgs === true) {
+    ignoreDefaultFlags = true;
+  } else if (
+    Array.isArray(opts.ignoreDefaultArgs) &&
+    opts.ignoreDefaultArgs.length > 0
+  ) {
+    // Tell chrome-launcher to skip ALL its defaults, then re-add the ones
+    // the user did NOT ask to exclude.
+    ignoreDefaultFlags = true;
+    const excludeArgs = opts.ignoreDefaultArgs;
+    const clDefaults = Launcher.defaultFlags?.() ?? [];
+    const kept = clDefaults.filter((f) => !excludeArgs.includes(f));
+    chromeFlags.unshift(...kept);
+  }
+
   const chrome = await launch({
-    chromePath: opts.chromePath,
+    chromePath: opts.executablePath,
     chromeFlags,
     port: opts.port,
     userDataDir: opts.userDataDir,
     handleSIGINT: opts.handleSIGINT,
+    ignoreDefaultFlags,
     connectionPollInterval,
     maxConnectionRetries,
   });
