@@ -2,13 +2,13 @@
  * Verifier — interface and result types for the rubric-based verifier that
  * replaces V3Evaluator's single-pass YES/NO judge.
  *
- * Modeled on microsoft/fara's MMRubricAgent (arxiv 2511.19663, "The Art of
- * Building Verifiers for Computer Use Agents"). The verifier never touches a
- * live browser — it consumes a Trajectory + TaskSpec and returns a structured
- * Verdict. That property is what lets us re-score saved trajectories offline.
+ * Modeled on rubric-based verifier pipelines for computer-use agents. The
+ * verifier never touches a live browser — it consumes a Trajectory + TaskSpec
+ * and returns a structured Verdict. That property is what lets us re-score
+ * saved trajectories offline.
  *
  * Wave 0 ships only the types and a stub implementation (`evidence_insufficient`
- * for everything). Wave 1 ports the MMRubricAgent pipeline (Steps 1–6 + Step 8).
+ * for everything). Wave 1 adds the rubric generation/scoring pipeline.
  */
 
 import type { Trajectory, TaskSpec } from "./trajectory.js";
