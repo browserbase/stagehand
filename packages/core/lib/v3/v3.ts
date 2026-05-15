@@ -1001,6 +1001,7 @@ export class V3 {
             userDataDir,
             connectTimeoutMs: lbo.connectTimeoutMs,
             handleSIGINT: !keepAlive,
+            ignoreDefaultArgs: lbo.ignoreDefaultArgs,
           });
           if (keepAlive) {
             try {

@@ -1,4 +1,4 @@
-import { launch, LaunchedChrome } from "chrome-launcher";
+import { launch, Launcher, LaunchedChrome } from "chrome-launcher";
 import WebSocket from "ws";
 import { ConnectionTimeoutError } from "../types/public/sdkErrors.js";
 
@@ -10,6 +10,17 @@ interface LaunchLocalOptions {
   port?: number;
   connectTimeoutMs?: number;
   handleSIGINT?: boolean;
+  /**
+   * When provided, selectively removes flags from chrome-launcher's built-in
+   * defaults (e.g. `--disable-extensions`).
+   *
+   * - `true`  — drop **all** chrome-launcher defaults (only Stagehand's own
+   *   flags and user-supplied `chromeFlags` will be used).
+   * - `string[]` — drop only the listed flags from chrome-launcher defaults.
+   *   Matching is exact (e.g. `["--disable-extensions"]` removes only that
+   *   flag, not `--disable-extensions-file-access-from-files`).
+   */
+  ignoreDefaultArgs?: boolean | string[];
 }
 
 export async function launchLocalChrome(
@@ -33,12 +44,31 @@ export async function launchLocalChrome(
     ...(opts.chromeFlags ?? []),
   ].filter((f): f is string => typeof f === "string");
 
+  // Handle ignoreDefaultArgs: selectively remove chrome-launcher's built-in
+  // defaults while keeping Stagehand's own flags (already in chromeFlags).
+  let ignoreDefaultFlags = false;
+  if (opts.ignoreDefaultArgs === true) {
+    ignoreDefaultFlags = true;
+  } else if (
+    Array.isArray(opts.ignoreDefaultArgs) &&
+    opts.ignoreDefaultArgs.length > 0
+  ) {
+    // Tell chrome-launcher to skip ALL its defaults, then re-add the ones
+    // the user did NOT ask to exclude.
+    ignoreDefaultFlags = true;
+    const excludeArgs = opts.ignoreDefaultArgs;
+    const clDefaults = Launcher.defaultFlags?.() ?? [];
+    const kept = clDefaults.filter((f) => !excludeArgs.includes(f));
+    chromeFlags.unshift(...kept);
+  }
+
   const chrome = await launch({
     chromePath: opts.chromePath,
     chromeFlags,
     port: opts.port,
     userDataDir: opts.userDataDir,
     handleSIGINT: opts.handleSIGINT,
+    ignoreDefaultFlags,
     connectionPollInterval,
     maxConnectionRetries,
   });
