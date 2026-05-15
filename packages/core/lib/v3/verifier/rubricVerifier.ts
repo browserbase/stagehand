@@ -396,11 +396,13 @@ export class RubricVerifier implements Verifier {
     const hasTrajectorySignal =
       trajectory.steps.length > 0 || Boolean(trajectory.finalAnswer?.trim());
     if (!hasTrajectorySignal) {
-      return this.emptyTrajectoryResult(taskSpec.precomputedRubric);
+      return this.emptyTrajectoryResult(
+        normalizeRubric(taskSpec.precomputedRubric),
+      );
     }
 
     // Step 0a — generate rubric if absent.
-    let rubric: Rubric | undefined = taskSpec.precomputedRubric;
+    let rubric: Rubric | undefined = normalizeRubric(taskSpec.precomputedRubric);
     const rubricSource = rubric ? "precomputed" : "generated";
     if (!rubric) {
       rubric = await this.generateRubric(taskSpec);
