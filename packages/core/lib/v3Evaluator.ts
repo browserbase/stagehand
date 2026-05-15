@@ -5,8 +5,11 @@ import type {
   EvaluationResult as LegacyEvaluationResult,
 } from "./v3/types/private/evaluator.js";
 import { V3 } from "./v3/v3.js";
+import type { LLMClient } from "./v3/llm/LLMClient.js";
+import { LLMProvider } from "./v3/llm/LLMProvider.js";
 import { StagehandInvalidArgumentError } from "./v3/types/public/sdkErrors.js";
 import { LegacyV3Evaluator } from "./v3LegacyEvaluator.js";
+import { RubricVerifier } from "./v3/verifier/rubricVerifier.js";
 import type {
   Trajectory,
   TaskSpec,
@@ -46,7 +49,10 @@ type NormalizedConstructorOptions = {
 };
 
 export class V3Evaluator implements Verifier {
+  private readonly v3: V3;
   private readonly backend: V3EvaluatorBackend;
+  private readonly modelName: AvailableModel;
+  private readonly modelClientOptions: ClientOptions | { apiKey: string };
   private readonly legacyEvaluator: LegacyV3Evaluator;
 
   constructor(
@@ -62,6 +68,16 @@ export class V3Evaluator implements Verifier {
     );
 
     this.backend = resolveEvaluatorBackend(normalizedOptions.backend);
+    this.v3 = v3;
+    this.modelName =
+      normalizedOptions.modelName ||
+      ("google/gemini-2.5-flash" as AvailableModel);
+    this.modelClientOptions = normalizedOptions.modelClientOptions || {
+      apiKey:
+        process.env.GEMINI_API_KEY ||
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+        "",
+    };
     this.legacyEvaluator = new LegacyV3Evaluator(
       v3,
       normalizedOptions.modelName,
@@ -84,7 +100,10 @@ export class V3Evaluator implements Verifier {
       return this.verifyTrajectoryWithLegacyEvaluator(trajectory, taskSpec);
     }
 
-    return this.unavailableVerifierBackend("verify");
+    const verifier = new RubricVerifier({
+      getClient: () => this.getClient(),
+    });
+    return verifier.verify(trajectory, taskSpec);
   }
 
   async generateRubric(taskSpec: TaskSpec): Promise<Rubric> {
@@ -94,13 +113,16 @@ export class V3Evaluator implements Verifier {
       );
     }
 
-    if (this.backend === "verifier") {
-      return this.unavailableVerifierBackend("generateRubric");
+    if (this.backend === "legacy") {
+      return {
+        items: [legacyTaskCompletionCriterion(taskSpec)],
+      };
     }
 
-    return {
-      items: [legacyTaskCompletionCriterion(taskSpec)],
-    };
+    const verifier = new RubricVerifier({
+      getClient: () => this.getClient(),
+    });
+    return verifier.generateRubric(taskSpec);
   }
 
   private getLegacyBackend(methodName: string): LegacyV3Evaluator {
@@ -113,8 +135,13 @@ export class V3Evaluator implements Verifier {
 
   private unavailableVerifierBackend(methodName: string): never {
     throw new StagehandInvalidArgumentError(
-      `V3Evaluator.${methodName}() was configured with ${EVALUATOR_BACKEND_ENV}=verifier, but the verifier backend is not available in this build. Use "legacy" or install the verifier backend PR.`,
+      `V3Evaluator.${methodName}() was configured with ${EVALUATOR_BACKEND_ENV}=verifier, but the verifier backend only supports verify() and generateRubric(). Use "legacy" for ask()/batchAsk().`,
     );
+  }
+
+  private getClient(): LLMClient {
+    const provider = new LLMProvider(this.v3.logger);
+    return provider.getClient(this.modelName, this.modelClientOptions);
   }
 
   private async verifyTrajectoryWithLegacyEvaluator(

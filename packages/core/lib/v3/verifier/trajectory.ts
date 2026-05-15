@@ -99,9 +99,9 @@ function normalizeResultLabel(label?: string): string {
  *
  * Reverses the recorder's serialization tweaks:
  *   - `probeEvidence.screenshotPath` → read file into `probeEvidence.screenshot`.
- *   - Image modalities in `agentEvidence.modalities` carry `imagePath` on
- *     disk instead of raw Buffer; legacy `bytesBase64` fixtures are also
- *     accepted.
+ *   - Image modalities in `agentEvidence.modalities` carry `imagePath` on disk
+ *     (relative to the trajectory dir). Legacy `bytesBase64` is also accepted
+ *     for trajectories written before the externalization change.
  *
  * @param dir absolute or cwd-relative path to a `<run-id>/<task-id>/` directory.
  */
@@ -122,11 +122,12 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
             | {
                 type: "image";
                 mediaType: string;
-                // On-disk forms. Current writer externalizes bytes to
-                // imagePath; bytesBase64 is accepted for older fixtures.
+                // Accept both shapes:
+                //   imagePath    — new, relative path under the trajectory dir
+                //   bytesBase64  — legacy, inline base64
                 bytes?: unknown;
-                bytesBase64?: string;
                 imagePath?: string;
+                bytesBase64?: string;
               }
             | { type: "json"; content: unknown }
           >;
@@ -174,44 +175,42 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
     // Rehydrate tier-2 probe screenshot from its on-disk file reference.
     await hydrateProbeScreenshot(step.probeEvidence);
 
-    // Decode image modalities from disk references back to Buffer.
+    // Rehydrate tier-1 image modalities. New shape: resolve imagePath → Buffer.
+    // Legacy shape: decode bytesBase64 → Buffer.
     if (step.agentEvidence?.modalities) {
-      const modalities: AgentEvidenceModality[] = [];
+      const resolved: AgentEvidenceModality[] = [];
       for (const m of step.agentEvidence.modalities) {
-        // The on-disk shape carries imagePath/bytesBase64 instead of bytes,
-        // so we look through `unknown` rather than rely on the typed union.
-        const raw = m as unknown as {
-          bytesBase64?: string;
-          imagePath?: string;
-        };
-        if (m.type === "image" && typeof raw.bytesBase64 === "string") {
-          modalities.push({
-            type: "image" as const,
-            bytes: Buffer.from(raw.bytesBase64, "base64"),
-            mediaType: m.mediaType,
-          });
+        if (m.type !== "image") {
+          resolved.push(m as AgentEvidenceModality);
           continue;
         }
-        if (m.type === "image" && typeof raw.imagePath === "string") {
-          const resolved = resolveWithinTrajectoryDir(
+        const raw = m as unknown as {
+          imagePath?: string;
+          bytesBase64?: string;
+        };
+        if (typeof raw.imagePath === "string") {
+          const imagePath = resolveWithinTrajectoryDir(
             raw.imagePath,
             "imagePath",
           );
           try {
-            modalities.push({
-              type: "image" as const,
-              bytes: await fs.readFile(resolved),
-              mediaType: m.mediaType,
-            });
+            const bytes = await fs.readFile(imagePath);
+            resolved.push({ type: "image", bytes, mediaType: m.mediaType });
           } catch {
-            // Missing agent image file: omit that image modality. The
-            // verifier's evidence_insufficient path will handle missing bytes.
+            // Missing tier-1 image: drop this modality. evidence_insufficient
+            // handles the downstream effect.
           }
-          continue;
+        } else if (typeof raw.bytesBase64 === "string") {
+          resolved.push({
+            type: "image",
+            bytes: Buffer.from(raw.bytesBase64, "base64"),
+            mediaType: m.mediaType,
+          });
+        } else {
+          resolved.push(m as AgentEvidenceModality);
         }
-        modalities.push(m as AgentEvidenceModality);
       }
-      step.agentEvidence.modalities = modalities;
+      step.agentEvidence.modalities = resolved;
     }
   }
 
