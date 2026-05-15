@@ -29,10 +29,6 @@ export function printHelp(): void {
       "Inspect and compare Braintrust experiment runs",
     ),
     row(`${cyan("new")} ${dim("<tier> <cat> <name>")}`, "Scaffold a new task"),
-    row(
-      `${cyan("doctor")} ${dim("[--json]")}`,
-      "Health report (env keys, config, discovery)",
-    ),
     row(cyan("help"), "Show this help"),
     row(cyan("clear"), "Clear the screen"),
     row(cyan("exit"), "Exit the REPL"),
@@ -100,6 +96,10 @@ export function printRunHelp(): void {
     row(
       `${cyan("--agent-modes")} ${dim("<csv>")}`,
       `Stagehand mode matrix ${gray("(dom,hybrid,cua)")}`,
+    ),
+    row(
+      `${cyan("--success")} ${dim("<mode>")}`,
+      `Rubric success mode ${gray("(outcome | process | both)")}`,
     ),
     row(`${cyan("-l, --limit")} ${dim("<n>")}`, "Max cases to run"),
     row(`${cyan("-s, --sample")} ${dim("<n>")}`, "Random sample before limit"),

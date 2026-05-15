@@ -33,3 +33,4 @@ ctrf/
 **/.playwright*/
 packages/evals/playwright-mcp-screenshot-*.png
 packages/evals/chrome-devtools-mcp-screenshot-*.png
+.trajectories/
