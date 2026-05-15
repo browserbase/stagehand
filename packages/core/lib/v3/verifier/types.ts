@@ -34,11 +34,8 @@ export interface RubricCriterion {
   condition?: string;
   /** Filled by the verifier during scoring; empty in precomputed rubrics. */
   justification?: string;
-  /**
-   * Filled by the verifier during scoring; empty string in some serialized
-   * upstream rubrics and a number in scored rubrics.
-   */
-  earnedPoints?: number | string;
+  /** Filled by the verifier during scoring; omitted in precomputed rubrics. */
+  earnedPoints?: number;
 }
 
 /** A rubric — list of criteria for a task. */
