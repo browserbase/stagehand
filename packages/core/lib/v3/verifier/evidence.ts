@@ -31,7 +31,22 @@
  *     "Screenshot N — step=K, action=..."), preserving the rubric's link
  *     between visual evidence and the action history.
  */
-import type { Trajectory } from "./trajectory.js";
+import type {
+  CanonicalEvidence,
+  CanonicalScreenshot,
+  CanonicalTextEvidence,
+  EvidenceLoadOptions,
+  EvidenceLoadResult,
+  Trajectory,
+} from "./types.js";
+
+export type {
+  CanonicalEvidence,
+  CanonicalScreenshot,
+  CanonicalTextEvidence,
+  EvidenceLoadOptions,
+  EvidenceLoadResult,
+} from "./types.js";
 
 // Lazy-loaded `sharp` namespace. When `sharp` is not installed, we fall back
 // to keep-everything-at-native-size. Keep this structural so core does not
@@ -79,45 +94,6 @@ const DEFAULT_SSIM_THRESHOLD = 0.75;
 const DEFAULT_MSE_THRESHOLD = 30;
 const DEFAULT_IMAGE_RESIZE = 0.7;
 
-/** A single screenshot kept by Step 1, ready for downstream relevance scoring. */
-export interface CanonicalScreenshot {
-  /** 0-based position in the kept-screenshots array. Stable across the pipeline. */
-  canonicalIndex: number;
-  /**
-   * Trajectory step index this screenshot came from. Matches
-   * `Trajectory.steps[i].index`. Lets downstream prompts cross-reference the
-   * action history.
-   */
-  originalStepIndex: number;
-  /** Position of the step in `Trajectory.steps` (0..steps.length-1). */
-  trajectoryStepPosition: number;
-  /** The resized PNG/JPEG buffer (or native bytes if sharp unavailable). */
-  bytes: Buffer;
-  /** MIME media type. Always "image/png" after the (optional) resize. */
-  mediaType: string;
-  /** Reason this frame was kept: "first" / "last" / "diverges". */
-  keptReason: "first" | "last" | "diverges" | "no-dedup";
-}
-
-/**
- * A text evidence point sourced from tier-2 probes or tier-1 tool outputs.
- * These feed the same relevance + scoring path as screenshots, letting DOM
- * and hybrid agents preserve extract/aria/tool-return evidence without a
- * separate verifier architecture.
- */
-export interface CanonicalTextEvidence {
-  /** 0-based position in the combined evidence-point array. */
-  canonicalIndex: number;
-  originalStepIndex: number;
-  trajectoryStepPosition: number;
-  /** Where the text came from. */
-  source: "probe-aria" | "agent-text" | "agent-json" | "tool-output";
-  /** The text payload, already truncated. */
-  content: string;
-}
-
-export type CanonicalEvidence = CanonicalScreenshot | CanonicalTextEvidence;
-
 /** Discriminator helpers — kind === "image" for screenshots. */
 export function isImageEvidence(
   e: CanonicalEvidence,
@@ -131,39 +107,6 @@ export function isTextEvidence(
   return (
     "content" in e && typeof (e as CanonicalTextEvidence).content === "string"
   );
-}
-
-/** Result of Step 1. */
-export interface EvidenceLoadResult {
-  /** Kept frames, in chronological order. */
-  screenshots: CanonicalScreenshot[];
-  /**
-   * Maps `Trajectory.steps[i].index` → canonical index in `screenshots`. Step
-   * indices that were deduplicated point to the surviving canonical frame
-   * (typically the prior kept frame). Useful for "find me the screenshot for
-   * step K" lookups in downstream prompts.
-   */
-  stepIndexToCanonical: Map<number, number>;
-  /** Number of original frames considered. */
-  originalCount: number;
-  /** Number of frames kept post-dedup (== screenshots.length). */
-  keptCount: number;
-  /** Effective thresholds used (resolved from env). */
-  thresholds: {
-    ssim: number;
-    mse: number;
-    resize: number;
-  };
-}
-
-/** Options for {@link loadAndReduceScreenshots}. Mainly env override hooks for tests. */
-export interface EvidenceLoadOptions {
-  /** Override VERIFIER_SSIM_THRESHOLD. */
-  ssimThreshold?: number;
-  /** Override VERIFIER_MSE_THRESHOLD. */
-  mseThreshold?: number;
-  /** Override VERIFIER_IMAGE_RESIZE. */
-  imageResize?: number;
 }
 
 /**

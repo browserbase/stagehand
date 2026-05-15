@@ -144,6 +144,78 @@ export interface Trajectory {
   usage: TrajectoryUsage;
 }
 
+/** A single screenshot kept by Step 1, ready for downstream relevance scoring. */
+export interface CanonicalScreenshot {
+  /** 0-based position in the kept-screenshots array. Stable across the pipeline. */
+  canonicalIndex: number;
+  /**
+   * Trajectory step index this screenshot came from. Matches
+   * `Trajectory.steps[i].index`. Lets downstream prompts cross-reference the
+   * action history.
+   */
+  originalStepIndex: number;
+  /** Position of the step in `Trajectory.steps` (0..steps.length-1). */
+  trajectoryStepPosition: number;
+  /** The resized PNG/JPEG buffer (or native bytes if sharp unavailable). */
+  bytes: Buffer;
+  /** MIME media type. Always "image/png" after the optional resize. */
+  mediaType: string;
+  /** Reason this frame was kept: "first" / "last" / "diverges". */
+  keptReason: "first" | "last" | "diverges" | "no-dedup";
+}
+
+/**
+ * A text evidence point sourced from tier-2 probes or tier-1 tool outputs.
+ * These feed the same relevance + scoring path as screenshots, letting DOM
+ * and hybrid agents preserve extract/aria/tool-return evidence without a
+ * separate verifier architecture.
+ */
+export interface CanonicalTextEvidence {
+  /** 0-based position in the combined evidence-point array. */
+  canonicalIndex: number;
+  originalStepIndex: number;
+  trajectoryStepPosition: number;
+  /** Where the text came from. */
+  source: "probe-aria" | "agent-text" | "agent-json" | "tool-output";
+  /** The text payload, already truncated. */
+  content: string;
+}
+
+export type CanonicalEvidence = CanonicalScreenshot | CanonicalTextEvidence;
+
+/** Result of Step 1 evidence loading. */
+export interface EvidenceLoadResult {
+  /** Kept frames, in chronological order. */
+  screenshots: CanonicalScreenshot[];
+  /**
+   * Maps `Trajectory.steps[i].index` → canonical index in `screenshots`. Step
+   * indices that were deduplicated point to the surviving canonical frame
+   * (typically the prior kept frame). Useful for "find me the screenshot for
+   * step K" lookups in downstream prompts.
+   */
+  stepIndexToCanonical: Map<number, number>;
+  /** Number of original frames considered. */
+  originalCount: number;
+  /** Number of frames kept post-dedup (== screenshots.length). */
+  keptCount: number;
+  /** Effective thresholds used (resolved from env). */
+  thresholds: {
+    ssim: number;
+    mse: number;
+    resize: number;
+  };
+}
+
+/** Options for evidence loading. Mainly env override hooks for tests. */
+export interface EvidenceLoadOptions {
+  /** Override VERIFIER_SSIM_THRESHOLD. */
+  ssimThreshold?: number;
+  /** Override VERIFIER_MSE_THRESHOLD. */
+  mseThreshold?: number;
+  /** Override VERIFIER_IMAGE_RESIZE. */
+  imageResize?: number;
+}
+
 /** Score for a single rubric criterion after evidence analysis + rescoring. */
 export interface CriterionScore {
   /** Matches RubricCriterion.criterion (the criterion's short name). */

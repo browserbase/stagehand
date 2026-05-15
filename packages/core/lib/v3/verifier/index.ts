@@ -4,8 +4,13 @@
 export type {
   AgentEvidence,
   AgentEvidenceModality,
+  CanonicalEvidence,
+  CanonicalScreenshot,
+  CanonicalTextEvidence,
   CriterionScore,
   EvaluationResult,
+  EvidenceLoadOptions,
+  EvidenceLoadResult,
   FirstPointOfFailure,
   ProbeEvidence,
   Rubric,
