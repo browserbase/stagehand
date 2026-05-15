@@ -42,7 +42,7 @@ export class V3CuaAgentHandler {
   // Monotonic step counter used by bus events. The CUA loop is internal to
   // the agent client, so unlike v3AgentHandler we don't have per-tool-call
   // step events; instead we tag every screenshot emission with an
-  // incrementing index. Wave 1 may add finer-grained step events here.
+  // incrementing index.
   private cuaStepCounter = 0;
   private latestCuaScreenshot?: AgentScreenshotTakenEvent;
   private latestCuaScreenshotConsumed = true;
@@ -89,7 +89,7 @@ export class V3CuaAgentHandler {
       // Emit bus event so TrajectoryRecorder can capture the screenshot. In
       // CUA mode this is the same buffer the provider receives — i.e., it
       // serves both as tier-1 evidence (what the model saw) and as a tier-2
-      // probe. See plan §04 "Mode-by-mode sources".
+      // probe.
       try {
         this.emitCuaScreenshot(screenshotBuffer, page.url());
       } catch {

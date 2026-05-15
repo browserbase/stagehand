@@ -1,5 +1,5 @@
 /**
- * Wave 0 smoke test — verifies the TrajectoryRecorder plumbing end-to-end
+ * Smoke test — verifies the TrajectoryRecorder plumbing end-to-end
  * without launching a browser or calling an LLM.
  *
  * Drives a fake V3 (just an EventEmitter-shaped `bus`) through the same bus
@@ -217,12 +217,12 @@ async function main(): Promise<void> {
     "  ✓ V3Evaluator still constructs (verify() exercised live elsewhere)",
   );
 
-  console.log("\n✅ Wave 0 plumbing OK");
+  console.log("\n✅ Trajectory recorder plumbing OK");
   await fs.rm(tmpRoot, { recursive: true, force: true });
 }
 
 main().catch((err) => {
-  console.error("\n❌ Wave 0 plumbing FAILED:", err);
+  console.error("\n❌ Trajectory recorder plumbing FAILED:", err);
   process.exit(1);
 });
 

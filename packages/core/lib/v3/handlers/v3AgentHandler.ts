@@ -313,7 +313,7 @@ export class V3AgentHandler {
           // Emit step_finished_event per tool call. The TrajectoryRecorder
           // builds one Trajectory.Step per emission. tier-1 evidence (the
           // bytes the LLM consumed) is captured separately via an
-          // onStepFinish wrapper in the harness (plan §10 Q1).
+          // onStepFinish wrapper in the harness.
           const stepIndex = stepCounter++;
           stepIndicesInTurn.push(stepIndex);
           const toolOk =

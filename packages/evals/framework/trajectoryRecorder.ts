@@ -9,15 +9,13 @@
  *   await agent.execute(...);
  *   const trajectory = await recorder.finish({ status: "complete", usage });
  *
- * Persistence is env-gated by `VERIFIER_PERSIST_TRAJECTORIES` (plan §10 Q2):
+ * Persistence is env-gated by `VERIFIER_PERSIST_TRAJECTORIES`:
  *   - unset: persistence follows the default (on locally, off in CI).
  *   - "1" / "true": always persist.
  *   - "0" / "false": never persist.
  *
  * On-disk layout is stable JSON + screenshots so saved runs can be re-scored
  * without format conversion.
- *
- * @see ~/.claude/plans/verifier-rewrite.html §06 (Trajectory on-disk)
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -451,8 +449,7 @@ function mergeAgentEvidence(
 /**
  * Build a tier-1 AgentEvidence from a step_finished event. The handler's
  * toolOutput.result is what the LLM consumed next turn (modulo SDK
- * serialization). Wave 1 will replace this with a higher-fidelity capture
- * pulled from event.response.messages.
+ * serialization).
  */
 function buildAgentEvidence(e: AgentStepFinishedEvent): AgentEvidence {
   const modalities: AgentEvidence["modalities"] = [];
