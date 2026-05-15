@@ -326,7 +326,7 @@ export interface Verdict {
 
 /** Reason a stub verifier can emit. */
 export type StubVerdictReason =
-  | "wave-0-stub"
+  | "stub-verifier"
   | "no-rubric"
   | "empty-trajectory";
 
