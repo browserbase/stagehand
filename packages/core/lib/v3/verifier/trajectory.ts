@@ -1,28 +1,12 @@
 import type {
-  ProbeEvidence,
-  Rubric,
-  RubricCriterion,
-  RubricInput,
-  SerializedRubricCriterion,
-  Trajectory,
-  TrajectoryStep,
-} from "./types.js";
-
-export type {
-  AgentEvidence,
   AgentEvidenceModality,
   ProbeEvidence,
   Rubric,
   RubricCriterion,
   RubricInput,
-  SerializedRubric,
   SerializedRubricCriterion,
-  TaskSpec,
-  ToolOutput,
   Trajectory,
-  TrajectoryStatus,
   TrajectoryStep,
-  TrajectoryUsage,
 } from "./types.js";
 
 /** Convert a Stagehand or serialized rubric into the public Stagehand shape. */
