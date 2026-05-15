@@ -136,21 +136,36 @@ export async function runWithVerifier(
 
 /**
  * Decide bench task success from a Verdict using the --success flag's
- * semantics (mirrors fara's CLI knob, plan §03).
+ * semantics.
  *
- * `outcome` (default) — strict binary outcome. Matches fara-7b's reported
- *                       metric.
+ * `outcome` (default) — strict binary outcome.
  * `process`           — rubric process score ≥ threshold (default 0.8).
  * `both`              — both conditions must hold.
  */
+export type EvalSuccessMode = "outcome" | "process" | "both";
+
+export function resolveEvalSuccessMode(mode: unknown): EvalSuccessMode {
+  if (typeof mode !== "string") return "outcome";
+  const normalized = mode.trim().toLowerCase();
+  if (
+    normalized === "outcome" ||
+    normalized === "process" ||
+    normalized === "both"
+  ) {
+    return normalized;
+  }
+  return "outcome";
+}
+
 export function verdictToSuccess(
   verdict: Verdict,
-  mode: "outcome" | "process" | "both" = "outcome",
+  mode: unknown = "outcome",
   processThreshold = 0.8,
 ): boolean {
+  const resolvedMode = resolveEvalSuccessMode(mode);
   const outcomeOk = verdict.outcomeSuccess;
   const processOk = verdict.processScore >= processThreshold;
-  switch (mode) {
+  switch (resolvedMode) {
     case "outcome":
       return outcomeOk;
     case "process":

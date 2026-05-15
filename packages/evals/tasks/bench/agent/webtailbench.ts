@@ -15,8 +15,8 @@ import {
  * WebTailBench bench task.
  *
  * Wave 1 MVP: runs the agent through the new TrajectoryRecorder +
- * V3Evaluator.verify() pipeline (process + outcome scoring grounded in the
- * paper's MMRubricAgent). The previous polling-based ScreenshotCollector +
+ * V3Evaluator.verify() pipeline (process + outcome scoring grounded in saved
+ * trajectory evidence). The previous polling-based ScreenshotCollector +
  * V3Evaluator.ask() flow is gone.
  *
  * The local WebTailBench JSONL doesn't carry precomputed_rubric (the
@@ -24,7 +24,7 @@ import {
  * verifier generates a rubric via Step 0a on first encounter per task id
  * and caches under packages/evals/.rubric-cache/webtailbench/.
  *
- * --success knob: defaults to "outcome" (matches fara-7b's reported metric).
+ * --success knob: defaults to "outcome".
  * Override via the EVAL_SUCCESS_MODE env var: outcome | process | both.
  */
 export default defineBenchTask(
@@ -79,9 +79,7 @@ export default defineBenchTask(
           },
         });
 
-      const successMode =
-        (process.env.EVAL_SUCCESS_MODE as "outcome" | "process" | "both") ||
-        "outcome";
+      const successMode = process.env.EVAL_SUCCESS_MODE;
 
       logger.log({
         category: "evaluation",
