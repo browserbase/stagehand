@@ -27,6 +27,8 @@ import {
 } from "../errorTaxonomy.js";
 import type { ParseFailureStepNumbersOptions } from "../types.js";
 
+export type { ParseFailureStepNumbersOptions } from "../types.js";
+
 // Pre-render the taxonomy + summary table (categories 1–6) once at load.
 const TAXONOMY_TEXT = getTaxonomyText(1, 6, 3);
 const SUMMARY_TABLE = getSummaryTable(1, 6);

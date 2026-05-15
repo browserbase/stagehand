@@ -18,6 +18,11 @@ import type {
   ErrorTaxonomySubCategory,
 } from "./types.js";
 
+export type {
+  ErrorTaxonomyCategory,
+  ErrorTaxonomySubCategory,
+} from "./types.js";
+
 /**
  * Canonical taxonomy used by verifier failure-analysis prompts.
  */

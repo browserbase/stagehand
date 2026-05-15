@@ -10,6 +10,7 @@ import type {
   CanonicalTextEvidence,
   CriterionScore,
   EvaluationResult,
+  EvidenceLoadResult,
   Rubric,
   RubricVerifierOptions,
   TaskSpec,
