@@ -84,6 +84,7 @@ function normalizeEarnedPoints(
 export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
   const fs = await import("node:fs/promises");
   const path = await import("node:path");
+  const trajectoryDir = path.resolve(dir);
 
   const trajectoryPath = path.join(dir, "trajectory.json");
   const raw = await fs.readFile(trajectoryPath, "utf8");
@@ -109,13 +110,28 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
     >;
   };
 
+  const resolveWithinTrajectoryDir = (candidate: string): string => {
+    const resolved = path.resolve(trajectoryDir, candidate);
+    const relative = path.relative(trajectoryDir, resolved);
+    const outside =
+      relative === ".." ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative);
+
+    if (outside) {
+      throw new Error(
+        `Trajectory screenshotPath escapes trajectory directory: ${candidate}`,
+      );
+    }
+
+    return resolved;
+  };
+
   for (const step of parsed.steps) {
     // Rehydrate tier-2 probe screenshot from its on-disk file reference.
     const probe = step.probeEvidence;
     if (probe?.screenshotPath && !probe.screenshot) {
-      const resolved = path.isAbsolute(probe.screenshotPath)
-        ? probe.screenshotPath
-        : path.join(dir, probe.screenshotPath);
+      const resolved = resolveWithinTrajectoryDir(probe.screenshotPath);
       try {
         probe.screenshot = await fs.readFile(resolved);
       } catch {
