@@ -42,12 +42,12 @@ async function main(): Promise<void> {
         {
           criterion: "Identify correct route",
           description: "Agent identifies United CHI→GRU flight.",
-          max_points: 2,
+          maxPoints: 2,
         },
         {
           criterion: "Report price delta",
           description: "Agent reports economy↔business price delta.",
-          max_points: 3,
+          maxPoints: 3,
         },
       ],
     },

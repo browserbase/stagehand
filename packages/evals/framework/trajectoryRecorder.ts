@@ -327,12 +327,14 @@ export class TrajectoryRecorder {
   }
 
   /**
-   * Write the trajectory directory layout. Mirrors fara's example_trajectory/:
+   * Write the trajectory directory layout.
    *
    *   <outputDir>/
    *     ├── task_data.json
    *     ├── trajectory.json    (screenshots referenced by path)
-   *     ├── screenshot_<N>.png
+   *     ├── screenshots/
+   *     │   ├── probe/<N>.png
+   *     │   └── agent/<N>.png
    *     └── times.json
    */
   private async persist(trajectory: Trajectory): Promise<void> {
