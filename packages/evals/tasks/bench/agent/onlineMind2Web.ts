@@ -15,7 +15,7 @@ import {
  * packages/evals/.rubric-cache/onlineMind2Web/. Cached rubrics hydrate on
  * subsequent runs.
  *
- * --success knob: defaults to "outcome" (matches fara-7b's reported metric).
+ * --success knob: defaults to "outcome".
  * Override via the EVAL_SUCCESS_MODE env var (set by the bench runner's
  * --success flag): outcome | process | both.
  */
@@ -72,9 +72,7 @@ export default defineBenchTask(
           },
         });
 
-      const successMode =
-        (process.env.EVAL_SUCCESS_MODE as "outcome" | "process" | "both") ||
-        "outcome";
+      const successMode = process.env.EVAL_SUCCESS_MODE;
 
       logger.log({
         category: "evaluation",

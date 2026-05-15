@@ -38,9 +38,7 @@ export default defineBenchTask(
         },
       });
 
-      const successMode =
-        (process.env.EVAL_SUCCESS_MODE as "outcome" | "process" | "both") ||
-        "outcome";
+      const successMode = process.env.EVAL_SUCCESS_MODE;
 
       return {
         _success: verdictToSuccess(verdict, successMode),

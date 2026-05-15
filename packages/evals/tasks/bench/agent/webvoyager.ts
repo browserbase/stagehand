@@ -14,7 +14,7 @@ import {
  * generates one via Step 0a on first encounter per task id and caches under
  * packages/evals/.rubric-cache/webvoyager/.
  *
- * --success knob: defaults to "outcome" (matches fara-7b's reported metric).
+ * --success knob: defaults to "outcome".
  * Override via the EVAL_SUCCESS_MODE env var: outcome | process | both.
  */
 export default defineBenchTask(
@@ -68,9 +68,7 @@ export default defineBenchTask(
           },
         });
 
-      const successMode =
-        (process.env.EVAL_SUCCESS_MODE as "outcome" | "process" | "both") ||
-        "outcome";
+      const successMode = process.env.EVAL_SUCCESS_MODE;
 
       logger.log({
         category: "evaluation",
