@@ -40,14 +40,6 @@ import type {
   Trajectory,
 } from "./types.js";
 
-export type {
-  CanonicalEvidence,
-  CanonicalScreenshot,
-  CanonicalTextEvidence,
-  EvidenceLoadOptions,
-  EvidenceLoadResult,
-} from "./types.js";
-
 // Lazy-loaded `sharp` namespace. When `sharp` is not installed, we fall back
 // to keep-everything-at-native-size. Keep this structural so core does not
 // need to publish sharp as a runtime dependency.
