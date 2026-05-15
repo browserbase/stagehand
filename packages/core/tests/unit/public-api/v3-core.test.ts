@@ -134,6 +134,18 @@ describe("V3 Core public API types", () => {
       >();
     });
 
+    it("has verifier facade methods", () => {
+      expectTypeOf<V3EvaluatorInstance["verify"]>().toExtend<
+        (
+          trajectory: Stagehand.Trajectory,
+          taskSpec: Stagehand.TaskSpec,
+        ) => Promise<Stagehand.Verdict>
+      >();
+      expectTypeOf<V3EvaluatorInstance["generateRubric"]>().toExtend<
+        (taskSpec: Stagehand.TaskSpec) => Promise<Stagehand.Rubric>
+      >();
+    });
+
     it("accepts legacy evaluator backend options", () => {
       const mockV3 = {} as Stagehand.Stagehand;
       expectTypeOf<typeof Stagehand.V3Evaluator>().toBeConstructibleWith(
@@ -154,6 +166,34 @@ describe("V3 Core public API types", () => {
       ).rejects.toThrow(
         "STAGEHAND_EVALUATOR_BACKEND=verifier, but the verifier backend is not available",
       );
+    });
+
+    it("returns an evidence-insufficient legacy verdict for empty trajectories", async () => {
+      const taskSpec: Stagehand.TaskSpec = {
+        id: "empty",
+        instruction: "Complete the task",
+      };
+      const trajectory: Stagehand.Trajectory = {
+        task: taskSpec,
+        steps: [],
+        status: "complete",
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0,
+        },
+        timing: {
+          startedAt: new Date(0).toISOString(),
+          endedAt: new Date(0).toISOString(),
+        },
+      };
+      const evaluator = new Stagehand.V3Evaluator({} as Stagehand.Stagehand, {
+        backend: "legacy",
+      });
+
+      const verdict = await evaluator.verify(trajectory, taskSpec);
+
+      expect(verdict.outcomeSuccess).toBe(false);
+      expect(verdict.evidenceInsufficient).toEqual(["legacy-task-completion"]);
     });
 
     it("rejects invalid evaluator backend env values", () => {

@@ -64,6 +64,29 @@ export type {
   V3EvaluatorConstructorOptions,
   V3EvaluatorOptions,
 } from "../v3Evaluator.js";
+export type {
+  Trajectory,
+  TrajectoryStep,
+  TrajectoryStatus,
+  TrajectoryUsage,
+  TaskSpec,
+  Rubric,
+  RubricCriterion,
+  AgentEvidence,
+  AgentEvidenceModality,
+  ProbeEvidence,
+  ToolOutput,
+  Verifier,
+  Verdict,
+  CriterionScore,
+  FirstPointOfFailure,
+  TaskValidity,
+  VerifierFinding,
+} from "./verifier/index.js";
+export {
+  loadTrajectoryFromDisk,
+  nextVerdictFilename,
+} from "./verifier/index.js";
 export { tool } from "ai";
 export { getAISDKLanguageModel } from "./llm/LLMProvider.js";
 export { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
