@@ -1,9 +1,6 @@
 /**
- * Whole-rubric multimodal rescoring prompt — Step 6 of the MMRubricAgent
- * pipeline (whole-rubric mode, the paper's default).
- *
- * Verbatim port of `MM_RUBRIC_RESCORING_PROMPT` from
- * microsoft/fara/webeval/src/webeval/rubric_agent/prompts.py.
+ * Whole-rubric multimodal rescoring prompt — Step 6 of the rubric verifier
+ * pipeline.
  *
  * Rescores every criterion in a single LLM call given the action history,
  * the agent's predicted output, baseline (action-only) scores, and per-criterion
@@ -20,9 +17,8 @@
  *                                    hasn't run)
  *   - num_criteria                 — must match items.length in output
  *
- * Note: this version preserves the original `$num_criteria_minus_1` token
- * (used inside the prompt as `{num_criteria_minus_1}`) — fara's Python
- * intentionally leaves that as a literal so the model self-anchors on the
+ * Note: this version preserves the `$num_criteria_minus_1` token (used inside
+ * the prompt as `{num_criteria_minus_1}`) so the model self-anchors on the
  * count from `num_criteria` and the example schema's "...one entry per
  * criterion..." instruction. We pass the count via `num_criteria` only.
  */

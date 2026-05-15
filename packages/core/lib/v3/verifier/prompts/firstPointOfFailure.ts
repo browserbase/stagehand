@@ -1,8 +1,5 @@
 /**
- * First-point-of-failure prompt — Step 9a of the MMRubricAgent pipeline.
- *
- * Verbatim port of `FIRST_POINT_OF_FAILURE_PROMPT` from
- * microsoft/fara/webeval/src/webeval/rubric_agent/prompts.py.
+ * First-point-of-failure prompt — Step 9a of the rubric verifier pipeline.
  *
  * Identifies ALL distinct failure points in a trajectory and pinpoints the
  * earliest one (the "first" failure). Diagnostic signal only — does NOT
@@ -105,7 +102,8 @@ Output your answer in pure JSON format according to the following schema. The JS
 `;
 
 /**
- * Parse fara's flexible step-numbers field into a sorted array of step indices.
+ * Parse the model's flexible step-numbers field into a sorted array of step
+ * indices.
  *
  * Accepts:
  *   "5"        → [5]
@@ -117,9 +115,39 @@ Output your answer in pure JSON format according to the following schema. The JS
  * analysis is best-effort and a malformed step-numbers field shouldn't tank
  * the whole EvaluationResult.
  */
-export function parseFailureStepNumbers(raw: string): number[] {
+export interface ParseFailureStepNumbersOptions {
+  /**
+   * Maximum unique step numbers to expand from ranges. Protects the verifier
+   * from malformed model output such as "0-2147483647".
+   */
+  maxExpandedSteps?: number;
+  /** Optional inclusive upper bound for accepted step numbers. */
+  maxStep?: number;
+}
+
+const DEFAULT_MAX_EXPANDED_STEPS = 1000;
+
+export function parseFailureStepNumbers(
+  raw: string,
+  opts: ParseFailureStepNumbersOptions = {},
+): number[] {
   if (typeof raw !== "string" || raw.length === 0) return [];
-  const out: number[] = [];
+  const maxExpandedSteps = sanitizeNonNegativeInt(
+    opts.maxExpandedSteps,
+    DEFAULT_MAX_EXPANDED_STEPS,
+  );
+  if (maxExpandedSteps === 0) return [];
+  const maxStep =
+    opts.maxStep === undefined
+      ? undefined
+      : sanitizeNonNegativeInt(opts.maxStep, 0);
+  const out = new Set<number>();
+  const addStep = (n: number): boolean => {
+    if (!Number.isFinite(n) || n < 0) return out.size < maxExpandedSteps;
+    if (maxStep !== undefined && n > maxStep) return out.size < maxExpandedSteps;
+    out.add(n);
+    return out.size < maxExpandedSteps;
+  };
   for (const segment of raw.split(",")) {
     const seg = segment.trim();
     if (!seg) continue;
@@ -128,13 +156,29 @@ export function parseFailureStepNumbers(raw: string): number[] {
       const lo = Number.parseInt(seg.slice(0, dashIdx), 10);
       const hi = Number.parseInt(seg.slice(dashIdx + 1), 10);
       if (Number.isFinite(lo) && Number.isFinite(hi) && lo <= hi) {
-        for (let i = lo; i <= hi; i++) out.push(i);
+        const cappedHi = Math.min(
+          hi,
+          maxStep ?? hi,
+          lo + (maxExpandedSteps - out.size) - 1,
+        );
+        for (let i = lo; i <= cappedHi; i++) {
+          if (!addStep(i)) break;
+        }
       }
     } else {
       const n = Number.parseInt(seg, 10);
-      if (Number.isFinite(n)) out.push(n);
+      if (!addStep(n)) break;
     }
+    if (out.size >= maxExpandedSteps) break;
   }
   // De-dup + sort ascending.
-  return Array.from(new Set(out)).sort((a, b) => a - b);
+  return Array.from(out).sort((a, b) => a - b);
+}
+
+function sanitizeNonNegativeInt(
+  value: number | undefined,
+  fallback: number,
+): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.floor(value));
 }

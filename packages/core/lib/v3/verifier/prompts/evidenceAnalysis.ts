@@ -1,9 +1,5 @@
 /**
- * Batched evidence-analysis prompt — Step 4 of the MMRubricAgent pipeline
- * (batched variant).
- *
- * Verbatim port of `MM_SCREENSHOT_BATCHED_EVIDENCE_ANALYSIS_PROMPT` from
- * microsoft/fara/webeval/src/webeval/rubric_agent/prompts.py (line 836).
+ * Batched evidence-analysis prompt — Step 4 of the rubric verifier pipeline.
  *
  * One LLM call per unique screenshot; analyzes that one screenshot against
  * ALL of the criteria for which it was selected in Step 3. The model emits

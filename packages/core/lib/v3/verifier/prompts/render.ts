@@ -1,7 +1,7 @@
 /**
  * Minimal Python-`string.Template`-compatible renderer for verifier prompts.
  *
- * The fara prompts.py uses Python's `string.Template`:
+ * The verifier prompt templates use Python's `string.Template` semantics:
  *   - `$identifier` is a substitution placeholder.
  *   - `$$` is a literal dollar sign.
  *
@@ -34,8 +34,8 @@ export function renderPrompt(
 
 /**
  * Build the optional "init URL context" sentence used by most prompts.
- * Matches fara's pattern: when the task carries a starting URL, append
- * "  Starting URL: <url>" after the task identifier; otherwise empty.
+ * When the task carries a starting URL, append
+ * "  Starting URL: <url>" after the task identifier; otherwise return empty.
  */
 export function buildInitUrlContext(initUrl?: string): string {
   if (!initUrl) return "";

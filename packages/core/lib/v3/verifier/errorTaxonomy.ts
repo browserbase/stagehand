@@ -1,7 +1,5 @@
 /**
- * Error taxonomy for CUA trajectories — port of microsoft/fara's
- * `webeval/src/webeval/rubric_agent/error_taxonomy_analysis.md` +
- * `error_taxonomy_loader.py`.
+ * Error taxonomy for computer-use trajectories.
  *
  * The TS port skips the markdown-parser machinery from the Python loader.
  * The canonical structure is encoded directly here so prompts can interpolate
@@ -12,9 +10,8 @@
  *   - Failure analysis (Step 9a) — categories 1–6.
  *   - Task classification (Steps 9b + 10) — categories 7 (ambiguity) and 8 (invalid).
  *
- * Source-of-truth note from fara: "Calibration: Not every imperfection is a
- * failure. Only flag issues that materially affected task completion,
- * correctness, or user trust."
+ * Calibration: not every imperfection is a failure. Only flag issues that
+ * materially affected task completion, correctness, or user trust.
  */
 
 export interface ErrorTaxonomySubCategory {
@@ -38,8 +35,7 @@ export interface ErrorTaxonomyCategory {
 }
 
 /**
- * Canonical taxonomy. Order and codes mirror fara's
- * error_taxonomy_analysis.md verbatim.
+ * Canonical taxonomy used by verifier failure-analysis prompts.
  */
 export const ERROR_TAXONOMY: ErrorTaxonomyCategory[] = [
   {
@@ -311,7 +307,7 @@ export const ERROR_TAXONOMY: ErrorTaxonomyCategory[] = [
   },
 ];
 
-/** Calibration note from fara's taxonomy — embedded into prompts that ask the verifier to classify failures. */
+/** Calibration note embedded into prompts that ask the verifier to classify failures. */
 export const CALIBRATION_NOTE =
   "Calibration: Not every imperfection is a failure. Avoid over-classifying minor or cosmetic discrepancies as errors. Only flag issues that materially affected task completion, correctness, or user trust. When in doubt, err on the side of not flagging.";
 

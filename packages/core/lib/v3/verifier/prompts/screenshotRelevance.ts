@@ -1,9 +1,6 @@
 /**
- * Screenshot-criterion relevance prompt — Step 2 of the MMRubricAgent
+ * Screenshot-criterion relevance prompt — Step 2 of the rubric verifier
  * pipeline.
- *
- * Verbatim port of `MM_SCREENSHOT_CRITERION_RELEVANCE_PROMPT` from
- * microsoft/fara/webeval/src/webeval/rubric_agent/prompts.py (line 729).
  *
  * The verifier feeds this prompt one screenshot at a time alongside the full
  * rubric criteria block; the model returns a 0–10 relevance score for EACH

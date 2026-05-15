@@ -1,8 +1,5 @@
 /**
- * Outcome verification prompt — Step 8 of the MMRubricAgent pipeline.
- *
- * Verbatim port of `OUTCOME_VERIFICATION_PROMPT` from
- * microsoft/fara/webeval/src/webeval/rubric_agent/prompts.py.
+ * Outcome verification prompt — Step 8 of the rubric verifier pipeline.
  *
  * Independent binary assessment of whether the agent accomplished the task
  * from the user's perspective. Runs AFTER the rubric rescoring (Step 6) and

@@ -1,8 +1,5 @@
 /**
- * Rubric generation prompt — Step 0a of the MMRubricAgent pipeline.
- *
- * Verbatim port of `RUBRIC_GENERATION_PROMPT_TEMPLATE` from
- * microsoft/fara/webeval/src/webeval/rubric_agent/prompts.py.
+ * Rubric generation prompt — Step 0a of the rubric verifier pipeline.
  *
  * Used when a task has no precomputed_rubric (i.e., everything except
  * upstream WebTailBench). The LLM generates a structured rubric of criteria

@@ -1,5 +1,5 @@
 /**
- * RubricVerifier — port of microsoft/fara's MMRubricAgent pipeline.
+ * RubricVerifier — rubric-based verification pipeline.
  *
  * Wave 1 MVP: produces a real outcome verdict using OUTCOME_VERIFICATION_PROMPT,
  * with rubric generation (Step 0a) when no precomputed rubric is provided.
@@ -262,7 +262,7 @@ function groupTopKByCriterion(args: {
 
     const topKEvidence = scored.slice(0, topK);
 
-    // fara's relevance-floor filter: if any selected evidence scored ≥6,
+    // Relevance-floor filter: if any selected evidence scored ≥6,
     // drop low-relevance entries that are >2 points below the weakest
     // high-relevance entry.
     const highScores = topKEvidence
@@ -1265,14 +1265,16 @@ export class RubricVerifier implements Verifier {
     >;
     if (!data.has_failure || data.failure_points.length === 0) return undefined;
 
-    // Find the failure with the earliest step number. fara's "first point of
-    // failure" semantics: lowest min-step across all failure_points.
+    // Find the failure with the earliest step number: lowest min-step across
+    // all failure_points.
     let best: {
       minStep: number;
       point: z.infer<typeof FailurePointSchema>;
     } | null = null;
     for (const fp of data.failure_points) {
-      const steps = parseFailureStepNumbers(fp.step_numbers);
+      const steps = parseFailureStepNumbers(fp.step_numbers, {
+        maxStep: Math.max(0, trajectory.steps.length),
+      });
       if (steps.length === 0) continue;
       const minStep = steps[0];
       if (best === null || minStep < best.minStep) {
@@ -1306,7 +1308,7 @@ export class RubricVerifier implements Verifier {
     const prompt = renderPrompt(TASK_VALIDITY_PROMPT, {
       task_definition: taskSpec.instruction,
       url: taskSpec.initUrl ?? "(none)",
-      // For browser-driven tasks the app is always Edge/Chrome. fara's prompt
+      // For browser-driven tasks the app is always Edge/Chrome. The prompt
       // accepts a free-form apps field; keeping it accurate matters less than
       // anchoring the model with non-empty context.
       apps: "Edge",
@@ -1372,8 +1374,7 @@ export class RubricVerifier implements Verifier {
   /**
    * Compact textual action history for embedding in prompts. One line per
    * step: tool name, brief argument summary, and the first ~140 chars of
-   * reasoning. Mirrors fara's action-history shape; the full per-step
-   * detail lives in the trajectory.json on disk.
+   * reasoning. The full per-step detail lives in trajectory.json on disk.
    */
   private formatActionHistory(trajectory: Trajectory): string {
     const history = trajectory.steps

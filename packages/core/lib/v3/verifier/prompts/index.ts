@@ -1,5 +1,5 @@
 /**
- * Verbatim ports of microsoft/fara's MMRubricAgent prompts.
+ * Verifier prompts used by the rubric-based verification pipeline.
  *
  * Wave 1 ships the two prompts needed for a coarse outcome-only pipeline:
  *   - RUBRIC_GENERATION_PROMPT (Step 0a) — generate a rubric from the task

@@ -1,8 +1,6 @@
 /**
- * Task validity classification prompt — Step 10 of the MMRubricAgent pipeline.
- *
- * Verbatim port of `CHECK_VALID_TASK_PROMPT` from
- * microsoft/fara/webeval/src/webeval/rubric_agent/prompts.py.
+ * Task validity classification prompt — Step 10 of the rubric verifier
+ * pipeline.
  *
  * Task-only verification — classifies the task itself (without trajectory
  * context) along two axes:
@@ -20,7 +18,7 @@
  */
 import { getTaxonomyText } from "../errorTaxonomy.js";
 
-// Axis definitions — ported verbatim from fara's _AXIS1/_AXIS2 constants.
+// Axis definitions used by the task-level validity prompt.
 const AXIS1_AMBIGUITY_DEFINITION = `A task is **ambiguous** when it is missing critical information that would prevent a reasonable agent from completing it correctly, or when the description admits multiple valid interpretations that cannot be resolved from context alone.
 
 A task is **not ambiguous** if a competent agent could reasonably infer a single correct course of action from the task description and the given URL/app, even if minor details (like output formatting) are underspecified.
