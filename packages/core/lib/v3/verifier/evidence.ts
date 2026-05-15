@@ -1,5 +1,5 @@
 /**
- * Evidence — Step 1 of fara's MMRubricAgent pipeline (port).
+ * Evidence — Step 1 of the rubric verifier pipeline.
  *
  * Loads probe screenshots from a Trajectory (file path or in-memory Buffer),
  * deduplicates near-identical frames using a quick MSE + SSIM dissimilarity
@@ -16,7 +16,7 @@
  *   - VERIFIER_MSE_THRESHOLD  (default 30)   — frames with MSE < threshold
  *     short-circuit to "duplicate" without running SSIM.
  *   - VERIFIER_IMAGE_RESIZE   (default 0.7)  — scale factor applied before
- *     relevance scoring (matches fara's pre-resize for token economy).
+ *     relevance scoring.
  *
  * Architectural notes:
  *   - This module never touches a live browser. It reads screenshots from
@@ -34,9 +34,29 @@
 import type { Trajectory } from "./trajectory.js";
 
 // Lazy-loaded `sharp` namespace. When `sharp` is not installed, we fall back
-// to keep-everything-at-native-size. Stored as `unknown` because the real
-// types live in an optional dep — see loadSharp().
-type Sharp = typeof import("sharp");
+// to keep-everything-at-native-size. Keep this structural so core does not
+// need to publish sharp as a runtime dependency.
+interface SharpImage {
+  metadata(): Promise<{ width?: number; height?: number }>;
+  resize(
+    width: number,
+    height?: number,
+    options?: { fit?: string; kernel?: unknown },
+  ): SharpImage;
+  resize(options: { width: number; height: number }): SharpImage;
+  raw(): SharpImage;
+  grayscale(): SharpImage;
+  png(options?: {
+    compressionLevel?: number;
+    adaptiveFiltering?: boolean;
+    palette?: boolean;
+  }): SharpImage;
+  toBuffer(): Promise<Buffer>;
+}
+
+type Sharp = ((input: Buffer) => SharpImage) & {
+  kernel: { lanczos3: unknown };
+};
 let sharpPromise: Promise<Sharp | null> | null = null;
 
 async function loadSharp(): Promise<Sharp | null> {
