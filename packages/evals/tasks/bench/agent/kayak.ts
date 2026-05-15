@@ -1,57 +1,61 @@
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  verdictToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/kayak" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
-      const evaluator = new V3Evaluator(v3);
+      const initUrl = "https://www.kayak.com";
       const page = v3.context.pages()[0];
-      await page.goto("https://www.kayak.com");
+      await page.goto(initUrl);
 
-      await agent.execute({
-        instruction: "Find flights from San Francisco to Tokyo next week",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
-      });
-      await agent.execute({
-        instruction: "Sort the flights by price",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 8,
-      });
+      const instruction =
+        "Find flights from San Francisco to Tokyo next week, then sort the flights by price (cheapest first).";
 
-      if (v3.context.pages().length !== 2) {
-        return {
-          _success: false,
-          message: "No new pages were opened",
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
-      const { evaluation, reasoning } = await evaluator.ask({
-        question:
+      const taskSpec: TaskSpec = {
+        id: "agent/kayak",
+        instruction,
+        initUrl,
+        precomputedRubric: adHocRubric(
           "Are the flights shown sorted by price? Check the sort button in the top left corner of the page. It should show cheapest first; use this as the success criteria since the page might promote other flights and not show the list in order.",
+        ),
+      };
+
+      const { verdict, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "agent-custom",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 33,
+        },
       });
 
-      const success = evaluation === "YES";
-      if (!success) {
-        return {
-          _success: false,
-          message: reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      const successMode =
+        (process.env.EVAL_SUCCESS_MODE as "outcome" | "process" | "both") ||
+        "outcome";
+
       return {
-        _success: true,
+        _success: verdictToSuccess(verdict, successMode),
+        outcomeSuccess: verdict.outcomeSuccess,
+        processScore: verdict.processScore,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } catch (error) {
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
-        message: error.message,
+        error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

@@ -1,71 +1,63 @@
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  verdictToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/kith" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
-      const evaluator = new V3Evaluator(v3);
+      const initUrl =
+        "https://kith.com/collections/nike-air-force-1/products/nkcw2288-111?variant=19439468707968";
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://kith.com/collections/nike-air-force-1/products/nkcw2288-111?variant=19439468707968",
-      );
+      await page.goto(initUrl);
 
-      await agent.execute({
-        instruction:
-          "add the shoes to cart, go to checkout, and fill the delivery information. Don't fill the payment information",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
+      const instruction =
+        "Add the shoes to cart, go to checkout, fill the delivery information, then fill the credit card information using placeholders. Do not submit the order.";
+
+      const taskSpec: TaskSpec = {
+        id: "agent/kith",
+        instruction,
+        initUrl,
+        precomputedRubric: adHocRubric(
+          "Did the agent fill the delivery information?",
+          "Did the agent fill the payment information?",
+        ),
+      };
+
+      const { verdict, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "agent-custom",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 35,
+        },
       });
 
-      const { evaluation, reasoning } = await evaluator.ask({
-        question: "Did the agent fill the delivery information",
-      });
+      const successMode =
+        (process.env.EVAL_SUCCESS_MODE as "outcome" | "process" | "both") ||
+        "outcome";
 
-      const success = evaluation === "YES";
-
-      if (success) {
-        await agent.execute({
-          instruction:
-            "fill the credit card information, do not submit the order just add placeholders",
-          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,
-        });
-
-        const { evaluation: evaluation2, reasoning: reasoning2 } =
-          await evaluator.ask({
-            question: "Did the agent fill the payment information",
-          });
-
-        const success2 = evaluation2 === "YES";
-
-        if (success2) {
-          return {
-            _success: true,
-            debugUrl,
-            sessionUrl,
-            logs: logger.getLogs(),
-          };
-        } else {
-          return {
-            _success: false,
-            message: reasoning2,
-            debugUrl,
-            sessionUrl,
-            logs: logger.getLogs(),
-          };
-        }
-      } else {
-        return {
-          _success: false,
-          message: reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      return {
+        _success: verdictToSuccess(verdict, successMode),
+        outcomeSuccess: verdict.outcomeSuccess,
+        processScore: verdict.processScore,
+        trajectoryDir,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
     } catch (error) {
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
-        message: error.message,
+        error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

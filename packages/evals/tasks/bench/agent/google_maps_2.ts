@@ -1,66 +1,61 @@
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
-import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  verdictToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/google_maps_2" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
+      const initUrl = "https://maps.google.com";
       const page = v3.context.pages()[0];
-      await page.goto("https://maps.google.com");
-
-      const screenshotCollector = new ScreenshotCollector(v3, {
-        interval: 3000,
-        maxScreenshots: 15,
-      });
-      screenshotCollector.start();
+      await page.goto(initUrl);
 
       const instruction =
         "Search for the fastest walking route from La Puerta de Alcalá to La Puerta del Sol";
-      const agentResult = await agent.execute({
+
+      const taskSpec: TaskSpec = {
+        id: "agent/google_maps_2",
         instruction,
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
+        initUrl,
+        precomputedRubric: adHocRubric(
+          `did the agent complete this task successfully? ${instruction}`,
+        ),
+      };
+
+      const { verdict, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "agent-custom",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
+        },
       });
 
-      const screenshots = await screenshotCollector.stop();
-
-      logger.log({
-        category: "evaluation",
-        message: `Collected ${screenshots.length} screenshots for evaluation`,
-        level: 1,
-      });
-
-      const evaluator = new V3Evaluator(v3);
-      const { evaluation, reasoning } = await evaluator.ask({
-        question: `Did the agent complete this task successfully? ${instruction}`,
-        screenshot: screenshots,
-        agentReasoning: agentResult.message,
-      });
-
-      console.log(`reasoning: ${reasoning}`);
-
-      if (evaluation !== "YES") {
-        return {
-          _success: false,
-          message: reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      const successMode =
+        (process.env.EVAL_SUCCESS_MODE as "outcome" | "process" | "both") ||
+        "outcome";
 
       return {
-        _success: true,
+        _success: verdictToSuccess(verdict, successMode),
+        outcomeSuccess: verdict.outcomeSuccess,
+        processScore: verdict.processScore,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
-        message: errorMessage,
+        error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

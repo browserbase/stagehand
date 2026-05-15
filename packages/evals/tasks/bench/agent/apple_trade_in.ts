@@ -1,48 +1,61 @@
-//this eval is expected to fail due to issues scrolling within the trade in dialog
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  verdictToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/apple_trade_in" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
+      const initUrl = "https://www.apple.com/shop/trade-in";
       const page = v3.context.pages()[0];
-      await page.goto("https://www.apple.com/shop/trade-in");
-      const evaluator = new V3Evaluator(v3);
-      await agent.execute({
-        instruction:
-          "Find out the trade-in value for an iPhone 13 Pro Max in good condition on the Apple website.",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
-      });
+      await page.goto(initUrl);
 
-      const { evaluation, reasoning } = await evaluator.ask({
-        question:
+      const instruction =
+        "Find out the trade-in value for an iPhone 13 Pro Max in good condition on the Apple website.";
+
+      const taskSpec: TaskSpec = {
+        id: "agent/apple_trade_in",
+        instruction,
+        initUrl,
+        precomputedRubric: adHocRubric(
           "Did the agent find the trade-in value for an iPhone 13 Pro Max in good condition on the Apple website?",
-        screenshot: false,
-        answer: "360",
+        ),
+      };
+
+      const { verdict, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "agent-custom",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
+        },
       });
 
-      const success = evaluation === "YES";
+      const successMode =
+        (process.env.EVAL_SUCCESS_MODE as "outcome" | "process" | "both") ||
+        "outcome";
 
-      if (!success) {
-        return {
-          _success: false,
-          message: reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
       return {
-        _success: true,
+        _success: verdictToSuccess(verdict, successMode),
+        outcomeSuccess: verdict.outcomeSuccess,
+        processScore: verdict.processScore,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } catch (error) {
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
-        message: error.message,
+        error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

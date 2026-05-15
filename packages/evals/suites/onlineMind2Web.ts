@@ -52,7 +52,24 @@ export const buildOnlineMind2WebTestcases = (
   }
 
   const candidates = parseJsonlRows(lines, isMind2WebRow);
-  const rows = applySampling(candidates, sampleCount, maxCases);
+
+  // EVAL_ONLINEMIND2WEB_IDS — comma-separated task_ids. When set, restricts to
+  // exactly those IDs (in order) and ignores sampling/limit knobs. Used to
+  // pin a deterministic verifier-evaluation slice.
+  const explicitIds = process.env.EVAL_ONLINEMIND2WEB_IDS
+    ? process.env.EVAL_ONLINEMIND2WEB_IDS.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : null;
+  let rows: Mind2WebRow[];
+  if (explicitIds && explicitIds.length > 0) {
+    const byId = new Map(candidates.map((r) => [r.task_id, r]));
+    rows = explicitIds
+      .map((id) => byId.get(id))
+      .filter((r): r is Mind2WebRow => Boolean(r));
+  } else {
+    rows = applySampling(candidates, sampleCount, maxCases);
+  }
 
   const allTestcases: Testcase[] = [];
   for (const modelEntry of normalizeAgentModelEntries(models)) {

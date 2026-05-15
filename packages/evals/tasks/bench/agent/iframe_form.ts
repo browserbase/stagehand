@@ -1,80 +1,63 @@
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  verdictToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/iframe_form" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
+      const initUrl =
+        "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/";
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
-      );
+      await page.goto(initUrl);
 
-      const agentResult = await agent.execute({
-        instruction: "Fill in the form name with 'John Smith'",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 5,
-      });
-      logger.log(agentResult);
+      const instruction =
+        "Fill in the form name with 'John Smith', then fill in the form email with 'john.smith@example.com'.";
 
-      const evaluator = new V3Evaluator(v3);
-      const result = await evaluator.ask({
-        question: "Is the form name input filled with 'John Smith'?",
-      });
-
-      if (result.evaluation !== "YES" && result.evaluation !== "NO") {
-        return {
-          _success: false,
-          observations: "Evaluator provided an invalid response",
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
-
-      const agentResult2 = await agent.execute({
-        instruction: "Fill in the form email with 'john.smith@example.com'",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 3,
-      });
-      logger.log(agentResult2);
-
-      await page.scroll(0, 0, 0, -1000);
-      const result2 = await evaluator.ask({
-        question:
+      const taskSpec: TaskSpec = {
+        id: "agent/iframe_form",
+        instruction,
+        initUrl,
+        precomputedRubric: adHocRubric(
+          "Is the form name input filled with 'John Smith'?",
           "Is the form email input filled with 'john.smith@example.com'?",
-        screenshot: true,
+        ),
+      };
+
+      const { verdict, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "agent-custom",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,
+        },
       });
 
-      if (result2.evaluation !== "YES" && result2.evaluation !== "NO") {
-        return {
-          _success: false,
-          observations: "Evaluator provided an invalid response",
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      const successMode =
+        (process.env.EVAL_SUCCESS_MODE as "outcome" | "process" | "both") ||
+        "outcome";
 
-      if (result.evaluation === "YES" && result2.evaluation === "YES") {
-        return {
-          _success: true,
-          observations: "All fields were filled correctly",
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      } else {
-        return {
-          _success: false,
-          observations: "One or more fields were not filled correctly",
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      return {
+        _success: verdictToSuccess(verdict, successMode),
+        outcomeSuccess: verdict.outcomeSuccess,
+        processScore: verdict.processScore,
+        trajectoryDir,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
     } catch (error) {
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
-        error: error,
+        error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

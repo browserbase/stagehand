@@ -1,47 +1,61 @@
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  verdictToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/nba_trades" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
+      const initUrl = "https://www.espn.com/";
       const page = v3.context.pages()[0];
-      const evaluator = new V3Evaluator(v3);
-      await page.goto("https://www.espn.com/");
+      await page.goto(initUrl);
 
-      const agentResult = await agent.execute({
-        instruction:
-          "Find the latest Team transaction in the NBA within the past week.",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
+      const instruction =
+        "Find the latest Team transaction in the NBA within the past week.";
+
+      const taskSpec: TaskSpec = {
+        id: "agent/nba_trades",
+        instruction,
+        initUrl,
+        precomputedRubric: adHocRubric(
+          "Did the agent make it to the nba transactions page?",
+        ),
+      };
+
+      const { verdict, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "agent-custom",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
+        },
       });
-      logger.log(agentResult);
 
-      const { evaluation, reasoning } = await evaluator.ask({
-        question: "Did the agent make it to the nba transactions page?",
-      });
-
-      const success = evaluation === "YES";
-
-      if (!success) {
-        return {
-          _success: false,
-          message: reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      const successMode =
+        (process.env.EVAL_SUCCESS_MODE as "outcome" | "process" | "both") ||
+        "outcome";
 
       return {
-        _success: true,
+        _success: verdictToSuccess(verdict, successMode),
+        outcomeSuccess: verdict.outcomeSuccess,
+        processScore: verdict.processScore,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } catch (error) {
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
         error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
