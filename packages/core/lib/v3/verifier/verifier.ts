@@ -6,9 +6,6 @@
  * verifier never touches a live browser — it consumes a Trajectory + TaskSpec
  * and returns a structured Verdict. That property is what lets us re-score
  * saved trajectories offline.
- *
- * Wave 0 ships only the types and a stub implementation (`evidence_insufficient`
- * for everything). Wave 1 adds the rubric generation/scoring pipeline.
  */
 
 import type { Trajectory, TaskSpec } from "./trajectory.js";
@@ -68,7 +65,7 @@ export interface FirstPointOfFailure {
 export interface VerifierFinding {
   /**
    * Category of the observation. Open-ended enum — additional categories may
-   * be added as Wave 2/3 verifier steps surface new failure modes.
+   * be added as verifier backends surface new failure modes.
    */
   category:
     | "agent_tool_usage" // agent's tool calls had repeated issues (misclicks, wrong args, retries)
