@@ -114,6 +114,26 @@ export interface LLMParsedResponse<T> {
   usage?: LLMUsage;
 }
 
+/**
+ * Resolve the language model for convenience wrappers.
+ * Prefers the explicitly provided model, falls back to the client's
+ * `getLanguageModel()`, and throws a helpful error if neither is available.
+ */
+function resolveModel(
+  client: LLMClient,
+  model?: LanguageModelV2,
+): LanguageModelV2 {
+  const resolved = model ?? client.getLanguageModel?.();
+  if (!resolved) {
+    throw new Error(
+      "No language model available. This LLMClient does not implement getLanguageModel(). " +
+        "Please pass a `model` parameter explicitly, or use a model name with '/' prefix " +
+        '(e.g. "openai/gpt-4.1") so Stagehand can create an AI SDK-backed client.',
+    );
+  }
+  return resolved;
+}
+
 export abstract class LLMClient {
   public type: "openai" | "anthropic" | "cerebras" | "groq" | (string & {});
   public modelName: AvailableModel | (string & {});
@@ -140,10 +160,89 @@ export abstract class LLMClient {
     options: CreateChatCompletionOptions,
   ): Promise<T>;
 
-  public generateObject = generateObject;
-  public generateText = generateText;
-  public streamText = streamText;
-  public streamObject = streamObject;
+  /**
+   * Generate text using the Vercel AI SDK, with the client's model
+   * automatically injected. You can still override by passing `model`.
+   *
+   * @example
+   * ```ts
+   * const { text } = await stagehand.llmClient.generateText({
+   *   prompt: "Summarize the page content",
+   * });
+   * ```
+   */
+  public generateText(
+    ...args: Parameters<typeof generateText>
+  ): ReturnType<typeof generateText> {
+    const [params] = args;
+    return generateText({
+      ...params,
+      model: resolveModel(this, params.model),
+    });
+  }
+
+  /**
+   * Generate a structured object using the Vercel AI SDK, with the
+   * client's model automatically injected. You can still override by
+   * passing `model`.
+   *
+   * @example
+   * ```ts
+   * const { object } = await stagehand.llmClient.generateObject({
+   *   schema: myZodSchema,
+   *   prompt: "Extract the product details",
+   * });
+   * ```
+   */
+  public generateObject(
+    ...args: Parameters<typeof generateObject>
+  ): ReturnType<typeof generateObject> {
+    const [params] = args;
+    return generateObject({
+      ...params,
+      model: resolveModel(this, params.model),
+    });
+  }
+
+  /**
+   * Stream text using the Vercel AI SDK, with the client's model
+   * automatically injected. You can still override by passing `model`.
+   *
+   * @example
+   * ```ts
+   * const { textStream } = await stagehand.llmClient.streamText({
+   *   prompt: "Write a long story",
+   * });
+   * for await (const chunk of textStream) {
+   *   process.stdout.write(chunk);
+   * }
+   * ```
+   */
+  public streamText(
+    ...args: Parameters<typeof streamText>
+  ): ReturnType<typeof streamText> {
+    const [params] = args;
+    return streamText({
+      ...params,
+      model: resolveModel(this, params.model),
+    });
+  }
+
+  /**
+   * Stream a structured object using the Vercel AI SDK, with the
+   * client's model automatically injected. You can still override by
+   * passing `model`.
+   */
+  public streamObject(
+    ...args: Parameters<typeof streamObject>
+  ): ReturnType<typeof streamObject> {
+    const [params] = args;
+    return streamObject({
+      ...params,
+      model: resolveModel(this, params.model),
+    });
+  }
+
   public generateImage = experimental_generateImage;
   public embed = embed;
   public embedMany = embedMany;
