@@ -1,27 +1,19 @@
 import { launch, Launcher, LaunchedChrome } from "chrome-launcher";
 import WebSocket from "ws";
 import { ConnectionTimeoutError } from "../types/public/sdkErrors.js";
+import type { LocalBrowserLaunchOptions } from "../types/public/index.js";
 
-interface LaunchLocalOptions {
-  chromePath?: string;
-  chromeFlags?: string[];
-  headless?: boolean;
-  userDataDir?: string;
-  port?: number;
-  connectTimeoutMs?: number;
+interface LaunchLocalOptions extends LocalBrowserLaunchOptions {
   handleSIGINT?: boolean;
-  /**
-   * When provided, selectively removes flags from chrome-launcher's built-in
-   * defaults (e.g. `--disable-extensions`).
-   *
-   * - `true`  — drop **all** chrome-launcher defaults (only Stagehand's own
-   *   flags and user-supplied `chromeFlags` will be used).
-   * - `string[]` — drop only the listed flags from chrome-launcher defaults.
-   *   Matching is exact (e.g. `["--disable-extensions"]` removes only that
-   *   flag, not `--disable-extensions-file-access-from-files`).
-   */
-  ignoreDefaultArgs?: boolean | string[];
 }
+
+const STAGEHAND_DEFAULT_FLAGS = [
+  "--remote-allow-origins=*",
+  "--no-first-run",
+  "--no-default-browser-check",
+  "--disable-dev-shm-usage",
+  "--site-per-process",
+];
 
 export async function launchLocalChrome(
   opts: LaunchLocalOptions,
@@ -34,14 +26,31 @@ export async function launchLocalChrome(
     Math.ceil(connectTimeoutMs / connectionPollInterval),
   );
   const headless = opts.headless ?? false;
+  const ignoredDefaults = Array.isArray(opts.ignoreDefaultArgs)
+    ? opts.ignoreDefaultArgs
+    : null;
+  const stagehandDefaultFlags =
+    opts.ignoreDefaultArgs === true
+      ? []
+      : ignoredDefaults
+        ? STAGEHAND_DEFAULT_FLAGS.filter((f) => !ignoredDefaults.includes(f))
+        : [...STAGEHAND_DEFAULT_FLAGS];
   const chromeFlags = [
+    ...stagehandDefaultFlags,
     headless ? "--headless=new" : undefined,
-    "--remote-allow-origins=*",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-dev-shm-usage",
-    "--site-per-process",
-    ...(opts.chromeFlags ?? []),
+    opts.devtools ? "--auto-open-devtools-for-tabs" : undefined,
+    opts.locale ? `--lang=${opts.locale}` : undefined,
+    opts.viewport?.width && opts.viewport?.height
+      ? `--window-size=${opts.viewport.width},${opts.viewport.height + 87}`
+      : undefined,
+    typeof opts.deviceScaleFactor === "number"
+      ? `--force-device-scale-factor=${Math.max(0.1, opts.deviceScaleFactor)}`
+      : undefined,
+    opts.hasTouch ? "--touch-events=enabled" : undefined,
+    opts.ignoreHTTPSErrors ? "--ignore-certificate-errors" : undefined,
+    opts.proxy?.server ? `--proxy-server=${opts.proxy.server}` : undefined,
+    opts.proxy?.bypass ? `--proxy-bypass-list=${opts.proxy.bypass}` : undefined,
+    ...(opts.args ?? []),
   ].filter((f): f is string => typeof f === "string");
 
   // Handle ignoreDefaultArgs: selectively remove chrome-launcher's built-in
@@ -63,7 +72,7 @@ export async function launchLocalChrome(
   }
 
   const chrome = await launch({
-    chromePath: opts.chromePath,
+    chromePath: opts.executablePath,
     chromeFlags,
     port: opts.port,
     userDataDir: opts.userDataDir,

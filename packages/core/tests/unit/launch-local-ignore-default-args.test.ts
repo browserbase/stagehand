@@ -93,6 +93,8 @@ describe("launchLocalChrome ignoreDefaultArgs", () => {
   it("sets ignoreDefaultFlags=true when ignoreDefaultArgs is true", async () => {
     const args = await getLaunchArgs({ ignoreDefaultArgs: true });
     expect(args.ignoreDefaultFlags).toBe(true);
+    expect(args.chromeFlags).not.toContain("--remote-allow-origins=*");
+    expect(args.chromeFlags).not.toContain("--no-first-run");
     // No chrome-launcher defaults should be prepended
     for (const flag of FAKE_CHROME_LAUNCHER_DEFAULTS) {
       expect(args.chromeFlags).not.toContain(flag);
@@ -131,6 +133,15 @@ describe("launchLocalChrome ignoreDefaultArgs", () => {
     expect(args.chromeFlags).toContain("--mute-audio");
   });
 
+  it("uses exact matching for Stagehand defaults too", async () => {
+    const args = await getLaunchArgs({
+      ignoreDefaultArgs: ["--no-first"],
+    });
+
+    expect(args.chromeFlags).toContain("--no-first-run");
+    expect(args.chromeFlags).toContain("--remote-allow-origins=*");
+  });
+
   it("preserves all defaults when ignoreDefaultArgs is an empty array", async () => {
     const args = await getLaunchArgs({ ignoreDefaultArgs: [] });
     expect(args.ignoreDefaultFlags).toBe(false);
@@ -152,7 +163,7 @@ describe("launchLocalChrome ignoreDefaultArgs", () => {
 
   it("merges user chromeFlags with re-added defaults", async () => {
     const args = await getLaunchArgs({
-      chromeFlags: ["--custom-flag"],
+      args: ["--custom-flag"],
       ignoreDefaultArgs: ["--disable-sync"],
     });
 
@@ -164,12 +175,22 @@ describe("launchLocalChrome ignoreDefaultArgs", () => {
 
   it("does not deduplicate when user chromeFlags overlap with defaults", async () => {
     const args = await getLaunchArgs({
-      chromeFlags: ["--disable-sync"],
+      args: ["--disable-sync"],
       ignoreDefaultArgs: ["--mute-audio"],
     });
 
     // "--disable-sync" appears in both user flags and re-added defaults
     const count = args.chromeFlags.filter((f) => f === "--disable-sync").length;
     expect(count).toBe(2);
+  });
+
+  it("selectively removes Stagehand defaults by exact match", async () => {
+    const args = await getLaunchArgs({
+      ignoreDefaultArgs: ["--no-first-run"],
+    });
+
+    expect(args.chromeFlags).not.toContain("--no-first-run");
+    expect(args.chromeFlags).toContain("--remote-allow-origins=*");
+    expect(args.chromeFlags).toContain("--disable-extensions");
   });
 });
