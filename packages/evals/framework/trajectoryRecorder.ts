@@ -14,8 +14,8 @@
  *   - "1" / "true": always persist.
  *   - "0" / "false": never persist.
  *
- * On-disk layout matches microsoft/fara's example_trajectory/ so we can
- * cross-validate against verify_trajectories.py without format conversion.
+ * On-disk layout is stable JSON + screenshots so saved runs can be re-scored
+ * without format conversion.
  *
  * @see ~/.claude/plans/verifier-rewrite.html §06 (Trajectory on-disk)
  */
@@ -405,7 +405,7 @@ export class TrajectoryRecorder {
       JSON.stringify(serialized, null, 2),
     );
 
-    // task_data.json mirrors fara's shape: TaskSpec + (later) verdict.
+    // task_data.json stores TaskSpec + (later) verdict.
     await fs.writeFile(
       path.join(this.outputDir, "task_data.json"),
       JSON.stringify(

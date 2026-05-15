@@ -5,7 +5,7 @@
  * Drives a fake V3 (just an EventEmitter-shaped `bus`) through the same bus
  * events the real agent handlers emit, then asserts:
  *   1. The recorder assembles a Trajectory with the expected step shape.
- *   2. The persisted directory layout matches fara's example_trajectory/.
+ *   2. The persisted directory layout has the expected verifier files.
  *   3. V3Evaluator.verify() returns a parseable stub Verdict.
  *
  * Run via:  pnpm tsx packages/evals/scripts/verify-trajectory-recorder.ts
@@ -200,7 +200,7 @@ async function main(): Promise<void> {
   assert.equal(screenshotBytes.toString(), "fake-png-bytes-0");
   const coreLog = await fs.readFile(path.join(taskDir, "core.log"), "utf8");
   assert.ok(coreLog.includes('"action":"goto"'));
-  console.log("  ✓ on-disk layout matches fara's example_trajectory");
+  console.log("  ✓ on-disk layout has expected verifier files");
 
   const persistedTask = JSON.parse(
     await fs.readFile(path.join(taskDir, "task_data.json"), "utf8"),
