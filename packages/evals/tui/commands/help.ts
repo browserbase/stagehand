@@ -32,6 +32,7 @@ export function printHelp(): void {
       `${cyan("verify")} ${dim("<trajectory-dir> [options]")}`,
       "Re-score a saved trajectory",
     ),
+    row(`${cyan("doctor")} ${dim("| health")}`, "Health report"),
     row(`${cyan("new")} ${dim("<tier> <cat> <name>")}`, "Scaffold a new task"),
     row(cyan("help"), "Show this help"),
     row(cyan("clear"), "Clear the screen"),
