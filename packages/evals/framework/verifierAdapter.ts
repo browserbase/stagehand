@@ -18,7 +18,7 @@
  *   3. Runs V3Evaluator.verify() on the recorded Trajectory.
  *   4. Returns { trajectory, verdict, agentResult }.
  *
- * Persistence and rubric caching are gated by env vars (plan §10 Q2 + Q3):
+ * Persistence and rubric caching are gated by env vars:
  *   VERIFIER_PERSIST_TRAJECTORIES   — on locally, off in CI by default.
  *   VERIFIER_DISABLE_RUBRIC_CACHE   — set to "1" to bypass the cache (forces
  *                                     a fresh Step 0a call every time).

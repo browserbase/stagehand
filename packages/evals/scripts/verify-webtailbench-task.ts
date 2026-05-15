@@ -1,8 +1,8 @@
 /**
- * End-to-end Wave 1 verification on a real WebTailBench task.
+ * End-to-end verification on a real WebTailBench task.
  *
  * Loads one row from packages/evals/datasets/webtailbench/WebTailBench_data.jsonl
- * (which carries upstream precomputed_rubric), runs the agent on Browserbase
+ * (which carries `precomputed_rubric`), runs the agent on Browserbase
  * via runWithVerifier, and asserts:
  *   1. Recorder captures a non-trivial trajectory.
  *   2. Verifier uses the upstream rubric (rubricSource = "precomputed").
@@ -189,10 +189,10 @@ async function main(): Promise<void> {
   );
   assert.equal(typeof verdict.outcomeSuccess, "boolean");
 
-  console.log(`\n✅ Wave 1 WebTailBench verification OK`);
+  console.log(`\n✅ WebTailBench verification OK`);
 }
 
 main().catch((err) => {
-  console.error("\n❌ Wave 1 WebTailBench verification FAILED:", err);
+  console.error("\n❌ WebTailBench verification FAILED:", err);
   process.exit(1);
 });

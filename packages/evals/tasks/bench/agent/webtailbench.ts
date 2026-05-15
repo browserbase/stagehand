@@ -14,15 +14,12 @@ import {
 /**
  * WebTailBench bench task.
  *
- * Wave 1 MVP: runs the agent through the new TrajectoryRecorder +
- * V3Evaluator.verify() pipeline (process + outcome scoring grounded in saved
- * trajectory evidence). The previous polling-based ScreenshotCollector +
- * V3Evaluator.ask() flow is gone.
+ * Runs the agent through TrajectoryRecorder + V3Evaluator.verify() so process
+ * and outcome scoring are grounded in saved trajectory evidence.
  *
- * The local WebTailBench JSONL doesn't carry precomputed_rubric (the
- * upstream HF dataset does — Wave 2 dataset swap pending). Until then the
- * verifier generates a rubric via Step 0a on first encounter per task id
- * and caches under packages/evals/.rubric-cache/webtailbench/.
+ * If a row does not carry `precomputed_rubric`, the verifier generates a
+ * rubric on first encounter per task id and caches it under
+ * packages/evals/.rubric-cache/webtailbench/.
  *
  * --success knob: defaults to "outcome".
  * Override via the EVAL_SUCCESS_MODE env var: outcome | process | both.
