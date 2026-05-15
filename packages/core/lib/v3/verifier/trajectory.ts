@@ -29,7 +29,7 @@ export interface TrajectoryUsage {
 
 /**
  * A single criterion in a Stagehand rubric. Dataset and model wire formats may
- * use fara-style `max_points` / `earned_points`; normalize those with
+ * use serialized `max_points` / `earned_points`; normalize those with
  * `normalizeRubric()` at the boundary.
  */
 export interface RubricCriterion {
@@ -59,7 +59,7 @@ export interface Rubric {
 }
 
 /**
- * FARA/upstream rubric item shape as stored in datasets and prompt responses.
+ * Serialized rubric item shape as stored in datasets and prompt responses.
  * Keep this at IO boundaries; core verifier types use camelCase.
  */
 export interface SerializedRubricCriterion {
@@ -221,7 +221,7 @@ export type TrajectoryStatus = "complete" | "aborted" | "stalled" | "error";
  *     ├── screenshot_1.png  — probeEvidence.screenshot for step 1, etc.
  *     ├── scores/
  *     │   └── mmrubric_v1.json  — Verdict from V3Evaluator.verify()
- *     ├── core.log          — action log mirroring fara's core.log
+ *     ├── core.log          — captured action log
  *     └── times.json        — step timing + token usage
  */
 export interface Trajectory {
