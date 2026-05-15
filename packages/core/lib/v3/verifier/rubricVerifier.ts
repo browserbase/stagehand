@@ -1,12 +1,11 @@
 /**
  * RubricVerifier — rubric-based verification pipeline.
  *
- * Wave 1 MVP: produces a real outcome verdict using OUTCOME_VERIFICATION_PROMPT,
- * with rubric generation (Step 0a) when no precomputed rubric is provided.
- * Per-criterion process scoring (Steps 2/4/6) and failure analysis (Step 9a)
- * land in Wave 2.
+ * Runs rubric generation, evidence selection, per-criterion scoring, outcome
+ * verification, failure analysis, and task-validity checks over a saved
+ * trajectory.
  *
- * Architectural invariants (plan §03):
+ * Architectural invariants:
  *   - Verifier never touches a live browser. Pure (Trajectory, TaskSpec) → EvaluationResult.
  *   - Public surface is V3Evaluator.verify(). This class stays internal.
  *
@@ -204,11 +203,8 @@ const FailureAnalysisSchema = z.object({
   failure_points: z.array(FailurePointSchema).default([]),
 });
 
-// Old Step-2/4/6 schemas removed — replaced by BatchedRelevance,
-// PerCriterionScore, and FusedJudgment schemas above.
-
 export interface RubricVerifierOptions {
-  /** Factory that returns a configured LLMClient. Called per pipeline step so callers can swap models per-step (e.g., gpt-5.2 for one stage, o4-mini for another) in Wave 5. */
+  /** Factory that returns a configured LLMClient. Called per pipeline step so callers can supply step-specific clients. */
   getClient: () => LLMClient;
   /** Logger; defaults to a no-op so the verifier stays quiet inside V3Evaluator. */
   logger?: (line: LogLine) => void;
@@ -995,7 +991,7 @@ export class RubricVerifier implements Verifier {
         outcome: {
           primary_intent: taskSpec.instruction,
           reasoning:
-            "Fused judgment LLM call failed; returning evidence-insufficient verdict.",
+            "Fused judgment LLM call failed; returning evidence-insufficient result.",
           output_success: false,
           findings: [
             {
@@ -1021,7 +1017,7 @@ export class RubricVerifier implements Verifier {
    * Approach A's combined Step 8 (+ optional folded 9a/10).
    *
    * Consumes the pre-scored rubric from scorePerCriterion and produces the
-   * outcome verdict. When foldFailure/foldValidity are set, the response
+   * outcome result. When foldFailure/foldValidity are set, the response
    * also includes first-point-of-failure and task-validity, saving 1–2
    * extra LLM calls.
    */
@@ -1086,7 +1082,7 @@ export class RubricVerifier implements Verifier {
         typeof FusedOutcomeResponseSchema
       >;
     } catch {
-      // Failure surfaces as a no-confidence verdict.
+      // Failure surfaces as a no-confidence result.
       return {
         outcome: {
           primary_intent: taskSpec.instruction,
@@ -1108,8 +1104,7 @@ export class RubricVerifier implements Verifier {
 
   /**
    * Flat per-step evidence summary — fallback for trajectories with no
-   * probe screenshots (harness adapters, stub runs). Wave 2 onwards uses
-   * Step 4's structured groupings instead whenever screenshots exist.
+   * probe screenshots, such as harness-adapter or stubbed trajectories.
    */
   private buildEvidenceContext(
     trajectory: Trajectory,
@@ -1213,7 +1208,7 @@ export class RubricVerifier implements Verifier {
    * signal only; doesn't affect scoring.
    *
    * Best-effort: returns undefined if the LLM call throws, the model returns
-   * unparseable output, or no failures are identified. The verdict's
+   * unparseable output, or no failures are identified. The result's
    * firstPointOfFailure stays absent in that case rather than blocking the
    * rest of the pipeline.
    */

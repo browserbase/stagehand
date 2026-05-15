@@ -1,15 +1,5 @@
 /**
  * Verifier prompts used by the rubric-based verification pipeline.
- *
- * Wave 1 ships the two prompts needed for a coarse outcome-only pipeline:
- *   - RUBRIC_GENERATION_PROMPT (Step 0a) — generate a rubric from the task
- *     description alone, used when TaskSpec.precomputedRubric is absent.
- *   - OUTCOME_VERIFICATION_PROMPT (Step 8) — independent binary success
- *     verdict given the trajectory + rubric.
- *
- * Wave 2+ adds: Step 0b (rubric dependency check), Step 2 (screenshot
- * relevance), Step 4 (per-criterion evidence analysis), Step 6 (multimodal
- * rescoring), Step 9a (failure analysis), Step 10 (task validity).
  */
 export { RUBRIC_GENERATION_PROMPT } from "./rubricGeneration.js";
 export { OUTCOME_VERIFICATION_PROMPT } from "./outcomeVerification.js";
