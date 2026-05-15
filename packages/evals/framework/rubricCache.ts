@@ -1,7 +1,6 @@
 /**
- * Rubric cache — persists AI-generated rubrics so we run Step 0a once per
- * task id and hydrate from disk thereafter. Honors plan §10 Q3 (resolved:
- * generate per-task on first run + cache).
+ * Rubric cache — persists AI-generated rubrics so each task id can hydrate
+ * from disk after its first generated rubric.
  *
  * Used for any task whose dataset doesn't ship a precomputed_rubric
  * (Mind2Web, ad-hoc bench tasks, etc.). WebTailBench is exempt — its

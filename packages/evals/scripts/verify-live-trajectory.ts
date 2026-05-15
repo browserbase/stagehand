@@ -1,5 +1,5 @@
 /**
- * Wave 0 end-to-end verification — runs a tiny live agent task and asserts the
+ * End-to-end verification — runs a tiny live agent task and asserts the
  * TrajectoryRecorder captures bus events from the real v3AgentHandler.
  *
  * Deliberately minimal: env=LOCAL (no Browserbase costs), 3 max steps, a stable
@@ -133,7 +133,7 @@ async function main(): Promise<void> {
     `  ✓ on-disk: trajectory.json + task_data.json + times.json + ${screenshotFiles.length} screenshots`,
   );
 
-  // ── verify() runs Wave 1 pipeline on the live trajectory ──────────────
+  // ── verify() runs the verifier pipeline on the live trajectory ────────
   console.log("\n▸ running V3Evaluator.verify() (Step 0a + Step 8)…");
   const verdict = await new V3Evaluator(v3, { backend: "verifier" }).verify(
     trajectory,
@@ -160,11 +160,11 @@ async function main(): Promise<void> {
   );
   console.log(`    primaryIntent: "${raw.primaryIntent.slice(0, 120)}"`);
 
-  console.log(`\n✅ Wave 0 live verification OK — trajectory at ${taskDir}`);
+  console.log(`\n✅ Live verification OK — trajectory at ${taskDir}`);
   // Keep tmpdir for inspection; user can rm -rf if needed.
 }
 
 main().catch((err) => {
-  console.error("\n❌ Wave 0 live verification FAILED:", err);
+  console.error("\n❌ Live verification FAILED:", err);
   process.exit(1);
 });
