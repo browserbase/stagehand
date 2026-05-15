@@ -3,10 +3,8 @@
  *
  * Trajectories are produced by the harness (TrajectoryRecorder in
  * packages/evals) from the bus events emitted by v3AgentHandler /
- * v3CuaAgentHandler. They are persisted on-disk in a layout matching
- * microsoft/fara's example_trajectory/ (task_data.json + trajectory.json +
- * screenshot_N.png + scores/) so we can cross-validate against
- * CUAVerifierBench's verify_trajectories.py without format-conversion.
+ * v3CuaAgentHandler. They can be persisted on disk and reloaded for offline
+ * verifier scoring.
  *
  * Two evidence channels per step:
  *   - agentEvidence ("tier 1") — what the agent's LLM consumed as the tool
@@ -30,9 +28,9 @@ export interface TrajectoryUsage {
 }
 
 /**
- * A single criterion in a rubric. Mirrors fara's per-item schema:
- *   { criterion, description, max_points, justification, earned_points }
- * Conditional criteria carry an extra "condition" field; only counted when met.
+ * A single criterion in a Stagehand rubric. Dataset and model wire formats may
+ * use fara-style `max_points` / `earned_points`; normalize those with
+ * `normalizeRubric()` at the boundary.
  */
 export interface RubricCriterion {
   /** Short name of the criterion (e.g., "Add ground beef to cart"). */
@@ -40,7 +38,7 @@ export interface RubricCriterion {
   /** What to evaluate and how to award partial credit. */
   description: string;
   /** Maximum points for this criterion. */
-  max_points: number;
+  maxPoints: number;
   /**
    * Triggering condition for conditional criteria. Only counted when met
    * (paper's "Mutually Exclusive Conditionals" pattern).
@@ -49,16 +47,69 @@ export interface RubricCriterion {
   /** Filled by the verifier during scoring; empty in precomputed rubrics. */
   justification?: string;
   /**
-   * Filled by the verifier during scoring; empty string in unscored rubrics.
-   * Loose type to mirror fara's data, where unscored items carry "" and scored
-   * items carry a number.
+   * Filled by the verifier during scoring; empty string in some serialized
+   * upstream rubrics and a number in scored rubrics.
    */
-  earned_points?: number | string;
+  earnedPoints?: number | string;
 }
 
 /** A rubric — list of criteria for a task. */
 export interface Rubric {
   items: RubricCriterion[];
+}
+
+/**
+ * FARA/upstream rubric item shape as stored in datasets and prompt responses.
+ * Keep this at IO boundaries; core verifier types use camelCase.
+ */
+export interface SerializedRubricCriterion {
+  criterion: string;
+  description: string;
+  max_points: number;
+  condition?: string;
+  justification?: string;
+  earned_points?: number | string;
+}
+
+/** Serialized rubric shape used by upstream datasets and generated JSON. */
+export interface SerializedRubric {
+  items: SerializedRubricCriterion[];
+}
+
+export type RubricInput = Rubric | SerializedRubric;
+
+/** Convert a Stagehand or serialized rubric into the public Stagehand shape. */
+export function normalizeRubric(
+  rubric: RubricInput | null | undefined,
+): Rubric | undefined {
+  if (!rubric) return undefined;
+
+  return {
+    items: rubric.items.map((item) => {
+      const raw = item as RubricCriterion &
+        Partial<SerializedRubricCriterion>;
+      const maxPoints =
+        typeof raw.maxPoints === "number" ? raw.maxPoints : raw.max_points;
+
+      if (typeof maxPoints !== "number" || !Number.isFinite(maxPoints)) {
+        throw new TypeError(
+          `Rubric criterion "${raw.criterion}" is missing a numeric maxPoints value`,
+        );
+      }
+
+      const earnedPoints = raw.earnedPoints ?? raw.earned_points;
+      return {
+        criterion: raw.criterion,
+        description: raw.description,
+        maxPoints,
+        ...(raw.condition !== undefined && { condition: raw.condition }),
+        ...(raw.justification !== undefined && {
+          justification: raw.justification,
+        }),
+        ...(earnedPoints !== undefined && { earnedPoints }),
+      };
+    }),
+  };
 }
 
 /**

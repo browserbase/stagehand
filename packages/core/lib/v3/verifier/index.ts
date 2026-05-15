@@ -12,12 +12,19 @@ export type {
   TaskSpec,
   Rubric,
   RubricCriterion,
+  SerializedRubric,
+  SerializedRubricCriterion,
+  RubricInput,
   AgentEvidence,
   AgentEvidenceModality,
   ProbeEvidence,
   ToolOutput,
 } from "./trajectory.js";
-export { loadTrajectoryFromDisk, nextVerdictFilename } from "./trajectory.js";
+export {
+  loadTrajectoryFromDisk,
+  nextVerdictFilename,
+  normalizeRubric,
+} from "./trajectory.js";
 
 export type {
   Verifier,
@@ -26,5 +33,6 @@ export type {
   FirstPointOfFailure,
   TaskValidity,
   VerifierFinding,
+  VerifierRawSteps,
   StubVerdictReason,
 } from "./verifier.js";

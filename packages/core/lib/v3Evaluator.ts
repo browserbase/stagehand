@@ -202,7 +202,7 @@ function legacyTaskCompletionCriterion(taskSpec: TaskSpec) {
   return {
     criterion: "legacy-task-completion",
     description: `Evaluate whether the task was completed successfully: ${taskSpec.instruction}`,
-    max_points: 1,
+    maxPoints: 1,
   };
 }
 
@@ -306,7 +306,7 @@ function legacyEvaluationToVerdict(
     perCriterion: [
       {
         criterion: criterion.criterion,
-        maxPoints: criterion.max_points,
+        maxPoints: criterion.maxPoints,
         earnedPoints: outcomeSuccess ? 1 : 0,
         justification: result.reasoning,
         evidenceInsufficient: invalid,
@@ -338,7 +338,7 @@ function legacyInsufficientEvidenceVerdict(
     perCriterion: [
       {
         criterion: criterion.criterion,
-        maxPoints: criterion.max_points,
+        maxPoints: criterion.maxPoints,
         earnedPoints: 0,
         justification: reason,
         evidenceInsufficient: true,

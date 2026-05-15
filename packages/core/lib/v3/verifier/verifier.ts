@@ -93,6 +93,23 @@ export interface VerifierFinding {
   relatedSteps?: number[];
 }
 
+/** Stable debugging summary emitted by verifier backends. */
+export interface VerifierRawSteps {
+  backend?: "legacy" | "verifier";
+  primaryIntent?: string;
+  reasoning?: string;
+  rubricSource?: "precomputed" | "generated" | "none";
+  approach?: "a" | "b";
+  optionalsMode?: "folded" | "separate" | "skip";
+  totalEarned?: number;
+  totalMax?: number;
+  evidenceImages?: number;
+  evidenceTexts?: number;
+  evidenceOriginalScreenshots?: number;
+  legacyEvaluation?: string;
+  screenshotCount?: number;
+}
+
 /** Task-validity classification (paper Step 10). */
 export interface TaskValidity {
   /** True if the task is underspecified / has multiple valid interpretations. */
@@ -134,12 +151,8 @@ export interface Verdict {
    * doesn't notice anything actionable. Not part of the score; advisory.
    */
   findings?: VerifierFinding[];
-  /**
-   * Intermediate per-step data — the paper's intermediate_mm_rubric_steps
-   * payload. Opaque shape; useful for debugging and prompt iteration, but not
-   * part of the stable contract.
-   */
-  rawSteps?: unknown;
+  /** Debugging summary from the active evaluator backend. */
+  rawSteps?: VerifierRawSteps;
 }
 
 /** Reason a stub verifier emits when the rubric pipeline hasn't shipped yet. */

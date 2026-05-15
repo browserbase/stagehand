@@ -72,6 +72,9 @@ export type {
   TaskSpec,
   Rubric,
   RubricCriterion,
+  SerializedRubric,
+  SerializedRubricCriterion,
+  RubricInput,
   AgentEvidence,
   AgentEvidenceModality,
   ProbeEvidence,
@@ -82,10 +85,12 @@ export type {
   FirstPointOfFailure,
   TaskValidity,
   VerifierFinding,
+  VerifierRawSteps,
 } from "./verifier/index.js";
 export {
   loadTrajectoryFromDisk,
   nextVerdictFilename,
+  normalizeRubric,
 } from "./verifier/index.js";
 export { tool } from "ai";
 export { getAISDKLanguageModel } from "./llm/LLMProvider.js";
