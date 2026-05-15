@@ -1,5 +1,5 @@
 import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import type { AvailableModel, Rubric } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
 import { getPackageRootDir } from "../runtimePaths.js";
 import {
@@ -32,6 +32,13 @@ export const buildWebTailBenchTestcases = (
     ques: string;
     category?: string;
     web?: string;
+    /**
+     * Per-task rubric ported from microsoft/WebTailBench-v1-rubrics.tsv
+     * via packages/evals/scripts/backfill-webtailbench-rubrics.ts.
+     * When present, the verifier skips Step 0a generation and uses these
+     * upstream criteria directly.
+     */
+    precomputed_rubric?: Rubric;
     [key: string]: unknown;
   };
 
@@ -42,7 +49,24 @@ export const buildWebTailBenchTestcases = (
   }
 
   const candidates = parseJsonlRows(lines, isWebTailBenchRow);
-  const rows = applySampling(candidates, sampleCount, maxCases);
+
+  // EVAL_WEBTAILBENCH_IDS — comma-separated task IDs. When set, restricts the
+  // suite to exactly those IDs (in the order given) and ignores sampling /
+  // limit knobs. Used by verifier-A/B experiments to pin a deterministic slice.
+  const explicitIds = process.env.EVAL_WEBTAILBENCH_IDS
+    ? process.env.EVAL_WEBTAILBENCH_IDS.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : null;
+  let rows: WebTailBenchRow[];
+  if (explicitIds && explicitIds.length > 0) {
+    const byId = new Map(candidates.map((r) => [r.id, r]));
+    rows = explicitIds
+      .map((id) => byId.get(id))
+      .filter((r): r is WebTailBenchRow => Boolean(r));
+  } else {
+    rows = applySampling(candidates, sampleCount, maxCases);
+  }
 
   const allTestcases: Testcase[] = [];
   for (const modelEntry of normalizeAgentModelEntries(models)) {
@@ -57,6 +81,7 @@ export const buildWebTailBenchTestcases = (
           category: row.category,
           ques: row.ques,
           web: row.web,
+          precomputed_rubric: row.precomputed_rubric,
         },
       };
       const taskCategories =
