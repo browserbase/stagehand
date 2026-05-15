@@ -13,26 +13,15 @@
  * Calibration: not every imperfection is a failure. Only flag issues that
  * materially affected task completion, correctness, or user trust.
  */
+import type {
+  ErrorTaxonomyCategory,
+  ErrorTaxonomySubCategory,
+} from "./types.js";
 
-export interface ErrorTaxonomySubCategory {
-  /** Sub-code (e.g., "2.3"). */
-  code: string;
-  /** Human-readable name (e.g., "Output fabrication"). */
-  name: string;
-  /** Detailed description ported from the .md. Markdown formatting preserved. */
-  description: string;
-}
-
-export interface ErrorTaxonomyCategory {
-  /** Top-level number (1–8). */
-  number: number;
-  /** Top-level name (e.g., "Hallucination Errors"). */
-  name: string;
-  /** One-sentence summary of the category. */
-  summary: string;
-  /** Sub-categories. The last one is always an "Other" catch-all. */
-  subCategories: ErrorTaxonomySubCategory[];
-}
+export type {
+  ErrorTaxonomyCategory,
+  ErrorTaxonomySubCategory,
+} from "./types.js";
 
 /**
  * Canonical taxonomy used by verifier failure-analysis prompts.

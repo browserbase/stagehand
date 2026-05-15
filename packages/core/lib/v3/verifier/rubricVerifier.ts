@@ -19,9 +19,14 @@ import type { LLMParsedResponse } from "../../inference.js";
 import type { LogLine } from "../types/public/logs.js";
 
 import type {
+  CanonicalEvidence,
+  CanonicalScreenshot,
+  CanonicalTextEvidence,
   CriterionScore,
   EvaluationResult,
+  EvidenceLoadResult,
   Rubric,
+  RubricVerifierOptions,
   TaskSpec,
   Trajectory,
   Verifier,
@@ -43,10 +48,6 @@ import {
   collectCanonicalEvidence,
   isImageEvidence,
   isTextEvidence,
-  type CanonicalEvidence,
-  type CanonicalScreenshot,
-  type CanonicalTextEvidence,
-  type EvidenceLoadResult,
 } from "./evidence.js";
 import { getTaxonomyText } from "./errorTaxonomy.js";
 
@@ -202,13 +203,6 @@ const FailureAnalysisSchema = z.object({
   has_failure: z.boolean(),
   failure_points: z.array(FailurePointSchema).default([]),
 });
-
-export interface RubricVerifierOptions {
-  /** Factory that returns a configured LLMClient. Called per pipeline step so callers can supply step-specific clients. */
-  getClient: () => LLMClient;
-  /** Logger; defaults to a no-op so the verifier stays quiet inside V3Evaluator. */
-  logger?: (line: LogLine) => void;
-}
 
 const noopLogger: (line: LogLine) => void = () => {};
 const APPROX_CHARS_PER_TOKEN = 4;

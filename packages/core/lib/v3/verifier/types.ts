@@ -5,6 +5,8 @@
  * Hybrid runs preserve tool-return text/JSON evidence, while CUA runs preserve
  * screenshots sent to the provider plus independent harness probes.
  */
+import type { LLMClient } from "../llm/LLMClient.js";
+import type { LogLine } from "../types/public/logs.js";
 
 /** Token usage for one or more LLM calls. Matches AgentResult.usage shape. */
 export interface TrajectoryUsage {
@@ -374,4 +376,41 @@ export interface EvaluationResult {
  */
 export interface Verifier {
   verify(trajectory: Trajectory): Promise<EvaluationResult>;
+}
+
+export interface RubricVerifierOptions {
+  /** Factory that returns a configured LLMClient. Called per pipeline step so callers can supply step-specific clients. */
+  getClient: () => LLMClient;
+  /** Logger; defaults to a no-op so the verifier stays quiet inside V3Evaluator. */
+  logger?: (line: LogLine) => void;
+}
+
+export interface ErrorTaxonomySubCategory {
+  /** Sub-code (e.g., "2.3"). */
+  code: string;
+  /** Human-readable name (e.g., "Output fabrication"). */
+  name: string;
+  /** Detailed description ported from the .md. Markdown formatting preserved. */
+  description: string;
+}
+
+export interface ErrorTaxonomyCategory {
+  /** Top-level number (1-8). */
+  number: number;
+  /** Top-level name (e.g., "Hallucination Errors"). */
+  name: string;
+  /** One-sentence summary of the category. */
+  summary: string;
+  /** Sub-categories. The last one is always an "Other" catch-all. */
+  subCategories: ErrorTaxonomySubCategory[];
+}
+
+export interface ParseFailureStepNumbersOptions {
+  /**
+   * Maximum unique step numbers to expand from ranges. Protects the verifier
+   * from malformed model output such as "0-2147483647".
+   */
+  maxExpandedSteps?: number;
+  /** Optional inclusive upper bound for accepted step numbers. */
+  maxStep?: number;
 }

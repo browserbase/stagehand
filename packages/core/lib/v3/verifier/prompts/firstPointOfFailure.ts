@@ -25,6 +25,9 @@ import {
   getSummaryTable,
   getTaxonomyText,
 } from "../errorTaxonomy.js";
+import type { ParseFailureStepNumbersOptions } from "../types.js";
+
+export type { ParseFailureStepNumbersOptions } from "../types.js";
 
 // Pre-render the taxonomy + summary table (categories 1–6) once at load.
 const TAXONOMY_TEXT = getTaxonomyText(1, 6, 3);
@@ -115,16 +118,6 @@ Output your answer in pure JSON format according to the following schema. The JS
  * analysis is best-effort and a malformed step-numbers field shouldn't tank
  * the whole EvaluationResult.
  */
-export interface ParseFailureStepNumbersOptions {
-  /**
-   * Maximum unique step numbers to expand from ranges. Protects the verifier
-   * from malformed model output such as "0-2147483647".
-   */
-  maxExpandedSteps?: number;
-  /** Optional inclusive upper bound for accepted step numbers. */
-  maxStep?: number;
-}
-
 const DEFAULT_MAX_EXPANDED_STEPS = 1000;
 
 export function parseFailureStepNumbers(
