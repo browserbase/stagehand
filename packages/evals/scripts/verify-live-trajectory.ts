@@ -156,9 +156,9 @@ async function main(): Promise<void> {
   assert.equal(raw?.rubricSource, "generated");
   assert.ok(
     typeof raw?.primaryIntent === "string" && raw.primaryIntent.length > 0,
-    "expected outcome verifier to populate primary_intent",
+    "expected outcome verifier to populate primaryIntent",
   );
-  console.log(`    primary_intent: "${raw.primaryIntent.slice(0, 120)}"`);
+  console.log(`    primaryIntent: "${raw.primaryIntent.slice(0, 120)}"`);
 
   console.log(`\n✅ Wave 0 live verification OK — trajectory at ${taskDir}`);
   // Keep tmpdir for inspection; user can rm -rf if needed.
