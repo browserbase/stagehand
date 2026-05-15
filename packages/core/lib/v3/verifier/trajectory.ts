@@ -1,82 +1,29 @@
-/**
- * Trajectory — structured record of an agent run, consumed by the verifier.
- *
- * Trajectories are produced by the harness (TrajectoryRecorder in
- * packages/evals) from the bus events emitted by v3AgentHandler /
- * v3CuaAgentHandler. They can be persisted on disk and reloaded for offline
- * verifier scoring.
- *
- * Two evidence channels per step:
- *   - agentEvidence ("tier 1") — what the agent's LLM consumed as the tool
- *     result. For DOM/hybrid agents these are the tool returns (extract JSON,
- *     ariaTree text, act describe-string, goto URL). For CUA this is the
- *     screenshot the provider received.
- *   - probeEvidence ("tier 2") — independent observations the harness took
- *     around each step (page.screenshot, page.url, optionally a11y).
- *
- * The verifier consumes both. They can disagree; conflict resolution is the
- * verifier's job (see Verdict.evidenceInsufficient + per-criterion logging).
- */
+import type {
+  ProbeEvidence,
+  Rubric,
+  RubricCriterion,
+  RubricInput,
+  SerializedRubricCriterion,
+  Trajectory,
+  TrajectoryStep,
+} from "./types.js";
 
-/** Token usage for one or more LLM calls. Matches AgentResult.usage shape. */
-export interface TrajectoryUsage {
-  input_tokens: number;
-  output_tokens: number;
-  reasoning_tokens?: number;
-  cached_input_tokens?: number;
-  inference_time_ms?: number;
-}
-
-/**
- * A single criterion in a Stagehand rubric. Dataset and model wire formats may
- * use serialized `max_points` / `earned_points`; normalize those with
- * `normalizeRubric()` at the boundary.
- */
-export interface RubricCriterion {
-  /** Short name of the criterion (e.g., "Add ground beef to cart"). */
-  criterion: string;
-  /** What to evaluate and how to award partial credit. */
-  description: string;
-  /** Maximum points for this criterion. */
-  maxPoints: number;
-  /**
-   * Triggering condition for conditional criteria. Only counted when met
-   * (paper's "Mutually Exclusive Conditionals" pattern).
-   */
-  condition?: string;
-  /** Filled by the verifier during scoring; empty in precomputed rubrics. */
-  justification?: string;
-  /**
-   * Filled by the verifier during scoring; empty string in some serialized
-   * upstream rubrics and a number in scored rubrics.
-   */
-  earnedPoints?: number | string;
-}
-
-/** A rubric — list of criteria for a task. */
-export interface Rubric {
-  items: RubricCriterion[];
-}
-
-/**
- * Serialized rubric item shape as stored in datasets and prompt responses.
- * Keep this at IO boundaries; core verifier types use camelCase.
- */
-export interface SerializedRubricCriterion {
-  criterion: string;
-  description: string;
-  max_points: number;
-  condition?: string;
-  justification?: string;
-  earned_points?: number | string;
-}
-
-/** Serialized rubric shape used by upstream datasets and generated JSON. */
-export interface SerializedRubric {
-  items: SerializedRubricCriterion[];
-}
-
-export type RubricInput = Rubric | SerializedRubric;
+export type {
+  AgentEvidence,
+  AgentEvidenceModality,
+  ProbeEvidence,
+  Rubric,
+  RubricCriterion,
+  RubricInput,
+  SerializedRubric,
+  SerializedRubricCriterion,
+  TaskSpec,
+  ToolOutput,
+  Trajectory,
+  TrajectoryStatus,
+  TrajectoryStep,
+  TrajectoryUsage,
+} from "./types.js";
 
 /** Convert a Stagehand or serialized rubric into the public Stagehand shape. */
 export function normalizeRubric(
@@ -109,128 +56,6 @@ export function normalizeRubric(
       };
     }),
   };
-}
-
-/**
- * Spec for a single task being verified. Carried both at runtime (handed to
- * agent.execute) and into the verifier alongside the trajectory.
- */
-export interface TaskSpec {
-  /** Stable identifier (e.g., "united_13" for WebTailBench, task_id for Mind2Web). */
-  id: string;
-  /** Task instruction shown to the agent. */
-  instruction: string;
-  /** Starting URL, if any. */
-  initUrl?: string;
-  /**
-   * Rubric carried by the dataset (e.g., WebTailBench's precomputed_rubric).
-   * If absent, the verifier generates one via Step 0a and caches under
-   * packages/evals/.rubric-cache/.
-   */
-  precomputedRubric?: Rubric;
-  /** Optional reference answer (set when dataset ships one). */
-  expectedAnswer?: string;
-}
-
-/**
- * A single modality unit in tier-1 agent evidence. Mirrors the shape of
- * ModelMessage content parts so we can reproduce what the LLM ingested.
- */
-export type AgentEvidenceModality =
-  | { type: "text"; content: string }
-  | { type: "image"; bytes: Buffer; mediaType: string }
-  | { type: "json"; content: unknown };
-
-/**
- * Tier 1 — exactly the bytes/strings/objects the agent's LLM ingested as the
- * tool result for this step.
- *
- * Modes:
- *   - CUA: usually a single image modality (the screenshot sent to the provider).
- *   - Hybrid: tool result with optional screenshotBase64 → one image + one text.
- *   - DOM: tool returns (extract JSON, ariaTree text, etc.) → text/json modalities.
- */
-export interface AgentEvidence {
-  modalities: AgentEvidenceModality[];
-}
-
-/**
- * Tier 2 — independent harness probes around this step. Cheap and always-on
- * for v0 (just url) and v1 (+a11y, +scroll). v2 adds verifier-requested probes
- * keyed on the criterion that requested them.
- *
- * If a probe wasn't captured, the field is absent (not null).
- */
-export interface ProbeEvidence {
-  /** v0.5 — URL after the step's tool execution. */
-  url?: string;
-  /**
-   * v0 — bus screenshot (page.screenshot post-step). Path on disk is preferred
-   * once persisted; in-memory Buffer is used during a live run.
-   */
-  screenshot?: Buffer;
-  /** Reference to the persisted screenshot file under the trajectory dir. */
-  screenshotPath?: string;
-  /** v1 — viewport scroll context. Lets the verifier reason about "did the agent see the full page". */
-  scroll?: { top: number; pageHeight: number };
-  /** v1 — accessibility tree snapshot. */
-  ariaTree?: string;
-  /** v2 — verifier-requested probes, keyed by criterion id. */
-  onDemand?: Record<string, unknown>;
-}
-
-/** Outcome of a single tool execution as seen by the harness. */
-export interface ToolOutput {
-  ok: boolean;
-  /**
-   * The tool's return value. Same payload that flowed into agentEvidence
-   * modalities, but in its native shape (e.g., the extract result, the act
-   * describe-string) rather than serialized for the LLM.
-   */
-  result: unknown;
-  error?: string;
-}
-
-/** One step in a trajectory: action + reasoning + evidence + outcome. */
-export interface TrajectoryStep {
-  index: number;
-  actionName: string;
-  actionArgs: Record<string, unknown>;
-  /** From AgentAction.reasoning. May be empty for tools that don't surface reasoning. */
-  reasoning: string;
-  agentEvidence: AgentEvidence;
-  probeEvidence: ProbeEvidence;
-  toolOutput: ToolOutput;
-  /** ISO 8601 timestamp when the step's tool execution started. */
-  startedAt: string;
-  /** ISO 8601 timestamp when the step's tool execution finished. */
-  finishedAt: string;
-}
-
-/** Terminal status of the agent run. */
-export type TrajectoryStatus = "complete" | "aborted" | "stalled" | "error";
-
-/**
- * Full trajectory for one task run.
- *
- * The on-disk layout is one directory per task:
- *
- *   .trajectories/<run-id>/<task-id>/
- *     ├── task_data.json    — TaskSpec + Verdict (filled on completion)
- *     ├── trajectory.json   — this object, with screenshotPath instead of bytes
- *     ├── screenshot_1.png  — probeEvidence.screenshot for step 1, etc.
- *     ├── scores/
- *     │   └── mmrubric_v1.json  — Verdict from V3Evaluator.verify()
- *     ├── core.log          — captured action log
- *     └── times.json        — step timing + token usage
- */
-export interface Trajectory {
-  task: TaskSpec;
-  steps: TrajectoryStep[];
-  finalAnswer?: string;
-  status: TrajectoryStatus;
-  usage: TrajectoryUsage;
-  timing: { startedAt: string; endedAt: string };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

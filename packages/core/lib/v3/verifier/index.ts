@@ -2,34 +2,31 @@
  * Public re-exports for the verifier subsystem.
  */
 export type {
-  Trajectory,
-  TrajectoryStep,
-  TrajectoryStatus,
-  TrajectoryUsage,
-  TaskSpec,
-  Rubric,
-  RubricCriterion,
-  SerializedRubric,
-  SerializedRubricCriterion,
-  RubricInput,
   AgentEvidence,
   AgentEvidenceModality,
+  CriterionScore,
+  FirstPointOfFailure,
   ProbeEvidence,
+  Rubric,
+  RubricCriterion,
+  RubricInput,
+  SerializedRubric,
+  SerializedRubricCriterion,
+  StubVerdictReason,
+  TaskSpec,
+  TaskValidity,
   ToolOutput,
-} from "./trajectory.js";
+  Trajectory,
+  TrajectoryStatus,
+  TrajectoryStep,
+  TrajectoryUsage,
+  Verdict,
+  Verifier,
+  VerifierFinding,
+  VerifierRawSteps,
+} from "./types.js";
 export {
   loadTrajectoryFromDisk,
   nextVerdictFilename,
   normalizeRubric,
 } from "./trajectory.js";
-
-export type {
-  Verifier,
-  Verdict,
-  CriterionScore,
-  FirstPointOfFailure,
-  TaskValidity,
-  VerifierFinding,
-  VerifierRawSteps,
-  StubVerdictReason,
-} from "./verifier.js";
