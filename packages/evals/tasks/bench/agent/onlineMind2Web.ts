@@ -9,11 +9,10 @@ import {
 /**
  * OnlineMind2Web bench task.
  *
- * Wave 1 MVP: runs through the new TrajectoryRecorder + V3Evaluator.verify()
- * pipeline. Unlike WebTailBench, Mind2Web doesn't ship rubrics — the verifier
- * generates one via Step 0a on first encounter per task id and caches under
- * packages/evals/.rubric-cache/onlineMind2Web/. Cached rubrics hydrate on
- * subsequent runs.
+ * Runs through TrajectoryRecorder + V3Evaluator.verify(). Unlike WebTailBench,
+ * Mind2Web doesn't ship rubrics; the verifier generates one on first encounter
+ * per task id and caches under packages/evals/.rubric-cache/onlineMind2Web/.
+ * Cached rubrics hydrate on subsequent runs.
  *
  * --success knob: defaults to "outcome".
  * Override via the EVAL_SUCCESS_MODE env var (set by the bench runner's
@@ -56,9 +55,8 @@ export default defineBenchTask(
         id: params.task_id ?? `onlineMind2Web/${input.name}`,
         instruction: params.confirmed_task,
         initUrl: params.website,
-        // No precomputedRubric — RubricCache will generate via Step 0a on
-        // first encounter for this task id, then hydrate from cache on
-        // subsequent runs. Per plan Q3.
+        // No precomputedRubric; RubricCache will generate one for this task id,
+        // then hydrate from cache on subsequent runs.
       };
 
       const { verdict, trajectory, trajectoryDir, rubric } =

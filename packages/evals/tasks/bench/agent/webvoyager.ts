@@ -9,10 +9,9 @@ import {
 /**
  * WebVoyager bench task.
  *
- * Wave 1 MVP: runs through the new TrajectoryRecorder + V3Evaluator.verify()
- * pipeline. WebVoyager doesn't ship precomputed rubrics, so the verifier
- * generates one via Step 0a on first encounter per task id and caches under
- * packages/evals/.rubric-cache/webvoyager/.
+ * Runs through TrajectoryRecorder + V3Evaluator.verify(). WebVoyager doesn't
+ * ship precomputed rubrics, so the verifier generates one on first encounter
+ * per task id and caches under packages/evals/.rubric-cache/webvoyager/.
  *
  * --success knob: defaults to "outcome".
  * Override via the EVAL_SUCCESS_MODE env var: outcome | process | both.
@@ -53,8 +52,8 @@ export default defineBenchTask(
         id: params.id ?? `webvoyager/${input.name}`,
         instruction: params.ques,
         initUrl: params.web,
-        // No precomputedRubric — RubricCache generates via Step 0a on first
-        // encounter, then hydrates from cache on subsequent runs.
+        // No precomputedRubric; RubricCache generates one, then hydrates from
+        // cache on subsequent runs.
       };
 
       const { verdict, trajectory, trajectoryDir, rubric } =
