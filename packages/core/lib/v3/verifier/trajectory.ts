@@ -86,8 +86,7 @@ export function normalizeRubric(
 
   return {
     items: rubric.items.map((item) => {
-      const raw = item as RubricCriterion &
-        Partial<SerializedRubricCriterion>;
+      const raw = item as RubricCriterion & Partial<SerializedRubricCriterion>;
       const maxPoints =
         typeof raw.maxPoints === "number" ? raw.maxPoints : raw.max_points;
 
