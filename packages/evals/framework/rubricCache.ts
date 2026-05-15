@@ -10,9 +10,9 @@
  * Cache layout:
  *   packages/evals/.rubric-cache/<dataset>/<task-id>.json
  *
- * The cache key includes the task instruction hash to detect drift — if the
- * instruction changes for the same task id, the rubric is regenerated rather
- * than served from a stale cache.
+ * The cache key includes the task id and instruction hash to detect drift —
+ * if either changes, the rubric is regenerated rather than served from a
+ * stale cache.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -74,9 +74,7 @@ export class RubricCache {
     return rubric;
   }
 
-  /**
-   * Read a cached rubric. Returns undefined on miss or instruction-hash drift.
-   */
+  /** Read a cached rubric. Returns undefined on miss or cache-key drift. */
   async read(taskSpec: TaskSpec): Promise<Rubric | undefined> {
     const file = this.entryPath(taskSpec.id);
     let raw: string;
@@ -89,6 +87,12 @@ export class RubricCache {
     try {
       parsed = JSON.parse(raw) as CacheEntry;
     } catch {
+      return undefined;
+    }
+    if (parsed.taskId !== taskSpec.id) {
+      console.warn(
+        `[rubric-cache] task-id mismatch for ${taskSpec.id}; regenerating`,
+      );
       return undefined;
     }
     const expectedHash = hashInstruction(taskSpec.instruction);

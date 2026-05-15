@@ -3,7 +3,7 @@
  *
  * Models the user-visible command surface as a tree:
  *   root → run, list, new, config{path,set,reset,core{path,set,reset,setup}},
- *          experiments{list,show,open,compare}
+ *          experiments{list,show,open,compare}, verify, doctor
  *
  * Both the REPL (tui/repl.ts) and argv mode (cli.ts) build the same tree
  * via `buildCommandTree()` and dispatch user input through it. This is the
@@ -643,6 +643,17 @@ export function buildCommandTree(): CommandNode {
     },
   };
 
+  const verifyNode: CommandNode = {
+    name: "verify",
+    summary: "Re-score a saved trajectory",
+    printHelp: async () =>
+      (await import("./commands/verify.js")).printVerifyHelp(),
+    handler: async (args) => {
+      const { handleVerify } = await import("./commands/verify.js");
+      await handleVerify(args);
+    },
+  };
+
   const root: CommandNode = {
     name: "evals",
     summary: "Stagehand evals CLI",
@@ -653,6 +664,7 @@ export function buildCommandTree(): CommandNode {
       configNode,
       experimentsNode,
       newNode,
+      verifyNode,
       doctorNode,
     ],
   };

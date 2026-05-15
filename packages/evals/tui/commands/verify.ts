@@ -3,8 +3,7 @@
  *
  * The verifier is browser-free: it consumes a hydrated Trajectory + TaskSpec
  * and returns a Verdict. This command reads the on-disk layout written by
- * `TrajectoryRecorder.persist()` (matching microsoft/fara's
- * example_trajectory shape) and feeds it through V3Evaluator.verify().
+ * `TrajectoryRecorder.persist()` and feeds it through V3Evaluator.verify().
  *
  * Output: writes a new verdict file under `scores/mmrubric_<label>.json` so
  * re-runs don't clobber the original live-run verdict at `mmrubric_v1.json`.

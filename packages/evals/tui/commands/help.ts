@@ -28,6 +28,10 @@ export function printHelp(): void {
       `${cyan("experiments")} ${dim("[subcommand]")}`,
       "Inspect and compare Braintrust experiment runs",
     ),
+    row(
+      `${cyan("verify")} ${dim("<trajectory-dir> [options]")}`,
+      "Re-score a saved trajectory",
+    ),
     row(`${cyan("new")} ${dim("<tier> <cat> <name>")}`, "Scaffold a new task"),
     row(cyan("help"), "Show this help"),
     row(cyan("clear"), "Clear the screen"),

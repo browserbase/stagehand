@@ -40,7 +40,7 @@ export interface RunFlags {
   preview?: boolean;
   /**
    * Rubric success mode for the verifier — outcome | process | both.
-   *   outcome (default): binary Verdict.outcomeSuccess (matches fara-7b's reported metric).
+   *   outcome (default): binary Verdict.outcomeSuccess.
    *   process: Verdict.processScore ≥ threshold.
    *   both: outcome AND process.
    * Plumbed to bench tasks via the EVAL_SUCCESS_MODE env override.
@@ -456,7 +456,7 @@ export function resolveRunOptions(
   }
 
   // Success mode resolves from --success first, then EVAL_SUCCESS_MODE env,
-  // then "outcome" (matches fara-7b's reported metric).
+  // then "outcome".
   const envSuccess = (env.EVAL_SUCCESS_MODE ?? "").toLowerCase();
   const successMode: SuccessMode =
     flags.success ??

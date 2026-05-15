@@ -1,12 +1,11 @@
 /**
  * Backfill packages/evals/datasets/webtailbench/WebTailBench_data.jsonl with
- * the upstream microsoft/WebTailBench `precomputed_rubric` field.
+ * the published WebTailBench `precomputed_rubric` field.
  *
- * The local JSONL was authored before fara released v1 rubrics. This script
- * fetches WebTailBench-v1-rubrics.tsv from HuggingFace and joins by `id`,
- * writing back a JSONL where each row carries a `precomputed_rubric` field
- * (parsed JSON object) alongside the existing `ques` / `web` / `category` /
- * `id` fields.
+ * This script fetches WebTailBench-v1-rubrics.tsv from HuggingFace and joins
+ * by `id`, writing back a JSONL where each row carries a
+ * `precomputed_rubric` field (parsed JSON object) alongside the existing
+ * `ques` / `web` / `category` / `id` fields.
  *
  * Run once after pulling the branch:
  *   pnpm tsx packages/evals/scripts/backfill-webtailbench-rubrics.ts
