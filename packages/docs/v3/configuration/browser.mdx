@@ -241,7 +241,6 @@ const stagehand = new Stagehand({
     userDataDir: './chrome-user-data', // Persist browser data
     preserveUserDataDir: true, // Keep data after closing
     chromiumSandbox: false, // Disable sandbox (adds --no-sandbox)
-    ignoreDefaultArgs: ['--disable-extensions'], // Re-enable Chrome extensions
     ignoreHTTPSErrors: true, // Ignore certificate errors
     locale: 'en-US', // Set browser language
     deviceScaleFactor: 1.0, // Display scaling
@@ -345,36 +344,6 @@ await stagehand.init();
 <Tip>
 If no `port` is specified, a random port will be assigned.
 </Tip>
-
-### Ignoring Default Chrome Flags
-
-By default, the underlying `chrome-launcher` applies a set of flags (like `--disable-extensions` and `--mute-audio`) when starting Chrome. Use `ignoreDefaultArgs` to override this behavior.
-
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-// Remove specific default flags (e.g., re-enable Chrome extensions)
-const stagehand = new Stagehand({
-  env: "LOCAL",
-  localBrowserLaunchOptions: {
-    ignoreDefaultArgs: ["--disable-extensions"],
-  },
-});
-
-await stagehand.init();
-```
-
-`ignoreDefaultArgs` accepts:
-
-| Value | Behavior |
-| --- | --- |
-| `true` | Suppress **all** `chrome-launcher` default flags |
-| `string[]` | Suppress only the listed flags; all other defaults are preserved |
-| `false` / omitted | Keep all default flags (normal behavior) |
-
-<Warning>
-Removing default flags may affect browser stability or security. Only exclude flags you specifically need to override.
-</Warning>
 
 ### DOM Settle Timeout
 
