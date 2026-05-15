@@ -291,7 +291,7 @@ export async function runClaudeCodeAgent({
 
     const { V3Evaluator } = await import("@browserbasehq/stagehand");
     const { RubricCache } = await import("./rubricCache.js");
-    const evaluator = new V3Evaluator(verifier.v3);
+    const evaluator = new V3Evaluator(verifier.v3, { backend: "verifier" });
 
     // Hydrate rubric — use precomputed if present, otherwise cache-or-generate.
     let rubric = verifier.taskSpec.precomputedRubric;

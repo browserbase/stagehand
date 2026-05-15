@@ -402,13 +402,13 @@ async function main(): Promise<void> {
           criterion: "Identify correct route",
           description:
             "Agent identifies the United CHI→GRU economy and business class fares.",
-          max_points: 2,
+          maxPoints: 2,
         },
         {
           criterion: "Report price delta",
           description:
             "Agent reports a numeric difference between economy and business.",
-          max_points: 3,
+          maxPoints: 3,
         },
       ],
     },

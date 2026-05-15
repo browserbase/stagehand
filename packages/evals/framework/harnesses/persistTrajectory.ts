@@ -10,15 +10,14 @@
  * finishes — so this helper writes the same on-disk layout without the
  * event-subscription lifecycle.
  *
- * The on-disk layout matches microsoft/fara's example_trajectory/ so saved
- * trajectories can be cross-validated against verify_trajectories.py without
- * a format conversion step:
+ * The on-disk layout matches TrajectoryRecorder.persist():
  *
  *   <dir>/
  *     ├── task_data.json
- *     ├── trajectory.json   (image bytes as base64, screenshots referenced by path)
- *     ├── screenshot_<N>.png (only if probeEvidence carries Buffer screenshots — external
- *     │                       harnesses don't natively, but the helper supports it)
+ *     ├── trajectory.json   (images referenced by path)
+ *     ├── screenshots/
+ *     │   ├── probe/<N>.png
+ *     │   └── agent/<N>.png
  *     ├── scores/
  *     │   └── mmrubric_v1.json  (if `verdict` passed)
  *     ├── core.log
@@ -86,29 +85,44 @@ export async function persistAdapterTrajectory(
   }
 
   await fs.mkdir(directory, { recursive: true });
+  await fs.mkdir(path.join(directory, "screenshots", "probe"), {
+    recursive: true,
+  });
+  await fs.mkdir(path.join(directory, "screenshots", "agent"), {
+    recursive: true,
+  });
 
-  // Walk steps and (when a Buffer screenshot is present, which is rare for
-  // external harnesses) write it to disk + replace with a path reference.
-  // Image modalities in agentEvidence get base64-encoded inline to keep
-  // trajectory.json human-readable JSON.
+  // Walk steps and write image bytes to disk, replacing in-memory Buffers with
+  // path references in trajectory.json.
   const serializableSteps: unknown[] = [];
   for (const step of opts.trajectory.steps) {
     const probe: ProbeEvidence = { ...step.probeEvidence };
     if (probe.screenshot) {
-      const filename = `screenshot_${step.index + 1}.png`;
-      await fs.writeFile(path.join(directory, filename), probe.screenshot);
-      probe.screenshotPath = filename;
+      const relPath = `screenshots/probe/${step.index + 1}.png`;
+      await fs.writeFile(path.join(directory, relPath), probe.screenshot);
+      probe.screenshotPath = relPath;
       delete probe.screenshot;
     }
+
+    const imageModalities = step.agentEvidence.modalities.filter(
+      (m) => m.type === "image",
+    );
+    const multipleImages = imageModalities.length > 1;
+    let imageSeq = 0;
     const agentEvidence = {
-      modalities: step.agentEvidence.modalities.map((m) =>
-        m.type === "image"
-          ? {
-              type: "image",
-              bytesBase64: m.bytes.toString("base64"),
-              mediaType: m.mediaType,
-            }
-          : m,
+      modalities: await Promise.all(
+        step.agentEvidence.modalities.map(async (m) => {
+          if (m.type !== "image") return m;
+          const suffix = multipleImages ? `_${imageSeq}` : "";
+          const relPath = `screenshots/agent/${step.index + 1}${suffix}.png`;
+          imageSeq += 1;
+          await fs.writeFile(path.join(directory, relPath), m.bytes);
+          return {
+            type: "image" as const,
+            imagePath: relPath,
+            mediaType: m.mediaType,
+          };
+        }),
       ),
     };
     serializableSteps.push({ ...step, probeEvidence: probe, agentEvidence });

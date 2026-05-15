@@ -265,7 +265,7 @@ export async function runCodexAgent({
 
     const { V3Evaluator } = await import("@browserbasehq/stagehand");
     const { RubricCache } = await import("./rubricCache.js");
-    const evaluator = new V3Evaluator(verifier.v3);
+    const evaluator = new V3Evaluator(verifier.v3, { backend: "verifier" });
 
     let rubric = verifier.taskSpec.precomputedRubric;
     if (!rubric) {
