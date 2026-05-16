@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import { TimeoutError } from "../../types/public/sdkErrors.js";
+import { sanitizeDomForPrompt } from "../../../prompt.js";
 
 export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
   tool({
@@ -58,7 +59,7 @@ export const ariaTreeTool = (v3: V3, toolTimeout?: number) =>
       return {
         type: "content",
         value: [
-          { type: "text", text: `Accessibility Tree:\n${result.content}` },
+          { type: "text", text: `Accessibility Tree:\n${sanitizeDomForPrompt(result.content)}` },
         ],
       };
     },
