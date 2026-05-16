@@ -156,6 +156,48 @@ describe("POST /v1/sessions/:id/observe (V3)", () => {
     );
   });
 
+  it("should observe with selector and selectAll options", async () => {
+    const url = getBaseUrl();
+
+    interface ObserveResponse {
+      success: boolean;
+      data?: { result: unknown[]; actionId?: string };
+    }
+
+    const ctx = await fetchWithContext<ObserveResponse>(
+      `${url}/v1/sessions/${sessionId}/observe`,
+      {
+        method: "POST",
+        headers: getHeaders("3.0.0"),
+        body: JSON.stringify({
+          instruction: "Find any link on the page",
+          options: {
+            selector: "a",
+            selectAll: true,
+          },
+        }),
+      },
+    );
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Observe with selector and selectAll should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response body should be parseable", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+    assertFetchOk(
+      ctx.body.data !== undefined,
+      "Response should have data",
+      ctx,
+    );
+    assertFetchOk(
+      Array.isArray(ctx.body.data.result),
+      "Result should be an array of observed elements",
+      ctx,
+    );
+  });
+
   it("should observe with variables option", async () => {
     const url = getBaseUrl();
 

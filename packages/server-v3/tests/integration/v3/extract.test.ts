@@ -216,6 +216,52 @@ describe("POST /v1/sessions/:id/extract (V3)", () => {
     );
   });
 
+  it("should extract with selector and selectAll options", async () => {
+    const url = getBaseUrl();
+
+    interface ExtractResponse {
+      success: boolean;
+      data?: { result: Record<string, unknown>; actionId?: string };
+    }
+
+    const ctx = await fetchWithContext<ExtractResponse>(
+      `${url}/v1/sessions/${sessionId}/extract`,
+      {
+        method: "POST",
+        headers: getHeaders("3.0.0"),
+        body: JSON.stringify({
+          instruction: "extract the link information",
+          schema: {
+            type: "object",
+            properties: {
+              href: { type: "string" },
+              text: { type: "string" },
+            },
+          },
+          options: {
+            selector: "a",
+            selectAll: true,
+          },
+        }),
+      },
+    );
+
+    assertFetchStatus(
+      ctx,
+      HTTP_OK,
+      "Extract with selector and selectAll should succeed",
+    );
+    assertFetchOk(ctx.body !== null, "Response should have body", ctx);
+    assertFetchOk(ctx.body.success, "Response should indicate success", ctx);
+    assertFetchOk(!!ctx.body.data, "Response should have data", ctx);
+    assertFetchOk(!!ctx.body.data.result, "Response should have result", ctx);
+    assert.equal(
+      typeof ctx.body.data.result,
+      "object",
+      "Result should be an object",
+    );
+  });
+
   it("should extract with instruction only (no schema)", async () => {
     const url = getBaseUrl();
 

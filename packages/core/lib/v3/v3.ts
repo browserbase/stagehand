@@ -1395,6 +1395,7 @@ export class V3 {
         timeout: options?.timeout,
         selector: options?.selector,
         ignoreSelectors: options?.ignoreSelectors,
+        selectAll: options?.selectAll,
         page,
       };
       let result: z.infer<typeof effectiveSchema> | { pageText: string };
@@ -1419,6 +1420,7 @@ export class V3 {
           instruction,
           selector: options?.selector,
           ignoreSelectors: options?.ignoreSelectors,
+          selectAll: options?.selectAll,
           timeout: options?.timeout,
           schema: historySchemaDescriptor,
         },
@@ -1469,6 +1471,7 @@ export class V3 {
         timeout: options?.timeout,
         selector: options?.selector,
         ignoreSelectors: options?.ignoreSelectors,
+        selectAll: options?.selectAll,
         page: page!,
       };
 
@@ -1492,6 +1495,7 @@ export class V3 {
           variables: options?.variables,
           selector: options?.selector,
           ignoreSelectors: options?.ignoreSelectors,
+          selectAll: options?.selectAll,
           timeout: options?.timeout,
         },
         results,

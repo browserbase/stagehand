@@ -55,6 +55,7 @@ export interface ExtractOptions {
   timeout?: number;
   selector?: string;
   ignoreSelectors?: string[];
+  selectAll?: boolean;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   /**
    * Override the instance-level serverCache setting for this request.
@@ -78,6 +79,7 @@ export interface ObserveOptions {
   timeout?: number;
   selector?: string;
   ignoreSelectors?: string[];
+  selectAll?: boolean;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   /**
    * Override the instance-level serverCache setting for this request.

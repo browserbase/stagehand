@@ -7,6 +7,8 @@ import type {
 } from "../../../types/private/snapshot.js";
 import {
   resolveObjectIdForCss,
+  resolveObjectIdsForCss,
+  resolveObjectIdsForXPath,
   resolveObjectIdForXPath,
 } from "./focusSelectors.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
@@ -48,34 +50,97 @@ export async function a11yForFrame(
     if (!sel) return nodes;
     try {
       const looksLikeXPath = /^xpath=/i.test(sel) || sel.startsWith("/");
-      const objectId = looksLikeXPath
-        ? await resolveObjectIdForXPath(session, sel, frameId)
-        : await resolveObjectIdForCss(session, sel, frameId);
-      if (!objectId) return nodes;
-      const desc = await session.send<{ node?: { backendNodeId?: number } }>(
-        "DOM.describeNode",
-        { objectId },
+      let objectIds: string[] = [];
+
+      if (opts.selectAll) {
+        if (looksLikeXPath) {
+          objectIds = await resolveObjectIdsForXPath(session, sel, frameId);
+        } else {
+          objectIds = await resolveObjectIdsForCss(session, sel, frameId);
+        }
+      } else {
+        if (looksLikeXPath) {
+          const objId = await resolveObjectIdForXPath(session, sel, frameId);
+          objectIds = objId ? [objId] : [];
+        } else {
+          const objId = await resolveObjectIdForCss(session, sel, frameId);
+          objectIds = objId ? [objId] : [];
+        }
+      }
+
+      if (objectIds.length === 0) return nodes;
+
+      const targetBackendNodeIds = new Set<number>();
+
+      for (const objectId of objectIds) {
+        try {
+          const desc = await session.send<{
+            node?: { backendNodeId?: number };
+          }>("DOM.describeNode", { objectId });
+
+          const backendNodeId = desc.node?.backendNodeId;
+          if (typeof backendNodeId === "number") {
+            targetBackendNodeIds.add(backendNodeId);
+          }
+        } catch {
+          // Keep any successfully resolved matches instead of falling back to an
+          // unscoped tree because one candidate object went stale.
+        } finally {
+          await session
+            .send("Runtime.releaseObject", { objectId })
+            .catch(() => {});
+        }
+      }
+
+      if (targetBackendNodeIds.size === 0) return nodes;
+
+      const nodeById = new Map(nodes.map((node) => [node.nodeId, node]));
+
+      const matchedTargets = nodes.filter(
+        (node) =>
+          typeof node.backendDOMNodeId === "number" &&
+          targetBackendNodeIds.has(node.backendDOMNodeId),
       );
-      const be = desc.node?.backendNodeId;
-      if (typeof be !== "number") return nodes;
-      const target = nodes.find((n) => n.backendDOMNodeId === be);
-      if (!target) return nodes;
+
+      if (matchedTargets.length === 0) return nodes;
+
+      const topLevelTargets = matchedTargets.filter((target) => {
+        let parentId = target.parentId;
+        while (parentId) {
+          const parent = nodeById.get(parentId);
+          if (!parent) break;
+          if (
+            typeof parent.backendDOMNodeId === "number" &&
+            targetBackendNodeIds.has(parent.backendDOMNodeId)
+          ) {
+            return false;
+          }
+          parentId = parent.parentId;
+        }
+        return true;
+      });
+
       scopeApplied = true;
-      const keep = new Set<string>([target.nodeId]);
-      const queue: Protocol.Accessibility.AXNode[] = [target];
+      const keep = new Set(topLevelTargets.map((target) => target.nodeId));
+      const queue = [...topLevelTargets];
+
       while (queue.length) {
         const cur = queue.shift()!;
         for (const id of cur.childIds ?? []) {
           if (keep.has(id)) continue;
           keep.add(id);
-          const child = nodes.find((n) => n.nodeId === id);
+          const child = nodeById.get(id);
           if (child) queue.push(child);
         }
       }
+
+      const topLevelTargetIds = new Set(
+        topLevelTargets.map((target) => target.nodeId),
+      );
       return nodes
         .filter((n) => keep.has(n.nodeId))
         .map((n) =>
-          n.nodeId === target.nodeId ? { ...n, parentId: undefined } : n,
+          topLevelTargetIds.has(n.nodeId) ? { ...n, parentId: undefined } : n,
         );
     } catch {
       return nodes;

@@ -115,6 +115,7 @@ export class ExtractHandler {
       page,
       selector,
       ignoreSelectors,
+      selectAll,
       timeout,
       model,
     } = params;
@@ -135,6 +136,7 @@ export class ExtractHandler {
         experimental: this.experimental,
         focusSelector: focusSelector || undefined,
         ignoreSelectors,
+        selectAll,
       });
       ensureTimeRemaining();
 
@@ -157,6 +159,7 @@ export class ExtractHandler {
       experimental: this.experimental,
       focusSelector: focusSelector,
       ignoreSelectors,
+      selectAll,
     });
 
     v3Logger({

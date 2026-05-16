@@ -7,6 +7,8 @@ export type SnapshotOptions = {
    * Supports XPath (prefixed with `xpath=` or starting with `/`) and CSS with iframe hops via `>>`.
    */
   focusSelector?: string;
+  /** When true, scope to every element matched by `focusSelector` instead of only the first match. */
+  selectAll?: boolean;
   /**
    * Exclude matching elements and their descendants from the captured snapshot.
    * Each selector may be XPath (prefixed with `xpath=` or starting with `/`) or CSS.
@@ -114,6 +116,7 @@ export type A11yNode = {
 export type A11yOptions = {
   focusSelector?: string;
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
+  selectAll?: boolean;
   experimental: boolean;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;

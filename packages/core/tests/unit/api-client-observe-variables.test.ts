@@ -68,6 +68,7 @@ describe("StagehandAPIClient variable serialization", () => {
     await client.observe({
       instruction: "find the field where %username% should be entered",
       options: {
+        selectAll: true,
         variables: {
           username: {
             value: "john@example.com",
@@ -84,6 +85,7 @@ describe("StagehandAPIClient variable serialization", () => {
       args: {
         instruction: "find the field where %username% should be entered",
         options: {
+          selectAll: true,
           variables: {
             username: {
               value: "john@example.com",
@@ -92,6 +94,42 @@ describe("StagehandAPIClient variable serialization", () => {
             password: "secret",
           },
           ignoreSelectors: [".cookie-banner"],
+        },
+        frameId: undefined,
+      },
+      serverCache: undefined,
+    });
+  });
+
+  it("preserves selectAll when sending the extract request", async () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-test",
+      logger: vi.fn(),
+    });
+    const executeMock = vi.fn().mockResolvedValue({ extraction: "ok" });
+
+    (
+      client as unknown as {
+        execute: typeof executeMock;
+      }
+    ).execute = executeMock;
+
+    await client.extract({
+      instruction: "extract all product cards",
+      options: {
+        selector: ".card",
+        selectAll: true,
+      },
+    });
+
+    expect(executeMock).toHaveBeenCalledWith({
+      method: "extract",
+      args: {
+        instruction: "extract all product cards",
+        schema: undefined,
+        options: {
+          selector: ".card",
+          selectAll: true,
         },
         frameId: undefined,
       },
