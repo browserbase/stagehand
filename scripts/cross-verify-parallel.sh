@@ -25,7 +25,7 @@ run_one() {
   local dir="$1"
   local approach="$2"
   local label="cross-${approach}"
-  local out_file="$dir/scores/mmrubric_${label}.json"
+  local out_file="$dir/scores/result_${label}.json"
   local task
   task=$(basename "$dir")
   if [[ -f "$out_file" ]]; then
