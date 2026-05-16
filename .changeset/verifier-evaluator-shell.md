@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Add verifier trajectory, rubric, and verdict types with normalized public naming.
+Add verifier trajectory, rubric, and evaluation-result types with normalized public naming.
