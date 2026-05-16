@@ -48,7 +48,7 @@ describe("V3Evaluator verifier facade", () => {
     );
   });
 
-  it("maps legacy YES evaluations with trajectory screenshots to a successful verdict", async () => {
+  it("maps legacy YES evaluations with trajectory screenshots to a successful result", async () => {
     const taskSpec: TaskSpec = {
       id: "success",
       instruction: "Complete the task",
@@ -69,7 +69,7 @@ describe("V3Evaluator verifier facade", () => {
       value: { ask },
     });
 
-    const verdict = await evaluator.verify(trajectory, taskSpec);
+    const result = await evaluator.verify(trajectory, taskSpec);
 
     expect(ask).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -78,13 +78,10 @@ describe("V3Evaluator verifier facade", () => {
         answer: "The task is complete.",
       }),
     );
-    expect(verdict.outcomeSuccess).toBe(true);
-    expect(verdict.processScore).toBe(1);
-    expect(verdict.perCriterion[0]).toMatchObject({
-      criterion: "legacy-task-completion",
-      earnedPoints: 1,
-      evidenceInsufficient: false,
-    });
+    expect(result.outcomeSuccess).toBe(true);
+    expect(result.explanation).toBe("The screenshot shows completion.");
+    expect(result.processScore).toBeUndefined();
+    expect(result.perCriterion).toBeUndefined();
   });
 
   it("keeps legacy tool output detail until the overall reasoning budget is reached", async () => {
@@ -114,9 +111,11 @@ describe("V3Evaluator verifier facade", () => {
 
     const firstCall = ask.mock.calls[0]?.[0];
     expect(firstCall?.agentReasoning).toContain(longToolOutput);
+    expect(firstCall?.agentReasoning).not.toContain("Final answer:");
+    expect(firstCall?.answer).toBe("The task is complete.");
   });
 
-  it("returns an evidence-insufficient legacy verdict for empty trajectories", async () => {
+  it("returns an evidence-insufficient legacy result for empty trajectories", async () => {
     const taskSpec: TaskSpec = {
       id: "empty",
       instruction: "Complete the task",
@@ -125,13 +124,23 @@ describe("V3Evaluator verifier facade", () => {
       backend: "legacy",
     });
 
-    const verdict = await evaluator.verify(
+    const result = await evaluator.verify(
       makeEmptyTrajectory(taskSpec),
       taskSpec,
     );
 
-    expect(verdict.outcomeSuccess).toBe(false);
-    expect(verdict.evidenceInsufficient).toEqual(["legacy-task-completion"]);
+    expect(result).toMatchObject({
+      outcomeSuccess: false,
+      explanation:
+        "Legacy evaluator compatibility mode had no screenshots or final answer to evaluate.",
+      rawSteps: {
+        backend: "legacy",
+        legacyEvaluation: "INVALID",
+        screenshotCount: 0,
+      },
+    });
+    expect(result.processScore).toBeUndefined();
+    expect(result.perCriterion).toBeUndefined();
   });
 
   it("rejects invalid evaluator backend env values", () => {

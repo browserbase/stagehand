@@ -24,6 +24,11 @@ import { tool } from "ai";
 import { getAISDKLanguageModel } from "./llm/LLMProvider.js";
 import { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
 import { maybeRunShutdownSupervisorFromArgv } from "./shutdown/supervisor.js";
+import {
+  loadTrajectoryFromDisk,
+  nextResultFilename,
+  normalizeRubric,
+} from "./verifier/index.js";
 
 export { V3 } from "./v3.js";
 export { V3 as Stagehand } from "./v3.js";
@@ -72,15 +77,12 @@ export type {
   TaskSpec,
   Rubric,
   RubricCriterion,
-  SerializedRubric,
-  SerializedRubricCriterion,
-  RubricInput,
   AgentEvidence,
   AgentEvidenceModality,
   ProbeEvidence,
   ToolOutput,
   Verifier,
-  Verdict,
+  EvaluationResult,
   CriterionScore,
   FirstPointOfFailure,
   TaskValidity,
@@ -89,7 +91,7 @@ export type {
 } from "./verifier/index.js";
 export {
   loadTrajectoryFromDisk,
-  nextVerdictFilename,
+  nextResultFilename,
   normalizeRubric,
 } from "./verifier/index.js";
 export { tool } from "ai";
@@ -142,6 +144,9 @@ const StagehandDefault = {
   toJsonSchema,
   connectToMCPServer,
   V3Evaluator,
+  loadTrajectoryFromDisk,
+  nextResultFilename,
+  normalizeRubric,
   tool,
   getAISDKLanguageModel,
   __internalCreateInMemoryAgentCacheHandle,

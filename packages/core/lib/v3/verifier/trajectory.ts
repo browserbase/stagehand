@@ -2,70 +2,81 @@ import type {
   AgentEvidenceModality,
   ProbeEvidence,
   Rubric,
-  RubricCriterion,
-  RubricInput,
-  SerializedRubricCriterion,
   Trajectory,
   TrajectoryStep,
 } from "./types.js";
 
-/** Convert a Stagehand or serialized rubric into the public Stagehand shape. */
-export function normalizeRubric(
-  rubric: RubricInput | null | undefined,
-): Rubric | undefined {
-  if (!rubric) return undefined;
+type RawRubricCriterion = {
+  criterion: unknown;
+  description: unknown;
+  max_points?: unknown;
+  maxPoints?: unknown;
+  condition?: unknown;
+};
+
+type RawRubric = {
+  items?: unknown;
+};
+
+/**
+ * Convert dataset or generated rubric JSON into the public Stagehand shape.
+ * Snake-case dataset fields are accepted here so serialized quirks do not leak
+ * into the canonical rubric type.
+ */
+export function normalizeRubric(rubric: unknown): Rubric | undefined {
+  if (rubric == null) return undefined;
+  if (typeof rubric !== "object") {
+    throw new TypeError("Rubric must be an object");
+  }
+
+  const rawRubric = rubric as RawRubric;
+  if (!Array.isArray(rawRubric.items)) {
+    throw new TypeError("Rubric is missing an items array");
+  }
 
   return {
-    items: rubric.items.map((item) => {
-      const serialized = isSerializedRubricCriterion(item);
-      const maxPoints = serialized ? item.max_points : item.maxPoints;
+    items: rawRubric.items.map((item) => {
+      const criterion = normalizeRequiredString(item.criterion, "criterion");
+      const description = normalizeRequiredString(
+        item.description,
+        "description",
+      );
+      const maxPoints = normalizeMaxPoints(item);
 
       if (typeof maxPoints !== "number" || !Number.isFinite(maxPoints)) {
         throw new TypeError(
-          `Rubric criterion "${item.criterion}" is missing a numeric maxPoints value`,
+          `Rubric criterion "${criterion}" is missing a numeric maxPoints value`,
         );
       }
 
-      const earnedPoints = normalizeEarnedPoints(
-        serialized ? item.earned_points : item.earnedPoints,
-        item.criterion,
-      );
       return {
-        criterion: item.criterion,
-        description: item.description,
+        criterion,
+        description,
         maxPoints,
-        ...(item.condition !== undefined && { condition: item.condition }),
-        ...(item.justification !== undefined && {
-          justification: item.justification,
+        ...(typeof item.condition === "string" && {
+          condition: item.condition,
         }),
-        ...(earnedPoints !== undefined && { earnedPoints }),
       };
     }),
   };
 }
 
-function isSerializedRubricCriterion(
-  item: RubricCriterion | SerializedRubricCriterion,
-): item is SerializedRubricCriterion {
-  return "max_points" in item;
-}
-
-function normalizeEarnedPoints(
-  value: number | string | undefined,
-  criterion: string,
-): number | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value === "number") {
-    if (Number.isFinite(value)) return value;
-  } else {
-    const trimmed = value.trim();
-    if (trimmed === "") return undefined;
-    const parsed = Number(trimmed);
-    if (Number.isFinite(parsed)) return parsed;
+function normalizeRequiredString(value: unknown, fieldName: string): string {
+  if (typeof value === "string" && value.length) {
+    return value;
   }
 
-  throw new TypeError(
-    `Rubric criterion "${criterion}" has a non-numeric earnedPoints value`,
+  throw new TypeError(`Rubric criterion is missing a ${fieldName} value`);
+}
+
+function normalizeMaxPoints(item: RawRubricCriterion): unknown {
+  return item.maxPoints ?? item.max_points;
+}
+
+function normalizeResultLabel(label?: string): string {
+  return (label ?? `rescore-${new Date().toISOString()}`).replace(
+    /[^A-Za-z0-9._-]/g,
+    "_",
   );
 }
 
@@ -167,18 +178,12 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
 }
 
 /**
- * Locate the next available `mmrubric_*.json` filename for a given trajectory
- * directory. Used by offline re-scoring to avoid overwriting prior verdicts.
+ * Build a `result*.json` filename for persisted evaluator output.
  *
- * Convention: prefer a label-based name (e.g., `mmrubric_rescore-2026-05-11.json`)
- * over numeric versioning so multiple offline rescore attempts coexist without
- * collisions and remain easy to diff. Falls back to a timestamp if the caller
- * doesn't provide a label.
+ * Convention: the live run writes `result.json`; offline re-score attempts use
+ * a label-based name (e.g., `result_rescore-2026-05-11.json`) so they coexist
+ * without collisions and remain easy to diff.
  */
-export function nextVerdictFilename(label?: string): string {
-  const safeLabel = (label ?? `rescore-${new Date().toISOString()}`).replace(
-    /[^A-Za-z0-9._-]/g,
-    "_",
-  );
-  return `mmrubric_${safeLabel}.json`;
+export function nextResultFilename(label?: string): string {
+  return `result_${normalizeResultLabel(label)}.json`;
 }
