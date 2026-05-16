@@ -53,9 +53,8 @@ export const buildOnlineMind2WebTestcases = (
 
   const candidates = parseJsonlRows(lines, isMind2WebRow);
 
-  // EVAL_ONLINEMIND2WEB_IDS — comma-separated task_ids. When set, restricts to
-  // exactly those IDs (in order) and ignores sampling/limit knobs. Used to
-  // pin a deterministic verifier-evaluation slice.
+  // EVAL_ONLINEMIND2WEB_IDS restricts the suite to exactly those task ids,
+  // preserving the order given and ignoring sampling / limit knobs.
   const explicitIds = process.env.EVAL_ONLINEMIND2WEB_IDS
     ? process.env.EVAL_ONLINEMIND2WEB_IDS.split(",")
         .map((s) => s.trim())
