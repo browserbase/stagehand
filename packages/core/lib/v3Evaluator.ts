@@ -264,11 +264,12 @@ function renderLegacyAgentReasoning(
 
 function stringifyForPrompt(value: unknown): string {
   if (typeof value === "string") {
-    return truncateForPrompt(value, 2000);
+    return value;
   }
 
   try {
-    return truncateForPrompt(JSON.stringify(value), 2000);
+    const serialized = JSON.stringify(value);
+    return serialized ?? String(value);
   } catch {
     return String(value);
   }

@@ -12,7 +12,6 @@ export type {
   RubricInput,
   SerializedRubric,
   SerializedRubricCriterion,
-  StubVerdictReason,
   TaskSpec,
   TaskValidity,
   ToolOutput,

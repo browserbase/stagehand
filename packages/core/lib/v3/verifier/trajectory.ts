@@ -17,32 +17,37 @@ export function normalizeRubric(
 
   return {
     items: rubric.items.map((item) => {
-      const raw = item as RubricCriterion & Partial<SerializedRubricCriterion>;
-      const maxPoints =
-        typeof raw.maxPoints === "number" ? raw.maxPoints : raw.max_points;
+      const serialized = isSerializedRubricCriterion(item);
+      const maxPoints = serialized ? item.max_points : item.maxPoints;
 
       if (typeof maxPoints !== "number" || !Number.isFinite(maxPoints)) {
         throw new TypeError(
-          `Rubric criterion "${raw.criterion}" is missing a numeric maxPoints value`,
+          `Rubric criterion "${item.criterion}" is missing a numeric maxPoints value`,
         );
       }
 
       const earnedPoints = normalizeEarnedPoints(
-        raw.earnedPoints ?? raw.earned_points,
-        raw.criterion,
+        serialized ? item.earned_points : item.earnedPoints,
+        item.criterion,
       );
       return {
-        criterion: raw.criterion,
-        description: raw.description,
+        criterion: item.criterion,
+        description: item.description,
         maxPoints,
-        ...(raw.condition !== undefined && { condition: raw.condition }),
-        ...(raw.justification !== undefined && {
-          justification: raw.justification,
+        ...(item.condition !== undefined && { condition: item.condition }),
+        ...(item.justification !== undefined && {
+          justification: item.justification,
         }),
         ...(earnedPoints !== undefined && { earnedPoints }),
       };
     }),
   };
+}
+
+function isSerializedRubricCriterion(
+  item: RubricCriterion | SerializedRubricCriterion,
+): item is SerializedRubricCriterion {
+  return "max_points" in item;
 }
 
 function normalizeEarnedPoints(
@@ -86,7 +91,7 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
   const path = await import("node:path");
   const trajectoryDir = path.resolve(dir);
 
-  const trajectoryPath = path.join(dir, "trajectory.json");
+  const trajectoryPath = path.join(trajectoryDir, "trajectory.json");
   const raw = await fs.readFile(trajectoryPath, "utf8");
   const parsed = JSON.parse(raw) as Trajectory & {
     steps: Array<

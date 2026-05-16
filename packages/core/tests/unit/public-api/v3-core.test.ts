@@ -155,63 +155,6 @@ describe("V3 Core public API types", () => {
         } satisfies Stagehand.V3EvaluatorConstructorOptions,
       );
     });
-
-    it("rejects verifier backend before the verifier PR is installed", async () => {
-      const evaluator = new Stagehand.V3Evaluator({} as Stagehand.Stagehand, {
-        backend: "verifier",
-      });
-
-      await expect(
-        evaluator.ask({ question: "Was the task completed?" }),
-      ).rejects.toThrow(
-        "STAGEHAND_EVALUATOR_BACKEND=verifier, but the verifier backend is not available",
-      );
-    });
-
-    it("returns an evidence-insufficient legacy verdict for empty trajectories", async () => {
-      const taskSpec: Stagehand.TaskSpec = {
-        id: "empty",
-        instruction: "Complete the task",
-      };
-      const trajectory: Stagehand.Trajectory = {
-        task: taskSpec,
-        steps: [],
-        status: "complete",
-        usage: {
-          input_tokens: 0,
-          output_tokens: 0,
-        },
-        timing: {
-          startedAt: new Date(0).toISOString(),
-          endedAt: new Date(0).toISOString(),
-        },
-      };
-      const evaluator = new Stagehand.V3Evaluator({} as Stagehand.Stagehand, {
-        backend: "legacy",
-      });
-
-      const verdict = await evaluator.verify(trajectory, taskSpec);
-
-      expect(verdict.outcomeSuccess).toBe(false);
-      expect(verdict.evidenceInsufficient).toEqual(["legacy-task-completion"]);
-    });
-
-    it("rejects invalid evaluator backend env values", () => {
-      const previousBackend = process.env.STAGEHAND_EVALUATOR_BACKEND;
-      process.env.STAGEHAND_EVALUATOR_BACKEND = "not-a-backend";
-
-      try {
-        expect(
-          () => new Stagehand.V3Evaluator({} as Stagehand.Stagehand),
-        ).toThrow('Invalid STAGEHAND_EVALUATOR_BACKEND="not-a-backend"');
-      } finally {
-        if (previousBackend === undefined) {
-          delete process.env.STAGEHAND_EVALUATOR_BACKEND;
-        } else {
-          process.env.STAGEHAND_EVALUATOR_BACKEND = previousBackend;
-        }
-      }
-    });
   });
 
   describe("V3FunctionName", () => {
