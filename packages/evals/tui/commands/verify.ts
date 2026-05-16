@@ -2,15 +2,10 @@
  * `evals verify <trajectory-dir>` — re-score a saved trajectory offline.
  *
  * The verifier is browser-free: it consumes a hydrated Trajectory + TaskSpec
- * and returns a Verdict. This command reads the on-disk layout written by
+ * and returns an EvaluationResult. This command reads the on-disk layout written by
  * `TrajectoryRecorder.persist()` and feeds it through V3Evaluator.verify().
  *
- * Output: writes a new verdict file under `scores/mmrubric_<label>.json` so
- * re-runs don't clobber the original live-run verdict at `mmrubric_v1.json`.
- *
- * Velocity unlock: iterating on Step 6 prompts goes from "re-run a full
- * agent loop on Browserbase" to "re-run one LLM call against a saved
- * trajectory." Roughly 100× faster for prompt-tuning work.
+ * Output: writes a new result file under `scores/result_<label>.json`.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -19,7 +14,7 @@ import {
   V3,
   V3Evaluator,
   loadTrajectoryFromDisk,
-  nextVerdictFilename,
+  nextResultFilename,
   type AvailableModel,
 } from "@browserbasehq/stagehand";
 
@@ -30,11 +25,11 @@ export interface VerifyOptions {
   trajectoryDir: string;
   /** Override the verifier model. Defaults to whatever V3Evaluator picks. */
   model?: string;
-  /** Label appended to the output verdict filename (default: timestamp). */
+  /** Label appended to the output result filename (default: timestamp). */
   label?: string;
   /** Emit machine-readable JSON to stdout instead of human summary. */
   jsonOutput?: boolean;
-  /** Don't write to disk — print the verdict and exit. */
+  /** Don't write to disk — print the result and exit. */
   dryRun?: boolean;
 }
 
@@ -54,15 +49,15 @@ ${bold("evals verify")} ${dim("— re-score a saved trajectory offline")}
                            currently google/gemini-2.5-flash).
     --label <text>         Label appended to the output filename
                            (default: rescore-<ISO timestamp>).
-                           File written to scores/mmrubric_<label>.json.
-    --json                 Emit the Verdict as JSON to stdout instead of a human summary.
-    --dry-run              Don't write to disk; print verdict and exit.
+                           File written to scores/result_<label>.json.
+    --json                 Emit the result as JSON to stdout instead of a human summary.
+    --dry-run              Don't write to disk; print result and exit.
     --help, -h             This message.
 
   ${cyan("Examples")}
     evals verify .trajectories/2026-05-11T06-47-09-697Z/united_13
     evals verify .trajectories/<run>/<task> --model anthropic/claude-haiku-4-5 --label tuning-pass-1
-    evals verify .trajectories/<run>/<task> --json > verdict.json
+    evals verify .trajectories/<run>/<task> --json > result.json
 `);
 }
 
@@ -145,43 +140,47 @@ export async function handleVerify(args: string[]): Promise<void> {
     );
   }
   const startMs = Date.now();
-  const verdict = await evaluator.verify(trajectory, trajectory.task);
+  const result = await evaluator.verify(trajectory, trajectory.task);
   const elapsedMs = Date.now() - startMs;
 
   if (parsed.json) {
-    process.stdout.write(JSON.stringify(verdict, null, 2) + "\n");
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
     return;
   }
 
   // ── Human summary ──────────────────────────────────────────────────────
   console.log(`  ${green("✓")} verified in ${(elapsedMs / 1000).toFixed(1)}s`);
   console.log();
+  const processScore =
+    result.processScore === undefined ? "n/a" : result.processScore.toFixed(3);
   console.log(
-    `${bold("Verdict")}  outcomeSuccess=${verdict.outcomeSuccess}  processScore=${verdict.processScore.toFixed(3)}`,
+    `${bold("Result")}  outcomeSuccess=${result.outcomeSuccess}  processScore=${processScore}`,
   );
+  const perCriterion = result.perCriterion ?? [];
+  const evidenceInsufficient = result.evidenceInsufficient ?? [];
   console.log(
-    `${dim("        ")} criteria=${verdict.perCriterion.length}  evidenceInsufficient=${verdict.evidenceInsufficient.length}`,
+    `${dim("       ")} criteria=${perCriterion.length}  evidenceInsufficient=${evidenceInsufficient.length}`,
   );
 
-  if (verdict.perCriterion.length > 0) {
+  if (perCriterion.length > 0) {
     console.log();
     console.log(bold("Per-criterion"));
-    for (const c of verdict.perCriterion) {
+    for (const c of perCriterion) {
       const earned = c.earnedPoints === null ? "—" : c.earnedPoints.toFixed(1);
       const flag = c.evidenceInsufficient
         ? ` ${yellow("[evidence_insufficient]")}`
         : "";
       console.log(`  ${cyan(earned)}/${c.maxPoints}  ${c.criterion}${flag}`);
-      if (c.justification) {
-        console.log(`    ${dim(c.justification.slice(0, 220))}`);
+      if (c.explanation) {
+        console.log(`    ${dim(c.explanation.slice(0, 220))}`);
       }
     }
   }
 
-  if (verdict.findings && verdict.findings.length > 0) {
+  if (result.findings && result.findings.length > 0) {
     console.log();
-    console.log(bold(`Findings (${verdict.findings.length})`));
-    for (const f of verdict.findings) {
+    console.log(bold(`Findings (${result.findings.length})`));
+    for (const f of result.findings) {
       const sev =
         f.severity === "blocking"
           ? red(`[${f.severity}]`)
@@ -202,13 +201,13 @@ export async function handleVerify(args: string[]): Promise<void> {
   // ── Persist ────────────────────────────────────────────────────────────
   if (parsed.dryRun) {
     console.log();
-    console.log(dim("dry-run: verdict not written to disk"));
+    console.log(dim("dry-run: result not written to disk"));
     return;
   }
-  const filename = nextVerdictFilename(parsed.label);
+  const filename = nextResultFilename(parsed.label);
   const outPath = path.join(dir, "scores", filename);
   await fs.mkdir(path.dirname(outPath), { recursive: true });
-  await fs.writeFile(outPath, JSON.stringify(verdict, null, 2));
+  await fs.writeFile(outPath, JSON.stringify(result, null, 2));
   console.log();
   console.log(
     `${green("✓")} wrote ${cyan(path.relative(process.cwd(), outPath))}`,
