@@ -1,14 +1,9 @@
-import {
-  normalizeRubric,
-  type Rubric,
-  type SerializedRubric,
-  type TaskSpec,
-} from "@browserbasehq/stagehand";
+import { normalizeRubric, type TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import {
+  evaluationResultToSuccess,
   runWithVerifier,
-  verdictToSuccess,
 } from "../../../framework/verifierAdapter.js";
 
 /**
@@ -33,7 +28,7 @@ export default defineBenchTask(
         category?: string;
         ques?: string;
         web?: string;
-        precomputed_rubric?: Rubric | SerializedRubric;
+        precomputed_rubric?: unknown;
       };
 
       if (!params.ques) {
@@ -65,7 +60,7 @@ export default defineBenchTask(
         precomputedRubric: normalizeRubric(params.precomputed_rubric),
       };
 
-      const { verdict, trajectory, trajectoryDir, rubric } =
+      const { evaluationResult, trajectory, trajectoryDir, rubric } =
         await runWithVerifier({
           v3,
           agent,
@@ -80,20 +75,20 @@ export default defineBenchTask(
 
       logger.log({
         category: "evaluation",
-        message: `verdict: outcome=${verdict.outcomeSuccess} process=${verdict.processScore.toFixed(2)} criteria=${rubric.items.length} steps=${trajectory.steps.length}`,
+        message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} criteria=${rubric.items.length} steps=${trajectory.steps.length}`,
         level: 1,
       });
 
       return {
-        _success: verdictToSuccess(verdict, successMode),
-        outcomeSuccess: verdict.outcomeSuccess,
-        processScore: verdict.processScore,
-        evidenceInsufficient: verdict.evidenceInsufficient,
+        _success: evaluationResultToSuccess(evaluationResult, successMode),
+        outcomeSuccess: evaluationResult.outcomeSuccess,
+        processScore: evaluationResult.processScore,
+        evidenceInsufficient: evaluationResult.evidenceInsufficient,
         criterionCount: rubric.items.length,
         stepCount: trajectory.steps.length,
         trajectoryDir,
-        primaryIntent: verdict.rawSteps?.primaryIntent,
-        reasoning: verdict.rawSteps?.reasoning,
+        primaryIntent: evaluationResult.rawSteps?.primaryIntent,
+        reasoning: evaluationResult.rawSteps?.reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -111,3 +106,7 @@ export default defineBenchTask(
     }
   },
 );
+
+function formatProcessScore(score: number | undefined): string {
+  return typeof score === "number" ? score.toFixed(2) : "n/a";
+}

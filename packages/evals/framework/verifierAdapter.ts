@@ -4,7 +4,7 @@
  * Replaces the per-task ScreenshotCollector + V3Evaluator.ask() boilerplate
  * with one call:
  *
- *   const { verdict, trajectory } = await runWithVerifier({
+ *   const { evaluationResult, trajectory } = await runWithVerifier({
  *     v3,
  *     agent,
  *     taskSpec: { id, instruction, initUrl, precomputedRubric? },
@@ -12,16 +12,15 @@
  *   });
  *
  * Behavior:
- *   1. Resolves the rubric — precomputedRubric (e.g., upstream WebTailBench),
- *      or generates via Step 0a and caches under .rubric-cache/<dataset>/.
+ *   1. Resolves the rubric from the task, cache, or evaluator.
  *   2. Wraps agent.execute() with a TrajectoryRecorder subscribed to the bus.
  *   3. Runs V3Evaluator.verify() on the recorded Trajectory.
- *   4. Returns { trajectory, verdict, agentResult }.
+ *   4. Returns { trajectory, evaluationResult, agentResult }.
  *
  * Persistence and rubric caching are gated by env vars:
  *   VERIFIER_PERSIST_TRAJECTORIES   — on locally, off in CI by default.
  *   VERIFIER_DISABLE_RUBRIC_CACHE   — set to "1" to bypass the cache (forces
- *                                     a fresh Step 0a call every time).
+ *                                     fresh rubric generation every time).
  */
 import {
   V3Evaluator,
@@ -29,11 +28,11 @@ import {
   type AgentInstance,
   type AgentExecuteOptions,
   type AgentResult,
+  type EvaluationResult,
   type Rubric,
   type TaskSpec,
   type Trajectory,
   type V3,
-  type Verdict,
 } from "@browserbasehq/stagehand";
 
 import { RubricCache } from "./rubricCache.js";
@@ -58,7 +57,7 @@ export interface RunWithVerifierOptions {
 
 export interface RunWithVerifierResult {
   trajectory: Trajectory;
-  verdict: Verdict;
+  evaluationResult: EvaluationResult;
   agentResult: AgentResult;
   /** Resolved rubric (precomputed, cached, or freshly generated). */
   rubric: Rubric;
@@ -122,12 +121,12 @@ export async function runWithVerifier(
   });
 
   // ── Verify ──────────────────────────────────────────────────────────────
-  const verdict = await evaluator.verify(trajectory, hydratedTaskSpec);
-  await recorder.persistVerdict(verdict);
+  const evaluationResult = await evaluator.verify(trajectory, hydratedTaskSpec);
+  await recorder.persistResult(evaluationResult);
 
   return {
     trajectory,
-    verdict,
+    evaluationResult,
     agentResult,
     rubric: resolvedRubric,
     trajectoryDir: recorder.directory,
@@ -135,7 +134,7 @@ export async function runWithVerifier(
 }
 
 /**
- * Decide bench task success from a Verdict using the --success flag's
+ * Decide bench task success from an EvaluationResult using the --success flag's
  * semantics.
  *
  * `outcome` (default) — strict binary outcome.
@@ -157,14 +156,16 @@ export function resolveEvalSuccessMode(mode: unknown): EvalSuccessMode {
   return "outcome";
 }
 
-export function verdictToSuccess(
-  verdict: Verdict,
+export function evaluationResultToSuccess(
+  result: EvaluationResult,
   mode: unknown = "outcome",
   processThreshold = 0.8,
 ): boolean {
   const resolvedMode = resolveEvalSuccessMode(mode);
-  const outcomeOk = verdict.outcomeSuccess;
-  const processOk = verdict.processScore >= processThreshold;
+  const outcomeOk = result.outcomeSuccess;
+  const processOk =
+    typeof result.processScore === "number" &&
+    result.processScore >= processThreshold;
   switch (resolvedMode) {
     case "outcome":
       return outcomeOk;

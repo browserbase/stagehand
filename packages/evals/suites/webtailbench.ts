@@ -1,9 +1,5 @@
 import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
-import {
-  normalizeRubric,
-  type AvailableModel,
-  type SerializedRubric,
-} from "@browserbasehq/stagehand";
+import { normalizeRubric, type AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
 import { getPackageRootDir } from "../runtimePaths.js";
 import {
@@ -39,10 +35,9 @@ export const buildWebTailBenchTestcases = (
     /**
      * Per-task rubric ported from microsoft/WebTailBench-v1-rubrics.tsv
      * via packages/evals/scripts/backfill-webtailbench-rubrics.ts.
-     * When present, the verifier skips Step 0a generation and uses these
-     * upstream criteria directly.
+     * When present, the verifier uses these upstream criteria directly.
      */
-    precomputed_rubric?: SerializedRubric;
+    precomputed_rubric?: unknown;
     [key: string]: unknown;
   };
 
@@ -54,9 +49,8 @@ export const buildWebTailBenchTestcases = (
 
   const candidates = parseJsonlRows(lines, isWebTailBenchRow);
 
-  // EVAL_WEBTAILBENCH_IDS — comma-separated task IDs. When set, restricts the
-  // suite to exactly those IDs (in the order given) and ignores sampling /
-  // limit knobs. Used by verifier-A/B experiments to pin a deterministic slice.
+  // EVAL_WEBTAILBENCH_IDS restricts the suite to exactly those task IDs,
+  // preserving the order given and ignoring sampling / limit knobs.
   const explicitIds = process.env.EVAL_WEBTAILBENCH_IDS
     ? process.env.EVAL_WEBTAILBENCH_IDS.split(",")
         .map((s) => s.trim())

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { Verdict } from "@browserbasehq/stagehand";
+import type { EvaluationResult } from "@browserbasehq/stagehand";
 
 import {
+  evaluationResultToSuccess,
   resolveEvalSuccessMode,
-  verdictToSuccess,
 } from "../../framework/verifierAdapter.js";
 
-const baseVerdict: Verdict = {
+const baseResult: EvaluationResult = {
   outcomeSuccess: true,
   processScore: 0.5,
   perCriterion: [],
@@ -22,11 +22,18 @@ describe("resolveEvalSuccessMode", () => {
   });
 });
 
-describe("verdictToSuccess", () => {
+describe("evaluationResultToSuccess", () => {
   it("uses validated success modes", () => {
-    expect(verdictToSuccess(baseVerdict, "outcome")).toBe(true);
-    expect(verdictToSuccess(baseVerdict, "process")).toBe(false);
-    expect(verdictToSuccess(baseVerdict, "both")).toBe(false);
-    expect(verdictToSuccess(baseVerdict, "invalid")).toBe(true);
+    expect(evaluationResultToSuccess(baseResult, "outcome")).toBe(true);
+    expect(evaluationResultToSuccess(baseResult, "process")).toBe(false);
+    expect(evaluationResultToSuccess(baseResult, "both")).toBe(false);
+    expect(evaluationResultToSuccess(baseResult, "invalid")).toBe(true);
+  });
+
+  it("treats missing process score as a failed process gate", () => {
+    const outcomeOnly: EvaluationResult = { outcomeSuccess: true };
+    expect(evaluationResultToSuccess(outcomeOnly, "outcome")).toBe(true);
+    expect(evaluationResultToSuccess(outcomeOnly, "process")).toBe(false);
+    expect(evaluationResultToSuccess(outcomeOnly, "both")).toBe(false);
   });
 });
