@@ -4,7 +4,7 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";
 import {
   runWithVerifier,
-  verdictToSuccess,
+  evaluationResultToSuccess,
 } from "../../../framework/verifierAdapter.js";
 
 /**
@@ -71,7 +71,7 @@ export default defineBenchTask(
         precomputedRubric: adHocRubric(criterion),
       };
 
-      const { verdict, trajectoryDir } = await runWithVerifier({
+      const { evaluationResult, trajectoryDir } = await runWithVerifier({
         v3,
         agent,
         taskSpec,
@@ -84,9 +84,9 @@ export default defineBenchTask(
       const successMode = process.env.EVAL_SUCCESS_MODE;
 
       return {
-        _success: verdictToSuccess(verdict, successMode),
-        outcomeSuccess: verdict.outcomeSuccess,
-        processScore: verdict.processScore,
+        _success: evaluationResultToSuccess(evaluationResult, successMode),
+        outcomeSuccess: evaluationResult.outcomeSuccess,
+        processScore: evaluationResult.processScore,
         expectedAnswer: params.expected,
         trajectoryDir,
         debugUrl,
