@@ -2,7 +2,7 @@ import type { AvailableModel, ClientOptions } from "./v3/types/public/model.js";
 import type {
   EvaluateOptions,
   BatchAskOptions,
-  EvaluationResult,
+  EvaluationResult as LegacyEvaluationResult,
 } from "./v3/types/private/evaluator.js";
 import { V3 } from "./v3/v3.js";
 import { StagehandInvalidArgumentError } from "./v3/types/public/sdkErrors.js";
@@ -10,7 +10,7 @@ import { LegacyV3Evaluator } from "./v3LegacyEvaluator.js";
 import type {
   Trajectory,
   TaskSpec,
-  Verdict,
+  EvaluationResult,
   Rubric,
   Verifier,
   AgentEvidenceModality,
@@ -69,15 +69,18 @@ export class V3Evaluator implements Verifier {
     );
   }
 
-  async ask(options: EvaluateOptions): Promise<EvaluationResult> {
+  async ask(options: EvaluateOptions): Promise<LegacyEvaluationResult> {
     return this.getLegacyBackend("ask").ask(options);
   }
 
-  async batchAsk(options: BatchAskOptions): Promise<EvaluationResult[]> {
+  async batchAsk(options: BatchAskOptions): Promise<LegacyEvaluationResult[]> {
     return this.getLegacyBackend("batchAsk").batchAsk(options);
   }
 
-  async verify(trajectory: Trajectory, taskSpec: TaskSpec): Promise<Verdict> {
+  async verify(
+    trajectory: Trajectory,
+    taskSpec: TaskSpec,
+  ): Promise<EvaluationResult> {
     assertVerifierInput(trajectory, taskSpec);
 
     if (this.backend === "legacy") {
@@ -120,14 +123,13 @@ export class V3Evaluator implements Verifier {
   private async verifyTrajectoryWithLegacyEvaluator(
     trajectory: Trajectory,
     taskSpec: TaskSpec,
-  ): Promise<Verdict> {
+  ): Promise<EvaluationResult> {
     const screenshots = collectLegacyScreenshots(trajectory);
     const agentReasoning = renderLegacyAgentReasoning(trajectory);
     const answer = trajectory.finalAnswer;
 
     if (!screenshots.length && !answer) {
-      return legacyInsufficientEvidenceVerdict(
-        taskSpec,
+      return legacyInsufficientEvidenceResult(
         "Legacy evaluator compatibility mode had no screenshots or final answer to evaluate.",
       );
     }
@@ -139,7 +141,7 @@ export class V3Evaluator implements Verifier {
       agentReasoning,
     });
 
-    return legacyEvaluationToVerdict(result, taskSpec, screenshots.length);
+    return legacyEvaluationToResult(result, screenshots.length);
   }
 }
 
@@ -246,20 +248,14 @@ function renderLegacyAgentReasoning(
       .join("\n");
   });
 
-  const sections = [
-    stepLines.length
-      ? `Agent trajectory:\n${stepLines.join("\n\n")}`
-      : undefined,
-    trajectory.finalAnswer
-      ? `Final answer:\n${trajectory.finalAnswer}`
-      : undefined,
-  ].filter(Boolean);
-
-  if (!sections.length) {
+  if (!stepLines.length) {
     return undefined;
   }
 
-  return truncateForPrompt(sections.join("\n\n"), 16000);
+  return truncateForPrompt(
+    `Agent trajectory:\n${stepLines.join("\n\n")}`,
+    16000,
+  );
 }
 
 function stringifyForPrompt(value: unknown): string {
@@ -283,14 +279,12 @@ function truncateForPrompt(value: string, maxLength: number): string {
   return `${value.slice(0, maxLength)}... [truncated]`;
 }
 
-function legacyEvaluationToVerdict(
-  result: EvaluationResult,
-  taskSpec: TaskSpec,
+function legacyEvaluationToResult(
+  result: LegacyEvaluationResult,
   screenshotCount: number,
-): Verdict {
+): EvaluationResult {
   const outcomeSuccess = result.evaluation === "YES";
   const invalid = result.evaluation === "INVALID";
-  const criterion = legacyTaskCompletionCriterion(taskSpec);
   const findings: VerifierFinding[] = invalid
     ? [
         {
@@ -303,22 +297,8 @@ function legacyEvaluationToVerdict(
 
   return {
     outcomeSuccess,
-    processScore: outcomeSuccess ? 1 : 0,
-    perCriterion: [
-      {
-        criterion: criterion.criterion,
-        maxPoints: criterion.maxPoints,
-        earnedPoints: outcomeSuccess ? 1 : 0,
-        justification: result.reasoning,
-        evidenceInsufficient: invalid,
-      },
-    ],
-    taskValidity: {
-      isAmbiguous: false,
-      isInvalid: false,
-    },
-    evidenceInsufficient: invalid ? [criterion.criterion] : [],
-    findings,
+    explanation: result.reasoning,
+    ...(findings.length ? { findings } : {}),
     rawSteps: {
       backend: "legacy",
       legacyEvaluation: result.evaluation,
@@ -327,29 +307,10 @@ function legacyEvaluationToVerdict(
   };
 }
 
-function legacyInsufficientEvidenceVerdict(
-  taskSpec: TaskSpec,
-  reason: string,
-): Verdict {
-  const criterion = legacyTaskCompletionCriterion(taskSpec);
-
+function legacyInsufficientEvidenceResult(reason: string): EvaluationResult {
   return {
     outcomeSuccess: false,
-    processScore: 0,
-    perCriterion: [
-      {
-        criterion: criterion.criterion,
-        maxPoints: criterion.maxPoints,
-        earnedPoints: 0,
-        justification: reason,
-        evidenceInsufficient: true,
-      },
-    ],
-    taskValidity: {
-      isAmbiguous: false,
-      isInvalid: false,
-    },
-    evidenceInsufficient: [criterion.criterion],
+    explanation: reason,
     findings: [
       {
         category: "trajectory_capture",

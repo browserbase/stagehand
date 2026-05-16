@@ -139,7 +139,7 @@ describe("V3 Core public API types", () => {
         (
           trajectory: Stagehand.Trajectory,
           taskSpec: Stagehand.TaskSpec,
-        ) => Promise<Stagehand.Verdict>
+        ) => Promise<Stagehand.EvaluationResult>
       >();
       expectTypeOf<V3EvaluatorInstance["generateRubric"]>().toExtend<
         (taskSpec: Stagehand.TaskSpec) => Promise<Stagehand.Rubric>

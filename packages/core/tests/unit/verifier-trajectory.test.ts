@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   loadTrajectoryFromDisk,
-  nextVerdictFilename,
+  nextResultFilename,
   normalizeRubric,
 } from "../../lib/v3/verifier/trajectory.js";
 
@@ -54,9 +54,7 @@ describe("verifier trajectory utilities", () => {
           criterion: "Criterion",
           description: "Description",
           maxPoints: 3,
-          earnedPoints: 2,
           condition: "Only if relevant",
-          justification: "Partial credit.",
         },
       ],
     });
@@ -144,9 +142,9 @@ describe("verifier trajectory utilities", () => {
     );
   });
 
-  it("sanitizes verdict filename labels", () => {
-    expect(nextVerdictFilename("rescore / task:one?")).toBe(
-      "mmrubric_rescore___task_one_.json",
+  it("sanitizes result filename labels", () => {
+    expect(nextResultFilename("rescore / task:one?")).toBe(
+      "result_rescore___task_one_.json",
     );
   });
 });

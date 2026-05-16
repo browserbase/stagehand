@@ -1,5 +1,5 @@
 /**
- * Shared verifier types for trajectories, rubrics, evidence, and verdicts.
+ * Shared verifier types for trajectories, rubrics, evidence, and results.
  *
  * The verifier consumes saved trajectories instead of a live browser. DOM and
  * Hybrid runs preserve tool-return text/JSON evidence, while CUA runs preserve
@@ -15,11 +15,7 @@ export interface TrajectoryUsage {
   inference_time_ms?: number;
 }
 
-/**
- * A single criterion in a Stagehand rubric. Dataset and model wire formats may
- * use serialized `max_points` / `earned_points`; normalize those with
- * `normalizeRubric()` at the boundary.
- */
+/** A single criterion in a Stagehand rubric. */
 export interface RubricCriterion {
   /** Short name of the criterion (e.g., "Add ground beef to cart"). */
   criterion: string;
@@ -28,40 +24,16 @@ export interface RubricCriterion {
   /** Maximum points for this criterion. */
   maxPoints: number;
   /**
-   * Triggering condition for conditional criteria. Only counted when met
-   * (paper's "Mutually Exclusive Conditionals" pattern).
+   * Applicability rule for situational criteria. When this condition is not
+   * met, the criterion is excluded from scoring rather than counted as failed.
    */
   condition?: string;
-  /** Filled by the verifier during scoring; empty in precomputed rubrics. */
-  justification?: string;
-  /** Filled by the verifier during scoring; omitted in precomputed rubrics. */
-  earnedPoints?: number;
 }
 
 /** A rubric — list of criteria for a task. */
 export interface Rubric {
   items: RubricCriterion[];
 }
-
-/**
- * Serialized rubric item shape as stored in datasets and prompt responses.
- * Keep this at IO boundaries; core verifier types use camelCase.
- */
-export interface SerializedRubricCriterion {
-  criterion: string;
-  description: string;
-  max_points: number;
-  condition?: string;
-  justification?: string;
-  earned_points?: number | string;
-}
-
-/** Serialized rubric shape used by upstream datasets and generated JSON. */
-export interface SerializedRubric {
-  items: SerializedRubricCriterion[];
-}
-
-export type RubricInput = Rubric | SerializedRubric;
 
 /**
  * Spec for a single task being verified. Carried both at runtime and into the
@@ -162,11 +134,11 @@ export type TrajectoryStatus = "complete" | "aborted" | "stalled" | "error";
  * The on-disk layout is one directory per task:
  *
  *   .trajectories/<run-id>/<task-id>/
- *     ├── task_data.json    — TaskSpec + Verdict (filled on completion)
+ *     ├── task_data.json    — TaskSpec + result metadata
  *     ├── trajectory.json   — this object, with screenshotPath instead of bytes
  *     ├── screenshot_1.png  — probeEvidence.screenshot for step 1, etc.
  *     ├── scores/
- *     │   └── mmrubric_v1.json  — Verdict from V3Evaluator.verify()
+ *     │   └── result.json       — Result from V3Evaluator.verify()
  *     ├── core.log          — captured action log
  *     └── times.json        — step timing + token usage
  */
@@ -191,8 +163,8 @@ export interface CriterionScore {
    * from both numerator and denominator in the process score).
    */
   earnedPoints: number | null;
-  /** Verifier's free-text justification for the score. */
-  justification: string;
+  /** Verifier's explanation for the score. */
+  explanation: string;
   /**
    * True if the criterion is conditional and its condition was determined to
    * be met. Absent for non-conditional criteria.
@@ -201,7 +173,7 @@ export interface CriterionScore {
   /**
    * Set when the verifier had no evidence to ground this criterion in either
    * tier. Per paper §2, treated as uncontrollable failure → full credit, but
-   * surfaced here so dashboards can flag low-confidence verdicts.
+   * surfaced here so dashboards can flag low-confidence results.
    */
   evidenceInsufficient?: boolean;
 }
@@ -228,7 +200,7 @@ export interface FirstPointOfFailure {
  * repeated tool-call failures, ambiguous task specs, evidence gaps, etc.
  *
  * Not produced for every task: when nothing actionable surfaces, the
- * `findings` array on the Verdict is empty. Consumers should treat the
+ * `findings` array on the EvaluationResult is empty. Consumers should treat the
  * field as advisory, not as part of the formal score.
  */
 export interface VerifierFinding {
@@ -288,29 +260,33 @@ export interface TaskValidity {
 }
 
 /**
- * The verifier's output. Process score + outcome verdict + diagnostic signals.
+ * Evaluator output. Legacy evaluation may only populate outcome fields; richer
+ * verifier backends can also populate process scoring and diagnostics.
  *
- * Process and outcome are deliberately independent (paper §2): an agent can
- * follow the right steps but get blocked (high process, low outcome), or
- * succeed through an unexpected path (variable process, high outcome).
+ * Process and outcome are deliberately independent when both are present:
+ * an agent can follow the right steps but get blocked (high process, low
+ * outcome), or succeed through an unexpected path (variable process, high
+ * outcome).
  */
-export interface Verdict {
-  /** Step 8 — did the agent accomplish the task from the user's perspective? */
+export interface EvaluationResult {
+  /** Did the agent accomplish the task from the user's perspective? */
   outcomeSuccess: boolean;
+  /** Human-readable explanation for the outcome. */
+  explanation?: string;
   /** Aggregated earned/max across applicable criteria, in [0, 1]. */
-  processScore: number;
+  processScore?: number;
   /** Per-criterion breakdown after rescoring. */
-  perCriterion: CriterionScore[];
+  perCriterion?: CriterionScore[];
   /** Step 9a — first step where the trajectory went off-track, if any. */
   firstPointOfFailure?: FirstPointOfFailure;
   /** Step 10 — task-itself ambiguity / validity. */
-  taskValidity: TaskValidity;
+  taskValidity?: TaskValidity;
   /**
    * Ids (RubricCriterion.criterion strings) of criteria where neither tier of
    * evidence resolved the question. Treated as uncontrollable → full credit,
    * but flagged here so consumers can decide whether to discount the score.
    */
-  evidenceInsufficient: string[];
+  evidenceInsufficient?: string[];
   /**
    * Structured observations from the verifier that a downstream tool or
    * follow-up agent could act on. Opportunistic — empty when the verifier
@@ -321,16 +297,10 @@ export interface Verdict {
   rawSteps?: VerifierRawSteps;
 }
 
-/** Reason a stub verifier can emit. */
-export type StubVerdictReason =
-  | "stub-verifier"
-  | "no-rubric"
-  | "empty-trajectory";
-
 /**
  * Verifier interface. Implementations consume a Trajectory + TaskSpec and
- * return a Verdict — they MUST NOT touch a live browser.
+ * return an EvaluationResult — they MUST NOT touch a live browser.
  */
 export interface Verifier {
-  verify(trajectory: Trajectory, taskSpec: TaskSpec): Promise<Verdict>;
+  verify(trajectory: Trajectory, taskSpec: TaskSpec): Promise<EvaluationResult>;
 }
