@@ -31,7 +31,7 @@ import type {
   TrajectoryStatus,
   TrajectoryStep,
   TrajectoryUsage,
-  Verdict,
+  EvaluationResult,
   V3,
 } from "@browserbasehq/stagehand";
 
@@ -239,12 +239,12 @@ export class TrajectoryRecorder {
   }
 
   /**
-   * Persist verifier scores next to the trajectory. No-op when trajectory
+   * Persist evaluator result next to the trajectory. No-op when trajectory
    * persistence is disabled.
    */
-  async persistVerdict(
-    verdict: Verdict,
-    filename = "mmrubric_v1.json",
+  async persistResult(
+    result: EvaluationResult,
+    filename = "result.json",
   ): Promise<void> {
     if (!this.persistEnabled) return;
 
@@ -252,7 +252,7 @@ export class TrajectoryRecorder {
     await fs.mkdir(scoresDir, { recursive: true });
     await fs.writeFile(
       path.join(scoresDir, filename),
-      JSON.stringify(verdict, null, 2),
+      JSON.stringify(result, null, 2),
     );
 
     const taskDataPath = path.join(this.outputDir, "task_data.json");
@@ -267,7 +267,7 @@ export class TrajectoryRecorder {
     }
     await fs.writeFile(
       taskDataPath,
-      JSON.stringify({ ...taskData, verdict }, null, 2),
+      JSON.stringify({ ...taskData, result }, null, 2),
     );
   }
 
@@ -403,7 +403,7 @@ export class TrajectoryRecorder {
       JSON.stringify(serialized, null, 2),
     );
 
-    // task_data.json stores TaskSpec + (later) verdict.
+    // task_data.json stores TaskSpec + (later) result.
     await fs.writeFile(
       path.join(this.outputDir, "task_data.json"),
       JSON.stringify(
