@@ -5,16 +5,8 @@
  * event name so consumers (TrajectoryRecorder in packages/evals, custom
  * subscribers) can type their handlers.
  *
- * Wave 0 of the verifier rewrite plan introduces:
- *   - agent_screenshot_taken_event    — independent post-step screenshot probe
- *   - agent_step_finished_event       — fired per tool-call in a step result
- *   - agent_step_observed_event       — fired after the harness probe completes
- *   - agent_final_answer_event        — fired when the `done` tool resolves
- *
- * `agent_step_started_event` is documented in the plan but deferred — the AI
- * SDK's `onStepFinish` is a post-hook, and there's no symmetric pre-hook per
- * tool execution in v3AgentHandler today. Started-state can be derived from
- * the finished event's stepIndex if needed.
+ * The verifier recorder consumes these events to assemble persisted
+ * trajectories without coupling to individual agent handlers.
  */
 
 /**
@@ -37,7 +29,7 @@ export type BusEventName = (typeof BUS_EVENTS)[keyof typeof BUS_EVENTS];
  *
  * Note: in CUA mode the same Buffer is also what the provider received; in
  * DOM/hybrid mode it's an independent harness probe. The verifier treats them
- * as different evidence tiers regardless — see plan §04 ("Mode-by-mode sources").
+ * as different evidence tiers regardless.
  */
 export interface AgentScreenshotTakenEvent {
   /** Zero-based index of the step this screenshot corresponds to. */
@@ -63,7 +55,7 @@ export interface AgentScreenshotTakenEvent {
  *
  * Tier 1 evidence (the bytes the LLM consumed as the tool result) is captured
  * separately by the harness via an AgentExecuteCallbacks.onStepFinish wrapper
- * — not in this payload. See plan §10 Q1 (resolved: onStepFinish).
+ * and is not part of this payload.
  */
 export interface AgentStepFinishedEvent {
   stepIndex: number;
@@ -86,8 +78,7 @@ export interface AgentStepFinishedEvent {
 
 /**
  * Payload for `agent_step_observed_event`. Emitted after the harness probe
- * completes for a step (page URL captured at minimum; a11y tree and scroll
- * info added in Wave 2).
+ * completes for a step.
  */
 export interface AgentStepObservedEvent {
   stepIndex: number;

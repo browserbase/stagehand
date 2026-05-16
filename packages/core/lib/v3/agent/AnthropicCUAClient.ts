@@ -902,10 +902,6 @@ export class AnthropicCUAClient extends AgentClient {
             ...input,
           };
         } else if (action === "triple_click" || action === "tripleClick") {
-          // Anthropic's computer_20250124 tool emits `triple_click` with
-          // `coordinate: [x, y]`. Without this branch the snake_case name +
-          // raw coordinate array fall through to the generic `else` and
-          // executeAction logs "Unknown action type: triple_click".
           return {
             type: "tripleClick",
             x:
