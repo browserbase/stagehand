@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Re-verify each stored trajectory under BOTH approaches via `bench verify`.
+# Re-verify each stored trajectory under each verifier approach via `bench verify`.
 # Lets us isolate verifier disagreement from agent variance.
 #
 # Inputs: every trajectory dir matched by TRAJECTORY_GLOB.
-# Outputs: scores/mmrubric_cross-{a,b}.json next to each trajectory.
+# Outputs: scores/mmrubric_cross-{outcome-only,a,b}.json next to each trajectory.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -25,7 +25,7 @@ echo "Found ${#DIRS[@]} trajectory dirs"
 for d in "${DIRS[@]}"; do
   task=$(basename "$d")
   echo "=== $(basename "$(dirname "$d")")/$task ==="
-  for approach in b a; do
+  for approach in outcome-only b a; do
     label="cross-${approach}"
     out_file="$d/scores/mmrubric_${label}.json"
     if [[ -f "$out_file" ]]; then
