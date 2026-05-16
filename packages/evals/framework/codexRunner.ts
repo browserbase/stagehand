@@ -6,7 +6,7 @@ import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import { codexAdapter } from "./harnesses/codexAdapter.js";
 import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
-import { verdictToSuccess } from "./verifierAdapter.js";
+import { evaluationResultToSuccess } from "./verifierAdapter.js";
 
 type MetricValue = { count: number; value: number };
 type CodexEvent = Record<string, unknown>;
@@ -57,8 +57,9 @@ export interface CodexRunnerInput {
   /**
    * Optional verifier integration. When provided, the runner builds a
    * Trajectory from the codex event stream (via codexAdapter), runs
-   * V3Evaluator.verify() against the supplied TaskSpec, and folds the verdict
-   * into the returned TaskResult ({_success} mode follows EVAL_SUCCESS_MODE).
+   * V3Evaluator.verify() against the supplied TaskSpec, and folds the
+   * EvaluationResult into the returned TaskResult ({_success} mode follows
+   * EVAL_SUCCESS_MODE).
    * When omitted, the runner falls back to parsing the legacy JSON result —
    * preserves current behavior for callers that haven't migrated.
    */
@@ -281,21 +282,24 @@ export async function runCodexAgent({
       precomputedRubric: rubric,
     };
 
-    const verdict = await evaluator.verify(trajectory, hydratedSpec);
+    const evaluationResult = await evaluator.verify(trajectory, hydratedSpec);
     const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
-    const verifiedSuccess = verdictToSuccess(verdict, successMode);
+    const verifiedSuccess = evaluationResultToSuccess(
+      evaluationResult,
+      successMode,
+    );
 
     const { directory: trajectoryDir } = await persistAdapterTrajectory({
       trajectory,
       taskSpec: hydratedSpec,
-      verdict,
+      evaluationResult,
       outputRoot: verifier.trajectoryRoot,
       runId: verifier.runId,
     });
 
     logger.log({
       category: "codex",
-      message: `verdict: outcome=${verdict.outcomeSuccess} process=${verdict.processScore.toFixed(2)} steps=${trajectory.steps.length}`,
+      message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} steps=${trajectory.steps.length}`,
       level: 1,
     });
 
@@ -303,9 +307,9 @@ export async function runCodexAgent({
       ...baseResult,
       _success: verifiedSuccess,
       error: verifiedSuccess ? undefined : (baseResult.error ?? errorMessage),
-      outcomeSuccess: verdict.outcomeSuccess,
-      processScore: verdict.processScore,
-      evidenceInsufficient: verdict.evidenceInsufficient,
+      outcomeSuccess: evaluationResult.outcomeSuccess,
+      processScore: evaluationResult.processScore,
+      evidenceInsufficient: evaluationResult.evidenceInsufficient,
       criterionCount: rubric.items.length,
       stepCount: trajectory.steps.length,
       trajectoryDir,
@@ -321,6 +325,10 @@ export async function runCodexAgent({
     });
     return baseResult;
   }
+}
+
+function formatProcessScore(score: number | undefined): string {
+  return typeof score === "number" ? score.toFixed(2) : "n/a";
 }
 
 function tryParseCodexJson(

@@ -3,14 +3,12 @@
  * provider-shaped event/message log) into the Stagehand `Trajectory` shape
  * that V3Evaluator.verify() consumes.
  *
- * The verifier is harness-agnostic (Trajectory + TaskSpec → Verdict; pure
- * function, no live browser). That property is what lets non-Stagehand
+ * The verifier is harness-agnostic (Trajectory + TaskSpec → EvaluationResult,
+ * no live browser). That property is what lets non-Stagehand
  * harnesses — Claude Code, Codex — be scored with the same rubric pipeline
  * we use for Stagehand. Each external harness ships its own
  * `TrajectoryAdapter<THarnessResult>` that maps its tool-call/message log to
  * a `Trajectory`. The verifier never knows which adapter produced it.
- *
- * @see ~/.claude/plans/verifier-rewrite-plan.html §07 "External harness adapters"
  */
 import type {
   AgentEvidence,
@@ -26,9 +24,9 @@ import type {
  * the same Trajectory.
  *
  * Empty `probeEvidence` on every step is supported — the verifier degrades
- * gracefully via the `evidence_insufficient` path (paper's uncontrollable-
- * failure principle). Text-heavy tasks (extract, lookup, search) still get a
- * meaningful outcome verdict; visual-grounding criteria get flagged as
+ * gracefully via the `evidence_insufficient` path. Text-heavy tasks
+ * (extract, lookup, search) still get a
+ * meaningful outcome assessment; visual-grounding criteria get flagged as
  * evidence_insufficient rather than silently miscredited.
  */
 export interface TrajectoryAdapter<THarnessResult> {

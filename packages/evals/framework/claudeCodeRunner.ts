@@ -6,7 +6,7 @@ import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { PreparedClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
 import { claudeCodeAdapter } from "./harnesses/claudeCodeAdapter.js";
 import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
-import { verdictToSuccess } from "./verifierAdapter.js";
+import { evaluationResultToSuccess } from "./verifierAdapter.js";
 
 type ClaudeSdkMessage = Record<string, unknown>;
 type ClaudeQuery = AsyncIterable<ClaudeSdkMessage>;
@@ -48,8 +48,9 @@ export interface ClaudeCodeRunnerInput {
   /**
    * Optional verifier integration. When provided, the runner builds a
    * Trajectory from the SDK message stream (via claudeCodeAdapter), runs
-   * V3Evaluator.verify() against the supplied TaskSpec, and folds the verdict
-   * into the returned TaskResult ({_success} mode follows EVAL_SUCCESS_MODE).
+   * V3Evaluator.verify() against the supplied TaskSpec, and folds the
+   * EvaluationResult into the returned TaskResult ({_success} mode follows
+   * EVAL_SUCCESS_MODE).
    * When omitted, the runner falls back to parsing the legacy EVAL_RESULT
    * line — preserves current behavior for callers that haven't migrated.
    */
@@ -308,21 +309,24 @@ export async function runClaudeCodeAgent({
       precomputedRubric: rubric,
     };
 
-    const verdict = await evaluator.verify(trajectory, hydratedSpec);
+    const evaluationResult = await evaluator.verify(trajectory, hydratedSpec);
     const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
-    const verifiedSuccess = verdictToSuccess(verdict, successMode);
+    const verifiedSuccess = evaluationResultToSuccess(
+      evaluationResult,
+      successMode,
+    );
 
     const { directory: trajectoryDir } = await persistAdapterTrajectory({
       trajectory,
       taskSpec: hydratedSpec,
-      verdict,
+      evaluationResult,
       outputRoot: verifier.trajectoryRoot,
       runId: verifier.runId,
     });
 
     logger.log({
       category: "claude_code",
-      message: `verdict: outcome=${verdict.outcomeSuccess} process=${verdict.processScore.toFixed(2)} steps=${trajectory.steps.length}`,
+      message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} steps=${trajectory.steps.length}`,
       level: 1,
     });
 
@@ -330,9 +334,9 @@ export async function runClaudeCodeAgent({
       ...baseResult,
       _success: verifiedSuccess,
       error: verifiedSuccess ? undefined : (baseResult.error ?? errorMessage),
-      outcomeSuccess: verdict.outcomeSuccess,
-      processScore: verdict.processScore,
-      evidenceInsufficient: verdict.evidenceInsufficient,
+      outcomeSuccess: evaluationResult.outcomeSuccess,
+      processScore: evaluationResult.processScore,
+      evidenceInsufficient: evaluationResult.evidenceInsufficient,
       criterionCount: rubric.items.length,
       stepCount: trajectory.steps.length,
       trajectoryDir,
@@ -348,6 +352,10 @@ export async function runClaudeCodeAgent({
     });
     return baseResult;
   }
+}
+
+function formatProcessScore(score: number | undefined): string {
+  return typeof score === "number" ? score.toFixed(2) : "n/a";
 }
 
 function buildClaudeCodeMetrics(

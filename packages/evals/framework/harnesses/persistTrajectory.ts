@@ -19,7 +19,7 @@
  *     │   ├── probe/<N>.png
  *     │   └── agent/<N>.png
  *     ├── scores/
- *     │   └── mmrubric_v1.json  (if `verdict` passed)
+ *     │   └── result.json       (if `evaluationResult` passed)
  *     ├── core.log
  *     └── times.json
  *
@@ -32,17 +32,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type {
+  EvaluationResult,
   ProbeEvidence,
   TaskSpec,
   Trajectory,
-  Verdict,
 } from "@browserbasehq/stagehand";
 
 export interface PersistAdapterTrajectoryOptions {
   trajectory: Trajectory;
   taskSpec: TaskSpec;
-  /** Verdict from V3Evaluator.verify(). Written to scores/mmrubric_v1.json. */
-  verdict?: Verdict;
+  /** EvaluationResult from V3Evaluator.verify(). Written to scores/result.json. */
+  evaluationResult?: EvaluationResult;
   /**
    * Output directory root. Final layout lives at `<outputRoot>/<runId>/<task.id>/`.
    * Defaults to `<cwd>/.trajectories`.
@@ -143,8 +143,8 @@ export async function persistAdapterTrajectory(
     status: opts.trajectory.status,
     finalAnswer: opts.trajectory.finalAnswer ?? null,
   };
-  if (opts.verdict) {
-    taskData.verdict = opts.verdict;
+  if (opts.evaluationResult) {
+    taskData.result = opts.evaluationResult;
   }
   await fs.writeFile(
     path.join(directory, "task_data.json"),
@@ -165,10 +165,10 @@ export async function persistAdapterTrajectory(
   );
 
   await fs.mkdir(path.join(directory, "scores"), { recursive: true });
-  if (opts.verdict) {
+  if (opts.evaluationResult) {
     await fs.writeFile(
-      path.join(directory, "scores", "mmrubric_v1.json"),
-      JSON.stringify(opts.verdict, null, 2),
+      path.join(directory, "scores", "result.json"),
+      JSON.stringify(opts.evaluationResult, null, 2),
     );
   }
 

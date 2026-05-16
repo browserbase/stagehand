@@ -3,7 +3,11 @@ import os from "node:os";
 import path from "node:path";
 
 import { loadTrajectoryFromDisk } from "@browserbasehq/stagehand";
-import type { TaskSpec, Trajectory } from "@browserbasehq/stagehand";
+import type {
+  EvaluationResult,
+  TaskSpec,
+  Trajectory,
+} from "@browserbasehq/stagehand";
 import { describe, expect, it } from "vitest";
 
 import { persistAdapterTrajectory } from "../../framework/harnesses/persistTrajectory.js";
@@ -23,9 +27,16 @@ describe("persistAdapterTrajectory", () => {
         instruction: "Test task",
         initUrl: "https://example.com",
       };
+      const evaluationResult: EvaluationResult = {
+        outcomeSuccess: true,
+        processScore: 1,
+        perCriterion: [],
+        evidenceInsufficient: [],
+      };
       const { directory, persisted } = await persistAdapterTrajectory({
         trajectory: makeTrajectory(taskSpec),
         taskSpec,
+        evaluationResult,
         outputRoot: tmpRoot,
         runId: "roundtrip-run",
         persist: true,
@@ -48,6 +59,12 @@ describe("persistAdapterTrajectory", () => {
       await expect(
         fs.readFile(path.join(directory, "screenshots", "agent", "1.png")),
       ).resolves.toEqual(AGENT_PNG);
+      await expect(
+        fs.readFile(path.join(directory, "scores", "result.json"), "utf8"),
+      ).resolves.toContain('"outcomeSuccess": true');
+      await expect(
+        fs.readFile(path.join(directory, "task_data.json"), "utf8"),
+      ).resolves.toContain('"result"');
 
       const loaded = await loadTrajectoryFromDisk(directory);
       const step = loaded.steps[0];
