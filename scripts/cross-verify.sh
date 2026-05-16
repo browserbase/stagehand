@@ -3,7 +3,7 @@
 # Lets us isolate verifier disagreement from agent variance.
 #
 # Inputs: every trajectory dir matched by TRAJECTORY_GLOB.
-# Outputs: scores/mmrubric_cross-{outcome-only,a,b}.json next to each trajectory.
+# Outputs: scores/result_cross-{outcome-only,a,b}.json next to each trajectory.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -27,7 +27,7 @@ for d in "${DIRS[@]}"; do
   echo "=== $(basename "$(dirname "$d")")/$task ==="
   for approach in outcome-only b a; do
     label="cross-${approach}"
-    out_file="$d/scores/mmrubric_${label}.json"
+    out_file="$d/scores/result_${label}.json"
     if [[ -f "$out_file" ]]; then
       echo "  [$approach] already exists, skipping"
       continue
