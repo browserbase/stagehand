@@ -5,7 +5,7 @@ import type { V3 } from "../../lib/v3/v3.js";
 import type { TaskSpec, Trajectory } from "../../lib/v3/verifier/index.js";
 
 describe("V3Evaluator verifier facade", () => {
-  it("rejects verifier backend before the verifier PR is installed", async () => {
+  it("rejects ask when configured for the verifier backend", async () => {
     const evaluator = new V3Evaluator({} as V3, {
       backend: "verifier",
     });
@@ -13,37 +13,64 @@ describe("V3Evaluator verifier facade", () => {
     await expect(
       evaluator.ask({ question: "Was the task completed?" }),
     ).rejects.toThrow(
-      "STAGEHAND_EVALUATOR_BACKEND=verifier, but the verifier backend is not available",
+      "STAGEHAND_EVALUATOR_BACKEND=verifier, but the verifier backend only supports verify() and generateRubric()",
     );
   });
 
-  it("rejects verify when the verifier backend is selected before the verifier PR is installed", async () => {
+  it("returns a verifier result for empty trajectories without LLM calls", async () => {
     const taskSpec: TaskSpec = {
-      id: "verifier-unavailable",
+      id: "empty-verifier",
       instruction: "Complete the task",
     };
     const evaluator = new V3Evaluator({} as V3, {
       backend: "verifier",
     });
 
-    await expect(evaluator.verify(makeTrajectory(taskSpec))).rejects.toThrow(
-      "STAGEHAND_EVALUATOR_BACKEND=verifier, but the verifier backend is not available",
-    );
+    const result = await evaluator.verify(makeEmptyTrajectory(taskSpec));
+
+    expect(result.outcomeSuccess).toBe(false);
+    expect(result.rawSteps).toMatchObject({
+      reason: "empty-trajectory",
+      rubricSource: "none",
+    });
   });
 
-  it("rejects generateRubric when the verifier backend is selected before the verifier PR is installed", async () => {
+  it("generates rubrics through the verifier backend", async () => {
+    const createChatCompletion = vi.fn().mockResolvedValue({
+      data: {
+        items: [
+          {
+            criterion: "Complete the task",
+            task_span: "Complete the task",
+            description: "Full credit if the task is complete.",
+            max_points: 1,
+            justification: "",
+            earned_points: "",
+          },
+        ],
+      },
+    });
     const evaluator = new V3Evaluator({} as V3, {
       backend: "verifier",
     });
+    Object.defineProperty(evaluator, "getRubricGenClient", {
+      value: () => ({ createChatCompletion }),
+    });
 
-    await expect(
-      evaluator.generateRubric({
-        id: "rubric-unavailable",
-        instruction: "Complete the task",
-      }),
-    ).rejects.toThrow(
-      "STAGEHAND_EVALUATOR_BACKEND=verifier, but the verifier backend is not available",
-    );
+    const rubric = await evaluator.generateRubric({
+      id: "rubric",
+      instruction: "Complete the task",
+    });
+
+    expect(rubric).toEqual({
+      items: [
+        {
+          criterion: "Complete the task",
+          description: "Full credit if the task is complete.",
+          maxPoints: 1,
+        },
+      ],
+    });
   });
 
   it("maps legacy YES evaluations with trajectory screenshots to a successful result", async () => {

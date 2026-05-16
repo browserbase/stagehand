@@ -83,6 +83,7 @@ export const RUBRIC_GENERATION_PROMPT = `Task: $task_id$init_url_context
     {{
         "criterion": "Brief name of what's being evaluated",
         "condition": "Clear description of when this criterion applies (e.g., 'Only applies if organic blueberries are unavailable')",
+        "task_span": "Verbatim substring of the original task that THIS criterion is evaluating (e.g., 'organic blueberries')",
         "description": "What to evaluate and how to score IF the condition is met. Full credit for..., partial credit for...",
         "max_points": N,
         "justification": "",
@@ -92,12 +93,21 @@ export const RUBRIC_GENERATION_PROMPT = `Task: $task_id$init_url_context
     **Schema for non-conditional criteria** (most criteria):
     {{
         "criterion": "Brief name of what's being evaluated",
+        "task_span": "Verbatim substring of the original task that THIS criterion is evaluating (e.g., 'add flour to cart')",
         "description": "What to evaluate and how to score. Full credit for..., partial credit for...",
         "max_points": N,
         "justification": "",
         "earned_points": ""
     }}
     (Note: No "condition" field means the criterion always applies)
+
+    **task_span — ANTI-HALLUCINATION ANCHOR (REQUIRED)**:
+    Every criterion **must** include a "task_span" field whose value is a **verbatim substring** of the original task description (the text after "Task:" above). This is the literal phrase from the task that justifies including this criterion.
+    - If you cannot copy a contiguous substring of the task that justifies the criterion, **the criterion does not belong in the rubric** — the task did not ask for it. Drop it.
+    - Substrings shorter than 3 words are not enough — pick a span that makes the connection unambiguous.
+    - Do NOT paraphrase, summarize, or normalize the span. Copy it character-for-character so a downstream check can verify it is a substring of the task.
+    - For setup/platform criteria implied by the task's specified platform, copy the platform name verbatim (e.g., task_span: "drugssquare.com").
+    - For Critical Point boundary criteria, you may use the special token "<critical-point>" — this is the ONE permitted non-substring value, since the Critical Point rule is supplied by these instructions, not the task text.
 
     **Important**: Do NOT create conditional criteria for requirements that are implicitly satisfied by successful task completion.
     - Example: "Add flour to cart. Let me know if unavailable."
@@ -230,15 +240,36 @@ export const RUBRIC_GENERATION_PROMPT = `Task: $task_id$init_url_context
     The rubric must be:
     1. Formatted as json dictionary of a (possibly nested) list of "items"
     2. Each Item in the rubric must contain the following fields IN ORDER:
-       - For CONDITIONAL criteria: ["criterion", "condition", "description", "max_points", "justification", "earned_points"]
-       - For NON-CONDITIONAL criteria: ["criterion", "description", "max_points", "justification", "earned_points"]
+       - For CONDITIONAL criteria: ["criterion", "condition", "task_span", "description", "max_points", "justification", "earned_points"]
+       - For NON-CONDITIONAL criteria: ["criterion", "task_span", "description", "max_points", "justification", "earned_points"]
        - The "condition" field should ONLY be present for conditional criteria (criteria that only apply when specific conditions are met)
+       - The "task_span" field is REQUIRED on every criterion (verbatim substring of the task, or "<critical-point>" for Critical Point boundary criteria only)
     3. Choose the "max_points" judiciously to account for possible failure modes that could earn partial credit: goals that would have more failure modes deserve higher max_points.
     4. The "description" should explain *what* goal the criteria is evaluating and *how* partial credit could be awarded to fairly penalize the agent's mistakes while accounting for external dependencies outside the agent's control.
     5. For conditional criteria, the "condition" field must clearly state when the criterion applies (e.g., "Only applies if organic blueberries are unavailable")
     6. Leave the "earned_points" and "justification" fields **empty** (since this rubric isn't being evaluated right now).
     7. Do not make criteria for formatting/style unless stated explicitly in the Task.
     8. Keep the rubric simple, following ONLY the main keypoints the task required. Do not overcomplicate the criteria or include optional items that were not explicitly mentioned.
+
+    **ANTI-PATTERN — Over-Specification / Hallucinated Sub-Goals**:
+    A common failure mode is inventing criteria that the task never asked for. If a criterion's task_span isn't a substring of the original task description (and it isn't the Critical Point boundary), the criterion is over-specifying.
+
+    Anti-example task: "Find the citation page for the City of Vancouver."
+    - WRONG criterion: "Display the citation number, fine amount, and payment due date" — the task did not ask for any of these specific fields. There is no "citation number" or "fine amount" in the task text.
+      * task_span: <none possible> → drop.
+    - WRONG criterion: "Provide instructions for paying the citation online" — the task did not ask for payment instructions.
+      * task_span: <none possible> → drop.
+    - RIGHT criterion: "Locate the citation page on the City of Vancouver site" [3 points]
+      * task_span: "citation page for the City of Vancouver"
+      * Description: Full credit if agent navigates to the citation/ticket page on the official cityofvancouver site, or if no such page exists and agent reports this. Partial credit for finding an unrelated city services page.
+
+    Anti-example task: "Search arXiv for the most recent paper on retrieval-augmented generation."
+    - WRONG criterion: "Output the abstract and author list of the paper" — task didn't ask for abstract or author list. The agent just needs to identify and report the paper.
+      * task_span: <none possible> → drop.
+    - RIGHT criterion: "Identify the most recent arXiv paper on retrieval-augmented generation" [4 points]
+      * task_span: "most recent paper on retrieval-augmented generation"
+
+    **The test**: For each criterion you draft, ask: "Can I copy a contiguous substring of the task that this criterion is evaluating?" If no, the criterion is over-specifying and must be dropped.
 
     ==================
     Example 1 (high level): "Book a reservation at a Mexican restaurant in the Northside of Chicago on 09/29/2025 for 2:45 PM at gayot.com."
@@ -259,6 +290,7 @@ export const RUBRIC_GENERATION_PROMPT = `Task: $task_id$init_url_context
     "items": [
         {{
         "criterion": "Access drugssquare.com website",
+        "task_span": "drugssquare.com",
         "description": "Successfully navigate to or access the drugssquare.com website as specified in the task. Full credit if: (a) site is successfully accessed, OR (b) site is inaccessible (blocked, down, error) and agent clearly indicates this and either stops or attempts alternative source. Partial credit if agent immediately uses alternative without attempting drugssquare.com first.",
         "max_points": 2,
         "justification": "",
@@ -266,6 +298,7 @@ export const RUBRIC_GENERATION_PROMPT = `Task: $task_id$init_url_context
         }},
         {{
         "criterion": "Locate the specific product",
+        "task_span": "Fosbait: Lanthanum Carbonate 500mg Tablets",
         "description": "Find and identify the exact product 'Fosbait: Lanthanum Carbonate 500mg Tablets' on the website. Full credit if: (a) exact product found, OR (b) product is discontinued/out of stock/not found after reasonable search and agent clearly reports this, OR (c) agent identifies closest alternative (different dosage of same medication) when exact product unavailable and explains the substitution. Partial credit for selecting different dosage when the intended 500mg dosage IS available on the site. No credit for selecting entirely different medication when Fosbait is available.",
         "max_points": 3,
         "justification": "",
@@ -273,6 +306,7 @@ export const RUBRIC_GENERATION_PROMPT = `Task: $task_id$init_url_context
         }},
         {{
         "criterion": "Facilitate the purchase process until a Critical Point",
+        "task_span": "<critical-point>",
         "description": "Help complete the purchase of the identified product up to but not crossing the Critical Point. Full credit if: (a) product is successfully added to cart and agent stops before entering personal/payment information, OR (b) the website's purchase flow is broken/unavailable and agent reports this, OR (c) website requires account creation or payment info before allowing add-to-cart and agent reports this limitation. Partial credit if agent proceeds partially but makes errors in the purchase flow (wrong quantity, wrong shipping option, etc.). No credit if agent either skips the cart entirely OR unnecessarily enters personal information when not required.",
         "max_points": 3,
         "justification": "",

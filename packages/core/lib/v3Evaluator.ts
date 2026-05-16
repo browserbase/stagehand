@@ -102,8 +102,9 @@ export class V3Evaluator implements Verifier {
 
     const verifier = new RubricVerifier({
       getClient: () => this.getClient(),
+      getRubricGenClient: () => this.getRubricGenClient(),
     });
-    return verifier.verify(trajectory, taskSpec);
+    return verifier.verify(trajectory);
   }
 
   async generateRubric(taskSpec: TaskSpec): Promise<Rubric> {
@@ -121,6 +122,7 @@ export class V3Evaluator implements Verifier {
 
     const verifier = new RubricVerifier({
       getClient: () => this.getClient(),
+      getRubricGenClient: () => this.getRubricGenClient(),
     });
     return verifier.generateRubric(taskSpec);
   }
@@ -142,6 +144,28 @@ export class V3Evaluator implements Verifier {
   private getClient(): LLMClient {
     const provider = new LLMProvider(this.v3.logger);
     return provider.getClient(this.modelName, this.modelClientOptions);
+  }
+
+  private getRubricGenClient(): LLMClient {
+    const override = process.env.VERIFIER_RUBRIC_MODEL as
+      | AvailableModel
+      | undefined;
+    if (!override) return this.getClient();
+
+    const provider = new LLMProvider(this.v3.logger);
+    const overrideProvider = override.includes("/")
+      ? override.slice(0, override.indexOf("/"))
+      : undefined;
+    const defaultProvider = this.modelName.includes("/")
+      ? this.modelName.slice(0, this.modelName.indexOf("/"))
+      : undefined;
+    const sameProvider =
+      overrideProvider !== undefined && overrideProvider === defaultProvider;
+
+    return provider.getClient(
+      override,
+      sameProvider ? this.modelClientOptions : undefined,
+    );
   }
 
   private async verifyTrajectoryWithLegacyEvaluator(

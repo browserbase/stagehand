@@ -306,13 +306,14 @@ export interface VerifierRawSteps {
   primaryIntent?: string;
   reasoning?: string;
   rubricSource?: "precomputed" | "generated" | "none";
-  approach?: "a" | "b";
+  approach?: "a" | "b" | "outcome-only";
   optionalsMode?: "folded" | "separate" | "skip";
   totalEarned?: number;
   totalMax?: number;
   evidenceImages?: number;
   evidenceTexts?: number;
   evidenceOriginalScreenshots?: number;
+  screenshotsAttached?: number;
   legacyEvaluation?: string;
   screenshotCount?: number;
 }
@@ -381,6 +382,8 @@ export interface Verifier {
 export interface RubricVerifierOptions {
   /** Factory that returns a configured LLMClient. Called per pipeline step so callers can supply step-specific clients. */
   getClient: () => LLMClient;
+  /** Optional factory for Step 0a so callers can route rubric generation to a stronger model. */
+  getRubricGenClient?: () => LLMClient;
   /** Logger; defaults to a no-op so the verifier stays quiet inside V3Evaluator. */
   logger?: (line: LogLine) => void;
 }

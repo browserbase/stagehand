@@ -56,6 +56,7 @@ const RubricItemSchema = z.object({
   description: z.string(),
   max_points: z.number(),
   condition: z.string().optional(),
+  task_span: z.string().optional(),
   justification: z.string().optional(),
   earned_points: z.union([z.number(), z.string()]).optional(),
 });
@@ -212,16 +213,17 @@ const DEFAULT_OUTCOME_IMAGE_LIMIT = 3;
 const DEFAULT_MAX_PARALLEL = 8;
 const DEFAULT_TOP_K = 5;
 const DEFAULT_RELEVANCE_BATCH_SIZE = 4;
-const DEFAULT_APPROACH: "a" | "b" = "b";
+type VerifierApproach = "a" | "b" | "outcome-only";
+const DEFAULT_APPROACH: VerifierApproach = "b";
 type OptionalStepsMode = "folded" | "separate" | "skip";
 const DEFAULT_OPTIONAL_STEPS_MODE: OptionalStepsMode = "folded";
 const EVIDENCE_TEXT_PREVIEW_CHARS = 200;
 
-// ─── Standalone helpers used by the new pipeline ───────────────────────────
+// ─── Environment helpers ───────────────────────────────────────────────────
 
-function readApproach(): "a" | "b" {
+function readApproach(): VerifierApproach {
   const raw = process.env.VERIFIER_APPROACH;
-  if (raw === "a" || raw === "b") return raw;
+  if (raw === "a" || raw === "b" || raw === "outcome-only") return raw;
   return DEFAULT_APPROACH;
 }
 
@@ -372,17 +374,17 @@ function renderGroupedEvidenceForApproach(
 
 export class RubricVerifier implements Verifier {
   private readonly getClient: () => LLMClient;
+  private readonly getRubricGenClient: () => LLMClient;
   private readonly logger: (line: LogLine) => void;
 
   constructor(opts: RubricVerifierOptions) {
     this.getClient = opts.getClient;
+    this.getRubricGenClient = opts.getRubricGenClient ?? opts.getClient;
     this.logger = opts.logger ?? noopLogger;
   }
 
-  async verify(
-    trajectory: Trajectory,
-    taskSpec: TaskSpec,
-  ): Promise<EvaluationResult> {
+  async verify(trajectory: Trajectory): Promise<EvaluationResult> {
+    const taskSpec = trajectory.task;
     const hasTrajectorySignal =
       trajectory.steps.length > 0 || Boolean(trajectory.finalAnswer?.trim());
     if (!hasTrajectorySignal) {
@@ -391,15 +393,21 @@ export class RubricVerifier implements Verifier {
       );
     }
 
+    const approach = readApproach();
+    const optionalsMode = readOptionalsMode();
+
+    if (approach === "outcome-only") {
+      return this.verifyOutcomeOnly(trajectory, taskSpec, optionalsMode);
+    }
+
     // Step 0a — generate rubric if absent.
-    let rubric: Rubric | undefined = normalizeRubric(taskSpec.precomputedRubric);
+    let rubric: Rubric | undefined = normalizeRubric(
+      taskSpec.precomputedRubric,
+    );
     const rubricSource = rubric ? "precomputed" : "generated";
     if (!rubric) {
       rubric = await this.generateRubric(taskSpec);
     }
-
-    const approach = readApproach();
-    const optionalsMode = readOptionalsMode();
 
     // ── Steps 1–3: collect evidence, batched relevance, top-K ──────────────
     // Combined images + ariaTree text evidence → single relevance matrix →
@@ -581,6 +589,145 @@ export class RubricVerifier implements Verifier {
       rawSteps: {
         reason: "empty-trajectory",
         rubricSource: rubric ? "precomputed" : "none",
+      },
+    };
+  }
+
+  private async verifyOutcomeOnly(
+    trajectory: Trajectory,
+    taskSpec: TaskSpec,
+    optionalsMode: OptionalStepsMode,
+  ): Promise<EvaluationResult> {
+    const foldFailure = optionalsMode === "folded";
+    const foldValidity = optionalsMode === "folded";
+    const taxonomyBlock = foldFailure
+      ? `\n${getTaxonomyText(1, 6, 4)}\n${getTaxonomyText(7, 8, 4)}\n`
+      : "";
+
+    const prompt = renderPrompt(FUSED_OUTCOME_PROMPT, {
+      task_definition: taskSpec.instruction,
+      init_url_context: buildInitUrlContext(taskSpec.initUrl),
+      action_history: this.formatActionHistory(trajectory),
+      agent_predicted_output:
+        trajectory.finalAnswer ?? "(no final answer recorded)",
+      rubric_summary:
+        "(no rubric - outcome-only mode; judge success from the task, action history, final answer, and attached screenshots)",
+      taxonomy_block: taxonomyBlock,
+      fold_failure_analysis: foldFailure ? "true" : "false",
+      fold_task_validity: foldValidity ? "true" : "false",
+      current_date: new Date().toISOString().slice(0, 10),
+    });
+
+    const images = selectRecentImages(
+      trajectory,
+      readPositiveIntEnv(
+        "VERIFIER_OUTCOME_MAX_IMAGES",
+        DEFAULT_OUTCOME_IMAGE_LIMIT,
+      ),
+    );
+    const messageContent: Array<
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string } }
+    > = [{ type: "text", text: prompt }];
+
+    for (const img of images) {
+      messageContent.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${img.mediaType};base64,${img.bytes.toString("base64")}`,
+        },
+      });
+    }
+
+    let fused: z.infer<typeof FusedOutcomeResponseSchema>;
+    try {
+      const client = this.getClient();
+      const response = await client.createChatCompletion<
+        LLMParsedResponse<LLMResponse>
+      >({
+        logger: this.logger,
+        options: {
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are an expert evaluator of web-navigation agent trajectories. Output only valid JSON conforming to the schema in the user message.",
+            },
+            { role: "user", content: messageContent },
+          ],
+          response_model: {
+            name: "FusedOutcome",
+            schema: FusedOutcomeResponseSchema,
+          },
+        },
+      });
+      fused = response.data as unknown as z.infer<
+        typeof FusedOutcomeResponseSchema
+      >;
+    } catch {
+      fused = {
+        outcome: {
+          primary_intent: taskSpec.instruction,
+          reasoning:
+            "Outcome-only LLM call failed; defaulting to output_success=false.",
+          output_success: false,
+          findings: [
+            {
+              category: "verifier_uncertainty" as const,
+              severity: "warning" as const,
+              description:
+                "The outcome-only verification call did not return a parseable response.",
+            },
+          ],
+        },
+      };
+    }
+
+    const outcomeSuccess = fused.outcome.output_success;
+    const findings = (fused.outcome.findings ?? []).map((f) => ({
+      ...f,
+      category: f.category ?? ("other" as const),
+      severity: f.severity ?? ("info" as const),
+    }));
+
+    let firstPointOfFailure: EvaluationResult["firstPointOfFailure"];
+    if (fused.failure_point && !outcomeSuccess) {
+      firstPointOfFailure = {
+        stepIndex: fused.failure_point.step_index,
+        errorCode: fused.failure_point.error_code,
+        category: fused.failure_point.error_category,
+        description: fused.failure_point.description,
+      };
+    }
+
+    const taskValidity: EvaluationResult["taskValidity"] = fused.task_validity
+      ? {
+          isAmbiguous: fused.task_validity.is_ambiguous,
+          isInvalid: fused.task_validity.is_invalid,
+          ambiguityReason:
+            fused.task_validity.is_ambiguous &&
+            fused.task_validity.ambiguity_reason
+              ? fused.task_validity.ambiguity_reason
+              : undefined,
+          invalidReason:
+            fused.task_validity.is_invalid && fused.task_validity.invalid_reason
+              ? fused.task_validity.invalid_reason
+              : undefined,
+        }
+      : { isAmbiguous: false, isInvalid: false };
+
+    return {
+      outcomeSuccess,
+      explanation: fused.outcome.reasoning,
+      taskValidity,
+      findings: findings.length > 0 ? findings : undefined,
+      firstPointOfFailure,
+      rawSteps: {
+        primaryIntent: fused.outcome.primary_intent,
+        reasoning: fused.outcome.reasoning,
+        approach: "outcome-only",
+        optionalsMode,
+        screenshotsAttached: images.length,
       },
     };
   }
@@ -1158,39 +1305,58 @@ export class RubricVerifier implements Verifier {
     };
   }
 
-  /**
-   * Step 0a — rubric generation from task description alone.
-   */
+  /** Step 0a — rubric generation from task description alone. */
   async generateRubric(taskSpec: TaskSpec): Promise<Rubric> {
     const prompt = renderPrompt(RUBRIC_GENERATION_PROMPT, {
       task_id: taskSpec.instruction,
       init_url_context: buildInitUrlContext(taskSpec.initUrl),
     });
 
-    const client = this.getClient();
-    const response = await client.createChatCompletion<
-      LLMParsedResponse<LLMResponse>
-    >({
-      logger: this.logger,
-      options: {
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are an expert rubric author. Output only valid JSON conforming to the schema requested in the user message. Do not include explanatory prose.",
-          },
-          { role: "user", content: prompt },
-        ],
-        response_model: { name: "Rubric", schema: RubricSchema },
-      },
-    });
+    const maxAttempts = Math.max(
+      1,
+      readPositiveIntEnv("VERIFIER_RUBRIC_RETRIES", 3),
+    );
+    let lastError: unknown;
 
-    const data = response.data as unknown as z.infer<typeof RubricSchema>;
-    const normalized = normalizeRubric(data);
-    if (!normalized) {
-      throw new Error("Rubric generation returned no rubric");
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const client = this.getRubricGenClient();
+        const response = await client.createChatCompletion<
+          LLMParsedResponse<LLMResponse>
+        >({
+          logger: this.logger,
+          options: {
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are an expert rubric author. Output only valid JSON conforming to the schema requested in the user message. Do not include explanatory prose.",
+              },
+              { role: "user", content: prompt },
+            ],
+            response_model: { name: "Rubric", schema: RubricSchema },
+          },
+        });
+        const data = response.data as unknown as z.infer<typeof RubricSchema>;
+        const normalized = normalizeRubric({
+          items: filterByTaskSpan(
+            data.items,
+            taskSpec.instruction,
+            this.logger,
+          ),
+        });
+        if (!normalized) {
+          throw new Error("Rubric generation returned no rubric");
+        }
+        return normalized;
+      } catch (err) {
+        lastError = err;
+        if (attempt === maxAttempts - 1) break;
+        await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
+      }
     }
-    return normalized;
+
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   /**
@@ -1493,6 +1659,65 @@ function readPositiveIntEnv(name: string, fallback: number): number {
   if (!raw) return fallback;
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function filterByTaskSpan(
+  items: z.infer<typeof RubricItemSchema>[],
+  taskInstruction: string,
+  logger: (line: LogLine) => void,
+): z.infer<typeof RubricItemSchema>[] {
+  const strict = process.env.VERIFIER_RUBRIC_REQUIRE_TASK_SPAN === "1";
+  const normalizedTask = normalizeForSpanMatch(taskInstruction);
+  const kept: z.infer<typeof RubricItemSchema>[] = [];
+  const dropped: { criterion: string; reason: string }[] = [];
+
+  for (const item of items) {
+    const span = item.task_span?.trim();
+    if (!span) {
+      if (strict) {
+        dropped.push({
+          criterion: item.criterion,
+          reason: "missing task_span",
+        });
+        continue;
+      }
+      kept.push(item);
+      continue;
+    }
+
+    if (
+      span === "<critical-point>" ||
+      normalizedTask.includes(normalizeForSpanMatch(span))
+    ) {
+      kept.push(item);
+      continue;
+    }
+
+    dropped.push({
+      criterion: item.criterion,
+      reason: `task_span ${JSON.stringify(span)} not found in task instruction`,
+    });
+  }
+
+  if (dropped.length > 0) {
+    logger({
+      category: "v3-evaluator",
+      message: "rubric: dropped hallucinated criteria via task_span filter",
+      auxiliary: {
+        droppedCount: { value: String(dropped.length), type: "integer" },
+        dropped: {
+          value: JSON.stringify(dropped),
+          type: "object",
+        },
+      },
+    });
+  }
+
+  return kept;
+}
+
+function normalizeForSpanMatch(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function safeJsonSnippet(value: unknown, maxChars: number): string {
