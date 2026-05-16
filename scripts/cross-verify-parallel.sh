@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# Parallel cross-verify: 8 verifier processes per approach in flight at once.
-# 20 trajectories x 2 approaches = 40 verifier runs, ~2.5 batches per approach.
-# Expected wall: ~5 min for B (8 in flight, 30s each, ~3 batches), ~15 min for A.
-# Total ~15-20 min vs 80 min sequential.
+# Parallel cross-verify: 8 verifier processes in flight at once across
+# outcome-only plus the rubric approaches.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -48,6 +46,9 @@ export PARALLEL
 
 # Build (dir, approach) job list and feed to xargs -P.
 JOBS=()
+for d in "${DIRS[@]}"; do
+  JOBS+=("$d|outcome-only")
+done
 for d in "${DIRS[@]}"; do
   JOBS+=("$d|b")
 done
