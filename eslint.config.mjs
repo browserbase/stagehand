@@ -19,10 +19,6 @@ export default [
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["packages/cli/**/*.{js,cjs,mjs,ts}"],
-    languageOptions: { globals: globals.node },
-  },
-  {
     ignores: [
       "**/dist/**",
       "**/node_modules/**",
@@ -75,12 +71,6 @@ export default [
             "Dynamic function construction via globalThis.Function is prohibited.",
         },
       ],
-    },
-  },
-  {
-    files: ["packages/cli/**/*.{js,cjs,mjs,ts}"],
-    rules: {
-      "no-empty": ["error", { allowEmptyCatch: true }],
     },
   },
 ];

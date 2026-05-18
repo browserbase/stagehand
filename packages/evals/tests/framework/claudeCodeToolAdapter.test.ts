@@ -101,9 +101,7 @@ describe("claude code tool adapter resolution", () => {
     expect(getBrowseCliToolMetadata()).toMatchObject({
       toolCommand: "browse",
       browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringContaining(
-        "packages/cli/dist/index.js",
-      ),
+      browseCliEntrypoint: expect.stringContaining("browse/bin/run.js"),
     });
   });
 

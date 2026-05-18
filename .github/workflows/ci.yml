@@ -48,7 +48,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       core: ${{ steps.filter.outputs.core }}
-      cli: ${{ steps.filter.outputs.cli }}
       evals: ${{ steps.filter.outputs.evals }}
       server: ${{ steps.filter.outputs.server }}
       docs-only: ${{ steps.filter.outputs.docs-only }}
@@ -92,11 +91,6 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
-            cli:
-              - 'packages/cli/**'
-              - 'packages/core/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
             evals:
               - 'packages/evals/**'
               - 'package.json'
@@ -309,31 +303,12 @@ jobs:
             packages/core/lib/version.ts
             packages/core/lib/dom/build/**
             packages/core/lib/v3/dom/build/**
-            packages/cli/dist/**
             packages/evals/dist/**
             packages/server-v3/dist/**
             packages/server-v3/openapi.v3.yaml
             packages/server-v4/dist/**
             packages/server-v4/openapi.v4.yaml
           retention-days: 1
-
-  run-cli-tests:
-    name: CLI Tests
-    runs-on: ubuntu-latest
-    needs: [run-build, determine-changes]
-    if: needs.determine-changes.outputs.cli == 'true'
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          fetch-depth: 1
-
-      - uses: ./.github/actions/setup-node-pnpm-turbo
-        with:
-          use-prebuilt-artifacts: "true"
-          restore-turbo-cache: "false"
-
-      - name: Run CLI Tests
-        run: pnpm exec turbo run test:cli --filter=@browserbasehq/browse-cli
 
   run-evals-unit-tests:
     name: Evals Unit Tests

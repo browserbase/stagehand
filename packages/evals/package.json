@@ -27,6 +27,7 @@
     "@browserbasehq/stagehand": "workspace:*",
     "@openai/codex-sdk": "0.125.0",
     "ai": "^5.0.133",
+    "browse": "^0.7.1",
     "dotenv": "^17.3.1",
     "openai": "^4.104.0",
     "playwright": ">=1.55.1 <1.57.0",

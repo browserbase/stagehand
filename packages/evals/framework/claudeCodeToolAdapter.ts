@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -7,6 +6,10 @@ import { z } from "zod/v4";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { getRepoRootDir } from "../runtimePaths.js";
+import {
+  readInstalledBrowseCliVersion,
+  resolveBrowseCliEntrypoint,
+} from "../browseCliPackage.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { prepareCoreBrowserTarget } from "../core/targets/index.js";
 import { CdpConnection, type CdpEventMessage } from "../core/tools/cdp_code.js";
@@ -54,19 +57,6 @@ export interface BrowseCliHarnessAdapterInput {
   logCategory: string;
 }
 
-const BROWSE_CLI_ENTRYPOINT = path.join(
-  getRepoRootDir(),
-  "packages",
-  "cli",
-  "dist",
-  "index.js",
-);
-const BROWSE_CLI_PACKAGE_JSON = path.join(
-  getRepoRootDir(),
-  "packages",
-  "cli",
-  "package.json",
-);
 const BROWSER_SKILL_SOURCE = path.join(
   getRepoRootDir(),
   "packages",
@@ -142,10 +132,11 @@ export interface BrowseCliToolMetadata {
 }
 
 export function getBrowseCliToolMetadata(): BrowseCliToolMetadata {
+  const browseCliEntrypoint = resolveBrowseCliEntrypoint();
   return {
     toolCommand: "browse",
-    browseCliEntrypoint: BROWSE_CLI_ENTRYPOINT,
-    ...readBrowseCliVersion(),
+    browseCliEntrypoint,
+    ...readInstalledBrowseCliVersion(),
   };
 }
 
@@ -285,11 +276,7 @@ async function prepareBrowseCliAdapter(
 export async function prepareBrowseCliHarnessAdapter(
   input: BrowseCliHarnessAdapterInput,
 ): Promise<PreparedBrowseCliHarnessAdapter> {
-  if (!fs.existsSync(BROWSE_CLI_ENTRYPOINT)) {
-    throw new EvalsError(
-      `browse_cli requires a built CLI entrypoint at ${BROWSE_CLI_ENTRYPOINT}. Run pnpm --dir packages/cli build first.`,
-    );
-  }
+  const browseCliEntrypoint = resolveBrowseCliEntrypoint();
 
   if (
     (input.environment === "LOCAL" &&
@@ -324,7 +311,7 @@ export async function prepareBrowseCliHarnessAdapter(
     [
       "#!/usr/bin/env bash",
       "set -euo pipefail",
-      `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(BROWSE_CLI_ENTRYPOINT)} --json --session ${JSON.stringify(session)} "$@"`,
+      `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(browseCliEntrypoint)} --json --session ${JSON.stringify(session)} "$@"`,
       "",
     ].join("\n"),
     { mode: 0o755 },
@@ -1211,17 +1198,4 @@ async function runBrowseCommand(
       );
     });
   });
-}
-
-function readBrowseCliVersion(): { browseCliVersion?: string } {
-  try {
-    const parsed = JSON.parse(
-      fs.readFileSync(BROWSE_CLI_PACKAGE_JSON, "utf8"),
-    ) as { version?: unknown };
-    return typeof parsed.version === "string"
-      ? { browseCliVersion: parsed.version }
-      : {};
-  } catch {
-    return {};
-  }
 }
