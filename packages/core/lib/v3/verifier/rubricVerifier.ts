@@ -209,10 +209,13 @@ const noopLogger: (line: LogLine) => void = () => {};
 const APPROX_CHARS_PER_TOKEN = 4;
 const DEFAULT_ACTION_HISTORY_TOKEN_BUDGET = 2_000;
 const DEFAULT_EVIDENCE_TOKEN_BUDGET = 3_000;
+const DEFAULT_OUTCOME_EVIDENCE_TOKEN_BUDGET = 4_000;
 const DEFAULT_OUTCOME_IMAGE_LIMIT = 3;
 const DEFAULT_MAX_PARALLEL = 8;
 const DEFAULT_TOP_K = 5;
 const DEFAULT_RELEVANCE_BATCH_SIZE = 4;
+const OUTCOME_EVIDENCE_MAX_STEPS = 14;
+const OUTCOME_EVIDENCE_STEP_CHARS = 900;
 type VerifierApproach = "a" | "b" | "outcome-only";
 const DEFAULT_APPROACH: VerifierApproach = "b";
 type OptionalStepsMode = "folded" | "separate" | "skip";
@@ -608,6 +611,10 @@ export class RubricVerifier implements Verifier {
       task_definition: taskSpec.instruction,
       init_url_context: buildInitUrlContext(taskSpec.initUrl),
       action_history: this.formatActionHistory(trajectory),
+      outcome_evidence_summary: this.buildOutcomeEvidenceSummary(
+        trajectory,
+        taskSpec,
+      ),
       agent_predicted_output:
         trajectory.finalAnswer ?? "(no final answer recorded)",
       rubric_summary:
@@ -615,7 +622,7 @@ export class RubricVerifier implements Verifier {
       taxonomy_block: taxonomyBlock,
       fold_failure_analysis: foldFailure ? "true" : "false",
       fold_task_validity: foldValidity ? "true" : "false",
-      current_date: new Date().toISOString().slice(0, 10),
+      current_date: currentDateForTrajectory(trajectory),
     });
 
     const images = selectRecentImages(
@@ -1083,7 +1090,7 @@ export class RubricVerifier implements Verifier {
       taxonomy_block: taxonomyBlock,
       fold_failure_analysis: foldFailure ? "true" : "false",
       fold_task_validity: foldValidity ? "true" : "false",
-      current_date: new Date().toISOString().slice(0, 10),
+      current_date: currentDateForTrajectory(trajectory),
     });
 
     const messageContent: Array<
@@ -1189,13 +1196,17 @@ export class RubricVerifier implements Verifier {
       task_definition: taskSpec.instruction,
       init_url_context: buildInitUrlContext(taskSpec.initUrl),
       action_history: this.formatActionHistory(trajectory),
+      outcome_evidence_summary: this.buildOutcomeEvidenceSummary(
+        trajectory,
+        taskSpec,
+      ),
       agent_predicted_output:
         trajectory.finalAnswer ?? "(no final answer recorded)",
       rubric_summary: this.formatScoredRubricSummary(rubric, perCriterion),
       taxonomy_block: taxonomyBlock,
       fold_failure_analysis: foldFailure ? "true" : "false",
       fold_task_validity: foldValidity ? "true" : "false",
-      current_date: new Date().toISOString().slice(0, 10),
+      current_date: currentDateForTrajectory(trajectory),
     });
 
     try {
@@ -1303,6 +1314,106 @@ export class RubricVerifier implements Verifier {
         ),
       ),
     };
+  }
+
+  /**
+   * Compact text evidence for the one-call outcome verifier.
+   *
+   * Outcome-only does not run the rubric relevance selector, but it still needs
+   * enough saved-page text to avoid replacing trajectory facts with model
+   * memory. Select a bounded set of lexically relevant and recent steps, then
+   * include short excerpts around task/final-answer terms.
+   */
+  private buildOutcomeEvidenceSummary(
+    trajectory: Trajectory,
+    taskSpec: TaskSpec,
+  ): string {
+    if (trajectory.steps.length === 0) return "(no steps captured)";
+
+    const keywords = outcomeKeywords(
+      `${taskSpec.instruction}\n${trajectory.finalAnswer ?? ""}`,
+    );
+    const lastImportantIndex = Math.max(0, trajectory.steps.length - 5);
+
+    const candidates = trajectory.steps.map((step, position) => {
+      const url = step.probeEvidence.url ?? "";
+      const ariaTree = step.probeEvidence.ariaTree ?? "";
+      const toolOutput = safeJsonSnippet(step.toolOutput?.result, 600);
+      const actionArgs = safeJsonSnippet(step.actionArgs, 400);
+      const haystack = [
+        step.actionName,
+        step.reasoning ?? "",
+        url,
+        actionArgs,
+        toolOutput,
+        ariaTree,
+      ]
+        .join("\n")
+        .toLowerCase();
+
+      let score = position >= lastImportantIndex ? 3 : 0;
+      if (url) score += 1;
+      if (
+        /extract|observe|aria|navigate|click|type|search/i.test(step.actionName)
+      ) {
+        score += 1;
+      }
+      for (const keyword of keywords) {
+        if (haystack.includes(keyword)) {
+          score += keyword.length >= 8 ? 3 : 1;
+        }
+      }
+
+      return { step, position, score };
+    });
+
+    const selected = new Set<number>();
+    for (const candidate of [...candidates]
+      .sort((a, b) => b.score - a.score || a.position - b.position)
+      .slice(0, OUTCOME_EVIDENCE_MAX_STEPS)) {
+      selected.add(candidate.position);
+    }
+
+    for (
+      let i = Math.max(0, trajectory.steps.length - 4);
+      i < trajectory.steps.length;
+      i++
+    ) {
+      selected.add(i);
+    }
+
+    const sections = [...selected]
+      .sort((a, b) => a - b)
+      .map((position) => {
+        const step = trajectory.steps[position];
+        const url = step.probeEvidence.url
+          ? ` url=${step.probeEvidence.url}`
+          : "";
+        const reasoning = step.reasoning
+          ? `\n  reasoning: ${step.reasoning.slice(0, 220)}`
+          : "";
+        const toolOutput = step.toolOutput?.result
+          ? `\n  tool_output: ${safeJsonSnippet(step.toolOutput.result, 320)}`
+          : "";
+        const ariaExcerpt = step.probeEvidence.ariaTree
+          ? `\n  page_excerpt: ${bestOutcomeExcerpt(
+              step.probeEvidence.ariaTree,
+              keywords,
+              OUTCOME_EVIDENCE_STEP_CHARS,
+            )}`
+          : "";
+        return `Step ${step.index}: ${step.actionName}(${summarizeArgs(
+          step.actionArgs,
+        )})${url}${reasoning}${toolOutput}${ariaExcerpt}`;
+      });
+
+    return clampToTokenBudget(
+      sections.join("\n\n"),
+      readPositiveIntEnv(
+        "VERIFIER_OUTCOME_EVIDENCE_TOKEN_BUDGET",
+        DEFAULT_OUTCOME_EVIDENCE_TOKEN_BUDGET,
+      ),
+    );
   }
 
   /** Step 0a — rubric generation from task description alone. */
@@ -1639,6 +1750,116 @@ function selectRecentImages(
   }
 
   return images.reverse();
+}
+
+function currentDateForTrajectory(trajectory: Trajectory): string {
+  const firstStepDate = trajectory.steps.find(
+    (step) => typeof step.startedAt === "string" && step.startedAt.length >= 10,
+  )?.startedAt;
+
+  return (
+    trajectory.timing?.startedAt?.slice(0, 10) ||
+    firstStepDate?.slice(0, 10) ||
+    new Date().toISOString().slice(0, 10)
+  );
+}
+
+const OUTCOME_KEYWORD_STOPWORDS = new Set([
+  "about",
+  "above",
+  "access",
+  "agent",
+  "also",
+  "answer",
+  "available",
+  "based",
+  "been",
+  "being",
+  "browser",
+  "class",
+  "click",
+  "correct",
+  "current",
+  "details",
+  "final",
+  "find",
+  "found",
+  "from",
+  "have",
+  "including",
+  "into",
+  "list",
+  "located",
+  "model",
+  "more",
+  "navigated",
+  "page",
+  "provided",
+  "request",
+  "requested",
+  "results",
+  "search",
+  "show",
+  "successfully",
+  "task",
+  "that",
+  "the",
+  "their",
+  "then",
+  "there",
+  "this",
+  "through",
+  "user",
+  "using",
+  "which",
+  "with",
+]);
+
+function outcomeKeywords(text: string): string[] {
+  const counts = new Map<string, number>();
+  for (const match of text.toLowerCase().matchAll(/[a-z0-9][a-z0-9._/-]*/g)) {
+    const word = match[0].replace(/^[-_./]+|[-_./]+$/g, "");
+    if (!word) continue;
+    if (OUTCOME_KEYWORD_STOPWORDS.has(word)) continue;
+    if (word.length < 4 && !/\d/.test(word)) continue;
+    counts.set(word, (counts.get(word) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
+    .slice(0, 36)
+    .map(([word]) => word)
+    .sort((a, b) => b.length - a.length || a.localeCompare(b));
+}
+
+function bestOutcomeExcerpt(
+  text: string,
+  keywords: string[],
+  maxChars: number,
+): string {
+  const compact = text.replace(/\s+/g, " ").trim();
+  if (compact.length <= maxChars) return compact;
+
+  const lower = compact.toLowerCase();
+  let bestIndex = -1;
+  for (const keyword of keywords) {
+    const idx = lower.indexOf(keyword);
+    if (idx >= 0) {
+      bestIndex = idx;
+      break;
+    }
+  }
+
+  if (bestIndex < 0) {
+    return `${compact.slice(0, maxChars)}... [truncated]`;
+  }
+
+  const before = Math.floor(maxChars * 0.35);
+  const start = Math.max(0, bestIndex - before);
+  const end = Math.min(compact.length, start + maxChars);
+  const prefix = start > 0 ? "... " : "";
+  const suffix = end < compact.length ? " ... [truncated]" : "";
+  return `${prefix}${compact.slice(start, end)}${suffix}`;
 }
 
 function clampToTokenBudget(text: string, tokenBudget: number): string {
