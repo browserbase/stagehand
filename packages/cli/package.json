@@ -29,18 +29,10 @@
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "main": "./dist/index.js",
   "bin": {
     "browse": "./dist/index.js"
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsx src/index.ts",
@@ -50,8 +42,7 @@
     "lint": "cd ../.. && prettier --check packages/cli && cd packages/cli && pnpm run eslint && pnpm run typecheck",
     "test": "vitest run",
     "test:cli": "vitest run",
-    "test:watch": "vitest",
-    "prepublishOnly": "pnpm run build"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@browserbasehq/stagehand": "workspace:*",
