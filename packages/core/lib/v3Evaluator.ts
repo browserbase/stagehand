@@ -1,10 +1,3 @@
-/**
- * Public V3 evaluator facade.
- *
- * The facade keeps the legacy evaluator available while the rubric verifier
- * backend is layered in separately.
- */
-
 import type { AvailableModel, ClientOptions } from "./v3/types/public/model.js";
 import type {
   EvaluateOptions,
