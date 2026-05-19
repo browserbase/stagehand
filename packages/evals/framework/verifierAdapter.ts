@@ -1,27 +1,3 @@
-/**
- * verifierAdapter — runs a bench task through the verifier pipeline.
- *
- * Replaces the per-task ScreenshotCollector + V3Evaluator.ask() boilerplate
- * with one call:
- *
- *   const { evaluationResult, trajectory } = await runWithVerifier({
- *     v3,
- *     agent,
- *     taskSpec: { id, instruction, initUrl, precomputedRubric? },
- *     maxSteps: 50,
- *   });
- *
- * Behavior:
- *   1. Resolves the rubric from the task, cache, or evaluator.
- *   2. Wraps agent.execute() with a TrajectoryRecorder subscribed to the bus.
- *   3. Runs V3Evaluator.verify() on the recorded Trajectory.
- *   4. Returns { trajectory, evaluationResult, agentResult }.
- *
- * Persistence and rubric caching are gated by env vars:
- *   VERIFIER_PERSIST_TRAJECTORIES   — on locally, off in CI by default.
- *   VERIFIER_DISABLE_RUBRIC_CACHE   — set to "1" to bypass the cache (forces
- *                                     fresh rubric generation every time).
- */
 import {
   V3Evaluator,
   normalizeRubric,
