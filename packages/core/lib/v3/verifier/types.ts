@@ -210,13 +210,13 @@ export interface EvidenceLoadResult {
   };
 }
 
-/** Options for evidence loading. Mainly env override hooks for tests. */
+/** Options for evidence loading; primarily test seams over the defaults. */
 export interface EvidenceLoadOptions {
-  /** Override VERIFIER_SSIM_THRESHOLD. */
+  /** SSIM similarity threshold for dedup (default 0.75). */
   ssimThreshold?: number;
-  /** Override VERIFIER_MSE_THRESHOLD. */
+  /** MSE similarity threshold for dedup (default 30). */
   mseThreshold?: number;
-  /** Override VERIFIER_IMAGE_RESIZE. */
+  /** Scale factor applied before relevance scoring (default 0.7). */
   imageResize?: number;
 }
 
