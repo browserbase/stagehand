@@ -1,17 +1,3 @@
-/**
- * RubricVerifier — rubric-based verification pipeline.
- *
- * Runs rubric generation, evidence selection, per-criterion scoring, outcome
- * verification, failure analysis, and task-validity checks over a saved
- * trajectory.
- *
- * Architectural invariants:
- *   - Verifier never touches a live browser. Pure (Trajectory, TaskSpec) → EvaluationResult.
- *   - Public surface is V3Evaluator.verify(). This class stays internal.
- *
- * The class accepts a small ClientFactory so V3Evaluator can inject its
- * existing LLM client without RubricVerifier needing a V3 handle.
- */
 import { z } from "zod";
 
 import type { LLMClient, LLMResponse } from "../llm/LLMClient.js";
@@ -90,32 +76,11 @@ const OutcomeSchema = z.object({
   findings: z.array(FindingSchema).optional().default([]),
 });
 
-// ── New (overwriting) pipeline schemas ─────────────────────────────────────
-
-/** Approach B's fused-judgment response schema. */
-const FusedFindingSchema = z.object({
-  category: z
-    .enum([
-      "agent_tool_usage",
-      "agent_strategy",
-      "rubric_quality",
-      "trajectory_capture",
-      "task_specification",
-      "verifier_uncertainty",
-      "other",
-    ])
-    .catch("other"),
-  severity: z.enum(["info", "warning", "blocking"]).catch("info"),
-  description: z.string(),
-  suggestedAction: z.string().optional(),
-  relatedSteps: z.array(z.number()).optional(),
-});
-
 const FusedOutcomeSchema = z.object({
   primary_intent: z.string(),
   reasoning: z.string(),
   output_success: z.boolean(),
-  findings: z.array(FusedFindingSchema).optional().default([]),
+  findings: z.array(FindingSchema).optional().default([]),
 });
 
 const FusedPerCriterionSchema = z.object({
@@ -148,14 +113,13 @@ const FusedJudgmentResponseSchema = z.object({
   task_validity: FusedTaskValiditySchema.optional(),
 });
 
-/** Approach A's outcome call — no per_criterion in response. */
+/** Outcome-only response: no per_criterion field, just outcome + diagnostics. */
 const FusedOutcomeResponseSchema = z.object({
   outcome: FusedOutcomeSchema,
   failure_point: FusedFailurePointSchema.optional(),
   task_validity: FusedTaskValiditySchema.optional(),
 });
 
-/** Batched relevance — Step 2 replacement. */
 const BatchedRelevanceItemSchema = z.object({
   evidence_idx: z.coerce.number().int().min(0),
   scores: z.array(
@@ -169,7 +133,6 @@ const BatchedRelevanceResponseSchema = z.object({
   items: z.array(BatchedRelevanceItemSchema),
 });
 
-/** Per-criterion scoring — Approach A's analysis+score call. */
 const PerCriterionScoreResponseSchema = z.object({
   criterion_idx: z.coerce.number().int().min(0),
   applicable_evidence: z.string().optional().default(""),
@@ -403,7 +366,6 @@ export class RubricVerifier implements Verifier {
       return this.verifyOutcomeOnly(trajectory, taskSpec, optionalsMode);
     }
 
-    // Step 0a — generate rubric if absent.
     let rubric: Rubric | undefined = normalizeRubric(
       taskSpec.precomputedRubric,
     );
@@ -412,11 +374,8 @@ export class RubricVerifier implements Verifier {
       rubric = await this.generateRubric(taskSpec);
     }
 
-    // ── Steps 1–3: collect evidence, batched relevance, top-K ──────────────
-    // Combined images + ariaTree text evidence → single relevance matrix →
-    // per-criterion top-K selection. Empty-evidence trajectories fall back
-    // gracefully (the chosen approach degrades to an action-history-only
-    // judgment).
+    // Empty-evidence trajectories fall back gracefully — the chosen approach
+    // degrades to an action-history-only judgment downstream.
     const { evidence, loaded } = await collectCanonicalEvidence(trajectory);
 
     const relevanceScores = await this.scoreRelevanceBatched({
@@ -431,7 +390,6 @@ export class RubricVerifier implements Verifier {
       topK: readPositiveIntEnv("VERIFIER_TOP_K", DEFAULT_TOP_K),
     });
 
-    // ── Per-criterion scoring (Approach A) or fused judgment (Approach B) ──
     let perCriterion: CriterionScore[];
     let fusedOutcome: z.infer<typeof FusedOutcomeSchema> | undefined;
     let foldedFailurePoint: z.infer<typeof FusedFailurePointSchema> | undefined;
@@ -452,8 +410,8 @@ export class RubricVerifier implements Verifier {
       foldedFailurePoint = fused.failure_point;
       foldedTaskValidity = fused.task_validity;
     } else {
-      // Approach A: per-criterion analysis returns earned_points; no
-      // separate whole-rubric rescore.
+      // Approach a: per-criterion analysis returns earned_points directly;
+      // no separate whole-rubric rescore.
       perCriterion = await this.scorePerCriterion({
         trajectory,
         taskSpec,
@@ -740,20 +698,9 @@ export class RubricVerifier implements Verifier {
   }
 
   /**
-   * Step 2 (NEW) — batched relevance scoring.
-   *
-   * Replaces the per-(criterion, frame) fan-out with B evidence points per
-   * call, all criteria scored at once. The model gets the rubric block, a
-   * textual manifest describing each evidence point in this batch (with
-   * `evidence_idx` labels), and the actual evidence as inline image_url
-   * parts (for images) plus text blocks (for ariaTree).
-   *
-   * Batch size B is `VERIFIER_RELEVANCE_BATCH_SIZE` (default 4). Calls run
-   * in parallel up to `VERIFIER_MAX_PARALLEL`.
-   *
-   * Returns a Map keyed by canonicalIndex; each entry is a Map<criterionIdx, score>.
-   * Evidence points whose call fails get an all-zeros entry so downstream
-   * Step 3 still produces a valid top-K grouping.
+   * Score every (evidence, criterion) pair with one batched call per chunk,
+   * to avoid a per-(criterion, frame) fan-out. Failed batches contribute
+   * all-zeros scores so the downstream top-K still produces valid groups.
    */
   private async scoreRelevanceBatched(args: {
     taskSpec: TaskSpec;
@@ -861,7 +808,7 @@ export class RubricVerifier implements Verifier {
           }
         } catch {
           // Per-batch failure: zero out the whole batch so the pipeline
-          // continues. Step 3 simply won't select these evidence points.
+          // continues — top-K won't select these evidence points.
           for (const ev of batch) {
             const scoreMap = new Map<number, number>();
             for (let i = 0; i < numCriteria; i++) scoreMap.set(i, 0);
@@ -887,13 +834,10 @@ export class RubricVerifier implements Verifier {
   }
 
   /**
-   * Approach A — per-criterion analysis with embedded scoring.
-   *
-   * One call per rubric criterion: each call sees the criterion's top-K
+   * One call per rubric criterion. Each call sees the criterion's top-K
    * evidence points (images + ariaTree snippets), the action history, and
-   * the final answer. The response includes `earned_points` directly, so
-   * `processScore` is deterministic (Σ earned / Σ max) — no whole-rubric
-   * rescoring call needed.
+   * the final answer; the response includes `earned_points` directly so the
+   * process score is deterministic (Σ earned / Σ max).
    */
   private async scorePerCriterion(args: {
     trajectory: Trajectory;
@@ -1018,15 +962,11 @@ export class RubricVerifier implements Verifier {
   }
 
   /**
-   * Approach B — single fused multimodal call that returns the full
-   * EvaluationResult shape in one structured response.
-   *
-   * Sends rubric + per-criterion top-K evidence + action history + final
-   * answer. Optionally folds first-point-of-failure (when foldFailure) and
-   * task-validity classification (when foldValidity) into the response.
-   *
-   * Image evidence is attached inline; text evidence (ariaTree) is embedded
-   * in the prompt under each criterion's manifest section.
+   * Single fused multimodal call returning the full EvaluationResult shape:
+   * rubric + per-criterion top-K evidence + action history + final answer.
+   * Optionally folds in first-point-of-failure and task-validity. Image
+   * evidence rides inline; ariaTree text is embedded in the prompt under
+   * each criterion's manifest section.
    */
   private async fusedJudgment(args: {
     trajectory: Trajectory;
@@ -1162,12 +1102,10 @@ export class RubricVerifier implements Verifier {
   }
 
   /**
-   * Approach A's combined Step 8 (+ optional folded 9a/10).
-   *
-   * Consumes the pre-scored rubric from scorePerCriterion and produces the
-   * outcome result. When foldFailure/foldValidity are set, the response
-   * also includes first-point-of-failure and task-validity, saving 1–2
-   * extra LLM calls.
+   * Consume the pre-scored rubric from scorePerCriterion and produce the
+   * outcome result. When foldFailure/foldValidity are set, the response also
+   * includes first-point-of-failure and task-validity, saving 1–2 extra
+   * LLM calls.
    */
   private async verifyOutcomeFused(args: {
     trajectory: Trajectory;
@@ -1416,7 +1354,7 @@ export class RubricVerifier implements Verifier {
     );
   }
 
-  /** Step 0a — rubric generation from task description alone. */
+  /** Generate a rubric from the task description alone. */
   async generateRubric(taskSpec: TaskSpec): Promise<Rubric> {
     const prompt = renderPrompt(RUBRIC_GENERATION_PROMPT, {
       task_id: taskSpec.instruction,
@@ -1471,17 +1409,10 @@ export class RubricVerifier implements Verifier {
   }
 
   /**
-   * Step 9a — first-point-of-failure analysis.
-   *
-   * Identifies all distinct failure points in the trajectory using the
-   * taxonomy categories 1–6 (agent-controllable errors). Picks the earliest
-   * one (lowest step number) and returns it as FirstPointOfFailure. Diagnostic
-   * signal only; doesn't affect scoring.
-   *
-   * Best-effort: returns undefined if the LLM call throws, the model returns
-   * unparseable output, or no failures are identified. The result's
-   * firstPointOfFailure stays absent in that case rather than blocking the
-   * rest of the pipeline.
+   * Identify all distinct failure points using taxonomy categories 1–6
+   * (agent-controllable errors) and return the earliest one. Best-effort:
+   * returns undefined on LLM failure / unparseable output / no failures
+   * found, rather than blocking the rest of the pipeline.
    */
   private async analyzeFailures(args: {
     trajectory: Trajectory;
@@ -1558,15 +1489,9 @@ export class RubricVerifier implements Verifier {
   }
 
   /**
-   * Step 10 — task validity classification.
-   *
-   * Pure task-level analysis (no trajectory context needed). Classifies the
-   * task across two axes from the error taxonomy: ambiguity (category 7) and
-   * validity/feasibility (category 8). Populates EvaluationResult.taskValidity with
-   * the booleans + optional taxonomy codes. Diagnostic signal only.
-   *
-   * Best-effort: returns undefined on LLM error; the caller substitutes the
-   * default { isAmbiguous: false, isInvalid: false }.
+   * Classify the task across ambiguity (taxonomy category 7) and
+   * validity/feasibility (category 8). Pure task-level analysis; no
+   * trajectory context needed. Best-effort: returns undefined on LLM error.
    */
   private async classifyTaskValidity(
     taskSpec: TaskSpec,
@@ -1618,9 +1543,9 @@ export class RubricVerifier implements Verifier {
   }
 
   /**
-   * Format the rubric with per-criterion rescored points + explanations for
-   * Step 8's reference. The outcome verifier reads this to understand how a
-   * separate scoring system viewed each criterion, but forms its own result.
+   * Format the rubric with per-criterion rescored points + explanations.
+   * The outcome verifier reads this as advisory context — it sees how a
+   * separate scoring system viewed each criterion but forms its own result.
    */
   private formatScoredRubricSummary(
     rubric: Rubric,
@@ -1672,15 +1597,7 @@ interface EvidenceContext {
   images: EvidenceImage[];
 }
 
-/**
- * Tiny in-tree p-limit implementation. We avoid pulling in the `p-limit`
- * package: the verifier already has zero net-new deps for the prompts/
- * orchestration layer, and core ships a lot of small consumers — fewer
- * deps means smaller bundles for everyone.
- *
- * Returns a function that wraps a thunk; at most `concurrency` thunks run
- * at any time. Pending thunks queue FIFO.
- */
+/** FIFO concurrency limiter; avoids a new dep. */
 function pLimit(concurrency: number): <T>(fn: () => Promise<T>) => Promise<T> {
   const n = Math.max(1, Math.floor(concurrency));
   let active = 0;
@@ -1705,11 +1622,6 @@ function pLimit(concurrency: number): <T>(fn: () => Promise<T>) => Promise<T> {
       });
       next();
     });
-}
-
-/** Collapse newlines for compact embedding in another prompt. */
-function oneLine(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
 }
 
 function selectRecentImages(
