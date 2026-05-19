@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { V3 } from "../../lib/v3/v3.js";
+import { V3Context } from "../../lib/v3/understudy/context.js";
 
 const MOCK_SESSION_ID = "session-123";
 const MOCK_SESSION_URL = `https://www.browserbase.com/sessions/${MOCK_SESSION_ID}`;
@@ -13,9 +14,7 @@ vi.mock("../../lib/v3/understudy/context", () => {
   }
 
   class MockV3Context {
-    static async create(): Promise<MockV3Context> {
-      return new MockV3Context();
-    }
+    static create = vi.fn(async () => new MockV3Context());
 
     conn = new MockConnection();
 
@@ -151,6 +150,42 @@ describe("local accessors", () => {
       await v3.init();
       expect(v3.browserbaseSessionURL).toBeUndefined();
       expect(v3.browserbaseDebugURL).toBeUndefined();
+    } finally {
+      await v3.close().catch(() => {});
+    }
+  });
+
+  it("passes local launch options to the CDP attach context", async () => {
+    const localBrowserLaunchOptions = {
+      cdpUrl: "ws://local-existing-session",
+      cdpHeaders: {
+        "x-stagehand-test": "yes",
+      },
+      viewport: {
+        width: 800,
+        height: 600,
+      },
+      deviceScaleFactor: 2,
+    };
+
+    const v3 = new V3({
+      env: "LOCAL",
+      disableAPI: true,
+      verbose: 0,
+      localBrowserLaunchOptions,
+    });
+
+    try {
+      await v3.init();
+
+      expect(V3Context.create).toHaveBeenCalledWith(
+        localBrowserLaunchOptions.cdpUrl,
+        {
+          env: "LOCAL",
+          cdpHeaders: localBrowserLaunchOptions.cdpHeaders,
+          localBrowserLaunchOptions,
+        },
+      );
     } finally {
       await v3.close().catch(() => {});
     }
