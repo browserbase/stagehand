@@ -173,6 +173,7 @@ components:
       properties:
         type:
           type: string
+          const: service_account
         project_id:
           type: string
         private_key_id:
@@ -185,36 +186,30 @@ components:
           type: string
         auth_uri:
           type: string
+          format: uri
         token_uri:
           type: string
+          format: uri
         auth_provider_x509_cert_url:
           type: string
+          format: uri
         client_x509_cert_url:
           type: string
+          format: uri
         universe_domain:
           type: string
-      additionalProperties: {}
+      required:
+        - type
+        - project_id
+        - private_key
+        - client_email
+      additionalProperties: false
     GoogleAuthOptions:
       type: object
       properties:
-        apiKey:
-          description: API key used by google-auth-library for Vertex express mode
-          type: string
-        keyFilename:
-          description: Path to a Google Cloud service account key file
-          type: string
-        keyFile:
-          description: Path to a Google Cloud service account key file
-          type: string
         credentials:
           description: Google Cloud service account credentials
           $ref: "#/components/schemas/GoogleServiceAccountCredentials"
-        clientOptions:
-          description: Additional serializable options passed to the Google auth client
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties: {}
         scopes:
           description: Google auth scopes for the desired API request
           anyOf:
@@ -228,6 +223,7 @@ components:
         universeDomain:
           description: Google Cloud universe domain
           type: string
+      additionalProperties: false
     ModelConfigObject:
       type: object
       properties:
@@ -1310,41 +1306,6 @@ components:
         acceptDownloads:
           type: boolean
       additionalProperties: false
-    GoogleAuthOptionsOutput:
-      type: object
-      properties:
-        apiKey:
-          description: API key used by google-auth-library for Vertex express mode
-          type: string
-        keyFilename:
-          description: Path to a Google Cloud service account key file
-          type: string
-        keyFile:
-          description: Path to a Google Cloud service account key file
-          type: string
-        credentials:
-          description: Google Cloud service account credentials
-          $ref: "#/components/schemas/GoogleServiceAccountCredentials"
-        clientOptions:
-          description: Additional serializable options passed to the Google auth client
-          type: object
-          propertyNames:
-            type: string
-          additionalProperties: {}
-        scopes:
-          description: Google auth scopes for the desired API request
-          anyOf:
-            - type: string
-            - type: array
-              items:
-                type: string
-        projectId:
-          description: Google Cloud project ID used by google-auth-library
-          type: string
-        universeDomain:
-          description: Google Cloud universe domain
-          type: string
-      additionalProperties: false
     ModelConfigObjectOutput:
       type: object
       properties:
@@ -1389,7 +1350,7 @@ components:
           type: string
         googleAuthOptions:
           description: google-auth-library options used to authenticate Vertex AI models
-          $ref: "#/components/schemas/GoogleAuthOptionsOutput"
+          $ref: "#/components/schemas/GoogleAuthOptions"
       required:
         - modelName
       additionalProperties: false

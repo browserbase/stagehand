@@ -18,12 +18,11 @@ export type AnthropicClientOptions = Pick<
 >;
 
 export interface GoogleServiceAccountCredentials {
-  [key: string]: unknown;
-  type?: string;
-  project_id?: string;
+  type: "service_account";
+  project_id: string;
   private_key_id?: string;
-  private_key?: string;
-  client_email?: string;
+  private_key: string;
+  client_email: string;
   client_id?: string;
   auth_uri?: string;
   token_uri?: string;
@@ -33,11 +32,7 @@ export interface GoogleServiceAccountCredentials {
 }
 
 export interface GoogleVertexAuthOptions {
-  apiKey?: string;
-  keyFilename?: string;
-  keyFile?: string;
   credentials?: GoogleServiceAccountCredentials;
-  clientOptions?: Record<string, unknown>;
   scopes?: string | string[];
   projectId?: string;
   universeDomain?: string;

@@ -70,17 +70,14 @@ describe("API model config schemas", () => {
     project: "test-gcp-project",
     location: "us-central1",
     googleAuthOptions: {
-      apiKey: "vertex-express-key",
       credentials: {
-        audience:
-          "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+        type: "service_account",
+        project_id: "test-gcp-project",
+        private_key_id: "test-key-id",
         client_email: "vertex@example.iam.gserviceaccount.com",
         private_key:
           "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
-      },
-      clientOptions: {
-        eagerRefreshThresholdMillis: 300000,
-        forceRefreshOnFailure: true,
+        token_uri: "https://oauth2.googleapis.com/token",
       },
       scopes: ["https://www.googleapis.com/auth/cloud-platform"],
       projectId: "test-gcp-project",
@@ -116,5 +113,46 @@ describe("API model config schemas", () => {
     if (!result.success) throw result.error;
     expect(result.data.agentConfig.model).toEqual(vertexModel);
     expect(result.data.agentConfig.executionModel).toEqual(vertexModel);
+  });
+
+  it("rejects Vertex key file paths and external credential sources", () => {
+    for (const blockedAuthOptions of [
+      { keyFilename: "/etc/passwd" },
+      { keyFile: "/etc/passwd" },
+      { apiKey: "vertex-express-key" },
+    ]) {
+      const result = Api.ActRequestSchema.safeParse({
+        input: "click the search button",
+        options: {
+          model: {
+            provider: "vertex",
+            modelName: "vertex/gemini-2.5-flash",
+            googleAuthOptions: blockedAuthOptions,
+          },
+        },
+      });
+
+      expect(result.success).toBe(false);
+    }
+
+    const externalAccountResult = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          provider: "vertex",
+          modelName: "vertex/gemini-2.5-flash",
+          googleAuthOptions: {
+            credentials: {
+              type: "external_account",
+              credential_source: {
+                file: "/etc/passwd",
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(externalAccountResult.success).toBe(false);
   });
 });

@@ -58,39 +58,25 @@ export const LocalBrowserLaunchOptionsSchema = z
 /** Detailed model configuration object */
 export const GoogleServiceAccountCredentialsSchema = z
   .object({
-    type: z.string().optional(),
-    project_id: z.string().optional(),
+    type: z.literal("service_account"),
+    project_id: z.string(),
     private_key_id: z.string().optional(),
-    private_key: z.string().optional(),
-    client_email: z.string().optional(),
+    private_key: z.string(),
+    client_email: z.string(),
     client_id: z.string().optional(),
-    auth_uri: z.string().optional(),
-    token_uri: z.string().optional(),
-    auth_provider_x509_cert_url: z.string().optional(),
-    client_x509_cert_url: z.string().optional(),
+    auth_uri: z.url().optional(),
+    token_uri: z.url().optional(),
+    auth_provider_x509_cert_url: z.url().optional(),
+    client_x509_cert_url: z.url().optional(),
     universe_domain: z.string().optional(),
   })
-  .catchall(z.unknown())
+  .strict()
   .meta({ id: "GoogleServiceAccountCredentials" });
 
 export const GoogleAuthOptionsSchema = z
   .object({
-    apiKey: z.string().optional().meta({
-      description:
-        "API key used by google-auth-library for Vertex express mode",
-    }),
-    keyFilename: z.string().optional().meta({
-      description: "Path to a Google Cloud service account key file",
-    }),
-    keyFile: z.string().optional().meta({
-      description: "Path to a Google Cloud service account key file",
-    }),
     credentials: GoogleServiceAccountCredentialsSchema.optional().meta({
       description: "Google Cloud service account credentials",
-    }),
-    clientOptions: z.record(z.string(), z.unknown()).optional().meta({
-      description:
-        "Additional serializable options passed to the Google auth client",
     }),
     scopes: z
       .union([z.string(), z.array(z.string())])
@@ -105,6 +91,7 @@ export const GoogleAuthOptionsSchema = z
       description: "Google Cloud universe domain",
     }),
   })
+  .strict()
   .meta({ id: "GoogleAuthOptions" });
 
 export const ModelConfigObjectSchema = z
