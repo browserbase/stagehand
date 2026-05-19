@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import type {
   AgentEvidenceModality,
   ProbeEvidence,
@@ -186,4 +188,139 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
  */
 export function nextResultFilename(label?: string): string {
   return `result_${normalizeResultLabel(label)}.json`;
+}
+
+/**
+ * Default persistence policy: explicit override, then env, then "on unless CI".
+ */
+export function shouldPersistTrajectory(
+  override: boolean | undefined,
+): boolean {
+  if (override !== undefined) return override;
+  const env = process.env.VERIFIER_PERSIST_TRAJECTORIES?.toLowerCase();
+  if (env === "1" || env === "true") return true;
+  if (env === "0" || env === "false") return false;
+  return !process.env.CI;
+}
+
+/**
+ * Write the on-disk trajectory layout under `dir`:
+ *
+ *   <dir>/
+ *     ├── task_data.json
+ *     ├── trajectory.json    (screenshots referenced by path)
+ *     ├── screenshots/
+ *     │   ├── probe/<N>.png
+ *     │   └── agent/<N>[_M].png
+ *     ├── times.json
+ *     ├── scores/            (empty; populated separately)
+ *     └── core.log
+ *
+ * Image bytes are externalized to PNG files; the in-memory Trajectory is left
+ * untouched so callers can keep using it after persistence.
+ */
+export async function writeTrajectoryDir(
+  dir: string,
+  trajectory: Trajectory,
+): Promise<void> {
+  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(path.join(dir, "screenshots", "probe"), { recursive: true });
+  await fs.mkdir(path.join(dir, "screenshots", "agent"), { recursive: true });
+
+  const serializableSteps: unknown[] = [];
+  for (const step of trajectory.steps) {
+    const probe: ProbeEvidence = { ...step.probeEvidence };
+    if (probe.screenshot) {
+      const relPath = `screenshots/probe/${step.index + 1}.png`;
+      await fs.writeFile(path.join(dir, relPath), probe.screenshot);
+      probe.screenshotPath = relPath;
+      delete probe.screenshot;
+    }
+
+    const imageModalities = step.agentEvidence.modalities.filter(
+      (m) => m.type === "image",
+    );
+    const multipleImages = imageModalities.length > 1;
+    let imageSeq = 0;
+    const modalities: unknown[] = [];
+    for (const m of step.agentEvidence.modalities) {
+      if (m.type !== "image") {
+        modalities.push(m);
+        continue;
+      }
+      const suffix = multipleImages ? `_${imageSeq}` : "";
+      const relPath = `screenshots/agent/${step.index + 1}${suffix}.png`;
+      await fs.writeFile(path.join(dir, relPath), m.bytes);
+      modalities.push({
+        type: "image",
+        imagePath: relPath,
+        mediaType: m.mediaType,
+      });
+      imageSeq += 1;
+    }
+    serializableSteps.push({
+      ...step,
+      probeEvidence: probe,
+      agentEvidence: { modalities },
+    });
+  }
+
+  // Image modalities carry imagePath instead of raw bytes on disk; cast
+  // through unknown rather than widen Trajectory's type contract.
+  const serialized = {
+    ...trajectory,
+    steps: serializableSteps,
+  } as unknown;
+
+  await fs.writeFile(
+    path.join(dir, "trajectory.json"),
+    JSON.stringify(serialized, null, 2),
+  );
+
+  await fs.writeFile(
+    path.join(dir, "task_data.json"),
+    JSON.stringify(
+      {
+        task: trajectory.task,
+        status: trajectory.status,
+        finalAnswer: trajectory.finalAnswer ?? null,
+      },
+      null,
+      2,
+    ),
+  );
+
+  await fs.writeFile(
+    path.join(dir, "times.json"),
+    JSON.stringify(
+      {
+        timing: trajectory.timing,
+        usage: trajectory.usage,
+        stepCount: trajectory.steps.length,
+      },
+      null,
+      2,
+    ),
+  );
+
+  await fs.mkdir(path.join(dir, "scores"), { recursive: true });
+  await fs.writeFile(path.join(dir, "core.log"), coreLog(trajectory));
+}
+
+function coreLog(trajectory: Trajectory): string {
+  return (
+    trajectory.steps
+      .map((step) =>
+        JSON.stringify({
+          step: step.index,
+          action: step.actionName,
+          url: step.probeEvidence.url ?? null,
+          ok: step.toolOutput.ok,
+          reasoning: step.reasoning || undefined,
+          startedAt: step.startedAt,
+          finishedAt: step.finishedAt,
+        }),
+      )
+      .join("\n") + "\n"
+  );
 }

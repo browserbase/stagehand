@@ -1,24 +1,9 @@
-/**
- * TrajectoryRecorder — subscribes to v3.bus step events emitted by the agent
- * handlers (v3AgentHandler / v3CuaAgentHandler) and assembles a Trajectory
- * the verifier can consume.
- *
- * Lifecycle:
- *   const recorder = new TrajectoryRecorder({ v3, taskSpec });
- *   recorder.start();
- *   await agent.execute(...);
- *   const trajectory = await recorder.finish({ status: "complete", usage });
- *
- * Persistence is env-gated by `VERIFIER_PERSIST_TRAJECTORIES`:
- *   - unset: persistence follows the default (on locally, off in CI).
- *   - "1" / "true": always persist.
- *   - "0" / "false": never persist.
- *
- * On-disk layout is stable JSON + screenshots so saved runs can be re-scored
- * without format conversion.
- */
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  shouldPersistTrajectory,
+  writeTrajectoryDir,
+} from "@browserbasehq/stagehand";
 import type {
   AgentEvidence,
   AgentFinalAnswerEvent,
@@ -75,18 +60,6 @@ const ZERO_USAGE: TrajectoryUsage = {
   output_tokens: 0,
 };
 
-/**
- * Decide whether to persist by default. Honors the explicit override first,
- * then env, then falls back to "persist when not in CI".
- */
-function shouldPersist(override: boolean | undefined): boolean {
-  if (override !== undefined) return override;
-  const env = process.env.VERIFIER_PERSIST_TRAJECTORIES?.toLowerCase();
-  if (env === "1" || env === "true") return true;
-  if (env === "0" || env === "false") return false;
-  return !process.env.CI;
-}
-
 export class TrajectoryRecorder {
   private readonly v3: V3;
   private readonly taskSpec: TaskSpec;
@@ -94,9 +67,8 @@ export class TrajectoryRecorder {
   private readonly outputDir: string;
   private readonly persistEnabled: boolean;
 
-  // Per-stepIndex builders; events can arrive out-of-order in theory, though
-  // the handlers emit step_finished → screenshot_taken → step_observed in the
-  // same microtask.
+  // Events can arrive out-of-order across step indices; same-step events all
+  // fire in one microtask.
   private readonly partialSteps = new Map<number, Partial<PartialStep>>();
   private readonly observationByStep = new Map<
     number,
@@ -111,34 +83,30 @@ export class TrajectoryRecorder {
   private endedAt = "";
   private listenersAttached = false;
 
-  // Strongly-typed bound handlers so we can attach/detach the same references.
+  // Bound handlers so attach/detach refer to the same references.
   private readonly onScreenshot = (e: AgentScreenshotTakenEvent) => {
     this.screenshotsByStep.set(e.stepIndex, e);
     const partial = this.ensurePartial(e.stepIndex);
 
-    // Default to "probe" when the emit site doesn't tag the role — matches
-    // v3AgentHandler's post-step screenshot, which is always a tier-2 probe.
+    // Default to probe when the emit site doesn't tag a role: matches
+    // v3AgentHandler's post-step screenshot. For CUA the pre-action shot is
+    // NOT a probe — emitCuaActionStep fills that role post-action.
     const role = e.evidenceRole ?? "probe";
 
-    // Probe channel (tier 2): the page's state at observation time. For CUA
-    // the pre-action screenshot is NOT a probe — that role is filled by the
-    // post-action emit from emitCuaActionStep. So only update probe.screenshot
-    // when the event explicitly carries the probe role.
     if (role === "probe" || role === "agent_and_probe") {
       const probe: ProbeEvidence = { ...(partial.probeEvidence ?? {}) };
       probe.screenshot = e.screenshot;
       probe.url = e.url;
       partial.probeEvidence = probe;
     } else if (!partial.probeEvidence?.url) {
-      // Even for tier-1-only events, the URL is useful probe context if we
-      // don't have one yet. Doesn't overwrite a later post-action URL.
+      // Capture URL even for tier-1-only events; a later post-action URL
+      // can still overwrite it.
       partial.probeEvidence = {
         ...(partial.probeEvidence ?? {}),
         url: e.url,
       };
     }
 
-    // Agent channel (tier 1): bytes the model ingested.
     if (role === "agent" || role === "agent_and_probe") {
       partial.agentEvidence = mergeAgentEvidence(partial.agentEvidence, {
         modalities: [
@@ -176,11 +144,10 @@ export class TrajectoryRecorder {
     this.v3 = opts.v3;
     this.taskSpec = opts.taskSpec;
     this.runId =
-      opts.runId ??
-      new Date().toISOString().replace(/[:.]/g, "-").replace("T", "T");
+      opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
     const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
     this.outputDir = path.join(root, this.runId, opts.taskSpec.id);
-    this.persistEnabled = shouldPersist(opts.persist);
+    this.persistEnabled = shouldPersistTrajectory(opts.persist);
   }
 
   /** Subscribe to bus events. Call once before agent.execute(). */
@@ -213,7 +180,7 @@ export class TrajectoryRecorder {
     };
 
     if (this.persistEnabled) {
-      await this.persist(trajectory);
+      await writeTrajectoryDir(this.outputDir, trajectory);
     }
 
     return trajectory;
@@ -289,12 +256,6 @@ export class TrajectoryRecorder {
     return p;
   }
 
-  /**
-   * Materialize ordered TrajectoryStep[] from the accumulated partials.
-   * Steps that never received a step_finished event are skipped (they can
-   * appear for CUA where only screenshot events fire — those are recorded as
-   * orphan probe screenshots and elided here).
-   */
   private assembleSteps(): TrajectoryStep[] {
     const out: TrajectoryStep[] = [];
     const indices = [...this.partialSteps.keys()].sort((a, b) => a - b);
@@ -305,8 +266,8 @@ export class TrajectoryRecorder {
         p.toolOutput === undefined ||
         p.finishedAt === undefined
       ) {
-        // Orphan screenshot-only entry (typically CUA). Skip — we record
-        // these by writing the screenshot to disk separately during persist().
+        // CUA emits screenshot-only entries between actions; skip them here
+        // and let writeTrajectoryDir record them via the probe channel.
         continue;
       }
       out.push({
@@ -323,119 +284,6 @@ export class TrajectoryRecorder {
     }
     return out;
   }
-
-  /**
-   * Write the trajectory directory layout.
-   *
-   *   <outputDir>/
-   *     ├── task_data.json
-   *     ├── trajectory.json    (screenshots referenced by path)
-   *     ├── screenshots/
-   *     │   ├── probe/<N>.png
-   *     │   └── agent/<N>.png
-   *     └── times.json
-   */
-  private async persist(trajectory: Trajectory): Promise<void> {
-    await fs.mkdir(this.outputDir, { recursive: true });
-
-    // Walk steps and write screenshots; replace Buffer with path reference in
-    // the serialized trajectory. Both tiers externalize image bytes under
-    //   screenshots/probe/<N>.png   — tier 2, what the harness observed
-    //   screenshots/agent/<N>.png   — tier 1, what the model received
-    // The `_<j>` suffix only appears when a step carries multiple images
-    // (rare; typically zero or one per step). Paths in JSON are relative to
-    // the trajectory dir so the directory is movable/copyable as a unit.
-    await fs.mkdir(path.join(this.outputDir, "screenshots", "probe"), {
-      recursive: true,
-    });
-    await fs.mkdir(path.join(this.outputDir, "screenshots", "agent"), {
-      recursive: true,
-    });
-
-    const serializableSteps: unknown[] = [];
-    for (const step of trajectory.steps) {
-      const probe: ProbeEvidence = { ...step.probeEvidence };
-      if (probe.screenshot) {
-        const relPath = `screenshots/probe/${step.index + 1}.png`;
-        await fs.writeFile(
-          path.join(this.outputDir, relPath),
-          probe.screenshot,
-        );
-        probe.screenshotPath = relPath;
-        delete probe.screenshot;
-      }
-
-      const imageModalities = step.agentEvidence.modalities.filter(
-        (m) => m.type === "image",
-      );
-      const multipleImages = imageModalities.length > 1;
-      let imageSeq = 0;
-      const modalities: unknown[] = [];
-      for (const m of step.agentEvidence.modalities) {
-        if (m.type !== "image") {
-          modalities.push(m);
-          continue;
-        }
-        const suffix = multipleImages ? `_${imageSeq}` : "";
-        const relPath = `screenshots/agent/${step.index + 1}${suffix}.png`;
-        await fs.writeFile(path.join(this.outputDir, relPath), m.bytes);
-        modalities.push({
-          type: "image",
-          imagePath: relPath,
-          mediaType: m.mediaType,
-        });
-        imageSeq += 1;
-      }
-      const agentEvidence = { modalities };
-      serializableSteps.push({ ...step, probeEvidence: probe, agentEvidence });
-    }
-
-    // Image modalities carry imagePath instead of raw bytes on disk, so this
-    // is no longer a strict Trajectory at the type level. Cast through
-    // unknown rather than widening the type contract.
-    const serialized = {
-      ...trajectory,
-      steps: serializableSteps,
-    } as unknown;
-
-    await fs.writeFile(
-      path.join(this.outputDir, "trajectory.json"),
-      JSON.stringify(serialized, null, 2),
-    );
-
-    // task_data.json stores TaskSpec + (later) result.
-    await fs.writeFile(
-      path.join(this.outputDir, "task_data.json"),
-      JSON.stringify(
-        {
-          task: trajectory.task,
-          status: trajectory.status,
-          finalAnswer: trajectory.finalAnswer ?? null,
-        },
-        null,
-        2,
-      ),
-    );
-
-    await fs.writeFile(
-      path.join(this.outputDir, "times.json"),
-      JSON.stringify(
-        {
-          timing: trajectory.timing,
-          usage: trajectory.usage,
-          stepCount: trajectory.steps.length,
-        },
-        null,
-        2,
-      ),
-    );
-
-    await fs.mkdir(path.join(this.outputDir, "scores"), { recursive: true });
-    await fs.writeFile(
-      path.join(this.outputDir, "core.log"),
-      coreLog(trajectory),
-    );
-  }
 }
 
 function mergeAgentEvidence(
@@ -446,11 +294,6 @@ function mergeAgentEvidence(
   };
 }
 
-/**
- * Build a tier-1 AgentEvidence from a step_finished event. The handler's
- * toolOutput.result is what the LLM consumed next turn (modulo SDK
- * serialization).
- */
 function buildAgentEvidence(e: AgentStepFinishedEvent): AgentEvidence {
   const modalities: AgentEvidence["modalities"] = [];
   if (e.reasoning) {
@@ -469,7 +312,8 @@ function buildAgentEvidence(e: AgentStepFinishedEvent): AgentEvidence {
       mediaType: "image/png",
     });
   } else if (typeof result === "object") {
-    // Tool results commonly include a screenshotBase64 field for vision tools.
+    // Vision tools embed a screenshotBase64 alongside the JSON result; lift
+    // it to its own image modality so the verifier sees both.
     const r = result as { screenshotBase64?: string } & Record<string, unknown>;
     if (typeof r.screenshotBase64 === "string") {
       try {
@@ -479,28 +323,10 @@ function buildAgentEvidence(e: AgentStepFinishedEvent): AgentEvidence {
           mediaType: "image/png",
         });
       } catch {
-        // ignore
+        // Malformed base64; skip the image and keep the JSON modality.
       }
     }
     modalities.push({ type: "json", content: result });
   }
   return { modalities };
-}
-
-function coreLog(trajectory: Trajectory): string {
-  return (
-    trajectory.steps
-      .map((step) =>
-        JSON.stringify({
-          step: step.index,
-          action: step.actionName,
-          url: step.probeEvidence.url ?? null,
-          ok: step.toolOutput.ok,
-          reasoning: step.reasoning || undefined,
-          startedAt: step.startedAt,
-          finishedAt: step.finishedAt,
-        }),
-      )
-      .join("\n") + "\n"
-  );
 }

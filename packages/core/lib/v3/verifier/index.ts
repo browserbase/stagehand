@@ -25,4 +25,6 @@ export {
   loadTrajectoryFromDisk,
   nextResultFilename,
   normalizeRubric,
+  shouldPersistTrajectory,
+  writeTrajectoryDir,
 } from "./trajectory.js";

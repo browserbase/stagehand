@@ -28,6 +28,8 @@ import {
   loadTrajectoryFromDisk,
   nextResultFilename,
   normalizeRubric,
+  shouldPersistTrajectory,
+  writeTrajectoryDir,
 } from "./verifier/index.js";
 
 export { V3 } from "./v3.js";
@@ -93,6 +95,8 @@ export {
   loadTrajectoryFromDisk,
   nextResultFilename,
   normalizeRubric,
+  shouldPersistTrajectory,
+  writeTrajectoryDir,
 } from "./verifier/index.js";
 export { tool } from "ai";
 export { getAISDKLanguageModel } from "./llm/LLMProvider.js";
@@ -147,6 +151,8 @@ const StagehandDefault = {
   loadTrajectoryFromDisk,
   nextResultFilename,
   normalizeRubric,
+  shouldPersistTrajectory,
+  writeTrajectoryDir,
   tool,
   getAISDKLanguageModel,
   __internalCreateInMemoryAgentCacheHandle,
