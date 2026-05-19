@@ -223,9 +223,9 @@ export interface CriterionScore {
   /** Maximum possible points for this criterion. */
   maxPoints: number;
   /**
-   * Points earned post-evidence-analysis (paper's post_image_earned_points).
-   * Null if the criterion was conditional and its condition wasn't met (excluded
-   * from both numerator and denominator in the process score).
+   * Points earned after evidence analysis. Null when the criterion is
+   * conditional and its condition was not met — excluded from both numerator
+   * and denominator in the process score.
    */
   earnedPoints: number | null;
   /** Verifier's explanation for the score. */
@@ -237,16 +237,15 @@ export interface CriterionScore {
   conditionMet?: boolean;
   /**
    * Set when the verifier had no evidence to ground this criterion in either
-   * tier. Per paper §2, treated as uncontrollable failure → full credit, but
-   * surfaced here so dashboards can flag low-confidence results.
+   * tier. Treated as uncontrollable failure (full credit) but surfaced here
+   * so dashboards can flag low-confidence results.
    */
   evidenceInsufficient?: boolean;
 }
 
 /**
- * First-point-of-failure analysis (paper Step 9a). Identifies the earliest
- * step where the agent's trajectory went off-track, using a structured error
- * taxonomy (7 top-level categories, 1.1–7.4 sub-codes).
+ * Earliest step where the agent's trajectory went off-track, classified
+ * against the error taxonomy (7 top-level categories, 1.1–7.4 sub-codes).
  */
 export interface FirstPointOfFailure {
   stepIndex: number;
@@ -313,7 +312,7 @@ export interface VerifierRawSteps {
   screenshotCount?: number;
 }
 
-/** Task-validity classification (paper Step 10). */
+/** Task-validity classification: whether the task is even answerable. */
 export interface TaskValidity {
   /** True if the task is underspecified / has multiple valid interpretations. */
   isAmbiguous: boolean;
