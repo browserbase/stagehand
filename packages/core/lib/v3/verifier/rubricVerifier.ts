@@ -16,6 +16,7 @@ import type {
   TaskSpec,
   Trajectory,
   Verifier,
+  VerifierConfig,
 } from "./types.js";
 import { normalizeRubric } from "./trajectory.js";
 import {
@@ -179,48 +180,134 @@ const DEFAULT_TOP_K = 5;
 const DEFAULT_RELEVANCE_BATCH_SIZE = 4;
 const OUTCOME_EVIDENCE_MAX_STEPS = 14;
 const OUTCOME_EVIDENCE_STEP_CHARS = 900;
-type VerifierApproach = "a" | "b" | "outcome-only";
+type VerifierApproach = VerifierConfig["approach"];
+type OptionalStepsMode = VerifierConfig["optionalSteps"];
 const DEFAULT_APPROACH: VerifierApproach = "b";
-type OptionalStepsMode = "folded" | "separate" | "skip";
 const DEFAULT_OPTIONAL_STEPS_MODE: OptionalStepsMode = "folded";
 
-// Truncation knobs. Each has a tuned default and an env override; the master
-// switch VERIFIER_DISABLE_TRUNCATION=1 lifts every limit to effectively
-// unlimited. Useful on high-context models (gemini-3, sonnet-4.6) where
-// evidence-bound truncation is the bottleneck, not the token budget.
 const NO_TRUNC = Number.MAX_SAFE_INTEGER;
-const TRUNC_DISABLED = (): boolean =>
-  process.env.VERIFIER_DISABLE_TRUNCATION === "1";
-const readCharsEnv = (name: string, fallback: number): number => {
-  if (TRUNC_DISABLED()) return NO_TRUNC;
-  const raw = process.env[name];
+
+function readPositiveIntEnv(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  fallback: number,
+): number {
+  const raw = env[name];
   if (!raw) return fallback;
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-};
-const evidenceTextPreviewChars = (): number =>
-  readCharsEnv("VERIFIER_EVIDENCE_TEXT_PREVIEW_CHARS", 200);
-const groupedEvidenceTextChars = (): number =>
-  readCharsEnv("VERIFIER_GROUPED_EVIDENCE_TEXT_CHARS", 600);
-const buildEvidenceTextChars = (): number =>
-  readCharsEnv("VERIFIER_BUILD_EVIDENCE_TEXT_CHARS", 160);
-const buildEvidenceAriaChars = (): number =>
-  readCharsEnv("VERIFIER_BUILD_EVIDENCE_ARIA_CHARS", 1200);
-const actionHistoryReasoningChars = (): number =>
-  readCharsEnv("VERIFIER_ACTION_HISTORY_REASONING_CHARS", 140);
+}
 
-// ─── Environment helpers ───────────────────────────────────────────────────
+function readChars(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  fallback: number,
+  disabled: boolean,
+): number {
+  if (disabled) return NO_TRUNC;
+  return readPositiveIntEnv(env, name, fallback);
+}
 
-function readApproach(): VerifierApproach {
-  const raw = process.env.VERIFIER_APPROACH;
+function readApproach(env: NodeJS.ProcessEnv): VerifierApproach {
+  const raw = env.VERIFIER_APPROACH;
   if (raw === "a" || raw === "b" || raw === "outcome-only") return raw;
   return DEFAULT_APPROACH;
 }
 
-function readOptionalsMode(): OptionalStepsMode {
-  const raw = process.env.VERIFIER_OPTIONAL_STEPS;
+function readOptionalsMode(env: NodeJS.ProcessEnv): OptionalStepsMode {
+  const raw = env.VERIFIER_OPTIONAL_STEPS;
   if (raw === "folded" || raw === "separate" || raw === "skip") return raw;
   return DEFAULT_OPTIONAL_STEPS_MODE;
+}
+
+/**
+ * Resolve every verifier knob from env (+ optional overrides) into a frozen
+ * VerifierConfig. Called once by RubricVerifier's constructor; per-call
+ * overrides flow through verify()'s optional override arg.
+ *
+ * The master switch VERIFIER_DISABLE_TRUNCATION=1 lifts every per-section
+ * limit to MAX_SAFE_INTEGER — useful on high-context models where
+ * evidence-bound truncation is the bottleneck, not the token budget.
+ */
+export function resolveVerifierConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  overrides: Partial<VerifierConfig> = {},
+): VerifierConfig {
+  const truncDisabled =
+    overrides.truncation?.disabled ?? env.VERIFIER_DISABLE_TRUNCATION === "1";
+  return {
+    approach: overrides.approach ?? readApproach(env),
+    optionalSteps: overrides.optionalSteps ?? readOptionalsMode(env),
+    topK: overrides.topK ?? readPositiveIntEnv(env, "VERIFIER_TOP_K", DEFAULT_TOP_K),
+    relevanceBatchSize:
+      overrides.relevanceBatchSize ??
+      readPositiveIntEnv(
+        env,
+        "VERIFIER_RELEVANCE_BATCH_SIZE",
+        DEFAULT_RELEVANCE_BATCH_SIZE,
+      ),
+    outcomeMaxImages:
+      overrides.outcomeMaxImages ??
+      readPositiveIntEnv(
+        env,
+        "VERIFIER_OUTCOME_MAX_IMAGES",
+        DEFAULT_OUTCOME_IMAGE_LIMIT,
+      ),
+    maxParallel:
+      overrides.maxParallel ??
+      readPositiveIntEnv(env, "VERIFIER_MAX_PARALLEL", DEFAULT_MAX_PARALLEL),
+    evidenceTokenBudget:
+      overrides.evidenceTokenBudget ??
+      readPositiveIntEnv(
+        env,
+        "VERIFIER_EVIDENCE_TOKEN_BUDGET",
+        DEFAULT_EVIDENCE_TOKEN_BUDGET,
+      ),
+    outcomeEvidenceTokenBudget:
+      overrides.outcomeEvidenceTokenBudget ??
+      readPositiveIntEnv(
+        env,
+        "VERIFIER_OUTCOME_EVIDENCE_TOKEN_BUDGET",
+        DEFAULT_OUTCOME_EVIDENCE_TOKEN_BUDGET,
+      ),
+    actionHistoryTokenBudget:
+      overrides.actionHistoryTokenBudget ??
+      readPositiveIntEnv(
+        env,
+        "VERIFIER_ACTION_HISTORY_TOKEN_BUDGET",
+        DEFAULT_ACTION_HISTORY_TOKEN_BUDGET,
+      ),
+    truncation: {
+      disabled: truncDisabled,
+      evidenceTextPreview:
+        overrides.truncation?.evidenceTextPreview ??
+        readChars(env, "VERIFIER_EVIDENCE_TEXT_PREVIEW_CHARS", 200, truncDisabled),
+      groupedEvidenceText:
+        overrides.truncation?.groupedEvidenceText ??
+        readChars(env, "VERIFIER_GROUPED_EVIDENCE_TEXT_CHARS", 600, truncDisabled),
+      buildEvidenceText:
+        overrides.truncation?.buildEvidenceText ??
+        readChars(env, "VERIFIER_BUILD_EVIDENCE_TEXT_CHARS", 160, truncDisabled),
+      buildEvidenceAria:
+        overrides.truncation?.buildEvidenceAria ??
+        readChars(env, "VERIFIER_BUILD_EVIDENCE_ARIA_CHARS", 1200, truncDisabled),
+      actionHistoryReasoning:
+        overrides.truncation?.actionHistoryReasoning ??
+        readChars(env, "VERIFIER_ACTION_HISTORY_REASONING_CHARS", 140, truncDisabled),
+    },
+  };
+}
+
+function mergeConfig(
+  base: VerifierConfig,
+  overrides?: Partial<VerifierConfig>,
+): VerifierConfig {
+  if (!overrides) return base;
+  return {
+    ...base,
+    ...overrides,
+    truncation: { ...base.truncation, ...(overrides.truncation ?? {}) },
+  };
 }
 
 /** Top-K grouping per criterion. Pure compute. */
@@ -298,13 +385,15 @@ function mapFusedPerCriterionToScores(
   });
 }
 
-function evidencePreview(point: CanonicalEvidence): string {
+function evidencePreview(
+  point: CanonicalEvidence,
+  previewChars: number,
+): string {
   if (isImageEvidence(point)) {
     return `Screenshot at step ${point.originalStepIndex} (${point.bytes.length} bytes, ${point.mediaType})`;
   }
-  const limit = evidenceTextPreviewChars();
-  const preview = point.content.slice(0, limit);
-  return `${textEvidenceLabel(point)} at step ${point.originalStepIndex} — "${preview.replace(/\s+/g, " ")}${point.content.length > limit ? "…" : ""}"`;
+  const preview = point.content.slice(0, previewChars);
+  return `${textEvidenceLabel(point)} at step ${point.originalStepIndex} — "${preview.replace(/\s+/g, " ")}${point.content.length > previewChars ? "…" : ""}"`;
 }
 
 function textEvidenceLabel(point: CanonicalTextEvidence): string {
@@ -320,10 +409,16 @@ function textEvidenceLabel(point: CanonicalTextEvidence): string {
   }
 }
 
-function renderEvidenceManifest(points: CanonicalEvidence[]): string {
+function renderEvidenceManifest(
+  points: CanonicalEvidence[],
+  previewChars: number,
+): string {
   if (points.length === 0) return "(no evidence captured)";
   return points
-    .map((p) => `- evidence_idx=${p.canonicalIndex}: ${evidencePreview(p)}`)
+    .map(
+      (p) =>
+        `- evidence_idx=${p.canonicalIndex}: ${evidencePreview(p, previewChars)}`,
+    )
     .join("\n");
 }
 
@@ -331,6 +426,7 @@ function renderGroupedEvidenceForApproach(
   rubric: Rubric,
   evidence: CanonicalEvidence[],
   groupedTopK: Map<number, number[]>,
+  textLimit: number,
 ): string {
   if (evidence.length === 0) return "(no evidence captured)";
   const byIdx = new Map<number, CanonicalEvidence>();
@@ -353,9 +449,8 @@ function renderGroupedEvidenceForApproach(
         if (isImageEvidence(p)) {
           return `- Evidence #${eIdx} — image @ step=${p.originalStepIndex}`;
         }
-        const limit = groupedEvidenceTextChars();
-        const text = p.content.replace(/\s+/g, " ").slice(0, limit);
-        return `- Evidence #${eIdx} — ${textEvidenceLabel(p)} @ step=${p.originalStepIndex}: "${text}${p.content.length > limit ? "…" : ""}"`;
+        const text = p.content.replace(/\s+/g, " ").slice(0, textLimit);
+        return `- Evidence #${eIdx} — ${textEvidenceLabel(p)} @ step=${p.originalStepIndex}: "${text}${p.content.length > textLimit ? "…" : ""}"`;
       })
       .filter((x): x is string => x !== null)
       .join("\n");
@@ -368,15 +463,26 @@ export class RubricVerifier implements Verifier {
   private readonly getClient: () => LLMClient;
   private readonly getRubricGenClient: () => LLMClient;
   private readonly logger: (line: LogLine) => void;
+  private readonly baseConfig: VerifierConfig;
 
   constructor(opts: RubricVerifierOptions) {
     this.getClient = opts.getClient;
     this.getRubricGenClient = opts.getRubricGenClient ?? opts.getClient;
     this.logger = opts.logger ?? noopLogger;
+    this.baseConfig = resolveVerifierConfig(process.env, opts.config);
   }
 
-  async verify(trajectory: Trajectory): Promise<EvaluationResult> {
+  /** Resolved verifier knobs the constructor saw, frozen at construction. */
+  get config(): VerifierConfig {
+    return this.baseConfig;
+  }
+
+  async verify(
+    trajectory: Trajectory,
+    overrides?: Partial<VerifierConfig>,
+  ): Promise<EvaluationResult> {
     const taskSpec = trajectory.task;
+    const config = mergeConfig(this.baseConfig, overrides);
     const hasTrajectorySignal =
       trajectory.steps.length > 0 || Boolean(trajectory.finalAnswer?.trim());
     if (!hasTrajectorySignal) {
@@ -385,11 +491,10 @@ export class RubricVerifier implements Verifier {
       );
     }
 
-    const approach = readApproach();
-    const optionalsMode = readOptionalsMode();
+    const { approach, optionalSteps: optionalsMode } = config;
 
     if (approach === "outcome-only") {
-      return this.verifyOutcomeOnly(trajectory, taskSpec, optionalsMode);
+      return this.verifyOutcomeOnly(trajectory, taskSpec, config);
     }
 
     let rubric: Rubric | undefined = normalizeRubric(
@@ -408,12 +513,13 @@ export class RubricVerifier implements Verifier {
       taskSpec,
       rubric,
       evidence,
+      config,
     });
 
     const groupedTopK = groupTopKByCriterion({
       numCriteria: rubric.items.length,
       relevanceScores,
-      topK: readPositiveIntEnv("VERIFIER_TOP_K", DEFAULT_TOP_K),
+      topK: config.topK,
     });
 
     let perCriterion: CriterionScore[];
@@ -430,6 +536,7 @@ export class RubricVerifier implements Verifier {
         groupedTopK,
         foldFailure: optionalsMode === "folded",
         foldValidity: optionalsMode === "folded",
+        config,
       });
       perCriterion = mapFusedPerCriterionToScores(rubric, fused.per_criterion);
       fusedOutcome = fused.outcome;
@@ -444,6 +551,7 @@ export class RubricVerifier implements Verifier {
         rubric,
         evidence,
         groupedTopK,
+        config,
       });
 
       const outcome = await this.verifyOutcomeFused({
@@ -454,6 +562,7 @@ export class RubricVerifier implements Verifier {
         evidence,
         foldFailure: optionalsMode === "folded",
         foldValidity: optionalsMode === "folded",
+        config,
       });
       fusedOutcome = outcome.outcome;
       foldedFailurePoint = outcome.failure_point;
@@ -505,6 +614,7 @@ export class RubricVerifier implements Verifier {
           reasoning: fusedOutcome.reasoning,
           findings: fusedOutcome.findings ?? [],
         },
+        config,
       }).catch((): EvaluationResult["firstPointOfFailure"] => undefined);
     }
 
@@ -583,10 +693,10 @@ export class RubricVerifier implements Verifier {
   private async verifyOutcomeOnly(
     trajectory: Trajectory,
     taskSpec: TaskSpec,
-    optionalsMode: OptionalStepsMode,
+    config: VerifierConfig,
   ): Promise<EvaluationResult> {
-    const foldFailure = optionalsMode === "folded";
-    const foldValidity = optionalsMode === "folded";
+    const foldFailure = config.optionalSteps === "folded";
+    const foldValidity = config.optionalSteps === "folded";
     const taxonomyBlock = foldFailure
       ? `\n${getTaxonomyText(1, 6, 4)}\n${getTaxonomyText(7, 8, 4)}\n`
       : "";
@@ -594,10 +704,11 @@ export class RubricVerifier implements Verifier {
     const prompt = renderPrompt(FUSED_OUTCOME_PROMPT, {
       task_definition: taskSpec.instruction,
       init_url_context: buildInitUrlContext(taskSpec.initUrl),
-      action_history: this.formatActionHistory(trajectory),
+      action_history: this.formatActionHistory(trajectory, config),
       outcome_evidence_summary: this.buildOutcomeEvidenceSummary(
         trajectory,
         taskSpec,
+        config,
       ),
       agent_predicted_output:
         trajectory.finalAnswer ?? "(no final answer recorded)",
@@ -609,13 +720,7 @@ export class RubricVerifier implements Verifier {
       current_date: currentDateForTrajectory(trajectory),
     });
 
-    const images = selectRecentImages(
-      trajectory,
-      readPositiveIntEnv(
-        "VERIFIER_OUTCOME_MAX_IMAGES",
-        DEFAULT_OUTCOME_IMAGE_LIMIT,
-      ),
-    );
+    const images = selectRecentImages(trajectory, config.outcomeMaxImages);
     const messageContent: Array<
       | { type: "text"; text: string }
       | { type: "image_url"; image_url: { url: string } }
@@ -717,7 +822,7 @@ export class RubricVerifier implements Verifier {
         primaryIntent: fused.outcome.primary_intent,
         reasoning: fused.outcome.reasoning,
         approach: "outcome-only",
-        optionalsMode,
+        optionalsMode: config.optionalSteps,
         screenshotsAttached: images.length,
       },
     };
@@ -732,8 +837,9 @@ export class RubricVerifier implements Verifier {
     taskSpec: TaskSpec;
     rubric: Rubric;
     evidence: CanonicalEvidence[];
+    config: VerifierConfig;
   }): Promise<Map<number, Map<number, number>>> {
-    const { taskSpec, rubric, evidence } = args;
+    const { taskSpec, rubric, evidence, config } = args;
     const out = new Map<number, Map<number, number>>();
     if (evidence.length === 0) return out;
 
@@ -745,26 +851,21 @@ export class RubricVerifier implements Verifier {
       )
       .join("");
 
-    const batchSize = Math.max(
-      1,
-      readPositiveIntEnv(
-        "VERIFIER_RELEVANCE_BATCH_SIZE",
-        DEFAULT_RELEVANCE_BATCH_SIZE,
-      ),
-    );
+    const batchSize = Math.max(1, config.relevanceBatchSize);
 
     const batches: CanonicalEvidence[][] = [];
     for (let i = 0; i < evidence.length; i += batchSize) {
       batches.push(evidence.slice(i, i + batchSize));
     }
 
-    const limit = pLimit(
-      readPositiveIntEnv("VERIFIER_MAX_PARALLEL", DEFAULT_MAX_PARALLEL),
-    );
+    const limit = pLimit(config.maxParallel);
 
     const tasks = batches.map((batch) =>
       limit(async () => {
-        const manifest = renderEvidenceManifest(batch);
+        const manifest = renderEvidenceManifest(
+          batch,
+          config.truncation.evidenceTextPreview,
+        );
         const prompt = renderPrompt(MM_BATCHED_RELEVANCE_PROMPT, {
           task_definition: taskSpec.instruction,
           init_url_context: buildInitUrlContext(taskSpec.initUrl),
@@ -871,20 +972,20 @@ export class RubricVerifier implements Verifier {
     rubric: Rubric;
     evidence: CanonicalEvidence[];
     groupedTopK: Map<number, number[]>;
+    config: VerifierConfig;
   }): Promise<CriterionScore[]> {
-    const { trajectory, taskSpec, rubric, evidence, groupedTopK } = args;
+    const { trajectory, taskSpec, rubric, evidence, groupedTopK, config } =
+      args;
     if (rubric.items.length === 0) return [];
 
     const evidenceByIdx = new Map<number, CanonicalEvidence>();
     for (const e of evidence) evidenceByIdx.set(e.canonicalIndex, e);
 
-    const actionHistory = this.formatActionHistory(trajectory);
+    const actionHistory = this.formatActionHistory(trajectory, config);
     const predictedOutput =
       trajectory.finalAnswer ?? "(no final answer recorded)";
 
-    const limit = pLimit(
-      readPositiveIntEnv("VERIFIER_MAX_PARALLEL", DEFAULT_MAX_PARALLEL),
-    );
+    const limit = pLimit(config.maxParallel);
 
     const tasks = rubric.items.map((criterion, cIdx) =>
       limit(async (): Promise<CriterionScore> => {
@@ -896,7 +997,10 @@ export class RubricVerifier implements Verifier {
         const manifest =
           evidencePoints.length === 0
             ? "(no evidence scored highly enough for this criterion — rely on action history)"
-            : renderEvidenceManifest(evidencePoints);
+            : renderEvidenceManifest(
+                evidencePoints,
+                config.truncation.evidenceTextPreview,
+              );
 
         const conditionLine = criterion.condition
           ? `- Condition: ${criterion.condition}`
@@ -1002,6 +1106,7 @@ export class RubricVerifier implements Verifier {
     groupedTopK: Map<number, number[]>;
     foldFailure: boolean;
     foldValidity: boolean;
+    config: VerifierConfig;
   }): Promise<z.infer<typeof FusedJudgmentResponseSchema>> {
     const {
       trajectory,
@@ -1011,6 +1116,7 @@ export class RubricVerifier implements Verifier {
       groupedTopK,
       foldFailure,
       foldValidity,
+      config,
     } = args;
 
     const evidenceByIdx = new Map<number, CanonicalEvidence>();
@@ -1039,6 +1145,7 @@ export class RubricVerifier implements Verifier {
       rubric,
       evidence,
       groupedTopK,
+      config.truncation.groupedEvidenceText,
     );
 
     const taxonomyBlock = foldFailure
@@ -1048,7 +1155,7 @@ export class RubricVerifier implements Verifier {
     const prompt = renderPrompt(FUSED_JUDGMENT_PROMPT, {
       task_definition: taskSpec.instruction,
       init_url_context: buildInitUrlContext(taskSpec.initUrl),
-      action_history: this.formatActionHistory(trajectory),
+      action_history: this.formatActionHistory(trajectory, config),
       agent_predicted_output:
         trajectory.finalAnswer ?? "(no final answer recorded)",
       rubric_block: rubricBlock,
@@ -1141,6 +1248,7 @@ export class RubricVerifier implements Verifier {
     evidence: CanonicalEvidence[];
     foldFailure: boolean;
     foldValidity: boolean;
+    config: VerifierConfig;
   }): Promise<z.infer<typeof FusedOutcomeResponseSchema>> {
     const {
       trajectory,
@@ -1149,6 +1257,7 @@ export class RubricVerifier implements Verifier {
       perCriterion,
       foldFailure,
       foldValidity,
+      config,
     } = args;
     void args.evidence;
 
@@ -1159,10 +1268,11 @@ export class RubricVerifier implements Verifier {
     const prompt = renderPrompt(FUSED_OUTCOME_PROMPT, {
       task_definition: taskSpec.instruction,
       init_url_context: buildInitUrlContext(taskSpec.initUrl),
-      action_history: this.formatActionHistory(trajectory),
+      action_history: this.formatActionHistory(trajectory, config),
       outcome_evidence_summary: this.buildOutcomeEvidenceSummary(
         trajectory,
         taskSpec,
+        config,
       ),
       agent_predicted_output:
         trajectory.finalAnswer ?? "(no final answer recorded)",
@@ -1224,11 +1334,15 @@ export class RubricVerifier implements Verifier {
    */
   private buildEvidenceContext(
     trajectory: Trajectory,
+    config: VerifierConfig,
     opts: { includeImages?: boolean } = {},
   ): EvidenceContext {
     if (trajectory.steps.length === 0) {
       return { text: "(no steps captured)", images: [] };
     }
+
+    const textLimit = config.truncation.buildEvidenceText;
+    const ariaLimit = config.truncation.buildEvidenceAria;
 
     const text = clampToTokenBudget(
       trajectory.steps
@@ -1238,7 +1352,6 @@ export class RubricVerifier implements Verifier {
             s.probeEvidence.screenshotPath || s.probeEvidence.screenshot
               ? "yes"
               : "no";
-          const textLimit = buildEvidenceTextChars();
           const tier1 = s.agentEvidence.modalities
             .map((m) => {
               if (m.type === "text")
@@ -1252,7 +1365,6 @@ export class RubricVerifier implements Verifier {
           // truth for criteria that can't be verified from the visual probe
           // alone (prices, names, list contents). Per-step cap keeps the
           // total budget bounded.
-          const ariaLimit = buildEvidenceAriaChars();
           const ariaSnippet =
             typeof s.probeEvidence.ariaTree === "string" &&
             s.probeEvidence.ariaTree.length > 0
@@ -1265,23 +1377,14 @@ export class RubricVerifier implements Verifier {
           return `Screenshot ${i + 1} — step=${s.index}, action=${s.actionName}${url}, probe_screenshot=${hasScreenshot}\n  tier1: ${tier1 || "(none)"}\n  tool_output: ${toolOutput}${ariaSnippet}`;
         })
         .join("\n\n"),
-      readPositiveIntEnv(
-        "VERIFIER_EVIDENCE_TOKEN_BUDGET",
-        DEFAULT_EVIDENCE_TOKEN_BUDGET,
-      ),
+      config.evidenceTokenBudget,
     );
 
     if (opts.includeImages === false) return { text, images: [] };
 
     return {
       text,
-      images: selectRecentImages(
-        trajectory,
-        readPositiveIntEnv(
-          "VERIFIER_OUTCOME_MAX_IMAGES",
-          DEFAULT_OUTCOME_IMAGE_LIMIT,
-        ),
-      ),
+      images: selectRecentImages(trajectory, config.outcomeMaxImages),
     };
   }
 
@@ -1296,6 +1399,7 @@ export class RubricVerifier implements Verifier {
   private buildOutcomeEvidenceSummary(
     trajectory: Trajectory,
     taskSpec: TaskSpec,
+    config: VerifierConfig,
   ): string {
     if (trajectory.steps.length === 0) return "(no steps captured)";
 
@@ -1378,10 +1482,7 @@ export class RubricVerifier implements Verifier {
 
     return clampToTokenBudget(
       sections.join("\n\n"),
-      readPositiveIntEnv(
-        "VERIFIER_OUTCOME_EVIDENCE_TOKEN_BUDGET",
-        DEFAULT_OUTCOME_EVIDENCE_TOKEN_BUDGET,
-      ),
+      config.outcomeEvidenceTokenBudget,
     );
   }
 
@@ -1448,16 +1549,18 @@ export class RubricVerifier implements Verifier {
     rubric: Rubric;
     perCriterion: CriterionScore[];
     outcome: z.infer<typeof OutcomeSchema>;
+    config: VerifierConfig;
   }): Promise<EvaluationResult["firstPointOfFailure"]> {
-    const { trajectory, taskSpec, rubric, perCriterion, outcome } = args;
-    const evidenceContext = this.buildEvidenceContext(trajectory, {
+    const { trajectory, taskSpec, rubric, perCriterion, outcome, config } =
+      args;
+    const evidenceContext = this.buildEvidenceContext(trajectory, config, {
       includeImages: false,
     });
 
     const prompt = renderPrompt(FIRST_POINT_OF_FAILURE_PROMPT, {
       task_definition: taskSpec.instruction,
       init_url_context: buildInitUrlContext(taskSpec.initUrl),
-      action_history: this.formatActionHistory(trajectory),
+      action_history: this.formatActionHistory(trajectory, config),
       predicted_output: trajectory.finalAnswer ?? "(no final answer recorded)",
       rubric_summary: this.formatScoredRubricSummary(rubric, perCriterion),
       evidence_summary: evidenceContext.text,
@@ -1594,25 +1697,20 @@ export class RubricVerifier implements Verifier {
    * Compact textual action history for embedding in prompts. One line per
    * step. Full per-step detail lives in trajectory.json on disk.
    */
-  private formatActionHistory(trajectory: Trajectory): string {
+  private formatActionHistory(
+    trajectory: Trajectory,
+    config: VerifierConfig,
+  ): string {
+    const reasoningLimit = config.truncation.actionHistoryReasoning;
     const history = trajectory.steps
       .map((s) => {
         const argSummary = summarizeArgs(s.actionArgs);
-        const reasoning = (s.reasoning ?? "").slice(
-          0,
-          actionHistoryReasoningChars(),
-        );
+        const reasoning = (s.reasoning ?? "").slice(0, reasoningLimit);
         const url = s.probeEvidence.url ? ` @ ${s.probeEvidence.url}` : "";
         return `Step ${s.index}: ${s.actionName}(${argSummary})${url}${reasoning ? `\n  reasoning: ${reasoning}` : ""}`;
       })
       .join("\n");
-    return clampToTokenBudget(
-      history,
-      readPositiveIntEnv(
-        "VERIFIER_ACTION_HISTORY_TOKEN_BUDGET",
-        DEFAULT_ACTION_HISTORY_TOKEN_BUDGET,
-      ),
-    );
+    return clampToTokenBudget(history, config.actionHistoryTokenBudget);
   }
 }
 
@@ -1817,12 +1915,6 @@ function clampToTokenBudget(text: string, tokenBudget: number): string {
   ].join("");
 }
 
-function readPositiveIntEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
 
 function filterByTaskSpan(
   items: z.infer<typeof RubricItemSchema>[],

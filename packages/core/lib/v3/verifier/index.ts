@@ -27,6 +27,7 @@ export type {
   TrajectoryStep,
   TrajectoryUsage,
   Verifier,
+  VerifierConfig,
   VerifierFinding,
   VerifierRawSteps,
 } from "./types.js";

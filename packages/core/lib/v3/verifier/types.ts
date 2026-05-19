@@ -382,10 +382,50 @@ export interface Verifier {
 export interface RubricVerifierOptions {
   /** Factory that returns a configured LLMClient. Called per pipeline step so callers can supply step-specific clients. */
   getClient: () => LLMClient;
-  /** Optional factory for Step 0a so callers can route rubric generation to a stronger model. */
+  /** Optional factory for rubric generation so callers can route it to a stronger model. */
   getRubricGenClient?: () => LLMClient;
   /** Logger; defaults to a no-op so the verifier stays quiet inside V3Evaluator. */
   logger?: (line: LogLine) => void;
+  /**
+   * Override any verifier knob. Env vars supply the defaults; values here win.
+   * Useful for tests and for cross-verify sweeps that want different budgets
+   * per run.
+   */
+  config?: Partial<VerifierConfig>;
+}
+
+/**
+ * Resolved verifier knobs. Constructed once from env (and optional overrides)
+ * by RubricVerifier's constructor; subsequent verify() calls can pass a
+ * Partial to shift any field.
+ */
+export interface VerifierConfig {
+  /** Which pipeline path to take: per-criterion (a), fused (b), or skip rubric entirely (outcome-only). */
+  approach: "a" | "b" | "outcome-only";
+  /** Folded (in fused call), separate (own calls), or skip (omit). */
+  optionalSteps: "folded" | "separate" | "skip";
+  /** Top-K evidence points selected per criterion. */
+  topK: number;
+  /** Batch size for the relevance-scoring LLM call. */
+  relevanceBatchSize: number;
+  /** Image cap on the outcome-only path. */
+  outcomeMaxImages: number;
+  /** Concurrent LLM calls across batches / criteria. */
+  maxParallel: number;
+  /** Token budgets for the three evidence channels. */
+  evidenceTokenBudget: number;
+  outcomeEvidenceTokenBudget: number;
+  actionHistoryTokenBudget: number;
+  /** Per-section character limits applied during evidence-text assembly. */
+  truncation: {
+    /** Master switch: when true, all per-section limits go to MAX_SAFE_INTEGER. */
+    disabled: boolean;
+    evidenceTextPreview: number;
+    groupedEvidenceText: number;
+    buildEvidenceText: number;
+    buildEvidenceAria: number;
+    actionHistoryReasoning: number;
+  };
 }
 
 export interface ErrorTaxonomySubCategory {

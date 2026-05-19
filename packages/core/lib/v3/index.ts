@@ -95,6 +95,7 @@ export type {
   ParseFailureStepNumbersOptions,
   ToolOutput,
   Verifier,
+  VerifierConfig,
   EvaluationResult,
   RubricVerifierOptions,
   CriterionScore,

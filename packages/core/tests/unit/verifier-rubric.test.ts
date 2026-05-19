@@ -103,7 +103,6 @@ describe("RubricVerifier", () => {
 
     const result = await verifier.verify(
       makeTrajectory(taskSpec, Buffer.from("screenshot")),
-      taskSpec,
     );
 
     expect(createChatCompletion).toHaveBeenCalledTimes(1);
