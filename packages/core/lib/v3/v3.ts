@@ -912,6 +912,7 @@ export class V3 {
             this.ctx = await V3Context.create(lbo.cdpUrl, {
               env: "LOCAL",
               cdpHeaders: lbo.cdpHeaders,
+              localBrowserLaunchOptions: lbo,
             });
             this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
