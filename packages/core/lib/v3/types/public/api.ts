@@ -58,8 +58,8 @@ export const LocalBrowserLaunchOptionsSchema = z
 /** Detailed model configuration object */
 export const GoogleServiceAccountCredentialsSchema = z
   .object({
-    type: z.literal("service_account"),
-    project_id: z.string(),
+    type: z.literal("service_account").optional(),
+    project_id: z.string().optional(),
     private_key_id: z.string().optional(),
     private_key: z.string(),
     client_email: z.string(),

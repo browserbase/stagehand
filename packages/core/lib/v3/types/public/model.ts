@@ -18,8 +18,8 @@ export type AnthropicClientOptions = Pick<
 >;
 
 export interface GoogleServiceAccountCredentials {
-  type: "service_account";
-  project_id: string;
+  type?: "service_account";
+  project_id?: string;
   private_key_id?: string;
   private_key: string;
   client_email: string;

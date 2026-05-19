@@ -199,8 +199,6 @@ components:
         universe_domain:
           type: string
       required:
-        - type
-        - project_id
         - private_key
         - client_email
       additionalProperties: false

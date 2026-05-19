@@ -98,6 +98,42 @@ describe("API model config schemas", () => {
     expect(result.data.options?.model).toEqual(vertexModel);
   });
 
+  it("accepts minimal Vertex service account credentials", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          provider: "vertex",
+          modelName: "vertex/gemini-2.5-flash",
+          project: "test-gcp-project",
+          location: "us-central1",
+          googleAuthOptions: {
+            credentials: {
+              client_email: "vertex@example.iam.gserviceaccount.com",
+              private_key:
+                "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw result.error;
+    const parsedModel = result.data.options?.model;
+    expect(typeof parsedModel).toBe("object");
+    if (typeof parsedModel !== "object" || parsedModel === null) {
+      throw new Error("Expected object model config");
+    }
+    expect(parsedModel.googleAuthOptions).toEqual({
+      credentials: {
+        client_email: "vertex@example.iam.gserviceaccount.com",
+        private_key:
+          "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+      },
+    });
+  });
+
   it("preserves Vertex auth params for agent model configs", () => {
     const result = Api.AgentExecuteRequestSchema.safeParse({
       agentConfig: {
