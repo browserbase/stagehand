@@ -143,8 +143,7 @@ export class TrajectoryRecorder {
   constructor(opts: TrajectoryRecorderOptions) {
     this.v3 = opts.v3;
     this.taskSpec = opts.taskSpec;
-    this.runId =
-      opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
+    this.runId = opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
     const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
     this.outputDir = path.join(root, this.runId, opts.taskSpec.id);
     this.persistEnabled = shouldPersistTrajectory(opts.persist);
