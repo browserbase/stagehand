@@ -70,10 +70,13 @@ async function loadSharp(): Promise<Sharp | null> {
   if (sharpPromise) return sharpPromise;
   sharpPromise = (async (): Promise<Sharp | null> => {
     try {
-      const mod = (await import("sharp")) as unknown as {
+      // Dynamic specifier hides sharp from TypeScript's module resolver:
+      // sharp is an optional runtime dep (evals/server installs it; core
+      // consumers don't have to). try/catch handles missing-at-runtime.
+      const specifier = "sharp";
+      const mod = (await import(specifier)) as unknown as {
         default?: Sharp;
       } & Sharp;
-      // Some bundlers wrap ESM CJS deps differently — handle both.
       return (mod.default ?? mod) as Sharp;
     } catch {
       return null;
