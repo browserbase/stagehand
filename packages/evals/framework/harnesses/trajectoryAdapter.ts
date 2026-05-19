@@ -1,15 +1,3 @@
-/**
- * TrajectoryAdapter — converts an external harness's natural output (a
- * provider-shaped event/message log) into the Stagehand `Trajectory` shape
- * that V3Evaluator.verify() consumes.
- *
- * The verifier is harness-agnostic (Trajectory + TaskSpec → EvaluationResult,
- * no live browser). That property is what lets non-Stagehand
- * harnesses — Claude Code, Codex — be scored with the same rubric pipeline
- * we use for Stagehand. Each external harness ships its own
- * `TrajectoryAdapter<THarnessResult>` that maps its tool-call/message log to
- * a `Trajectory`. The verifier never knows which adapter produced it.
- */
 import type {
   AgentEvidence,
   AgentEvidenceModality,
@@ -19,30 +7,19 @@ import type {
 } from "@browserbasehq/stagehand";
 
 /**
- * Adapter interface. Implementations are pure: no I/O, no live browser, no
- * mutation of the input result. The same harness result should always produce
- * the same Trajectory.
- *
- * Empty `probeEvidence` on every step is supported — the verifier degrades
- * gracefully via the `evidence_insufficient` path. Text-heavy tasks
- * (extract, lookup, search) still get a
- * meaningful outcome assessment; visual-grounding criteria get flagged as
- * evidence_insufficient rather than silently miscredited.
+ * Pure converter from a harness-specific result to a verifier Trajectory.
+ * Implementations must be deterministic (no I/O, no mutation of input).
+ * Empty `probeEvidence` is allowed — the verifier degrades via the
+ * `evidence_insufficient` path; visual-grounding criteria are flagged
+ * rather than silently miscredited.
  */
 export interface TrajectoryAdapter<THarnessResult> {
-  /**
-   * Convert the external harness's natural output into a Trajectory. Must be
-   * deterministic given the input.
-   */
   fromHarnessResult(result: THarnessResult, taskSpec: TaskSpec): Trajectory;
 }
 
 /**
- * Normalized tool invocation. Adapters parse harness-specific event/message
- * shapes into this canonical structure before mapping to `TrajectoryStep`.
- *
- * The fields are deliberately permissive — harnesses vary in what they
- * surface, and we want a single mapping helper to handle all of them.
+ * Canonical tool invocation; harnesses parse their event/message logs into
+ * this shape before mapping to a TrajectoryStep.
  */
 export interface NormalizedToolCall {
   /** Tool name (e.g., "Bash", "mcp__stagehand_browser__run", "container.exec"). */
@@ -67,16 +44,10 @@ export interface NormalizedToolCall {
 }
 
 /**
- * Convert a `NormalizedToolCall` into a Trajectory `AgentEvidence`. Strings
- * map to a single text modality; objects map to a json modality (plus a text
- * modality with the stringified form so plain text-relevance prompts can
- * grok structured output). Reasoning text becomes its own text modality —
- * the verifier weights reasoning highly when grounding criteria without
- * screenshots.
- *
- * `probeEvidence` is intentionally not produced here — external harnesses
- * don't emit independent observations natively. See `actionToProbeEvidence`
- * if a harness eventually grows that capability.
+ * Convert a NormalizedToolCall into a Trajectory AgentEvidence. Objects
+ * yield both a json modality (structure-preserving) and a stringified text
+ * modality (cheap fallback for text-only prompts). probeEvidence is left
+ * to the caller — external harnesses don't emit independent observations.
  */
 export function actionToAgentEvidence(
   call: Pick<NormalizedToolCall, "result" | "reasoning">,
@@ -119,10 +90,6 @@ export function actionToAgentEvidence(
   return { modalities };
 }
 
-/**
- * Materialize a `TrajectoryStep` from a normalized tool call. Centralizes the
- * step-shape contract so every adapter produces verifier-equivalent steps.
- */
 export function toolCallToTrajectoryStep(
   index: number,
   call: NormalizedToolCall,
