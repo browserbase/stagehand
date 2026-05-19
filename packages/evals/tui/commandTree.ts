@@ -321,20 +321,20 @@ async function runMeta(
       return;
     }
 
-    case "exit": {
-      if (ctx.contextPath === null) {
-        throw new Error("`exit` is not available outside the REPL");
-      }
-      console.log(dim("\n  Goodbye.\n"));
-      process.exit(0);
-    }
-    // eslint-disable-next-line no-fallthrough -- exit terminates
     case "clear": {
       if (ctx.contextPath === null) {
         throw new Error("`clear` is not available outside the REPL");
       }
       console.clear();
       return;
+    }
+
+    case "exit": {
+      if (ctx.contextPath === null) {
+        throw new Error("`exit` is not available outside the REPL");
+      }
+      console.log(dim("\n  Goodbye.\n"));
+      process.exit(0);
     }
 
     case "help":
