@@ -21,6 +21,7 @@ const publicApiShape = {
   AISdkClient: Stagehand.AISdkClient,
   Api: Stagehand.Api,
   AVAILABLE_CUA_MODELS: Stagehand.AVAILABLE_CUA_MODELS,
+  BUS_EVENTS: Stagehand.BUS_EVENTS,
   AgentProvider: Stagehand.AgentProvider,
   AnnotatedScreenshotText: Stagehand.AnnotatedScreenshotText,
   ConsoleMessage: Stagehand.ConsoleMessage,
@@ -50,12 +51,14 @@ const publicApiShape = {
   normalizeRubric: Stagehand.normalizeRubric,
   pageTextSchema: Stagehand.pageTextSchema,
   providerEnvVarMap: Stagehand.providerEnvVarMap,
+  shouldPersistTrajectory: Stagehand.shouldPersistTrajectory,
   toGeminiSchema: Stagehand.toGeminiSchema,
   toJsonSchema: Stagehand.toJsonSchema,
   tool: Stagehand.tool,
   transformSchema: Stagehand.transformSchema,
   trimTrailingTextNode: Stagehand.trimTrailingTextNode,
   validateZodSchema: Stagehand.validateZodSchema,
+  writeTrajectoryDir: Stagehand.writeTrajectoryDir,
   ...publicErrorTypes,
 } as const;
 

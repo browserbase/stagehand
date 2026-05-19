@@ -351,9 +351,9 @@ export class V3AgentHandler {
         // is more faithful than dropping probe evidence for all but the last
         // tool call, while still avoiding per-tool screenshot overhead.
         const wantsScreenshotProbe =
-          this.v3.bus.listenerCount("agent_screenshot_taken_event") > 0;
+          this.v3.bus.listenerCount?.("agent_screenshot_taken_event") > 0;
         const wantsStepObservation =
-          this.v3.bus.listenerCount("agent_step_observed_event") > 0;
+          this.v3.bus.listenerCount?.("agent_step_observed_event") > 0;
         if (
           stepIndicesInTurn.length > 0 &&
           (wantsScreenshotProbe || wantsStepObservation)

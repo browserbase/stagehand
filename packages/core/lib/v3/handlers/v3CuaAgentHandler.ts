@@ -883,9 +883,9 @@ export class V3CuaAgentHandler {
     // Listener-gated to keep ordinary agent runs free of the extra
     // screenshot cost — mirrors v3AgentHandler's post-step probe.
     const wantsScreenshotProbe =
-      this.v3.bus.listenerCount("agent_screenshot_taken_event") > 0;
+      this.v3.bus.listenerCount?.("agent_screenshot_taken_event") > 0;
     const wantsStepObservation =
-      this.v3.bus.listenerCount("agent_step_observed_event") > 0;
+      this.v3.bus.listenerCount?.("agent_step_observed_event") > 0;
     let probeUrl = pageUrl;
     if (wantsScreenshotProbe || wantsStepObservation) {
       try {

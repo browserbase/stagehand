@@ -125,6 +125,12 @@ function createV3() {
     context: {
       awaitActivePage: vi.fn(async () => page),
     },
+    bus: {
+      emit: vi.fn(),
+      on: vi.fn(),
+      off: vi.fn(),
+      listenerCount: vi.fn(() => 0),
+    },
     isCaptchaAutoSolveEnabled: false,
     browserbaseApiKey: undefined,
     logger: vi.fn(),
