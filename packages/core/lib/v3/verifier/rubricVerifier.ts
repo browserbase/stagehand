@@ -183,7 +183,31 @@ type VerifierApproach = "a" | "b" | "outcome-only";
 const DEFAULT_APPROACH: VerifierApproach = "b";
 type OptionalStepsMode = "folded" | "separate" | "skip";
 const DEFAULT_OPTIONAL_STEPS_MODE: OptionalStepsMode = "folded";
-const EVIDENCE_TEXT_PREVIEW_CHARS = 200;
+
+// Truncation knobs. Each has a tuned default and an env override; the master
+// switch VERIFIER_DISABLE_TRUNCATION=1 lifts every limit to effectively
+// unlimited. Useful on high-context models (gemini-3, sonnet-4.6) where
+// evidence-bound truncation is the bottleneck, not the token budget.
+const NO_TRUNC = Number.MAX_SAFE_INTEGER;
+const TRUNC_DISABLED = (): boolean =>
+  process.env.VERIFIER_DISABLE_TRUNCATION === "1";
+const readCharsEnv = (name: string, fallback: number): number => {
+  if (TRUNC_DISABLED()) return NO_TRUNC;
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+const evidenceTextPreviewChars = (): number =>
+  readCharsEnv("VERIFIER_EVIDENCE_TEXT_PREVIEW_CHARS", 200);
+const groupedEvidenceTextChars = (): number =>
+  readCharsEnv("VERIFIER_GROUPED_EVIDENCE_TEXT_CHARS", 600);
+const buildEvidenceTextChars = (): number =>
+  readCharsEnv("VERIFIER_BUILD_EVIDENCE_TEXT_CHARS", 160);
+const buildEvidenceAriaChars = (): number =>
+  readCharsEnv("VERIFIER_BUILD_EVIDENCE_ARIA_CHARS", 1200);
+const actionHistoryReasoningChars = (): number =>
+  readCharsEnv("VERIFIER_ACTION_HISTORY_REASONING_CHARS", 140);
 
 // ─── Environment helpers ───────────────────────────────────────────────────
 
@@ -278,8 +302,9 @@ function evidencePreview(point: CanonicalEvidence): string {
   if (isImageEvidence(point)) {
     return `Screenshot at step ${point.originalStepIndex} (${point.bytes.length} bytes, ${point.mediaType})`;
   }
-  const preview = point.content.slice(0, EVIDENCE_TEXT_PREVIEW_CHARS);
-  return `${textEvidenceLabel(point)} at step ${point.originalStepIndex} — "${preview.replace(/\s+/g, " ")}${point.content.length > EVIDENCE_TEXT_PREVIEW_CHARS ? "…" : ""}"`;
+  const limit = evidenceTextPreviewChars();
+  const preview = point.content.slice(0, limit);
+  return `${textEvidenceLabel(point)} at step ${point.originalStepIndex} — "${preview.replace(/\s+/g, " ")}${point.content.length > limit ? "…" : ""}"`;
 }
 
 function textEvidenceLabel(point: CanonicalTextEvidence): string {
@@ -328,8 +353,9 @@ function renderGroupedEvidenceForApproach(
         if (isImageEvidence(p)) {
           return `- Evidence #${eIdx} — image @ step=${p.originalStepIndex}`;
         }
-        const text = p.content.replace(/\s+/g, " ").slice(0, 600);
-        return `- Evidence #${eIdx} — ${textEvidenceLabel(p)} @ step=${p.originalStepIndex}: "${text}${p.content.length > 600 ? "…" : ""}"`;
+        const limit = groupedEvidenceTextChars();
+        const text = p.content.replace(/\s+/g, " ").slice(0, limit);
+        return `- Evidence #${eIdx} — ${textEvidenceLabel(p)} @ step=${p.originalStepIndex}: "${text}${p.content.length > limit ? "…" : ""}"`;
       })
       .filter((x): x is string => x !== null)
       .join("\n");
@@ -1212,23 +1238,28 @@ export class RubricVerifier implements Verifier {
             s.probeEvidence.screenshotPath || s.probeEvidence.screenshot
               ? "yes"
               : "no";
+          const textLimit = buildEvidenceTextChars();
           const tier1 = s.agentEvidence.modalities
             .map((m) => {
-              if (m.type === "text") return `text(${m.content.slice(0, 160)})`;
+              if (m.type === "text")
+                return `text(${m.content.slice(0, textLimit)})`;
               if (m.type === "image") return `image(${m.bytes.length} bytes)`;
               return `json(${safeJsonSnippet(m.content, 180)})`;
             })
             .join(", ");
           const toolOutput = safeJsonSnippet(s.toolOutput.result, 220);
-          // Include the post-step a11y dump when captured — gives the
-          // verifier textual ground truth for criteria that can't be cleanly
-          // verified from the visual probe alone (prices, names, list
-          // contents). Truncate per step so the total budget stays bounded.
+          // Include the post-step a11y dump when captured — textual ground
+          // truth for criteria that can't be verified from the visual probe
+          // alone (prices, names, list contents). Per-step cap keeps the
+          // total budget bounded.
+          const ariaLimit = buildEvidenceAriaChars();
           const ariaSnippet =
             typeof s.probeEvidence.ariaTree === "string" &&
             s.probeEvidence.ariaTree.length > 0
-              ? `\n  aria_tree: ${s.probeEvidence.ariaTree.slice(0, 1200)}${
-                  s.probeEvidence.ariaTree.length > 1200 ? "… [truncated]" : ""
+              ? `\n  aria_tree: ${s.probeEvidence.ariaTree.slice(0, ariaLimit)}${
+                  s.probeEvidence.ariaTree.length > ariaLimit
+                    ? "… [truncated]"
+                    : ""
                 }`
               : "";
           return `Screenshot ${i + 1} — step=${s.index}, action=${s.actionName}${url}, probe_screenshot=${hasScreenshot}\n  tier1: ${tier1 || "(none)"}\n  tool_output: ${toolOutput}${ariaSnippet}`;
@@ -1561,14 +1592,16 @@ export class RubricVerifier implements Verifier {
 
   /**
    * Compact textual action history for embedding in prompts. One line per
-   * step: tool name, brief argument summary, and the first ~140 chars of
-   * reasoning. The full per-step detail lives in trajectory.json on disk.
+   * step. Full per-step detail lives in trajectory.json on disk.
    */
   private formatActionHistory(trajectory: Trajectory): string {
     const history = trajectory.steps
       .map((s) => {
         const argSummary = summarizeArgs(s.actionArgs);
-        const reasoning = (s.reasoning ?? "").slice(0, 140);
+        const reasoning = (s.reasoning ?? "").slice(
+          0,
+          actionHistoryReasoningChars(),
+        );
         const url = s.probeEvidence.url ? ` @ ${s.probeEvidence.url}` : "";
         return `Step ${s.index}: ${s.actionName}(${argSummary})${url}${reasoning ? `\n  reasoning: ${reasoning}` : ""}`;
       })
