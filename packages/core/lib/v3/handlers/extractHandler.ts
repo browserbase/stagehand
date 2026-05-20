@@ -117,6 +117,7 @@ export class ExtractHandler {
       ignoreSelectors,
       timeout,
       model,
+      screenshot,
     } = params;
 
     const llmClient = this.resolveLlmClient(model);
@@ -149,6 +150,12 @@ export class ExtractHandler {
       );
     }
 
+    if (screenshot && llmClient.type !== "aisdk") {
+      throw new StagehandInvalidArgumentError(
+        "extract({ screenshot: true }) is only supported with AI SDK clients.",
+      );
+    }
+
     const focusSelector = selector?.replace(/^xpath=/, "") ?? "";
 
     // Build the hybrid snapshot (includes combinedTree; combinedUrlMap optional)
@@ -159,9 +166,23 @@ export class ExtractHandler {
       ignoreSelectors,
     });
 
+    const screenshotBuffer = screenshot
+      ? await (async () => {
+          ensureTimeRemaining();
+          const buffer = await page.screenshot({
+            fullPage: false,
+            type: "png",
+          });
+          ensureTimeRemaining();
+          return buffer;
+        })()
+      : undefined;
+
     v3Logger({
       category: "extraction",
-      message: "Starting extraction using a11y snapshot",
+      message: screenshot
+        ? "Starting extraction using a11y snapshot and viewport screenshot"
+        : "Starting extraction using a11y snapshot",
       level: 1,
       auxiliary: instruction
         ? { instruction: { value: instruction, type: "string" } }
@@ -194,6 +215,7 @@ export class ExtractHandler {
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
+        screenshot: screenshotBuffer,
       });
 
     const {

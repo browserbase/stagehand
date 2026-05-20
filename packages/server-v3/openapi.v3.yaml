@@ -688,6 +688,11 @@ components:
           type: array
           items:
             type: string
+        screenshot:
+          description: When true, include a screenshot of the current viewport in the
+            extraction LLM call. Defaults to false.
+          example: false
+          type: boolean
     ExtractRequest:
       type: object
       properties:
@@ -1708,6 +1713,11 @@ components:
           type: array
           items:
             type: string
+        screenshot:
+          description: When true, include a screenshot of the current viewport in the
+            extraction LLM call. Defaults to false.
+          example: false
+          type: boolean
       additionalProperties: false
     ExtractResultOutput:
       type: object

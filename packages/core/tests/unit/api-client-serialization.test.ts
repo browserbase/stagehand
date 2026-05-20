@@ -52,6 +52,40 @@ describe("StagehandAPIClient variable serialization", () => {
     });
   });
 
+  it("preserves screenshot when sending the extract request", async () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-test",
+      logger: vi.fn(),
+    });
+    const executeMock = vi.fn().mockResolvedValue({ title: "ok" });
+
+    (
+      client as unknown as {
+        execute: typeof executeMock;
+      }
+    ).execute = executeMock;
+
+    await client.extract({
+      instruction: "extract the title",
+      options: {
+        screenshot: true,
+      },
+    });
+
+    expect(executeMock).toHaveBeenCalledWith({
+      method: "extract",
+      args: {
+        instruction: "extract the title",
+        schema: undefined,
+        options: {
+          screenshot: true,
+        },
+        frameId: undefined,
+      },
+      serverCache: undefined,
+    });
+  });
+
   it("preserves rich variables when sending the observe request", async () => {
     const client = new StagehandAPIClient({
       apiKey: "bb-test",
