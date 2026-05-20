@@ -133,6 +133,45 @@ describe("V3 Core public API types", () => {
         (options: unknown) => Promise<unknown[]>
       >();
     });
+
+    it("accepts legacy evaluator backend options", () => {
+      const mockV3 = {} as Stagehand.Stagehand;
+      expectTypeOf<typeof Stagehand.V3Evaluator>().toBeConstructibleWith(
+        mockV3,
+        {
+          backend: "legacy",
+        } satisfies Stagehand.V3EvaluatorConstructorOptions,
+      );
+    });
+
+    it("rejects verifier backend before the verifier PR is installed", async () => {
+      const evaluator = new Stagehand.V3Evaluator({} as Stagehand.Stagehand, {
+        backend: "verifier",
+      });
+
+      await expect(
+        evaluator.ask({ question: "Was the task completed?" }),
+      ).rejects.toThrow(
+        "STAGEHAND_EVALUATOR_BACKEND=verifier, but the verifier backend is not available",
+      );
+    });
+
+    it("rejects invalid evaluator backend env values", () => {
+      const previousBackend = process.env.STAGEHAND_EVALUATOR_BACKEND;
+      process.env.STAGEHAND_EVALUATOR_BACKEND = "not-a-backend";
+
+      try {
+        expect(
+          () => new Stagehand.V3Evaluator({} as Stagehand.Stagehand),
+        ).toThrow('Invalid STAGEHAND_EVALUATOR_BACKEND="not-a-backend"');
+      } finally {
+        if (previousBackend === undefined) {
+          delete process.env.STAGEHAND_EVALUATOR_BACKEND;
+        } else {
+          process.env.STAGEHAND_EVALUATOR_BACKEND = previousBackend;
+        }
+      }
+    });
   });
 
   describe("V3FunctionName", () => {
