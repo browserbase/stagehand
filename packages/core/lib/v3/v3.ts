@@ -1396,7 +1396,7 @@ export class V3 {
         timeout: options?.timeout,
         selector: options?.selector,
         ignoreSelectors: options?.ignoreSelectors,
-        screenshot: options?.screenshot ?? false,
+        screenshot: options?.screenshot,
         page,
       };
       let result: z.infer<typeof effectiveSchema> | { pageText: string };
