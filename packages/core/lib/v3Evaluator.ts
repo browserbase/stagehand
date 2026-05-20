@@ -2,11 +2,20 @@ import type { AvailableModel, ClientOptions } from "./v3/types/public/model.js";
 import type {
   EvaluateOptions,
   BatchAskOptions,
-  EvaluationResult,
+  EvaluationResult as LegacyEvaluationResult,
 } from "./v3/types/private/evaluator.js";
 import { V3 } from "./v3/v3.js";
 import { StagehandInvalidArgumentError } from "./v3/types/public/sdkErrors.js";
 import { LegacyV3Evaluator } from "./v3LegacyEvaluator.js";
+import type {
+  Trajectory,
+  TaskSpec,
+  EvaluationResult,
+  Rubric,
+  Verifier,
+  AgentEvidenceModality,
+  VerifierFinding,
+} from "./v3/verifier/index.js";
 
 const EVALUATOR_BACKEND_ENV = "STAGEHAND_EVALUATOR_BACKEND";
 const DEFAULT_EVALUATOR_BACKEND: V3EvaluatorBackend = "legacy";
@@ -36,7 +45,7 @@ type NormalizedConstructorOptions = {
   backend?: V3EvaluatorBackend;
 };
 
-export class V3Evaluator {
+export class V3Evaluator implements Verifier {
   private readonly backend: V3EvaluatorBackend;
   private readonly legacyEvaluator: LegacyV3Evaluator;
 
@@ -60,12 +69,41 @@ export class V3Evaluator {
     );
   }
 
-  async ask(options: EvaluateOptions): Promise<EvaluationResult> {
+  async ask(options: EvaluateOptions): Promise<LegacyEvaluationResult> {
     return this.getLegacyBackend("ask").ask(options);
   }
 
-  async batchAsk(options: BatchAskOptions): Promise<EvaluationResult[]> {
+  async batchAsk(options: BatchAskOptions): Promise<LegacyEvaluationResult[]> {
     return this.getLegacyBackend("batchAsk").batchAsk(options);
+  }
+
+  async verify(
+    trajectory: Trajectory,
+    taskSpec: TaskSpec,
+  ): Promise<EvaluationResult> {
+    assertVerifierInput(trajectory, taskSpec);
+
+    if (this.backend === "legacy") {
+      return this.verifyTrajectoryWithLegacyEvaluator(trajectory, taskSpec);
+    }
+
+    return this.unavailableVerifierBackend("verify");
+  }
+
+  async generateRubric(taskSpec: TaskSpec): Promise<Rubric> {
+    if (!taskSpec?.id) {
+      throw new StagehandInvalidArgumentError(
+        "TaskSpec.id is required for rubric generation",
+      );
+    }
+
+    if (this.backend === "verifier") {
+      return this.unavailableVerifierBackend("generateRubric");
+    }
+
+    return {
+      items: [legacyTaskCompletionCriterion(taskSpec)],
+    };
   }
 
   private getLegacyBackend(methodName: string): LegacyV3Evaluator {
@@ -73,9 +111,37 @@ export class V3Evaluator {
       return this.legacyEvaluator;
     }
 
+    return this.unavailableVerifierBackend(methodName);
+  }
+
+  private unavailableVerifierBackend(methodName: string): never {
     throw new StagehandInvalidArgumentError(
       `V3Evaluator.${methodName}() was configured with ${EVALUATOR_BACKEND_ENV}=verifier, but the verifier backend is not available in this build. Use "legacy" or install the verifier backend PR.`,
     );
+  }
+
+  private async verifyTrajectoryWithLegacyEvaluator(
+    trajectory: Trajectory,
+    taskSpec: TaskSpec,
+  ): Promise<EvaluationResult> {
+    const screenshots = collectLegacyScreenshots(trajectory);
+    const agentReasoning = renderLegacyAgentReasoning(trajectory);
+    const answer = trajectory.finalAnswer;
+
+    if (!screenshots.length && !answer) {
+      return legacyInsufficientEvidenceResult(
+        "Legacy evaluator compatibility mode had no screenshots or final answer to evaluate.",
+      );
+    }
+
+    const result = await this.legacyEvaluator.ask({
+      question: taskSpec.instruction,
+      screenshot: screenshots.length ? screenshots : false,
+      answer,
+      agentReasoning,
+    });
+
+    return legacyEvaluationToResult(result, screenshots.length);
   }
 }
 
@@ -119,4 +185,143 @@ function resolveEvaluatorBackend(
   throw new StagehandInvalidArgumentError(
     `Invalid ${EVALUATOR_BACKEND_ENV}="${configuredBackend}". Expected "legacy" or "verifier".`,
   );
+}
+
+function assertVerifierInput(trajectory: Trajectory, taskSpec: TaskSpec): void {
+  if (!taskSpec?.id) {
+    throw new StagehandInvalidArgumentError(
+      "TaskSpec.id is required for verification",
+    );
+  }
+  if (!trajectory) {
+    throw new StagehandInvalidArgumentError(
+      "Trajectory is required for verification",
+    );
+  }
+}
+
+function legacyTaskCompletionCriterion(taskSpec: TaskSpec) {
+  return {
+    criterion: "legacy-task-completion",
+    description: `Evaluate whether the task was completed successfully: ${taskSpec.instruction}`,
+    maxPoints: 1,
+  };
+}
+
+function collectLegacyScreenshots(trajectory: Trajectory): Buffer[] {
+  const screenshots: Buffer[] = [];
+
+  for (const step of trajectory.steps ?? []) {
+    if (Buffer.isBuffer(step.probeEvidence?.screenshot)) {
+      screenshots.push(step.probeEvidence.screenshot);
+      continue;
+    }
+
+    const agentImage = step.agentEvidence?.modalities?.find(
+      (
+        modality,
+      ): modality is Extract<AgentEvidenceModality, { type: "image" }> =>
+        modality.type === "image" && Buffer.isBuffer(modality.bytes),
+    );
+
+    if (agentImage) {
+      screenshots.push(agentImage.bytes);
+    }
+  }
+
+  return screenshots;
+}
+
+function renderLegacyAgentReasoning(
+  trajectory: Trajectory,
+): string | undefined {
+  const stepLines = (trajectory.steps ?? []).map((step) => {
+    const output = step.toolOutput?.error
+      ? `Tool error: ${step.toolOutput.error}`
+      : `Tool output: ${stringifyForPrompt(step.toolOutput?.result)}`;
+    return [
+      `Step ${step.index}: ${step.actionName}`,
+      step.reasoning ? `Reasoning: ${step.reasoning}` : undefined,
+      output,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  });
+
+  if (!stepLines.length) {
+    return undefined;
+  }
+
+  return truncateForPrompt(
+    `Agent trajectory:\n${stepLines.join("\n\n")}`,
+    16000,
+  );
+}
+
+function stringifyForPrompt(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function truncateForPrompt(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength)}... [truncated]`;
+}
+
+function legacyEvaluationToResult(
+  result: LegacyEvaluationResult,
+  screenshotCount: number,
+): EvaluationResult {
+  const outcomeSuccess = result.evaluation === "YES";
+  const invalid = result.evaluation === "INVALID";
+  const findings: VerifierFinding[] = invalid
+    ? [
+        {
+          category: "verifier_uncertainty",
+          severity: "warning",
+          description: result.reasoning,
+        },
+      ]
+    : [];
+
+  return {
+    outcomeSuccess,
+    explanation: result.reasoning,
+    ...(findings.length ? { findings } : {}),
+    rawSteps: {
+      backend: "legacy",
+      legacyEvaluation: result.evaluation,
+      screenshotCount,
+    },
+  };
+}
+
+function legacyInsufficientEvidenceResult(reason: string): EvaluationResult {
+  return {
+    outcomeSuccess: false,
+    explanation: reason,
+    findings: [
+      {
+        category: "trajectory_capture",
+        severity: "blocking",
+        description: reason,
+      },
+    ],
+    rawSteps: {
+      backend: "legacy",
+      legacyEvaluation: "INVALID",
+      screenshotCount: 0,
+    },
+  };
 }
