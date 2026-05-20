@@ -56,10 +56,48 @@ export const LocalBrowserLaunchOptionsSchema = z
   .meta({ id: "LocalBrowserLaunchOptions" });
 
 /** Detailed model configuration object */
+export const GoogleServiceAccountCredentialsSchema = z
+  .object({
+    type: z.literal("service_account").optional(),
+    project_id: z.string().optional(),
+    private_key_id: z.string().optional(),
+    private_key: z.string(),
+    client_email: z.string(),
+    client_id: z.string().optional(),
+    auth_uri: z.url().optional(),
+    token_uri: z.url().optional(),
+    auth_provider_x509_cert_url: z.url().optional(),
+    client_x509_cert_url: z.url().optional(),
+    universe_domain: z.string().optional(),
+  })
+  .strict()
+  .meta({ id: "GoogleServiceAccountCredentials" });
+
+export const GoogleAuthOptionsSchema = z
+  .object({
+    credentials: GoogleServiceAccountCredentialsSchema.optional().meta({
+      description: "Google Cloud service account credentials",
+    }),
+    scopes: z
+      .union([z.string(), z.array(z.string())])
+      .optional()
+      .meta({
+        description: "Google auth scopes for the desired API request",
+      }),
+    projectId: z.string().optional().meta({
+      description: "Google Cloud project ID used by google-auth-library",
+    }),
+    universeDomain: z.string().optional().meta({
+      description: "Google Cloud universe domain",
+    }),
+  })
+  .strict()
+  .meta({ id: "GoogleAuthOptions" });
+
 export const ModelConfigObjectSchema = z
   .object({
     provider: z
-      .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
+      .enum(["openai", "anthropic", "google", "microsoft", "bedrock", "vertex"])
       .optional()
       .meta({
         description:
@@ -82,6 +120,18 @@ export const ModelConfigObjectSchema = z
     headers: z.record(z.string(), z.string()).optional().meta({
       description:
         "Custom headers sent with every request to the model provider",
+    }),
+    project: z.string().optional().meta({
+      description: "Google Cloud project ID for Vertex AI models",
+      example: "my-gcp-project",
+    }),
+    location: z.string().optional().meta({
+      description: "Google Cloud location for Vertex AI models",
+      example: "us-central1",
+    }),
+    googleAuthOptions: GoogleAuthOptionsSchema.optional().meta({
+      description:
+        "google-auth-library options used to authenticate Vertex AI models",
     }),
   })
   .meta({ id: "ModelConfigObject" });

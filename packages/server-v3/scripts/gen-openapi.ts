@@ -42,6 +42,9 @@ async function main() {
       BrowserbaseRegion: Api.BrowserbaseRegionSchema,
       // Shared components
       LocalBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema,
+      GoogleServiceAccountCredentials:
+        Api.GoogleServiceAccountCredentialsSchema,
+      GoogleAuthOptions: Api.GoogleAuthOptionsSchema,
       ModelConfigObject: Api.ModelConfigObjectSchema,
       ModelConfig: Api.ModelConfigSchema,
       Action: Api.ActionSchema,
