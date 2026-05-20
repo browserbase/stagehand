@@ -12,6 +12,7 @@ import {
   ActTimeoutError,
   ExtractTimeoutError,
   ObserveTimeoutError,
+  StagehandInvalidArgumentError,
 } from "../../lib/v3/types/public/sdkErrors.js";
 import {
   act as actInference,
@@ -842,6 +843,128 @@ describe("No-timeout success paths", () => {
     );
   });
 
+  it("extract() captures the current viewport when screenshot is enabled", async () => {
+    const captureHybridSnapshotMock = vi.mocked(captureHybridSnapshot);
+    captureHybridSnapshotMock.mockResolvedValue({
+      combinedTree: "tree content",
+      combinedXpathMap: {},
+      combinedUrlMap: {},
+    });
+
+    const screenshotBuffer = Buffer.from("viewport-screenshot");
+    const extractInferenceMock = vi.mocked(extractInference);
+    extractInferenceMock.mockResolvedValue({
+      title: "Test Title",
+      metadata: { completed: true, progress: "100%" },
+      prompt_tokens: 200,
+      completion_tokens: 100,
+      reasoning_tokens: 20,
+      cached_input_tokens: 10,
+      inference_time_ms: 800,
+    } as ReturnType<typeof extractInference> extends Promise<infer T>
+      ? T
+      : never);
+
+    vi.mocked(createTimeoutGuard).mockImplementation(() => {
+      return vi.fn(() => {});
+    });
+
+    const handler = buildExtractHandler({ llmType: "aisdk" });
+    const fakePage = {
+      mainFrame: vi.fn().mockReturnValue({}),
+      screenshot: vi.fn().mockResolvedValue(screenshotBuffer),
+    } as unknown as Page;
+
+    await handler.extract({
+      instruction: "extract title",
+      page: fakePage,
+      screenshot: true,
+    });
+
+    expect(
+      (fakePage as unknown as { screenshot: ReturnType<typeof vi.fn> })
+        .screenshot,
+    ).toHaveBeenCalledWith({ fullPage: false, type: "png" });
+    expect(extractInferenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        screenshot: screenshotBuffer,
+      }),
+    );
+  });
+
+  it("extract() does not capture a screenshot by default", async () => {
+    const captureHybridSnapshotMock = vi.mocked(captureHybridSnapshot);
+    captureHybridSnapshotMock.mockResolvedValue({
+      combinedTree: "tree content",
+      combinedXpathMap: {},
+      combinedUrlMap: {},
+    });
+
+    const extractInferenceMock = vi.mocked(extractInference);
+    extractInferenceMock.mockResolvedValue({
+      title: "Test Title",
+      metadata: { completed: true, progress: "100%" },
+      prompt_tokens: 200,
+      completion_tokens: 100,
+      reasoning_tokens: 20,
+      cached_input_tokens: 10,
+      inference_time_ms: 800,
+    } as ReturnType<typeof extractInference> extends Promise<infer T>
+      ? T
+      : never);
+
+    vi.mocked(createTimeoutGuard).mockImplementation(() => {
+      return vi.fn(() => {});
+    });
+
+    const fakePage = {
+      mainFrame: vi.fn().mockReturnValue({}),
+      screenshot: vi.fn(),
+    } as unknown as Page;
+
+    const handler = buildExtractHandler();
+    await handler.extract({
+      instruction: "extract title",
+      page: fakePage,
+    });
+
+    expect(
+      (fakePage as unknown as { screenshot: ReturnType<typeof vi.fn> })
+        .screenshot,
+    ).not.toHaveBeenCalled();
+    expect(extractInferenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        screenshot: undefined,
+      }),
+    );
+  });
+
+  it("extract() rejects screenshot with non-AI SDK clients", async () => {
+    vi.mocked(createTimeoutGuard).mockImplementation(() => {
+      return vi.fn(() => {});
+    });
+
+    const fakePage = {
+      mainFrame: vi.fn().mockReturnValue({}),
+      screenshot: vi.fn(),
+    } as unknown as Page;
+
+    const handler = buildExtractHandler({ llmType: "openai" });
+    await expect(
+      handler.extract({
+        instruction: "extract title",
+        page: fakePage,
+        screenshot: true,
+      }),
+    ).rejects.toThrow(StagehandInvalidArgumentError);
+
+    expect(
+      (fakePage as unknown as { screenshot: ReturnType<typeof vi.fn> })
+        .screenshot,
+    ).not.toHaveBeenCalled();
+    expect(vi.mocked(captureHybridSnapshot)).not.toHaveBeenCalled();
+  });
+
   it("observe() completes successfully without timeout and records metrics", async () => {
     const captureHybridSnapshotMock = vi.mocked(captureHybridSnapshot);
     captureHybridSnapshotMock.mockResolvedValue({
@@ -1151,6 +1274,7 @@ function buildActHandler(options: BuildActHandlerOptions = {}): ActHandler {
 }
 
 interface BuildExtractHandlerOptions {
+  llmType?: LLMClient["type"];
   onMetrics?: (
     functionName: V3FunctionName,
     promptTokens: number,
@@ -1166,7 +1290,7 @@ function buildExtractHandler(
 ): ExtractHandler {
   const defaultClientOptions = {} as ClientOptions;
   const fakeClient = {
-    type: "openai",
+    type: options.llmType ?? "openai",
     modelName: "gpt-4o",
     clientOptions: defaultClientOptions,
   } as LLMClient;

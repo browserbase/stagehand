@@ -18,6 +18,7 @@ import type {
 } from "./v3/zodCompat.js";
 import { SupportedUnderstudyAction } from "./v3/types/private/handlers.js";
 import type { Variables } from "./v3/types/public/agent.js";
+import { StagehandInvalidArgumentError } from "./v3/types/public/sdkErrors.js";
 
 // Re-export for backward compatibility
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient.js";
@@ -38,6 +39,7 @@ export async function extract<T extends StagehandZodObject>({
   logger,
   userProvidedInstructions,
   logInferenceToFile = false,
+  screenshot,
 }: {
   instruction: string;
   domElements: string;
@@ -46,6 +48,7 @@ export async function extract<T extends StagehandZodObject>({
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
+  screenshot?: Buffer;
 }) {
   const metadataSchema = z.object({
     progress: z
@@ -64,10 +67,27 @@ export async function extract<T extends StagehandZodObject>({
   type MetadataResponse = z.infer<typeof metadataSchema>;
 
   const isUsingAnthropic = llmClient.type === "anthropic";
+  if (screenshot && llmClient.type !== "aisdk") {
+    throw new StagehandInvalidArgumentError(
+      "extract({ screenshot: true }) is only supported with AI SDK clients.",
+    );
+  }
+  const screenshotDataUrl = screenshot
+    ? `data:image/png;base64,${screenshot.toString("base64")}`
+    : undefined;
 
   const extractCallMessages: ChatMessage[] = [
-    buildExtractSystemPrompt(isUsingAnthropic, userProvidedInstructions),
-    buildExtractUserPrompt(instruction, domElements, isUsingAnthropic),
+    buildExtractSystemPrompt(
+      isUsingAnthropic,
+      userProvidedInstructions,
+      Boolean(screenshotDataUrl),
+    ),
+    buildExtractUserPrompt(
+      instruction,
+      domElements,
+      isUsingAnthropic,
+      screenshotDataUrl,
+    ),
   ];
 
   let extractCallFile = "";
