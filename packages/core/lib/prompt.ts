@@ -32,7 +32,7 @@ export function buildExtractSystemPrompt(
 2. `;
 
   const contentDetail = includeScreenshot
-    ? `A hierarchical accessibility tree and a screenshot of the current viewport to extract from. Use them together to extract content from the page.`
+    ? `A list of DOM elements to extract from and a screenshot of the current viewport to extract from. Use them together to extract content from the page.`
     : `A list of DOM elements to extract from.`;
 
   const instructions = `
