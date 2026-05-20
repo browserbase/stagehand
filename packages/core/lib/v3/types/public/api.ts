@@ -517,6 +517,11 @@ export const ExtractOptionsSchema = z
           "Selectors for elements and subtrees that should be excluded from extraction",
         example: ["nav", ".cookie-banner", "#sidebar-ads"],
       }),
+    screenshot: z.boolean().optional().meta({
+      description:
+        "When true, include a screenshot of the current viewport in the extraction LLM call. Defaults to false.",
+      example: false,
+    }),
   })
   .optional()
   .meta({ id: "ExtractOptions" });

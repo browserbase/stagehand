@@ -21,6 +21,7 @@ ${userProvidedInstructions}`;
 export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
   userProvidedInstructions?: string,
+  includeScreenshot: boolean = false,
 ): ChatMessage {
   const baseContent = `You are extracting content on behalf of a user.
   If a user asks you to extract a 'list' of information, or 'all' information, 
@@ -30,7 +31,9 @@ export function buildExtractSystemPrompt(
 1. An instruction
 2. `;
 
-  const contentDetail = `A list of DOM elements to extract from.`;
+  const contentDetail = includeScreenshot
+    ? `A hierarchical accessibility tree and a screenshot of the current viewport to extract from. Use them together to extract content from the page.`
+    : `A list of DOM elements to extract from.`;
 
   const instructions = `
 Print the exact text from the DOM elements with all symbols, characters, and endlines as is.
@@ -67,14 +70,29 @@ export function buildExtractUserPrompt(
   instruction: string,
   domElements: string,
   isUsingPrintExtractedDataTool: boolean = false,
+  screenshotDataUrl?: string,
 ): ChatMessage {
-  let content = `Instruction: ${instruction}
+  let content = screenshotDataUrl
+    ? `Instruction: ${instruction}
+Accessibility Tree: ${domElements}
+Use the screenshot of the current viewport together with the accessibility tree to extract content from the page.`
+    : `Instruction: ${instruction}
 DOM: ${domElements}`;
 
   if (isUsingPrintExtractedDataTool) {
     content += `
 ONLY print the content using the print_extracted_data tool provided.
 ONLY print the content using the print_extracted_data tool provided.`;
+  }
+
+  if (screenshotDataUrl) {
+    return {
+      role: "user",
+      content: [
+        { type: "text", text: content },
+        { type: "image_url", image_url: { url: screenshotDataUrl } },
+      ],
+    };
   }
 
   return {

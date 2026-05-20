@@ -1396,6 +1396,7 @@ export class V3 {
         timeout: options?.timeout,
         selector: options?.selector,
         ignoreSelectors: options?.ignoreSelectors,
+        screenshot: options?.screenshot ?? false,
         page,
       };
       let result: z.infer<typeof effectiveSchema> | { pageText: string };
@@ -1420,6 +1421,7 @@ export class V3 {
           instruction,
           selector: options?.selector,
           ignoreSelectors: options?.ignoreSelectors,
+          screenshot: options?.screenshot,
           timeout: options?.timeout,
           schema: historySchemaDescriptor,
         },
