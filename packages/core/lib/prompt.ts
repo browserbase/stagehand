@@ -74,7 +74,7 @@ export function buildExtractUserPrompt(
 ): ChatMessage {
   let content = screenshotDataUrl
     ? `Instruction: ${instruction}
-Accessibility Tree: ${domElements}
+DOM: ${domElements}
 Use the screenshot of the current viewport together with the accessibility tree to extract content from the page.`
     : `Instruction: ${instruction}
 DOM: ${domElements}`;
