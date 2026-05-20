@@ -29,6 +29,31 @@ describe("resolveLocalStrategy", () => {
     expect(resolveWsTarget).not.toHaveBeenCalled();
   });
 
+  it("passes Chrome args to isolated browser launches", async () => {
+    const discoverLocalCdp = vi.fn().mockResolvedValue(null);
+    const resolveWsTarget = vi.fn();
+
+    const result = await resolveLocalStrategy({
+      localConfig: {
+        strategy: "isolated",
+        launchArgs: ["--no-focus-on-navigate"],
+      },
+      headless: false,
+      defaultViewport: DEFAULT_VIEWPORT,
+      discoverLocalCdp,
+      resolveWsTarget,
+    });
+
+    expect(result.localLaunchOptions).toEqual({
+      args: ["--no-focus-on-navigate"],
+      headless: false,
+      viewport: DEFAULT_VIEWPORT,
+    });
+    expect(result.localInfo).toEqual({ localSource: "isolated" });
+    expect(discoverLocalCdp).not.toHaveBeenCalled();
+    expect(resolveWsTarget).not.toHaveBeenCalled();
+  });
+
   it("auto-connects to a discovered local browser when requested", async () => {
     const discoverLocalCdp = vi.fn().mockResolvedValue({
       wsUrl: "ws://127.0.0.1:9222/devtools/browser/abc123",
@@ -60,7 +85,7 @@ describe("resolveLocalStrategy", () => {
     const resolveWsTarget = vi.fn();
 
     const result = await resolveLocalStrategy({
-      localConfig: { strategy: "auto" },
+      localConfig: { strategy: "auto", launchArgs: ["--no-focus-on-navigate"] },
       headless: false,
       defaultViewport: DEFAULT_VIEWPORT,
       discoverLocalCdp,
@@ -68,6 +93,7 @@ describe("resolveLocalStrategy", () => {
     });
 
     expect(result.localLaunchOptions).toEqual({
+      args: ["--no-focus-on-navigate"],
       headless: false,
       viewport: DEFAULT_VIEWPORT,
     });

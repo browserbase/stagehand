@@ -129,6 +129,36 @@ describe("Browse CLI env command", () => {
     expect(status.localStrategy).toBe("isolated");
   });
 
+  it("stores Chrome args for isolated local launches", async () => {
+    const result = await browse(
+      'env local --chrome-args=\'["--no-focus-on-navigate","--disable-features=CalculateNativeWinOcclusion"]\'',
+    );
+    expect(result.exitCode).toBe(0);
+
+    const data = parseJson(result.stdout);
+    expect(data.mode).toBe("local");
+    expect(data.localStrategy).toBe("isolated");
+    expect(data.localChromeArgs).toEqual([
+      "--no-focus-on-navigate",
+      "--disable-features=CalculateNativeWinOcclusion",
+    ]);
+
+    const tmpDir = os.tmpdir();
+    const localConfig = parseJson(
+      await fs.readFile(
+        path.join(tmpDir, `browse-${TEST_SESSION}.local-config`),
+        "utf-8",
+      ),
+    );
+    expect(localConfig).toEqual({
+      strategy: "isolated",
+      launchArgs: [
+        "--no-focus-on-navigate",
+        "--disable-features=CalculateNativeWinOcclusion",
+      ],
+    });
+  });
+
   it("uses auto strategy only when --auto-connect is passed", async () => {
     const result = await browse("env local --auto-connect");
     expect(result.exitCode).toBe(0);
@@ -194,5 +224,25 @@ describe("Browse CLI env command", () => {
     const withTarget = await browse("env local --auto-connect 9222");
     expect(withTarget.exitCode).not.toBe(0);
     expect(withTarget.stderr).toContain("Use only one of");
+  });
+
+  it("rejects Chrome args with an explicit CDP target", async () => {
+    const result = await browse(
+      "env local 9222 --chrome-args='[\"--no-focus-on-navigate\"]'",
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain(
+      "--chrome-args only applies when launching a local browser",
+    );
+  });
+
+  it("rejects Chrome args that are not a JSON array", async () => {
+    const result = await browse(
+      "env local --chrome-args=--no-focus-on-navigate",
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain(
+      "--chrome-args must be a JSON array of strings",
+    );
   });
 });

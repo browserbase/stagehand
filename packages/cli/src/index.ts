@@ -241,6 +241,25 @@ function logLocalModeHint(
   }
 }
 
+function parseChromeArgs(rawChromeArgs?: string): string[] | undefined {
+  if (!rawChromeArgs) {
+    return undefined;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawChromeArgs);
+  } catch {
+    throw new Error("--chrome-args must be a JSON array of strings.");
+  }
+
+  if (!Array.isArray(parsed) || parsed.some((arg) => typeof arg !== "string")) {
+    throw new Error("--chrome-args must be a JSON array of strings.");
+  }
+
+  return parsed.length ? parsed : undefined;
+}
+
 type BrowseMode = "browserbase" | "local";
 
 function hasBrowserbaseCredentials(): boolean {
@@ -1852,6 +1871,9 @@ program
         logLocalModeHint(localConfig, localInfo);
         localDetails = {
           localStrategy: localConfig.strategy,
+          ...(localConfig.launchArgs?.length
+            ? { localChromeArgs: localConfig.launchArgs }
+            : {}),
           ...(localInfo ?? {}),
         };
       }
@@ -1876,7 +1898,7 @@ program
 
 const envUsage =
   "Usage: browse env [local|remote]\n" +
-  "  browse env local [--auto-connect|<port|url>]";
+  "  browse env local [--auto-connect|<port|url>] [--chrome-args <json-array>]";
 
 const envCommand = program
   .command("env [target] [cdpTarget]")
@@ -1885,12 +1907,17 @@ const envCommand = program
       "  browse env                    Show current environment\n" +
       "  browse env local              Use clean isolated local browser (default)\n" +
       "  browse env local --auto-connect  Auto-discover local Chrome, fallback to isolated\n" +
+      "  browse env local --chrome-args='[\"--no-focus-on-navigate\"]'  Add Chrome launch args\n" +
       "  browse env local <port|url>   Attach to specific CDP target\n" +
       "  browse env remote             Use Browserbase (requires API key)",
   )
   .option(
     "--auto-connect",
     "Auto-discover an existing local Chrome instance via CDP",
+  )
+  .option(
+    "--chrome-args <json-array>",
+    "Additional Chrome launch args as a JSON array for isolated local browsers",
   );
 
 envCommand.addOption(
@@ -1904,7 +1931,11 @@ envCommand.action(
   async (
     target: string | undefined,
     cdpTarget: string | undefined,
-    cmdOpts: { autoConnect?: boolean; isolated?: boolean },
+    cmdOpts: {
+      autoConnect?: boolean;
+      isolated?: boolean;
+      chromeArgs?: string;
+    },
   ) => {
     const opts = program.opts<GlobalOpts>();
     const session = getSession(opts);
@@ -1925,6 +1956,9 @@ envCommand.action(
           ...(desiredMode === "local"
             ? {
                 localStrategy: localConfig.strategy,
+                ...(localConfig.launchArgs?.length
+                  ? { localChromeArgs: localConfig.launchArgs }
+                  : {}),
                 ...(localInfo ?? {}),
               }
             : {}),
@@ -1952,6 +1986,14 @@ envCommand.action(
 
     let localConfig: LocalConfig = { ...DEFAULT_LOCAL_CONFIG };
     if (mapped === "local") {
+      let launchArgs: string[] | undefined;
+      try {
+        launchArgs = parseChromeArgs(cmdOpts.chromeArgs);
+      } catch (err) {
+        console.error(envUsage);
+        console.error(err instanceof Error ? err.message : String(err));
+        process.exit(1);
+      }
       const selectedLocalStrategies = [
         Boolean(cmdOpts.autoConnect),
         Boolean(cmdOpts.isolated),
@@ -1966,10 +2008,20 @@ envCommand.action(
         process.exit(1);
       }
 
+      if (cdpTarget && launchArgs?.length) {
+        console.error(envUsage);
+        console.error(
+          "--chrome-args only applies when launching a local browser.",
+        );
+        process.exit(1);
+      }
+
       if (cmdOpts.autoConnect) {
-        localConfig = { strategy: "auto" };
+        localConfig = { strategy: "auto", launchArgs };
       } else if (cdpTarget) {
         localConfig = { strategy: "cdp", cdpTarget };
+      } else {
+        localConfig = { strategy: "isolated", launchArgs };
       }
 
       await writeLocalConfig(session, localConfig);
@@ -2007,7 +2059,14 @@ envCommand.action(
         mode: toModeTarget(mapped),
         session,
         restarted: true,
-        ...(mapped === "local" ? { localStrategy: localConfig.strategy } : {}),
+        ...(mapped === "local"
+          ? {
+              localStrategy: localConfig.strategy,
+              ...(localConfig.launchArgs?.length
+                ? { localChromeArgs: localConfig.launchArgs }
+                : {}),
+            }
+          : {}),
       }),
     );
   },
