@@ -189,7 +189,7 @@ falls back to launching an isolated browser.
 browse env local
 
 # Add Chromium launch args for isolated local browsers
-browse env local --chrome-arg=--no-focus-on-navigate
+browse env local --chrome-args='["--no-focus-on-navigate"]'
 
 # Auto-discover local Chrome, fallback to isolated
 browse env local --auto-connect

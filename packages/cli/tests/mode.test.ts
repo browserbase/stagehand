@@ -131,7 +131,7 @@ describe("Browse CLI env command", () => {
 
   it("stores Chrome args for isolated local launches", async () => {
     const result = await browse(
-      "env local --chrome-arg=--no-focus-on-navigate --chrome-arg=--disable-features=CalculateNativeWinOcclusion",
+      'env local --chrome-args=\'["--no-focus-on-navigate","--disable-features=CalculateNativeWinOcclusion"]\'',
     );
     expect(result.exitCode).toBe(0);
 
@@ -228,11 +228,21 @@ describe("Browse CLI env command", () => {
 
   it("rejects Chrome args with an explicit CDP target", async () => {
     const result = await browse(
-      "env local 9222 --chrome-arg=--no-focus-on-navigate",
+      "env local 9222 --chrome-args='[\"--no-focus-on-navigate\"]'",
     );
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain(
-      "--chrome-arg only applies when launching a local browser",
+      "--chrome-args only applies when launching a local browser",
+    );
+  });
+
+  it("rejects Chrome args that are not a JSON array", async () => {
+    const result = await browse(
+      "env local --chrome-args=--no-focus-on-navigate",
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain(
+      "--chrome-args must be a JSON array of strings",
     );
   });
 });
