@@ -8,7 +8,7 @@ import type {
 import { StagehandInvalidArgumentError } from "../../lib/v3/types/public/sdkErrors.js";
 
 describe("extract screenshot prompt", () => {
-  it("sends the viewport screenshot with the accessibility tree on the extraction LLM call", async () => {
+  it("sends the viewport screenshot with the DOM tree on the extraction LLM call", async () => {
     const createChatCompletion = vi
       .fn()
       .mockResolvedValueOnce({
@@ -56,7 +56,7 @@ describe("extract screenshot prompt", () => {
       expect.arrayContaining([
         expect.objectContaining({
           type: "text",
-          text: expect.stringContaining("Accessibility Tree"),
+          text: expect.stringContaining("DOM"),
         }),
         expect.objectContaining({
           type: "image_url",
