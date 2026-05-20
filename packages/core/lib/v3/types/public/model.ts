@@ -18,11 +18,11 @@ export type AnthropicClientOptions = Pick<
 >;
 
 export interface GoogleServiceAccountCredentials {
-  type?: string;
+  type?: "service_account";
   project_id?: string;
   private_key_id?: string;
-  private_key?: string;
-  client_email?: string;
+  private_key: string;
+  client_email: string;
   client_id?: string;
   auth_uri?: string;
   token_uri?: string;
@@ -31,13 +31,18 @@ export interface GoogleServiceAccountCredentials {
   universe_domain?: string;
 }
 
+export interface GoogleVertexAuthOptions {
+  credentials?: GoogleServiceAccountCredentials;
+  scopes?: string | string[];
+  projectId?: string;
+  universeDomain?: string;
+}
+
 export type GoogleVertexProviderSettings = Pick<
   GoogleVertexProviderSettingsBase,
-  "project" | "location" | "headers"
+  "project" | "location" | "headers" | "baseURL"
 > & {
-  googleAuthOptions?: {
-    credentials?: GoogleServiceAccountCredentials;
-  };
+  googleAuthOptions?: GoogleVertexAuthOptions;
 };
 
 export type AnthropicJsonSchemaObject = {

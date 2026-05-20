@@ -68,3 +68,133 @@ describe("API variable schemas", () => {
     });
   });
 });
+
+describe("API model config schemas", () => {
+  const vertexModel = {
+    provider: "vertex",
+    modelName: "vertex/gemini-2.5-flash",
+    project: "test-gcp-project",
+    location: "us-central1",
+    googleAuthOptions: {
+      credentials: {
+        type: "service_account",
+        project_id: "test-gcp-project",
+        private_key_id: "test-key-id",
+        client_email: "vertex@example.iam.gserviceaccount.com",
+        private_key:
+          "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+        token_uri: "https://oauth2.googleapis.com/token",
+      },
+      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+      projectId: "test-gcp-project",
+      universeDomain: "googleapis.com",
+    },
+  };
+
+  it("preserves Vertex auth params for act requests", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: vertexModel,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw result.error;
+    expect(result.data.options?.model).toEqual(vertexModel);
+  });
+
+  it("accepts minimal Vertex service account credentials", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          provider: "vertex",
+          modelName: "vertex/gemini-2.5-flash",
+          project: "test-gcp-project",
+          location: "us-central1",
+          googleAuthOptions: {
+            credentials: {
+              client_email: "vertex@example.iam.gserviceaccount.com",
+              private_key:
+                "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw result.error;
+    const parsedModel = result.data.options?.model;
+    expect(typeof parsedModel).toBe("object");
+    if (typeof parsedModel !== "object" || parsedModel === null) {
+      throw new Error("Expected object model config");
+    }
+    expect(parsedModel.googleAuthOptions).toEqual({
+      credentials: {
+        client_email: "vertex@example.iam.gserviceaccount.com",
+        private_key:
+          "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+      },
+    });
+  });
+
+  it("preserves Vertex auth params for agent model configs", () => {
+    const result = Api.AgentExecuteRequestSchema.safeParse({
+      agentConfig: {
+        model: vertexModel,
+        executionModel: vertexModel,
+      },
+      executeOptions: {
+        instruction: "find the search box",
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw result.error;
+    expect(result.data.agentConfig.model).toEqual(vertexModel);
+    expect(result.data.agentConfig.executionModel).toEqual(vertexModel);
+  });
+
+  it("rejects Vertex key file paths and external credential sources", () => {
+    for (const blockedAuthOptions of [
+      { keyFilename: "/etc/passwd" },
+      { keyFile: "/etc/passwd" },
+      { apiKey: "vertex-express-key" },
+    ]) {
+      const result = Api.ActRequestSchema.safeParse({
+        input: "click the search button",
+        options: {
+          model: {
+            provider: "vertex",
+            modelName: "vertex/gemini-2.5-flash",
+            googleAuthOptions: blockedAuthOptions,
+          },
+        },
+      });
+
+      expect(result.success).toBe(false);
+    }
+
+    const externalAccountResult = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          provider: "vertex",
+          modelName: "vertex/gemini-2.5-flash",
+          googleAuthOptions: {
+            credentials: {
+              type: "external_account",
+              credential_source: {
+                file: "/etc/passwd",
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(externalAccountResult.success).toBe(false);
+  });
+});

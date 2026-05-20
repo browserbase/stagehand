@@ -445,7 +445,8 @@ export type AgentType =
   | "anthropic"
   | "google"
   | "microsoft"
-  | "bedrock";
+  | "bedrock"
+  | "vertex";
 
 export const AVAILABLE_CUA_MODELS = [
   "openai/gpt-5.4",
