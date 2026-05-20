@@ -69,7 +69,6 @@ describe("StagehandAPIClient variable serialization", () => {
       instruction: "extract the title",
       options: {
         screenshot: true,
-        serverCache: true,
       },
     });
 
