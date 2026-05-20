@@ -59,6 +59,11 @@ export { isZod4Schema, isZod3Schema, toJsonSchema } from "./zodCompat.js";
 
 export { connectToMCPServer } from "./mcp/connection.js";
 export { V3Evaluator } from "../v3Evaluator.js";
+export type {
+  V3EvaluatorBackend,
+  V3EvaluatorConstructorOptions,
+  V3EvaluatorOptions,
+} from "../v3Evaluator.js";
 export { tool } from "ai";
 export { getAISDKLanguageModel } from "./llm/LLMProvider.js";
 export { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
