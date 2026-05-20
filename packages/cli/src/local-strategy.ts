@@ -3,6 +3,7 @@ export type LocalStrategy = "auto" | "isolated" | "cdp";
 export interface LocalConfig {
   strategy: LocalStrategy;
   cdpTarget?: string;
+  launchArgs?: string[];
 }
 
 export interface LocalInfo {
@@ -16,6 +17,7 @@ export interface LocalInfo {
 }
 
 export interface LocalBrowserLaunchOptions {
+  args?: string[];
   cdpUrl?: string;
   headless?: boolean;
   viewport?: {
@@ -46,6 +48,18 @@ export interface ResolvedLocalStrategy {
 }
 
 export const DEFAULT_LOCAL_CONFIG: LocalConfig = { strategy: "isolated" };
+
+function buildIsolatedLaunchOptions(
+  localConfig: LocalConfig,
+  headless: boolean,
+  defaultViewport: { width: number; height: number },
+): LocalBrowserLaunchOptions {
+  return {
+    headless,
+    viewport: defaultViewport,
+    ...(localConfig.launchArgs?.length ? { args: localConfig.launchArgs } : {}),
+  };
+}
 
 const ISOLATED_MODE_HINT =
   "Hint: Run `browse env local --auto-connect` to reuse your local browsing credentials and cookies.";
@@ -87,7 +101,11 @@ export async function resolveLocalStrategy({
 }: ResolveLocalStrategyOptions): Promise<ResolvedLocalStrategy> {
   if (localConfig.strategy === "isolated") {
     return {
-      localLaunchOptions: { headless, viewport: defaultViewport },
+      localLaunchOptions: buildIsolatedLaunchOptions(
+        localConfig,
+        headless,
+        defaultViewport,
+      ),
       localInfo: { localSource: "isolated" },
     };
   }
@@ -119,7 +137,11 @@ export async function resolveLocalStrategy({
   }
 
   return {
-    localLaunchOptions: { headless, viewport: defaultViewport },
+    localLaunchOptions: buildIsolatedLaunchOptions(
+      localConfig,
+      headless,
+      defaultViewport,
+    ),
     localInfo: {
       localSource: "isolated-fallback",
       fallbackReason: "no debuggable local browser found",
