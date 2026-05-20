@@ -82,7 +82,7 @@ describe("StagehandAPIClient variable serialization", () => {
         },
         frameId: undefined,
       },
-      serverCache: true,
+      serverCache: undefined,
     });
   });
 
