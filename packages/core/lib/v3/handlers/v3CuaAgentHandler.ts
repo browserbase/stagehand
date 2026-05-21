@@ -90,7 +90,7 @@ export class V3CuaAgentHandler {
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
-      await this.emitCuaScreenshot(screenshotBuffer, page.url());
+      await this.emitCuaScreenshotNonFatal(screenshotBuffer, page.url());
 
       return screenshotBuffer.toString("base64"); // base64 png
     });
@@ -690,7 +690,7 @@ export class V3CuaAgentHandler {
       const currentUrl = page.url();
 
       // Mirror the same buffer the CUA client receives as agent evidence.
-      await this.emitCuaScreenshot(screenshotBuffer, currentUrl);
+      await this.emitCuaScreenshotNonFatal(screenshotBuffer, currentUrl);
 
       return await this.agentClient.captureScreenshot({
         base64Image: screenshotBuffer.toString("base64"),
@@ -823,6 +823,23 @@ export class V3CuaAgentHandler {
     this.latestCuaScreenshotConsumed = false;
     await this.evidenceCallback?.(event);
     return event;
+  }
+
+  private async emitCuaScreenshotNonFatal(
+    screenshot: Buffer,
+    url: string,
+  ): Promise<void> {
+    try {
+      await this.emitCuaScreenshot(screenshot, url);
+    } catch (e) {
+      this.logger({
+        category: "agent",
+        message: `Warning: CUA screenshot evidence callback failed: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+        level: 1,
+      });
+    }
   }
 
   private async emitCuaActionStep(
