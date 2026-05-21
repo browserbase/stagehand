@@ -10,7 +10,6 @@ import type {
   CanonicalTextEvidence,
   CriterionScore,
   EvaluationResult,
-  EvidenceLoadResult,
   Rubric,
   RubricVerifierOptions,
   TaskSpec,
@@ -68,13 +67,6 @@ const FindingSchema = z.object({
   description: z.string(),
   suggestedAction: z.string().optional(),
   relatedSteps: z.array(z.number()).optional(),
-});
-
-const OutcomeSchema = z.object({
-  primary_intent: z.string(),
-  reasoning: z.string(),
-  output_success: z.boolean(),
-  findings: z.array(FindingSchema).optional().default([]),
 });
 
 const FusedOutcomeSchema = z.object({
@@ -1575,7 +1567,7 @@ export class RubricVerifier implements Verifier {
     taskSpec: TaskSpec;
     rubric: Rubric;
     perCriterion: CriterionScore[];
-    outcome: z.infer<typeof OutcomeSchema>;
+    outcome: z.infer<typeof FusedOutcomeSchema>;
     config: VerifierConfig;
   }): Promise<EvaluationResult["firstPointOfFailure"]> {
     const { trajectory, taskSpec, rubric, perCriterion, outcome, config } =
