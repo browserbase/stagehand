@@ -335,6 +335,7 @@ async function runMeta(
       }
       console.log(dim("\n  Goodbye.\n"));
       process.exit(0);
+      return;
     }
 
     case "help":
