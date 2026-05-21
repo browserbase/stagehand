@@ -277,7 +277,9 @@ export const PageClickParamsSchema = PageWithPageIdSchema.extend({
   clickCount: z.number().int().lte(3).gte(1).optional(),
   returnSelector: z.boolean().default(false).optional(),
   method: z.enum(["jsevent", "xy"]).default("xy"),
-  // TODO: add expectDownload, expectNavigation, expectPopup  OR expect: z.enum(...)
+  expectDownload: z.boolean().optional(),
+  expectNavigation: z.boolean().optional(),
+  expectPopup: z.boolean().optional(),
 })
   .strict()
   .meta({ id: "PageClickParams" });

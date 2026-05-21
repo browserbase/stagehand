@@ -2719,6 +2719,12 @@ components:
           enum:
             - jsevent
             - xy
+        expectDownload:
+          type: boolean
+        expectNavigation:
+          type: boolean
+        expectPopup:
+          type: boolean
       required:
         - selector
       additionalProperties: false
@@ -6592,6 +6598,12 @@ components:
           enum:
             - jsevent
             - xy
+        expectDownload:
+          type: boolean
+        expectNavigation:
+          type: boolean
+        expectPopup:
+          type: boolean
       required:
         - selector
         - method

@@ -649,7 +649,11 @@ export class AgentCache {
           variables,
         );
       case "goto":
-        await this.replayAgentGotoStep(step as AgentReplayGotoStep, ctx);
+        await this.replayAgentGotoStep(
+          step as AgentReplayGotoStep,
+          ctx,
+          variables,
+        );
         return step;
       case "scroll":
         await this.replayAgentScrollStep(step as AgentReplayScrollStep, ctx);
@@ -771,9 +775,11 @@ export class AgentCache {
   private async replayAgentGotoStep(
     step: AgentReplayGotoStep,
     ctx: V3Context,
+    variables?: Record<string, string>,
   ): Promise<void> {
     const page = await ctx.awaitActivePage();
-    await page.goto(step.url, { waitUntil: step.waitUntil ?? "load" });
+    const resolvedUrl = substituteVariables(step.url, variables);
+    await page.goto(resolvedUrl, { waitUntil: step.waitUntil ?? "load" });
   }
 
   private async replayAgentScrollStep(
