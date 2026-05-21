@@ -233,7 +233,7 @@ export class TrajectoryRecorder {
     );
 
     const taskDataPath = path.join(this.outputDir, "task_data.json");
-    let taskData: Record<string, unknown> = {};
+    let taskData: Record<string, unknown>;
     try {
       taskData = JSON.parse(await fs.readFile(taskDataPath, "utf8")) as Record<
         string,
