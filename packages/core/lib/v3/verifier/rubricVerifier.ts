@@ -238,7 +238,9 @@ export function resolveVerifierConfig(
   return {
     approach: overrides.approach ?? readApproach(env),
     optionalSteps: overrides.optionalSteps ?? readOptionalsMode(env),
-    topK: overrides.topK ?? readPositiveIntEnv(env, "VERIFIER_TOP_K", DEFAULT_TOP_K),
+    topK:
+      overrides.topK ??
+      readPositiveIntEnv(env, "VERIFIER_TOP_K", DEFAULT_TOP_K),
     relevanceBatchSize:
       overrides.relevanceBatchSize ??
       readPositiveIntEnv(
@@ -281,19 +283,44 @@ export function resolveVerifierConfig(
       disabled: truncDisabled,
       evidenceTextPreview:
         overrides.truncation?.evidenceTextPreview ??
-        readChars(env, "VERIFIER_EVIDENCE_TEXT_PREVIEW_CHARS", 200, truncDisabled),
+        readChars(
+          env,
+          "VERIFIER_EVIDENCE_TEXT_PREVIEW_CHARS",
+          200,
+          truncDisabled,
+        ),
       groupedEvidenceText:
         overrides.truncation?.groupedEvidenceText ??
-        readChars(env, "VERIFIER_GROUPED_EVIDENCE_TEXT_CHARS", 600, truncDisabled),
+        readChars(
+          env,
+          "VERIFIER_GROUPED_EVIDENCE_TEXT_CHARS",
+          600,
+          truncDisabled,
+        ),
       buildEvidenceText:
         overrides.truncation?.buildEvidenceText ??
-        readChars(env, "VERIFIER_BUILD_EVIDENCE_TEXT_CHARS", 160, truncDisabled),
+        readChars(
+          env,
+          "VERIFIER_BUILD_EVIDENCE_TEXT_CHARS",
+          160,
+          truncDisabled,
+        ),
       buildEvidenceAria:
         overrides.truncation?.buildEvidenceAria ??
-        readChars(env, "VERIFIER_BUILD_EVIDENCE_ARIA_CHARS", 1200, truncDisabled),
+        readChars(
+          env,
+          "VERIFIER_BUILD_EVIDENCE_ARIA_CHARS",
+          1200,
+          truncDisabled,
+        ),
       actionHistoryReasoning:
         overrides.truncation?.actionHistoryReasoning ??
-        readChars(env, "VERIFIER_ACTION_HISTORY_REASONING_CHARS", 140, truncDisabled),
+        readChars(
+          env,
+          "VERIFIER_ACTION_HISTORY_REASONING_CHARS",
+          140,
+          truncDisabled,
+        ),
     },
   };
 }
@@ -1914,7 +1941,6 @@ function clampToTokenBudget(text: string, tokenBudget: number): string {
     text.slice(text.length - keepTail).trimStart(),
   ].join("");
 }
-
 
 function filterByTaskSpan(
   items: z.infer<typeof RubricItemSchema>[],
