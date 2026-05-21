@@ -250,7 +250,6 @@ describe("agent captcha hooks", () => {
         context: {
           awaitActivePage: async () => page,
         },
-        bus: { emit: vi.fn() },
         isCaptchaAutoSolveEnabled: true,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
@@ -319,7 +318,6 @@ describe("agent captcha hooks", () => {
         context: {
           awaitActivePage: async () => page,
         },
-        bus: { emit: vi.fn() },
         isCaptchaAutoSolveEnabled: true,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
@@ -395,7 +393,6 @@ describe("agent captcha hooks", () => {
         context: {
           awaitActivePage: async () => page,
         },
-        bus: { emit: vi.fn() },
         isCaptchaAutoSolveEnabled: true,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
@@ -477,7 +474,6 @@ describe("v3 cua handler screenshot behavior", () => {
         context: {
           awaitActivePage: async () => page,
         },
-        bus: { emit: vi.fn() },
         isCaptchaAutoSolveEnabled: false,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
@@ -533,7 +529,6 @@ describe("v3 cua handler screenshot behavior", () => {
         context: {
           awaitActivePage: async () => page,
         },
-        bus: { emit: vi.fn() },
         isCaptchaAutoSolveEnabled: false,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
