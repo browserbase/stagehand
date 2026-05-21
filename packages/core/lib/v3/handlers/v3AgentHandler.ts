@@ -31,6 +31,7 @@ import {
   AgentModelConfig,
   Variables,
 } from "../types/public/agent.js";
+import type { AgentEvidenceCallback } from "../types/public/agentEvidenceEvents.js";
 import { HYBRID_CAPABLE_MODEL_PATTERNS } from "../types/private/agent.js";
 import { V3FunctionName } from "../types/public/methods.js";
 import { mapToolResultToActions } from "../agent/utils/actionMapping.js";
@@ -248,10 +249,11 @@ export class V3AgentHandler {
     userCallback?:
       | GenerateTextOnStepFinishCallback<ToolSet>
       | StreamTextOnStepFinishCallback<ToolSet>,
+    evidenceCallback?: AgentEvidenceCallback,
   ) {
     // Monotonic step counter scoped to this execute() call. Each tool call in
     // the agent loop becomes one trajectory step. The counter feeds stepIndex
-    // on the bus events the TrajectoryRecorder subscribes to.
+    // on evidence callback events.
     let stepCounter = 0;
     return async (event: StepResult<ToolSet>) => {
       this.logger({
@@ -310,10 +312,6 @@ export class V3AgentHandler {
             state.actions.push(action);
           }
 
-          // Emit step_finished_event per tool call. The TrajectoryRecorder
-          // builds one Trajectory.Step per emission. tier-1 evidence (the
-          // bytes the LLM consumed) is captured separately via an
-          // onStepFinish wrapper in the harness.
           const stepIndex = stepCounter++;
           stepIndicesInTurn.push(stepIndex);
           const toolOk =
@@ -321,7 +319,8 @@ export class V3AgentHandler {
             (typeof toolResult === "object" &&
               !("error" in toolResult) &&
               !("isError" in toolResult && toolResult.isError));
-          this.v3.bus.emit("agent_step_finished_event", {
+          await evidenceCallback?.({
+            type: "step_finished",
             stepIndex,
             actionName: toolCall.toolName,
             actionArgs:
@@ -350,47 +349,17 @@ export class V3AgentHandler {
         // reflects the settled page state after the batch of tool calls; this
         // is more faithful than dropping probe evidence for all but the last
         // tool call, while still avoiding per-tool screenshot overhead.
-        const wantsScreenshotProbe =
-          this.v3.bus.listenerCount?.("agent_screenshot_taken_event") > 0;
-        const wantsStepObservation =
-          this.v3.bus.listenerCount?.("agent_step_observed_event") > 0;
-        if (
-          stepIndicesInTurn.length > 0 &&
-          (wantsScreenshotProbe || wantsStepObservation)
-        ) {
+        const wantsEvidence = evidenceCallback !== undefined;
+        if (stepIndicesInTurn.length > 0 && wantsEvidence) {
+          let screenshot: Buffer | undefined;
+          let ariaTree: string | undefined;
           try {
             const page = await this.v3.context.awaitActivePage();
-            let screenshot: Buffer | undefined;
-            if (wantsScreenshotProbe) {
-              screenshot = await page.screenshot({ fullPage: false });
-            }
-            let ariaTree: string | undefined;
-            if (wantsStepObservation) {
-              // Capture the a11y tree alongside the URL probe so the verifier
-              // can ground textual claims (prices, names, dates) without OCR.
-              // Best-effort: returns undefined on failure/timeout.
-              ariaTree = await captureAriaTreeProbe(this.v3);
-            }
-            for (const stepIndex of stepIndicesInTurn) {
-              if (screenshot) {
-                // DOM/hybrid: this post-step screenshot is a harness probe
-                // only. The agent's tier-1 evidence is the tool's return value
-                // captured separately in agent_step_finished_event.
-                this.v3.bus.emit("agent_screenshot_taken_event", {
-                  stepIndex,
-                  screenshot,
-                  url: state.currentPageUrl,
-                  evidenceRole: "probe",
-                });
-              }
-              if (wantsStepObservation) {
-                this.v3.bus.emit("agent_step_observed_event", {
-                  stepIndex,
-                  url: state.currentPageUrl,
-                  ariaTree,
-                });
-              }
-            }
+            screenshot = await page.screenshot({ fullPage: false });
+            // Capture the a11y tree alongside the URL probe so the verifier
+            // can ground textual claims (prices, names, dates) without OCR.
+            // Best-effort: returns undefined on failure/timeout.
+            ariaTree = await captureAriaTreeProbe(this.v3);
           } catch (e) {
             this.logger({
               category: "agent",
@@ -398,11 +367,34 @@ export class V3AgentHandler {
               level: 1,
             });
           }
+          for (const stepIndex of stepIndicesInTurn) {
+            // DOM/hybrid: this post-step screenshot is a harness probe
+            // only. The agent's tier-1 evidence is the tool's return value
+            // captured separately in step_finished.
+            if (screenshot) {
+              await evidenceCallback?.({
+                type: "screenshot",
+                stepIndex,
+                screenshot,
+                url: state.currentPageUrl,
+                evidenceRole: "probe",
+              });
+            }
+            await evidenceCallback?.({
+              type: "step_observed",
+              stepIndex,
+              url: state.currentPageUrl,
+              ariaTree,
+            });
+          }
         }
       }
 
       if (lastFinalAnswer) {
-        this.v3.bus.emit("agent_final_answer_event", lastFinalAnswer);
+        await evidenceCallback?.({
+          type: "final_answer",
+          ...lastFinalAnswer,
+        });
       }
 
       if (userCallback) {
@@ -488,7 +480,11 @@ export class V3AgentHandler {
           callbacks?.prepareStep,
           captchaSolver,
         ),
-        onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
+        onStepFinish: this.createStepHandler(
+          state,
+          callbacks?.onStepFinish,
+          callbacks?.onEvidence,
+        ),
         abortSignal: preparedOptions.signal,
         providerOptions: {
           google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
@@ -624,7 +620,11 @@ export class V3AgentHandler {
           callbacks?.prepareStep,
           captchaSolver,
         ),
-        onStepFinish: this.createStepHandler(state, callbacks?.onStepFinish),
+        onStepFinish: this.createStepHandler(
+          state,
+          callbacks?.onStepFinish,
+          callbacks?.onEvidence,
+        ),
         onError: (event) => {
           captchaSolver?.dispose();
           if (callbacks?.onError) {

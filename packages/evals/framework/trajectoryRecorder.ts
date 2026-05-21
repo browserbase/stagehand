@@ -6,8 +6,9 @@ import {
 } from "@browserbasehq/stagehand";
 import type {
   AgentEvidence,
+  AgentEvidenceEvent,
   AgentFinalAnswerEvent,
-  AgentScreenshotTakenEvent,
+  AgentScreenshotEvidenceEvent,
   AgentStepFinishedEvent,
   AgentStepObservedEvent,
   ProbeEvidence,
@@ -17,7 +18,6 @@ import type {
   TrajectoryStep,
   TrajectoryUsage,
   EvaluationResult,
-  V3,
 } from "@browserbasehq/stagehand";
 
 interface PartialStep {
@@ -32,7 +32,6 @@ interface PartialStep {
 }
 
 export interface TrajectoryRecorderOptions {
-  v3: V3;
   taskSpec: TaskSpec;
   /**
    * Root directory under which trajectory dirs are written. Each task run
@@ -61,7 +60,6 @@ const ZERO_USAGE: TrajectoryUsage = {
 };
 
 export class TrajectoryRecorder {
-  private readonly v3: V3;
   private readonly taskSpec: TaskSpec;
   private readonly runId: string;
   private readonly outputDir: string;
@@ -76,15 +74,13 @@ export class TrajectoryRecorder {
   >();
   private readonly screenshotsByStep = new Map<
     number,
-    AgentScreenshotTakenEvent
+    AgentScreenshotEvidenceEvent
   >();
   private finalAnswerEvent?: AgentFinalAnswerEvent;
   private startedAt = "";
   private endedAt = "";
-  private listenersAttached = false;
 
-  // Bound handlers so attach/detach refer to the same references.
-  private readonly onScreenshot = (e: AgentScreenshotTakenEvent) => {
+  private onScreenshot(e: AgentScreenshotEvidenceEvent): void {
     this.screenshotsByStep.set(e.stepIndex, e);
     const partial = this.ensurePartial(e.stepIndex);
 
@@ -114,8 +110,9 @@ export class TrajectoryRecorder {
         ],
       });
     }
-  };
-  private readonly onStepFinished = (e: AgentStepFinishedEvent) => {
+  }
+
+  private onStepFinished(e: AgentStepFinishedEvent): void {
     const partial = this.ensurePartial(e.stepIndex);
     partial.actionName = e.actionName;
     partial.actionArgs = e.actionArgs;
@@ -126,8 +123,9 @@ export class TrajectoryRecorder {
       partial.agentEvidence,
       buildAgentEvidence(e),
     );
-  };
-  private readonly onStepObserved = (e: AgentStepObservedEvent) => {
+  }
+
+  private onStepObserved(e: AgentStepObservedEvent): void {
     this.observationByStep.set(e.stepIndex, e);
     const partial = this.ensurePartial(e.stepIndex);
     const probe: ProbeEvidence = { ...(partial.probeEvidence ?? {}) };
@@ -135,13 +133,13 @@ export class TrajectoryRecorder {
     if (e.ariaTree !== undefined) probe.ariaTree = e.ariaTree;
     if (e.scroll !== undefined) probe.scroll = e.scroll;
     partial.probeEvidence = probe;
-  };
-  private readonly onFinalAnswer = (e: AgentFinalAnswerEvent) => {
+  }
+
+  private onFinalAnswer(e: AgentFinalAnswerEvent): void {
     this.finalAnswerEvent = e;
-  };
+  }
 
   constructor(opts: TrajectoryRecorderOptions) {
-    this.v3 = opts.v3;
     this.taskSpec = opts.taskSpec;
     this.runId = opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
     const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
@@ -149,15 +147,29 @@ export class TrajectoryRecorder {
     this.persistEnabled = shouldPersistTrajectory(opts.persist);
   }
 
-  /** Subscribe to bus events. Call once before agent.execute(). */
+  /** Mark the beginning of collection. Call once before agent.execute(). */
   start(): void {
-    if (this.listenersAttached) return;
+    if (this.startedAt) return;
     this.startedAt = new Date().toISOString();
-    this.v3.bus.on("agent_screenshot_taken_event", this.onScreenshot);
-    this.v3.bus.on("agent_step_finished_event", this.onStepFinished);
-    this.v3.bus.on("agent_step_observed_event", this.onStepObserved);
-    this.v3.bus.on("agent_final_answer_event", this.onFinalAnswer);
-    this.listenersAttached = true;
+  }
+
+  /** Ingest an evidence callback event from agent.execute(). */
+  record(event: AgentEvidenceEvent): void {
+    if (!this.startedAt) this.start();
+    switch (event.type) {
+      case "screenshot":
+        this.onScreenshot(event);
+        break;
+      case "step_finished":
+        this.onStepFinished(event);
+        break;
+      case "step_observed":
+        this.onStepObserved(event);
+        break;
+      case "final_answer":
+        this.onFinalAnswer(event);
+        break;
+    }
   }
 
   /**
@@ -165,7 +177,7 @@ export class TrajectoryRecorder {
    * write the on-disk layout. Idempotent.
    */
   async finish(opts: TrajectoryFinishOptions): Promise<Trajectory> {
-    this.detach();
+    if (!this.startedAt) this.start();
     this.endedAt = new Date().toISOString();
 
     const steps = this.assembleSteps();
@@ -187,7 +199,6 @@ export class TrajectoryRecorder {
 
   /** Throw away in-memory state without writing to disk. Used on early abort. */
   cancel(): void {
-    this.detach();
     this.partialSteps.clear();
     this.observationByStep.clear();
     this.screenshotsByStep.clear();
@@ -235,15 +246,6 @@ export class TrajectoryRecorder {
       taskDataPath,
       JSON.stringify({ ...taskData, result }, null, 2),
     );
-  }
-
-  private detach(): void {
-    if (!this.listenersAttached) return;
-    this.v3.bus.off("agent_screenshot_taken_event", this.onScreenshot);
-    this.v3.bus.off("agent_step_finished_event", this.onStepFinished);
-    this.v3.bus.off("agent_step_observed_event", this.onStepObserved);
-    this.v3.bus.off("agent_final_answer_event", this.onFinalAnswer);
-    this.listenersAttached = false;
   }
 
   private ensurePartial(stepIndex: number): Partial<PartialStep> {

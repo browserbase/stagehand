@@ -15,6 +15,7 @@ import {
 import { LogLine } from "./logs.js";
 import { ClientOptions } from "./model.js";
 import { StagehandZodObject } from "../../zodCompat.js";
+import type { AgentEvidenceCallback } from "./agentEvidenceEvents.js";
 
 // Re-export ModelMessage for consumers who want to use it for conversation continuation
 export type { ModelMessage } from "ai";
@@ -136,6 +137,11 @@ export interface AgentCallbacks {
   onStepFinish?:
     | GenerateTextOnStepFinishCallback<ToolSet>
     | StreamTextOnStepFinishCallback<ToolSet>;
+  /**
+   * Callback called when Stagehand captures agent-run evidence such as
+   * screenshots, completed tool/action steps, or post-action observations.
+   */
+  onEvidence?: AgentEvidenceCallback;
 }
 
 /**

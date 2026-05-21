@@ -1,10 +1,9 @@
-import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { TaskSpec, V3 } from "@browserbasehq/stagehand";
+import type { TaskSpec } from "@browserbasehq/stagehand";
 
 import { TrajectoryRecorder } from "../../framework/trajectoryRecorder.js";
 
@@ -26,10 +25,6 @@ function makeTempDir(): Promise<string> {
     });
 }
 
-function makeV3(bus = new EventEmitter()): V3 {
-  return { bus } as unknown as V3;
-}
-
 function makeTaskSpec(): TaskSpec {
   return {
     id: "recorder-task",
@@ -48,23 +43,23 @@ function makeTaskSpec(): TaskSpec {
 }
 
 describe("TrajectoryRecorder", () => {
-  it("assembles trajectory evidence from bus events", async () => {
-    const bus = new EventEmitter();
+  it("assembles trajectory evidence from callback events", async () => {
     const recorder = new TrajectoryRecorder({
-      v3: makeV3(bus),
       taskSpec: makeTaskSpec(),
       persist: false,
     });
     const screenshot = Buffer.from("screen-1");
 
     recorder.start();
-    bus.emit("agent_screenshot_taken_event", {
+    recorder.record({
+      type: "screenshot",
       stepIndex: 0,
       screenshot,
       url: "https://example.com/search",
       evidenceRole: "agent_and_probe",
     });
-    bus.emit("agent_step_finished_event", {
+    recorder.record({
+      type: "step_finished",
       stepIndex: 0,
       actionName: "extract",
       actionArgs: { instruction: "Read fares" },
@@ -75,12 +70,14 @@ describe("TrajectoryRecorder", () => {
       },
       finishedAt: new Date(0).toISOString(),
     });
-    bus.emit("agent_step_observed_event", {
+    recorder.record({
+      type: "step_observed",
       stepIndex: 0,
       url: "https://example.com/search",
       ariaTree: "RootWebArea\nStaticText: Economy $100",
     });
-    bus.emit("agent_final_answer_event", {
+    recorder.record({
+      type: "final_answer",
       message: "Business is $150 more than economy.",
     });
 
@@ -117,9 +114,7 @@ describe("TrajectoryRecorder", () => {
 
   it("persists trajectory files and evaluator results", async () => {
     const outputRoot = await makeTempDir();
-    const bus = new EventEmitter();
     const recorder = new TrajectoryRecorder({
-      v3: makeV3(bus),
       taskSpec: makeTaskSpec(),
       outputRoot,
       runId: "run-1",
@@ -128,13 +123,15 @@ describe("TrajectoryRecorder", () => {
     const screenshot = Buffer.from("screen-1");
 
     recorder.start();
-    bus.emit("agent_screenshot_taken_event", {
+    recorder.record({
+      type: "screenshot",
       stepIndex: 0,
       screenshot,
       url: "https://example.com/search",
       evidenceRole: "agent_and_probe",
     });
-    bus.emit("agent_step_finished_event", {
+    recorder.record({
+      type: "step_finished",
       stepIndex: 0,
       actionName: "act",
       actionArgs: { instruction: "Search fares" },
@@ -142,7 +139,8 @@ describe("TrajectoryRecorder", () => {
       toolOutput: { ok: true, result: "done" },
       finishedAt: new Date(0).toISOString(),
     });
-    bus.emit("agent_step_observed_event", {
+    recorder.record({
+      type: "step_observed",
       stepIndex: 0,
       url: "https://example.com/search",
     });

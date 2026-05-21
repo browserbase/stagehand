@@ -17,7 +17,10 @@ import {
   SafetyConfirmationHandler,
 } from "../types/public/agent.js";
 import { LogLine } from "../types/public/logs.js";
-import type { AgentScreenshotTakenEvent } from "../types/public/busEvents.js";
+import type {
+  AgentEvidenceCallback,
+  AgentScreenshotEvidenceEvent,
+} from "../types/public/agentEvidenceEvents.js";
 import { type Action, V3FunctionName } from "../types/public/methods.js";
 import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import { toTitleCase } from "../../utils.js";
@@ -39,13 +42,14 @@ export class V3CuaAgentHandler {
   private captchaSolver: CaptchaSolver | null = null;
   private captchaClickGuardRemaining = 0;
   private currentInstruction = "";
-  // Monotonic step counter used by bus events. The CUA loop is internal to
+  // Monotonic step counter used by evidence callbacks. The CUA loop is internal to
   // the agent client, so unlike v3AgentHandler we don't have per-tool-call
   // step events; instead we tag every screenshot emission with an
   // incrementing index.
   private cuaStepCounter = 0;
-  private latestCuaScreenshot?: AgentScreenshotTakenEvent;
+  private latestCuaScreenshot?: AgentScreenshotEvidenceEvent;
   private latestCuaScreenshotConsumed = true;
+  private evidenceCallback?: AgentEvidenceCallback;
 
   constructor(
     v3: V3,
@@ -86,15 +90,7 @@ export class V3CuaAgentHandler {
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
-      // Emit bus event so TrajectoryRecorder can capture the screenshot. In
-      // CUA mode this is the same buffer the provider receives — i.e., it
-      // serves both as tier-1 evidence (what the model saw) and as a tier-2
-      // probe.
-      try {
-        this.emitCuaScreenshot(screenshotBuffer, page.url());
-      } catch {
-        // bus emit errors are non-fatal
-      }
+      await this.emitCuaScreenshot(screenshotBuffer, page.url());
 
       return screenshotBuffer.toString("base64"); // base64 png
     });
@@ -208,6 +204,10 @@ export class V3CuaAgentHandler {
         : optionsOrInstruction;
 
     this.setSafetyConfirmationHandler(options.callbacks?.onSafetyConfirmation);
+    this.evidenceCallback = options.callbacks?.onEvidence;
+    this.cuaStepCounter = 0;
+    this.latestCuaScreenshot = undefined;
+    this.latestCuaScreenshotConsumed = true;
 
     this.highlightCursor = options.highlightCursor !== false;
     this.currentInstruction = options.instruction;
@@ -263,7 +263,13 @@ export class V3CuaAgentHandler {
     let result: AgentResult;
     try {
       result = await this.agent.execute({ options, logger: this.logger });
+      await this.evidenceCallback?.({
+        type: "final_answer",
+        message: result.message,
+        output: result.output,
+      });
     } finally {
+      this.evidenceCallback = undefined;
       this.captchaSolver?.dispose();
       this.captchaSolver = null;
     }
@@ -683,13 +689,8 @@ export class V3CuaAgentHandler {
 
       const currentUrl = page.url();
 
-      // Mirror the screenshot to the bus — same buffer the CUA client
-      // received, so it serves as both tier-1 evidence and tier-2 probe.
-      try {
-        this.emitCuaScreenshot(screenshotBuffer, currentUrl);
-      } catch {
-        // non-fatal
-      }
+      // Mirror the same buffer the CUA client receives as agent evidence.
+      await this.emitCuaScreenshot(screenshotBuffer, currentUrl);
 
       return await this.agentClient.captureScreenshot({
         base64Image: screenshotBuffer.toString("base64"),
@@ -807,11 +808,12 @@ export class V3CuaAgentHandler {
    * can compare what the model saw against what the page actually showed
    * once the keystrokes/clicks landed.
    */
-  private emitCuaScreenshot(
+  private async emitCuaScreenshot(
     screenshot: Buffer,
     url: string,
-  ): AgentScreenshotTakenEvent {
-    const event: AgentScreenshotTakenEvent = {
+  ): Promise<AgentScreenshotEvidenceEvent> {
+    const event: AgentScreenshotEvidenceEvent = {
+      type: "screenshot",
       stepIndex: this.cuaStepCounter++,
       screenshot,
       url,
@@ -819,7 +821,7 @@ export class V3CuaAgentHandler {
     };
     this.latestCuaScreenshot = event;
     this.latestCuaScreenshotConsumed = false;
-    this.v3.bus.emit("agent_screenshot_taken_event", event);
+    await this.evidenceCallback?.(event);
     return event;
   }
 
@@ -843,7 +845,7 @@ export class V3CuaAgentHandler {
       this.latestCuaScreenshotConsumed = true;
     } else if (this.latestCuaScreenshot) {
       stepIndex = this.cuaStepCounter++;
-      this.v3.bus.emit("agent_screenshot_taken_event", {
+      await this.evidenceCallback?.({
         ...this.latestCuaScreenshot,
         stepIndex,
       });
@@ -861,7 +863,8 @@ export class V3CuaAgentHandler {
           ? action.action
           : "";
 
-    this.v3.bus.emit("agent_step_finished_event", {
+    await this.evidenceCallback?.({
+      type: "step_finished",
       stepIndex,
       actionName: String(action.type),
       actionArgs,
@@ -880,26 +883,16 @@ export class V3CuaAgentHandler {
     // verifier has no visual evidence that keystrokes/clicks landed, and
     // has to trust the action history alone.
     //
-    // Listener-gated to keep ordinary agent runs free of the extra
+    // Callback-gated to keep ordinary agent runs free of the extra
     // screenshot cost — mirrors v3AgentHandler's post-step probe.
-    const wantsScreenshotProbe =
-      this.v3.bus.listenerCount?.("agent_screenshot_taken_event") > 0;
-    const wantsStepObservation =
-      this.v3.bus.listenerCount?.("agent_step_observed_event") > 0;
+    const wantsEvidence = this.evidenceCallback !== undefined;
     let probeUrl = pageUrl;
-    if (wantsScreenshotProbe || wantsStepObservation) {
+    let probeScreenshot: Buffer | undefined;
+    if (wantsEvidence) {
       try {
         const page = await this.v3.context.awaitActivePage();
         probeUrl = page.url();
-        if (wantsScreenshotProbe) {
-          const probeScreenshot = await page.screenshot({ fullPage: false });
-          this.v3.bus.emit("agent_screenshot_taken_event", {
-            stepIndex,
-            screenshot: probeScreenshot,
-            url: probeUrl,
-            evidenceRole: "probe",
-          });
-        }
+        probeScreenshot = await page.screenshot({ fullPage: false });
       } catch (e) {
         this.logger({
           category: "agent",
@@ -911,11 +904,22 @@ export class V3CuaAgentHandler {
       }
     }
 
-    if (probeUrl && wantsStepObservation) {
+    if (probeScreenshot) {
+      await this.evidenceCallback?.({
+        type: "screenshot",
+        stepIndex,
+        screenshot: probeScreenshot,
+        url: probeUrl,
+        evidenceRole: "probe",
+      });
+    }
+
+    if (probeUrl && wantsEvidence) {
       // Capture the a11y tree alongside the URL probe so the verifier can
       // ground textual claims without OCR. Best-effort.
       const ariaTree = await captureAriaTreeProbe(this.v3);
-      this.v3.bus.emit("agent_step_observed_event", {
+      await this.evidenceCallback?.({
+        type: "step_observed",
         stepIndex,
         url: probeUrl,
         ariaTree,

@@ -21,7 +21,6 @@ const publicApiShape = {
   AISdkClient: Stagehand.AISdkClient,
   Api: Stagehand.Api,
   AVAILABLE_CUA_MODELS: Stagehand.AVAILABLE_CUA_MODELS,
-  BUS_EVENTS: Stagehand.BUS_EVENTS,
   AgentProvider: Stagehand.AgentProvider,
   AnnotatedScreenshotText: Stagehand.AnnotatedScreenshotText,
   ConsoleMessage: Stagehand.ConsoleMessage,
