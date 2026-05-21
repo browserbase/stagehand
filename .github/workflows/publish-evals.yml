@@ -1,0 +1,130 @@
+name: Publish Evals
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiment:
+        description: Braintrust experiment name or UUID.
+        required: true
+        type: string
+      project:
+        description: Braintrust project containing the experiment.
+        required: false
+        default: stagehand
+        type: string
+      kv_key:
+        description: Upstash Redis key the UI reads.
+        required: false
+        default: stagehand:evals:latest
+        type: string
+      experiment_key_prefix:
+        description: Prefix for the secondary experiment-id key.
+        required: false
+        default: stagehand:evals:experiments
+        type: string
+      write_experiment_key:
+        description: Also write <experiment_key_prefix>:<experiment_id>.
+        required: false
+        default: true
+        type: boolean
+      dry_run:
+        description: Fetch and render payload without writing to Upstash.
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  PUPPETEER_SKIP_DOWNLOAD: "1"
+  PLAYWRIGHT_SKIP_DOWNLOAD: "1"
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  publish:
+    name: Publish Evals UI Data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
+          node-version: 20.x
+
+      - name: Publish Braintrust experiment to Upstash
+        id: publish
+        env:
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
+          KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
+          EXPERIMENT: ${{ inputs.experiment }}
+          PROJECT: ${{ inputs.project }}
+          KV_KEY: ${{ inputs.kv_key }}
+          EXPERIMENT_KEY_PREFIX: ${{ inputs.experiment_key_prefix }}
+          WRITE_EXPERIMENT_KEY: ${{ inputs.write_experiment_key }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          args=(
+            --experiment "$EXPERIMENT"
+            --project "$PROJECT"
+            --key "$KV_KEY"
+            --experiment-key-prefix "$EXPERIMENT_KEY_PREFIX"
+            --out evals-ui-data.json
+          )
+
+          if [[ "$WRITE_EXPERIMENT_KEY" != "true" ]]; then
+            args+=(--no-experiment-key)
+          fi
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+
+          pnpm --filter @browserbasehq/stagehand-evals exec tsx \
+            scripts/publish-braintrust-ui-data.ts \
+            "${args[@]}" | tee publish-evals-ui-data-output.json
+
+          {
+            echo "summary<<EOF"
+            jq -r '
+              "Experiment: \(.experimentName)",
+              "Project: \(.projectName)",
+              "Keys:",
+              (.keys[] | "  " + .),
+              "Passed: \(.summary.passed)/\(.summary.total)",
+              "Pass rate: \((.summary.passPercent | tonumber) | tostring)%",
+              "Dry run: \(.dryRun)"
+            ' publish-evals-ui-data-output.json
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Add publish summary
+        if: always()
+        env:
+          PUBLISH_SUMMARY: ${{ steps.publish.outputs.summary }}
+        shell: bash
+        run: |
+          if [ -n "${PUBLISH_SUMMARY:-}" ]; then
+            echo "### Published Evals UI Data" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' "$PUBLISH_SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload generated payload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evals-ui-data
+          path: |
+            evals-ui-data.json
+            publish-evals-ui-data-output.json
