@@ -222,7 +222,7 @@ async function assertTrajectoryDir(dir: string): Promise<void> {
     }
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Trajectory directory not found: ${dir}`);
+      throw new Error(`Trajectory directory not found: ${dir}`, { cause: e });
     }
     throw e;
   }
