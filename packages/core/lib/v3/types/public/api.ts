@@ -506,6 +506,11 @@ export const ActRequestSchema = z
       description: "Whether to stream the response via SSE",
       example: true,
     }),
+    cacheThreshold: z.number().optional().meta({
+      description:
+        "Custom cache threshold override. Minimum hit count required before cached results are returned.",
+      example: 5,
+    }),
   })
   .meta({ id: "ActRequest" });
 
@@ -593,6 +598,11 @@ export const ExtractRequestSchema = z
       description: "Whether to stream the response via SSE",
       example: true,
     }),
+    cacheThreshold: z.number().optional().meta({
+      description:
+        "Custom cache threshold override. Minimum hit count required before cached results are returned.",
+      example: 5,
+    }),
   })
   .meta({ id: "ExtractRequest" });
 
@@ -669,6 +679,11 @@ export const ObserveRequestSchema = z
     streamResponse: z.boolean().optional().meta({
       description: "Whether to stream the response via SSE",
       example: true,
+    }),
+    cacheThreshold: z.number().optional().meta({
+      description:
+        "Custom cache threshold override. Minimum hit count required before cached results are returned.",
+      example: 5,
     }),
   })
   .meta({ id: "ObserveRequest" });

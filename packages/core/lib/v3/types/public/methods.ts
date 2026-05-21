@@ -17,10 +17,12 @@ export interface ActOptions {
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   /**
    * Override the instance-level serverCache setting for this request.
-   * When true, enables server-side caching.
-   * When false, disables server-side caching.
+   * When true, enables server-side caching with the default threshold.
+   * When false, disables server-side caching (bypasses cache).
+   * When an object with a threshold, enables caching and overrides the minimum
+   * hit count required before cached results are returned.
    */
-  serverCache?: boolean;
+  serverCache?: boolean | { threshold: number };
 }
 
 export interface ActResult {
@@ -59,10 +61,12 @@ export interface ExtractOptions {
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   /**
    * Override the instance-level serverCache setting for this request.
-   * When true, enables server-side caching.
-   * When false, disables server-side caching.
+   * When true, enables server-side caching with the default threshold.
+   * When false, disables server-side caching (bypasses cache).
+   * When an object with a threshold, enables caching and overrides the minimum
+   * hit count required before cached results are returned.
    */
-  serverCache?: boolean;
+  serverCache?: boolean | { threshold: number };
 }
 
 export const defaultExtractSchema = z.object({
@@ -82,10 +86,12 @@ export interface ObserveOptions {
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   /**
    * Override the instance-level serverCache setting for this request.
-   * When true, enables server-side caching.
-   * When false, disables server-side caching.
+   * When true, enables server-side caching with the default threshold.
+   * When false, disables server-side caching (bypasses cache).
+   * When an object with a threshold, enables caching and overrides the minimum
+   * hit count required before cached results are returned.
    */
-  serverCache?: boolean;
+  serverCache?: boolean | { threshold: number };
 }
 
 /**

@@ -12,6 +12,7 @@ import {
 } from "./types/public/index.js";
 import type {
   ActResult,
+  Action,
   AgentConfig,
   AgentExecuteOptions,
   AgentResult,
@@ -143,35 +144,41 @@ interface ExecuteActionParams {
 /**
  * Client parameters for act() method.
  * Derives structure from Api.ActRequest but uses SDK's ActOptions (which includes `page`).
- * Before serialization, `page` is stripped to produce Api.ActRequest wire format.
+ * Before serialization, `page` and `serverCache` are stripped to produce Api.ActRequest wire format.
+ * `cacheThreshold` is sent as a top-level field derived from the `serverCache` option.
  */
 interface ClientActParameters {
   input: Api.ActRequest["input"];
   options?: ActOptions;
   frameId?: Api.ActRequest["frameId"];
+  cacheThreshold?: number;
 }
 
 /**
  * Client parameters for extract() method.
  * Derives structure from Api.ExtractRequest but uses SDK's ExtractOptions (which includes `page`)
  * and accepts Zod schema (converted to JSON schema for wire format).
+ * `cacheThreshold` is sent as a top-level field derived from the `serverCache` option.
  */
 interface ClientExtractParameters {
   instruction?: Api.ExtractRequest["instruction"];
   schema?: StagehandZodSchema;
   options?: ExtractOptions;
   frameId?: Api.ExtractRequest["frameId"];
+  cacheThreshold?: number;
 }
 
 /**
  * Client parameters for observe() method.
  * Derives structure from Api.ObserveRequest but uses SDK's ObserveOptions (which includes `page`).
- * Before serialization, `page` is stripped to produce Api.ObserveRequest wire format.
+ * Before serialization, `page` and `serverCache` are stripped to produce Api.ObserveRequest wire format.
+ * `cacheThreshold` is sent as a top-level field derived from the `serverCache` option.
  */
 interface ClientObserveParameters {
   instruction?: Api.ObserveRequest["instruction"];
   options?: ObserveOptions;
   frameId?: Api.ObserveRequest["frameId"];
+  cacheThreshold?: number;
 }
 
 export class StagehandAPIClient {
@@ -280,14 +287,20 @@ export class StagehandAPIClient {
     input,
     options,
     frameId,
+    cacheThreshold,
   }: ClientActParameters): Promise<ActResult> {
-    // Strip non-serializable `page` and SDK-only fields from options before wire serialization
+    // Strip non-serializable `page` and client-only `serverCache` from options before wire serialization
     let wireOptions: Api.ActRequest["options"];
     let serverCache: boolean | undefined;
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, serverCache: enableCache, ...restOptions } = options;
-      serverCache = enableCache;
+      const { page: _, serverCache: serverCacheOpt, ...restOptions } = options;
+      // Resolve boolean | { threshold } → boolean for the cache-bypass header.
+      // An object with a threshold means caching is enabled (true).
+      if (serverCacheOpt !== undefined) {
+        serverCache =
+          typeof serverCacheOpt === "object" ? true : serverCacheOpt;
+      }
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
@@ -301,6 +314,7 @@ export class StagehandAPIClient {
       input,
       options: wireOptions,
       frameId,
+      cacheThreshold,
     };
 
     return this.execute<ActResult>({
@@ -315,17 +329,21 @@ export class StagehandAPIClient {
     schema: zodSchema,
     options,
     frameId,
+    cacheThreshold,
   }: ClientExtractParameters): Promise<ExtractResult<T>> {
     // Convert Zod schema to JSON schema for wire format
     const jsonSchema = zodSchema ? toJsonSchema(zodSchema) : undefined;
 
-    // Strip non-serializable `page` and SDK-only fields from options before wire serialization
+    // Strip non-serializable `page` and client-only `serverCache` from options before wire serialization
     let wireOptions: Api.ExtractRequest["options"];
     let serverCache: boolean | undefined;
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, serverCache: enableCache, ...restOptions } = options;
-      serverCache = enableCache;
+      const { page: _, serverCache: serverCacheOpt, ...restOptions } = options;
+      if (serverCacheOpt !== undefined) {
+        serverCache =
+          typeof serverCacheOpt === "object" ? true : serverCacheOpt;
+      }
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
@@ -340,6 +358,7 @@ export class StagehandAPIClient {
       schema: jsonSchema,
       options: wireOptions,
       frameId,
+      cacheThreshold,
     };
 
     return this.execute<ExtractResult<T>>({
@@ -353,14 +372,18 @@ export class StagehandAPIClient {
     instruction,
     options,
     frameId,
+    cacheThreshold,
   }: ClientObserveParameters): Promise<ObserveResult> {
-    // Strip non-serializable `page` and SDK-only fields from options before wire serialization
+    // Strip non-serializable `page` and client-only `serverCache` from options before wire serialization
     let wireOptions: Api.ObserveRequest["options"];
     let serverCache: boolean | undefined;
     if (options) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, serverCache: enableCache, ...restOptions } = options;
-      serverCache = enableCache;
+      const { page: _, serverCache: serverCacheOpt, ...restOptions } = options;
+      if (serverCacheOpt !== undefined) {
+        serverCache =
+          typeof serverCacheOpt === "object" ? true : serverCacheOpt;
+      }
       if (Object.keys(restOptions).length > 0) {
         if (restOptions.model) {
           restOptions.model = this.prepareModelConfig(restOptions.model);
@@ -374,6 +397,7 @@ export class StagehandAPIClient {
       instruction,
       options: wireOptions,
       frameId,
+      cacheThreshold,
     };
 
     return this.execute<ObserveResult>({
@@ -896,6 +920,19 @@ export class StagehandAPIClient {
         ...options.headers,
       },
     });
+
+    // Log cache status if present in response headers
+    const cacheStatus = response.headers.get("browserbase-cache-status");
+    if (cacheStatus) {
+      this.logger({
+        category: "api",
+        message: `server cache ${cacheStatus.toLowerCase()}`,
+        level: 2,
+        auxiliary: {
+          "cache-status": { value: cacheStatus, type: "string" },
+        },
+      });
+    }
 
     return response;
   }
