@@ -22,7 +22,11 @@ import type { Testcase, EvalInput } from "../types/evals.js";
 import { generateBenchTestcases } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS, type Harness } from "./benchTypes.js";
 import { executeBenchTask } from "./benchRunner.js";
-import { loadBraintrust, tracedSpan } from "./braintrust.js";
+import {
+  hasBraintrustApiKey,
+  loadBraintrust,
+  tracedSpan,
+} from "./braintrust.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
 
@@ -352,6 +356,7 @@ export async function runEvals(
     : [exactMatch, errorMatch];
 
   const { Eval, flush } = await loadBraintrust();
+  const sendLogs = hasBraintrustApiKey();
 
   // Aggressive abort: when the caller flips signal.reason to "aggressive",
   // close every active session so any in-flight task throws on its next
@@ -440,10 +445,13 @@ export async function runEvals(
     {
       progress: silentBraintrustProgress,
       reporter: silentBraintrustReporter,
+      ...(sendLogs ? {} : { noSendLogs: true }),
     },
   );
 
-  await flush();
+  if (sendLogs) {
+    await flush();
+  }
 
   const summaryResults = evalResult.results.map((result) => {
     const output =

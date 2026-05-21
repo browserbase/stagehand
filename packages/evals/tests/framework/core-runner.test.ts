@@ -65,6 +65,9 @@ function makeRegistry(tasks: DiscoveredTask[]): TaskRegistry {
 beforeEach(() => {
   originalCi = process.env.CI;
   delete process.env.CI;
+  // Set a dummy API key so the runner sends logs and calls flush(),
+  // which this test asserts.
+  process.env.BRAINTRUST_API_KEY = "test-key";
   tracedNames.length = 0;
   evalMock.mockReset();
   flushMock.mockClear();
@@ -79,6 +82,7 @@ afterEach(() => {
   } else {
     process.env.CI = originalCi;
   }
+  delete process.env.BRAINTRUST_API_KEY;
 
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
