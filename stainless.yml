@@ -153,6 +153,18 @@ openapi:
         target: "$.components.schemas.StreamEventSystemDataOutput.properties.result"
         value:
           x-stainless-any: true
+    - command: merge
+      reason: Mark hosted-region compatibility field as deprecated
+      args:
+        target: "$.components.schemas.BrowserbaseSessionCreateParams.properties.region"
+        value:
+          deprecated: true
+    - command: merge
+      reason: Mark hosted-region compatibility field as deprecated
+      args:
+        target: "$.components.schemas.BrowserbaseSessionCreateParamsOutput.properties.region"
+        value:
+          deprecated: true
 
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
