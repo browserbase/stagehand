@@ -67,19 +67,27 @@ export async function runWithVerifier(
 
   // ── Record trajectory around agent.execute() ───────────────────────────
   const recorder = new TrajectoryRecorder({
-    v3,
     taskSpec: hydratedTaskSpec,
     runId,
     outputRoot: trajectoryRoot,
   });
   recorder.start();
+  const { callbacks: userCallbacks, ...restAgentOptions } =
+    agentOptions ?? {};
 
   let agentResult: AgentResult;
   let recorderStatus: "complete" | "aborted" | "error" = "complete";
   try {
     agentResult = await agent.execute({
-      ...agentOptions,
+      ...restAgentOptions,
       instruction: taskSpec.instruction,
+      callbacks: {
+        ...userCallbacks,
+        onEvidence: async (event) => {
+          recorder.record(event);
+          await userCallbacks?.onEvidence?.(event);
+        },
+      },
     });
   } catch (e) {
     recorderStatus = "error";
