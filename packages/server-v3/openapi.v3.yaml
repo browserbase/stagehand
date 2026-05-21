@@ -512,6 +512,10 @@ components:
               items:
                 $ref: "#/components/schemas/ProxyConfig"
         region:
+          description: Deprecated. On hosted Stagehand API, the Browserbase session region
+            is determined by the Stagehand API base URL you call. Prefer
+            selecting the regional endpoint via the SDK client's baseUrl.
+          example: eu-central-1
           $ref: "#/components/schemas/BrowserbaseRegion"
         timeout:
           type: number
@@ -1597,6 +1601,10 @@ components:
               items:
                 $ref: "#/components/schemas/ProxyConfigOutput"
         region:
+          description: Deprecated. On hosted Stagehand API, the Browserbase session region
+            is determined by the Stagehand API base URL you call. Prefer
+            selecting the regional endpoint via the SDK client's baseUrl.
+          example: eu-central-1
           $ref: "#/components/schemas/BrowserbaseRegion"
         timeout:
           type: number
@@ -2399,6 +2407,13 @@ paths:
                 $ref: "#/components/schemas/AgentExecuteResponse"
 servers:
   - url: https://api.stagehand.browserbase.com
+    description: Default us-west-2 Stagehand API endpoint
+  - url: https://api.use1.stagehand.browserbase.com
+    description: us-east-1 Stagehand API endpoint
+  - url: https://api.euc1.stagehand.browserbase.com
+    description: eu-central-1 Stagehand API endpoint
+  - url: https://api.apse1.stagehand.browserbase.com
+    description: ap-southeast-1 Stagehand API endpoint
 security:
   - BrowserbaseApiKey: []
     BrowserbaseProjectId: []
