@@ -10,7 +10,16 @@ vi.mock("playwright", () => ({
   chromium: {},
 }));
 
-const mockEval = vi.fn(async () => ({
+const mockEval = vi.fn<
+  (
+    name: string,
+    options: unknown,
+    evalOptions?: unknown,
+  ) => Promise<{
+    results: unknown[];
+    summary: { experimentName: string; scores: Record<string, unknown> };
+  }>
+>(async () => ({
   results: [],
   summary: { experimentName: "test", scores: {} },
 }));
@@ -53,7 +62,7 @@ describe("runner.ts skips Braintrust logging when API key is absent", () => {
       tier: "bench" as const,
       primaryCategory: "extract",
       categories: ["extract"],
-      tags: [],
+      tags: [] as string[],
       filePath: "/fake.ts",
       isLegacy: false,
     };
@@ -86,7 +95,7 @@ describe("runner.ts skips Braintrust logging when API key is absent", () => {
       tier: "bench" as const,
       primaryCategory: "extract",
       categories: ["extract"],
-      tags: [],
+      tags: [] as string[],
       filePath: "/fake.ts",
       isLegacy: false,
     };

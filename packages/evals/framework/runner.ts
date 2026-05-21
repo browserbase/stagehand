@@ -22,7 +22,11 @@ import type { Testcase, EvalInput } from "../types/evals.js";
 import { generateBenchTestcases } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS, type Harness } from "./benchTypes.js";
 import { executeBenchTask } from "./benchRunner.js";
-import { hasBraintrustApiKey, loadBraintrust, tracedSpan } from "./braintrust.js";
+import {
+  hasBraintrustApiKey,
+  loadBraintrust,
+  tracedSpan,
+} from "./braintrust.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
 

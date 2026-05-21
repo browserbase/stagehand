@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  hasBraintrustApiKey,
-  tracedSpan,
-} from "../../framework/braintrust.js";
+import { hasBraintrustApiKey, tracedSpan } from "../../framework/braintrust.js";
 
 /**
  * Verify that braintrust.ts helpers and AISdkClientWrapped work without
