@@ -193,6 +193,14 @@ jobs:
         run: |
           set +e
 
+          # The GitHub iOS app serializes `type: number` workflow_dispatch
+          # inputs as doubles ("1.0"/"50.0") regardless of whether the
+          # workflow needs an integer. The evals CLI's `parsePositiveInteger`
+          # (regex /^[0-9]+$/) rejects the decimal form, so strip a single
+          # trailing `.0` here before passing the values along.
+          EVAL_TRIALS="${EVAL_TRIALS%.0}"
+          EVAL_CONCURRENCY="${EVAL_CONCURRENCY%.0}"
+
           agent_mode_args=()
           if [[ -n "${EVAL_AGENT_MODE:-}" && "$EVAL_AGENT_MODE" != "auto" ]]; then
             agent_mode_args=(--agent-mode "$EVAL_AGENT_MODE")
