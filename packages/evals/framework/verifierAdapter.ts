@@ -72,8 +72,7 @@ export async function runWithVerifier(
     outputRoot: trajectoryRoot,
   });
   recorder.start();
-  const { callbacks: userCallbacks, ...restAgentOptions } =
-    agentOptions ?? {};
+  const { callbacks: userCallbacks, ...restAgentOptions } = agentOptions ?? {};
 
   let agentResult: AgentResult;
   let recorderStatus: "complete" | "aborted" | "error" = "complete";
