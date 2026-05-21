@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -65,6 +65,58 @@ describe("verifier trajectory utilities", () => {
     const screenshot = Buffer.from("probe screenshot");
     const agentImage = Buffer.from("agent image");
     await writeFile(path.join(dir, "screenshot_1.png"), screenshot);
+    await mkdir(path.join(dir, "screenshots", "agent"), { recursive: true });
+    await writeFile(
+      path.join(dir, "screenshots", "agent", "1.png"),
+      agentImage,
+    );
+    await writeFile(
+      path.join(dir, "trajectory.json"),
+      JSON.stringify({
+        task: { id: "task", instruction: "Do the task" },
+        status: "complete",
+        usage: { input_tokens: 0, output_tokens: 0 },
+        timing: {
+          startedAt: new Date(0).toISOString(),
+          endedAt: new Date(0).toISOString(),
+        },
+        steps: [
+          {
+            index: 0,
+            actionName: "act",
+            actionArgs: {},
+            reasoning: "",
+            agentEvidence: {
+              modalities: [
+                {
+                  type: "image",
+                  mediaType: "image/png",
+                  imagePath: "screenshots/agent/1.png",
+                },
+              ],
+            },
+            probeEvidence: { screenshotPath: "screenshot_1.png" },
+            toolOutput: { ok: true, result: null },
+            startedAt: new Date(0).toISOString(),
+            finishedAt: new Date(0).toISOString(),
+          },
+        ],
+      }),
+    );
+
+    const trajectory = await loadTrajectoryFromDisk(dir);
+    const modality = trajectory.steps[0].agentEvidence.modalities[0];
+
+    expect(trajectory.steps[0].probeEvidence.screenshot).toEqual(screenshot);
+    expect(modality.type).toBe("image");
+    if (modality.type === "image") {
+      expect(modality.bytes).toEqual(agentImage);
+    }
+  });
+
+  it("loads legacy base64 image modalities from disk", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "stagehand-verifier-"));
+    const agentImage = Buffer.from("legacy agent image");
     await writeFile(
       path.join(dir, "trajectory.json"),
       JSON.stringify({
@@ -90,7 +142,7 @@ describe("verifier trajectory utilities", () => {
                 },
               ],
             },
-            probeEvidence: { screenshotPath: "screenshot_1.png" },
+            probeEvidence: {},
             toolOutput: { ok: true, result: null },
             startedAt: new Date(0).toISOString(),
             finishedAt: new Date(0).toISOString(),
@@ -102,7 +154,6 @@ describe("verifier trajectory utilities", () => {
     const trajectory = await loadTrajectoryFromDisk(dir);
     const modality = trajectory.steps[0].agentEvidence.modalities[0];
 
-    expect(trajectory.steps[0].probeEvidence.screenshot).toEqual(screenshot);
     expect(modality.type).toBe("image");
     if (modality.type === "image") {
       expect(modality.bytes).toEqual(agentImage);
