@@ -56,9 +56,7 @@ export async function captureAriaTreeProbe(
   try {
     // v3.extract() without a schema returns { pageText } where pageText is the
     // rendered accessibility tree — same path the agent's ariaTree tool uses.
-    const result = (await v3.extract({ timeout: timeoutMs })) as {
-      pageText?: string;
-    };
+    const result = await v3.extract({ timeout: timeoutMs });
     const pageText = result?.pageText;
     if (typeof pageText !== "string" || pageText.length === 0) return undefined;
 

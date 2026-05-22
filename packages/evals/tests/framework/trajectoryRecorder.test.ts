@@ -56,7 +56,14 @@ describe("TrajectoryRecorder", () => {
       stepIndex: 0,
       screenshot,
       url: "https://example.com/search",
-      evidenceRole: "agent_and_probe",
+      evidenceRole: "agent",
+    });
+    recorder.record({
+      type: "screenshot",
+      stepIndex: 0,
+      screenshot,
+      url: "https://example.com/search",
+      evidenceRole: "probe",
     });
     recorder.record({
       type: "step_finished",
@@ -128,7 +135,14 @@ describe("TrajectoryRecorder", () => {
       stepIndex: 0,
       screenshot,
       url: "https://example.com/search",
-      evidenceRole: "agent_and_probe",
+      evidenceRole: "agent",
+    });
+    recorder.record({
+      type: "screenshot",
+      stepIndex: 0,
+      screenshot,
+      url: "https://example.com/search",
+      evidenceRole: "probe",
     });
     recorder.record({
       type: "step_finished",

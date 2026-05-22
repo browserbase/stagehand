@@ -42,7 +42,8 @@ import {
   AgentAbortError,
 } from "../types/public/sdkErrors.js";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall.js";
-import { captureAriaTreeProbe } from "../agent/utils/captureAriaTreeProbe.js";
+import { emitPostStepProbeEvidence } from "../agent/utils/postStepProbeEvidence.js";
+import { inferToolOutput } from "../agent/utils/toolOutputEvidence.js";
 import {
   CaptchaSolver,
   CAPTCHA_SOLVED_MSG,
@@ -314,11 +315,6 @@ export class V3AgentHandler {
 
           const stepIndex = stepCounter++;
           stepIndicesInTurn.push(stepIndex);
-          const toolOk =
-            !toolResult ||
-            (typeof toolResult === "object" &&
-              !("error" in toolResult) &&
-              !("isError" in toolResult && toolResult.isError));
           await evidenceCallback?.({
             type: "step_finished",
             stepIndex,
@@ -328,17 +324,7 @@ export class V3AgentHandler {
                 ? (args as Record<string, unknown>)
                 : {},
             reasoning: event.text ?? "",
-            toolOutput: {
-              ok: toolOk,
-              result: toolResult,
-              error:
-                toolResult &&
-                typeof toolResult === "object" &&
-                "error" in toolResult &&
-                typeof (toolResult as { error?: unknown }).error === "string"
-                  ? (toolResult as { error: string }).error
-                  : undefined,
-            },
+            toolOutput: inferToolOutput(toolResult),
             finishedAt: new Date().toISOString(),
           });
         }
@@ -349,45 +335,14 @@ export class V3AgentHandler {
         // reflects the settled page state after the batch of tool calls; this
         // is more faithful than dropping probe evidence for all but the last
         // tool call, while still avoiding per-tool screenshot overhead.
-        const wantsEvidence = evidenceCallback !== undefined;
-        if (stepIndicesInTurn.length > 0 && wantsEvidence) {
-          let screenshot: Buffer | undefined;
-          let ariaTree: string | undefined;
-          try {
-            const page = await this.v3.context.awaitActivePage();
-            screenshot = await page.screenshot({ fullPage: false });
-            // Capture the a11y tree alongside the URL probe so the verifier
-            // can ground textual claims (prices, names, dates) without OCR.
-            // Best-effort: returns undefined on failure/timeout.
-            ariaTree = await captureAriaTreeProbe(this.v3);
-          } catch (e) {
-            this.logger({
-              category: "agent",
-              message: `Warning: harness probe failed: ${getErrorMessage(e)}`,
-              level: 1,
-            });
-          }
-          for (const stepIndex of stepIndicesInTurn) {
-            // DOM/hybrid: this post-step screenshot is a harness probe
-            // only. The agent's tier-1 evidence is the tool's return value
-            // captured separately in step_finished.
-            if (screenshot) {
-              await evidenceCallback?.({
-                type: "screenshot",
-                stepIndex,
-                screenshot,
-                url: state.currentPageUrl,
-                evidenceRole: "probe",
-              });
-            }
-            await evidenceCallback?.({
-              type: "step_observed",
-              stepIndex,
-              url: state.currentPageUrl,
-              ariaTree,
-            });
-          }
-        }
+        await emitPostStepProbeEvidence({
+          v3: this.v3,
+          stepIndices: stepIndicesInTurn,
+          url: state.currentPageUrl,
+          evidenceCallback,
+          logger: this.logger,
+          warningMessage: "Warning: harness probe failed",
+        });
       }
 
       if (lastFinalAnswer) {

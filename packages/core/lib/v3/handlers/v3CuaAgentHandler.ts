@@ -7,7 +7,8 @@ import { GoogleCUAClient } from "../agent/GoogleCUAClient.js";
 import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping.js";
 import { ensureXPath } from "../agent/utils/xpath.js";
-import { captureAriaTreeProbe } from "../agent/utils/captureAriaTreeProbe.js";
+import { emitPostStepProbeEvidence } from "../agent/utils/postStepProbeEvidence.js";
+import { CuaEvidenceStepTracker } from "../agent/utils/cuaEvidenceStepTracker.js";
 import {
   ActionExecutionResult,
   AgentAction,
@@ -17,10 +18,7 @@ import {
   SafetyConfirmationHandler,
 } from "../types/public/agent.js";
 import { LogLine } from "../types/public/logs.js";
-import type {
-  AgentEvidenceCallback,
-  AgentScreenshotEvidenceEvent,
-} from "../types/public/agentEvidenceEvents.js";
+import type { AgentEvidenceCallback } from "../types/public/agentEvidenceEvents.js";
 import { type Action, V3FunctionName } from "../types/public/methods.js";
 import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import { toTitleCase } from "../../utils.js";
@@ -42,13 +40,7 @@ export class V3CuaAgentHandler {
   private captchaSolver: CaptchaSolver | null = null;
   private captchaClickGuardRemaining = 0;
   private currentInstruction = "";
-  // Monotonic step counter used by evidence callbacks. The CUA loop is internal to
-  // the agent client, so unlike v3AgentHandler we don't have per-tool-call
-  // step events; instead we tag every screenshot emission with an
-  // incrementing index.
-  private cuaStepCounter = 0;
-  private latestCuaScreenshot?: AgentScreenshotEvidenceEvent;
-  private latestCuaScreenshotConsumed = true;
+  private readonly cuaEvidenceSteps = new CuaEvidenceStepTracker();
   private evidenceCallback?: AgentEvidenceCallback;
 
   constructor(
@@ -205,9 +197,7 @@ export class V3CuaAgentHandler {
 
     this.setSafetyConfirmationHandler(options.callbacks?.onSafetyConfirmation);
     this.evidenceCallback = options.callbacks?.onEvidence;
-    this.cuaStepCounter = 0;
-    this.latestCuaScreenshot = undefined;
-    this.latestCuaScreenshotConsumed = true;
+    this.cuaEvidenceSteps.reset();
 
     this.highlightCursor = options.highlightCursor !== false;
     this.currentInstruction = options.instruction;
@@ -811,18 +801,10 @@ export class V3CuaAgentHandler {
   private async emitCuaScreenshot(
     screenshot: Buffer,
     url: string,
-  ): Promise<AgentScreenshotEvidenceEvent> {
-    const event: AgentScreenshotEvidenceEvent = {
-      type: "screenshot",
-      stepIndex: this.cuaStepCounter++,
-      screenshot,
-      url,
-      evidenceRole: "agent",
-    };
-    this.latestCuaScreenshot = event;
-    this.latestCuaScreenshotConsumed = false;
-    await this.evidenceCallback?.(event);
-    return event;
+  ): Promise<void> {
+    await this.evidenceCallback?.(
+      this.cuaEvidenceSteps.recordScreenshot(screenshot, url),
+    );
   }
 
   private async emitCuaScreenshotNonFatal(
@@ -849,25 +831,15 @@ export class V3CuaAgentHandler {
     let pageUrl =
       typeof action.pageUrl === "string"
         ? action.pageUrl
-        : this.latestCuaScreenshot?.url;
+        : (this.cuaEvidenceSteps.latestScreenshotUrl ?? "");
     try {
       pageUrl = (await this.v3.context.awaitActivePage()).url();
     } catch {
       // Keep the best pre-action URL fallback.
     }
-    let stepIndex: number;
-
-    if (this.latestCuaScreenshot && !this.latestCuaScreenshotConsumed) {
-      stepIndex = this.latestCuaScreenshot.stepIndex;
-      this.latestCuaScreenshotConsumed = true;
-    } else if (this.latestCuaScreenshot) {
-      stepIndex = this.cuaStepCounter++;
-      await this.evidenceCallback?.({
-        ...this.latestCuaScreenshot,
-        stepIndex,
-      });
-    } else {
-      stepIndex = this.cuaStepCounter++;
+    const { stepIndex, replayScreenshot } = this.cuaEvidenceSteps.pairAction();
+    if (replayScreenshot) {
+      await this.evidenceCallback?.(replayScreenshot);
     }
 
     const actionArgs = Object.fromEntries(
@@ -899,49 +871,14 @@ export class V3CuaAgentHandler {
     // page actually LOOKS LIKE after the action ran. Without this the
     // verifier has no visual evidence that keystrokes/clicks landed, and
     // has to trust the action history alone.
-    //
-    // Callback-gated to keep ordinary agent runs free of the extra
-    // screenshot cost — mirrors v3AgentHandler's post-step probe.
-    const wantsEvidence = this.evidenceCallback !== undefined;
-    let probeUrl = pageUrl;
-    let probeScreenshot: Buffer | undefined;
-    if (wantsEvidence) {
-      try {
-        const page = await this.v3.context.awaitActivePage();
-        probeUrl = page.url();
-        probeScreenshot = await page.screenshot({ fullPage: false });
-      } catch (e) {
-        this.logger({
-          category: "agent",
-          message: `Warning: CUA post-action probe failed: ${
-            e instanceof Error ? e.message : String(e)
-          }`,
-          level: 1,
-        });
-      }
-    }
-
-    if (probeScreenshot) {
-      await this.evidenceCallback?.({
-        type: "screenshot",
-        stepIndex,
-        screenshot: probeScreenshot,
-        url: probeUrl,
-        evidenceRole: "probe",
-      });
-    }
-
-    if (probeUrl && wantsEvidence) {
-      // Capture the a11y tree alongside the URL probe so the verifier can
-      // ground textual claims without OCR. Best-effort.
-      const ariaTree = await captureAriaTreeProbe(this.v3);
-      await this.evidenceCallback?.({
-        type: "step_observed",
-        stepIndex,
-        url: probeUrl,
-        ariaTree,
-      });
-    }
+    await emitPostStepProbeEvidence({
+      v3: this.v3,
+      stepIndices: stepIndex,
+      url: pageUrl,
+      evidenceCallback: this.evidenceCallback,
+      logger: this.logger,
+      warningMessage: "Warning: CUA post-action probe failed",
+    });
   }
 
   private async injectCursor(): Promise<void> {

@@ -1,6 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  buildAgentEvidenceFromStepFinished,
+  mergeAgentEvidence,
+  redactInlineImagePayloads,
   shouldPersistTrajectory,
   writeTrajectoryDir,
 } from "@browserbasehq/stagehand";
@@ -68,20 +71,11 @@ export class TrajectoryRecorder {
   // Events can arrive out-of-order across step indices; same-step events all
   // fire in one microtask.
   private readonly partialSteps = new Map<number, Partial<PartialStep>>();
-  private readonly observationByStep = new Map<
-    number,
-    AgentStepObservedEvent
-  >();
-  private readonly screenshotsByStep = new Map<
-    number,
-    AgentScreenshotEvidenceEvent
-  >();
   private finalAnswerEvent?: AgentFinalAnswerEvent;
   private startedAt = "";
   private endedAt = "";
 
   private onScreenshot(e: AgentScreenshotEvidenceEvent): void {
-    this.screenshotsByStep.set(e.stepIndex, e);
     const partial = this.ensurePartial(e.stepIndex);
 
     // Default to probe when the emit site doesn't tag a role: matches
@@ -89,7 +83,7 @@ export class TrajectoryRecorder {
     // NOT a probe — emitCuaActionStep fills that role post-action.
     const role = e.evidenceRole ?? "probe";
 
-    if (role === "probe" || role === "agent_and_probe") {
+    if (role === "probe") {
       const probe: ProbeEvidence = { ...(partial.probeEvidence ?? {}) };
       probe.screenshot = e.screenshot;
       probe.url = e.url;
@@ -103,7 +97,7 @@ export class TrajectoryRecorder {
       };
     }
 
-    if (role === "agent" || role === "agent_and_probe") {
+    if (role === "agent") {
       partial.agentEvidence = mergeAgentEvidence(partial.agentEvidence, {
         modalities: [
           { type: "image", bytes: e.screenshot, mediaType: "image/png" },
@@ -124,12 +118,11 @@ export class TrajectoryRecorder {
     partial.finishedAt = e.finishedAt;
     partial.agentEvidence = mergeAgentEvidence(
       partial.agentEvidence,
-      buildAgentEvidence(e),
+      buildAgentEvidenceFromStepFinished(e),
     );
   }
 
   private onStepObserved(e: AgentStepObservedEvent): void {
-    this.observationByStep.set(e.stepIndex, e);
     const partial = this.ensurePartial(e.stepIndex);
     const probe: ProbeEvidence = { ...(partial.probeEvidence ?? {}) };
     probe.url = e.url;
@@ -203,8 +196,6 @@ export class TrajectoryRecorder {
   /** Throw away in-memory state without writing to disk. Used on early abort. */
   cancel(): void {
     this.partialSteps.clear();
-    this.observationByStep.clear();
-    this.screenshotsByStep.clear();
     this.finalAnswerEvent = undefined;
   }
 
@@ -270,8 +261,9 @@ export class TrajectoryRecorder {
         p.toolOutput === undefined ||
         p.finishedAt === undefined
       ) {
-        // CUA emits screenshot-only entries between actions; skip them here
-        // and let writeTrajectoryDir record them via the probe channel.
+        // Provider-only screenshot refreshes are transport evidence for the
+        // next CUA action. If no action arrives for this index, there is no
+        // completed trajectory step to persist.
         continue;
       }
       out.push({
@@ -288,110 +280,4 @@ export class TrajectoryRecorder {
     }
     return out;
   }
-}
-
-const REDACTED_INLINE_IMAGE = "[redacted inline image payload]";
-const INLINE_IMAGE_KEYS = new Set(["screenshotBase64"]);
-
-function shouldRedactBase64Key(key: string, actionName?: string): boolean {
-  return (
-    INLINE_IMAGE_KEYS.has(key) ||
-    (actionName === "screenshot" && key === "base64")
-  );
-}
-
-function collectInlineImagePayloads(
-  value: unknown,
-  actionName?: string,
-  out: string[] = [],
-): string[] {
-  if (!value || typeof value !== "object") return out;
-  if (Buffer.isBuffer(value)) return out;
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      collectInlineImagePayloads(item, actionName, out);
-    }
-    return out;
-  }
-
-  for (const [key, nested] of Object.entries(value)) {
-    if (shouldRedactBase64Key(key, actionName) && typeof nested === "string") {
-      out.push(nested);
-      continue;
-    }
-    collectInlineImagePayloads(nested, actionName, out);
-  }
-  return out;
-}
-
-function redactInlineImagePayloads(
-  value: unknown,
-  actionName?: string,
-): unknown {
-  if (!value || typeof value !== "object") return value;
-  if (Buffer.isBuffer(value)) return value;
-
-  if (Array.isArray(value)) {
-    return value.map((item) => redactInlineImagePayloads(item, actionName));
-  }
-
-  const out: Record<string, unknown> = {};
-  for (const [key, nested] of Object.entries(value)) {
-    out[key] =
-      shouldRedactBase64Key(key, actionName) && typeof nested === "string"
-        ? REDACTED_INLINE_IMAGE
-        : redactInlineImagePayloads(nested, actionName);
-  }
-  return out;
-}
-
-function mergeAgentEvidence(
-  ...parts: Array<AgentEvidence | undefined>
-): AgentEvidence {
-  return {
-    modalities: parts.flatMap((p) => p?.modalities ?? []),
-  };
-}
-
-function buildAgentEvidence(e: AgentStepFinishedEvent): AgentEvidence {
-  const modalities: AgentEvidence["modalities"] = [];
-  if (e.reasoning) {
-    modalities.push({ type: "text", content: e.reasoning });
-  }
-  const result = e.toolOutput.result;
-  if (result === undefined || result === null) {
-    return { modalities };
-  }
-  if (typeof result === "string") {
-    modalities.push({ type: "text", content: result });
-  } else if (Buffer.isBuffer(result)) {
-    modalities.push({
-      type: "image",
-      bytes: result,
-      mediaType: "image/png",
-    });
-  } else if (typeof result === "object") {
-    // Vision tools embed screenshot bytes alongside JSON; lift those bytes to
-    // image modalities and redact the inline payloads from persisted text/json.
-    for (const imageBase64 of collectInlineImagePayloads(
-      result,
-      e.actionName,
-    )) {
-      try {
-        modalities.push({
-          type: "image",
-          bytes: Buffer.from(imageBase64, "base64"),
-          mediaType: "image/png",
-        });
-      } catch {
-        // Malformed base64; skip the image and keep the JSON modality.
-      }
-    }
-    modalities.push({
-      type: "json",
-      content: redactInlineImagePayloads(result, e.actionName),
-    });
-  }
-  return { modalities };
 }

@@ -7,6 +7,7 @@ import type {
   Trajectory,
   TrajectoryStep,
 } from "./types.js";
+import { redactInlineImagePayloads } from "./evidenceNormalization.js";
 
 type RawRubricCriterion = {
   criterion: unknown;
@@ -229,37 +230,6 @@ export function shouldPersistTrajectory(
   if (env === "1" || env === "true") return true;
   if (env === "0" || env === "false") return false;
   return !process.env.CI;
-}
-
-const REDACTED_INLINE_IMAGE = "[redacted inline image payload]";
-const INLINE_IMAGE_KEYS = new Set(["screenshotBase64"]);
-
-function shouldRedactBase64Key(key: string, actionName?: string): boolean {
-  return (
-    INLINE_IMAGE_KEYS.has(key) ||
-    (actionName === "screenshot" && key === "base64")
-  );
-}
-
-function redactInlineImagePayloads(
-  value: unknown,
-  actionName?: string,
-): unknown {
-  if (!value || typeof value !== "object") return value;
-  if (Buffer.isBuffer(value)) return value;
-
-  if (Array.isArray(value)) {
-    return value.map((item) => redactInlineImagePayloads(item, actionName));
-  }
-
-  const out: Record<string, unknown> = {};
-  for (const [key, nested] of Object.entries(value)) {
-    out[key] =
-      shouldRedactBase64Key(key, actionName) && typeof nested === "string"
-        ? REDACTED_INLINE_IMAGE
-        : redactInlineImagePayloads(nested, actionName);
-  }
-  return out;
 }
 
 /**

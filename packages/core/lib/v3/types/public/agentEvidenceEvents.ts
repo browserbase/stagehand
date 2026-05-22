@@ -6,7 +6,7 @@
  * storage and normalization live in the evals/verifier layers.
  */
 
-export type AgentEvidenceRole = "probe" | "agent" | "agent_and_probe";
+export type AgentEvidenceRole = "probe" | "agent";
 
 export type AgentEvidenceEvent =
   | AgentScreenshotEvidenceEvent

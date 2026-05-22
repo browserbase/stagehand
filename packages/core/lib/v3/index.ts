@@ -25,9 +25,12 @@ import { getAISDKLanguageModel } from "./llm/LLMProvider.js";
 import { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
 import { maybeRunShutdownSupervisorFromArgv } from "./shutdown/supervisor.js";
 import {
+  buildAgentEvidenceFromStepFinished,
   loadTrajectoryFromDisk,
+  mergeAgentEvidence,
   nextResultFilename,
   normalizeRubric,
+  redactInlineImagePayloads,
   shouldPersistTrajectory,
   writeTrajectoryDir,
 } from "./verifier/index.js";
@@ -92,9 +95,12 @@ export type {
   VerifierRawSteps,
 } from "./verifier/index.js";
 export {
+  buildAgentEvidenceFromStepFinished,
   loadTrajectoryFromDisk,
+  mergeAgentEvidence,
   nextResultFilename,
   normalizeRubric,
+  redactInlineImagePayloads,
   shouldPersistTrajectory,
   writeTrajectoryDir,
 } from "./verifier/index.js";
@@ -148,9 +154,12 @@ const StagehandDefault = {
   toJsonSchema,
   connectToMCPServer,
   V3Evaluator,
+  buildAgentEvidenceFromStepFinished,
   loadTrajectoryFromDisk,
+  mergeAgentEvidence,
   nextResultFilename,
   normalizeRubric,
+  redactInlineImagePayloads,
   shouldPersistTrajectory,
   writeTrajectoryDir,
   tool,
