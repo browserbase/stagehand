@@ -104,7 +104,7 @@ export async function runWithVerifier(
   });
 
   // ── Verify ──────────────────────────────────────────────────────────────
-  const evaluationResult = await evaluator.verify(trajectory, hydratedTaskSpec);
+  const evaluationResult = await evaluator.verify(trajectory);
   await recorder.persistResult(evaluationResult);
 
   return {
