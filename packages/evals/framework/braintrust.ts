@@ -25,12 +25,16 @@ export type TracedFn<T> = (span: Span) => Promise<T>;
 /** Same shape as Braintrust's StartSpanArgs but `name` is required. */
 export type TracedSpanOptions = StartSpanArgs & { name: string };
 
+const NOOP_SPAN = {
+  log: () => {},
+} as unknown as Span;
+
 export async function tracedSpan<T>(
   fn: TracedFn<T>,
   options: TracedSpanOptions,
 ): Promise<T> {
   if (!hasBraintrustApiKey()) {
-    return fn();
+    return fn(NOOP_SPAN);
   }
   const { traced } = await loadBraintrust();
   return traced(fn, options);

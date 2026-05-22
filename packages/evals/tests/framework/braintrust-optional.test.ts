@@ -32,8 +32,11 @@ describe("braintrust.ts helpers without BRAINTRUST_API_KEY", () => {
     expect(hasBraintrustApiKey()).toBe(true);
   });
 
-  it("tracedSpan calls fn directly without Braintrust when key is absent", async () => {
-    const fn = vi.fn(async () => 42);
+  it("tracedSpan calls fn with a no-op span without Braintrust when key is absent", async () => {
+    const fn = vi.fn(async (span: { log: (event: unknown) => void }) => {
+      span.log({ output: 42 });
+      return 42;
+    });
     const result = await tracedSpan(fn, { name: "test-span" });
     expect(fn).toHaveBeenCalledOnce();
     expect(result).toBe(42);
