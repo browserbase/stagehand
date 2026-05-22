@@ -1,6 +1,5 @@
 import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
 import {
-  ExperimentalNotConfiguredError,
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
   UnsupportedModelProviderError,
@@ -163,13 +162,6 @@ export class LLMProvider {
       const firstSlashIndex = modelName.indexOf("/");
       const subProvider = modelName.substring(0, firstSlashIndex);
       const subModelName = modelName.substring(firstSlashIndex + 1);
-      if (
-        subProvider === "vertex" &&
-        !options?.disableAPI &&
-        !options?.experimental
-      ) {
-        throw new ExperimentalNotConfiguredError("Vertex provider");
-      }
 
       const effectiveMiddleware = options?.middleware ?? this.middleware;
       const languageModel = getAISDKLanguageModel(

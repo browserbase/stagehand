@@ -858,6 +858,10 @@ export const AgentExecuteResponseSchema = wrapResponse(
 
 export const NavigateOptionsSchema = z
   .object({
+    model: z.union([ModelConfigSchema, z.string()]).optional().meta({
+      description:
+        "Model configuration object or model name string used to initialize API-backed sessions before navigation",
+    }),
     referer: z.string().optional().meta({
       description: "Referer header to send with the request",
     }),

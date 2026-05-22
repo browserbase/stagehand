@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getAISDKLanguageModel } from "../../lib/v3/llm/LLMProvider.js";
+import {
+  getAISDKLanguageModel,
+  LLMProvider,
+} from "../../lib/v3/llm/LLMProvider.js";
 
 describe("getAISDKLanguageModel", () => {
   describe("ollama provider", () => {
@@ -66,5 +69,29 @@ describe("getAISDKLanguageModel", () => {
       });
       expect(model).toBeDefined();
     });
+  });
+});
+
+describe("LLMProvider", () => {
+  it("allows Vertex models without experimental mode", () => {
+    const provider = new LLMProvider(() => {});
+
+    expect(() =>
+      provider.getClient(
+        "vertex/gemini-2.5-flash" as never,
+        {
+          project: "test-project",
+          location: "us-central1",
+          googleAuthOptions: {
+            credentials: {
+              client_email: "stagehand@example.iam.gserviceaccount.com",
+              private_key:
+                "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+            },
+          },
+        } as never,
+        { experimental: false, disableAPI: false },
+      ),
+    ).not.toThrow();
   });
 });

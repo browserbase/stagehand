@@ -6,9 +6,8 @@ import { z } from "zod/v4";
 
 import { AppError } from "./errorHandler.js";
 import {
-  getModelApiKey,
-  getModelName,
   getOptionalHeader,
+  getRequestModelConfig,
   shouldRespondWithSSE,
 } from "./header.js";
 import { error, success } from "./response.js";
@@ -44,7 +43,6 @@ export async function createStreamingResponse<TV3>({
   operation,
 }: StreamingResponseOptions<TV3>) {
   const shouldStreamResponse = shouldRespondWithSSE(request);
-  const modelApiKey = getModelApiKey(request);
 
   const sessionStore = getSessionStore();
   const sessionConfig = await sessionStore.getSessionConfig(sessionId);
@@ -127,9 +125,18 @@ export async function createStreamingResponse<TV3>({
   const actionId = v4();
 
   sendData("starting", "system", { status: "starting" });
+  const requestModelConfig = getRequestModelConfig(request);
+  const modelApiKey = requestModelConfig.apiKey;
 
   const requestContext: RequestContext = {
     modelApiKey,
+    requestModelConfig:
+      requestModelConfig.model && requestModelConfig.modelName
+        ? {
+            ...requestModelConfig.model,
+            modelName: requestModelConfig.modelName,
+          }
+        : undefined,
     logger: shouldStreamResponse
       ? (message) => {
           sendData("running", "log", { status: "running", message });
@@ -177,7 +184,7 @@ export async function createStreamingResponse<TV3>({
         operation: operation ?? "operation",
         sessionId,
         browserType,
-        modelName: getModelName(request),
+        modelName: requestModelConfig.modelName,
         hasModelApiKey: Boolean(modelApiKey),
         hasBrowserbaseApiKey: Boolean(browserbaseApiKey),
         hasBrowserbaseProjectId: Boolean(browserbaseProjectId),

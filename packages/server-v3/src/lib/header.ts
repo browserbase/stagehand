@@ -1,4 +1,6 @@
 import type { FastifyRequest } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
 
 import { MissingHeaderError } from "../types/error.js";
 
@@ -39,41 +41,57 @@ export const getOptionalHeader = (
   return headerValue;
 };
 
+const requestModelSchema = z.union([Api.ModelConfigSchema, z.string()]);
+const requestModelCarrierSchema = z
+  .object({
+    model: requestModelSchema.optional(),
+  })
+  .passthrough();
+const requestModelEnvelopeSchema = z
+  .object({
+    options: requestModelCarrierSchema.optional(),
+    agentConfig: requestModelCarrierSchema.optional(),
+    modelName: z.string().optional(),
+  })
+  .passthrough();
+const requestModelConfigSchema = z
+  .object({
+    model: Api.ModelConfigSchema.optional(),
+    modelName: z.string().optional(),
+    apiKey: z.string().optional(),
+  })
+  .strict();
+
+export type RequestModelConfig = z.infer<typeof requestModelConfigSchema>;
+
+const getNonEmptyString = (value?: string): string | undefined =>
+  value ? value : undefined;
+
+const normalizeModel = (
+  model: z.infer<typeof requestModelSchema> | undefined,
+): Api.ModelConfig | undefined =>
+  typeof model === "string" ? { modelName: model } : model;
+
 /**
- * Extracts model name from request body, supporting V3 structure.
- * - V3: body.options.model.modelName
+ * Extracts model config from request body.
+ *
+ * V3:
+ * - act/observe/extract: body.options.model
+ * - agentExecute: body.agentConfig.model
  */
-export function getModelName(request: FastifyRequest): string | undefined {
-  const body = request.body as Record<string, unknown> | undefined;
-  const options = body?.options as Record<string, unknown> | undefined;
-  const model = options?.model as Record<string, unknown> | undefined;
+export function getRequestModelConfig(
+  request: FastifyRequest,
+): RequestModelConfig {
+  const body = requestModelEnvelopeSchema.parse(request.body ?? {});
+  const model = normalizeModel(body.options?.model ?? body.agentConfig?.model);
 
-  if (typeof model?.modelName === "string" && model.modelName) {
-    return model.modelName;
-  }
-
-  if (typeof body?.modelName === "string" && body.modelName) {
-    return body.modelName;
-  }
-
-  return undefined;
-}
-
-/**
- * Extracts the model API key with precedence:
- * 1. Per-request body apiKey (V3: body.options.model.apiKey)
- * 2. Per-request header x-model-api-key
- */
-export function getModelApiKey(request: FastifyRequest): string | undefined {
-  const body = request.body as Record<string, unknown> | undefined;
-  const options = body?.options as Record<string, unknown> | undefined;
-  const model = options?.model as Record<string, unknown> | undefined;
-
-  if (typeof model?.apiKey === "string" && model.apiKey) {
-    return model.apiKey;
-  }
-
-  return getOptionalHeader(request, "x-model-api-key");
+  return requestModelConfigSchema.parse({
+    model,
+    modelName: getNonEmptyString(model?.modelName) ?? body.modelName,
+    apiKey:
+      getNonEmptyString(model?.apiKey) ??
+      getOptionalHeader(request, "x-model-api-key"),
+  });
 }
 
 /**

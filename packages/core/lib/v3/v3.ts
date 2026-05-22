@@ -538,6 +538,26 @@ export class V3 {
     );
   }
 
+  private getApiDefaultModelConfig(): ModelConfiguration | undefined {
+    const clientOptions = Object.fromEntries(
+      Object.entries(this.modelClientOptions).filter(
+        ([key, value]) => key !== "apiKey" && value !== undefined,
+      ),
+    );
+
+    if (Object.keys(clientOptions).length === 0) {
+      return undefined;
+    }
+
+    return {
+      modelName: this.modelName,
+      ...clientOptions,
+      ...((this.modelClientOptions as { apiKey?: string }).apiKey
+        ? { apiKey: (this.modelClientOptions as { apiKey?: string }).apiKey }
+        : {}),
+    } as ModelConfiguration;
+  }
+
   private resolveLlmClient(model?: ModelConfiguration): LLMClient {
     if (!model) {
       return this.llmClient;
@@ -1043,6 +1063,7 @@ export class V3 {
             const { sessionId, available } = await this.apiClient.init({
               modelName: this.modelName,
               modelApiKey: this.modelClientOptions.apiKey,
+              defaultModelConfig: this.getApiDefaultModelConfig(),
               domSettleTimeoutMs: this.domSettleTimeoutMs,
               verbose: this.verbose,
               systemPrompt: this.opts.systemPrompt,
