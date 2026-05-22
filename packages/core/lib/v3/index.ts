@@ -24,6 +24,11 @@ import { tool } from "ai";
 import { getAISDKLanguageModel } from "./llm/LLMProvider.js";
 import { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
 import { maybeRunShutdownSupervisorFromArgv } from "./shutdown/supervisor.js";
+import {
+  loadTrajectoryFromDisk,
+  nextResultFilename,
+  normalizeRubric,
+} from "./verifier/index.js";
 
 export { V3 } from "./v3.js";
 export { V3 as Stagehand } from "./v3.js";
@@ -64,6 +69,31 @@ export type {
   V3EvaluatorConstructorOptions,
   V3EvaluatorOptions,
 } from "../v3Evaluator.js";
+export type {
+  Trajectory,
+  TrajectoryStep,
+  TrajectoryStatus,
+  TrajectoryUsage,
+  TaskSpec,
+  Rubric,
+  RubricCriterion,
+  AgentEvidence,
+  AgentEvidenceModality,
+  ProbeEvidence,
+  ToolOutput,
+  Verifier,
+  EvaluationResult,
+  CriterionScore,
+  FirstPointOfFailure,
+  TaskValidity,
+  VerifierFinding,
+  VerifierRawSteps,
+} from "./verifier/index.js";
+export {
+  loadTrajectoryFromDisk,
+  nextResultFilename,
+  normalizeRubric,
+} from "./verifier/index.js";
 export { tool } from "ai";
 export { getAISDKLanguageModel } from "./llm/LLMProvider.js";
 export { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
@@ -114,6 +144,9 @@ const StagehandDefault = {
   toJsonSchema,
   connectToMCPServer,
   V3Evaluator,
+  loadTrajectoryFromDisk,
+  nextResultFilename,
+  normalizeRubric,
   tool,
   getAISDKLanguageModel,
   __internalCreateInMemoryAgentCacheHandle,
