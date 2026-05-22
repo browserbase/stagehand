@@ -52,6 +52,8 @@ export interface AgentStepFinishedEvent {
     result: unknown;
     error?: string;
   };
+  /** ISO 8601 timestamp at which the step's tool execution started, when available. */
+  startedAt?: string;
   /** ISO 8601 timestamp at which the step finished. */
   finishedAt: string;
 }
@@ -70,6 +72,17 @@ export interface AgentStepObservedEvent {
   scroll?: { top: number; pageHeight: number };
 }
 
+export interface AgentFinalObservation {
+  /** Page URL at the time of terminal capture. */
+  url: string;
+  /** PNG bytes from page.screenshot(), when capture succeeds. */
+  screenshot?: Buffer;
+  /** Accessibility tree snapshot, when captured. */
+  ariaTree?: string;
+  /** Viewport scroll context, when captured. */
+  scroll?: { top: number; pageHeight: number };
+}
+
 /** Final answer emitted by the agent, when available. */
 export interface AgentFinalAnswerEvent {
   type: "final_answer";
@@ -77,6 +90,14 @@ export interface AgentFinalAnswerEvent {
   message: string;
   /** Optional structured output if the agent's output schema was set. */
   output?: Record<string, unknown>;
+  /**
+   * Independent terminal browser observation captured after the agent finishes.
+   *
+   * This preserves the legacy verifier behavior of evaluating against a final
+   * page screenshot even when the last agent output is a final answer rather
+   * than a browser action.
+   */
+  observation?: AgentFinalObservation;
 }
 
 export type AgentEvidenceCallback = (

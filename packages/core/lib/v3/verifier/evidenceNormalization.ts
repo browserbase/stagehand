@@ -81,6 +81,12 @@ export function buildAgentEvidenceFromStepFinished(
 
   if (typeof result === "string") {
     modalities.push({ type: "text", content: result });
+  } else if (
+    typeof result === "number" ||
+    typeof result === "boolean" ||
+    typeof result === "bigint"
+  ) {
+    modalities.push({ type: "text", content: String(result) });
   } else if (Buffer.isBuffer(result)) {
     modalities.push({
       type: "image",

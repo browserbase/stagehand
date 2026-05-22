@@ -21,6 +21,10 @@ type RawRubric = {
   items?: unknown;
 };
 
+type PersistedProbeEvidence = ProbeEvidence & {
+  screenshotPath?: string;
+};
+
 /**
  * Convert dataset or generated rubric JSON into the public Stagehand shape.
  * Snake-case dataset fields are accepted here so serialized quirks do not leak
@@ -109,6 +113,7 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
   const trajectoryPath = path.join(trajectoryDir, "trajectory.json");
   const raw = await fs.readFile(trajectoryPath, "utf8");
   const parsed = JSON.parse(raw) as Trajectory & {
+    finalObservation?: PersistedProbeEvidence;
     steps: Array<
       TrajectoryStep & {
         agentEvidence: {
@@ -126,7 +131,7 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
             | { type: "json"; content: unknown }
           >;
         };
-        probeEvidence: ProbeEvidence;
+        probeEvidence: PersistedProbeEvidence;
       }
     >;
   };
@@ -151,9 +156,9 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
     return resolved;
   };
 
-  for (const step of parsed.steps) {
-    // Rehydrate tier-2 probe screenshot from its on-disk file reference.
-    const probe = step.probeEvidence;
+  const hydrateProbeScreenshot = async (
+    probe: PersistedProbeEvidence | undefined,
+  ): Promise<void> => {
     if (probe?.screenshotPath && !probe.screenshot) {
       const resolved = resolveWithinTrajectoryDir(probe.screenshotPath);
       try {
@@ -163,6 +168,11 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
         // evidence_insufficient path will handle it.
       }
     }
+  };
+
+  for (const step of parsed.steps) {
+    // Rehydrate tier-2 probe screenshot from its on-disk file reference.
+    await hydrateProbeScreenshot(step.probeEvidence);
 
     // Decode image modalities from disk references back to Buffer.
     if (step.agentEvidence?.modalities) {
@@ -204,6 +214,8 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
       step.agentEvidence.modalities = modalities;
     }
   }
+
+  await hydrateProbeScreenshot(parsed.finalObservation);
 
   return parsed;
 }
@@ -308,11 +320,23 @@ export async function writeTrajectoryDir(
     });
   }
 
+  const finalObservation: ProbeEvidence | undefined =
+    trajectory.finalObservation === undefined
+      ? undefined
+      : { ...trajectory.finalObservation };
+  if (finalObservation?.screenshot) {
+    const relPath = "screenshots/probe/final.png";
+    await fs.writeFile(path.join(dir, relPath), finalObservation.screenshot);
+    finalObservation.screenshotPath = relPath;
+    delete finalObservation.screenshot;
+  }
+
   // Image modalities carry imagePath instead of raw bytes on disk; cast
   // through unknown rather than widen Trajectory's type contract.
   const serialized = {
     ...trajectory,
     steps: serializableSteps,
+    ...(finalObservation ? { finalObservation } : {}),
   } as unknown;
 
   await fs.writeFile(

@@ -7,10 +7,13 @@ import { GoogleCUAClient } from "../agent/GoogleCUAClient.js";
 import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping.js";
 import { ensureXPath } from "../agent/utils/xpath.js";
-import { emitPostStepProbeEvidence } from "../agent/utils/postStepProbeEvidence.js";
+import {
+  captureProbeEvidence,
+  emitPostStepProbeEvidence,
+} from "../agent/utils/postStepProbeEvidence.js";
 import { wrapEvidenceCallback } from "../agent/utils/wrapEvidenceCallback.js";
-import { inferCuaToolOutput } from "../agent/utils/toolOutputEvidence.js";
 import { CuaEvidenceStepTracker } from "../agent/utils/cuaEvidenceStepTracker.js";
+import { inferToolOutput } from "../agent/utils/toolOutputEvidence.js";
 import {
   ActionExecutionResult,
   AgentAction,
@@ -131,6 +134,7 @@ export class V3CuaAgentHandler {
         defaultDelay;
       try {
         let executionResult: ActionExecutionResult | undefined;
+        const startedAt = new Date().toISOString();
         // Try to inject cursor before each action if enabled
         if (this.highlightCursor) {
           try {
@@ -161,7 +165,7 @@ export class V3CuaAgentHandler {
 
         action.timestamp = Date.now();
         if (shouldLog) {
-          await this.emitCuaActionStep(action, executionResult);
+          await this.emitCuaActionStep(action, executionResult, startedAt);
         }
 
         await new Promise((r) => setTimeout(r, waitBetween));
@@ -258,11 +262,26 @@ export class V3CuaAgentHandler {
     let result: AgentResult;
     try {
       result = await this.agent.execute({ options, logger: this.logger });
-      await this.evidenceCallback?.({
-        type: "final_answer",
-        message: result.message,
-        output: result.output,
-      });
+      if (this.evidenceCallback) {
+        let finalUrl = "";
+        try {
+          finalUrl = (await this.v3.context.awaitActivePage()).url();
+        } catch {
+          finalUrl = this.cuaEvidenceSteps.latestScreenshotUrl ?? "";
+        }
+        const observation = await captureProbeEvidence({
+          v3: this.v3,
+          url: finalUrl,
+          logger: this.logger,
+          warningMessage: "Warning: CUA final probe failed",
+        });
+        await this.evidenceCallback({
+          type: "final_answer",
+          message: result.message,
+          output: result.output,
+          observation,
+        });
+      }
     } finally {
       this.evidenceCallback = undefined;
       this.captchaSolver?.dispose();
@@ -815,6 +834,7 @@ export class V3CuaAgentHandler {
   private async emitCuaActionStep(
     action: AgentAction,
     result: ActionExecutionResult | undefined,
+    startedAt: string,
   ): Promise<void> {
     let pageUrl =
       typeof action.pageUrl === "string"
@@ -846,7 +866,8 @@ export class V3CuaAgentHandler {
       actionName: String(action.type),
       actionArgs,
       reasoning,
-      toolOutput: inferCuaToolOutput(result),
+      toolOutput: inferToolOutput(result ?? { success: true }),
+      startedAt,
       finishedAt: new Date().toISOString(),
     });
 

@@ -3,32 +3,32 @@ import type { LogLine } from "../../types/public/logs.js";
 import type { V3 } from "../../v3.js";
 import { captureAriaTreeProbe } from "./captureAriaTreeProbe.js";
 
-interface EmitPostStepProbeEvidenceOptions {
+interface CaptureProbeEvidenceOptions {
   v3: V3;
-  stepIndices: number | number[];
   url: string;
-  evidenceCallback?: AgentEvidenceCallback;
   logger: (message: LogLine) => void;
   warningMessage: string;
+}
+
+interface EmitPostStepProbeEvidenceOptions extends CaptureProbeEvidenceOptions {
+  stepIndices: number | number[];
+  evidenceCallback?: AgentEvidenceCallback;
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export async function emitPostStepProbeEvidence({
+export async function captureProbeEvidence({
   v3,
-  stepIndices,
   url,
-  evidenceCallback,
   logger,
   warningMessage,
-}: EmitPostStepProbeEvidenceOptions): Promise<void> {
-  if (!evidenceCallback) return;
-
-  const indices = Array.isArray(stepIndices) ? stepIndices : [stepIndices];
-  if (indices.length === 0) return;
-
+}: CaptureProbeEvidenceOptions): Promise<{
+  url: string;
+  screenshot?: Buffer;
+  ariaTree?: string;
+}> {
   let probeUrl = url;
   let screenshot: Buffer | undefined;
   try {
@@ -44,21 +44,47 @@ export async function emitPostStepProbeEvidence({
   }
 
   const ariaTree = await captureAriaTreeProbe(v3);
+  return {
+    url: probeUrl,
+    ...(screenshot ? { screenshot } : {}),
+    ...(ariaTree !== undefined ? { ariaTree } : {}),
+  };
+}
+
+export async function emitPostStepProbeEvidence({
+  v3,
+  stepIndices,
+  url,
+  evidenceCallback,
+  logger,
+  warningMessage,
+}: EmitPostStepProbeEvidenceOptions): Promise<void> {
+  if (!evidenceCallback) return;
+
+  const indices = Array.isArray(stepIndices) ? stepIndices : [stepIndices];
+  if (indices.length === 0) return;
+
+  const probe = await captureProbeEvidence({
+    v3,
+    url,
+    logger,
+    warningMessage,
+  });
   for (const stepIndex of indices) {
-    if (screenshot) {
+    if (probe.screenshot) {
       await evidenceCallback({
         type: "screenshot",
         stepIndex,
-        screenshot,
-        url: probeUrl,
+        screenshot: probe.screenshot,
+        url: probe.url,
         evidenceRole: "probe",
       });
     }
     await evidenceCallback({
       type: "step_observed",
       stepIndex,
-      url: probeUrl,
-      ariaTree,
+      url: probe.url,
+      ariaTree: probe.ariaTree,
     });
   }
 }

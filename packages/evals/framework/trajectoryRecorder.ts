@@ -31,6 +31,7 @@ interface PartialStep {
   agentEvidence: AgentEvidence;
   probeEvidence: ProbeEvidence;
   toolOutput: { ok: boolean; result: unknown; error?: string };
+  startedAt: string;
   finishedAt: string;
 }
 
@@ -72,6 +73,7 @@ export class TrajectoryRecorder {
   // fire in one microtask.
   private readonly partialSteps = new Map<number, Partial<PartialStep>>();
   private finalAnswerEvent?: AgentFinalAnswerEvent;
+  private finalObservation?: ProbeEvidence;
   private startedAt = "";
   private endedAt = "";
 
@@ -115,6 +117,7 @@ export class TrajectoryRecorder {
       ...e.toolOutput,
       result: redactInlineImagePayloads(e.toolOutput.result, e.actionName),
     };
+    partial.startedAt = e.startedAt ?? e.finishedAt;
     partial.finishedAt = e.finishedAt;
     partial.agentEvidence = mergeAgentEvidence(
       partial.agentEvidence,
@@ -133,6 +136,20 @@ export class TrajectoryRecorder {
 
   private onFinalAnswer(e: AgentFinalAnswerEvent): void {
     this.finalAnswerEvent = e;
+    if (e.observation) {
+      this.finalObservation = {
+        url: e.observation.url,
+        ...(e.observation.screenshot
+          ? { screenshot: e.observation.screenshot }
+          : {}),
+        ...(e.observation.ariaTree !== undefined
+          ? { ariaTree: e.observation.ariaTree }
+          : {}),
+        ...(e.observation.scroll !== undefined
+          ? { scroll: e.observation.scroll }
+          : {}),
+      };
+    }
   }
 
   constructor(opts: TrajectoryRecorderOptions) {
@@ -181,6 +198,9 @@ export class TrajectoryRecorder {
       task: this.taskSpec,
       steps,
       finalAnswer: opts.finalAnswer ?? this.finalAnswerEvent?.message,
+      ...(this.finalObservation
+        ? { finalObservation: this.finalObservation }
+        : {}),
       status: opts.status,
       usage: { ...ZERO_USAGE, ...(opts.usage ?? {}) },
       timing: { startedAt: this.startedAt, endedAt: this.endedAt },
@@ -197,6 +217,7 @@ export class TrajectoryRecorder {
   cancel(): void {
     this.partialSteps.clear();
     this.finalAnswerEvent = undefined;
+    this.finalObservation = undefined;
   }
 
   /** Where the trajectory dir lives (whether or not it was persisted). */
@@ -259,6 +280,7 @@ export class TrajectoryRecorder {
       if (
         p.actionName === undefined ||
         p.toolOutput === undefined ||
+        p.startedAt === undefined ||
         p.finishedAt === undefined
       ) {
         // Provider-only screenshot refreshes are transport evidence for the
@@ -274,7 +296,7 @@ export class TrajectoryRecorder {
         agentEvidence: p.agentEvidence ?? { modalities: [] },
         probeEvidence: p.probeEvidence ?? {},
         toolOutput: p.toolOutput,
-        startedAt: this.startedAt,
+        startedAt: p.startedAt,
         finishedAt: p.finishedAt,
       });
     }

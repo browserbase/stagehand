@@ -42,7 +42,10 @@ import {
   AgentAbortError,
 } from "../types/public/sdkErrors.js";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall.js";
-import { emitPostStepProbeEvidence } from "../agent/utils/postStepProbeEvidence.js";
+import {
+  captureProbeEvidence,
+  emitPostStepProbeEvidence,
+} from "../agent/utils/postStepProbeEvidence.js";
 import { wrapEvidenceCallback } from "../agent/utils/wrapEvidenceCallback.js";
 import { inferToolOutput } from "../agent/utils/toolOutputEvidence.js";
 import {
@@ -53,6 +56,19 @@ import {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+type FinalAnswerDraft = {
+  message: string;
+  output?: Record<string, unknown>;
+};
+
+interface StepHandlerOptions {
+  userCallback?:
+    | GenerateTextOnStepFinishCallback<ToolSet>
+    | StreamTextOnStepFinishCallback<ToolSet>;
+  evidenceCallback?: AgentEvidenceCallback;
+  onFinalAnswer?: (answer: FinalAnswerDraft) => void;
 }
 
 /**
@@ -248,10 +264,7 @@ export class V3AgentHandler {
 
   private createStepHandler(
     state: AgentState,
-    userCallback?:
-      | GenerateTextOnStepFinishCallback<ToolSet>
-      | StreamTextOnStepFinishCallback<ToolSet>,
-    evidenceCallback?: AgentEvidenceCallback,
+    { userCallback, evidenceCallback, onFinalAnswer }: StepHandlerOptions,
   ) {
     // Monotonic step counter scoped to this execute() call. Each tool call in
     // the agent loop becomes one trajectory step. The counter feeds stepIndex
@@ -265,9 +278,7 @@ export class V3AgentHandler {
       });
 
       const stepIndicesInTurn: number[] = [];
-      let lastFinalAnswer:
-        | { message: string; output?: Record<string, unknown> }
-        | undefined;
+      let lastFinalAnswer: FinalAnswerDraft | undefined;
 
       if (event.toolCalls && event.toolCalls.length > 0) {
         for (let i = 0; i < event.toolCalls.length; i++) {
@@ -316,6 +327,7 @@ export class V3AgentHandler {
 
           const stepIndex = stepCounter++;
           stepIndicesInTurn.push(stepIndex);
+          const finishedAt = new Date().toISOString();
           await evidenceCallback?.({
             type: "step_finished",
             stepIndex,
@@ -326,7 +338,7 @@ export class V3AgentHandler {
                 : {},
             reasoning: event.text ?? "",
             toolOutput: inferToolOutput(toolResult),
-            finishedAt: new Date().toISOString(),
+            finishedAt,
           });
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
@@ -347,10 +359,7 @@ export class V3AgentHandler {
       }
 
       if (lastFinalAnswer) {
-        await evidenceCallback?.({
-          type: "final_answer",
-          ...lastFinalAnswer,
-        });
+        onFinalAnswer?.(lastFinalAnswer);
       }
 
       if (userCallback) {
@@ -378,6 +387,7 @@ export class V3AgentHandler {
       completed: false,
       currentPageUrl: "",
     };
+    let finalAnswerFromDoneTool: FinalAnswerDraft | undefined;
 
     let messages: ModelMessage[] = [];
     let captchaSolver: CaptchaSolver | undefined;
@@ -425,6 +435,11 @@ export class V3AgentHandler {
         }
       }
 
+      const evidenceCallback = wrapEvidenceCallback(
+        callbacks?.onEvidence,
+        this.logger,
+      );
+
       const result = await this.llmClient.generateText({
         model: wrappedModel,
         messages: prependSystemMessage(systemPrompt, messages),
@@ -436,11 +451,13 @@ export class V3AgentHandler {
           callbacks?.prepareStep,
           captchaSolver,
         ),
-        onStepFinish: this.createStepHandler(
-          state,
-          callbacks?.onStepFinish,
-          wrapEvidenceCallback(callbacks?.onEvidence, this.logger),
-        ),
+        onStepFinish: this.createStepHandler(state, {
+          userCallback: callbacks?.onStepFinish,
+          evidenceCallback,
+          onFinalAnswer: (answer) => {
+            finalAnswerFromDoneTool = answer;
+          },
+        }),
         abortSignal: preparedOptions.signal,
         providerOptions: {
           google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
@@ -457,6 +474,15 @@ export class V3AgentHandler {
         preparedOptions.output,
         this.logger,
       );
+      const output = doneResult.output ?? finalAnswerFromDoneTool?.output;
+      await this.emitFinalEvidence(
+        state,
+        {
+          message: state.finalMessage,
+          output,
+        },
+        evidenceCallback,
+      );
 
       return this.consolidateMetricsAndResult(
         startTime,
@@ -464,7 +490,7 @@ export class V3AgentHandler {
         doneResult.messages,
         result,
         maxSteps,
-        doneResult.output,
+        output,
       );
     } catch (error) {
       // Re-throw validation errors that should propagate to the caller
@@ -510,6 +536,7 @@ export class V3AgentHandler {
     // Highlight cursor defaults to true for hybrid mode, can be overridden
     const shouldHighlightCursor =
       streamOptions?.highlightCursor ?? this.mode === "hybrid";
+    let finalAnswerFromDoneTool: FinalAnswerDraft | undefined;
 
     const {
       options,
@@ -564,6 +591,11 @@ export class V3AgentHandler {
       rejectResult(error);
     };
 
+    const evidenceCallback = wrapEvidenceCallback(
+      callbacks?.onEvidence,
+      this.logger,
+    );
+
     let streamResult: ReturnType<typeof this.llmClient.streamText>;
     try {
       streamResult = this.llmClient.streamText({
@@ -576,11 +608,13 @@ export class V3AgentHandler {
           callbacks?.prepareStep,
           captchaSolver,
         ),
-        onStepFinish: this.createStepHandler(
-          state,
-          callbacks?.onStepFinish,
-          wrapEvidenceCallback(callbacks?.onEvidence, this.logger),
-        ),
+        onStepFinish: this.createStepHandler(state, {
+          userCallback: callbacks?.onStepFinish,
+          evidenceCallback,
+          onFinalAnswer: (answer) => {
+            finalAnswerFromDoneTool = answer;
+          },
+        }),
         onError: (event) => {
           captchaSolver?.dispose();
           if (callbacks?.onError) {
@@ -606,17 +640,29 @@ export class V3AgentHandler {
             options.instruction,
             options.output,
             this.logger,
-          ).then((doneResult) => {
-            const result = this.consolidateMetricsAndResult(
-              startTime,
-              state,
-              doneResult.messages,
-              event,
-              maxSteps,
-              doneResult.output,
-            );
-            resolveResult(result);
-          });
+          )
+            .then(async (doneResult) => {
+              const output =
+                doneResult.output ?? finalAnswerFromDoneTool?.output;
+              await this.emitFinalEvidence(
+                state,
+                {
+                  message: state.finalMessage,
+                  output,
+                },
+                evidenceCallback,
+              );
+              const result = this.consolidateMetricsAndResult(
+                startTime,
+                state,
+                doneResult.messages,
+                event,
+                maxSteps,
+                output,
+              );
+              resolveResult(result);
+            })
+            .catch(handleError);
         },
         onAbort: (event) => {
           captchaSolver?.dispose();
@@ -643,6 +689,26 @@ export class V3AgentHandler {
     const agentStreamResult = streamResult as AgentStreamResult;
     agentStreamResult.result = resultPromise;
     return agentStreamResult;
+  }
+
+  private async emitFinalEvidence(
+    state: AgentState,
+    finalAnswer: { message: string; output?: Record<string, unknown> },
+    evidenceCallback?: AgentEvidenceCallback,
+  ): Promise<void> {
+    if (!evidenceCallback) return;
+
+    const observation = await captureProbeEvidence({
+      v3: this.v3,
+      url: state.currentPageUrl,
+      logger: this.logger,
+      warningMessage: "Warning: final harness probe failed",
+    });
+    await evidenceCallback({
+      type: "final_answer",
+      ...finalAnswer,
+      observation,
+    });
   }
 
   private consolidateMetricsAndResult(

@@ -136,7 +136,7 @@ export type TrajectoryStatus = "complete" | "aborted" | "stalled" | "error";
  *   .trajectories/<run-id>/<task-id>/
  *     ├── task_data.json    — TaskSpec + result metadata
  *     ├── trajectory.json   — this object, with screenshotPath instead of bytes
- *     ├── screenshot_1.png  — probeEvidence.screenshot for step 1, etc.
+ *     ├── screenshots/      — step probe/agent images plus final observation
  *     ├── scores/
  *     │   └── result.json       — Result from V3Evaluator.verify()
  *     ├── core.log          — captured action log
@@ -146,6 +146,8 @@ export interface Trajectory {
   task: TaskSpec;
   steps: TrajectoryStep[];
   finalAnswer?: string;
+  /** Terminal page observation captured after the agent finishes. */
+  finalObservation?: ProbeEvidence;
   status: TrajectoryStatus;
   usage: TrajectoryUsage;
   timing: { startedAt: string; endedAt: string };
