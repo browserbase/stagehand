@@ -298,9 +298,9 @@ export interface EvaluationResult {
 }
 
 /**
- * Verifier interface. Implementations consume a Trajectory + TaskSpec and
- * return an EvaluationResult — they MUST NOT touch a live browser.
+ * Verifier interface. Implementations consume a Trajectory and return an
+ * EvaluationResult — they MUST NOT touch a live browser.
  */
 export interface Verifier {
-  verify(trajectory: Trajectory, taskSpec: TaskSpec): Promise<EvaluationResult>;
+  verify(trajectory: Trajectory): Promise<EvaluationResult>;
 }

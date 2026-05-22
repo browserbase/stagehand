@@ -77,11 +77,8 @@ export class V3Evaluator implements Verifier {
     return this.getLegacyBackend("batchAsk").batchAsk(options);
   }
 
-  async verify(
-    trajectory: Trajectory,
-    taskSpec: TaskSpec,
-  ): Promise<EvaluationResult> {
-    assertVerifierInput(trajectory, taskSpec);
+  async verify(trajectory: Trajectory): Promise<EvaluationResult> {
+    const taskSpec = assertVerifierInput(trajectory);
 
     if (this.backend === "legacy") {
       return this.verifyTrajectoryWithLegacyEvaluator(trajectory, taskSpec);
@@ -187,17 +184,18 @@ function resolveEvaluatorBackend(
   );
 }
 
-function assertVerifierInput(trajectory: Trajectory, taskSpec: TaskSpec): void {
-  if (!taskSpec?.id) {
-    throw new StagehandInvalidArgumentError(
-      "TaskSpec.id is required for verification",
-    );
-  }
+function assertVerifierInput(trajectory: Trajectory): TaskSpec {
   if (!trajectory) {
     throw new StagehandInvalidArgumentError(
       "Trajectory is required for verification",
     );
   }
+  if (!trajectory.task?.id) {
+    throw new StagehandInvalidArgumentError(
+      "Trajectory.task.id is required for verification",
+    );
+  }
+  return trajectory.task;
 }
 
 function legacyTaskCompletionCriterion(taskSpec: TaskSpec) {

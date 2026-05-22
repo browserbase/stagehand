@@ -26,9 +26,7 @@ describe("V3Evaluator verifier facade", () => {
       backend: "verifier",
     });
 
-    await expect(
-      evaluator.verify(makeTrajectory(taskSpec), taskSpec),
-    ).rejects.toThrow(
+    await expect(evaluator.verify(makeTrajectory(taskSpec))).rejects.toThrow(
       "STAGEHAND_EVALUATOR_BACKEND=verifier, but the verifier backend is not available",
     );
   });
@@ -69,7 +67,7 @@ describe("V3Evaluator verifier facade", () => {
       value: { ask },
     });
 
-    const result = await evaluator.verify(trajectory, taskSpec);
+    const result = await evaluator.verify(trajectory);
 
     expect(ask).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -106,7 +104,6 @@ describe("V3Evaluator verifier facade", () => {
         finalAnswer: "The task is complete.",
         toolResult: longToolOutput,
       }),
-      taskSpec,
     );
 
     const firstCall = ask.mock.calls[0]?.[0];
@@ -124,10 +121,7 @@ describe("V3Evaluator verifier facade", () => {
       backend: "legacy",
     });
 
-    const result = await evaluator.verify(
-      makeEmptyTrajectory(taskSpec),
-      taskSpec,
-    );
+    const result = await evaluator.verify(makeEmptyTrajectory(taskSpec));
 
     expect(result).toMatchObject({
       outcomeSuccess: false,
