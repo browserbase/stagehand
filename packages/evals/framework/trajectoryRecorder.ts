@@ -117,7 +117,10 @@ export class TrajectoryRecorder {
     partial.actionName = e.actionName;
     partial.actionArgs = e.actionArgs;
     partial.reasoning = e.reasoning;
-    partial.toolOutput = e.toolOutput;
+    partial.toolOutput = {
+      ...e.toolOutput,
+      result: redactInlineImagePayloads(e.toolOutput.result, e.actionName),
+    };
     partial.finishedAt = e.finishedAt;
     partial.agentEvidence = mergeAgentEvidence(
       partial.agentEvidence,
@@ -287,6 +290,62 @@ export class TrajectoryRecorder {
   }
 }
 
+const REDACTED_INLINE_IMAGE = "[redacted inline image payload]";
+const INLINE_IMAGE_KEYS = new Set(["screenshotBase64"]);
+
+function shouldRedactBase64Key(key: string, actionName?: string): boolean {
+  return (
+    INLINE_IMAGE_KEYS.has(key) ||
+    (actionName === "screenshot" && key === "base64")
+  );
+}
+
+function collectInlineImagePayloads(
+  value: unknown,
+  actionName?: string,
+  out: string[] = [],
+): string[] {
+  if (!value || typeof value !== "object") return out;
+  if (Buffer.isBuffer(value)) return out;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectInlineImagePayloads(item, actionName, out);
+    }
+    return out;
+  }
+
+  for (const [key, nested] of Object.entries(value)) {
+    if (shouldRedactBase64Key(key, actionName) && typeof nested === "string") {
+      out.push(nested);
+      continue;
+    }
+    collectInlineImagePayloads(nested, actionName, out);
+  }
+  return out;
+}
+
+function redactInlineImagePayloads(
+  value: unknown,
+  actionName?: string,
+): unknown {
+  if (!value || typeof value !== "object") return value;
+  if (Buffer.isBuffer(value)) return value;
+
+  if (Array.isArray(value)) {
+    return value.map((item) => redactInlineImagePayloads(item, actionName));
+  }
+
+  const out: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(value)) {
+    out[key] =
+      shouldRedactBase64Key(key, actionName) && typeof nested === "string"
+        ? REDACTED_INLINE_IMAGE
+        : redactInlineImagePayloads(nested, actionName);
+  }
+  return out;
+}
+
 function mergeAgentEvidence(
   ...parts: Array<AgentEvidence | undefined>
 ): AgentEvidence {
@@ -313,21 +372,26 @@ function buildAgentEvidence(e: AgentStepFinishedEvent): AgentEvidence {
       mediaType: "image/png",
     });
   } else if (typeof result === "object") {
-    // Vision tools embed a screenshotBase64 alongside the JSON result; lift
-    // it to its own image modality so the verifier sees both.
-    const r = result as { screenshotBase64?: string } & Record<string, unknown>;
-    if (typeof r.screenshotBase64 === "string") {
+    // Vision tools embed screenshot bytes alongside JSON; lift those bytes to
+    // image modalities and redact the inline payloads from persisted text/json.
+    for (const imageBase64 of collectInlineImagePayloads(
+      result,
+      e.actionName,
+    )) {
       try {
         modalities.push({
           type: "image",
-          bytes: Buffer.from(r.screenshotBase64, "base64"),
+          bytes: Buffer.from(imageBase64, "base64"),
           mediaType: "image/png",
         });
       } catch {
         // Malformed base64; skip the image and keep the JSON modality.
       }
     }
-    modalities.push({ type: "json", content: result });
+    modalities.push({
+      type: "json",
+      content: redactInlineImagePayloads(result, e.actionName),
+    });
   }
   return { modalities };
 }

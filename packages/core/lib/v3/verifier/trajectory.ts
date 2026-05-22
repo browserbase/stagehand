@@ -231,6 +231,37 @@ export function shouldPersistTrajectory(
   return !process.env.CI;
 }
 
+const REDACTED_INLINE_IMAGE = "[redacted inline image payload]";
+const INLINE_IMAGE_KEYS = new Set(["screenshotBase64"]);
+
+function shouldRedactBase64Key(key: string, actionName?: string): boolean {
+  return (
+    INLINE_IMAGE_KEYS.has(key) ||
+    (actionName === "screenshot" && key === "base64")
+  );
+}
+
+function redactInlineImagePayloads(
+  value: unknown,
+  actionName?: string,
+): unknown {
+  if (!value || typeof value !== "object") return value;
+  if (Buffer.isBuffer(value)) return value;
+
+  if (Array.isArray(value)) {
+    return value.map((item) => redactInlineImagePayloads(item, actionName));
+  }
+
+  const out: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(value)) {
+    out[key] =
+      shouldRedactBase64Key(key, actionName) && typeof nested === "string"
+        ? REDACTED_INLINE_IMAGE
+        : redactInlineImagePayloads(nested, actionName);
+  }
+  return out;
+}
+
 /**
  * Write the on-disk trajectory layout under `dir`:
  *
@@ -273,7 +304,14 @@ export async function writeTrajectoryDir(
     const modalities: unknown[] = [];
     for (const m of step.agentEvidence.modalities) {
       if (m.type !== "image") {
-        modalities.push(m);
+        modalities.push(
+          m.type === "json"
+            ? {
+                ...m,
+                content: redactInlineImagePayloads(m.content, step.actionName),
+              }
+            : m,
+        );
         continue;
       }
       const suffix = multipleImages ? `_${imageSeq}` : "";
@@ -290,6 +328,13 @@ export async function writeTrajectoryDir(
       ...step,
       probeEvidence: probe,
       agentEvidence: { modalities },
+      toolOutput: {
+        ...step.toolOutput,
+        result: redactInlineImagePayloads(
+          step.toolOutput.result,
+          step.actionName,
+        ),
+      },
     });
   }
 

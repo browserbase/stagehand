@@ -192,4 +192,69 @@ describe("TrajectoryRecorder", () => {
       explanation: "The task was completed.",
     });
   });
+
+  it("lifts inline screenshot payloads into image evidence and redacts JSON", async () => {
+    const inlineScreenshot =
+      Buffer.from("inline screenshot").toString("base64");
+    const recorder = new TrajectoryRecorder({
+      taskSpec: makeTaskSpec(),
+      persist: false,
+    });
+
+    recorder.record({
+      type: "step_finished",
+      stepIndex: 0,
+      actionName: "click",
+      actionArgs: { describe: "Open fare details" },
+      reasoning: "Click the fare details button.",
+      toolOutput: {
+        ok: true,
+        result: {
+          output: {
+            success: true,
+            describe: "Open fare details",
+            screenshotBase64: inlineScreenshot,
+          },
+        },
+      },
+      finishedAt: new Date(0).toISOString(),
+    });
+
+    const trajectory = await recorder.finish({ status: "complete" });
+    const step = trajectory.steps[0];
+    const rawTrajectory = JSON.stringify(trajectory);
+    const imageModalities = step.agentEvidence.modalities.filter(
+      (m) => m.type === "image",
+    );
+    const jsonModality = step.agentEvidence.modalities.find(
+      (m) => m.type === "json",
+    );
+
+    expect(rawTrajectory).not.toContain(inlineScreenshot);
+    expect(step.toolOutput.result).toMatchObject({
+      output: {
+        success: true,
+        describe: "Open fare details",
+        screenshotBase64: "[redacted inline image payload]",
+      },
+    });
+    expect(jsonModality).toMatchObject({
+      type: "json",
+      content: {
+        output: {
+          screenshotBase64: "[redacted inline image payload]",
+        },
+      },
+    });
+    expect(imageModalities).toHaveLength(1);
+    expect(imageModalities[0]).toMatchObject({
+      type: "image",
+      mediaType: "image/png",
+    });
+    if (imageModalities[0].type === "image") {
+      expect(imageModalities[0].bytes).toEqual(
+        Buffer.from(inlineScreenshot, "base64"),
+      );
+    }
+  });
 });

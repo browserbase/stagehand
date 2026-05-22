@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -8,6 +8,7 @@ import {
   loadTrajectoryFromDisk,
   nextResultFilename,
   normalizeRubric,
+  writeTrajectoryDir,
 } from "../../lib/v3/verifier/trajectory.js";
 
 describe("verifier trajectory utilities", () => {
@@ -158,6 +159,67 @@ describe("verifier trajectory utilities", () => {
     if (modality.type === "image") {
       expect(modality.bytes).toEqual(agentImage);
     }
+  });
+
+  it("redacts inline screenshot payloads when writing trajectories", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "stagehand-verifier-"));
+    const inlineScreenshot =
+      Buffer.from("inline screenshot").toString("base64");
+
+    await writeTrajectoryDir(dir, {
+      task: { id: "task", instruction: "Do the task" },
+      status: "complete",
+      usage: { input_tokens: 0, output_tokens: 0 },
+      timing: {
+        startedAt: new Date(0).toISOString(),
+        endedAt: new Date(0).toISOString(),
+      },
+      steps: [
+        {
+          index: 0,
+          actionName: "click",
+          actionArgs: {},
+          reasoning: "",
+          agentEvidence: {
+            modalities: [
+              {
+                type: "json",
+                content: {
+                  output: {
+                    success: true,
+                    screenshotBase64: inlineScreenshot,
+                  },
+                },
+              },
+            ],
+          },
+          probeEvidence: {},
+          toolOutput: {
+            ok: true,
+            result: {
+              output: {
+                success: true,
+                screenshotBase64: inlineScreenshot,
+              },
+            },
+          },
+          startedAt: new Date(0).toISOString(),
+          finishedAt: new Date(0).toISOString(),
+        },
+      ],
+    });
+
+    const raw = await readFile(path.join(dir, "trajectory.json"), "utf8");
+    const trajectory = JSON.parse(raw);
+
+    expect(raw).not.toContain(inlineScreenshot);
+    expect(
+      trajectory.steps[0].agentEvidence.modalities[0].content.output
+        .screenshotBase64,
+    ).toBe("[redacted inline image payload]");
+    expect(trajectory.steps[0].toolOutput.result.output.screenshotBase64).toBe(
+      "[redacted inline image payload]",
+    );
   });
 
   it("rejects screenshot paths outside the trajectory directory", async () => {
