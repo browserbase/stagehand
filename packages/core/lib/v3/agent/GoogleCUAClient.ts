@@ -40,6 +40,25 @@ import {
 } from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
+const IMAGE_DATA_URL_PATTERN = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/;
+
+/**
+ * Parse an image data URL into its MIME type and base64 payload.
+ * Falls back to `image/png` and the input string when the value is raw
+ * base64 or otherwise not a recognized image data URL — preserving prior
+ * behavior for callers that already pass raw bytes.
+ */
+export function parseImageDataUrl(input: string): {
+  mimeType: string;
+  data: string;
+} {
+  const match = input.match(IMAGE_DATA_URL_PATTERN);
+  if (match) {
+    return { mimeType: match[1], data: match[2] };
+  }
+  return { mimeType: "image/png", data: input };
+}
+
 /**
  * Client for Google's Computer Use Assistant API
  * This implementation uses the Google Generative AI SDK for Computer Use
@@ -576,10 +595,8 @@ export class GoogleCUAClient extends AgentClient {
               });
 
               const screenshot = await this.captureScreenshot();
-              const base64Data = screenshot.replace(
-                /^data:image\/png;base64,/,
-                "",
-              );
+              const { mimeType, data: base64Data } =
+                parseImageDataUrl(screenshot);
 
               // Create one function response for each computer use function call
               // Following Python SDK pattern: FunctionResponse with parts containing inline_data
@@ -606,7 +623,7 @@ export class GoogleCUAClient extends AgentClient {
                     parts: [
                       {
                         inlineData: {
-                          mimeType: "image/png",
+                          mimeType,
                           data: base64Data,
                         },
                       },
