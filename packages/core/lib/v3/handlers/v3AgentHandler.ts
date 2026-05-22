@@ -43,6 +43,7 @@ import {
 } from "../types/public/sdkErrors.js";
 import { handleDoneToolCall } from "../agent/utils/handleDoneToolCall.js";
 import { emitPostStepProbeEvidence } from "../agent/utils/postStepProbeEvidence.js";
+import { wrapEvidenceCallback } from "../agent/utils/wrapEvidenceCallback.js";
 import { inferToolOutput } from "../agent/utils/toolOutputEvidence.js";
 import {
   CaptchaSolver,
@@ -438,7 +439,7 @@ export class V3AgentHandler {
         onStepFinish: this.createStepHandler(
           state,
           callbacks?.onStepFinish,
-          callbacks?.onEvidence,
+          wrapEvidenceCallback(callbacks?.onEvidence, this.logger),
         ),
         abortSignal: preparedOptions.signal,
         providerOptions: {
@@ -578,7 +579,7 @@ export class V3AgentHandler {
         onStepFinish: this.createStepHandler(
           state,
           callbacks?.onStepFinish,
-          callbacks?.onEvidence,
+          wrapEvidenceCallback(callbacks?.onEvidence, this.logger),
         ),
         onError: (event) => {
           captchaSolver?.dispose();

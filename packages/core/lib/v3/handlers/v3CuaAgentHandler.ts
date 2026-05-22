@@ -8,6 +8,8 @@ import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping.js";
 import { ensureXPath } from "../agent/utils/xpath.js";
 import { emitPostStepProbeEvidence } from "../agent/utils/postStepProbeEvidence.js";
+import { wrapEvidenceCallback } from "../agent/utils/wrapEvidenceCallback.js";
+import { inferCuaToolOutput } from "../agent/utils/toolOutputEvidence.js";
 import { CuaEvidenceStepTracker } from "../agent/utils/cuaEvidenceStepTracker.js";
 import {
   ActionExecutionResult,
@@ -82,7 +84,7 @@ export class V3CuaAgentHandler {
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
-      await this.emitCuaScreenshotNonFatal(screenshotBuffer, page.url());
+      await this.emitCuaScreenshot(screenshotBuffer, page.url());
 
       return screenshotBuffer.toString("base64"); // base64 png
     });
@@ -196,7 +198,10 @@ export class V3CuaAgentHandler {
         : optionsOrInstruction;
 
     this.setSafetyConfirmationHandler(options.callbacks?.onSafetyConfirmation);
-    this.evidenceCallback = options.callbacks?.onEvidence;
+    this.evidenceCallback = wrapEvidenceCallback(
+      options.callbacks?.onEvidence,
+      this.logger,
+    );
     this.cuaEvidenceSteps.reset();
 
     this.highlightCursor = options.highlightCursor !== false;
@@ -680,7 +685,7 @@ export class V3CuaAgentHandler {
       const currentUrl = page.url();
 
       // Mirror the same buffer the CUA client receives as agent evidence.
-      await this.emitCuaScreenshotNonFatal(screenshotBuffer, currentUrl);
+      await this.emitCuaScreenshot(screenshotBuffer, currentUrl);
 
       return await this.agentClient.captureScreenshot({
         base64Image: screenshotBuffer.toString("base64"),
@@ -807,23 +812,6 @@ export class V3CuaAgentHandler {
     );
   }
 
-  private async emitCuaScreenshotNonFatal(
-    screenshot: Buffer,
-    url: string,
-  ): Promise<void> {
-    try {
-      await this.emitCuaScreenshot(screenshot, url);
-    } catch (e) {
-      this.logger({
-        category: "agent",
-        message: `Warning: CUA screenshot evidence callback failed: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
-        level: 1,
-      });
-    }
-  }
-
   private async emitCuaActionStep(
     action: AgentAction,
     result: ActionExecutionResult | undefined,
@@ -858,11 +846,7 @@ export class V3CuaAgentHandler {
       actionName: String(action.type),
       actionArgs,
       reasoning,
-      toolOutput: {
-        ok: result?.success !== false,
-        result: result ?? { success: true },
-        error: result?.error,
-      },
+      toolOutput: inferCuaToolOutput(result),
       finishedAt: new Date().toISOString(),
     });
 
