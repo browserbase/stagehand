@@ -57,8 +57,8 @@ export interface CodexRunnerInput {
   /**
    * Optional verifier integration. When provided, the runner builds a
    * Trajectory from the codex event stream (via codexAdapter), runs
-   * V3Evaluator.verify() against the supplied TaskSpec, and folds the
-   * EvaluationResult into the returned TaskResult ({_success} mode follows
+   * V3Evaluator.verify() against the trajectory's embedded TaskSpec, and folds
+   * the EvaluationResult into the returned TaskResult ({_success} mode follows
    * EVAL_SUCCESS_MODE).
    * When omitted, the runner falls back to parsing the legacy JSON result —
    * preserves current behavior for callers that haven't migrated.
@@ -281,8 +281,9 @@ export async function runCodexAgent({
       ...verifier.taskSpec,
       precomputedRubric: rubric,
     };
+    const hydratedTrajectory = { ...trajectory, task: hydratedSpec };
 
-    const evaluationResult = await evaluator.verify(trajectory, hydratedSpec);
+    const evaluationResult = await evaluator.verify(hydratedTrajectory);
     const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
     const verifiedSuccess = evaluationResultToSuccess(
       evaluationResult,
@@ -290,7 +291,7 @@ export async function runCodexAgent({
     );
 
     const { directory: trajectoryDir } = await persistAdapterTrajectory({
-      trajectory,
+      trajectory: hydratedTrajectory,
       taskSpec: hydratedSpec,
       evaluationResult,
       outputRoot: verifier.trajectoryRoot,
@@ -299,7 +300,7 @@ export async function runCodexAgent({
 
     logger.log({
       category: "codex",
-      message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} steps=${trajectory.steps.length}`,
+      message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} steps=${hydratedTrajectory.steps.length}`,
       level: 1,
     });
 
@@ -311,7 +312,7 @@ export async function runCodexAgent({
       processScore: evaluationResult.processScore,
       evidenceInsufficient: evaluationResult.evidenceInsufficient,
       criterionCount: rubric.items.length,
-      stepCount: trajectory.steps.length,
+      stepCount: hydratedTrajectory.steps.length,
       trajectoryDir,
     };
   } catch (verifyError) {
