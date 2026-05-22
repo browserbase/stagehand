@@ -74,6 +74,7 @@ export class LegacyV3Evaluator {
     if (Array.isArray(screenshot)) {
       return this._evaluateWithMultipleScreenshots({
         question,
+        answer,
         screenshots: screenshot,
         systemPrompt,
         agentReasoning,
@@ -224,12 +225,14 @@ export class LegacyV3Evaluator {
 
   private async _evaluateWithMultipleScreenshots(options: {
     question: string;
+    answer?: string;
     screenshots: Buffer[];
     systemPrompt?: string;
     agentReasoning?: string;
   }): Promise<EvaluationResult> {
     const {
       question,
+      answer,
       screenshots,
       agentReasoning,
       systemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question and multiple screenshots showing the progression of a task.
@@ -272,6 +275,9 @@ export class LegacyV3Evaluator {
                   ? `Question: ${question}\n\nAgent's reasoning and actions throughout the task:\n${agentReasoning}\n\nI'm providing ${screenshots.length} screenshots showing the progression of the task. Please analyze both the agent's reasoning and all screenshots to determine if the task was completed successfully.`
                   : `${question}\n\nI'm providing ${screenshots.length} screenshots showing the progression of the task. Please analyze all of them to determine if the task was completed successfully.`,
               },
+              ...(answer
+                ? [{ type: "text" as const, text: `the answer is ${answer}` }]
+                : []),
               ...imageContents,
             ],
           },
