@@ -82,6 +82,39 @@ describe("V3Evaluator verifier facade", () => {
     expect(result.perCriterion).toBeUndefined();
   });
 
+  it("passes final observation screenshots to the legacy verifier adapter", async () => {
+    const taskSpec: TaskSpec = {
+      id: "final-observation",
+      instruction: "Complete the task",
+    };
+    const finalScreenshot = Buffer.from("final screenshot");
+    const trajectory = {
+      ...makeTrajectory(taskSpec),
+      finalObservation: {
+        url: "https://example.com/done",
+        screenshot: finalScreenshot,
+      },
+    };
+    const ask = vi.fn().mockResolvedValue({
+      evaluation: "YES",
+      reasoning: "The final screenshot shows completion.",
+    });
+    const evaluator = new V3Evaluator({} as V3, {
+      backend: "legacy",
+    });
+    Object.defineProperty(evaluator, "legacyEvaluator", {
+      value: { ask },
+    });
+
+    await evaluator.verify(trajectory);
+
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        screenshot: [finalScreenshot],
+      }),
+    );
+  });
+
   it("keeps legacy tool output detail until the overall reasoning budget is reached", async () => {
     const taskSpec: TaskSpec = {
       id: "reasoning-budget",

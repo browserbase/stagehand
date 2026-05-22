@@ -75,6 +75,7 @@ describe("TrajectoryRecorder", () => {
         ok: true,
         result: { economy: "$100", business: "$250" },
       },
+      startedAt: new Date(0).toISOString(),
       finishedAt: new Date(0).toISOString(),
     });
     recorder.record({
@@ -86,6 +87,11 @@ describe("TrajectoryRecorder", () => {
     recorder.record({
       type: "final_answer",
       message: "Business is $150 more than economy.",
+      observation: {
+        url: "https://example.com/checkout",
+        screenshot: Buffer.from("final-screen"),
+        ariaTree: "RootWebArea\nStaticText: Complete",
+      },
     });
 
     const trajectory = await recorder.finish({
@@ -109,6 +115,7 @@ describe("TrajectoryRecorder", () => {
       },
     });
     expect(trajectory.steps[0].probeEvidence.screenshot).toEqual(screenshot);
+    expect(trajectory.steps[0].startedAt).toBe(new Date(0).toISOString());
     expect(trajectory.steps[0].agentEvidence.modalities).toEqual(
       expect.arrayContaining([
         { type: "image", bytes: screenshot, mediaType: "image/png" },
@@ -117,6 +124,13 @@ describe("TrajectoryRecorder", () => {
       ]),
     );
     expect(trajectory.finalAnswer).toBe("Business is $150 more than economy.");
+    expect(trajectory.finalObservation).toMatchObject({
+      url: "https://example.com/checkout",
+      ariaTree: "RootWebArea\nStaticText: Complete",
+    });
+    expect(trajectory.finalObservation?.screenshot).toEqual(
+      Buffer.from("final-screen"),
+    );
   });
 
   it("persists trajectory files and evaluator results", async () => {
@@ -151,12 +165,21 @@ describe("TrajectoryRecorder", () => {
       actionArgs: { instruction: "Search fares" },
       reasoning: "Search for fares.",
       toolOutput: { ok: true, result: "done" },
+      startedAt: new Date(0).toISOString(),
       finishedAt: new Date(0).toISOString(),
     });
     recorder.record({
       type: "step_observed",
       stepIndex: 0,
       url: "https://example.com/search",
+    });
+    recorder.record({
+      type: "final_answer",
+      message: "Complete.",
+      observation: {
+        url: "https://example.com/complete",
+        screenshot: Buffer.from("final-screen"),
+      },
     });
 
     await recorder.finish({ status: "complete" });
@@ -180,6 +203,9 @@ describe("TrajectoryRecorder", () => {
       fs.readFile(path.join(taskDir, "screenshots", "probe", "1.png")),
     ).resolves.toEqual(screenshot);
     await expect(
+      fs.readFile(path.join(taskDir, "screenshots", "probe", "final.png")),
+    ).resolves.toEqual(Buffer.from("final-screen"));
+    await expect(
       fs.readFile(path.join(taskDir, "screenshots", "agent", "1.png")),
     ).resolves.toEqual(screenshot);
     await expect(
@@ -191,6 +217,9 @@ describe("TrajectoryRecorder", () => {
     );
     expect(trajectory.steps[0].probeEvidence.screenshotPath).toBe(
       "screenshots/probe/1.png",
+    );
+    expect(trajectory.finalObservation.screenshotPath).toBe(
+      "screenshots/probe/final.png",
     );
     expect(trajectory.steps[0].agentEvidence.modalities).toContainEqual({
       type: "image",
@@ -205,6 +234,29 @@ describe("TrajectoryRecorder", () => {
       outcomeSuccess: true,
       explanation: "The task was completed.",
     });
+  });
+
+  it("normalizes missing step startedAt to finishedAt", async () => {
+    const recorder = new TrajectoryRecorder({
+      taskSpec: makeTaskSpec(),
+      persist: false,
+    });
+    const finishedAt = new Date(1).toISOString();
+
+    recorder.record({
+      type: "step_finished",
+      stepIndex: 0,
+      actionName: "extract",
+      actionArgs: { instruction: "Read fares" },
+      reasoning: "",
+      toolOutput: { ok: true, result: false },
+      finishedAt,
+    });
+
+    const trajectory = await recorder.finish({ status: "complete" });
+
+    expect(trajectory.steps[0].startedAt).toBe(finishedAt);
+    expect(trajectory.steps[0].finishedAt).toBe(finishedAt);
   });
 
   it("lifts inline screenshot payloads into image evidence and redacts JSON", async () => {
@@ -231,6 +283,7 @@ describe("TrajectoryRecorder", () => {
           },
         },
       },
+      startedAt: new Date(0).toISOString(),
       finishedAt: new Date(0).toISOString(),
     });
 

@@ -64,8 +64,10 @@ describe("verifier trajectory utilities", () => {
   it("loads trajectory screenshots and image modalities from disk", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "stagehand-verifier-"));
     const screenshot = Buffer.from("probe screenshot");
+    const finalScreenshot = Buffer.from("final screenshot");
     const agentImage = Buffer.from("agent image");
     await writeFile(path.join(dir, "screenshot_1.png"), screenshot);
+    await writeFile(path.join(dir, "final.png"), finalScreenshot);
     await mkdir(path.join(dir, "screenshots", "agent"), { recursive: true });
     await writeFile(
       path.join(dir, "screenshots", "agent", "1.png"),
@@ -102,6 +104,10 @@ describe("verifier trajectory utilities", () => {
             finishedAt: new Date(0).toISOString(),
           },
         ],
+        finalObservation: {
+          url: "https://example.com/done",
+          screenshotPath: "final.png",
+        },
       }),
     );
 
@@ -109,6 +115,7 @@ describe("verifier trajectory utilities", () => {
     const modality = trajectory.steps[0].agentEvidence.modalities[0];
 
     expect(trajectory.steps[0].probeEvidence.screenshot).toEqual(screenshot);
+    expect(trajectory.finalObservation?.screenshot).toEqual(finalScreenshot);
     expect(modality.type).toBe("image");
     if (modality.type === "image") {
       expect(modality.bytes).toEqual(agentImage);
@@ -174,6 +181,10 @@ describe("verifier trajectory utilities", () => {
         startedAt: new Date(0).toISOString(),
         endedAt: new Date(0).toISOString(),
       },
+      finalObservation: {
+        url: "https://example.com/done",
+        screenshot: Buffer.from("final screenshot"),
+      },
       steps: [
         {
           index: 0,
@@ -220,6 +231,12 @@ describe("verifier trajectory utilities", () => {
     expect(trajectory.steps[0].toolOutput.result.output.screenshotBase64).toBe(
       "[redacted inline image payload]",
     );
+    expect(trajectory.finalObservation.screenshotPath).toBe(
+      "screenshots/probe/final.png",
+    );
+    await expect(
+      readFile(path.join(dir, "screenshots", "probe", "final.png")),
+    ).resolves.toEqual(Buffer.from("final screenshot"));
   });
 
   it("rejects screenshot paths outside the trajectory directory", async () => {
