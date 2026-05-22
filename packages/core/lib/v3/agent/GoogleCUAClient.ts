@@ -40,7 +40,8 @@ import {
 } from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 
-const IMAGE_DATA_URL_PATTERN = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/;
+const IMAGE_DATA_URL_PATTERN =
+  /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]*)$/;
 
 /**
  * Parse an image data URL into its MIME type and base64 payload.

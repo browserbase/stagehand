@@ -26,6 +26,15 @@ describe("parseImageDataUrl", () => {
     });
   });
 
+  it("parses a PNG data URL with newline-wrapped base64 (MIME-style)", () => {
+    const wrapped = "iVBORw0KGgo=\nAAAANSUhEUgAA\nAAEAAAABCAYAAAA=";
+    const result = parseImageDataUrl(`data:image/png;base64,${wrapped}`);
+    expect(result).toEqual({
+      mimeType: "image/png",
+      data: wrapped,
+    });
+  });
+
   it("falls back to image/png for raw base64 input (preserving prior behavior)", () => {
     const raw = "iVBORw0KGgoAAAANSUhEUgAA";
     const result = parseImageDataUrl(raw);
