@@ -120,7 +120,7 @@ export async function handleVerify(args: string[]): Promise<void> {
 
   // ── Build a verifier without launching a browser ────────────────────────
   // V3Evaluator.verify() only touches v3.logger (to construct an LLMProvider)
-  // and the verify(trajectory, taskSpec) call is pure. Constructing V3 without
+  // and the verify(trajectory) call is pure. Constructing V3 without
   // calling init() is safe and avoids any browser/Browserbase setup cost.
   const v3 = new V3({
     env: "LOCAL",
@@ -140,7 +140,7 @@ export async function handleVerify(args: string[]): Promise<void> {
     );
   }
   const startMs = Date.now();
-  const result = await evaluator.verify(trajectory, trajectory.task);
+  const result = await evaluator.verify(trajectory);
   const elapsedMs = Date.now() - startMs;
 
   if (parsed.json) {
