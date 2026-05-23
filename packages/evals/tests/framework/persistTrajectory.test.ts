@@ -49,7 +49,6 @@ describe("persistAdapterTrajectory", () => {
           "scores",
           "screenshots",
           "task_data.json",
-          "times.json",
           "trajectory.json",
         ]),
       );
@@ -101,10 +100,6 @@ function makeTrajectory(task: TaskSpec): Trajectory {
     status: "complete",
     finalAnswer: "Final answer text.",
     usage: { input_tokens: 100, output_tokens: 50 },
-    timing: {
-      startedAt: "2026-05-15T10:00:00.000Z",
-      endedAt: "2026-05-15T10:01:00.000Z",
-    },
     steps: [
       {
         index: 0,
@@ -122,8 +117,6 @@ function makeTrajectory(task: TaskSpec): Trajectory {
           screenshot: PROBE_PNG,
         },
         toolOutput: { ok: true, result: { url: "https://example.com" } },
-        startedAt: "2026-05-15T10:00:00.000Z",
-        finishedAt: "2026-05-15T10:00:05.000Z",
       },
     ],
   };

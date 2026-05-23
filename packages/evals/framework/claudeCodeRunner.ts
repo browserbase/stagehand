@@ -158,7 +158,6 @@ export async function runClaudeCodeAgent({
   sdk: injectedSdk,
   verifier,
 }: ClaudeCodeRunnerInput): Promise<TaskResult> {
-  const startedAt = new Date().toISOString();
   const sdk = injectedSdk ?? (await loadClaudeAgentSdk());
   const abortController = new AbortController();
   if (signal) {
@@ -254,7 +253,6 @@ export async function runClaudeCodeAgent({
     parsed.summary ??
     stopReason ??
     (resultText || transcriptText || "Claude Code did not report success");
-  const endedAt = new Date().toISOString();
   const tokenUsage = extractClaudeCodeTokenUsage(resultMessage);
 
   const baseResult: TaskResult = {
@@ -285,7 +283,6 @@ export async function runClaudeCodeAgent({
           output_tokens: tokenUsage.outputTokens,
           cached_input_tokens: tokenUsage.cacheReadInputTokens,
         },
-        timing: { startedAt, endedAt },
       },
       verifier.taskSpec,
     );

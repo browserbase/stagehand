@@ -37,10 +37,6 @@ export interface NormalizedToolCall {
   error?: string;
   /** Optional reasoning text the assistant emitted before/with this tool call. */
   reasoning?: string;
-  /** Wall-clock when the call started. Falls back to call site's "now" if absent. */
-  startedAt?: string;
-  /** Wall-clock when the call finished. Falls back to startedAt. */
-  finishedAt?: string;
 }
 
 /**
@@ -93,10 +89,7 @@ export function actionToAgentEvidence(
 export function toolCallToTrajectoryStep(
   index: number,
   call: NormalizedToolCall,
-  fallbackTimestamp: string,
 ): TrajectoryStep {
-  const startedAt = call.startedAt ?? fallbackTimestamp;
-  const finishedAt = call.finishedAt ?? startedAt;
   return {
     index,
     actionName: call.name,
@@ -112,8 +105,6 @@ export function toolCallToTrajectoryStep(
       result: call.result,
       ...(call.error && { error: call.error }),
     },
-    startedAt,
-    finishedAt,
   };
 }
 
@@ -128,19 +119,12 @@ export interface BuildTrajectoryOptions {
   status?: Trajectory["status"];
   /** Token usage if the harness surfaced it; partial fields are filled with 0. */
   usage?: Partial<Trajectory["usage"]>;
-  /** Defaults to `now` for both endpoints if the harness didn't track timing. */
-  timing?: Partial<Trajectory["timing"]>;
 }
 
 export function buildTrajectory(opts: BuildTrajectoryOptions): Trajectory {
-  const now = new Date().toISOString();
   const steps: TrajectoryStep[] = opts.toolCalls.map((call, idx) =>
-    toolCallToTrajectoryStep(idx, call, now),
+    toolCallToTrajectoryStep(idx, call),
   );
-
-  const startedAt = opts.timing?.startedAt ?? steps[0]?.startedAt ?? now;
-  const endedAt =
-    opts.timing?.endedAt ?? steps[steps.length - 1]?.finishedAt ?? startedAt;
 
   return {
     task: opts.taskSpec,
@@ -160,7 +144,6 @@ export function buildTrajectory(opts: BuildTrajectoryOptions): Trajectory {
         inference_time_ms: opts.usage.inference_time_ms,
       }),
     },
-    timing: { startedAt, endedAt },
   };
 }
 

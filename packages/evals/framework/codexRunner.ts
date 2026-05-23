@@ -148,7 +148,6 @@ export async function runCodexAgent({
   sdk: injectedSdk,
   verifier,
 }: CodexRunnerInput): Promise<TaskResult> {
-  const startedAt = new Date().toISOString();
   const sdk = injectedSdk ?? (await loadCodexSdk(toolAdapter?.env));
   const prompt = buildCodexPrompt(plan, toolAdapter?.promptInstructions);
   const events: CodexEvent[] = [];
@@ -225,8 +224,6 @@ export async function runCodexAgent({
       finalResponse ||
       transcriptText ||
       "Codex did not report success");
-  const endedAt = new Date().toISOString();
-
   const baseResult: TaskResult = {
     _success: parsed.success,
     error: !parsed.success ? errorMessage : undefined,
@@ -259,7 +256,6 @@ export async function runCodexAgent({
             cached_input_tokens: toFiniteNumber(usage.cached_input_tokens),
           }),
         },
-        timing: { startedAt, endedAt },
       },
       verifier.taskSpec,
     );

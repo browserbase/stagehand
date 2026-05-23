@@ -40,8 +40,6 @@ export interface ClaudeCodeRunResult {
   status?: Trajectory["status"];
   /** Optional usage to fold into Trajectory.usage. */
   usage?: Partial<Trajectory["usage"]>;
-  /** Optional run start/end timing. Adapter fills with now-now otherwise. */
-  timing?: Partial<Trajectory["timing"]>;
 }
 
 interface ToolUseBlock {
@@ -175,7 +173,6 @@ export class ClaudeCodeTrajectoryAdapter
       finalAnswer,
       status: result.status ?? "complete",
       usage: result.usage,
-      timing: result.timing,
     });
   }
 }

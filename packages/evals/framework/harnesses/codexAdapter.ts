@@ -42,8 +42,6 @@ export interface CodexRunResult {
   status?: Trajectory["status"];
   /** Optional usage to fold into Trajectory.usage. */
   usage?: Partial<Trajectory["usage"]>;
-  /** Optional run start/end timing. Adapter fills with now-now otherwise. */
-  timing?: Partial<Trajectory["timing"]>;
 }
 
 export class CodexTrajectoryAdapter
@@ -90,7 +88,6 @@ export class CodexTrajectoryAdapter
       finalAnswer,
       status: result.status ?? "complete",
       usage: result.usage,
-      timing: result.timing,
     });
   }
 }
