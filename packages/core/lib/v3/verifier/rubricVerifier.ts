@@ -736,7 +736,7 @@ export class RubricVerifier implements Verifier {
       taxonomy_block: taxonomyBlock,
       fold_failure_analysis: foldFailure ? "true" : "false",
       fold_task_validity: foldValidity ? "true" : "false",
-      current_date: currentDateForTrajectory(trajectory),
+      current_date: currentDateForVerifier(),
     });
 
     const images = selectRecentImages(trajectory, config.outcomeMaxImages);
@@ -1182,7 +1182,7 @@ export class RubricVerifier implements Verifier {
       taxonomy_block: taxonomyBlock,
       fold_failure_analysis: foldFailure ? "true" : "false",
       fold_task_validity: foldValidity ? "true" : "false",
-      current_date: currentDateForTrajectory(trajectory),
+      current_date: currentDateForVerifier(),
     });
 
     const messageContent: Array<
@@ -1299,7 +1299,7 @@ export class RubricVerifier implements Verifier {
       taxonomy_block: taxonomyBlock,
       fold_failure_analysis: foldFailure ? "true" : "false",
       fold_task_validity: foldValidity ? "true" : "false",
-      current_date: currentDateForTrajectory(trajectory),
+      current_date: currentDateForVerifier(),
     });
 
     try {
@@ -1811,16 +1811,8 @@ function selectRecentImages(
   return images.reverse();
 }
 
-function currentDateForTrajectory(trajectory: Trajectory): string {
-  const firstStepDate = trajectory.steps.find(
-    (step) => typeof step.startedAt === "string" && step.startedAt.length >= 10,
-  )?.startedAt;
-
-  return (
-    trajectory.timing?.startedAt?.slice(0, 10) ||
-    firstStepDate?.slice(0, 10) ||
-    new Date().toISOString().slice(0, 10)
-  );
+function currentDateForVerifier(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 const OUTCOME_KEYWORD_STOPWORDS = new Set([

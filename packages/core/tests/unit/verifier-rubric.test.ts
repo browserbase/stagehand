@@ -145,8 +145,6 @@ function makeTrajectory(task: TaskSpec, screenshot: Buffer): Trajectory {
         agentEvidence: { modalities: [] },
         probeEvidence: { screenshot },
         toolOutput: { ok: true, result: "done" },
-        startedAt: new Date(0).toISOString(),
-        finishedAt: new Date(0).toISOString(),
       },
     ],
     finalAnswer: "Done.",
@@ -154,10 +152,6 @@ function makeTrajectory(task: TaskSpec, screenshot: Buffer): Trajectory {
     usage: {
       input_tokens: 0,
       output_tokens: 0,
-    },
-    timing: {
-      startedAt: new Date(0).toISOString(),
-      endedAt: new Date(0).toISOString(),
     },
   };
 }
