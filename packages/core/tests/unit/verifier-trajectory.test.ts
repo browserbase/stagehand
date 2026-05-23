@@ -79,10 +79,6 @@ describe("verifier trajectory utilities", () => {
         task: { id: "task", instruction: "Do the task" },
         status: "complete",
         usage: { input_tokens: 0, output_tokens: 0 },
-        timing: {
-          startedAt: new Date(0).toISOString(),
-          endedAt: new Date(0).toISOString(),
-        },
         steps: [
           {
             index: 0,
@@ -100,8 +96,6 @@ describe("verifier trajectory utilities", () => {
             },
             probeEvidence: { screenshotPath: "screenshot_1.png" },
             toolOutput: { ok: true, result: null },
-            startedAt: new Date(0).toISOString(),
-            finishedAt: new Date(0).toISOString(),
           },
         ],
         finalObservation: {
@@ -131,10 +125,6 @@ describe("verifier trajectory utilities", () => {
         task: { id: "task", instruction: "Do the task" },
         status: "complete",
         usage: { input_tokens: 0, output_tokens: 0 },
-        timing: {
-          startedAt: new Date(0).toISOString(),
-          endedAt: new Date(0).toISOString(),
-        },
         steps: [
           {
             index: 0,
@@ -152,8 +142,6 @@ describe("verifier trajectory utilities", () => {
             },
             probeEvidence: {},
             toolOutput: { ok: true, result: null },
-            startedAt: new Date(0).toISOString(),
-            finishedAt: new Date(0).toISOString(),
           },
         ],
       }),
@@ -177,10 +165,6 @@ describe("verifier trajectory utilities", () => {
       task: { id: "task", instruction: "Do the task" },
       status: "complete",
       usage: { input_tokens: 0, output_tokens: 0 },
-      timing: {
-        startedAt: new Date(0).toISOString(),
-        endedAt: new Date(0).toISOString(),
-      },
       finalObservation: {
         url: "https://example.com/done",
         screenshot: Buffer.from("final screenshot"),
@@ -214,8 +198,6 @@ describe("verifier trajectory utilities", () => {
               },
             },
           },
-          startedAt: new Date(0).toISOString(),
-          finishedAt: new Date(0).toISOString(),
         },
       ],
     });
@@ -247,10 +229,6 @@ describe("verifier trajectory utilities", () => {
         task: { id: "task", instruction: "Do the task" },
         status: "complete",
         usage: { input_tokens: 0, output_tokens: 0 },
-        timing: {
-          startedAt: new Date(0).toISOString(),
-          endedAt: new Date(0).toISOString(),
-        },
         steps: [
           {
             index: 0,
@@ -260,8 +238,6 @@ describe("verifier trajectory utilities", () => {
             agentEvidence: { modalities: [] },
             probeEvidence: { screenshotPath: "../../../etc/passwd" },
             toolOutput: { ok: true, result: null },
-            startedAt: new Date(0).toISOString(),
-            finishedAt: new Date(0).toISOString(),
           },
         ],
       }),

@@ -119,10 +119,6 @@ export interface TrajectoryStep {
   agentEvidence: AgentEvidence;
   probeEvidence: ProbeEvidence;
   toolOutput: ToolOutput;
-  /** ISO 8601 timestamp when the step's tool execution started. */
-  startedAt: string;
-  /** ISO 8601 timestamp when the step's tool execution finished. */
-  finishedAt: string;
 }
 
 /** Terminal status of the agent run. */
@@ -139,8 +135,7 @@ export type TrajectoryStatus = "complete" | "aborted" | "stalled" | "error";
  *     ├── screenshots/      — step probe/agent images plus final observation
  *     ├── scores/
  *     │   └── result.json       — Result from V3Evaluator.verify()
- *     ├── core.log          — captured action log
- *     └── times.json        — step timing + token usage
+ *     └── core.log          — captured action log
  */
 export interface Trajectory {
   task: TaskSpec;
@@ -150,7 +145,6 @@ export interface Trajectory {
   finalObservation?: ProbeEvidence;
   status: TrajectoryStatus;
   usage: TrajectoryUsage;
-  timing: { startedAt: string; endedAt: string };
 }
 
 /** Score for a single rubric criterion after evidence analysis + rescoring. */

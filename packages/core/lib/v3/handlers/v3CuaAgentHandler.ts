@@ -134,7 +134,6 @@ export class V3CuaAgentHandler {
         defaultDelay;
       try {
         let executionResult: ActionExecutionResult | undefined;
-        const startedAt = new Date().toISOString();
         // Try to inject cursor before each action if enabled
         if (this.highlightCursor) {
           try {
@@ -165,7 +164,7 @@ export class V3CuaAgentHandler {
 
         action.timestamp = Date.now();
         if (shouldLog) {
-          await this.emitCuaActionStep(action, executionResult, startedAt);
+          await this.emitCuaActionStep(action, executionResult);
         }
 
         await new Promise((r) => setTimeout(r, waitBetween));
@@ -834,7 +833,6 @@ export class V3CuaAgentHandler {
   private async emitCuaActionStep(
     action: AgentAction,
     result: ActionExecutionResult | undefined,
-    startedAt: string,
   ): Promise<void> {
     let pageUrl =
       typeof action.pageUrl === "string"
@@ -867,8 +865,6 @@ export class V3CuaAgentHandler {
       actionArgs,
       reasoning,
       toolOutput: inferToolOutput(result ?? { success: true }),
-      startedAt,
-      finishedAt: new Date().toISOString(),
     });
 
     // Post-action tier-2 probe. The pre-action screenshot from

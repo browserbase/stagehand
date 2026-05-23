@@ -75,8 +75,6 @@ describe("TrajectoryRecorder", () => {
         ok: true,
         result: { economy: "$100", business: "$250" },
       },
-      startedAt: new Date(0).toISOString(),
-      finishedAt: new Date(0).toISOString(),
     });
     recorder.record({
       type: "step_observed",
@@ -115,7 +113,6 @@ describe("TrajectoryRecorder", () => {
       },
     });
     expect(trajectory.steps[0].probeEvidence.screenshot).toEqual(screenshot);
-    expect(trajectory.steps[0].startedAt).toBe(new Date(0).toISOString());
     expect(trajectory.steps[0].agentEvidence.modalities).toEqual(
       expect.arrayContaining([
         { type: "image", bytes: screenshot, mediaType: "image/png" },
@@ -165,8 +162,6 @@ describe("TrajectoryRecorder", () => {
       actionArgs: { instruction: "Search fares" },
       reasoning: "Search for fares.",
       toolOutput: { ok: true, result: "done" },
-      startedAt: new Date(0).toISOString(),
-      finishedAt: new Date(0).toISOString(),
     });
     recorder.record({
       type: "step_observed",
@@ -195,7 +190,6 @@ describe("TrajectoryRecorder", () => {
         "scores",
         "screenshots",
         "task_data.json",
-        "times.json",
         "trajectory.json",
       ]),
     );
@@ -236,29 +230,6 @@ describe("TrajectoryRecorder", () => {
     });
   });
 
-  it("normalizes missing step startedAt to finishedAt", async () => {
-    const recorder = new TrajectoryRecorder({
-      taskSpec: makeTaskSpec(),
-      persist: false,
-    });
-    const finishedAt = new Date(1).toISOString();
-
-    recorder.record({
-      type: "step_finished",
-      stepIndex: 0,
-      actionName: "extract",
-      actionArgs: { instruction: "Read fares" },
-      reasoning: "",
-      toolOutput: { ok: true, result: false },
-      finishedAt,
-    });
-
-    const trajectory = await recorder.finish({ status: "complete" });
-
-    expect(trajectory.steps[0].startedAt).toBe(finishedAt);
-    expect(trajectory.steps[0].finishedAt).toBe(finishedAt);
-  });
-
   it("lifts inline screenshot payloads into image evidence and redacts JSON", async () => {
     const inlineScreenshot =
       Buffer.from("inline screenshot").toString("base64");
@@ -283,8 +254,6 @@ describe("TrajectoryRecorder", () => {
           },
         },
       },
-      startedAt: new Date(0).toISOString(),
-      finishedAt: new Date(0).toISOString(),
     });
 
     const trajectory = await recorder.finish({ status: "complete" });

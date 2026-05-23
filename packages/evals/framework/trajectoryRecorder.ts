@@ -31,8 +31,6 @@ interface PartialStep {
   agentEvidence: AgentEvidence;
   probeEvidence: ProbeEvidence;
   toolOutput: { ok: boolean; result: unknown; error?: string };
-  startedAt: string;
-  finishedAt: string;
 }
 
 export interface TrajectoryRecorderOptions {
@@ -74,8 +72,6 @@ export class TrajectoryRecorder {
   private readonly partialSteps = new Map<number, Partial<PartialStep>>();
   private finalAnswerEvent?: AgentFinalAnswerEvent;
   private finalObservation?: ProbeEvidence;
-  private startedAt = "";
-  private endedAt = "";
 
   private onScreenshot(e: AgentScreenshotEvidenceEvent): void {
     const partial = this.ensurePartial(e.stepIndex);
@@ -117,8 +113,6 @@ export class TrajectoryRecorder {
       ...e.toolOutput,
       result: redactInlineImagePayloads(e.toolOutput.result, e.actionName),
     };
-    partial.startedAt = e.startedAt ?? e.finishedAt;
-    partial.finishedAt = e.finishedAt;
     partial.agentEvidence = mergeAgentEvidence(
       partial.agentEvidence,
       buildAgentEvidenceFromStepFinished(e),
@@ -160,15 +154,13 @@ export class TrajectoryRecorder {
     this.persistEnabled = shouldPersistTrajectory(opts.persist);
   }
 
-  /** Mark the beginning of collection. Call once before agent.execute(). */
+  /** Mark the beginning of collection. Retained as a no-op for compatibility. */
   start(): void {
-    if (this.startedAt) return;
-    this.startedAt = new Date().toISOString();
+    return;
   }
 
   /** Ingest an evidence callback event from agent.execute(). */
   record(event: AgentEvidenceEvent): void {
-    if (!this.startedAt) this.start();
     switch (event.type) {
       case "screenshot":
         this.onScreenshot(event);
@@ -190,9 +182,6 @@ export class TrajectoryRecorder {
    * write the on-disk layout. Idempotent.
    */
   async finish(opts: TrajectoryFinishOptions): Promise<Trajectory> {
-    if (!this.startedAt) this.start();
-    this.endedAt = new Date().toISOString();
-
     const steps = this.assembleSteps();
     const trajectory: Trajectory = {
       task: this.taskSpec,
@@ -203,7 +192,6 @@ export class TrajectoryRecorder {
         : {}),
       status: opts.status,
       usage: { ...ZERO_USAGE, ...(opts.usage ?? {}) },
-      timing: { startedAt: this.startedAt, endedAt: this.endedAt },
     };
 
     if (this.persistEnabled) {
@@ -277,12 +265,7 @@ export class TrajectoryRecorder {
     const indices = [...this.partialSteps.keys()].sort((a, b) => a - b);
     for (const i of indices) {
       const p = this.partialSteps.get(i)!;
-      if (
-        p.actionName === undefined ||
-        p.toolOutput === undefined ||
-        p.startedAt === undefined ||
-        p.finishedAt === undefined
-      ) {
+      if (p.actionName === undefined || p.toolOutput === undefined) {
         // Provider-only screenshot refreshes are transport evidence for the
         // next CUA action. If no action arrives for this index, there is no
         // completed trajectory step to persist.
@@ -296,8 +279,6 @@ export class TrajectoryRecorder {
         agentEvidence: p.agentEvidence ?? { modalities: [] },
         probeEvidence: p.probeEvidence ?? {},
         toolOutput: p.toolOutput,
-        startedAt: p.startedAt,
-        finishedAt: p.finishedAt,
       });
     }
     return out;

@@ -197,10 +197,6 @@ function makeEmptyTrajectory(taskSpec: TaskSpec): Trajectory {
       input_tokens: 0,
       output_tokens: 0,
     },
-    timing: {
-      startedAt: new Date(0).toISOString(),
-      endedAt: new Date(0).toISOString(),
-    },
   };
 }
 
@@ -228,8 +224,6 @@ function makeTrajectory(
           ok: true,
           result: options.toolResult ?? "done",
         },
-        startedAt: new Date(0).toISOString(),
-        finishedAt: new Date(0).toISOString(),
       },
     ],
     finalAnswer: options.finalAnswer,

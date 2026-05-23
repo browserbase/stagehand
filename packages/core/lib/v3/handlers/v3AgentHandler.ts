@@ -327,7 +327,6 @@ export class V3AgentHandler {
 
           const stepIndex = stepCounter++;
           stepIndicesInTurn.push(stepIndex);
-          const finishedAt = new Date().toISOString();
           await evidenceCallback?.({
             type: "step_finished",
             stepIndex,
@@ -338,7 +337,6 @@ export class V3AgentHandler {
                 : {},
             reasoning: event.text ?? "",
             toolOutput: inferToolOutput(toolResult),
-            finishedAt,
           });
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();

@@ -52,10 +52,6 @@ export interface AgentStepFinishedEvent {
     result: unknown;
     error?: string;
   };
-  /** ISO 8601 timestamp at which the step's tool execution started, when available. */
-  startedAt?: string;
-  /** ISO 8601 timestamp at which the step finished. */
-  finishedAt: string;
 }
 
 /**

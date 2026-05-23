@@ -11,8 +11,6 @@ describe("buildAgentEvidenceFromStepFinished", () => {
       actionArgs: {},
       reasoning: "",
       toolOutput: { ok: true, result: false },
-      startedAt: new Date(0).toISOString(),
-      finishedAt: new Date(1).toISOString(),
     });
 
     expect(evidence.modalities).toEqual([{ type: "text", content: "false" }]);

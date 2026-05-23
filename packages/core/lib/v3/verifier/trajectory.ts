@@ -253,7 +253,6 @@ export function shouldPersistTrajectory(
  *     ├── screenshots/
  *     │   ├── probe/<N>.png
  *     │   └── agent/<N>[_M].png
- *     ├── times.json
  *     ├── scores/            (empty; populated separately)
  *     └── core.log
  *
@@ -357,19 +356,6 @@ export async function writeTrajectoryDir(
     ),
   );
 
-  await fs.writeFile(
-    path.join(dir, "times.json"),
-    JSON.stringify(
-      {
-        timing: trajectory.timing,
-        usage: trajectory.usage,
-        stepCount: trajectory.steps.length,
-      },
-      null,
-      2,
-    ),
-  );
-
   await fs.mkdir(path.join(dir, "scores"), { recursive: true });
   await fs.writeFile(path.join(dir, "core.log"), coreLog(trajectory));
 }
@@ -384,8 +370,6 @@ function coreLog(trajectory: Trajectory): string {
           url: step.probeEvidence.url ?? null,
           ok: step.toolOutput.ok,
           reasoning: step.reasoning || undefined,
-          startedAt: step.startedAt,
-          finishedAt: step.finishedAt,
         }),
       )
       .join("\n") + "\n"
