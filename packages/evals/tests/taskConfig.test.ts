@@ -204,6 +204,10 @@ describe("cross-cutting categories", () => {
     expect(wv).toBeDefined();
     expect(wv.categories).toContain("external_agent_benchmarks");
     expect(wv.categories).not.toContain("agent");
+    const clawbench = tasksByName["agent/clawbench"];
+    expect(clawbench).toBeDefined();
+    expect(clawbench.categories).toContain("external_agent_benchmarks");
+    expect(clawbench.categories).not.toContain("agent");
   });
 
   it("does not expose core tier tasks", async () => {

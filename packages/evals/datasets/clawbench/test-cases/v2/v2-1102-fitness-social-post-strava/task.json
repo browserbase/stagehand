@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1102,
+    "metaclass": "fitness",
+    "class": "social",
+    "description": "Publish a post on Strava with the caption 'Great morning ride!' via the athlete Posts page",
+    "sites_involved": [
+      "strava.com"
+    ],
+    "platform": "strava",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Publish a post on Strava with the caption 'Great morning ride!'",
+  "eval_schema": {
+    "url_pattern": "strava\\.com\\/athletes\\/\\d+\\/posts",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

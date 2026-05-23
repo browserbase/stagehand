@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 609,
+    "metaclass": "education-learning",
+    "class": "meditation",
+    "description": "Browse upcoming weekend retreat offerings on the Spirit Rock Meditation Center website, select one session, and complete the registration",
+    "sites_involved": [
+      "spiritrock.org"
+    ],
+    "platform": "spirit-rock",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Browse upcoming weekend retreat offerings on the Spirit Rock Meditation Center website, select one session, and complete the registration",
+  "eval_schema": {
+    "url_pattern": "spirit-rock\\.secure\\.retreat\\.guru/program/.*\\?form=1",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

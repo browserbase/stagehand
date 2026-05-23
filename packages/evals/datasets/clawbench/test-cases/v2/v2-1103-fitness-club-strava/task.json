@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1103,
+    "metaclass": "fitness",
+    "class": "club",
+    "description": "Create a cycling club on Strava called 'Portland Weekend Riders' for casual group rides every Saturday morning in Portland, OR",
+    "sites_involved": [
+      "strava.com"
+    ],
+    "platform": "strava",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Create a cycling club on Strava called 'Portland Weekend Riders' for casual group rides every Saturday morning in Portland, OR",
+  "eval_schema": {
+    "url_pattern": "strava\\.com\\/clubs",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

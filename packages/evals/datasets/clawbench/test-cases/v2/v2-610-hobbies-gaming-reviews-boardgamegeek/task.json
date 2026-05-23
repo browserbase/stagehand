@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 610,
+    "metaclass": "entertainment-hobbies",
+    "class": "gaming-reviews",
+    "description": "Add yourself as a fan to 'Brass: Birmingham' (2018) on BoardGameGeek",
+    "sites_involved": [
+      "boardgamegeek.com"
+    ],
+    "platform": "boardgamegeek",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Add yourself as a fan to 'Brass: Birmingham' (2018) on BoardGameGeek",
+  "eval_schema": {
+    "url_pattern": "boardgamegeek\\.com/api/fans",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

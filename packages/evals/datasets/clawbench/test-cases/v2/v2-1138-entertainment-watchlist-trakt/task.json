@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1138,
+    "metaclass": "entertainment",
+    "class": "history",
+    "description": "Mark the first 3 episodes of 'Stranger Things' Season 1 as watched on Trakt.tv",
+    "sites_involved": [
+      "trakt.tv"
+    ],
+    "platform": "trakt",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Mark the first 3 episodes of 'Stranger Things' Season 1 as watched on Trakt.tv",
+  "eval_schema": {
+    "url_pattern": "trakt\\.tv.*(sync/history)",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

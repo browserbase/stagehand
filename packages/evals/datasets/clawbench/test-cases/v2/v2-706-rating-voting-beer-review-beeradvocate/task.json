@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 706,
+    "metaclass": "rating-voting",
+    "class": "beer-review",
+    "description": "Submit a review for an Imperial Stout on BeerAdvocate with all dimension scores filled and exactly this comment: \"Rich malt, roasty aroma, full body.\"",
+    "sites_involved": [
+      "beeradvocate.com"
+    ],
+    "platform": "beeradvocate",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Submit a review for an Imperial Stout on BeerAdvocate with all dimension scores filled and exactly this comment: \"Rich malt, roasty aroma, full body.\"",
+  "eval_schema": {
+    "url_pattern": "beeradvocate\\.com/beer/rate/\\d+",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1117,
+    "metaclass": "web_task",
+    "class": "registration",
+    "description": "Register for a free recurring wellness meetup event in Austin on Eventbrite",
+    "sites_involved": [
+      "https://www.eventbrite.com"
+    ],
+    "platform": "Eventbrite",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search for the 'Hearts2Heal Monthly Wellness Meetup' event in Austin, TX on Eventbrite and register for the next available date.\n\nNote: The event is free and held on the 4th Tuesday of each month at Capital Factory, Austin TX. Event URL: https://www.eventbrite.com/e/hearts2heal-monthly-wellness-meetup-tickets-1983102574183",
+  "eval_schema": {
+    "url_pattern": "eventbrite\\.com/purchase-flow-webapp/api/v\\d+/orders/create",
+    "method": "POST"
+  },
+  "time_limit": 120,
+  "extra_info": []
+}

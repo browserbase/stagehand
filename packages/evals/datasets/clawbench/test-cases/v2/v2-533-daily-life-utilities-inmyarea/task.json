@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 533,
+    "metaclass": "daily-life",
+    "class": "utilities",
+    "description": "On InMyArea, enter home address (ZIP 90210), select an internet service plan, click Order Now, then on the provider's signup page fill in personal information and complete the subscription",
+    "sites_involved": [
+      "inmyarea.com"
+    ],
+    "platform": "inmyarea",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On InMyArea, enter home address (ZIP 90210), select an internet service plan, click Order Now, then on the provider's signup page fill in personal information and complete the subscription",
+  "eval_schema": {
+    "url_pattern": "att\\.com/msapi/salesapi/wireless-sales-eapi/v2/addtocart",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

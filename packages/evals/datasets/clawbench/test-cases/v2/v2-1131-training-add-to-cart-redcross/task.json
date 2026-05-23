@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1131,
+    "metaclass": "charity",
+    "class": "training",
+    "description": "Add the Adult First Aid/CPR/AED Online course to the shopping cart without completing purchase",
+    "sites_involved": [
+      "redcross.org"
+    ],
+    "platform": "redcross",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Add the 'Adult First Aid/CPR/AED Online' course to the cart on the Red Cross training website",
+  "eval_schema": {
+    "url_pattern": "redcross\\.org\\/on\\/demandware\\.store\\/Sites-RedCross-Site\\/default\\/Product-Detail",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

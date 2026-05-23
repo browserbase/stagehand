@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 794,
+    "metaclass": "beauty-personal-care",
+    "class": "salon-booking",
+    "description": "On StyleSeat, search for hairstylists in your city, select one rated 4.8 stars or above, and book a haircut appointment at the earliest available time slot",
+    "sites_involved": [
+      "styleseat.com"
+    ],
+    "platform": "styleseat",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On StyleSeat, search for hairstylists in your city, select one rated 4.8 stars or above, and book a haircut appointment at the earliest available time slot",
+  "eval_schema": {
+    "url_pattern": "styleseat\\.com/api/v1/appointment-request/",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

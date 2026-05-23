@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 602,
+    "metaclass": "hobbies-crafts",
+    "class": "community",
+    "description": "Search for worsted weight yarn on Ravelry and add the most popular brand to your stash",
+    "sites_involved": [
+      "ravelry.com"
+    ],
+    "platform": "ravelry",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search for worsted weight yarn on Ravelry and add the most popular result to your stash",
+  "eval_schema": {
+    "url_pattern": "ravelry\\.com/people/[^/]+/stash/[^/]+/quick",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

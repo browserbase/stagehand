@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1136,
+    "metaclass": "events",
+    "class": "tickets",
+    "description": "Find a Broadway or theater show in New York City on Ticketmaster, open the event page for one of the results, and use the 'Best Seats' option to view the top recommended seats for 4 tickets",
+    "sites_involved": [
+      "ticketmaster.com"
+    ],
+    "platform": "ticketmaster",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Find a Broadway or theater show in New York City on Ticketmaster, open the event page for one of the results, and use the 'Best Seats' option to view the top recommended seats for 4 tickets",
+  "eval_schema": {
+    "url_pattern": "services\\.ticketmaster\\.com/api/ismds/event/[A-Z0-9]+/quickpicks.*qty=4.*sort=-quality",
+    "method": "GET"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 475,
+    "metaclass": "rating-voting",
+    "class": "general",
+    "description": "Write a 4-star review for Jira on G2 with exactly this text: \"Powerful tracking, complex UI.\"",
+    "sites_involved": [
+      "g2.com"
+    ],
+    "platform": "g2",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Write a 4-star review for Jira on G2 with exactly this text: \"Powerful tracking, complex UI.\"",
+  "eval_schema": {
+    "url_pattern": "g2\\.com/survey_responses/.+/autosave_answers\\.json",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

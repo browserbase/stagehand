@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 180,
+    "metaclass": "dev-tech",
+    "class": "github-ops",
+    "description": "Fork huggingface/transformers on GitHub and create branch \"fix-tokenizer-bug\"",
+    "sites_involved": [
+      "github.com"
+    ],
+    "platform": "github",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Fork huggingface/transformers on GitHub and create branch \"fix-tokenizer-bug\"",
+  "eval_schema": {
+    "url_pattern": "github\\.com/[^/]+/transformers/branches$",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

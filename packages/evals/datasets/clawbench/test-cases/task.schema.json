@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "task.schema.json",
+  "title": "ClawBench Test Case",
+  "description": "Schema for ClawBench test case task.json files",
+  "type": "object",
+  "properties": {
+    "$schema": true,
+    "metadata": {
+      "type": "object",
+      "description": "Human-readable metadata for documentation purposes (not read by the agent)",
+      "properties": {
+        "task_id": {
+          "type": "integer",
+          "description": "Unique numeric identifier for the test case"
+        },
+        "metaclass": {
+          "type": "string",
+          "description": "High-level category of the test case"
+        },
+        "class": {
+          "type": "string",
+          "description": "Granular sub-category of the test case"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the test case"
+        },
+        "sites_involved": {
+          "type": "array",
+          "description": "Site domains involved in the test case (e.g., google.com, uber.com, github.com, etc.)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "platform": {
+          "type": "string",
+          "description": "Platform involved in the test case (e.g., google, uber, github, etc.)"
+        },
+        "common_info": {
+          "type": "object",
+          "description": "Common information that is shared among all test cases",
+          "properties": {
+            "email_credentials": {
+              "const": "credentials to use the assigned disposable email account"
+            },
+            "user_info": {
+              "const": "alex_green_personal_info.json; the dummy user's personal information"
+            },
+            "user_resume": {
+              "const": "PDF resume with disposable email account injected"
+            }
+          },
+          "required": ["email_credentials", "user_info", "user_resume"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "task_id",
+        "metaclass",
+        "class",
+        "description",
+        "sites_involved",
+        "platform",
+        "common_info"
+      ]
+    },
+    "instruction": {
+      "type": "string",
+      "description": "Task prompt sent to the agent"
+    },
+    "eval_schema": {
+      "type": "object",
+      "description": "Configuration for the request interceptor. The interceptor blocks HTTP requests matching the URL pattern, method, and optional body/params filters, preventing irreversible actions (checkout, submission, etc.) from reaching the server.",
+      "properties": {
+        "url_pattern": {
+          "type": "string",
+          "description": "Regex pattern the request URL must match to be blocked by the interceptor"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+          "description": "HTTP method the request must match to be blocked"
+        },
+        "body": {
+          "type": "object",
+          "description": "Key-value pairs that must match exactly in the request body. Used to disambiguate when URL + method alone isn't specific enough (e.g., same endpoint for login vs send)."
+        },
+        "params": {
+          "type": "object",
+          "description": "Key-value pairs that must match exactly in the URL query parameters. Used to disambiguate when URL + method alone isn't specific enough."
+        }
+      },
+      "required": ["url_pattern", "method"],
+      "additionalProperties": false
+    },
+    "time_limit": {
+      "type": "number",
+      "description": "Maximum time in minutes before the driver stops the container",
+      "minimum": 1
+    },
+    "extra_info": {
+      "type": "array",
+      "description": "Additional context injected into the agent prompt",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Relative path to a file in the test case directory (optional)"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description text injected into the agent prompt"
+          }
+        },
+        "required": [
+          "path",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "judge_context": {
+      "type": "object",
+      "description": "Hidden context used only by the LLM judge; never injected into the agent prompt.",
+      "properties": {
+        "rubric": {
+          "type": "string",
+          "description": "Task-specific judging rubric"
+        },
+        "reference_solution": {
+          "type": "string",
+          "description": "Reference solution or expected answer details"
+        },
+        "source_task_yaml": {
+          "type": "string",
+          "description": "Raw source task.yaml content, when converted from another corpus"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "instruction",
+    "eval_schema",
+    "time_limit"
+  ],
+  "additionalProperties": false
+}

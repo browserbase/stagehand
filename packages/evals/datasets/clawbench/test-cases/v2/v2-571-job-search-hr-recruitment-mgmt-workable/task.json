@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 571,
+    "metaclass": "job-search-hr",
+    "class": "recruitment-mgmt",
+    "description": "Sign up for a Workable free trial, create a new job position, and publish it to the Workable careers page",
+    "sites_involved": [
+      "workable.com"
+    ],
+    "platform": "workable",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Sign up for a Workable free trial, create a new job position, and publish it to the Workable careers page",
+  "eval_schema": {
+    "url_pattern": "workable\\.com.*(jobs?/(create|publish|new|draft)|api/(spi|v\\d+)/jobs|careers/publish|/openings)",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

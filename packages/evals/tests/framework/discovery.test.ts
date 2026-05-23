@@ -84,6 +84,20 @@ describe("discovery", () => {
     expect(tasks[0].categories).toEqual(["observe", "regression"]);
   });
 
+  it("classifies ClawBench as an external agent benchmark", async () => {
+    const root = makeTempRoot();
+    const tasksRoot = path.join(root, "tasks");
+
+    writeFile(path.join(tasksRoot, "bench", "agent", "clawbench.ts"));
+
+    const registry = await discoverTasks(tasksRoot, false);
+    const task = registry.byName.get("agent/clawbench");
+
+    expect(task).toBeDefined();
+    expect(task?.categories).toEqual(["external_agent_benchmarks"]);
+    expect(task?.primaryCategory).toBe("external_agent_benchmarks");
+  });
+
   it("rejects empty tier-qualified category targets", async () => {
     const root = makeTempRoot();
     const tasksRoot = path.join(root, "tasks");

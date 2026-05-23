@@ -1,0 +1,47 @@
+{
+  "models": [
+    "GPT-4o",
+    "Claude 3.5 Sonnet",
+    "Gemini 1.5 Pro",
+    "Llama 3.1 70B",
+    "Mistral Large"
+  ],
+  "metrics": [
+    "Accuracy",
+    "F1-Score",
+    "Latency (ms)",
+    "Cost ($/1K tokens)"
+  ],
+  "results": {
+    "GPT-4o": [
+      0.923,
+      0.918,
+      342,
+      0.015
+    ],
+    "Claude 3.5 Sonnet": [
+      0.931,
+      0.926,
+      298,
+      0.018
+    ],
+    "Gemini 1.5 Pro": [
+      0.908,
+      0.902,
+      410,
+      0.007
+    ],
+    "Llama 3.1 70B": [
+      0.887,
+      0.881,
+      520,
+      0.001
+    ],
+    "Mistral Large": [
+      0.901,
+      0.895,
+      380,
+      0.008
+    ]
+  }
+}
