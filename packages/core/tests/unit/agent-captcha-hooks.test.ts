@@ -553,7 +553,7 @@ describe("v3 cua handler screenshot behavior", () => {
     );
     expect(
       logs.some((line) =>
-        line.message.includes("CUA screenshot evidence callback failed"),
+        line.message.includes("onEvidence callback failed for screenshot"),
       ),
     ).toBe(true);
   });
