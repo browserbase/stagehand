@@ -378,7 +378,7 @@ interface DaemonResponse {
 // Default viewport matching Stagehand core
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
-async function runDaemon(session: string, headless: boolean): Promise<void> {
+async function runDaemon(session: string, headless: boolean, chromeArgs: string[] = []): Promise<void> {
   // Only clean daemon state files (socket, pid, etc.), not client-written config (context)
   await cleanupDaemonStateFiles(session);
 
@@ -455,6 +455,7 @@ async function runDaemon(session: string, headless: boolean): Promise<void> {
           localConfig: await readLocalConfig(session),
           headless,
           defaultViewport: DEFAULT_VIEWPORT,
+          extraArgs: chromeArgs.length ? chromeArgs : undefined,
           discoverLocalCdp,
           resolveWsTarget,
         });
@@ -1452,6 +1453,7 @@ async function sendCommand(
   command: string,
   args: unknown[],
   headless: boolean = false,
+  chromeArgs: string[] = [],
 ): Promise<unknown> {
   const maxRetries = 3;
 
@@ -1482,14 +1484,14 @@ async function sendCommand(
 
       // Attempt 1: Try to restart daemon without cleanup
       if (attempt === 1) {
-        await ensureDaemon(session, headless);
+        await ensureDaemon(session, headless, chromeArgs);
         continue;
       }
 
       // Final attempt: Full cleanup and restart
       await killChromeProcesses(session);
       await cleanupStaleFiles(session);
-      await ensureDaemon(session, headless);
+      await ensureDaemon(session, headless, chromeArgs);
     }
   }
 
@@ -1509,7 +1511,7 @@ async function stopDaemonAndCleanup(session: string): Promise<void> {
   await cleanupDaemonStateFiles(session);
 }
 
-async function ensureDaemon(session: string, headless: boolean): Promise<void> {
+async function ensureDaemon(session: string, headless: boolean, chromeArgs: string[] = []): Promise<void> {
   const wantMode = await getDesiredMode(session);
   assertModeSupported(wantMode);
 
@@ -1540,6 +1542,7 @@ async function ensureDaemon(session: string, headless: boolean): Promise<void> {
 
     const args = ["--session", session, "daemon"];
     if (headless) args.push("--headless");
+    for (const ca of chromeArgs) args.push("--chrome-arg", ca);
 
     const child = spawn(process.argv[0], [process.argv[1], ...args], {
       detached: true,
@@ -1602,6 +1605,7 @@ interface GlobalOpts {
   json?: boolean;
   session?: string;
   connect?: string;
+  chromeArg?: string[];
   // Session creation flags (remote only)
   proxies?: boolean;
   advancedStealth?: boolean;
@@ -1659,6 +1663,7 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
   const opts = program.opts<GlobalOpts>();
   const session = getSession(opts);
   const headless = isHeadless(opts);
+  const chromeArgs = opts.chromeArg ?? [];
   // If --ws provided, bypass daemon and connect directly
   if (opts.ws) {
     const cdpUrl = await resolveWsTarget(opts.ws);
@@ -1668,6 +1673,7 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
       disablePino: true,
       localBrowserLaunchOptions: {
         cdpUrl,
+        ...(chromeArgs.length ? { args: chromeArgs } : {}),
       },
     });
     await stagehand.init();
@@ -1738,8 +1744,8 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
     }
   }
 
-  await ensureDaemon(session, headless);
-  return sendCommand(session, command, args, headless);
+  await ensureDaemon(session, headless, chromeArgs);
+  return sendCommand(session, command, args, headless, chromeArgs);
 }
 
 program
@@ -1752,6 +1758,12 @@ program
   )
   .option("--headless", "Run Chrome in headless mode")
   .option("--headed", "Run Chrome with visible window (default)")
+  .option(
+    "--chrome-arg <arg>",
+    "Extra Chromium flag for the local browser (repeatable, e.g. --chrome-arg=--no-focus-on-navigate)",
+    (val: string, prev: string[]) => prev.concat(val),
+    [] as string[],
+  )
   .option("--json", "Output as JSON", false)
   .option(
     "--session <name>",
@@ -1795,7 +1807,7 @@ program
       console.log(JSON.stringify({ status: "already running", session }));
       return;
     }
-    await ensureDaemon(session, isHeadless(opts));
+    await ensureDaemon(session, isHeadless(opts), opts.chromeArg ?? []);
     console.log(JSON.stringify({ status: "started", session }));
   });
 
@@ -1996,7 +2008,7 @@ envCommand.action(
       await stopDaemonAndCleanup(session);
     }
 
-    await ensureDaemon(session, isHeadless(opts));
+    await ensureDaemon(session, isHeadless(opts), opts.chromeArg ?? []);
 
     if (mapped === "local") {
       logLocalModeHint(localConfig, await waitForLocalInfo(session));
@@ -2032,7 +2044,7 @@ program
   .description("Run as daemon (internal use)")
   .action(async () => {
     const opts = program.opts<GlobalOpts>();
-    await runDaemon(getSession(opts), isHeadless(opts));
+    await runDaemon(getSession(opts), isHeadless(opts), opts.chromeArg ?? []);
   });
 
 // ==================== NAVIGATION ====================

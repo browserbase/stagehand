@@ -18,6 +18,7 @@ export interface LocalInfo {
 export interface LocalBrowserLaunchOptions {
   cdpUrl?: string;
   headless?: boolean;
+  args?: string[];
   viewport?: {
     width: number;
     height: number;
@@ -36,6 +37,7 @@ interface ResolveLocalStrategyOptions {
     width: number;
     height: number;
   };
+  extraArgs?: string[];
   discoverLocalCdp: () => Promise<LocalCdpDiscovery | null>;
   resolveWsTarget: (input: string) => Promise<string>;
 }
@@ -82,12 +84,15 @@ export async function resolveLocalStrategy({
   localConfig,
   headless,
   defaultViewport,
+  extraArgs,
   discoverLocalCdp,
   resolveWsTarget,
 }: ResolveLocalStrategyOptions): Promise<ResolvedLocalStrategy> {
+  const argsOption = extraArgs?.length ? { args: extraArgs } : {};
+
   if (localConfig.strategy === "isolated") {
     return {
-      localLaunchOptions: { headless, viewport: defaultViewport },
+      localLaunchOptions: { headless, viewport: defaultViewport, ...argsOption },
       localInfo: { localSource: "isolated" },
     };
   }
@@ -119,7 +124,7 @@ export async function resolveLocalStrategy({
   }
 
   return {
-    localLaunchOptions: { headless, viewport: defaultViewport },
+    localLaunchOptions: { headless, viewport: defaultViewport, ...argsOption },
     localInfo: {
       localSource: "isolated-fallback",
       fallbackReason: "no debuggable local browser found",
