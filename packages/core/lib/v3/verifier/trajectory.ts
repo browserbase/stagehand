@@ -268,11 +268,19 @@ export async function writeTrajectoryDir(
   await fs.mkdir(path.join(dir, "screenshots", "agent"), { recursive: true });
 
   const serializableSteps: unknown[] = [];
+  // A single post-turn probe is fanned across every step of a multi-tool turn,
+  // so the same screenshot Buffer is shared by reference. Dedupe by identity:
+  // write the PNG once and point every sharing step's screenshotPath at it.
+  const probePathByBuffer = new Map<Buffer, string>();
   for (const [i, step] of trajectory.steps.entries()) {
     const probe: ProbeEvidence = { ...step.probeEvidence };
     if (probe.screenshot) {
-      const relPath = `screenshots/probe/${i + 1}.png`;
-      await fs.writeFile(path.join(dir, relPath), probe.screenshot);
+      let relPath = probePathByBuffer.get(probe.screenshot);
+      if (!relPath) {
+        relPath = `screenshots/probe/${i + 1}.png`;
+        await fs.writeFile(path.join(dir, relPath), probe.screenshot);
+        probePathByBuffer.set(probe.screenshot, relPath);
+      }
       probe.screenshotPath = relPath;
       delete probe.screenshot;
     }
