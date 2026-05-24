@@ -102,7 +102,6 @@ function makeTrajectory(task: TaskSpec): Trajectory {
     usage: { input_tokens: 100, output_tokens: 50 },
     steps: [
       {
-        index: 0,
         actionName: "goto",
         actionArgs: { url: "https://example.com" },
         reasoning: "Open the page.",

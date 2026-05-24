@@ -87,11 +87,9 @@ export function actionToAgentEvidence(
 }
 
 export function toolCallToTrajectoryStep(
-  index: number,
   call: NormalizedToolCall,
 ): TrajectoryStep {
   return {
-    index,
     actionName: call.name,
     actionArgs: call.args,
     reasoning: call.reasoning ?? "",
@@ -122,8 +120,8 @@ export interface BuildTrajectoryOptions {
 }
 
 export function buildTrajectory(opts: BuildTrajectoryOptions): Trajectory {
-  const steps: TrajectoryStep[] = opts.toolCalls.map((call, idx) =>
-    toolCallToTrajectoryStep(idx, call),
+  const steps: TrajectoryStep[] = opts.toolCalls.map((call) =>
+    toolCallToTrajectoryStep(call),
   );
 
   return {
