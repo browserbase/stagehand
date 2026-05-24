@@ -89,8 +89,6 @@ export interface ProbeEvidence {
   screenshot?: Buffer;
   /** Reference to the persisted screenshot file under the trajectory dir. */
   screenshotPath?: string;
-  /** Viewport scroll context. Lets the verifier reason about whether the agent saw the full page. */
-  scroll?: { top: number; pageHeight: number };
   /** Accessibility tree snapshot. */
   ariaTree?: string;
   /** Verifier-requested probes, keyed by criterion id. */
@@ -111,7 +109,6 @@ export interface ToolOutput {
 
 /** One step in a trajectory: action + reasoning + evidence + outcome. */
 export interface TrajectoryStep {
-  index: number;
   actionName: string;
   actionArgs: Record<string, unknown>;
   /** From AgentAction.reasoning. May be empty for tools that don't surface reasoning. */

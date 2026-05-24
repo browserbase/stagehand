@@ -81,7 +81,6 @@ describe("verifier trajectory utilities", () => {
         usage: { input_tokens: 0, output_tokens: 0 },
         steps: [
           {
-            index: 0,
             actionName: "act",
             actionArgs: {},
             reasoning: "",
@@ -127,7 +126,6 @@ describe("verifier trajectory utilities", () => {
         usage: { input_tokens: 0, output_tokens: 0 },
         steps: [
           {
-            index: 0,
             actionName: "act",
             actionArgs: {},
             reasoning: "",
@@ -171,7 +169,6 @@ describe("verifier trajectory utilities", () => {
       },
       steps: [
         {
-          index: 0,
           actionName: "click",
           actionArgs: {},
           reasoning: "",
@@ -231,7 +228,6 @@ describe("verifier trajectory utilities", () => {
         usage: { input_tokens: 0, output_tokens: 0 },
         steps: [
           {
-            index: 0,
             actionName: "act",
             actionArgs: {},
             reasoning: "",

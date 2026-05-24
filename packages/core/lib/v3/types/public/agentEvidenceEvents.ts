@@ -31,7 +31,7 @@ export interface AgentScreenshotEvidenceEvent {
   /** Page URL at the time of capture. */
   url: string;
   /** Role this screenshot plays in downstream evidence collection. */
-  evidenceRole?: AgentEvidenceRole;
+  evidenceRole: AgentEvidenceRole;
 }
 
 /**
@@ -64,8 +64,6 @@ export interface AgentStepObservedEvent {
   url: string;
   /** Accessibility tree snapshot, when captured. */
   ariaTree?: string;
-  /** Viewport scroll context, when captured. */
-  scroll?: { top: number; pageHeight: number };
 }
 
 export interface AgentFinalObservation {
@@ -75,8 +73,6 @@ export interface AgentFinalObservation {
   screenshot?: Buffer;
   /** Accessibility tree snapshot, when captured. */
   ariaTree?: string;
-  /** Viewport scroll context, when captured. */
-  scroll?: { top: number; pageHeight: number };
 }
 
 /** Final answer emitted by the agent, when available. */

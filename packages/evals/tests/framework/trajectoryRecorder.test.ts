@@ -84,7 +84,6 @@ describe("TrajectoryRecorder", () => {
     const staleScreenshot = Buffer.from("stale-screen");
     const probeScreenshot = Buffer.from("probe-screen");
 
-    recorder.start();
     recorder.record({
       type: "screenshot",
       screenshot: staleScreenshot,
@@ -138,7 +137,6 @@ describe("TrajectoryRecorder", () => {
 
     expect(trajectory.steps).toHaveLength(2);
     expect(trajectory.steps[0]).toMatchObject({
-      index: 0,
       actionName: "click",
       probeEvidence: {
         url: "https://example.com/search",
@@ -146,7 +144,6 @@ describe("TrajectoryRecorder", () => {
       },
     });
     expect(trajectory.steps[1]).toMatchObject({
-      index: 1,
       actionName: "extract",
       toolOutput: { ok: true, result: { economy: "$100", business: "$250" } },
     });
@@ -182,7 +179,6 @@ describe("TrajectoryRecorder", () => {
     });
     const screenshot = Buffer.from("screen-1");
 
-    recorder.start();
     recordSimpleStep(recorder, screenshot);
     recordFinalAnswer(recorder, {
       message: "Complete.",

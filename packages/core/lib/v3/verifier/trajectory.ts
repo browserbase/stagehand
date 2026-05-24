@@ -268,10 +268,10 @@ export async function writeTrajectoryDir(
   await fs.mkdir(path.join(dir, "screenshots", "agent"), { recursive: true });
 
   const serializableSteps: unknown[] = [];
-  for (const step of trajectory.steps) {
+  for (const [i, step] of trajectory.steps.entries()) {
     const probe: ProbeEvidence = { ...step.probeEvidence };
     if (probe.screenshot) {
-      const relPath = `screenshots/probe/${step.index + 1}.png`;
+      const relPath = `screenshots/probe/${i + 1}.png`;
       await fs.writeFile(path.join(dir, relPath), probe.screenshot);
       probe.screenshotPath = relPath;
       delete probe.screenshot;
@@ -296,7 +296,7 @@ export async function writeTrajectoryDir(
         continue;
       }
       const suffix = multipleImages ? `_${imageSeq}` : "";
-      const relPath = `screenshots/agent/${step.index + 1}${suffix}.png`;
+      const relPath = `screenshots/agent/${i + 1}${suffix}.png`;
       await fs.writeFile(path.join(dir, relPath), m.bytes);
       modalities.push({
         type: "image",
@@ -363,9 +363,9 @@ export async function writeTrajectoryDir(
 function coreLog(trajectory: Trajectory): string {
   return (
     trajectory.steps
-      .map((step) =>
+      .map((step, i) =>
         JSON.stringify({
-          step: step.index,
+          step: i,
           action: step.actionName,
           url: step.probeEvidence.url ?? null,
           ok: step.toolOutput.ok,

@@ -212,7 +212,6 @@ function makeTrajectory(
     ...makeEmptyTrajectory(taskSpec),
     steps: [
       {
-        index: 0,
         actionName: "act",
         actionArgs: {},
         reasoning: "I completed the task.",

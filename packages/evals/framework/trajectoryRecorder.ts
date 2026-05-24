@@ -23,11 +23,6 @@ import type {
   EvaluationResult,
 } from "@browserbasehq/stagehand";
 
-interface PendingScreenshot {
-  screenshot: Buffer;
-  url: string;
-}
-
 export interface TrajectoryRecorderOptions {
   taskSpec: TaskSpec;
   /**
@@ -68,9 +63,9 @@ export class TrajectoryRecorder {
   // consumes it. A second agent-role screenshot before any step_finished
   // overwrites the first — that's the desired behavior when a turn is skipped
   // (e.g., captcha guard short-circuits before emitting step_finished).
-  private pendingAgentScreenshot?: PendingScreenshot;
+  private pendingAgentScreenshot?: Buffer;
   // The most recent probe-role screenshot waits for the matching step_observed.
-  private pendingProbeScreenshot?: PendingScreenshot;
+  private pendingProbeScreenshot?: Buffer;
   // Steps that haven't yet had a probe attached. The next step_observed fans
   // out to all of them (one probe per agent turn, N tool calls per turn).
   private stepsAwaitingProbe: number[] = [];
@@ -78,36 +73,30 @@ export class TrajectoryRecorder {
   private finalObservation?: ProbeEvidence;
 
   private onScreenshot(e: AgentScreenshotEvidenceEvent): void {
-    const role = e.evidenceRole ?? "probe";
-    if (role === "agent") {
-      this.pendingAgentScreenshot = { screenshot: e.screenshot, url: e.url };
+    if (e.evidenceRole === "agent") {
+      this.pendingAgentScreenshot = e.screenshot;
     } else {
-      this.pendingProbeScreenshot = { screenshot: e.screenshot, url: e.url };
+      this.pendingProbeScreenshot = e.screenshot;
     }
   }
 
   private onStepFinished(e: AgentStepFinishedEvent): void {
-    const agentEvidence: AgentEvidence = this.pendingAgentScreenshot
-      ? mergeAgentEvidence(
-          { modalities: [] },
-          {
-            modalities: [
-              {
-                type: "image",
-                bytes: this.pendingAgentScreenshot.screenshot,
-                mediaType: "image/png",
-              },
-            ],
-          },
-        )
-      : { modalities: [] };
+    const modalities: AgentEvidence["modalities"] = [];
+    if (this.pendingAgentScreenshot) {
+      modalities.push({
+        type: "image",
+        bytes: this.pendingAgentScreenshot,
+        mediaType: "image/png",
+      });
+    }
     const merged = mergeAgentEvidence(
-      agentEvidence,
+      { modalities },
       buildAgentEvidenceFromStepFinished(e),
     );
 
-    const step: TrajectoryStep = {
-      index: this.steps.length,
+    this.pendingAgentScreenshot = undefined;
+    this.stepsAwaitingProbe.push(this.steps.length);
+    this.steps.push({
       actionName: e.actionName,
       actionArgs: e.actionArgs,
       reasoning: e.reasoning,
@@ -117,19 +106,14 @@ export class TrajectoryRecorder {
         ...e.toolOutput,
         result: redactInlineImagePayloads(e.toolOutput.result, e.actionName),
       },
-    };
-    this.pendingAgentScreenshot = undefined;
-    this.steps.push(step);
-    this.stepsAwaitingProbe.push(step.index);
+    });
   }
 
   private onStepObserved(e: AgentStepObservedEvent): void {
-    if (this.stepsAwaitingProbe.length === 0) return;
     const probe: ProbeEvidence = { url: e.url };
     if (this.pendingProbeScreenshot)
-      probe.screenshot = this.pendingProbeScreenshot.screenshot;
+      probe.screenshot = this.pendingProbeScreenshot;
     if (e.ariaTree !== undefined) probe.ariaTree = e.ariaTree;
-    if (e.scroll !== undefined) probe.scroll = e.scroll;
     for (const idx of this.stepsAwaitingProbe) {
       this.steps[idx].probeEvidence = probe;
     }
@@ -148,9 +132,6 @@ export class TrajectoryRecorder {
         ...(e.observation.ariaTree !== undefined
           ? { ariaTree: e.observation.ariaTree }
           : {}),
-        ...(e.observation.scroll !== undefined
-          ? { scroll: e.observation.scroll }
-          : {}),
       };
     }
   }
@@ -161,11 +142,6 @@ export class TrajectoryRecorder {
     const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
     this.outputDir = path.join(root, this.runId, opts.taskSpec.id);
     this.persistEnabled = shouldPersistTrajectory(opts.persist);
-  }
-
-  /** Mark the beginning of collection. Retained as a no-op for compatibility. */
-  start(): void {
-    return;
   }
 
   /** Ingest an evidence callback event from agent.execute(). */
