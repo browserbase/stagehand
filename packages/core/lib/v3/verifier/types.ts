@@ -149,9 +149,8 @@ export interface CanonicalScreenshot {
   /** 0-based position in the kept-screenshots array. Stable across the pipeline. */
   canonicalIndex: number;
   /**
-   * Trajectory step index this screenshot came from. Matches
-   * `Trajectory.steps[i].index`. Lets downstream prompts cross-reference the
-   * action history.
+   * 0-based trajectory step position this screenshot came from. Lets downstream
+   * prompts cross-reference the action history.
    */
   originalStepIndex: number;
   /** Position of the step in `Trajectory.steps` (0..steps.length-1). */
@@ -188,8 +187,8 @@ export interface EvidenceLoadResult {
   /** Kept frames, in chronological order. */
   screenshots: CanonicalScreenshot[];
   /**
-   * Maps `Trajectory.steps[i].index` → canonical index in `screenshots`. Step
-   * indices that were deduplicated point to the surviving canonical frame
+   * Maps trajectory step position → canonical index in `screenshots`. Steps
+   * whose screenshots were deduplicated point to the surviving canonical frame
    * (typically the prior kept frame). Useful for "find me the screenshot for
    * step K" lookups in downstream prompts.
    */

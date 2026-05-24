@@ -26,7 +26,7 @@
  *     dedup/resize steps no-op and every screenshot is kept at its native
  *     size. The verifier still runs end-to-end, just with more tokens spent
  *     on near-duplicate frames.
- *   - `originalStepIndex → canonicalScreenshotIndex` mapping is exposed so
+ *   - trajectory step position → canonicalScreenshotIndex mapping is exposed so
  *     downstream prompts can keep citing the trajectory step (e.g.,
  *     "Screenshot N — step=K, action=..."), preserving the rubric's link
  *     between visual evidence and the action history.
@@ -142,7 +142,7 @@ export async function loadAndReduceScreenshots(
     if (!buf || buf.length === 0) continue;
     rawFrames.push({
       bytes: buf,
-      originalStepIndex: step.index,
+      originalStepIndex: i,
       trajectoryStepPosition: i,
     });
   }
@@ -331,20 +331,20 @@ export async function collectCanonicalEvidence(
 
   for (let i = 0; i < trajectory.steps.length; i++) {
     const step = trajectory.steps[i];
-    addTextEvidence(i, step.index, "probe-aria", step.probeEvidence?.ariaTree);
+    addTextEvidence(i, i, "probe-aria", step.probeEvidence?.ariaTree);
 
     for (const modality of step.agentEvidence?.modalities ?? []) {
       if (modality.type === "text") {
-        addTextEvidence(i, step.index, "agent-text", modality.content);
+        addTextEvidence(i, i, "agent-text", modality.content);
       } else if (modality.type === "json") {
-        addTextEvidence(i, step.index, "agent-json", modality.content);
+        addTextEvidence(i, i, "agent-json", modality.content);
       }
     }
 
     // Defensive: agentEvidence is derived from toolOutput today, but keeping
     // the native result as a fallback preserves evidence if that mapping
     // changes or an adapter omits modalities.
-    addTextEvidence(i, step.index, "tool-output", step.toolOutput?.result);
+    addTextEvidence(i, i, "tool-output", step.toolOutput?.result);
   }
 
   // Sort by trajectoryStepPosition asc; ties → image before text so the
