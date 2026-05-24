@@ -1,5 +1,4 @@
 import type { AgentStepFinishedEvent } from "../../types/public/agentEvidenceEvents.js";
-import type { ActionExecutionResult } from "../../types/public/agent.js";
 
 const ERROR_STRING_LIMIT = 1000;
 
@@ -73,15 +72,5 @@ export function inferToolOutput(
     ok: error === undefined && !isError && !successFalse,
     result: toolResult,
     error,
-  };
-}
-
-export function inferCuaToolOutput(
-  result: ActionExecutionResult | undefined,
-): AgentStepFinishedEvent["toolOutput"] {
-  return {
-    ok: result?.success !== false,
-    result: result ?? { success: true },
-    error: result?.error,
   };
 }
