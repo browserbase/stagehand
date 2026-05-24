@@ -41,6 +41,45 @@ import {
 import { v7 as uuidv7 } from "uuid";
 
 /**
+ * Estimate the size in bytes of the serialized conversation history.
+ * This gives a rough approximation by measuring the base64 image data
+ * (which dominates payload size) plus a fixed overhead per item.
+ */
+function estimatePayloadSize(history: Content[]): number {
+  let size = 0;
+  for (const item of history) {
+    if (!item.parts) continue;
+    for (const part of item.parts) {
+      if (part.text) {
+        size += part.text.length;
+      }
+      if (part.inlineData?.data) {
+        // base64 string length ≈ actual bytes * 4/3
+        size += part.inlineData.data.length;
+      }
+      if (part.functionCall) {
+        size += JSON.stringify(part.functionCall).length;
+      }
+      if (part.functionResponse) {
+        // Count response fields
+        if (part.functionResponse.response) {
+          size += JSON.stringify(part.functionResponse.response).length;
+        }
+        // Count inline data in function response parts
+        if (part.functionResponse.parts) {
+          for (const rPart of part.functionResponse.parts) {
+            if (rPart.inlineData?.data) {
+              size += rPart.inlineData.data.length;
+            }
+          }
+        }
+      }
+    }
+  }
+  return size;
+}
+
+/**
  * Client for Google's Computer Use Assistant API
  * This implementation uses the Google Generative AI SDK for Computer Use
  */
@@ -389,6 +428,16 @@ export class GoogleCUAClient extends AgentClient {
             await new Promise((resolve) => setTimeout(resolve, delay));
           }
 
+          // Log payload size for debugging INVALID_ARGUMENT errors
+          // Screenshots are the primary contributor to payload size
+          const payloadSizeBytes = estimatePayloadSize(compressedHistory);
+          const payloadSizeMB = payloadSizeBytes / (1024 * 1024);
+          logger({
+            category: "agent",
+            message: `Payload size: ${payloadSizeMB.toFixed(2)} MB, history items: ${compressedHistory.length}`,
+            level: 2,
+          });
+
           // Use the SDK's generateContent method - following Python SDK pattern
           response = await this.client.models.generateContent({
             model: this.modelName,
@@ -419,6 +468,20 @@ export class GoogleCUAClient extends AgentClient {
             message: `API call error: ${lastError.message}`,
             level: 2,
           });
+
+          // INVALID_ARGUMENT errors are deterministic for the same payload -
+          // retrying won't help and just wastes time. Fail fast.
+          const isInvalidArgument =
+            lastError.message.includes("INVALID_ARGUMENT") ||
+            lastError.message.includes("invalid argument");
+          if (isInvalidArgument) {
+            logger({
+              category: "agent",
+              message: `INVALID_ARGUMENT error is not retryable (payload size: ${payloadSizeMB.toFixed(2)} MB). Failing immediately.`,
+              level: 0,
+            });
+            throw lastError;
+          }
 
           // If this was the last attempt, throw the error
           if (attempt === maxRetries - 1) {
@@ -577,9 +640,14 @@ export class GoogleCUAClient extends AgentClient {
 
               const screenshot = await this.captureScreenshot();
               const base64Data = screenshot.replace(
-                /^data:image\/png;base64,/,
+                /^data:image\/(png|jpeg);base64,/,
                 "",
               );
+              const screenshotMimeType = screenshot.startsWith(
+                "data:image/jpeg",
+              )
+                ? "image/jpeg"
+                : "image/png";
 
               // Create one function response for each computer use function call
               // Following Python SDK pattern: FunctionResponse with parts containing inline_data
@@ -606,7 +674,7 @@ export class GoogleCUAClient extends AgentClient {
                     parts: [
                       {
                         inlineData: {
-                          mimeType: "image/png",
+                          mimeType: screenshotMimeType,
                           data: base64Data,
                         },
                       },
@@ -990,14 +1058,22 @@ export class GoogleCUAClient extends AgentClient {
 
     // Use provided options if available
     if (options?.base64Image) {
-      return `data:image/png;base64,${options.base64Image}`;
+      // Detect format from the data (JPEG starts with /9j in base64)
+      const mimeType = options.base64Image.startsWith("/9j")
+        ? "image/jpeg"
+        : "image/png";
+      return `data:${mimeType};base64,${options.base64Image}`;
     }
 
     // Use the screenshot provider if available
     if (this.screenshotProvider) {
       try {
         const base64Image = await this.screenshotProvider();
-        return `data:image/png;base64,${base64Image}`;
+        // Detect format from the data (JPEG starts with /9j in base64)
+        const mimeType = base64Image.startsWith("/9j")
+          ? "image/jpeg"
+          : "image/png";
+        return `data:${mimeType};base64,${base64Image}`;
       } catch (error) {
         console.error("Error capturing screenshot:", error);
         throw error;
