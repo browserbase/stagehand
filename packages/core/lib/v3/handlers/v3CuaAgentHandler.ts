@@ -162,7 +162,7 @@ export class V3CuaAgentHandler {
         }
 
         action.timestamp = Date.now();
-        if (shouldLog) {
+        if (shouldLog && this.evidenceCallback) {
           await this.emitCuaActionStep(action, executionResult);
         }
 
