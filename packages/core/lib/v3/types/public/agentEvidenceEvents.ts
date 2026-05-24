@@ -2,8 +2,11 @@
  * Evidence events emitted through AgentExecuteOptions.callbacks.onEvidence.
  *
  * These events describe observations made by Stagehand during an agent run.
- * They are intentionally transport-level callback payloads; verifier-specific
- * storage and normalization live in the evals/verifier layers.
+ * They are emitted in temporal order; consumers should treat the stream as
+ * sequential (pair an agent-role screenshot with the next step_finished,
+ * apply a step_observed/probe to all steps_finished since the last probe).
+ * Verifier-specific storage and normalization live in the evals/verifier
+ * layers.
  */
 
 export type AgentEvidenceRole = "probe" | "agent";
@@ -23,8 +26,6 @@ export type AgentEvidenceEvent =
  */
 export interface AgentScreenshotEvidenceEvent {
   type: "screenshot";
-  /** Zero-based index of the step this screenshot corresponds to. */
-  stepIndex: number;
   /** PNG bytes from page.screenshot(). */
   screenshot: Buffer;
   /** Page URL at the time of capture. */
@@ -38,7 +39,6 @@ export interface AgentScreenshotEvidenceEvent {
  */
 export interface AgentStepFinishedEvent {
   type: "step_finished";
-  stepIndex: number;
   /** Name of the tool/action that ran, e.g. "act", "extract", "click". */
   actionName: string;
   /** Arguments passed to the tool/action. */
@@ -55,11 +55,11 @@ export interface AgentStepFinishedEvent {
 }
 
 /**
- * Independent post-step browser observation.
+ * Independent post-step browser observation. Emitted once per agent turn;
+ * consumers apply it to every step_finished received since the previous probe.
  */
 export interface AgentStepObservedEvent {
   type: "step_observed";
-  stepIndex: number;
   /** Page URL after the step's tool/action execution. */
   url: string;
   /** Accessibility tree snapshot, when captured. */

@@ -266,10 +266,6 @@ export class V3AgentHandler {
     state: AgentState,
     { userCallback, evidenceCallback, onFinalAnswer }: StepHandlerOptions,
   ) {
-    // Monotonic step counter scoped to this execute() call. Each tool call in
-    // the agent loop becomes one trajectory step. The counter feeds stepIndex
-    // on evidence callback events.
-    let stepCounter = 0;
     return async (event: StepResult<ToolSet>) => {
       this.logger({
         category: "agent",
@@ -277,7 +273,6 @@ export class V3AgentHandler {
         level: 2,
       });
 
-      const stepIndicesInTurn: number[] = [];
       let lastFinalAnswer: FinalAnswerDraft | undefined;
 
       if (event.toolCalls && event.toolCalls.length > 0) {
@@ -325,11 +320,8 @@ export class V3AgentHandler {
             state.actions.push(action);
           }
 
-          const stepIndex = stepCounter++;
-          stepIndicesInTurn.push(stepIndex);
           await evidenceCallback?.({
             type: "step_finished",
-            stepIndex,
             actionName: toolCall.toolName,
             actionArgs:
               typeof args === "object" && args !== null
@@ -341,14 +333,12 @@ export class V3AgentHandler {
         }
         state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
 
-        // Harness probe — take a single screenshot / a11y snapshot per AI SDK
-        // step and attach it to every tool call in that turn. The observation
-        // reflects the settled page state after the batch of tool calls; this
-        // is more faithful than dropping probe evidence for all but the last
-        // tool call, while still avoiding per-tool screenshot overhead.
+        // Harness probe — one screenshot / a11y snapshot per AI SDK step.
+        // The recorder applies the probe to every step_finished received
+        // since the previous probe, so a multi-tool turn shares the same
+        // post-turn observation.
         await emitPostStepProbeEvidence({
           v3: this.v3,
-          stepIndices: stepIndicesInTurn,
           url: state.currentPageUrl,
           evidenceCallback,
           logger: this.logger,

@@ -23,14 +23,9 @@ import type {
   EvaluationResult,
 } from "@browserbasehq/stagehand";
 
-interface PartialStep {
-  index: number;
-  actionName: string;
-  actionArgs: Record<string, unknown>;
-  reasoning: string;
-  agentEvidence: AgentEvidence;
-  probeEvidence: ProbeEvidence;
-  toolOutput: { ok: boolean; result: unknown; error?: string };
+interface PendingScreenshot {
+  screenshot: Buffer;
+  url: string;
 }
 
 export interface TrajectoryRecorderOptions {
@@ -67,65 +62,79 @@ export class TrajectoryRecorder {
   private readonly outputDir: string;
   private readonly persistEnabled: boolean;
 
-  // Events can arrive out-of-order across step indices; same-step events all
-  // fire in one microtask.
-  private readonly partialSteps = new Map<number, Partial<PartialStep>>();
+  // Steps are appended in arrival order on each step_finished event.
+  private readonly steps: TrajectoryStep[] = [];
+  // The most recent agent-role screenshot is held until the next step_finished
+  // consumes it. A second agent-role screenshot before any step_finished
+  // overwrites the first — that's the desired behavior when a turn is skipped
+  // (e.g., captcha guard short-circuits before emitting step_finished).
+  private pendingAgentScreenshot?: PendingScreenshot;
+  // The most recent probe-role screenshot waits for the matching step_observed.
+  private pendingProbeScreenshot?: PendingScreenshot;
+  // Steps that haven't yet had a probe attached. The next step_observed fans
+  // out to all of them (one probe per agent turn, N tool calls per turn).
+  private stepsAwaitingProbe: number[] = [];
   private finalAnswerEvent?: AgentFinalAnswerEvent;
   private finalObservation?: ProbeEvidence;
 
   private onScreenshot(e: AgentScreenshotEvidenceEvent): void {
-    const partial = this.ensurePartial(e.stepIndex);
-
-    // Default to probe when the emit site doesn't tag a role: matches
-    // v3AgentHandler's post-step screenshot. For CUA the pre-action shot is
-    // NOT a probe — emitCuaActionStep fills that role post-action.
     const role = e.evidenceRole ?? "probe";
-
-    if (role === "probe") {
-      const probe: ProbeEvidence = { ...(partial.probeEvidence ?? {}) };
-      probe.screenshot = e.screenshot;
-      probe.url = e.url;
-      partial.probeEvidence = probe;
-    } else if (!partial.probeEvidence?.url) {
-      // Capture URL even for tier-1-only events; a later post-action URL
-      // can still overwrite it.
-      partial.probeEvidence = {
-        ...(partial.probeEvidence ?? {}),
-        url: e.url,
-      };
-    }
-
     if (role === "agent") {
-      partial.agentEvidence = mergeAgentEvidence(partial.agentEvidence, {
-        modalities: [
-          { type: "image", bytes: e.screenshot, mediaType: "image/png" },
-        ],
-      });
+      this.pendingAgentScreenshot = { screenshot: e.screenshot, url: e.url };
+    } else {
+      this.pendingProbeScreenshot = { screenshot: e.screenshot, url: e.url };
     }
   }
 
   private onStepFinished(e: AgentStepFinishedEvent): void {
-    const partial = this.ensurePartial(e.stepIndex);
-    partial.actionName = e.actionName;
-    partial.actionArgs = e.actionArgs;
-    partial.reasoning = e.reasoning;
-    partial.toolOutput = {
-      ...e.toolOutput,
-      result: redactInlineImagePayloads(e.toolOutput.result, e.actionName),
-    };
-    partial.agentEvidence = mergeAgentEvidence(
-      partial.agentEvidence,
+    const agentEvidence: AgentEvidence = this.pendingAgentScreenshot
+      ? mergeAgentEvidence(
+          { modalities: [] },
+          {
+            modalities: [
+              {
+                type: "image",
+                bytes: this.pendingAgentScreenshot.screenshot,
+                mediaType: "image/png",
+              },
+            ],
+          },
+        )
+      : { modalities: [] };
+    const merged = mergeAgentEvidence(
+      agentEvidence,
       buildAgentEvidenceFromStepFinished(e),
     );
+
+    const step: TrajectoryStep = {
+      index: this.steps.length,
+      actionName: e.actionName,
+      actionArgs: e.actionArgs,
+      reasoning: e.reasoning,
+      agentEvidence: merged,
+      probeEvidence: {},
+      toolOutput: {
+        ...e.toolOutput,
+        result: redactInlineImagePayloads(e.toolOutput.result, e.actionName),
+      },
+    };
+    this.pendingAgentScreenshot = undefined;
+    this.steps.push(step);
+    this.stepsAwaitingProbe.push(step.index);
   }
 
   private onStepObserved(e: AgentStepObservedEvent): void {
-    const partial = this.ensurePartial(e.stepIndex);
-    const probe: ProbeEvidence = { ...(partial.probeEvidence ?? {}) };
-    probe.url = e.url;
+    if (this.stepsAwaitingProbe.length === 0) return;
+    const probe: ProbeEvidence = { url: e.url };
+    if (this.pendingProbeScreenshot)
+      probe.screenshot = this.pendingProbeScreenshot.screenshot;
     if (e.ariaTree !== undefined) probe.ariaTree = e.ariaTree;
     if (e.scroll !== undefined) probe.scroll = e.scroll;
-    partial.probeEvidence = probe;
+    for (const idx of this.stepsAwaitingProbe) {
+      this.steps[idx].probeEvidence = probe;
+    }
+    this.stepsAwaitingProbe = [];
+    this.pendingProbeScreenshot = undefined;
   }
 
   private onFinalAnswer(e: AgentFinalAnswerEvent): void {
@@ -182,10 +191,9 @@ export class TrajectoryRecorder {
    * write the on-disk layout. Idempotent.
    */
   async finish(opts: TrajectoryFinishOptions): Promise<Trajectory> {
-    const steps = this.assembleSteps();
     const trajectory: Trajectory = {
       task: this.taskSpec,
-      steps,
+      steps: this.steps,
       finalAnswer: opts.finalAnswer ?? this.finalAnswerEvent?.message,
       ...(this.finalObservation
         ? { finalObservation: this.finalObservation }
@@ -203,7 +211,10 @@ export class TrajectoryRecorder {
 
   /** Throw away in-memory state without writing to disk. Used on early abort. */
   cancel(): void {
-    this.partialSteps.clear();
+    this.steps.length = 0;
+    this.pendingAgentScreenshot = undefined;
+    this.pendingProbeScreenshot = undefined;
+    this.stepsAwaitingProbe = [];
     this.finalAnswerEvent = undefined;
     this.finalObservation = undefined;
   }
@@ -249,38 +260,5 @@ export class TrajectoryRecorder {
       taskDataPath,
       JSON.stringify({ ...taskData, result }, null, 2),
     );
-  }
-
-  private ensurePartial(stepIndex: number): Partial<PartialStep> {
-    let p = this.partialSteps.get(stepIndex);
-    if (!p) {
-      p = { index: stepIndex };
-      this.partialSteps.set(stepIndex, p);
-    }
-    return p;
-  }
-
-  private assembleSteps(): TrajectoryStep[] {
-    const out: TrajectoryStep[] = [];
-    const indices = [...this.partialSteps.keys()].sort((a, b) => a - b);
-    for (const i of indices) {
-      const p = this.partialSteps.get(i)!;
-      if (p.actionName === undefined || p.toolOutput === undefined) {
-        // Provider-only screenshot refreshes are transport evidence for the
-        // next CUA action. If no action arrives for this index, there is no
-        // completed trajectory step to persist.
-        continue;
-      }
-      out.push({
-        index: i,
-        actionName: p.actionName,
-        actionArgs: p.actionArgs ?? {},
-        reasoning: p.reasoning ?? "",
-        agentEvidence: p.agentEvidence ?? { modalities: [] },
-        probeEvidence: p.probeEvidence ?? {},
-        toolOutput: p.toolOutput,
-      });
-    }
-    return out;
   }
 }

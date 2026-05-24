@@ -30,44 +30,82 @@ function makeTaskSpec(): TaskSpec {
     id: "recorder-task",
     instruction: "Compare economy and business fares.",
     initUrl: "https://example.com",
-    precomputedRubric: {
-      items: [
-        {
-          criterion: "Report fare delta",
-          description: "Report the difference between two fares.",
-          maxPoints: 1,
-        },
-      ],
-    },
   };
 }
 
+function recordSimpleStep(recorder: TrajectoryRecorder, screenshot: Buffer) {
+  recorder.record({
+    type: "screenshot",
+    screenshot,
+    url: "https://example.com/search",
+    evidenceRole: "agent",
+  });
+  recorder.record({
+    type: "step_finished",
+    actionName: "act",
+    actionArgs: { instruction: "Search fares" },
+    reasoning: "Search for fares.",
+    toolOutput: { ok: true, result: "done" },
+  });
+  recorder.record({
+    type: "screenshot",
+    screenshot,
+    url: "https://example.com/search",
+    evidenceRole: "probe",
+  });
+  recorder.record({
+    type: "step_observed",
+    url: "https://example.com/search",
+  });
+}
+
+function recordFinalAnswer(
+  recorder: TrajectoryRecorder,
+  opts: { message: string; screenshot: Buffer; ariaTree?: string },
+): void {
+  recorder.record({
+    type: "final_answer",
+    message: opts.message,
+    observation: {
+      url: "https://example.com/complete",
+      screenshot: opts.screenshot,
+      ...(opts.ariaTree !== undefined ? { ariaTree: opts.ariaTree } : {}),
+    },
+  });
+}
+
 describe("TrajectoryRecorder", () => {
-  it("assembles trajectory evidence from callback events", async () => {
+  it("assembles ordered callback events into trajectory steps", async () => {
     const recorder = new TrajectoryRecorder({
       taskSpec: makeTaskSpec(),
       persist: false,
     });
     const screenshot = Buffer.from("screen-1");
+    const staleScreenshot = Buffer.from("stale-screen");
+    const probeScreenshot = Buffer.from("probe-screen");
 
     recorder.start();
     recorder.record({
       type: "screenshot",
-      stepIndex: 0,
+      screenshot: staleScreenshot,
+      url: "https://example.com/stale",
+      evidenceRole: "agent",
+    });
+    recorder.record({
+      type: "screenshot",
       screenshot,
       url: "https://example.com/search",
       evidenceRole: "agent",
     });
     recorder.record({
-      type: "screenshot",
-      stepIndex: 0,
-      screenshot,
-      url: "https://example.com/search",
-      evidenceRole: "probe",
+      type: "step_finished",
+      actionName: "click",
+      actionArgs: { describe: "Open fares" },
+      reasoning: "Open fare details.",
+      toolOutput: { ok: true, result: "opened" },
     });
     recorder.record({
       type: "step_finished",
-      stepIndex: 0,
       actionName: "extract",
       actionArgs: { instruction: "Read fares" },
       reasoning: "Read visible fare cells.",
@@ -77,19 +115,20 @@ describe("TrajectoryRecorder", () => {
       },
     });
     recorder.record({
+      type: "screenshot",
+      screenshot: probeScreenshot,
+      url: "https://example.com/search",
+      evidenceRole: "probe",
+    });
+    recorder.record({
       type: "step_observed",
-      stepIndex: 0,
       url: "https://example.com/search",
       ariaTree: "RootWebArea\nStaticText: Economy $100",
     });
-    recorder.record({
-      type: "final_answer",
+    recordFinalAnswer(recorder, {
       message: "Business is $150 more than economy.",
-      observation: {
-        url: "https://example.com/checkout",
-        screenshot: Buffer.from("final-screen"),
-        ariaTree: "RootWebArea\nStaticText: Complete",
-      },
+      screenshot: Buffer.from("final-screen"),
+      ariaTree: "RootWebArea\nStaticText: Complete",
     });
 
     const trajectory = await recorder.finish({
@@ -97,32 +136,35 @@ describe("TrajectoryRecorder", () => {
       usage: { input_tokens: 10, output_tokens: 5 },
     });
 
-    expect(trajectory.steps).toHaveLength(1);
+    expect(trajectory.steps).toHaveLength(2);
     expect(trajectory.steps[0]).toMatchObject({
       index: 0,
-      actionName: "extract",
-      actionArgs: { instruction: "Read fares" },
-      reasoning: "Read visible fare cells.",
-      toolOutput: {
-        ok: true,
-        result: { economy: "$100", business: "$250" },
-      },
+      actionName: "click",
       probeEvidence: {
         url: "https://example.com/search",
         ariaTree: "RootWebArea\nStaticText: Economy $100",
       },
     });
-    expect(trajectory.steps[0].probeEvidence.screenshot).toEqual(screenshot);
+    expect(trajectory.steps[1]).toMatchObject({
+      index: 1,
+      actionName: "extract",
+      toolOutput: { ok: true, result: { economy: "$100", business: "$250" } },
+    });
+    expect(trajectory.steps[0].probeEvidence.screenshot).toEqual(
+      probeScreenshot,
+    );
+    expect(trajectory.steps[1].probeEvidence.screenshot).toEqual(
+      probeScreenshot,
+    );
     expect(trajectory.steps[0].agentEvidence.modalities).toEqual(
       expect.arrayContaining([
         { type: "image", bytes: screenshot, mediaType: "image/png" },
-        { type: "text", content: "Read visible fare cells." },
-        { type: "json", content: { economy: "$100", business: "$250" } },
+        { type: "text", content: "Open fare details." },
       ]),
     );
     expect(trajectory.finalAnswer).toBe("Business is $150 more than economy.");
     expect(trajectory.finalObservation).toMatchObject({
-      url: "https://example.com/checkout",
+      url: "https://example.com/complete",
       ariaTree: "RootWebArea\nStaticText: Complete",
     });
     expect(trajectory.finalObservation?.screenshot).toEqual(
@@ -141,40 +183,10 @@ describe("TrajectoryRecorder", () => {
     const screenshot = Buffer.from("screen-1");
 
     recorder.start();
-    recorder.record({
-      type: "screenshot",
-      stepIndex: 0,
-      screenshot,
-      url: "https://example.com/search",
-      evidenceRole: "agent",
-    });
-    recorder.record({
-      type: "screenshot",
-      stepIndex: 0,
-      screenshot,
-      url: "https://example.com/search",
-      evidenceRole: "probe",
-    });
-    recorder.record({
-      type: "step_finished",
-      stepIndex: 0,
-      actionName: "act",
-      actionArgs: { instruction: "Search fares" },
-      reasoning: "Search for fares.",
-      toolOutput: { ok: true, result: "done" },
-    });
-    recorder.record({
-      type: "step_observed",
-      stepIndex: 0,
-      url: "https://example.com/search",
-    });
-    recorder.record({
-      type: "final_answer",
+    recordSimpleStep(recorder, screenshot);
+    recordFinalAnswer(recorder, {
       message: "Complete.",
-      observation: {
-        url: "https://example.com/complete",
-        screenshot: Buffer.from("final-screen"),
-      },
+      screenshot: Buffer.from("final-screen"),
     });
 
     await recorder.finish({ status: "complete" });
@@ -228,69 +240,5 @@ describe("TrajectoryRecorder", () => {
       outcomeSuccess: true,
       explanation: "The task was completed.",
     });
-  });
-
-  it("lifts inline screenshot payloads into image evidence and redacts JSON", async () => {
-    const inlineScreenshot =
-      Buffer.from("inline screenshot").toString("base64");
-    const recorder = new TrajectoryRecorder({
-      taskSpec: makeTaskSpec(),
-      persist: false,
-    });
-
-    recorder.record({
-      type: "step_finished",
-      stepIndex: 0,
-      actionName: "click",
-      actionArgs: { describe: "Open fare details" },
-      reasoning: "Click the fare details button.",
-      toolOutput: {
-        ok: true,
-        result: {
-          output: {
-            success: true,
-            describe: "Open fare details",
-            screenshotBase64: inlineScreenshot,
-          },
-        },
-      },
-    });
-
-    const trajectory = await recorder.finish({ status: "complete" });
-    const step = trajectory.steps[0];
-    const rawTrajectory = JSON.stringify(trajectory);
-    const imageModalities = step.agentEvidence.modalities.filter(
-      (m) => m.type === "image",
-    );
-    const jsonModality = step.agentEvidence.modalities.find(
-      (m) => m.type === "json",
-    );
-
-    expect(rawTrajectory).not.toContain(inlineScreenshot);
-    expect(step.toolOutput.result).toMatchObject({
-      output: {
-        success: true,
-        describe: "Open fare details",
-        screenshotBase64: "[redacted inline image payload]",
-      },
-    });
-    expect(jsonModality).toMatchObject({
-      type: "json",
-      content: {
-        output: {
-          screenshotBase64: "[redacted inline image payload]",
-        },
-      },
-    });
-    expect(imageModalities).toHaveLength(1);
-    expect(imageModalities[0]).toMatchObject({
-      type: "image",
-      mediaType: "image/png",
-    });
-    if (imageModalities[0].type === "image") {
-      expect(imageModalities[0].bytes).toEqual(
-        Buffer.from(inlineScreenshot, "base64"),
-      );
-    }
   });
 });

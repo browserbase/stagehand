@@ -12,7 +12,6 @@ import {
   emitPostStepProbeEvidence,
 } from "../agent/utils/postStepProbeEvidence.js";
 import { wrapEvidenceCallback } from "../agent/utils/wrapEvidenceCallback.js";
-import { CuaEvidenceStepTracker } from "../agent/utils/cuaEvidenceStepTracker.js";
 import { inferToolOutput } from "../agent/utils/toolOutputEvidence.js";
 import {
   ActionExecutionResult,
@@ -45,7 +44,7 @@ export class V3CuaAgentHandler {
   private captchaSolver: CaptchaSolver | null = null;
   private captchaClickGuardRemaining = 0;
   private currentInstruction = "";
-  private readonly cuaEvidenceSteps = new CuaEvidenceStepTracker();
+  private lastAgentScreenshotUrl?: string;
   private evidenceCallback?: AgentEvidenceCallback;
 
   constructor(
@@ -205,7 +204,7 @@ export class V3CuaAgentHandler {
       options.callbacks?.onEvidence,
       this.logger,
     );
-    this.cuaEvidenceSteps.reset();
+    this.lastAgentScreenshotUrl = undefined;
 
     this.highlightCursor = options.highlightCursor !== false;
     this.currentInstruction = options.instruction;
@@ -266,7 +265,7 @@ export class V3CuaAgentHandler {
         try {
           finalUrl = (await this.v3.context.awaitActivePage()).url();
         } catch {
-          finalUrl = this.cuaEvidenceSteps.latestScreenshotUrl ?? "";
+          finalUrl = this.lastAgentScreenshotUrl ?? "";
         }
         const observation = await captureProbeEvidence({
           v3: this.v3,
@@ -825,9 +824,13 @@ export class V3CuaAgentHandler {
     screenshot: Buffer,
     url: string,
   ): Promise<void> {
-    await this.evidenceCallback?.(
-      this.cuaEvidenceSteps.recordScreenshot(screenshot, url),
-    );
+    this.lastAgentScreenshotUrl = url;
+    await this.evidenceCallback?.({
+      type: "screenshot",
+      screenshot,
+      url,
+      evidenceRole: "agent",
+    });
   }
 
   private async emitCuaActionStep(
@@ -837,15 +840,11 @@ export class V3CuaAgentHandler {
     let pageUrl =
       typeof action.pageUrl === "string"
         ? action.pageUrl
-        : (this.cuaEvidenceSteps.latestScreenshotUrl ?? "");
+        : (this.lastAgentScreenshotUrl ?? "");
     try {
       pageUrl = (await this.v3.context.awaitActivePage()).url();
     } catch {
       // Keep the best pre-action URL fallback.
-    }
-    const { stepIndex, replayScreenshot } = this.cuaEvidenceSteps.pairAction();
-    if (replayScreenshot) {
-      await this.evidenceCallback?.(replayScreenshot);
     }
 
     const actionArgs = Object.fromEntries(
@@ -860,7 +859,6 @@ export class V3CuaAgentHandler {
 
     await this.evidenceCallback?.({
       type: "step_finished",
-      stepIndex,
       actionName: String(action.type),
       actionArgs,
       reasoning,
@@ -874,7 +872,6 @@ export class V3CuaAgentHandler {
     // has to trust the action history alone.
     await emitPostStepProbeEvidence({
       v3: this.v3,
-      stepIndices: stepIndex,
       url: pageUrl,
       evidenceCallback: this.evidenceCallback,
       logger: this.logger,

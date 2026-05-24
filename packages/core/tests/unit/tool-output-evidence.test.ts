@@ -3,56 +3,45 @@ import { describe, expect, it } from "vitest";
 import { inferToolOutput } from "../../lib/v3/agent/utils/toolOutputEvidence.js";
 
 describe("inferToolOutput", () => {
-  it("preserves raw results while normalizing top-level failure status", () => {
-    const result = { success: false };
-
+  it.each<[string, unknown, boolean, string | undefined]>([
+    [
+      "preserves raw results while normalizing top-level failure status",
+      { success: false },
+      false,
+      undefined,
+    ],
+    [
+      "normalizes one-level AI SDK output wrappers",
+      {
+        toolCallId: "call-1",
+        output: { success: false, error: { message: "not found" } },
+      },
+      false,
+      '{"message":"not found"}',
+    ],
+    [
+      "handles isError and non-string errors",
+      { isError: true, error: new Error("bad input") },
+      false,
+      "bad input",
+    ],
+    [
+      "normalizes non-json error values",
+      { error: Symbol("bad input") },
+      false,
+      "Symbol(bad input)",
+    ],
+    [
+      "does not recursively treat page data as tool status",
+      { data: { success: false, error: "page field" } },
+      true,
+      undefined,
+    ],
+  ])("%s", (_, result, ok, error) => {
     expect(inferToolOutput(result)).toEqual({
-      ok: false,
+      ok,
       result,
-      error: undefined,
-    });
-  });
-
-  it("normalizes one-level AI SDK output wrappers", () => {
-    const result = {
-      toolCallId: "call-1",
-      output: { success: false, error: { message: "not found" } },
-    };
-
-    expect(inferToolOutput(result)).toEqual({
-      ok: false,
-      result,
-      error: '{"message":"not found"}',
-    });
-  });
-
-  it("handles isError and non-string errors", () => {
-    const result = { isError: true, error: new Error("bad input") };
-
-    expect(inferToolOutput(result)).toEqual({
-      ok: false,
-      result,
-      error: "bad input",
-    });
-  });
-
-  it("normalizes non-json error values", () => {
-    const result = { error: Symbol("bad input") };
-
-    expect(inferToolOutput(result)).toEqual({
-      ok: false,
-      result,
-      error: "Symbol(bad input)",
-    });
-  });
-
-  it("does not recursively treat page data as tool status", () => {
-    const result = { data: { success: false, error: "page field" } };
-
-    expect(inferToolOutput(result)).toEqual({
-      ok: true,
-      result,
-      error: undefined,
+      error,
     });
   });
 });

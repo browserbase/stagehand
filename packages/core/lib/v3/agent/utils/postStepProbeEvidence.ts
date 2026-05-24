@@ -11,7 +11,6 @@ interface CaptureProbeEvidenceOptions {
 }
 
 interface EmitPostStepProbeEvidenceOptions extends CaptureProbeEvidenceOptions {
-  stepIndices: number | number[];
   evidenceCallback?: AgentEvidenceCallback;
 }
 
@@ -53,7 +52,6 @@ export async function captureProbeEvidence({
 
 export async function emitPostStepProbeEvidence({
   v3,
-  stepIndices,
   url,
   evidenceCallback,
   logger,
@@ -61,30 +59,23 @@ export async function emitPostStepProbeEvidence({
 }: EmitPostStepProbeEvidenceOptions): Promise<void> {
   if (!evidenceCallback) return;
 
-  const indices = Array.isArray(stepIndices) ? stepIndices : [stepIndices];
-  if (indices.length === 0) return;
-
   const probe = await captureProbeEvidence({
     v3,
     url,
     logger,
     warningMessage,
   });
-  for (const stepIndex of indices) {
-    if (probe.screenshot) {
-      await evidenceCallback({
-        type: "screenshot",
-        stepIndex,
-        screenshot: probe.screenshot,
-        url: probe.url,
-        evidenceRole: "probe",
-      });
-    }
+  if (probe.screenshot) {
     await evidenceCallback({
-      type: "step_observed",
-      stepIndex,
+      type: "screenshot",
+      screenshot: probe.screenshot,
       url: probe.url,
-      ariaTree: probe.ariaTree,
+      evidenceRole: "probe",
     });
   }
+  await evidenceCallback({
+    type: "step_observed",
+    url: probe.url,
+    ariaTree: probe.ariaTree,
+  });
 }
