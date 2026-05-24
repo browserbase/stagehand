@@ -1393,7 +1393,7 @@ export class RubricVerifier implements Verifier {
                     : ""
                 }`
               : "";
-          return `Screenshot ${i + 1} — step=${s.index}, action=${s.actionName}${url}, probe_screenshot=${hasScreenshot}\n  tier1: ${tier1 || "(none)"}\n  tool_output: ${toolOutput}${ariaSnippet}`;
+          return `Screenshot ${i + 1} — step=${i}, action=${s.actionName}${url}, probe_screenshot=${hasScreenshot}\n  tier1: ${tier1 || "(none)"}\n  tool_output: ${toolOutput}${ariaSnippet}`;
         })
         .join("\n\n"),
       config.evidenceTokenBudget,
@@ -1494,7 +1494,7 @@ export class RubricVerifier implements Verifier {
               OUTCOME_EVIDENCE_STEP_CHARS,
             )}`
           : "";
-        return `Step ${step.index}: ${step.actionName}(${summarizeArgs(
+        return `Step ${position}: ${step.actionName}(${summarizeArgs(
           step.actionArgs,
         )})${url}${reasoning}${toolOutput}${ariaExcerpt}`;
       });
@@ -1722,11 +1722,11 @@ export class RubricVerifier implements Verifier {
   ): string {
     const reasoningLimit = config.truncation.actionHistoryReasoning;
     const history = trajectory.steps
-      .map((s) => {
+      .map((s, i) => {
         const argSummary = summarizeArgs(s.actionArgs);
         const reasoning = (s.reasoning ?? "").slice(0, reasoningLimit);
         const url = s.probeEvidence.url ? ` @ ${s.probeEvidence.url}` : "";
-        return `Step ${s.index}: ${s.actionName}(${argSummary})${url}${reasoning ? `\n  reasoning: ${reasoning}` : ""}`;
+        return `Step ${i}: ${s.actionName}(${argSummary})${url}${reasoning ? `\n  reasoning: ${reasoning}` : ""}`;
       })
       .join("\n");
     return clampToTokenBudget(history, config.actionHistoryTokenBudget);
@@ -1780,11 +1780,12 @@ function selectRecentImages(
   const images: EvidenceImage[] = [];
   const seen = new Set<string>();
 
-  for (const step of [...trajectory.steps].reverse()) {
+  for (let i = trajectory.steps.length - 1; i >= 0; i--) {
+    const step = trajectory.steps[i];
     const candidates: EvidenceImage[] = [];
     if (step.probeEvidence.screenshot) {
       candidates.push({
-        label: `step ${step.index} probe screenshot`,
+        label: `step ${i} probe screenshot`,
         bytes: step.probeEvidence.screenshot,
         mediaType: "image/png",
       });
@@ -1792,7 +1793,7 @@ function selectRecentImages(
     for (const modality of step.agentEvidence.modalities) {
       if (modality.type === "image") {
         candidates.push({
-          label: `step ${step.index} agent image`,
+          label: `step ${i} agent image`,
           bytes: modality.bytes,
           mediaType: modality.mediaType,
         });

@@ -138,7 +138,6 @@ function makeTrajectory(task: TaskSpec, screenshot: Buffer): Trajectory {
     task,
     steps: [
       {
-        index: 0,
         actionName: "act",
         actionArgs: {},
         reasoning: "I completed the task.",
