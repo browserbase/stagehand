@@ -20,7 +20,10 @@
  *
  * Architectural notes:
  *   - This module never touches a live browser. It reads screenshots from
- *     `Trajectory.steps[i].probeEvidence.{screenshot,screenshotPath}` only.
+ *     tier-1 `agentEvidence.modalities` images (the exact frames a CUA
+ *     provider saw, plus inline act() screenshots), tier-2
+ *     `probeEvidence.{screenshot,screenshotPath}`, and the terminal
+ *     `finalObservation` — never from a live page.
  *   - `sharp` is loaded via dynamic import so core stays portable for
  *     consumers that don't install image deps; if sharp is unavailable, the
  *     dedup/resize steps no-op and every screenshot is kept at its native
@@ -127,9 +130,12 @@ export async function loadAndReduceScreenshots(
     opts.imageResize ??
     readPositiveFloatEnv("VERIFIER_IMAGE_RESIZE", DEFAULT_IMAGE_RESIZE);
 
-  // Collect raw frames in chronological order. probeEvidence.screenshot is
-  // populated either live (Buffer) or after loadTrajectoryFromDisk(). When
-  // both are absent we skip — there's no image to score.
+  // Collect raw frames in chronological order. Per step we take tier-1
+  // agent-mirrored screenshots first (the exact bytes a CUA provider saw, plus
+  // any inline act() screenshots lifted into image modalities), then the
+  // tier-2 post-action probe. Buffers are populated either live or after
+  // loadTrajectoryFromDisk(); absent/empty buffers are skipped. Dedup collapses
+  // near-identical frames downstream, so including both tiers is safe.
   const rawFrames: Array<{
     bytes: Buffer;
     originalStepIndex: number;
@@ -138,12 +144,36 @@ export async function loadAndReduceScreenshots(
 
   for (let i = 0; i < trajectory.steps.length; i++) {
     const step = trajectory.steps[i];
+    // tier-1: agent screenshots, in modality order, before the probe.
+    for (const m of step.agentEvidence?.modalities ?? []) {
+      if (m.type === "image" && m.bytes && m.bytes.length > 0) {
+        rawFrames.push({
+          bytes: m.bytes,
+          originalStepIndex: i,
+          trajectoryStepPosition: i,
+        });
+      }
+    }
+    // tier-2: post-action probe screenshot.
     const buf = step.probeEvidence?.screenshot;
-    if (!buf || buf.length === 0) continue;
+    if (buf && buf.length > 0) {
+      rawFrames.push({
+        bytes: buf,
+        originalStepIndex: i,
+        trajectoryStepPosition: i,
+      });
+    }
+  }
+
+  // Terminal page observation captured after the agent finished. Preserves the
+  // legacy final-screenshot verification behavior; positioned after every step
+  // so it anchors as the trajectory's closing frame (always kept as "last").
+  const finalShot = trajectory.finalObservation?.screenshot;
+  if (finalShot && finalShot.length > 0) {
     rawFrames.push({
-      bytes: buf,
-      originalStepIndex: i,
-      trajectoryStepPosition: i,
+      bytes: finalShot,
+      originalStepIndex: trajectory.steps.length,
+      trajectoryStepPosition: trajectory.steps.length,
     });
   }
 
@@ -264,18 +294,21 @@ export async function loadAndReduceScreenshots(
 /**
  * Collect a combined evidence-point list (images + ariaTree text snippets).
  *
- * Images go through {@link loadAndReduceScreenshots} (dedup + downscale).
+ * Images (tier-1 agent screenshots + tier-2 probes + the final observation)
+ * go through {@link loadAndReduceScreenshots} (dedup + downscale).
  * Text evidence is sourced from:
- *   - tier-2 `probeEvidence.ariaTree`
+ *   - tier-2 `probeEvidence.ariaTree` (and `finalObservation.ariaTree`)
  *   - tier-1 text/json modalities in `agentEvidence`
  *   - native `toolOutput.result`
  *
- * Text snippets are deduplicated by content hash so a "stuck on the same
- * page" agent doesn't produce a flood of identical snippets.
+ * Text snippets are deduplicated on their full normalized content so a "stuck
+ * on the same page" agent doesn't produce a flood of identical snippets.
  *
  * `canonicalIndex` is unified across both kinds: the first image gets 0,
- * the next image or text snippet gets 1, etc. Downstream Step-2 relevance
- * scoring sees all evidence points in one numbering scheme.
+ * the next image or text snippet gets 1, etc. The returned `loaded`
+ * (`screenshots[].canonicalIndex` and `stepIndexToCanonical`) is re-stamped
+ * into this same combined index space so every canonicalIndex in the result
+ * references one array.
  */
 export async function collectCanonicalEvidence(
   trajectory: Trajectory,
@@ -317,9 +350,10 @@ export async function collectCanonicalEvidence(
     const trimmed = text.length > 4000 ? text.slice(0, 4000) : text;
     const normalized = trimmed.replace(/\s+/g, " ").trim();
     if (normalized.length === 0) return;
-    const dedupKey = `${normalized.length}:${normalized.slice(0, 200)}`;
-    if (seenText.has(dedupKey)) return;
-    seenText.add(dedupKey);
+    // Dedupe on the full normalized text — a length+prefix key would collapse
+    // distinct snippets that share a prefix. The 4k cap bounds key size.
+    if (seenText.has(normalized)) return;
+    seenText.add(normalized);
     pending.push({
       kind: "text",
       stepPos,
@@ -347,6 +381,16 @@ export async function collectCanonicalEvidence(
     addTextEvidence(i, i, "tool-output", step.toolOutput?.result);
   }
 
+  // Terminal aria observation — mirrors the final screenshot frame so the
+  // closing page state is scoreable even when the last step had no probe.
+  const finalPos = trajectory.steps.length;
+  addTextEvidence(
+    finalPos,
+    finalPos,
+    "probe-aria",
+    trajectory.finalObservation?.ariaTree,
+  );
+
   // Sort by trajectoryStepPosition asc; ties → image before text so the
   // "page state before the harness probed text" reads naturally.
   pending.sort((a, b) => {
@@ -356,14 +400,17 @@ export async function collectCanonicalEvidence(
     return a.kind === "image" ? -1 : 1;
   });
 
+  // Stamp canonical indices in the combined ordering. Track the screenshot
+  // array-index → combined-index translation so the returned `loaded` can be
+  // re-mapped onto the same space (previously screenshots[].canonicalIndex and
+  // stepIndexToCanonical pointed into the images-only array and disagreed with
+  // `evidence` once text was interleaved).
+  const screenshotIdxToCombined = new Map<number, number>();
   for (const p of pending) {
     if (p.kind === "image") {
-      // Re-stamp canonical index in the combined ordering.
-      const shot: CanonicalScreenshot = {
-        ...p.shot,
-        canonicalIndex: evidence.length,
-      };
-      evidence.push(shot);
+      const combinedIndex = evidence.length;
+      screenshotIdxToCombined.set(p.shot.canonicalIndex, combinedIndex);
+      evidence.push({ ...p.shot, canonicalIndex: combinedIndex });
     } else {
       evidence.push({
         canonicalIndex: evidence.length,
@@ -375,7 +422,24 @@ export async function collectCanonicalEvidence(
     }
   }
 
-  return { evidence, loaded };
+  const remappedScreenshots = loaded.screenshots.map((shot) => {
+    const combined = screenshotIdxToCombined.get(shot.canonicalIndex);
+    return combined === undefined ? shot : { ...shot, canonicalIndex: combined };
+  });
+  const remappedStepIndex = new Map<number, number>();
+  for (const [stepIdx, screenshotIdx] of loaded.stepIndexToCanonical) {
+    const combined = screenshotIdxToCombined.get(screenshotIdx);
+    if (combined !== undefined) remappedStepIndex.set(stepIdx, combined);
+  }
+
+  return {
+    evidence,
+    loaded: {
+      ...loaded,
+      screenshots: remappedScreenshots,
+      stepIndexToCanonical: remappedStepIndex,
+    },
+  };
 }
 
 // ─── Internals ────────────────────────────────────────────────────────────
