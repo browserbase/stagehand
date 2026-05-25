@@ -47,7 +47,6 @@ const navigateRouteHandler: RouteHandlerMethod = withErrorHandling(
         }
 
         const { timeout, ...restOptions } = data.options ?? {};
-        delete restOptions.model;
         const gotoOptions = {
           ...restOptions,
           ...(timeout === undefined ? {} : { timeoutMs: timeout }),

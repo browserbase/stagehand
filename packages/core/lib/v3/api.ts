@@ -418,9 +418,14 @@ export class StagehandAPIClient {
     options?: Api.NavigateRequest["options"],
     frameId?: string,
   ): Promise<SerializableResponse | null> {
+    const publicOptions = { ...(options ?? {}) } as NonNullable<
+      Api.NavigateRequest["options"]
+    > & { model?: unknown };
+    delete publicOptions.model;
+
     const wireOptions = {
-      ...(options ?? {}),
-      ...(this.defaultModelConfig && !(options as { model?: unknown })?.model
+      ...publicOptions,
+      ...(this.defaultModelConfig
         ? { model: this.getDefaultModelConfig() }
         : {}),
     };

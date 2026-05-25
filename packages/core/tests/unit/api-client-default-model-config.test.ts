@@ -182,6 +182,31 @@ describe("StagehandAPIClient default model config", () => {
     );
   });
 
+  it("does not treat model as a public navigate option", async () => {
+    const { client, executeMock } = createClientWithExecuteMock();
+
+    await client.init({
+      modelName: "openai/gpt-4.1-mini",
+      modelApiKey: "sk-header-only",
+    });
+
+    await client.goto("https://example.com", {
+      model: {
+        modelName: "openai/gpt-4o",
+        apiKey: "sk-per-call",
+      },
+    } as unknown as Parameters<StagehandAPIClient["goto"]>[1]);
+
+    expect(executeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "navigate",
+        args: expect.objectContaining({
+          options: undefined,
+        }),
+      }),
+    );
+  });
+
   it("does not add a body model config when the constructor only provides a model API key", async () => {
     const { client, executeMock } = createClientWithExecuteMock();
 

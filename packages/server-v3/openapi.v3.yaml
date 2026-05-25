@@ -688,6 +688,11 @@ components:
           type: array
           items:
             type: string
+        screenshot:
+          description: When true, include a screenshot of the current viewport in the
+            extraction LLM call. Defaults to false.
+          example: false
+          type: boolean
     ExtractRequest:
       type: object
       properties:
@@ -751,6 +756,16 @@ components:
           description: CSS selector to scope observation to a specific element
           example: nav
           type: string
+        ignoreSelectors:
+          description: Selectors for elements and subtrees that should be excluded from
+            observation
+          example:
+            - nav
+            - .cookie-banner
+            - "#sidebar-ads"
+          type: array
+          items:
+            type: string
     ObserveRequest:
       type: object
       properties:
@@ -968,12 +983,6 @@ components:
     NavigateOptions:
       type: object
       properties:
-        model:
-          description: Model configuration object or model name string used to initialize
-            API-backed sessions before navigation
-          anyOf:
-            - $ref: "#/components/schemas/ModelConfig"
-            - type: string
         referer:
           description: Referer header to send with the request
           type: string
@@ -1704,6 +1713,11 @@ components:
           type: array
           items:
             type: string
+        screenshot:
+          description: When true, include a screenshot of the current viewport in the
+            extraction LLM call. Defaults to false.
+          example: false
+          type: boolean
       additionalProperties: false
     ExtractResultOutput:
       type: object
@@ -1745,6 +1759,16 @@ components:
           description: CSS selector to scope observation to a specific element
           example: nav
           type: string
+        ignoreSelectors:
+          description: Selectors for elements and subtrees that should be excluded from
+            observation
+          example:
+            - nav
+            - .cookie-banner
+            - "#sidebar-ads"
+          type: array
+          items:
+            type: string
       additionalProperties: false
     ObserveResultOutput:
       type: object
@@ -1902,12 +1926,6 @@ components:
     NavigateOptionsOutput:
       type: object
       properties:
-        model:
-          description: Model configuration object or model name string used to initialize
-            API-backed sessions before navigation
-          anyOf:
-            - $ref: "#/components/schemas/ModelConfigOutput"
-            - type: string
         referer:
           description: Referer header to send with the request
           type: string
