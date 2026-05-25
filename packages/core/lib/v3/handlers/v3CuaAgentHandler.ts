@@ -76,6 +76,7 @@ export class V3CuaAgentHandler {
       this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
+      this.agentClient.setCurrentUrl(page.url());
       return screenshotBuffer.toString("base64"); // base64 png
     });
 

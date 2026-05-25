@@ -3,6 +3,7 @@ import { ToolSet } from "ai";
 import { LogLine } from "../../types/public/logs.js";
 import { toJsonSchema } from "../../zodCompat.js";
 import type { StagehandZodSchema } from "../../zodCompat.js";
+import { formatCustomToolResult } from "./customToolResult.js";
 
 /**
  * Result of executing a custom tool for Google CUA
@@ -36,10 +37,11 @@ export async function executeGoogleCustomTool(
       toolCallId: `tool_${Date.now()}`,
       messages: [],
     });
+    const formattedToolResult = formatCustomToolResult(toolResult);
 
     logger({
       category: "agent",
-      message: `Tool ${toolName} completed successfully. Result: ${JSON.stringify(toolResult)}`,
+      message: `Tool ${toolName} completed successfully. Result: ${formattedToolResult}`,
       level: 1,
     });
 
@@ -48,7 +50,7 @@ export async function executeGoogleCustomTool(
       functionResponse: {
         name: toolName,
         response: {
-          result: JSON.stringify(toolResult),
+          result: formattedToolResult,
         },
       },
     };

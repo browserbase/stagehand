@@ -486,6 +486,42 @@ export class GoogleCUAClient extends AgentClient {
 
       if (result.actions.length > 0) {
         let hasError = false;
+        let attemptedPostActionScreenshot = false;
+        let postActionScreenshotBase64: string | undefined;
+
+        const getPostActionScreenshotBase64 = async (): Promise<
+          string | undefined
+        > => {
+          if (attemptedPostActionScreenshot) {
+            return postActionScreenshotBase64;
+          }
+
+          attemptedPostActionScreenshot = true;
+
+          try {
+            logger({
+              category: "agent",
+              message: `Taking screenshot after executing ${result.actions.length} actions${hasError ? " (with errors)" : ""}`,
+              level: 2,
+            });
+
+            const screenshot = await this.captureScreenshot();
+            postActionScreenshotBase64 = screenshot.replace(
+              /^data:image\/png;base64,/,
+              "",
+            );
+
+            return postActionScreenshotBase64;
+          } catch (error) {
+            logger({
+              category: "agent",
+              message: `Error capturing screenshot: ${error}`,
+              level: 0,
+            });
+
+            return undefined;
+          }
+        };
 
         // Execute all actions
         for (let i = 0; i < result.actions.length; i++) {
@@ -559,6 +595,31 @@ export class GoogleCUAClient extends AgentClient {
           }
         }
 
+        if (functionResponses.length > 0) {
+          const base64Data = await getPostActionScreenshotBase64();
+          if (base64Data) {
+            for (const functionResponsePart of functionResponses) {
+              if (!functionResponsePart.functionResponse) {
+                continue;
+              }
+
+              functionResponsePart.functionResponse.response = {
+                url: this.currentUrl || "",
+                ...functionResponsePart.functionResponse.response,
+              };
+              functionResponsePart.functionResponse.parts = [
+                ...(functionResponsePart.functionResponse.parts || []),
+                {
+                  inlineData: {
+                    mimeType: "image/png",
+                    data: base64Data,
+                  },
+                },
+              ];
+            }
+          }
+        }
+
         // Create function responses for computer use actions (non-custom tools)
         // We need exactly one response per function call, regardless of how many actions were generated
         if (result.functionCalls.length > 0 || hasError) {
@@ -568,19 +629,9 @@ export class GoogleCUAClient extends AgentClient {
           );
 
           if (computerUseFunctionCalls.length > 0) {
-            try {
-              logger({
-                category: "agent",
-                message: `Taking screenshot after executing ${result.actions.length} actions${hasError ? " (with errors)" : ""}`,
-                level: 2,
-              });
+            const base64Data = await getPostActionScreenshotBase64();
 
-              const screenshot = await this.captureScreenshot();
-              const base64Data = screenshot.replace(
-                /^data:image\/png;base64,/,
-                "",
-              );
-
+            if (base64Data) {
               // Create one function response for each computer use function call
               // Following Python SDK pattern: FunctionResponse with parts containing inline_data
               for (const functionCall of computerUseFunctionCalls) {
@@ -615,12 +666,6 @@ export class GoogleCUAClient extends AgentClient {
                 };
                 functionResponses.push(functionResponsePart);
               }
-            } catch (error) {
-              logger({
-                category: "agent",
-                message: `Error capturing screenshot: ${error}`,
-                level: 0,
-              });
             }
           }
         }
