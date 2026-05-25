@@ -3,10 +3,12 @@
  *
  * These events describe observations made by Stagehand during an agent run.
  * They are emitted in temporal order; consumers should treat the stream as
- * sequential (pair an agent-role screenshot with the next step_finished,
- * apply a step_observed/probe to all steps_finished since the last probe).
- * Verifier-specific storage and normalization live in the evals/verifier
- * layers.
+ * sequential. An agent-role screenshot applies to every subsequent
+ * step_finished until a newer agent-role screenshot replaces it — a CUA
+ * provider may choose multiple actions from a single screenshot, so each of
+ * those steps shares that frame. A step_observed/probe applies to all
+ * step_finished events received since the last probe. Verifier-specific
+ * storage and normalization live in the evals/verifier layers.
  */
 
 export type AgentEvidenceRole = "probe" | "agent";

@@ -22,7 +22,10 @@ import {
   SafetyConfirmationHandler,
 } from "../types/public/agent.js";
 import { LogLine } from "../types/public/logs.js";
-import type { AgentEvidenceCallback } from "../types/public/agentEvidenceEvents.js";
+import type {
+  AgentEvidenceCallback,
+  AgentStepFinishedEvent,
+} from "../types/public/agentEvidenceEvents.js";
 import { type Action, V3FunctionName } from "../types/public/methods.js";
 import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import { toTitleCase } from "../../utils.js";
@@ -131,6 +134,10 @@ export class V3CuaAgentHandler {
       const waitBetween =
         (this.options.clientOptions?.waitBetweenActions as number) ||
         defaultDelay;
+      // Skip logging for screenshot actions - they're no-ops; the CUA client
+      // takes its own screenshot via screenshotProvider between API turns.
+      // Computed outside the try so the catch can still record a failed step.
+      const shouldLog = action.type !== "screenshot";
       try {
         let executionResult: ActionExecutionResult | undefined;
         // Try to inject cursor before each action if enabled
@@ -142,9 +149,6 @@ export class V3CuaAgentHandler {
           }
         }
         await new Promise((r) => setTimeout(r, 300));
-        // Skip logging for screenshot actions - they're no-ops; the CUA client
-        // takes its own screenshot via screenshotProvider between API turns.
-        const shouldLog = action.type !== "screenshot";
         if (shouldLog) {
           executionResult = await FlowLogger.runWithLogging(
             {
@@ -163,7 +167,10 @@ export class V3CuaAgentHandler {
 
         action.timestamp = Date.now();
         if (shouldLog && this.evidenceCallback) {
-          await this.emitCuaActionStep(action, executionResult);
+          await this.emitCuaActionStep(
+            action,
+            inferToolOutput(executionResult ?? { success: true }),
+          );
         }
 
         await new Promise((r) => setTimeout(r, waitBetween));
@@ -174,6 +181,30 @@ export class V3CuaAgentHandler {
           message: `Error executing action ${action.type}: ${msg}`,
           level: 0,
         });
+        // Record the failed action as an ok:false step (with a best-effort
+        // post-failure probe, since a throwing action can still partially
+        // mutate the page) before rethrowing — otherwise the failure is
+        // dropped from the persisted trajectory. Evidence emission must never
+        // mask the original action error.
+        if (shouldLog && this.evidenceCallback) {
+          try {
+            await this.emitCuaActionStep(action, {
+              ok: false,
+              result: undefined,
+              error: msg,
+            });
+          } catch (evidenceError) {
+            this.logger({
+              category: "agent",
+              message: `Failed to record failed-action evidence: ${
+                evidenceError instanceof Error
+                  ? evidenceError.message
+                  : String(evidenceError)
+              }`,
+              level: 1,
+            });
+          }
+        }
         throw error;
       }
     });
@@ -835,7 +866,7 @@ export class V3CuaAgentHandler {
 
   private async emitCuaActionStep(
     action: AgentAction,
-    result: ActionExecutionResult | undefined,
+    toolOutput: AgentStepFinishedEvent["toolOutput"],
   ): Promise<void> {
     let pageUrl =
       typeof action.pageUrl === "string"
@@ -848,7 +879,9 @@ export class V3CuaAgentHandler {
     }
 
     const actionArgs = Object.fromEntries(
-      Object.entries(action).filter(([key]) => key !== "screenshot"),
+      Object.entries(action).filter(
+        ([key]) => key !== "screenshot" && key !== "timestamp",
+      ),
     );
     const reasoning =
       typeof action.reasoning === "string"
@@ -862,7 +895,7 @@ export class V3CuaAgentHandler {
       actionName: String(action.type),
       actionArgs,
       reasoning,
-      toolOutput: inferToolOutput(result ?? { success: true }),
+      toolOutput,
     });
 
     // Post-action tier-2 probe. The pre-action screenshot from

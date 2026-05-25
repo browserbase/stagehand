@@ -159,6 +159,13 @@ describe("TrajectoryRecorder", () => {
         { type: "text", content: "Open fare details." },
       ]),
     );
+    // Both actions were chosen from the same agent screenshot (one screenshot,
+    // two step_finished), so the second step must carry that frame too.
+    expect(trajectory.steps[1].agentEvidence.modalities).toEqual(
+      expect.arrayContaining([
+        { type: "image", bytes: screenshot, mediaType: "image/png" },
+      ]),
+    );
     expect(trajectory.finalAnswer).toBe("Business is $150 more than economy.");
     expect(trajectory.finalObservation).toMatchObject({
       url: "https://example.com/complete",

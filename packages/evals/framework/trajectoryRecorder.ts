@@ -59,11 +59,12 @@ export class TrajectoryRecorder {
 
   // Steps are appended in arrival order on each step_finished event.
   private readonly steps: TrajectoryStep[] = [];
-  // The most recent agent-role screenshot is held until the next step_finished
-  // consumes it. A second agent-role screenshot before any step_finished
-  // overwrites the first — that's the desired behavior when a turn is skipped
-  // (e.g., captcha guard short-circuits before emitting step_finished).
-  private pendingAgentScreenshot?: Buffer;
+  // The most recent agent-role screenshot. It applies to every step_finished
+  // until a newer agent-role screenshot replaces it — a CUA provider can pick
+  // multiple actions from one screenshot, so each of those steps must carry
+  // that same tier-1 frame. (It is NOT cleared on consume; it is only replaced
+  // by a newer screenshot, or wiped on cancel().)
+  private latestAgentScreenshot?: Buffer;
   // The most recent probe-role screenshot waits for the matching step_observed.
   private pendingProbeScreenshot?: Buffer;
   // Steps that haven't yet had a probe attached. The next step_observed fans
@@ -74,7 +75,7 @@ export class TrajectoryRecorder {
 
   private onScreenshot(e: AgentScreenshotEvidenceEvent): void {
     if (e.evidenceRole === "agent") {
-      this.pendingAgentScreenshot = e.screenshot;
+      this.latestAgentScreenshot = e.screenshot;
     } else {
       this.pendingProbeScreenshot = e.screenshot;
     }
@@ -82,10 +83,10 @@ export class TrajectoryRecorder {
 
   private onStepFinished(e: AgentStepFinishedEvent): void {
     const modalities: AgentEvidence["modalities"] = [];
-    if (this.pendingAgentScreenshot) {
+    if (this.latestAgentScreenshot) {
       modalities.push({
         type: "image",
-        bytes: this.pendingAgentScreenshot,
+        bytes: this.latestAgentScreenshot,
         mediaType: "image/png",
       });
     }
@@ -94,7 +95,9 @@ export class TrajectoryRecorder {
       buildAgentEvidenceFromStepFinished(e),
     );
 
-    this.pendingAgentScreenshot = undefined;
+    // Intentionally not cleared here: the same agent screenshot applies to
+    // every step in a batched CUA turn. It's replaced when a newer agent
+    // screenshot arrives (onScreenshot) or wiped on cancel().
     this.stepsAwaitingProbe.push(this.steps.length);
     this.steps.push({
       actionName: e.actionName,
@@ -188,7 +191,7 @@ export class TrajectoryRecorder {
   /** Throw away in-memory state without writing to disk. Used on early abort. */
   cancel(): void {
     this.steps.length = 0;
-    this.pendingAgentScreenshot = undefined;
+    this.latestAgentScreenshot = undefined;
     this.pendingProbeScreenshot = undefined;
     this.stepsAwaitingProbe = [];
     this.finalAnswerEvent = undefined;

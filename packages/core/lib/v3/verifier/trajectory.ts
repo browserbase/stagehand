@@ -269,9 +269,11 @@ export async function writeTrajectoryDir(
 
   const serializableSteps: unknown[] = [];
   // A single post-turn probe is fanned across every step of a multi-tool turn,
-  // so the same screenshot Buffer is shared by reference. Dedupe by identity:
-  // write the PNG once and point every sharing step's screenshotPath at it.
+  // and a single agent screenshot is shared across every action a CUA provider
+  // chose from it, so the same Buffer is shared by reference. Dedupe by
+  // identity: write the PNG once and point every sharing step at the same file.
   const probePathByBuffer = new Map<Buffer, string>();
+  const agentPathByBuffer = new Map<Buffer, string>();
   for (const [i, step] of trajectory.steps.entries()) {
     const probe: ProbeEvidence = { ...step.probeEvidence };
     if (probe.screenshot) {
@@ -303,9 +305,13 @@ export async function writeTrajectoryDir(
         );
         continue;
       }
-      const suffix = multipleImages ? `_${imageSeq}` : "";
-      const relPath = `screenshots/agent/${i + 1}${suffix}.png`;
-      await fs.writeFile(path.join(dir, relPath), m.bytes);
+      let relPath = agentPathByBuffer.get(m.bytes);
+      if (!relPath) {
+        const suffix = multipleImages ? `_${imageSeq}` : "";
+        relPath = `screenshots/agent/${i + 1}${suffix}.png`;
+        await fs.writeFile(path.join(dir, relPath), m.bytes);
+        agentPathByBuffer.set(m.bytes, relPath);
+      }
       modalities.push({
         type: "image",
         imagePath: relPath,

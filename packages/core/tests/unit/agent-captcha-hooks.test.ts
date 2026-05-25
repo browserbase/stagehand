@@ -557,4 +557,59 @@ describe("v3 cua handler screenshot behavior", () => {
       ),
     ).toBe(true);
   });
+
+  it("records a failed action as step_finished {ok:false} and rethrows the original error", async () => {
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const onEvidence = vi.fn(async (event: { type: string }) => {
+      events.push(event as { type: string });
+    });
+
+    fakeCuaClient.executeImpl = vi.fn(async () => {
+      await fakeCuaClient.actionHandler?.({
+        type: "click",
+        button: "left",
+        x: 5,
+        y: 9,
+      });
+      return { success: true, message: "ok", actions: [], completed: true };
+    });
+
+    const handler = new V3CuaAgentHandler(
+      {
+        context: {
+          awaitActivePage: async () => page,
+        },
+        isCaptchaAutoSolveEnabled: false,
+        isAdvancedStealth: false,
+        configuredViewport: { width: 1288, height: 711 },
+        isAgentReplayActive: () => false,
+        updateMetrics: vi.fn(),
+      } as never,
+      logger,
+      {
+        modelName: "openai/gpt-5.4",
+        clientOptions: { waitBetweenActions: 1 },
+      } as never,
+    );
+    vi.spyOn(
+      handler as unknown as {
+        executeAction: (action: Record<string, unknown>) => Promise<unknown>;
+      },
+      "executeAction",
+    ).mockRejectedValue(new Error("click failed"));
+
+    await expect(
+      handler.execute({
+        instruction: "click the thing",
+        highlightCursor: false,
+        callbacks: { onEvidence },
+      }),
+    ).rejects.toThrow("click failed");
+
+    const stepFinished = events.find((e) => e.type === "step_finished");
+    expect(stepFinished).toMatchObject({
+      actionName: "click",
+      toolOutput: { ok: false, error: "click failed" },
+    });
+  });
 });
