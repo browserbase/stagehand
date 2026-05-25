@@ -114,6 +114,48 @@ export interface LLMParsedResponse<T> {
   usage?: LLMUsage;
 }
 
+type OptionalModelOptions<TOptions> = TOptions extends { model: infer TModel }
+  ? Omit<TOptions, "model"> & { model?: TModel }
+  : TOptions;
+
+type GenerateTextOptions = OptionalModelOptions<
+  Parameters<typeof generateText>[0]
+>;
+type GenerateObjectOptions = OptionalModelOptions<
+  Parameters<typeof generateObject>[0]
+>;
+type StreamTextOptions = OptionalModelOptions<Parameters<typeof streamText>[0]>;
+type StreamObjectOptions = OptionalModelOptions<
+  Parameters<typeof streamObject>[0]
+>;
+
+function resolveLanguageModel<TModel>(
+  client: LLMClient,
+  model: TModel | undefined,
+): TModel {
+  const resolvedModel = model ?? client.getLanguageModel?.();
+
+  if (!resolvedModel) {
+    throw new Error(
+      "No language model available. Pass a `model` option explicitly or use an LLMClient that implements getLanguageModel().",
+    );
+  }
+
+  return resolvedModel as TModel;
+}
+
+function withResolvedLanguageModel<TOptions extends object>(
+  client: LLMClient,
+  options: TOptions,
+): TOptions {
+  const model = "model" in options ? options.model : undefined;
+
+  return {
+    ...options,
+    model: resolveLanguageModel(client, model),
+  } as TOptions;
+}
+
 export abstract class LLMClient {
   public type: "openai" | "anthropic" | "cerebras" | "groq" | (string & {});
   public modelName: AvailableModel | (string & {});
@@ -140,10 +182,43 @@ export abstract class LLMClient {
     options: CreateChatCompletionOptions,
   ): Promise<T>;
 
-  public generateObject = generateObject;
-  public generateText = generateText;
-  public streamText = streamText;
-  public streamObject = streamObject;
+  public generateObject(
+    options: GenerateObjectOptions,
+  ): ReturnType<typeof generateObject> {
+    return generateObject(
+      withResolvedLanguageModel(this, options) as Parameters<
+        typeof generateObject
+      >[0],
+    );
+  }
+
+  public generateText(
+    options: GenerateTextOptions,
+  ): ReturnType<typeof generateText> {
+    return generateText(
+      withResolvedLanguageModel(this, options) as Parameters<
+        typeof generateText
+      >[0],
+    );
+  }
+
+  public streamText(options: StreamTextOptions): ReturnType<typeof streamText> {
+    return streamText(
+      withResolvedLanguageModel(this, options) as Parameters<
+        typeof streamText
+      >[0],
+    );
+  }
+
+  public streamObject(
+    options: StreamObjectOptions,
+  ): ReturnType<typeof streamObject> {
+    return streamObject(
+      withResolvedLanguageModel(this, options) as Parameters<
+        typeof streamObject
+      >[0],
+    );
+  }
   public generateImage = experimental_generateImage;
   public embed = embed;
   public embedMany = embedMany;
