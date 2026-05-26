@@ -35,6 +35,11 @@ import { ollama, createOllama } from "ollama-ai-provider-v2";
 import { gateway, createGateway, wrapLanguageModel } from "ai";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model.js";
 
+const NOVITA_BASE_URL = "https://api.novita.ai/openai";
+const novita = createOpenAI({ baseURL: NOVITA_BASE_URL });
+const createNovita: AISDKCustomProvider = (options) =>
+  createOpenAI({ baseURL: NOVITA_BASE_URL, ...options });
+
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
   bedrock,
@@ -51,6 +56,7 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   ollama,
   vertex,
   gateway,
+  novita,
 };
 const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   openai: createOpenAI,
@@ -68,6 +74,7 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   perplexity: createPerplexity,
   ollama: createOllama,
   gateway: createGateway,
+  novita: createNovita,
 };
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {

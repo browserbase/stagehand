@@ -693,6 +693,7 @@ export const providerEnvVarMap: Partial<
   azure: "AZURE_API_KEY",
   xai: "XAI_API_KEY",
   google_legacy: "GOOGLE_API_KEY",
+  novita: "NOVITA_API_KEY",
 };
 
 const providersWithoutApiKey = new Set(["bedrock", "ollama"]);
