@@ -227,19 +227,25 @@ function collectLegacyScreenshots(trajectory: Trajectory): Buffer[] {
     }
   }
 
+  if (Buffer.isBuffer(trajectory.finalObservation?.screenshot)) {
+    screenshots.push(trajectory.finalObservation.screenshot);
+  }
+
   return screenshots;
 }
 
 function renderLegacyAgentReasoning(
   trajectory: Trajectory,
 ): string | undefined {
-  const stepLines = (trajectory.steps ?? []).map((step) => {
+  const stepLines = (trajectory.steps ?? []).map((step, i) => {
+    const status = step.toolOutput?.ok === false ? "Tool status: failed" : "";
     const output = step.toolOutput?.error
       ? `Tool error: ${step.toolOutput.error}`
       : `Tool output: ${stringifyForPrompt(step.toolOutput?.result)}`;
     return [
-      `Step ${step.index}: ${step.actionName}`,
+      `Step ${i}: ${step.actionName}`,
       step.reasoning ? `Reasoning: ${step.reasoning}` : undefined,
+      status || undefined,
       output,
     ]
       .filter(Boolean)
