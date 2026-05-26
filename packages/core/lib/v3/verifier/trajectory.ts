@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import type {
   AgentEvidenceModality,
   ProbeEvidence,
@@ -5,6 +7,7 @@ import type {
   Trajectory,
   TrajectoryStep,
 } from "./types.js";
+import { redactInlineImagePayloads } from "./evidenceNormalization.js";
 
 type RawRubricCriterion = {
   criterion: unknown;
@@ -16,6 +19,10 @@ type RawRubricCriterion = {
 
 type RawRubric = {
   items?: unknown;
+};
+
+type PersistedProbeEvidence = ProbeEvidence & {
+  screenshotPath?: string;
 };
 
 /**
@@ -92,8 +99,9 @@ function normalizeResultLabel(label?: string): string {
  *
  * Reverses the recorder's serialization tweaks:
  *   - `probeEvidence.screenshotPath` → read file into `probeEvidence.screenshot`.
- *   - Image modalities in `agentEvidence.modalities` carry `bytesBase64` on
- *     disk (human-readable JSON) instead of raw Buffer; we decode back.
+ *   - Image modalities in `agentEvidence.modalities` carry `imagePath` on
+ *     disk instead of raw Buffer; legacy `bytesBase64` fixtures are also
+ *     accepted.
  *
  * @param dir absolute or cwd-relative path to a `<run-id>/<task-id>/` directory.
  */
@@ -105,6 +113,7 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
   const trajectoryPath = path.join(trajectoryDir, "trajectory.json");
   const raw = await fs.readFile(trajectoryPath, "utf8");
   const parsed = JSON.parse(raw) as Trajectory & {
+    finalObservation?: PersistedProbeEvidence;
     steps: Array<
       TrajectoryStep & {
         agentEvidence: {
@@ -113,20 +122,24 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
             | {
                 type: "image";
                 mediaType: string;
-                // On-disk form (recorder writes base64); accept either to
-                // tolerate hand-edited fixtures.
+                // On-disk forms. Current writer externalizes bytes to
+                // imagePath; bytesBase64 is accepted for older fixtures.
                 bytes?: unknown;
                 bytesBase64?: string;
+                imagePath?: string;
               }
             | { type: "json"; content: unknown }
           >;
         };
-        probeEvidence: ProbeEvidence;
+        probeEvidence: PersistedProbeEvidence;
       }
     >;
   };
 
-  const resolveWithinTrajectoryDir = (candidate: string): string => {
+  const resolveWithinTrajectoryDir = (
+    candidate: string,
+    fieldName = "screenshotPath",
+  ): string => {
     const resolved = path.resolve(trajectoryDir, candidate);
     const relative = path.relative(trajectoryDir, resolved);
     const outside =
@@ -136,16 +149,16 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
 
     if (outside) {
       throw new Error(
-        `Trajectory screenshotPath escapes trajectory directory: ${candidate}`,
+        `Trajectory ${fieldName} escapes trajectory directory: ${candidate}`,
       );
     }
 
     return resolved;
   };
 
-  for (const step of parsed.steps) {
-    // Rehydrate tier-2 probe screenshot from its on-disk file reference.
-    const probe = step.probeEvidence;
+  const hydrateProbeScreenshot = async (
+    probe: PersistedProbeEvidence | undefined,
+  ): Promise<void> => {
     if (probe?.screenshotPath && !probe.screenshot) {
       const resolved = resolveWithinTrajectoryDir(probe.screenshotPath);
       try {
@@ -155,24 +168,54 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
         // evidence_insufficient path will handle it.
       }
     }
+  };
 
-    // Decode image modalities from base64 back to Buffer.
+  for (const step of parsed.steps) {
+    // Rehydrate tier-2 probe screenshot from its on-disk file reference.
+    await hydrateProbeScreenshot(step.probeEvidence);
+
+    // Decode image modalities from disk references back to Buffer.
     if (step.agentEvidence?.modalities) {
-      step.agentEvidence.modalities = step.agentEvidence.modalities.map((m) => {
-        // The on-disk shape carries bytesBase64 instead of bytes, so we look
-        // through `unknown` here rather than rely on the typed union.
-        const raw = m as unknown as { bytesBase64?: string };
+      const modalities: AgentEvidenceModality[] = [];
+      for (const m of step.agentEvidence.modalities) {
+        // The on-disk shape carries imagePath/bytesBase64 instead of bytes,
+        // so we look through `unknown` rather than rely on the typed union.
+        const raw = m as unknown as {
+          bytesBase64?: string;
+          imagePath?: string;
+        };
         if (m.type === "image" && typeof raw.bytesBase64 === "string") {
-          return {
+          modalities.push({
             type: "image" as const,
             bytes: Buffer.from(raw.bytesBase64, "base64"),
             mediaType: m.mediaType,
-          };
+          });
+          continue;
         }
-        return m as AgentEvidenceModality;
-      });
+        if (m.type === "image" && typeof raw.imagePath === "string") {
+          const resolved = resolveWithinTrajectoryDir(
+            raw.imagePath,
+            "imagePath",
+          );
+          try {
+            modalities.push({
+              type: "image" as const,
+              bytes: await fs.readFile(resolved),
+              mediaType: m.mediaType,
+            });
+          } catch {
+            // Missing agent image file: omit that image modality. The
+            // verifier's evidence_insufficient path will handle missing bytes.
+          }
+          continue;
+        }
+        modalities.push(m as AgentEvidenceModality);
+      }
+      step.agentEvidence.modalities = modalities;
     }
   }
+
+  await hydrateProbeScreenshot(parsed.finalObservation);
 
   return parsed;
 }
@@ -186,4 +229,163 @@ export async function loadTrajectoryFromDisk(dir: string): Promise<Trajectory> {
  */
 export function nextResultFilename(label?: string): string {
   return `result_${normalizeResultLabel(label)}.json`;
+}
+
+/**
+ * Default persistence policy: explicit override, then env, then "on unless CI".
+ */
+export function shouldPersistTrajectory(
+  override: boolean | undefined,
+): boolean {
+  if (override !== undefined) return override;
+  const env = process.env.VERIFIER_PERSIST_TRAJECTORIES?.toLowerCase();
+  if (env === "1" || env === "true") return true;
+  if (env === "0" || env === "false") return false;
+  return !process.env.CI;
+}
+
+/**
+ * Write the on-disk trajectory layout under `dir`:
+ *
+ *   <dir>/
+ *     ├── task_data.json
+ *     ├── trajectory.json    (screenshots referenced by path)
+ *     ├── screenshots/
+ *     │   ├── probe/<N>.png
+ *     │   └── agent/<N>[_M].png
+ *     ├── scores/            (empty; populated separately)
+ *     └── core.log
+ *
+ * Image bytes are externalized to PNG files; the in-memory Trajectory is left
+ * untouched so callers can keep using it after persistence.
+ */
+export async function writeTrajectoryDir(
+  dir: string,
+  trajectory: Trajectory,
+): Promise<void> {
+  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(path.join(dir, "screenshots", "probe"), { recursive: true });
+  await fs.mkdir(path.join(dir, "screenshots", "agent"), { recursive: true });
+
+  const serializableSteps: unknown[] = [];
+  // A single post-turn probe is fanned across every step of a multi-tool turn,
+  // and a single agent screenshot is shared across every action a CUA provider
+  // chose from it, so the same Buffer is shared by reference. Dedupe by
+  // identity: write the PNG once and point every sharing step at the same file.
+  const probePathByBuffer = new Map<Buffer, string>();
+  const agentPathByBuffer = new Map<Buffer, string>();
+  for (const [i, step] of trajectory.steps.entries()) {
+    const probe: ProbeEvidence = { ...step.probeEvidence };
+    if (probe.screenshot) {
+      let relPath = probePathByBuffer.get(probe.screenshot);
+      if (!relPath) {
+        relPath = `screenshots/probe/${i + 1}.png`;
+        await fs.writeFile(path.join(dir, relPath), probe.screenshot);
+        probePathByBuffer.set(probe.screenshot, relPath);
+      }
+      probe.screenshotPath = relPath;
+      delete probe.screenshot;
+    }
+
+    const imageModalities = step.agentEvidence.modalities.filter(
+      (m) => m.type === "image",
+    );
+    const multipleImages = imageModalities.length > 1;
+    let imageSeq = 0;
+    const modalities: unknown[] = [];
+    for (const m of step.agentEvidence.modalities) {
+      if (m.type !== "image") {
+        modalities.push(
+          m.type === "json"
+            ? {
+                ...m,
+                content: redactInlineImagePayloads(m.content, step.actionName),
+              }
+            : m,
+        );
+        continue;
+      }
+      let relPath = agentPathByBuffer.get(m.bytes);
+      if (!relPath) {
+        const suffix = multipleImages ? `_${imageSeq}` : "";
+        relPath = `screenshots/agent/${i + 1}${suffix}.png`;
+        await fs.writeFile(path.join(dir, relPath), m.bytes);
+        agentPathByBuffer.set(m.bytes, relPath);
+      }
+      modalities.push({
+        type: "image",
+        imagePath: relPath,
+        mediaType: m.mediaType,
+      });
+      imageSeq += 1;
+    }
+    serializableSteps.push({
+      ...step,
+      probeEvidence: probe,
+      agentEvidence: { modalities },
+      toolOutput: {
+        ...step.toolOutput,
+        result: redactInlineImagePayloads(
+          step.toolOutput.result,
+          step.actionName,
+        ),
+      },
+    });
+  }
+
+  const finalObservation: ProbeEvidence | undefined =
+    trajectory.finalObservation === undefined
+      ? undefined
+      : { ...trajectory.finalObservation };
+  if (finalObservation?.screenshot) {
+    const relPath = "screenshots/probe/final.png";
+    await fs.writeFile(path.join(dir, relPath), finalObservation.screenshot);
+    finalObservation.screenshotPath = relPath;
+    delete finalObservation.screenshot;
+  }
+
+  // Image modalities carry imagePath instead of raw bytes on disk; cast
+  // through unknown rather than widen Trajectory's type contract.
+  const serialized = {
+    ...trajectory,
+    steps: serializableSteps,
+    ...(finalObservation ? { finalObservation } : {}),
+  } as unknown;
+
+  await fs.writeFile(
+    path.join(dir, "trajectory.json"),
+    JSON.stringify(serialized, null, 2),
+  );
+
+  await fs.writeFile(
+    path.join(dir, "task_data.json"),
+    JSON.stringify(
+      {
+        task: trajectory.task,
+        status: trajectory.status,
+        finalAnswer: trajectory.finalAnswer ?? null,
+      },
+      null,
+      2,
+    ),
+  );
+
+  await fs.mkdir(path.join(dir, "scores"), { recursive: true });
+  await fs.writeFile(path.join(dir, "core.log"), coreLog(trajectory));
+}
+
+function coreLog(trajectory: Trajectory): string {
+  return (
+    trajectory.steps
+      .map((step, i) =>
+        JSON.stringify({
+          step: i,
+          action: step.actionName,
+          url: step.probeEvidence.url ?? null,
+          ok: step.toolOutput.ok,
+          reasoning: step.reasoning || undefined,
+        }),
+      )
+      .join("\n") + "\n"
+  );
 }

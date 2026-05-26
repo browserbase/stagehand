@@ -82,6 +82,39 @@ describe("V3Evaluator verifier facade", () => {
     expect(result.perCriterion).toBeUndefined();
   });
 
+  it("passes final observation screenshots to the legacy verifier adapter", async () => {
+    const taskSpec: TaskSpec = {
+      id: "final-observation",
+      instruction: "Complete the task",
+    };
+    const finalScreenshot = Buffer.from("final screenshot");
+    const trajectory = {
+      ...makeTrajectory(taskSpec),
+      finalObservation: {
+        url: "https://example.com/done",
+        screenshot: finalScreenshot,
+      },
+    };
+    const ask = vi.fn().mockResolvedValue({
+      evaluation: "YES",
+      reasoning: "The final screenshot shows completion.",
+    });
+    const evaluator = new V3Evaluator({} as V3, {
+      backend: "legacy",
+    });
+    Object.defineProperty(evaluator, "legacyEvaluator", {
+      value: { ask },
+    });
+
+    await evaluator.verify(trajectory);
+
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        screenshot: [finalScreenshot],
+      }),
+    );
+  });
+
   it("keeps legacy tool output detail until the overall reasoning budget is reached", async () => {
     const taskSpec: TaskSpec = {
       id: "reasoning-budget",
@@ -164,10 +197,6 @@ function makeEmptyTrajectory(taskSpec: TaskSpec): Trajectory {
       input_tokens: 0,
       output_tokens: 0,
     },
-    timing: {
-      startedAt: new Date(0).toISOString(),
-      endedAt: new Date(0).toISOString(),
-    },
   };
 }
 
@@ -183,7 +212,6 @@ function makeTrajectory(
     ...makeEmptyTrajectory(taskSpec),
     steps: [
       {
-        index: 0,
         actionName: "act",
         actionArgs: {},
         reasoning: "I completed the task.",
@@ -195,8 +223,6 @@ function makeTrajectory(
           ok: true,
           result: options.toolResult ?? "done",
         },
-        startedAt: new Date(0).toISOString(),
-        finishedAt: new Date(0).toISOString(),
       },
     ],
     finalAnswer: options.finalAnswer,

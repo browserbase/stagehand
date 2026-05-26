@@ -60,6 +60,7 @@ class FakeCuaClient {
   public contextNotes: string[] = [];
   public preStepHook?: () => Promise<void>;
   public actionHandler?: (action: Record<string, unknown>) => Promise<void>;
+  public screenshotProvider?: () => Promise<string>;
   public executeImpl = vi.fn(async (options: unknown) => {
     void options;
     return {
@@ -72,7 +73,9 @@ class FakeCuaClient {
   public captureScreenshot = vi.fn(async () => null);
   public setViewport = vi.fn();
   public setCurrentUrl = vi.fn();
-  public setScreenshotProvider = vi.fn();
+  public setScreenshotProvider = vi.fn((provider: () => Promise<string>) => {
+    this.screenshotProvider = provider;
+  });
   public setSafetyConfirmationHandler = vi.fn();
 
   setActionHandler(
@@ -247,7 +250,6 @@ describe("agent captcha hooks", () => {
         context: {
           awaitActivePage: async () => page,
         },
-        bus: { emit: vi.fn() },
         isCaptchaAutoSolveEnabled: true,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
@@ -316,7 +318,6 @@ describe("agent captcha hooks", () => {
         context: {
           awaitActivePage: async () => page,
         },
-        bus: { emit: vi.fn() },
         isCaptchaAutoSolveEnabled: true,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
@@ -392,7 +393,6 @@ describe("agent captcha hooks", () => {
         context: {
           awaitActivePage: async () => page,
         },
-        bus: { emit: vi.fn() },
         isCaptchaAutoSolveEnabled: true,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
@@ -474,7 +474,6 @@ describe("v3 cua handler screenshot behavior", () => {
         context: {
           awaitActivePage: async () => page,
         },
-        bus: { emit: vi.fn() },
         isCaptchaAutoSolveEnabled: false,
         isAdvancedStealth: false,
         configuredViewport: { width: 1288, height: 711 },
@@ -503,5 +502,114 @@ describe("v3 cua handler screenshot behavior", () => {
     // The handler must not call page.screenshot for each action in a batch —
     // the CUA client takes a single screenshot after all actions itself.
     expect(screenshotSpy).not.toHaveBeenCalled();
+  });
+
+  it("still returns provider screenshots when screenshot evidence callbacks fail", async () => {
+    const screenshotBase64 = Buffer.from("fake-image").toString("base64");
+    const onEvidence = vi.fn(async (event: { type: string }) => {
+      if (event.type === "screenshot") {
+        throw new Error("recorder failed");
+      }
+    });
+
+    fakeCuaClient.executeImpl = vi.fn(async () => {
+      await expect(fakeCuaClient.screenshotProvider?.()).resolves.toBe(
+        screenshotBase64,
+      );
+      return {
+        success: true,
+        message: "ok",
+        actions: [],
+        completed: true,
+      };
+    });
+
+    const handler = new V3CuaAgentHandler(
+      {
+        context: {
+          awaitActivePage: async () => page,
+        },
+        isCaptchaAutoSolveEnabled: false,
+        isAdvancedStealth: false,
+        configuredViewport: { width: 1288, height: 711 },
+        isAgentReplayActive: () => false,
+        updateMetrics: vi.fn(),
+      } as never,
+      logger,
+      {
+        modelName: "openai/gpt-5.4",
+        clientOptions: { waitBetweenActions: 1 },
+      } as never,
+    );
+
+    await handler.execute({
+      instruction: "describe the page",
+      highlightCursor: false,
+      callbacks: { onEvidence },
+    });
+
+    expect(onEvidence).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "screenshot" }),
+    );
+    expect(
+      logs.some((line) =>
+        line.message.includes("onEvidence callback failed for screenshot"),
+      ),
+    ).toBe(true);
+  });
+
+  it("records a failed action as step_finished {ok:false} and rethrows the original error", async () => {
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const onEvidence = vi.fn(async (event: { type: string }) => {
+      events.push(event as { type: string });
+    });
+
+    fakeCuaClient.executeImpl = vi.fn(async () => {
+      await fakeCuaClient.actionHandler?.({
+        type: "click",
+        button: "left",
+        x: 5,
+        y: 9,
+      });
+      return { success: true, message: "ok", actions: [], completed: true };
+    });
+
+    const handler = new V3CuaAgentHandler(
+      {
+        context: {
+          awaitActivePage: async () => page,
+        },
+        isCaptchaAutoSolveEnabled: false,
+        isAdvancedStealth: false,
+        configuredViewport: { width: 1288, height: 711 },
+        isAgentReplayActive: () => false,
+        updateMetrics: vi.fn(),
+      } as never,
+      logger,
+      {
+        modelName: "openai/gpt-5.4",
+        clientOptions: { waitBetweenActions: 1 },
+      } as never,
+    );
+    vi.spyOn(
+      handler as unknown as {
+        executeAction: (action: Record<string, unknown>) => Promise<unknown>;
+      },
+      "executeAction",
+    ).mockRejectedValue(new Error("click failed"));
+
+    await expect(
+      handler.execute({
+        instruction: "click the thing",
+        highlightCursor: false,
+        callbacks: { onEvidence },
+      }),
+    ).rejects.toThrow("click failed");
+
+    const stepFinished = events.find((e) => e.type === "step_finished");
+    expect(stepFinished).toMatchObject({
+      actionName: "click",
+      toolOutput: { ok: false, error: "click failed" },
+    });
   });
 });

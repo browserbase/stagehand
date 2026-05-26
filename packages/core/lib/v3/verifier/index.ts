@@ -22,7 +22,16 @@ export type {
   VerifierRawSteps,
 } from "./types.js";
 export {
+  buildAgentEvidenceFromStepFinished,
+  collectInlineImagePayloads,
+  mergeAgentEvidence,
+  redactInlineImagePayloads,
+  REDACTED_INLINE_IMAGE,
+} from "./evidenceNormalization.js";
+export {
   loadTrajectoryFromDisk,
   nextResultFilename,
   normalizeRubric,
+  shouldPersistTrajectory,
+  writeTrajectoryDir,
 } from "./trajectory.js";

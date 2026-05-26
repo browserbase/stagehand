@@ -89,8 +89,6 @@ export interface ProbeEvidence {
   screenshot?: Buffer;
   /** Reference to the persisted screenshot file under the trajectory dir. */
   screenshotPath?: string;
-  /** Viewport scroll context. Lets the verifier reason about whether the agent saw the full page. */
-  scroll?: { top: number; pageHeight: number };
   /** Accessibility tree snapshot. */
   ariaTree?: string;
   /** Verifier-requested probes, keyed by criterion id. */
@@ -111,7 +109,6 @@ export interface ToolOutput {
 
 /** One step in a trajectory: action + reasoning + evidence + outcome. */
 export interface TrajectoryStep {
-  index: number;
   actionName: string;
   actionArgs: Record<string, unknown>;
   /** From AgentAction.reasoning. May be empty for tools that don't surface reasoning. */
@@ -119,10 +116,6 @@ export interface TrajectoryStep {
   agentEvidence: AgentEvidence;
   probeEvidence: ProbeEvidence;
   toolOutput: ToolOutput;
-  /** ISO 8601 timestamp when the step's tool execution started. */
-  startedAt: string;
-  /** ISO 8601 timestamp when the step's tool execution finished. */
-  finishedAt: string;
 }
 
 /** Terminal status of the agent run. */
@@ -136,19 +129,19 @@ export type TrajectoryStatus = "complete" | "aborted" | "stalled" | "error";
  *   .trajectories/<run-id>/<task-id>/
  *     ├── task_data.json    — TaskSpec + result metadata
  *     ├── trajectory.json   — this object, with screenshotPath instead of bytes
- *     ├── screenshot_1.png  — probeEvidence.screenshot for step 1, etc.
+ *     ├── screenshots/      — step probe/agent images plus final observation
  *     ├── scores/
  *     │   └── result.json       — Result from V3Evaluator.verify()
- *     ├── core.log          — captured action log
- *     └── times.json        — step timing + token usage
+ *     └── core.log          — captured action log
  */
 export interface Trajectory {
   task: TaskSpec;
   steps: TrajectoryStep[];
   finalAnswer?: string;
+  /** Terminal page observation captured after the agent finishes. */
+  finalObservation?: ProbeEvidence;
   status: TrajectoryStatus;
   usage: TrajectoryUsage;
-  timing: { startedAt: string; endedAt: string };
 }
 
 /** Score for a single rubric criterion after evidence analysis + rescoring. */
