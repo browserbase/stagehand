@@ -90,7 +90,7 @@
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "uuid": "^11.1.1",
-    "ws": "^8.18.0",
+    "ws": "^8.21.0",
     "zod-to-json-schema": "^3.25.0"
   },
   "optionalDependencies": {
