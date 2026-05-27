@@ -624,6 +624,11 @@ components:
           description: Whether to stream the response via SSE
           example: true
           type: boolean
+        cacheThreshold:
+          description: Custom cache threshold override. Minimum hit count required
+            before cached results are returned.
+          example: 5
+          type: number
       required:
         - input
     ActResultData:
@@ -717,6 +722,11 @@ components:
           description: Whether to stream the response via SSE
           example: true
           type: boolean
+        cacheThreshold:
+          description: Custom cache threshold override. Minimum hit count required
+            before cached results are returned.
+          example: 5
+          type: number
     ExtractResult:
       type: object
       properties:
@@ -784,6 +794,11 @@ components:
           description: Whether to stream the response via SSE
           example: true
           type: boolean
+        cacheThreshold:
+          description: Custom cache threshold override. Minimum hit count required
+            before cached results are returned.
+          example: 5
+          type: number
     ObserveResult:
       type: object
       properties:
