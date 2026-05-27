@@ -69,6 +69,37 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   gateway: createGateway,
 };
 
+type AISDKProviderClientOptions = ClientOptions & Record<string, unknown>;
+
+export function toAISDKClientOptions(
+  subProvider: string,
+  clientOptions?: ClientOptions,
+): AISDKProviderClientOptions | undefined {
+  if (!clientOptions || subProvider !== "vertex") {
+    return clientOptions as AISDKProviderClientOptions | undefined;
+  }
+
+  const { auth, providerOptions, ...rest } = clientOptions;
+  const vertexOptions = providerOptions?.vertex;
+
+  return {
+    ...rest,
+    ...(vertexOptions ?? {}),
+    ...(auth?.type === "googleServiceAccount"
+      ? {
+          googleAuthOptions: {
+            credentials: auth.credentials,
+            ...(auth.scopes ? { scopes: auth.scopes } : {}),
+            ...(auth.projectId ? { projectId: auth.projectId } : {}),
+            ...(auth.universeDomain
+              ? { universeDomain: auth.universeDomain }
+              : {}),
+          },
+        }
+      : {}),
+  };
+}
+
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gpt-4.1": "openai",
   "gpt-4.1-mini": "openai",
@@ -105,9 +136,12 @@ export function getAISDKLanguageModel(
   clientOptions?: ClientOptions,
   middleware?: LanguageModelV2Middleware,
 ) {
+  const aiSdkClientOptions = toAISDKClientOptions(subProvider, clientOptions);
   const hasValidOptions =
-    clientOptions &&
-    Object.values(clientOptions).some((v) => v !== undefined && v !== null);
+    aiSdkClientOptions &&
+    Object.values(aiSdkClientOptions).some(
+      (v) => v !== undefined && v !== null,
+    );
 
   let model;
   if (hasValidOptions) {
@@ -118,7 +152,7 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProvidersWithAPIKey),
       );
     }
-    const provider = creator(clientOptions);
+    const provider = creator(aiSdkClientOptions as ClientOptions);
     model = provider(subModelName);
   } else {
     const provider = AISDKProviders[subProvider];

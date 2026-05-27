@@ -77,13 +77,12 @@ const normalizeModel = (
  *
  * V3:
  * - act/observe/extract: body.options.model
- * - agentExecute: body.agentConfig.model
  */
 export function getRequestModelConfig(
   request: FastifyRequest,
 ): RequestModelConfig {
   const body = requestModelEnvelopeSchema.parse(request.body ?? {});
-  const model = normalizeModel(body.options?.model ?? body.agentConfig?.model);
+  const model = normalizeModel(body.options?.model);
 
   return requestModelConfigSchema.parse({
     model,
@@ -91,6 +90,31 @@ export function getRequestModelConfig(
     apiKey:
       getNonEmptyString(model?.apiKey) ??
       getOptionalHeader(request, "x-model-api-key"),
+  });
+}
+
+/**
+ * Extracts the structured model config that can be used to initialize a
+ * Stagehand session for this request. Unlike getRequestModelConfig, this may
+ * read agentConfig.model, but it does not promote agent model credentials to
+ * the request-level API key.
+ */
+export function getSessionBootstrapModelConfig(
+  request: FastifyRequest,
+): RequestModelConfig {
+  const requestModelConfig = getRequestModelConfig(request);
+  if (requestModelConfig.model) {
+    return requestModelConfig;
+  }
+
+  const body = requestModelEnvelopeSchema.parse(request.body ?? {});
+  const agentModel = normalizeModel(body.agentConfig?.model);
+
+  return requestModelConfigSchema.parse({
+    model: agentModel,
+    modelName:
+      getNonEmptyString(agentModel?.modelName) ?? requestModelConfig.modelName,
+    apiKey: requestModelConfig.apiKey,
   });
 }
 

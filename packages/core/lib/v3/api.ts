@@ -653,38 +653,49 @@ export class StagehandAPIClient {
   private prepareModelConfig(model: ModelConfiguration): PreparedModelConfig {
     if (typeof model === "string") {
       // Extract provider from model string (e.g., "openai/gpt-5-nano" -> "openai")
-      const provider = model.includes("/") ? model.split("/")[0] : undefined;
+      const provider = this.getModelProvider(model);
+      const inheritedDefault =
+        provider && provider === this.modelProvider
+          ? this.getDefaultModelConfig()
+          : undefined;
       const apiKey =
         provider && provider !== this.modelProvider
           ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
           : this.modelApiKey;
       return {
+        ...inheritedDefault,
         modelName: model,
         ...(apiKey ? { apiKey } : {}),
       };
     }
 
-    if (!model.apiKey) {
-      const provider = model.modelName?.includes("/")
-        ? model.modelName.split("/")[0]
+    const provider = this.getModelProvider(model.modelName);
+    const inheritedDefault =
+      provider && provider === this.modelProvider
+        ? this.getDefaultModelConfig()
         : undefined;
-      const apiKey =
-        provider && provider !== this.modelProvider
-          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
-          : this.modelApiKey;
-      return {
-        ...model,
-        ...(apiKey ? { apiKey } : {}),
-      };
-    }
+    const apiKey =
+      !model.apiKey && provider && provider !== this.modelProvider
+        ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+        : !model.apiKey
+          ? this.modelApiKey
+          : undefined;
 
-    return model as PreparedModelConfig;
+    return {
+      ...inheritedDefault,
+      ...model,
+      ...(apiKey ? { apiKey } : {}),
+    } as PreparedModelConfig;
   }
 
   private getDefaultModelConfig(): PreparedModelConfig | undefined {
     return this.defaultModelConfig
       ? ({ ...this.defaultModelConfig } as PreparedModelConfig)
       : undefined;
+  }
+
+  private getModelProvider(modelName: string | undefined): string | undefined {
+    return modelName?.includes("/") ? modelName.split("/")[0] : undefined;
   }
 
   private consumeFinishedEventData<T>(): T | null {

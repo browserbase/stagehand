@@ -6,13 +6,18 @@ import type { ModelConfiguration } from "../../lib/v3/types/public/model.js";
 const vertexModel = {
   provider: "vertex",
   modelName: "vertex/gemini-2.5-flash",
-  project: "test-gcp-project",
-  location: "us-central1",
-  googleAuthOptions: {
+  auth: {
+    type: "googleServiceAccount",
     credentials: {
       client_email: "vertex@example.iam.gserviceaccount.com",
       private_key:
         "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+    },
+  },
+  providerOptions: {
+    vertex: {
+      project: "test-gcp-project",
+      location: "us-central1",
     },
   },
 } as unknown as ModelConfiguration;
@@ -57,7 +62,7 @@ describe("StagehandAPIClient default model config", () => {
     vi.restoreAllMocks();
   });
 
-  it("sends constructor Vertex model config on navigate, act, observe, extract, and agent execute requests", async () => {
+  it("sends constructor Vertex model config on navigate bootstrap, act, observe, extract, and agent execute requests", async () => {
     const { client, executeMock } = createClientWithExecuteMock();
 
     await client.init({
@@ -79,9 +84,15 @@ describe("StagehandAPIClient default model config", () => {
           options: {
             model: expect.objectContaining({
               modelName: "vertex/gemini-2.5-flash",
-              project: "test-gcp-project",
-              location: "us-central1",
-              googleAuthOptions: expect.any(Object),
+              auth: expect.objectContaining({
+                type: "googleServiceAccount",
+              }),
+              providerOptions: {
+                vertex: expect.objectContaining({
+                  project: "test-gcp-project",
+                  location: "us-central1",
+                }),
+              },
             }),
           },
         }),
@@ -95,9 +106,15 @@ describe("StagehandAPIClient default model config", () => {
           options: {
             model: expect.objectContaining({
               modelName: "vertex/gemini-2.5-flash",
-              project: "test-gcp-project",
-              location: "us-central1",
-              googleAuthOptions: expect.any(Object),
+              auth: expect.objectContaining({
+                type: "googleServiceAccount",
+              }),
+              providerOptions: {
+                vertex: expect.objectContaining({
+                  project: "test-gcp-project",
+                  location: "us-central1",
+                }),
+              },
             }),
           },
         }),
@@ -111,8 +128,15 @@ describe("StagehandAPIClient default model config", () => {
           options: expect.objectContaining({
             model: expect.objectContaining({
               modelName: "vertex/gemini-2.5-flash",
-              project: "test-gcp-project",
-              location: "us-central1",
+              auth: expect.objectContaining({
+                type: "googleServiceAccount",
+              }),
+              providerOptions: {
+                vertex: expect.objectContaining({
+                  project: "test-gcp-project",
+                  location: "us-central1",
+                }),
+              },
             }),
           }),
         }),
@@ -126,8 +150,15 @@ describe("StagehandAPIClient default model config", () => {
           options: expect.objectContaining({
             model: expect.objectContaining({
               modelName: "vertex/gemini-2.5-flash",
-              project: "test-gcp-project",
-              location: "us-central1",
+              auth: expect.objectContaining({
+                type: "googleServiceAccount",
+              }),
+              providerOptions: {
+                vertex: expect.objectContaining({
+                  project: "test-gcp-project",
+                  location: "us-central1",
+                }),
+              },
             }),
           }),
         }),
@@ -141,8 +172,15 @@ describe("StagehandAPIClient default model config", () => {
           agentConfig: expect.objectContaining({
             model: expect.objectContaining({
               modelName: "vertex/gemini-2.5-flash",
-              project: "test-gcp-project",
-              location: "us-central1",
+              auth: expect.objectContaining({
+                type: "googleServiceAccount",
+              }),
+              providerOptions: {
+                vertex: expect.objectContaining({
+                  project: "test-gcp-project",
+                  location: "us-central1",
+                }),
+              },
             }),
           }),
         }),
@@ -182,6 +220,44 @@ describe("StagehandAPIClient default model config", () => {
     );
   });
 
+  it("inherits constructor Vertex auth for a same-provider string model override", async () => {
+    const { client, executeMock } = createClientWithExecuteMock();
+
+    await client.init({
+      modelName: "vertex/gemini-2.5-flash",
+      defaultModelConfig: vertexModel,
+    });
+
+    await client.observe({
+      instruction: "find the login button",
+      options: {
+        model: "vertex/gemini-2.0-flash",
+      },
+    });
+
+    expect(executeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "observe",
+        args: expect.objectContaining({
+          options: expect.objectContaining({
+            model: expect.objectContaining({
+              modelName: "vertex/gemini-2.0-flash",
+              auth: expect.objectContaining({
+                type: "googleServiceAccount",
+              }),
+              providerOptions: {
+                vertex: expect.objectContaining({
+                  project: "test-gcp-project",
+                  location: "us-central1",
+                }),
+              },
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
   it("does not treat model as a public navigate option", async () => {
     const { client, executeMock } = createClientWithExecuteMock();
 
@@ -202,6 +278,44 @@ describe("StagehandAPIClient default model config", () => {
         method: "navigate",
         args: expect.objectContaining({
           options: undefined,
+        }),
+      }),
+    );
+  });
+
+  it("keeps constructor bootstrap config when a caller passes an unsupported navigate model", async () => {
+    const { client, executeMock } = createClientWithExecuteMock();
+
+    await client.init({
+      modelName: "vertex/gemini-2.5-flash",
+      defaultModelConfig: vertexModel,
+    });
+
+    await client.goto("https://example.com", {
+      model: {
+        modelName: "openai/gpt-4o",
+        apiKey: "sk-per-call",
+      },
+    } as unknown as Parameters<StagehandAPIClient["goto"]>[1]);
+
+    expect(executeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "navigate",
+        args: expect.objectContaining({
+          options: {
+            model: expect.objectContaining({
+              modelName: "vertex/gemini-2.5-flash",
+              auth: expect.objectContaining({
+                type: "googleServiceAccount",
+              }),
+              providerOptions: {
+                vertex: expect.objectContaining({
+                  project: "test-gcp-project",
+                  location: "us-central1",
+                }),
+              },
+            }),
+          },
         }),
       }),
     );

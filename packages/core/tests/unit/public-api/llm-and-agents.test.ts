@@ -3,17 +3,21 @@ import * as Stagehand from "@browserbasehq/stagehand";
 
 describe("LLM and Agents public API types", () => {
   describe("ModelConfiguration", () => {
-    it("accepts Vertex headers in model config", () => {
-      const googleConfig = {
-        modelName: "google/gemini-3-flash-preview",
-        project: "test-project",
-        location: "global",
+    it("accepts Vertex provider options in model config", () => {
+      const vertexConfig = {
+        modelName: "vertex/gemini-3-flash-preview",
         headers: {
           "X-Goog-Priority": "high",
         },
+        providerOptions: {
+          vertex: {
+            project: "test-project",
+            location: "global",
+          },
+        },
       } satisfies Stagehand.ModelConfiguration;
 
-      void googleConfig;
+      void vertexConfig;
     });
   });
 

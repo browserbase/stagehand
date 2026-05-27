@@ -73,9 +73,13 @@ export const GoogleServiceAccountCredentialsSchema = z
   .strict()
   .meta({ id: "GoogleServiceAccountCredentials" });
 
-export const GoogleAuthOptionsSchema = z
+export const GoogleServiceAccountAuthSchema = z
   .object({
-    credentials: GoogleServiceAccountCredentialsSchema.optional().meta({
+    type: z.literal("googleServiceAccount").meta({
+      description:
+        "Use inline Google Cloud service account credentials for provider authentication",
+    }),
+    credentials: GoogleServiceAccountCredentialsSchema.meta({
       description: "Google Cloud service account credentials",
     }),
     scopes: z
@@ -92,7 +96,48 @@ export const GoogleAuthOptionsSchema = z
     }),
   })
   .strict()
-  .meta({ id: "GoogleAuthOptions" });
+  .meta({ id: "GoogleServiceAccountAuth" });
+
+export const ModelAuthSchema = z
+  .discriminatedUnion("type", [GoogleServiceAccountAuthSchema])
+  .meta({ id: "ModelAuth" });
+
+export const VertexProviderOptionsSchema = z
+  .object({
+    project: z.string().meta({
+      description: "Google Cloud project ID for Vertex AI models",
+      example: "my-gcp-project",
+    }),
+    location: z.string().meta({
+      description: "Google Cloud location for Vertex AI models",
+      example: "us-central1",
+    }),
+    baseURL: z.string().url().optional().meta({
+      description: "Base URL for the Vertex AI provider",
+    }),
+    headers: z.record(z.string(), z.string()).optional().meta({
+      description:
+        "Custom headers sent with every request to the Vertex AI provider",
+    }),
+  })
+  .strict()
+  .meta({ id: "VertexProviderOptions" });
+
+export const ModelProviderOptionsSchema = z
+  .object({
+    vertex: VertexProviderOptionsSchema.optional().meta({
+      description: "Vertex AI provider-specific settings",
+    }),
+  })
+  .strict()
+  .meta({ id: "ModelProviderOptions" });
+
+const getModelConfigProvider = (model: {
+  provider?: string;
+  modelName?: string;
+}): string | undefined =>
+  model.provider ??
+  (model.modelName?.includes("/") ? model.modelName.split("/")[0] : undefined);
 
 export const ModelConfigObjectSchema = z
   .object({
@@ -121,18 +166,33 @@ export const ModelConfigObjectSchema = z
       description:
         "Custom headers sent with every request to the model provider",
     }),
-    project: z.string().optional().meta({
-      description: "Google Cloud project ID for Vertex AI models",
-      example: "my-gcp-project",
+    auth: ModelAuthSchema.optional().meta({
+      description: "Provider authentication configuration",
     }),
-    location: z.string().optional().meta({
-      description: "Google Cloud location for Vertex AI models",
-      example: "us-central1",
+    providerOptions: ModelProviderOptionsSchema.optional().meta({
+      description: "Provider-specific model configuration",
     }),
-    googleAuthOptions: GoogleAuthOptionsSchema.optional().meta({
-      description:
-        "google-auth-library options used to authenticate Vertex AI models",
-    }),
+  })
+  .strict()
+  .superRefine((model, ctx) => {
+    const provider = getModelConfigProvider(model);
+
+    if (model.auth?.type === "googleServiceAccount" && provider !== "vertex") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["auth"],
+        message:
+          "googleServiceAccount auth is only supported for Vertex models.",
+      });
+    }
+
+    if (model.providerOptions?.vertex && provider !== "vertex") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["providerOptions", "vertex"],
+        message: "providerOptions.vertex is only supported for Vertex models.",
+      });
+    }
   })
   .meta({ id: "ModelConfigObject" });
 
@@ -1161,6 +1221,15 @@ export const Operations = {
 // Shared types
 export type Action = z.infer<typeof ActionSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+export type GoogleServiceAccountCredentials = z.infer<
+  typeof GoogleServiceAccountCredentialsSchema
+>;
+export type GoogleServiceAccountAuth = z.infer<
+  typeof GoogleServiceAccountAuthSchema
+>;
+export type ModelAuth = z.infer<typeof ModelAuthSchema>;
+export type VertexProviderOptions = z.infer<typeof VertexProviderOptionsSchema>;
+export type ModelProviderOptions = z.infer<typeof ModelProviderOptionsSchema>;
 export type BrowserConfig = z.infer<typeof BrowserConfigSchema>;
 export type SessionIdParams = z.infer<typeof SessionIdParamsSchema>;
 

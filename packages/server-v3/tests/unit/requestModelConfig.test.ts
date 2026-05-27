@@ -3,7 +3,10 @@ import { describe, it } from "node:test";
 
 import type { FastifyRequest } from "fastify";
 
-import { getRequestModelConfig } from "../../src/lib/header.js";
+import {
+  getRequestModelConfig,
+  getSessionBootstrapModelConfig,
+} from "../../src/lib/header.js";
 
 function createRequest({
   body,
@@ -23,13 +26,18 @@ describe("getRequestModelConfig", () => {
     const model = {
       provider: "vertex",
       modelName: "vertex/gemini-2.5-flash",
-      project: "test-gcp-project",
-      location: "us-central1",
-      googleAuthOptions: {
+      auth: {
+        type: "googleServiceAccount",
         credentials: {
           client_email: "vertex@example.iam.gserviceaccount.com",
           private_key:
             "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+        },
+      },
+      providerOptions: {
+        vertex: {
+          project: "test-gcp-project",
+          location: "us-central1",
         },
       },
     };
@@ -49,7 +57,7 @@ describe("getRequestModelConfig", () => {
     assert.deepEqual(config.model, model);
   });
 
-  it("normalizes an agent string model into request model config for local server session bootstrap", () => {
+  it("does not read agentConfig.model as a request-level model config", () => {
     const request = createRequest({
       body: {
         agentConfig: { model: "google/gemini-2.5-flash" },
@@ -57,6 +65,20 @@ describe("getRequestModelConfig", () => {
     });
 
     assert.deepEqual(getRequestModelConfig(request), {
+      model: undefined,
+      modelName: undefined,
+      apiKey: undefined,
+    });
+  });
+
+  it("normalizes an agent string model into the session bootstrap model config", () => {
+    const request = createRequest({
+      body: {
+        agentConfig: { model: "google/gemini-2.5-flash" },
+      },
+    });
+
+    assert.deepEqual(getSessionBootstrapModelConfig(request), {
       model: { modelName: "google/gemini-2.5-flash" },
       modelName: "google/gemini-2.5-flash",
       apiKey: undefined,

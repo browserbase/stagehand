@@ -8,6 +8,7 @@ import { AppError } from "./errorHandler.js";
 import {
   getOptionalHeader,
   getRequestModelConfig,
+  getSessionBootstrapModelConfig,
   shouldRespondWithSSE,
 } from "./header.js";
 import { error, success } from "./response.js";
@@ -126,15 +127,16 @@ export async function createStreamingResponse<TV3>({
 
   sendData("starting", "system", { status: "starting" });
   const requestModelConfig = getRequestModelConfig(request);
+  const bootstrapModelConfig = getSessionBootstrapModelConfig(request);
   const modelApiKey = requestModelConfig.apiKey;
 
   const requestContext: RequestContext = {
     modelApiKey,
     requestModelConfig:
-      requestModelConfig.model && requestModelConfig.modelName
+      bootstrapModelConfig.model && bootstrapModelConfig.modelName
         ? {
-            ...requestModelConfig.model,
-            modelName: requestModelConfig.modelName,
+            ...bootstrapModelConfig.model,
+            modelName: bootstrapModelConfig.modelName,
           }
         : undefined,
     logger: shouldStreamResponse
