@@ -56,7 +56,7 @@
     "prettier": "^3.2.5",
     "source-map": "^0.7.4",
     "tsx": "^4.19.4",
-    "turbo": "^2.8.10",
+    "turbo": "^2.9.15",
     "typescript": "5.8.3",
     "typescript-eslint": "^8.56.1"
   },
@@ -78,7 +78,9 @@
       "jws": "^4.0.1",
       "lodash": "^4.18.0",
       "minimatch": "^3.1.4",
-      "uuid": "^11.1.1"
+      "uuid": "^11.1.1",
+      "ws": "^8.20.1",
+      "qs": "^6.15.2"
     }
   },
   "lint-staged": {
