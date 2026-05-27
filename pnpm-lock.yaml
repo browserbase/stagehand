@@ -92,8 +92,8 @@ importers:
         specifier: ^13.0.0
         version: 13.0.0
       ws:
-        specifier: ^8.18.0
-        version: 8.18.3(bufferutil@4.0.9)
+        specifier: ^8.21.0
+        version: 8.21.0(bufferutil@4.0.9)
     devDependencies:
       '@types/node':
         specifier: ^20.11.30
@@ -151,7 +151,7 @@ importers:
         version: 3.1.0
       openai:
         specifier: ^4.104.0
-        version: 4.104.0(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1)
+        version: 4.104.0(ws@8.21.0(bufferutil@4.0.9))(zod@4.2.1)
       pino:
         specifier: ^9.6.0
         version: 9.14.0
@@ -162,8 +162,8 @@ importers:
         specifier: ^11.1.1
         version: 11.1.1
       ws:
-        specifier: ^8.18.0
-        version: 8.18.3(bufferutil@4.0.9)
+        specifier: ^8.21.0
+        version: 8.21.0(bufferutil@4.0.9)
       zod-to-json-schema:
         specifier: ^3.25.0
         version: 3.25.0(zod@4.2.1)
@@ -306,7 +306,7 @@ importers:
         version: 17.3.1
       openai:
         specifier: ^4.104.0
-        version: 4.104.0(ws@8.20.0(bufferutil@4.0.9))(zod@4.2.1)
+        version: 4.104.0(ws@8.21.0(bufferutil@4.0.9))(zod@4.2.1)
       playwright:
         specifier: '>=1.55.1 <1.57.0'
         version: 1.55.1
@@ -401,7 +401,7 @@ importers:
         version: 3.0.1
       openai:
         specifier: 4.87.1
-        version: 4.87.1(ws@8.20.0(bufferutil@4.0.9))(zod@4.2.1)
+        version: 4.87.1(ws@8.21.0(bufferutil@4.0.9))(zod@4.2.1)
       postject:
         specifier: 1.0.0-alpha.6
         version: 1.0.0-alpha.6
@@ -7170,20 +7170,8 @@ packages:
       utf-8-validate:
         optional: true
 
-  ws@8.18.3:
-    resolution: {integrity: sha512-PEIGCY5tSlUt50cqyMXfCzX+oOPqN0vuGqWzbcJ2xvnkzkq46oOpz7dQaTDBdfICb4N14+GARUDw2XV2N4tvzg==}
-    engines: {node: '>=10.0.0'}
-    peerDependencies:
-      bufferutil: ^4.0.1
-      utf-8-validate: '>=5.0.2'
-    peerDependenciesMeta:
-      bufferutil:
-        optional: true
-      utf-8-validate:
-        optional: true
-
-  ws@8.20.0:
-    resolution: {integrity: sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA==}
+  ws@8.21.0:
+    resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -8234,7 +8222,7 @@ snapshots:
   '@google/genai@1.24.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.2.1))(bufferutil@4.0.9)':
     dependencies:
       google-auth-library: 9.15.1
-      ws: 8.18.3(bufferutil@4.0.9)
+      ws: 8.21.0(bufferutil@4.0.9)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.2.1)
     transitivePeerDependencies:
@@ -12231,7 +12219,7 @@ snapshots:
       type-fest: 4.41.0
       widest-line: 5.0.0
       wrap-ansi: 9.0.0
-      ws: 8.20.0(bufferutil@4.0.9)
+      ws: 8.21.0(bufferutil@4.0.9)
       yoga-layout: 3.2.1
     optionalDependencies:
       '@types/react': 19.1.3
@@ -13487,7 +13475,7 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@4.104.0(ws@8.18.3(bufferutil@4.0.9))(zod@4.2.1):
+  openai@4.104.0(ws@8.21.0(bufferutil@4.0.9))(zod@4.2.1):
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -13497,12 +13485,12 @@ snapshots:
       formdata-node: 4.4.1
       node-fetch: 2.7.0
     optionalDependencies:
-      ws: 8.18.3(bufferutil@4.0.9)
+      ws: 8.21.0(bufferutil@4.0.9)
       zod: 4.2.1
     transitivePeerDependencies:
       - encoding
 
-  openai@4.104.0(ws@8.20.0(bufferutil@4.0.9))(zod@4.2.1):
+  openai@4.87.1(ws@8.21.0(bufferutil@4.0.9))(zod@4.2.1):
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -13512,22 +13500,7 @@ snapshots:
       formdata-node: 4.4.1
       node-fetch: 2.7.0
     optionalDependencies:
-      ws: 8.20.0(bufferutil@4.0.9)
-      zod: 4.2.1
-    transitivePeerDependencies:
-      - encoding
-
-  openai@4.87.1(ws@8.20.0(bufferutil@4.0.9))(zod@4.2.1):
-    dependencies:
-      '@types/node': 18.19.130
-      '@types/node-fetch': 2.6.13
-      abort-controller: 3.0.0
-      agentkeepalive: 4.6.0
-      form-data-encoder: 1.7.2
-      formdata-node: 4.4.1
-      node-fetch: 2.7.0
-    optionalDependencies:
-      ws: 8.20.0(bufferutil@4.0.9)
+      ws: 8.21.0(bufferutil@4.0.9)
       zod: 4.2.1
     transitivePeerDependencies:
       - encoding
@@ -13934,7 +13907,7 @@ snapshots:
       chromium-bidi: 0.6.2(devtools-protocol@0.0.1312386)
       debug: 4.4.3
       devtools-protocol: 0.0.1312386
-      ws: 8.20.0(bufferutil@4.0.9)
+      ws: 8.21.0(bufferutil@4.0.9)
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -13951,7 +13924,7 @@ snapshots:
       devtools-protocol: 0.0.1608973
       typed-query-selector: 2.12.2
       webdriver-bidi-protocol: 0.4.1
-      ws: 8.20.0(bufferutil@4.0.9)
+      ws: 8.21.0(bufferutil@4.0.9)
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -15673,11 +15646,7 @@ snapshots:
     optionalDependencies:
       bufferutil: 4.0.9
 
-  ws@8.18.3(bufferutil@4.0.9):
-    optionalDependencies:
-      bufferutil: 4.0.9
-
-  ws@8.20.0(bufferutil@4.0.9):
+  ws@8.21.0(bufferutil@4.0.9):
     optionalDependencies:
       bufferutil: 4.0.9
 
