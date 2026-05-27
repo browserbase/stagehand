@@ -8,8 +8,9 @@ import { AppError } from "./errorHandler.js";
 import {
   getOptionalHeader,
   getRequestModelConfig,
-  getSessionBootstrapModelConfig,
+  getStagehandInitModelConfig,
   shouldRespondWithSSE,
+  type RequestModelConfig,
 } from "./header.js";
 import { error, success } from "./response.js";
 import { getSessionStore } from "./sessionStoreManager.js";
@@ -34,6 +35,13 @@ type StreamEventName =
   | "finished"
   | "error";
 type StreamPayloadType = "system" | "log";
+
+function formatZodIssues(err: z.ZodError) {
+  return err.issues.map((issue) => ({
+    path: issue.path[0] ?? "unknown",
+    message: issue.message,
+  }));
+}
 
 export async function createStreamingResponse<TV3>({
   sessionId,
@@ -126,19 +134,45 @@ export async function createStreamingResponse<TV3>({
   const actionId = v4();
 
   sendData("starting", "system", { status: "starting" });
-  const requestModelConfig = getRequestModelConfig(request);
-  const bootstrapModelConfig = getSessionBootstrapModelConfig(request);
+  const sendZodValidationError = (err: z.ZodError) => {
+    const validationIssues = formatZodIssues(err);
+    if (shouldStreamResponse) {
+      sendData("error", "system", {
+        status: "error",
+        error: validationIssues,
+      });
+      reply.raw.end();
+      return reply;
+    }
+
+    return reply.status(StatusCodes.BAD_REQUEST).send({
+      error: validationIssues,
+    });
+  };
+
+  const requestModelConfigResult = getRequestModelConfig(request);
+  if (requestModelConfigResult.success === false) {
+    return sendZodValidationError(requestModelConfigResult.error);
+  }
+
+  const requestModelConfig: RequestModelConfig = requestModelConfigResult.data;
+  const stagehandInitModelConfigResult = getStagehandInitModelConfig(
+    request,
+    requestModelConfig,
+  );
+  if (stagehandInitModelConfigResult.success === false) {
+    return sendZodValidationError(stagehandInitModelConfigResult.error);
+  }
+
+  const stagehandInitModelConfig = stagehandInitModelConfigResult.data;
   const modelApiKey = requestModelConfig.apiKey;
+  const parsedRequestModelConfig = stagehandInitModelConfig.model?.modelName
+    ? stagehandInitModelConfig.model
+    : undefined;
 
   const requestContext: RequestContext = {
     modelApiKey,
-    requestModelConfig:
-      bootstrapModelConfig.model && bootstrapModelConfig.modelName
-        ? {
-            ...bootstrapModelConfig.model,
-            modelName: bootstrapModelConfig.modelName,
-          }
-        : undefined,
+    requestModelConfig: parsedRequestModelConfig,
     logger: shouldStreamResponse
       ? (message) => {
           sendData("running", "log", { status: "running", message });

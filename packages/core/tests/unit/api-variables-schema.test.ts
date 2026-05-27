@@ -141,6 +141,9 @@ describe("API model config schemas", () => {
     if (typeof parsedModel !== "object" || parsedModel === null) {
       throw new Error("Expected object model config");
     }
+    if (!("auth" in parsedModel)) {
+      throw new Error("Expected Vertex auth config");
+    }
     expect(parsedModel.auth).toEqual({
       type: "googleServiceAccount",
       credentials: {
@@ -149,6 +152,40 @@ describe("API model config schemas", () => {
           "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
       },
     });
+  });
+
+  it("requires explicit Vertex provider configs to include service account auth and provider options", () => {
+    for (const model of [
+      {
+        provider: "vertex",
+        modelName: "vertex/gemini-2.5-flash",
+        providerOptions: {
+          vertex: {
+            project: "test-gcp-project",
+            location: "us-central1",
+          },
+        },
+      },
+      {
+        provider: "vertex",
+        modelName: "vertex/gemini-2.5-flash",
+        auth: {
+          type: "googleServiceAccount",
+          credentials: {
+            client_email: "vertex@example.iam.gserviceaccount.com",
+            private_key:
+              "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+          },
+        },
+      },
+    ]) {
+      const result = Api.ActRequestSchema.safeParse({
+        input: "click the search button",
+        options: { model },
+      });
+
+      expect(result.success).toBe(false);
+    }
   });
 
   it("preserves Vertex auth params for agent model configs", () => {

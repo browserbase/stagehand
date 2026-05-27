@@ -41,81 +41,134 @@ export const getOptionalHeader = (
   return headerValue;
 };
 
-const requestModelSchema = z.union([Api.ModelConfigSchema, z.string()]);
+const emptyStringSchema = z.literal("").transform((): undefined => undefined);
+const requiredStringSchema = z.string().min(1);
+const optionalStringSchema = z
+  .union([emptyStringSchema, z.string()])
+  .optional();
+
+const requestModelInputSchema = z
+  .union([
+    emptyStringSchema,
+    requiredStringSchema.transform(
+      (modelName): Api.ModelConfig => ({ modelName }),
+    ),
+    Api.ModelConfigSchema,
+  ])
+  .optional();
 const requestModelCarrierSchema = z
   .object({
-    model: requestModelSchema.optional(),
+    model: requestModelInputSchema,
+  })
+  .passthrough();
+const unparsedModelCarrierSchema = z
+  .object({
+    model: z.unknown().optional(),
   })
   .passthrough();
 const requestModelEnvelopeSchema = z
   .object({
     options: requestModelCarrierSchema.optional(),
+    agentConfig: unparsedModelCarrierSchema.optional(),
+    modelName: optionalStringSchema,
+  })
+  .passthrough();
+const stagehandInitModelEnvelopeSchema = z
+  .object({
+    options: requestModelCarrierSchema.optional(),
     agentConfig: requestModelCarrierSchema.optional(),
-    modelName: z.string().optional(),
+    modelName: optionalStringSchema,
   })
   .passthrough();
 const requestModelConfigSchema = z
   .object({
     model: Api.ModelConfigSchema.optional(),
-    modelName: z.string().optional(),
-    apiKey: z.string().optional(),
+    modelName: optionalStringSchema,
+    apiKey: optionalStringSchema,
   })
   .strict();
 
 export type RequestModelConfig = z.infer<typeof requestModelConfigSchema>;
-
-const getNonEmptyString = (value?: string): string | undefined =>
-  value ? value : undefined;
-
-const normalizeModel = (
-  model: z.infer<typeof requestModelSchema> | undefined,
-): Api.ModelConfig | undefined =>
-  typeof model === "string" ? { modelName: model } : model;
+type RequestModelConfigResult =
+  | { success: true; data: RequestModelConfig }
+  | { success: false; error: z.ZodError };
 
 /**
- * Extracts model config from request body.
+ * Extracts request-level model config with precedence.
  *
- * V3:
- * - act/observe/extract: body.options.model
+ * Model name:
+ * 1. body.options.model.modelName or body.options.model string
+ * 2. Legacy body.modelName fallback
+ *
+ * API key:
+ * 1. body.options.model.apiKey
+ * 2. x-model-api-key header
+ *
+ * agentConfig.model is parsed separately for Stagehand initialization. Its
+ * credentials are scoped to the agent main model and must not become the
+ * request-level API key fallback used by action/execution models.
  */
 export function getRequestModelConfig(
   request: FastifyRequest,
-): RequestModelConfig {
-  const body = requestModelEnvelopeSchema.parse(request.body ?? {});
-  const model = normalizeModel(body.options?.model);
+): RequestModelConfigResult {
+  const bodyResult = requestModelEnvelopeSchema.safeParse(request.body ?? {});
+  if (!bodyResult.success) {
+    return bodyResult;
+  }
 
-  return requestModelConfigSchema.parse({
+  const body = bodyResult.data;
+  const model = body.options?.model;
+  const configResult = requestModelConfigSchema.safeParse({
     model,
-    modelName: getNonEmptyString(model?.modelName) ?? body.modelName,
-    apiKey:
-      getNonEmptyString(model?.apiKey) ??
-      getOptionalHeader(request, "x-model-api-key"),
+    modelName: model?.modelName ?? body.modelName,
+    apiKey: model?.apiKey ?? getOptionalHeader(request, "x-model-api-key"),
   });
+  if (!configResult.success) {
+    return configResult;
+  }
+
+  return configResult;
 }
 
 /**
- * Extracts the structured model config that can be used to initialize a
- * Stagehand session for this request. Unlike getRequestModelConfig, this may
- * read agentConfig.model, but it does not promote agent model credentials to
- * the request-level API key.
+ * Extracts the structured model config used when creating a Stagehand instance
+ * for this request. This can read agentConfig.model for agentExecute startup,
+ * but it does not promote agent model credentials to the request-level API key.
  */
-export function getSessionBootstrapModelConfig(
+export function getStagehandInitModelConfig(
   request: FastifyRequest,
-): RequestModelConfig {
-  const requestModelConfig = getRequestModelConfig(request);
-  if (requestModelConfig.model) {
-    return requestModelConfig;
+  requestModelConfig?: RequestModelConfig,
+): RequestModelConfigResult {
+  const baseConfigResult = requestModelConfig
+    ? requestModelConfigSchema.safeParse(requestModelConfig)
+    : getRequestModelConfig(request);
+  if (!baseConfigResult.success) {
+    return baseConfigResult;
   }
 
-  const body = requestModelEnvelopeSchema.parse(request.body ?? {});
-  const agentModel = normalizeModel(body.agentConfig?.model);
+  const baseConfig = baseConfigResult.data;
+  if (baseConfig.model) {
+    return baseConfigResult;
+  }
 
-  return requestModelConfigSchema.parse({
+  const bodyResult = stagehandInitModelEnvelopeSchema.safeParse(
+    request.body ?? {},
+  );
+  if (!bodyResult.success) {
+    return bodyResult;
+  }
+
+  const agentModel = bodyResult.data.agentConfig?.model;
+  const configResult = requestModelConfigSchema.safeParse({
     model: agentModel,
-    modelName:
-      getNonEmptyString(agentModel?.modelName) ?? requestModelConfig.modelName,
-    apiKey: requestModelConfig.apiKey,
+    modelName: agentModel?.modelName ?? baseConfig.modelName,
+    apiKey: baseConfig.apiKey,
   });
+  if (!configResult.success) {
+    return configResult;
+  }
+
+  return configResult;
 }
 
 /**

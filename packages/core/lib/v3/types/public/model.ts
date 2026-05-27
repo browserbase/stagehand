@@ -48,7 +48,7 @@ export interface VertexProviderOptions {
 }
 
 export interface ModelProviderOptions {
-  vertex?: VertexProviderOptions;
+  vertex: VertexProviderOptions;
 }
 
 export type AnthropicJsonSchemaObject = {

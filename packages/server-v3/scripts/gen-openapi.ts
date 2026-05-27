@@ -48,6 +48,8 @@ async function main() {
       ModelAuth: Api.ModelAuthSchema,
       VertexProviderOptions: Api.VertexProviderOptionsSchema,
       ModelProviderOptions: Api.ModelProviderOptionsSchema,
+      GenericModelConfigObject: Api.GenericModelConfigObjectSchema,
+      VertexModelConfigObject: Api.VertexModelConfigObjectSchema,
       ModelConfigObject: Api.ModelConfigObjectSchema,
       ModelConfig: Api.ModelConfigSchema,
       Action: Api.ActionSchema,

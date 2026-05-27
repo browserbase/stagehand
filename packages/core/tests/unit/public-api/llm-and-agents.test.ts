@@ -5,9 +5,18 @@ describe("LLM and Agents public API types", () => {
   describe("ModelConfiguration", () => {
     it("accepts Vertex provider options in model config", () => {
       const vertexConfig = {
+        provider: "vertex",
         modelName: "vertex/gemini-3-flash-preview",
         headers: {
           "X-Goog-Priority": "high",
+        },
+        auth: {
+          type: "googleServiceAccount",
+          credentials: {
+            client_email: "vertex@example.iam.gserviceaccount.com",
+            private_key:
+              "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+          },
         },
         providerOptions: {
           vertex: {

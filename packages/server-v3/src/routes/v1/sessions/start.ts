@@ -214,7 +214,17 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     // initialize the browser so we can return the actual CDP URL
     let finalCdpUrl = connectUrl ?? session.cdpUrl ?? "";
     if (browserType === "local" && browser?.launchOptions && !browser?.cdpUrl) {
-      const modelApiKey = getRequestModelConfig(request).apiKey;
+      const requestModelConfigResult = getRequestModelConfig(request);
+      if (requestModelConfigResult.success === false) {
+        return reply.status(StatusCodes.BAD_REQUEST).send({
+          error: requestModelConfigResult.error.issues.map((issue) => ({
+            path: issue.path[0] ?? "unknown",
+            message: issue.message,
+          })),
+        });
+      }
+
+      const modelApiKey = requestModelConfigResult.data.apiKey;
       try {
         const stagehand = await sessionStore.getOrCreateStagehand(
           session.sessionId,

@@ -5,7 +5,8 @@ import type { FastifyRequest } from "fastify";
 
 import {
   getRequestModelConfig,
-  getSessionBootstrapModelConfig,
+  getStagehandInitModelConfig,
+  type RequestModelConfig,
 } from "../../src/lib/header.js";
 
 function createRequest({
@@ -19,6 +20,16 @@ function createRequest({
     body,
     headers,
   } as FastifyRequest;
+}
+
+function assertSuccess(
+  result: ReturnType<typeof getRequestModelConfig>,
+): RequestModelConfig {
+  if (result.success === false) {
+    throw result.error;
+  }
+  assert.equal(result.success, true);
+  return result.data;
 }
 
 describe("getRequestModelConfig", () => {
@@ -50,7 +61,7 @@ describe("getRequestModelConfig", () => {
       },
     });
 
-    const config = getRequestModelConfig(request);
+    const config = assertSuccess(getRequestModelConfig(request));
 
     assert.equal(config.modelName, "vertex/gemini-2.5-flash");
     assert.equal(config.apiKey, "sk-header");
@@ -64,7 +75,7 @@ describe("getRequestModelConfig", () => {
       },
     });
 
-    assert.deepEqual(getRequestModelConfig(request), {
+    assert.deepEqual(assertSuccess(getRequestModelConfig(request)), {
       model: undefined,
       modelName: undefined,
       apiKey: undefined,
@@ -78,10 +89,32 @@ describe("getRequestModelConfig", () => {
       },
     });
 
-    assert.deepEqual(getSessionBootstrapModelConfig(request), {
+    assert.deepEqual(assertSuccess(getStagehandInitModelConfig(request)), {
       model: { modelName: "google/gemini-2.5-flash" },
       modelName: "google/gemini-2.5-flash",
       apiKey: undefined,
     });
+  });
+
+  it("returns a validation result instead of throwing when agent bootstrap model config is invalid", () => {
+    const request = createRequest({
+      body: {
+        agentConfig: {
+          model: {
+            provider: "vertex",
+            modelName: "vertex/gemini-2.5-flash",
+          },
+        },
+      },
+    });
+
+    assert.deepEqual(assertSuccess(getRequestModelConfig(request)), {
+      model: undefined,
+      modelName: undefined,
+      apiKey: undefined,
+    });
+
+    const result = getStagehandInitModelConfig(request);
+    assert.equal(result.success, false);
   });
 });

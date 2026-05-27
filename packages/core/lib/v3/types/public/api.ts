@@ -125,30 +125,15 @@ export const VertexProviderOptionsSchema = z
 
 export const ModelProviderOptionsSchema = z
   .object({
-    vertex: VertexProviderOptionsSchema.optional().meta({
+    vertex: VertexProviderOptionsSchema.meta({
       description: "Vertex AI provider-specific settings",
     }),
   })
   .strict()
   .meta({ id: "ModelProviderOptions" });
 
-const getModelConfigProvider = (model: {
-  provider?: string;
-  modelName?: string;
-}): string | undefined =>
-  model.provider ??
-  (model.modelName?.includes("/") ? model.modelName.split("/")[0] : undefined);
-
-export const ModelConfigObjectSchema = z
+const ModelConfigBaseSchema = z
   .object({
-    provider: z
-      .enum(["openai", "anthropic", "google", "microsoft", "bedrock", "vertex"])
-      .optional()
-      .meta({
-        description:
-          "AI provider for the model (or provide a baseURL endpoint instead)",
-        example: "openai",
-      }),
     modelName: z.string().meta({
       description:
         "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
@@ -166,31 +151,49 @@ export const ModelConfigObjectSchema = z
       description:
         "Custom headers sent with every request to the model provider",
     }),
-    auth: ModelAuthSchema.optional().meta({
-      description: "Provider authentication configuration",
-    }),
-    providerOptions: ModelProviderOptionsSchema.optional().meta({
-      description: "Provider-specific model configuration",
-    }),
   })
+  .strict();
+
+export const GenericModelConfigObjectSchema = ModelConfigBaseSchema.extend({
+  provider: z
+    .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
+    .optional()
+    .meta({
+      description:
+        "AI provider for the model (or provide a baseURL endpoint instead)",
+      example: "openai",
+    }),
+})
   .strict()
+  .meta({ id: "GenericModelConfigObject" });
+
+export const VertexModelConfigObjectSchema = ModelConfigBaseSchema.extend({
+  provider: z.literal("vertex").meta({
+    description: "Vertex AI model provider",
+  }),
+  auth: ModelAuthSchema.meta({
+    description: "Vertex provider authentication configuration",
+  }),
+  providerOptions: ModelProviderOptionsSchema.meta({
+    description: "Vertex provider-specific model configuration",
+  }),
+})
+  .strict()
+  .meta({ id: "VertexModelConfigObject" });
+
+export const ModelConfigObjectSchema = z
+  .union([VertexModelConfigObjectSchema, GenericModelConfigObjectSchema])
   .superRefine((model, ctx) => {
-    const provider = getModelConfigProvider(model);
-
-    if (model.auth?.type === "googleServiceAccount" && provider !== "vertex") {
+    if (
+      model.provider === undefined &&
+      model.modelName.startsWith("vertex/") &&
+      ("auth" in model || "providerOptions" in model)
+    ) {
       ctx.addIssue({
         code: "custom",
-        path: ["auth"],
+        path: ["provider"],
         message:
-          "googleServiceAccount auth is only supported for Vertex models.",
-      });
-    }
-
-    if (model.providerOptions?.vertex && provider !== "vertex") {
-      ctx.addIssue({
-        code: "custom",
-        path: ["providerOptions", "vertex"],
-        message: "providerOptions.vertex is only supported for Vertex models.",
+          'provider: "vertex" is required when passing Vertex auth or provider options.',
       });
     }
   })
@@ -1221,6 +1224,12 @@ export const Operations = {
 // Shared types
 export type Action = z.infer<typeof ActionSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+export type GenericModelConfigObject = z.infer<
+  typeof GenericModelConfigObjectSchema
+>;
+export type VertexModelConfigObject = z.infer<
+  typeof VertexModelConfigObjectSchema
+>;
 export type GoogleServiceAccountCredentials = z.infer<
   typeof GoogleServiceAccountCredentialsSchema
 >;
