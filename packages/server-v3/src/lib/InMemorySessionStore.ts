@@ -208,10 +208,17 @@ export class InMemorySessionStore implements SessionStore {
 
     const options: V3Options = {
       env: isBrowserbase ? "BROWSERBASE" : "LOCAL",
-      model: {
-        modelName: params.modelName,
-        apiKey: ctx.modelApiKey,
-      },
+      model: ctx.requestModelConfig
+        ? {
+            ...ctx.requestModelConfig,
+            ...(ctx.requestModelConfig.apiKey
+              ? {}
+              : { apiKey: ctx.modelApiKey }),
+          }
+        : {
+            modelName: params.modelName,
+            apiKey: ctx.modelApiKey,
+          },
       verbose: params.verbose,
       systemPrompt: params.systemPrompt,
       selfHeal: params.selfHeal,

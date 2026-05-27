@@ -106,6 +106,8 @@ interface ClientSessionStartParams extends Api.SessionStartRequest {
    *  Optional: when omitted, requests are sent without the x-model-api-key header
    *  and the server is expected to handle model authentication on its own. */
   modelApiKey?: string;
+  /** Default model config for later action requests. Not sent to /sessions/start. */
+  defaultModelConfig?: ModelConfiguration;
 }
 
 /**
@@ -114,6 +116,11 @@ interface ClientSessionStartParams extends Api.SessionStartRequest {
 type ApiResponse<T> =
   | { success: true; data: T }
   | { success: false; message: string };
+
+type PreparedModelConfig = { modelName: string; apiKey?: string } & Record<
+  string,
+  unknown
+>;
 
 /**
  * Union of all API request body types for type-safe execute() calls
@@ -180,6 +187,7 @@ export class StagehandAPIClient {
   private sessionId?: string;
   private modelApiKey?: string;
   private modelProvider?: string;
+  private defaultModelConfig?: PreparedModelConfig;
   private region?: BrowserbaseRegion;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
@@ -205,6 +213,7 @@ export class StagehandAPIClient {
   async init({
     modelName,
     modelApiKey,
+    defaultModelConfig,
     domSettleTimeoutMs,
     verbose,
     systemPrompt,
@@ -217,6 +226,9 @@ export class StagehandAPIClient {
     // Extract provider from modelName (e.g., "openai/gpt-5-nano" -> "openai")
     this.modelProvider = modelName?.includes("/")
       ? modelName.split("/")[0]
+      : undefined;
+    this.defaultModelConfig = defaultModelConfig
+      ? this.prepareModelConfig(defaultModelConfig)
       : undefined;
 
     // Store the region for multi-region API URL resolution
@@ -288,12 +300,18 @@ export class StagehandAPIClient {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, serverCache: enableCache, ...restOptions } = options;
       serverCache = enableCache;
+      if (restOptions.model) {
+        restOptions.model = this.prepareModelConfig(restOptions.model);
+      } else if (this.defaultModelConfig) {
+        restOptions.model = this.getDefaultModelConfig();
+      }
       if (Object.keys(restOptions).length > 0) {
-        if (restOptions.model) {
-          restOptions.model = this.prepareModelConfig(restOptions.model);
-        }
         wireOptions = restOptions as unknown as Api.ActRequest["options"];
       }
+    } else if (this.defaultModelConfig) {
+      wireOptions = {
+        model: this.getDefaultModelConfig(),
+      } as unknown as Api.ActRequest["options"];
     }
 
     // Build wire-format request body
@@ -326,12 +344,18 @@ export class StagehandAPIClient {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, serverCache: enableCache, ...restOptions } = options;
       serverCache = enableCache;
+      if (restOptions.model) {
+        restOptions.model = this.prepareModelConfig(restOptions.model);
+      } else if (this.defaultModelConfig) {
+        restOptions.model = this.getDefaultModelConfig();
+      }
       if (Object.keys(restOptions).length > 0) {
-        if (restOptions.model) {
-          restOptions.model = this.prepareModelConfig(restOptions.model);
-        }
         wireOptions = restOptions as unknown as Api.ExtractRequest["options"];
       }
+    } else if (this.defaultModelConfig) {
+      wireOptions = {
+        model: this.getDefaultModelConfig(),
+      } as unknown as Api.ExtractRequest["options"];
     }
 
     // Build wire-format request body
@@ -361,12 +385,18 @@ export class StagehandAPIClient {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, serverCache: enableCache, ...restOptions } = options;
       serverCache = enableCache;
+      if (restOptions.model) {
+        restOptions.model = this.prepareModelConfig(restOptions.model);
+      } else if (this.defaultModelConfig) {
+        restOptions.model = this.getDefaultModelConfig();
+      }
       if (Object.keys(restOptions).length > 0) {
-        if (restOptions.model) {
-          restOptions.model = this.prepareModelConfig(restOptions.model);
-        }
         wireOptions = restOptions as unknown as Api.ObserveRequest["options"];
       }
+    } else if (this.defaultModelConfig) {
+      wireOptions = {
+        model: this.getDefaultModelConfig(),
+      } as unknown as Api.ObserveRequest["options"];
     }
 
     // Build wire-format request body
@@ -388,7 +418,22 @@ export class StagehandAPIClient {
     options?: Api.NavigateRequest["options"],
     frameId?: string,
   ): Promise<SerializableResponse | null> {
-    const requestBody: Api.NavigateRequest = { url, options, frameId };
+    const publicOptions = { ...(options ?? {}) } as NonNullable<
+      Api.NavigateRequest["options"]
+    > & { model?: unknown };
+    delete publicOptions.model;
+
+    const wireOptions = {
+      ...publicOptions,
+      ...(this.defaultModelConfig
+        ? { model: this.getDefaultModelConfig() }
+        : {}),
+    };
+    const requestBody: Api.NavigateRequest = {
+      url,
+      options: Object.keys(wireOptions).length > 0 ? wireOptions : undefined,
+      frameId,
+    };
 
     return this.execute<SerializableResponse | null>({
       method: "navigate",
@@ -425,7 +470,7 @@ export class StagehandAPIClient {
       cua: agentConfig.mode === undefined ? agentConfig.cua : undefined,
       model: agentConfig.model
         ? this.prepareModelConfig(agentConfig.model)
-        : undefined,
+        : this.getDefaultModelConfig(),
       executionModel: agentConfig.executionModel
         ? this.prepareModelConfig(agentConfig.executionModel)
         : undefined,
@@ -605,40 +650,52 @@ export class StagehandAPIClient {
    * In API mode, we only attempt to load an API key from env vars when the
    * model provider differs from the one used to init the session.
    */
-  private prepareModelConfig(
-    model: ModelConfiguration,
-  ): { modelName: string; apiKey?: string } & Record<string, unknown> {
+  private prepareModelConfig(model: ModelConfiguration): PreparedModelConfig {
     if (typeof model === "string") {
       // Extract provider from model string (e.g., "openai/gpt-5-nano" -> "openai")
-      const provider = model.includes("/") ? model.split("/")[0] : undefined;
+      const provider = this.getModelProvider(model);
+      const inheritedDefault =
+        provider && provider === this.modelProvider
+          ? this.getDefaultModelConfig()
+          : undefined;
       const apiKey =
         provider && provider !== this.modelProvider
           ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
           : this.modelApiKey;
       return {
+        ...inheritedDefault,
         modelName: model,
         ...(apiKey ? { apiKey } : {}),
       };
     }
 
-    if (!model.apiKey) {
-      const provider = model.modelName?.includes("/")
-        ? model.modelName.split("/")[0]
+    const provider = this.getModelProvider(model.modelName);
+    const inheritedDefault =
+      provider && provider === this.modelProvider
+        ? this.getDefaultModelConfig()
         : undefined;
-      const apiKey =
-        provider && provider !== this.modelProvider
-          ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
-          : this.modelApiKey;
-      return {
-        ...model,
-        ...(apiKey ? { apiKey } : {}),
-      };
-    }
+    const apiKey =
+      !model.apiKey && provider && provider !== this.modelProvider
+        ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
+        : !model.apiKey
+          ? this.modelApiKey
+          : undefined;
 
-    return model as { modelName: string; apiKey: string } & Record<
-      string,
-      unknown
-    >;
+    return {
+      ...inheritedDefault,
+      ...model,
+      ...(apiKey ? { apiKey } : {}),
+    } as PreparedModelConfig;
+  }
+
+  private getDefaultModelConfig(): PreparedModelConfig | undefined {
+    return this.defaultModelConfig
+      ? ({ ...this.defaultModelConfig } as PreparedModelConfig)
+      : undefined;
+  }
+
+  private getModelProvider(modelName: string | undefined): string | undefined {
+    return modelName?.includes("/") ? modelName.split("/")[0] : undefined;
   }
 
   private consumeFinishedEventData<T>(): T | null {

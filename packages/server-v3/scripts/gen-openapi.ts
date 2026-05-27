@@ -44,7 +44,12 @@ async function main() {
       LocalBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema,
       GoogleServiceAccountCredentials:
         Api.GoogleServiceAccountCredentialsSchema,
-      GoogleAuthOptions: Api.GoogleAuthOptionsSchema,
+      GoogleServiceAccountAuth: Api.GoogleServiceAccountAuthSchema,
+      ModelAuth: Api.ModelAuthSchema,
+      VertexProviderOptions: Api.VertexProviderOptionsSchema,
+      ModelProviderOptions: Api.ModelProviderOptionsSchema,
+      GenericModelConfigObject: Api.GenericModelConfigObjectSchema,
+      VertexModelConfigObject: Api.VertexModelConfigObjectSchema,
       ModelConfigObject: Api.ModelConfigObjectSchema,
       ModelConfig: Api.ModelConfigSchema,
       Action: Api.ActionSchema,

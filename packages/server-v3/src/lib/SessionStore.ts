@@ -67,6 +67,8 @@ export interface CreateSessionParams {
 export interface RequestContext {
   /** Model API key (from x-model-api-key header) */
   modelApiKey?: string;
+  /** Structured model config from the current request body */
+  requestModelConfig?: Api.ModelConfig;
   /** Logger function for this request */
   logger?: (message: LogLine) => void;
 }

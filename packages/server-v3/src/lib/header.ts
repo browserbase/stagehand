@@ -1,4 +1,6 @@
 import type { FastifyRequest } from "fastify";
+import { Api } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
 
 import { MissingHeaderError } from "../types/error.js";
 
@@ -39,41 +41,134 @@ export const getOptionalHeader = (
   return headerValue;
 };
 
+const emptyStringSchema = z.literal("").transform((): undefined => undefined);
+const requiredStringSchema = z.string().min(1);
+const optionalStringSchema = z
+  .union([emptyStringSchema, z.string()])
+  .optional();
+
+const requestModelInputSchema = z
+  .union([
+    emptyStringSchema,
+    requiredStringSchema.transform(
+      (modelName): Api.ModelConfig => ({ modelName }),
+    ),
+    Api.ModelConfigSchema,
+  ])
+  .optional();
+const requestModelCarrierSchema = z
+  .object({
+    model: requestModelInputSchema,
+  })
+  .passthrough();
+const unparsedModelCarrierSchema = z
+  .object({
+    model: z.unknown().optional(),
+  })
+  .passthrough();
+const requestModelEnvelopeSchema = z
+  .object({
+    options: requestModelCarrierSchema.optional(),
+    agentConfig: unparsedModelCarrierSchema.optional(),
+    modelName: optionalStringSchema,
+  })
+  .passthrough();
+const stagehandInitModelEnvelopeSchema = z
+  .object({
+    options: requestModelCarrierSchema.optional(),
+    agentConfig: requestModelCarrierSchema.optional(),
+    modelName: optionalStringSchema,
+  })
+  .passthrough();
+const requestModelConfigSchema = z
+  .object({
+    model: Api.ModelConfigSchema.optional(),
+    modelName: optionalStringSchema,
+    apiKey: optionalStringSchema,
+  })
+  .strict();
+
+export type RequestModelConfig = z.infer<typeof requestModelConfigSchema>;
+type RequestModelConfigResult =
+  | { success: true; data: RequestModelConfig }
+  | { success: false; error: z.ZodError };
+
 /**
- * Extracts model name from request body, supporting V3 structure.
- * - V3: body.options.model.modelName
+ * Extracts request-level model config with precedence.
+ *
+ * Model name:
+ * 1. body.options.model.modelName or body.options.model string
+ * 2. Legacy body.modelName fallback
+ *
+ * API key:
+ * 1. body.options.model.apiKey
+ * 2. x-model-api-key header
+ *
+ * agentConfig.model is parsed separately for Stagehand initialization. Its
+ * credentials are scoped to the agent main model and must not become the
+ * request-level API key fallback used by action/execution models.
  */
-export function getModelName(request: FastifyRequest): string | undefined {
-  const body = request.body as Record<string, unknown> | undefined;
-  const options = body?.options as Record<string, unknown> | undefined;
-  const model = options?.model as Record<string, unknown> | undefined;
-
-  if (typeof model?.modelName === "string" && model.modelName) {
-    return model.modelName;
+export function getRequestModelConfig(
+  request: FastifyRequest,
+): RequestModelConfigResult {
+  const bodyResult = requestModelEnvelopeSchema.safeParse(request.body ?? {});
+  if (!bodyResult.success) {
+    return bodyResult;
   }
 
-  if (typeof body?.modelName === "string" && body.modelName) {
-    return body.modelName;
+  const body = bodyResult.data;
+  const model = body.options?.model;
+  const configResult = requestModelConfigSchema.safeParse({
+    model,
+    modelName: model?.modelName ?? body.modelName,
+    apiKey: model?.apiKey ?? getOptionalHeader(request, "x-model-api-key"),
+  });
+  if (!configResult.success) {
+    return configResult;
   }
 
-  return undefined;
+  return configResult;
 }
 
 /**
- * Extracts the model API key with precedence:
- * 1. Per-request body apiKey (V3: body.options.model.apiKey)
- * 2. Per-request header x-model-api-key
+ * Extracts the structured model config used when creating a Stagehand instance
+ * for this request. This can read agentConfig.model for agentExecute startup,
+ * but it does not promote agent model credentials to the request-level API key.
  */
-export function getModelApiKey(request: FastifyRequest): string | undefined {
-  const body = request.body as Record<string, unknown> | undefined;
-  const options = body?.options as Record<string, unknown> | undefined;
-  const model = options?.model as Record<string, unknown> | undefined;
-
-  if (typeof model?.apiKey === "string" && model.apiKey) {
-    return model.apiKey;
+export function getStagehandInitModelConfig(
+  request: FastifyRequest,
+  requestModelConfig?: RequestModelConfig,
+): RequestModelConfigResult {
+  const baseConfigResult = requestModelConfig
+    ? requestModelConfigSchema.safeParse(requestModelConfig)
+    : getRequestModelConfig(request);
+  if (!baseConfigResult.success) {
+    return baseConfigResult;
   }
 
-  return getOptionalHeader(request, "x-model-api-key");
+  const baseConfig = baseConfigResult.data;
+  if (baseConfig.model) {
+    return baseConfigResult;
+  }
+
+  const bodyResult = stagehandInitModelEnvelopeSchema.safeParse(
+    request.body ?? {},
+  );
+  if (!bodyResult.success) {
+    return bodyResult;
+  }
+
+  const agentModel = bodyResult.data.agentConfig?.model;
+  const configResult = requestModelConfigSchema.safeParse({
+    model: agentModel,
+    modelName: agentModel?.modelName ?? baseConfig.modelName,
+    apiKey: baseConfig.apiKey,
+  });
+  if (!configResult.success) {
+    return configResult;
+  }
+
+  return configResult;
 }
 
 /**
