@@ -113,11 +113,30 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     }
 
     const browserType = browser?.type ?? "browserbase";
+    const localBrowserLaunchOptions =
+      browserType === "local" && browser?.launchOptions && !browser?.cdpUrl
+        ? browser.launchOptions
+        : undefined;
 
     let bbApiKey: string | undefined;
     let browserbaseProjectId: string | undefined;
     let browserbaseSessionId: string | undefined;
     let connectUrl: string | undefined;
+    let localBrowserModelApiKey: string | undefined;
+
+    if (localBrowserLaunchOptions) {
+      const requestModelConfigResult = getRequestModelConfig(request);
+      if (requestModelConfigResult.success === false) {
+        return reply.status(StatusCodes.BAD_REQUEST).send({
+          error: requestModelConfigResult.error.issues.map((issue) => ({
+            path: issue.path[0] ?? "unknown",
+            message: issue.message,
+          })),
+        });
+      }
+
+      localBrowserModelApiKey = requestModelConfigResult.data.apiKey;
+    }
 
     if (browserType === "browserbase") {
       bbApiKey = getOptionalHeader(request, "x-bb-api-key");
@@ -213,22 +232,11 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     // For local browsers with launchOptions (no explicit cdpUrl), eagerly
     // initialize the browser so we can return the actual CDP URL
     let finalCdpUrl = connectUrl ?? session.cdpUrl ?? "";
-    if (browserType === "local" && browser?.launchOptions && !browser?.cdpUrl) {
-      const requestModelConfigResult = getRequestModelConfig(request);
-      if (requestModelConfigResult.success === false) {
-        return reply.status(StatusCodes.BAD_REQUEST).send({
-          error: requestModelConfigResult.error.issues.map((issue) => ({
-            path: issue.path[0] ?? "unknown",
-            message: issue.message,
-          })),
-        });
-      }
-
-      const modelApiKey = requestModelConfigResult.data.apiKey;
+    if (localBrowserLaunchOptions) {
       try {
         const stagehand = await sessionStore.getOrCreateStagehand(
           session.sessionId,
-          { modelApiKey },
+          { modelApiKey: localBrowserModelApiKey },
         );
         finalCdpUrl = stagehand.connectURL();
       } catch (err) {
@@ -239,12 +247,12 @@ const startRouteHandler: RouteHandler = withErrorHandling(
             browserType,
             chromePathEnv: process.env.CHROME_PATH,
             launchOptions: {
-              executablePath: browser.launchOptions.executablePath,
-              argsCount: browser.launchOptions.args?.length ?? 0,
-              headless: browser.launchOptions.headless,
-              hasUserDataDir: Boolean(browser.launchOptions.userDataDir),
-              port: browser.launchOptions.port,
-              connectTimeoutMs: browser.launchOptions.connectTimeoutMs,
+              executablePath: localBrowserLaunchOptions.executablePath,
+              argsCount: localBrowserLaunchOptions.args?.length ?? 0,
+              headless: localBrowserLaunchOptions.headless,
+              hasUserDataDir: Boolean(localBrowserLaunchOptions.userDataDir),
+              port: localBrowserLaunchOptions.port,
+              connectTimeoutMs: localBrowserLaunchOptions.connectTimeoutMs,
             },
           },
           "Failed to initialize local browser session in /v1/sessions/start",

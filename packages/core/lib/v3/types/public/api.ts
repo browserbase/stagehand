@@ -183,20 +183,6 @@ export const VertexModelConfigObjectSchema = ModelConfigBaseSchema.extend({
 
 export const ModelConfigObjectSchema = z
   .union([VertexModelConfigObjectSchema, GenericModelConfigObjectSchema])
-  .superRefine((model, ctx) => {
-    if (
-      model.provider === undefined &&
-      model.modelName.startsWith("vertex/") &&
-      ("auth" in model || "providerOptions" in model)
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["provider"],
-        message:
-          'provider: "vertex" is required when passing Vertex auth or provider options.',
-      });
-    }
-  })
   .meta({ id: "ModelConfigObject" });
 
 /** Model configuration */

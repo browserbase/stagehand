@@ -188,6 +188,33 @@ describe("API model config schemas", () => {
     }
   });
 
+  it("requires provider vertex when passing Vertex auth and provider options", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          modelName: "vertex/gemini-2.5-flash",
+          auth: {
+            type: "googleServiceAccount",
+            credentials: {
+              client_email: "vertex@example.iam.gserviceaccount.com",
+              private_key:
+                "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+            },
+          },
+          providerOptions: {
+            vertex: {
+              project: "test-gcp-project",
+              location: "us-central1",
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("preserves Vertex auth params for agent model configs", () => {
     const result = Api.AgentExecuteRequestSchema.safeParse({
       agentConfig: {
