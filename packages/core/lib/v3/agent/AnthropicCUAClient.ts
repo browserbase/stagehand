@@ -453,6 +453,7 @@ export class AnthropicCUAClient extends AgentClient {
 
       // Check if this is a Claude 4.6+ model that supports adaptive thinking
       const isAdaptiveThinkingModel = [
+        "claude-opus-4-8",
         "claude-opus-4-6",
         "claude-sonnet-4-6",
       ].includes(modelBase);

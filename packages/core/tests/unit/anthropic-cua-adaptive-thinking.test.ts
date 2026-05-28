@@ -36,7 +36,30 @@ describe("AnthropicCUAClient adaptive thinking", () => {
     });
   });
 
-  describe("Claude 4.6 models (adaptive thinking)", () => {
+  describe("Claude 4.6+ models (adaptive thinking)", () => {
+    it("should use thinking.type: 'adaptive' for claude-opus-4-8 when thinkingEffort is set", async () => {
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "claude-opus-4-8",
+        undefined,
+        {
+          apiKey: "test-key",
+          thinkingEffort: "high",
+        },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }]);
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          thinking: { type: "adaptive" },
+          output_config: { effort: "high" },
+          temperature: 1,
+        }),
+      );
+    });
+
     it("should use thinking.type: 'adaptive' for claude-opus-4-6 when thinkingEffort is set", async () => {
       const client = new AnthropicCUAClient(
         "anthropic",
