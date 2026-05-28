@@ -1,0 +1,19 @@
+import type { Page } from "../../understudy/page.js";
+
+export interface ClipboardOptions {
+  page?: Page;
+  timeout?: number;
+}
+
+export interface ClipboardPasteOptions extends ClipboardOptions {
+  shortcut?: "ControlOrMeta+V" | "Meta+V" | "Control+V";
+}
+
+export interface BrowserClipboard {
+  readText(options?: ClipboardOptions): Promise<string>;
+  writeText(text: string, options?: ClipboardOptions): Promise<void>;
+  clear(options?: ClipboardOptions): Promise<void>;
+  paste(options?: ClipboardPasteOptions): Promise<void>;
+  copySelection(options?: ClipboardOptions): Promise<string>;
+  cutSelection(options?: ClipboardOptions): Promise<string>;
+}
