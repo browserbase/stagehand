@@ -12,7 +12,7 @@
  *      SEA_INCLUDE_SOURCEMAPS.
  * Example: pnpm run build:sea:cjs -- --target-platform=linux --target-arch=arm64
  */
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -86,6 +86,17 @@ const includeSourcemaps = parseBoolean(
   argValue("include-sourcemaps") ?? process.env.SEA_INCLUDE_SOURCEMAPS,
   false,
 );
+
+const gitOutput = (args: string[]) =>
+  execFileSync("git", args, { cwd: repoDir, encoding: "utf8" }).trim();
+const buildCommit = gitOutput(["rev-parse", "HEAD"]);
+const seaVersion = [
+  `commit: ${buildCommit}`,
+  `timestamp: ${gitOutput(["show", "-s", "--format=%cI", buildCommit])}`,
+].join("\n");
+const seaBuildDefine = {
+  __STAGEHAND_SERVER_VERSION__: JSON.stringify(seaVersion),
+};
 
 const run = (cmd: string, args: string[], opts: { cwd?: string } = {}) => {
   const result = spawnSync(cmd, args, { stdio: "inherit", ...opts });
@@ -273,6 +284,7 @@ const buildCjsBundle = () => {
     platform: "node",
     format: "cjs",
     outfile: bundlePath,
+    define: seaBuildDefine,
     logLevel: "warning",
     absWorkingDir: repoDir,
   });
@@ -295,6 +307,7 @@ const buildEsmBundle = () => {
     format: "esm",
     treeShaking: false,
     outfile: appBundlePath,
+    define: seaBuildDefine,
     alias: {
       "@browserbasehq/stagehand": `${repoDir}/packages/core/dist/esm/index.js`,
     },
@@ -412,6 +425,15 @@ const { pathToFileURL } = require("node:url");
 const bundleBase64 = ${JSON.stringify(appBytes.toString("base64"))};
 const bundleLength = ${appBytes.length};
 const bundleHash = ${JSON.stringify(bundleHash)};
+const versionOutput = ${JSON.stringify(seaVersion)};
+
+const argv = process.argv.slice(1);
+const normalizedArgv = argv[0]?.startsWith("--") ? argv : argv.slice(1);
+
+if (normalizedArgv.includes("--version")) {
+  console.log(versionOutput);
+  process.exit(0);
+}
 
 const cacheRoot =
   process.env.STAGEHAND_SEA_CACHE_DIR ||
