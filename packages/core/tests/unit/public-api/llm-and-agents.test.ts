@@ -57,6 +57,7 @@ describe("LLM and Agents public API types", () => {
       "openai/gpt-5.5",
       "anthropic/claude-opus-4-5-20251101",
       "anthropic/claude-opus-4-6",
+      "anthropic/claude-opus-4-8",
       "anthropic/claude-sonnet-4-6",
       "anthropic/claude-haiku-4-5",
       "anthropic/claude-haiku-4-5-20251001",
@@ -73,6 +74,12 @@ describe("LLM and Agents public API types", () => {
         (typeof expectedModels)[number]
       >();
       void expectedModels; // Mark as used to satisfy ESLint
+    });
+
+    it("includes Claude Opus 4.8 at runtime", () => {
+      expect(Stagehand.AVAILABLE_CUA_MODELS).toContain(
+        "anthropic/claude-opus-4-8",
+      );
     });
   });
 
@@ -286,6 +293,12 @@ describe("LLM and Agents public API types", () => {
       expectTypeOf<
         typeof Stagehand.modelToAgentProviderMap
       >().toExtend<ExpectedModelToAgentProviderMap>();
+    });
+
+    it("routes Claude Opus 4.8 to Anthropic", () => {
+      expect(Stagehand.modelToAgentProviderMap["claude-opus-4-8"]).toBe(
+        "anthropic",
+      );
     });
   });
 
