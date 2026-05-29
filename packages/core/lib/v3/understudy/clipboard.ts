@@ -62,18 +62,16 @@ export class ContextClipboard implements BrowserClipboard {
     await page.keyPress(options?.shortcut ?? "ControlOrMeta+V");
   }
 
-  async copySelection(options?: ClipboardOptions): Promise<string> {
+  async copy(options?: ClipboardOptions): Promise<void> {
     const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
     await page.keyPress("ControlOrMeta+C");
-    return await this.readText({ ...options, page });
   }
 
-  async cutSelection(options?: ClipboardOptions): Promise<string> {
+  async cut(options?: ClipboardOptions): Promise<void> {
     const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
     await page.keyPress("ControlOrMeta+X");
-    return await this.readText({ ...options, page });
   }
 
   private async resolvePage(page?: Page): Promise<Page> {

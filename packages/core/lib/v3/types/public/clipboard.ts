@@ -14,6 +14,6 @@ export interface BrowserClipboard {
   writeText(text: string, options?: ClipboardOptions): Promise<void>;
   clear(options?: ClipboardOptions): Promise<void>;
   paste(options?: ClipboardPasteOptions): Promise<void>;
-  copySelection(options?: ClipboardOptions): Promise<string>;
-  cutSelection(options?: ClipboardOptions): Promise<string>;
+  copy(options?: ClipboardOptions): Promise<void>;
+  cut(options?: ClipboardOptions): Promise<void>;
 }

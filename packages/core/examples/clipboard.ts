@@ -16,7 +16,8 @@ async function example(stagehand: Stagehand) {
   await stagehand.context.clipboard.paste();
 
   await page.keyPress("ControlOrMeta+A");
-  const copied = await stagehand.context.clipboard.copySelection();
+  await stagehand.context.clipboard.copy();
+  const copied = await stagehand.context.clipboard.readText();
   console.log(copied);
 
   await stagehand.context.clipboard.clear();
