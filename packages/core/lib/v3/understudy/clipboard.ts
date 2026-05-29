@@ -19,6 +19,13 @@ export class ContextClipboard implements BrowserClipboard {
 
   @FlowLogger.wrapWithLogging({ eventType: "ClipboardWriteText" })
   async writeText(text: string, options?: ClipboardOptions): Promise<void> {
+    await this.writeTextInternal(text, options);
+  }
+
+  private async writeTextInternal(
+    text: string,
+    options?: ClipboardOptions,
+  ): Promise<void> {
     const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
     await this.grantClipboardPermissions(page);
@@ -57,7 +64,7 @@ export class ContextClipboard implements BrowserClipboard {
 
   @FlowLogger.wrapWithLogging({ eventType: "ClipboardClear" })
   async clear(options?: ClipboardOptions): Promise<void> {
-    await this.writeText("", options);
+    await this.writeTextInternal("", options);
   }
 
   @FlowLogger.wrapWithLogging({ eventType: "ClipboardPaste" })
