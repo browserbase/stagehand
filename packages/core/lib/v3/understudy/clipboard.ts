@@ -7,6 +7,7 @@ import type {
   ClipboardPasteOptions,
 } from "../types/public/clipboard.js";
 import { StagehandEvalError } from "../types/public/sdkErrors.js";
+import { FlowLogger } from "../flowlogger/FlowLogger.js";
 
 type ContextClipboardParams = {
   context: V3Context;
@@ -16,6 +17,7 @@ type ContextClipboardParams = {
 export class ContextClipboard implements BrowserClipboard {
   constructor(private readonly params: ContextClipboardParams) {}
 
+  @FlowLogger.wrapWithLogging({ eventType: "ClipboardWriteText" })
   async writeText(text: string, options?: ClipboardOptions): Promise<void> {
     const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
@@ -33,6 +35,7 @@ export class ContextClipboard implements BrowserClipboard {
     this.throwIfEvaluationFailed("write clipboard text", response);
   }
 
+  @FlowLogger.wrapWithLogging({ eventType: "ClipboardReadText" })
   async readText(options?: ClipboardOptions): Promise<string> {
     const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
@@ -52,22 +55,26 @@ export class ContextClipboard implements BrowserClipboard {
     return String(response.result?.value ?? "");
   }
 
+  @FlowLogger.wrapWithLogging({ eventType: "ClipboardClear" })
   async clear(options?: ClipboardOptions): Promise<void> {
     await this.writeText("", options);
   }
 
+  @FlowLogger.wrapWithLogging({ eventType: "ClipboardPaste" })
   async paste(options?: ClipboardPasteOptions): Promise<void> {
     const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
     await page.keyPress(options?.shortcut ?? "ControlOrMeta+V");
   }
 
+  @FlowLogger.wrapWithLogging({ eventType: "ClipboardCopy" })
   async copy(options?: ClipboardOptions): Promise<void> {
     const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
     await page.keyPress("ControlOrMeta+C");
   }
 
+  @FlowLogger.wrapWithLogging({ eventType: "ClipboardCut" })
   async cut(options?: ClipboardOptions): Promise<void> {
     const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
