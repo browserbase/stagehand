@@ -5,11 +5,10 @@ async function example(stagehand: Stagehand) {
   await page.goto("https://example.com");
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
-  await page.sendCDP("Runtime.evaluate", {
-    expression: `
-      document.body.innerHTML = "<textarea autofocus style='width:400px;height:120px'></textarea>";
-      document.querySelector("textarea").focus();
-    `,
+  await page.evaluate(() => {
+    document.body.innerHTML =
+      "<textarea autofocus style='width:400px;height:120px'></textarea>";
+    document.querySelector("textarea")?.focus();
   });
 
   await stagehand.context.clipboard.writeText("Hello from Stagehand");
