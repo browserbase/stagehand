@@ -28,6 +28,10 @@ async function example(stagehand: Stagehand) {
     model: "openai/gpt-5",
     verbose: 2,
   });
-  await stagehand.init();
-  await example(stagehand);
+  try {
+    await stagehand.init();
+    await example(stagehand);
+  } finally {
+    await stagehand.close();
+  }
 })();
