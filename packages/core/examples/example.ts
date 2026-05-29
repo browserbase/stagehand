@@ -1,49 +1,50 @@
 import { Stagehand } from "../lib/v3/index.js";
 
 async function example(stagehand: Stagehand) {
-  /**
-   * Add your code here!
-   */
   const page = stagehand.context.pages()[0];
   await page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
+    "https://googlechromelabs.github.io/webmcp-tools/demos/react-flightsearch/",
+    { waitUntil: "load" },
   );
 
-  const { extraction } = await stagehand.extract(
-    "grab the the first title from inside the iframe",
-  );
-  console.log(extraction);
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  const tools = await page.listWebMCPTools();
+  console.log(`Found ${tools.length} WebMCP tools:`);
+  for (const tool of tools) {
+    console.log(`- ${tool.name}: ${tool.description ?? "No description"}`);
+  }
 
-  const page2 = await stagehand.context.newPage();
-  await page2.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc/",
-  );
-  await stagehand.extract(
-    "extract the placeholder text on the your name field",
-    { page: page2 },
-  );
-  await stagehand.act("fill the your name field with the text 'John Doe'", {
-    page: page2,
-  });
-  const action2 = await stagehand.observe(
-    "select blue as the favorite color on the dropdown",
-    { page: page2 },
-  );
-  for (const action of action2) {
-    await stagehand.act(action, { page: page2, timeout: 30_000 });
+  const flightSearch = tools.find((tool) => tool.name === "searchFlights");
+  if (flightSearch) {
+    const invocation = await page.invokeWebMCPTool(
+      flightSearch.name,
+      {
+        origin: "SFO",
+        destination: "JFK",
+        tripType: "round-trip",
+        outboundDate: "2026-06-10",
+        inboundDate: "2026-06-17",
+        passengers: 1,
+      },
+      { frameId: flightSearch.frameId },
+    );
+
+    const result = await invocation.result;
+    console.log("Invocation result:");
+    console.log(JSON.stringify(result, null, 2));
   }
 }
 
 (async () => {
   const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    model: "openai/gpt-5",
+    env: "LOCAL",
     verbose: 2,
+    localBrowserLaunchOptions: {
+      args: ["--enable-features=WebMCPTesting,DevToolsWebMCPSupport"],
+    },
   });
-  try {
-    await stagehand.init();
-    await example(stagehand);
-  } finally {
-    await stagehand.close();
-  }
+
+  await stagehand.init();
+  await example(stagehand);
+  console.log("Browser left open.");
 })();
