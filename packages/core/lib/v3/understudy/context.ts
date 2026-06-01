@@ -8,8 +8,10 @@ import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandAPIClient } from "../api.js";
 import { LocalBrowserLaunchOptions } from "../types/public/index.js";
+import type { BrowserClipboard } from "../types/public/clipboard.js";
 import { InitScriptSource } from "../types/private/index.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
+import { ContextClipboard } from "./clipboard.js";
 import {
   TimeoutError,
   CookieSetError,
@@ -124,6 +126,7 @@ export class V3Context {
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private readonly initScripts: string[] = [];
   private extraHttpHeaders: Record<string, string> | null = null;
+  private _clipboard?: ContextClipboard;
 
   private installTargetSessionListeners(session: CDPSessionLike): void {
     const sessionId = session.id;
@@ -420,6 +423,18 @@ export class V3Context {
     if (failures.length) {
       throw new StagehandSetExtraHTTPHeadersError(failures);
     }
+  }
+
+  public get clipboard(): BrowserClipboard {
+    return (this._clipboard ??= new ContextClipboard({
+      context: this,
+      resolvePage: async (page) => {
+        if (page) return page;
+        const active = this.activePage();
+        if (!active) throw new PageNotFoundError("active page");
+        return active;
+      },
+    }));
   }
 
   /**
