@@ -876,6 +876,7 @@ export class Page {
    * WebMCP.enable is called, so this method treats the browser as the source of
    * truth and collects that per-call snapshot instead of keeping a tool cache.
    */
+  @FlowLogger.wrapWithLogging({ eventType: "PageListWebMCPTools" })
   public async listWebMCPTools(
     options?: WebMCPListToolsOptions,
   ): Promise<WebMCPTool[]> {
@@ -893,6 +894,7 @@ export class Page {
     }
   }
 
+  @FlowLogger.wrapWithLogging({ eventType: "PageInvokeWebMCPTool" })
   public async invokeWebMCPTool(
     toolName: string,
     input: Record<string, unknown>,
