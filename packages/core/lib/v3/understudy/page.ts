@@ -106,6 +106,11 @@ type Deferred<T> = {
   reject: (error: Error) => void;
 };
 
+type PendingWebMCPInvocation = {
+  deferred: Deferred<WebMCPToolResult>;
+  timer: ReturnType<typeof setTimeout>;
+};
+
 function createDeferred<T>(): Deferred<T> {
   let resolve!: Deferred<T>["resolve"];
   let reject!: Deferred<T>["reject"];
@@ -124,6 +129,19 @@ function stripWebMCPToolDebugFields(tool: WebMCPCdpTool): WebMCPTool {
     ...(inputSchema !== undefined && { inputSchema }),
     ...(annotations !== undefined && { annotations }),
     frameId,
+  };
+}
+
+function webMCPResultFromEvent(
+  invocationId: string,
+  event: WebMCPToolRespondedEvent,
+): WebMCPToolResult {
+  return {
+    invocationId,
+    status: event.status ?? "Error",
+    ...(event.output !== undefined && { output: event.output }),
+    ...(event.errorText !== undefined && { errorText: event.errorText }),
+    ...(event.exception !== undefined && { exception: event.exception }),
   };
 }
 
@@ -161,6 +179,12 @@ export class Page {
     string,
     (evt: Protocol.Runtime.ConsoleAPICalledEvent) => void
   >();
+  private webMCPEnablePromise: Promise<void> | null = null;
+  private readonly pendingWebMCPInvocations = new Map<
+    string,
+    PendingWebMCPInvocation
+  >();
+  private readonly bufferedWebMCPResults = new Map<string, WebMCPToolResult>();
   /** Document-start scripts installed across every session this page owns. */
   private readonly initScripts: string[] = [];
   private extraHTTPHeaders: Record<string, string>;
@@ -649,6 +673,168 @@ export class Page {
     return this;
   }
 
+  private readonly onWebMCPToolResponded = (
+    event: WebMCPToolRespondedEvent,
+  ): void => {
+    if (!event.invocationId) return;
+
+    const result = webMCPResultFromEvent(event.invocationId, event);
+    const pending = this.pendingWebMCPInvocations.get(event.invocationId);
+    if (!pending) {
+      this.bufferedWebMCPResults.set(event.invocationId, result);
+      return;
+    }
+
+    clearTimeout(pending.timer);
+    this.pendingWebMCPInvocations.delete(event.invocationId);
+    pending.deferred.resolve(result);
+  };
+
+  private async ensureWebMCPEnabled(): Promise<void> {
+    if (this.webMCPEnablePromise) {
+      return this.webMCPEnablePromise;
+    }
+
+    this.mainSession.on<WebMCPToolRespondedEvent>(
+      "WebMCP.toolResponded",
+      this.onWebMCPToolResponded,
+    );
+
+    this.webMCPEnablePromise = this.mainSession
+      .send("WebMCP.enable")
+      .then((): void => undefined)
+      .catch((error) => {
+        this.teardownWebMCP();
+        const message = error instanceof Error ? error.message : String(error);
+        throw new StagehandInvalidArgumentError(
+          `Unable to enable WebMCP. Make sure your Chrome version supports the CDP WebMCP domain and is launched with --enable-features=WebMCPTesting,DevToolsWebMCPSupport. CDP error: ${message}`,
+        );
+      });
+
+    return this.webMCPEnablePromise;
+  }
+
+  /**
+   * `WebMCP.enable` is the browser's source-of-truth snapshot trigger: CDP emits
+   * `WebMCP.toolsAdded` for all tools currently registered on the page. Keep
+   * this scoped to the list call so tools from old documents are not cached here.
+   */
+  private async collectWebMCPToolsSnapshot(
+    timeoutMs: number,
+  ): Promise<WebMCPTool[]> {
+    const quietWindowMs = Math.min(100, Math.max(0, timeoutMs));
+    const tools = new Map<string, WebMCPTool>();
+    let toolsVersion = 0;
+    let toolsLastUpdatedAt: number | null = null;
+
+    const toolKey = (tool: WebMCPTool): string =>
+      `${tool.frameId}:${tool.name}`;
+
+    const onToolsAdded = (event: WebMCPToolsAddedEvent): void => {
+      if (!Array.isArray(event.tools)) return;
+
+      let changed = false;
+      for (const tool of event.tools) {
+        const normalized = stripWebMCPToolDebugFields(tool);
+        tools.set(toolKey(normalized), normalized);
+        changed = true;
+      }
+
+      if (!changed) return;
+      toolsVersion += 1;
+      toolsLastUpdatedAt = Date.now();
+      schedule?.();
+    };
+
+    const deadline = Date.now() + timeoutMs;
+    let schedule: (() => void) | null = null;
+
+    this.mainSession.on<WebMCPToolsAddedEvent>(
+      "WebMCP.toolsAdded",
+      onToolsAdded,
+    );
+
+    try {
+      await this.mainSession.send("WebMCP.enable");
+      if (quietWindowMs === 0) return [...tools.values()];
+
+      await new Promise<void>((resolve) => {
+        const startVersion = toolsVersion;
+        let quietTimer: ReturnType<typeof setTimeout> | null = null;
+        let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+        let done = false;
+
+        const cleanup = () => {
+          if (done) return;
+          done = true;
+          if (quietTimer) clearTimeout(quietTimer);
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+          resolve();
+        };
+
+        schedule = (): void => {
+          if (done) return;
+          if (quietTimer) {
+            clearTimeout(quietTimer);
+            quietTimer = null;
+          }
+
+          const now = Date.now();
+          if (now >= deadline) {
+            cleanup();
+            return;
+          }
+
+          const sawToolsSinceStart = toolsVersion > startVersion;
+          const lastUpdate = toolsLastUpdatedAt;
+          const quietRemaining =
+            sawToolsSinceStart && lastUpdate !== null
+              ? Math.max(0, quietWindowMs - (now - lastUpdate))
+              : quietWindowMs;
+          quietTimer = setTimeout(
+            cleanup,
+            Math.min(quietRemaining, deadline - now),
+          );
+        };
+
+        timeoutTimer = setTimeout(cleanup, timeoutMs);
+        schedule();
+      });
+    } finally {
+      this.mainSession.off<WebMCPToolsAddedEvent>(
+        "WebMCP.toolsAdded",
+        onToolsAdded,
+      );
+    }
+
+    return [...tools.values()];
+  }
+
+  private cleanupWebMCPInvocation(invocationId: string): void {
+    const pending = this.pendingWebMCPInvocations.get(invocationId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingWebMCPInvocations.delete(invocationId);
+  }
+
+  private teardownWebMCP(): void {
+    this.mainSession.off<WebMCPToolRespondedEvent>(
+      "WebMCP.toolResponded",
+      this.onWebMCPToolResponded,
+    );
+    for (const [invocationId, pending] of this.pendingWebMCPInvocations) {
+      clearTimeout(pending.timer);
+      pending.deferred.reject(
+        new StagehandInvalidArgumentError(
+          `WebMCP invocation "${invocationId}" was disposed before it completed.`,
+        ),
+      );
+    }
+    this.pendingWebMCPInvocations.clear();
+    this.bufferedWebMCPResults.clear();
+    this.webMCPEnablePromise = null;
+  }
+
   // ---------------- MAIN APIs ----------------
 
   public targetId(): string {
@@ -680,42 +866,23 @@ export class Page {
 
   /**
    * List WebMCP tools registered by the current page.
-   * Uses the CDP WebMCP domain, which reports tools through toolsAdded events
-   * after WebMCP.enable is called.
+   * CDP emits WebMCP.toolsAdded for all currently registered tools each time
+   * WebMCP.enable is called, so this method treats the browser as the source of
+   * truth and collects that per-call snapshot instead of keeping a tool cache.
    */
   public async listWebMCPTools(
     options?: WebMCPListToolsOptions,
   ): Promise<WebMCPTool[]> {
     const timeoutMs = options?.timeoutMs ?? 1_000;
-    const tools: WebMCPCdpTool[] = [];
-    const onToolsAdded = (event: WebMCPToolsAddedEvent) => {
-      if (Array.isArray(event.tools)) {
-        tools.push(...event.tools);
-      }
-    };
-
-    this.mainSession.on<WebMCPToolsAddedEvent>(
-      "WebMCP.toolsAdded",
-      onToolsAdded,
-    );
-
     try {
-      await this.mainSession.send("WebMCP.enable");
-      await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+      return await this.collectWebMCPToolsSnapshot(timeoutMs);
     } catch (error) {
+      if (error instanceof StagehandInvalidArgumentError) throw error;
       const message = error instanceof Error ? error.message : String(error);
       throw new StagehandInvalidArgumentError(
         `Unable to list WebMCP tools. Make sure your Chrome version supports the CDP WebMCP domain and is launched with --enable-features=WebMCPTesting,DevToolsWebMCPSupport. CDP error: ${message}`,
       );
-    } finally {
-      this.mainSession.off<WebMCPToolsAddedEvent>(
-        "WebMCP.toolsAdded",
-        onToolsAdded,
-      );
-      await this.mainSession.send("WebMCP.disable").catch(() => {});
     }
-
-    return tools.map(stripWebMCPToolDebugFields);
   }
 
   public async invokeWebMCPTool(
@@ -742,52 +909,11 @@ export class Page {
       frameId = matchingTools[0].frameId;
     }
 
-    let invocationId: string | undefined;
     const deferred = createDeferred<WebMCPToolResult>();
-    let cleanup = () => {};
-
-    const timer = setTimeout(() => {
-      cleanup();
-      deferred.reject(
-        new StagehandInvalidArgumentError(
-          `Timed out waiting for WebMCP tool "${toolName}" invocation result after ${timeoutMs}ms.`,
-        ),
-      );
-    }, timeoutMs);
-
-    const onToolResponded = (event: WebMCPToolRespondedEvent) => {
-      if (
-        !event.invocationId ||
-        !invocationId ||
-        event.invocationId !== invocationId
-      ) {
-        return;
-      }
-
-      cleanup();
-      deferred.resolve({
-        invocationId: event.invocationId,
-        status: event.status ?? "Error",
-        ...(event.output !== undefined && { output: event.output }),
-        ...(event.errorText !== undefined && { errorText: event.errorText }),
-        ...(event.exception !== undefined && { exception: event.exception }),
-      });
-    };
-
-    this.mainSession.on<WebMCPToolRespondedEvent>(
-      "WebMCP.toolResponded",
-      onToolResponded,
-    );
-    cleanup = () => {
-      clearTimeout(timer);
-      this.mainSession.off<WebMCPToolRespondedEvent>(
-        "WebMCP.toolResponded",
-        onToolResponded,
-      );
-    };
+    let invocationId: string;
 
     try {
-      await this.mainSession.send("WebMCP.enable");
+      await this.ensureWebMCPEnabled();
       const response = await this.mainSession.send<WebMCPInvokeToolResponse>(
         "WebMCP.invokeTool",
         {
@@ -798,11 +924,29 @@ export class Page {
       );
       invocationId = response.invocationId;
     } catch (error) {
-      cleanup();
       const message = error instanceof Error ? error.message : String(error);
       throw new StagehandInvalidArgumentError(
         `Unable to invoke WebMCP tool "${toolName}". Make sure your Chrome version supports the CDP WebMCP domain and is launched with --enable-features=WebMCPTesting,DevToolsWebMCPSupport. CDP error: ${message}`,
       );
+    }
+
+    const bufferedResult = this.bufferedWebMCPResults.get(invocationId);
+    if (bufferedResult) {
+      this.bufferedWebMCPResults.delete(invocationId);
+      deferred.resolve(bufferedResult);
+    } else {
+      const timer = setTimeout(() => {
+        this.cleanupWebMCPInvocation(invocationId);
+        deferred.reject(
+          new StagehandInvalidArgumentError(
+            `Timed out waiting for WebMCP tool "${toolName}" invocation result after ${timeoutMs}ms.`,
+          ),
+        );
+      }, timeoutMs);
+      this.pendingWebMCPInvocations.set(invocationId, {
+        deferred,
+        timer,
+      });
     }
 
     return {
@@ -854,6 +998,7 @@ export class Page {
         const targets = await this.conn.getTargets();
         if (!targets.some((t) => t.targetId === this._targetId)) {
           this.networkManager.dispose();
+          this.teardownWebMCP();
           return;
         }
       } catch {
@@ -862,6 +1007,7 @@ export class Page {
       await new Promise((r) => setTimeout(r, 25));
     }
     this.networkManager.dispose();
+    this.teardownWebMCP();
     this.removeAllConsoleTaps();
     this.consoleListeners.clear();
   }
