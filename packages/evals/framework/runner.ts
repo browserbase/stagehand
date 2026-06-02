@@ -15,6 +15,11 @@ import { EvalLogger } from "../logger.js";
 import { EvalsError } from "../errors.js";
 import { exactMatch, errorMatch, passRate } from "../scoring.js";
 import { generateExperimentName } from "../utils.js";
+import {
+  buildTrajectoryGroupSlug,
+  resolveTrajectoryRoot,
+  writeExperimentLink,
+} from "./trajectoryGroup.js";
 import { generateSummary } from "../summary.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { DiscoveredTask, TaskRegistry, TaskResult } from "./types.js";
@@ -343,6 +348,18 @@ export async function runEvals(
     startupProfile: effectiveCoreStartupProfile,
   });
 
+  // Stamp the run-scoped trajectory group + run metadata so every task in this
+  // run lands under one folder (`<root>/<experiment>__<model>/...`) with a
+  // metadata.json, instead of scattered per-task timestamps. Local persistence
+  // only — does not affect Braintrust experiment naming.
+  process.env.EVAL_EXPERIMENT_NAME = experimentName;
+  process.env.EVAL_TRAJECTORY_GROUP = buildTrajectoryGroupSlug({
+    experimentName,
+    model: options.modelOverride,
+  });
+  if (options.modelOverride) process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
+  if (options.provider) process.env.EVAL_PROVIDER = options.provider;
+
   const braintrustProjectName = hasCoreOnly
     ? process.env.CI === "true"
       ? "stagehand-core"
@@ -476,6 +493,18 @@ export async function runEvals(
   const resolvedExperimentName =
     evalResult.summary?.experimentName ?? experimentName;
   const resolvedExperimentUrl = evalResult.summary?.experimentUrl;
+
+  // Cross-link local trajectories to the resolved Braintrust experiment. The
+  // hashed name (e.g. `agent/onlineMind2Web-92918006`) is only known now, after
+  // Eval() resolves — so write it once at the group-dir root.
+  await writeExperimentLink(resolveTrajectoryRoot(), {
+    braintrustExperiment: resolvedExperimentName,
+    braintrustExperimentId: evalResult.summary?.experimentId ?? null,
+    braintrustExperimentUrl: resolvedExperimentUrl ?? null,
+    braintrustProject: evalResult.summary?.projectName ?? braintrustProjectName,
+    braintrustProjectUrl: evalResult.summary?.projectUrl ?? null,
+    requestedExperimentName: experimentName,
+  });
 
   await generateSummary(
     summaryResults,
