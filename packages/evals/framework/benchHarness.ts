@@ -1,12 +1,13 @@
 import {
   AgentProvider,
+  V3,
   getAISDKLanguageModel,
   loadApiKeyFromEnv,
   type AgentInstance,
   type AvailableModel,
   type LLMClient,
   type LogLine,
-  type V3,
+  type TaskSpec,
 } from "@browserbasehq/stagehand";
 import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
 import { endBrowserbaseSession } from "../browserbaseCleanup.js";
@@ -66,6 +67,47 @@ function isAgentTask(task: DiscoveredTask): boolean {
     task.categories.includes("agent") ||
     task.categories.includes("external_agent_benchmarks")
   );
+}
+
+/**
+ * Build a verifier-carrier V3 instance. Used only as the LLM-client carrier
+ * for V3Evaluator.verify() — never `init()`-ed, never drives a browser.
+ * The instance's logger is what V3Evaluator uses to construct its LLMProvider.
+ */
+function buildVerifierCarrierV3(
+  input: EvalInput,
+  logger: EvalLogger,
+): V3 {
+  return new V3({
+    env: "LOCAL",
+    model: input.modelName,
+    logger: logger.log.bind(logger),
+    disablePino: true,
+    disableAPI: true,
+    experimental: true,
+    verbose: 0,
+  });
+}
+
+function buildExternalHarnessTaskSpec(
+  plan: ReturnType<typeof buildExternalHarnessTaskPlan>,
+  input: EvalInput,
+): TaskSpec {
+  return {
+    id: plan.taskId ?? input.name,
+    instruction: plan.instruction,
+    initUrl: plan.startUrl,
+  };
+}
+
+function resolveExternalHarnessSuccessMode():
+  | "outcome"
+  | "process"
+  | "both"
+  | undefined {
+  const raw = process.env.EVAL_SUCCESS_MODE?.toLowerCase();
+  if (raw === "outcome" || raw === "process" || raw === "both") return raw;
+  return undefined;
 }
 
 function resolveProvider(modelName: AvailableModel): string | undefined {
@@ -204,6 +246,7 @@ export const claudeCodeHarness: BenchHarness = {
       plan,
       logger,
     });
+    const carrierV3 = buildVerifierCarrierV3(input, logger);
     try {
       return await runClaudeCodeAgent({
         plan,
@@ -211,6 +254,12 @@ export const claudeCodeHarness: BenchHarness = {
         logger,
         toolAdapter,
         signal,
+        verifier: {
+          v3: carrierV3,
+          taskSpec: buildExternalHarnessTaskSpec(plan, input),
+          dataset: plan.dataset,
+          successMode: resolveExternalHarnessSuccessMode(),
+        },
       });
     } finally {
       await toolAdapter.cleanup();
@@ -246,6 +295,7 @@ export const codexHarness: BenchHarness = {
       plan,
       logger,
     });
+    const carrierV3 = buildVerifierCarrierV3(input, logger);
     try {
       return await runCodexAgent({
         plan,
@@ -253,6 +303,12 @@ export const codexHarness: BenchHarness = {
         logger,
         toolAdapter,
         signal,
+        verifier: {
+          v3: carrierV3,
+          taskSpec: buildExternalHarnessTaskSpec(plan, input),
+          dataset: plan.dataset,
+          successMode: resolveExternalHarnessSuccessMode(),
+        },
       });
     } finally {
       await toolAdapter.cleanup();
