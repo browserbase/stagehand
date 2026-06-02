@@ -310,6 +310,7 @@ jobs:
             packages/core/lib/dom/build/**
             packages/core/lib/v3/dom/build/**
             packages/cli/dist/**
+            packages/cli/oclif.manifest.json
             packages/evals/dist/**
             packages/server-v3/dist/**
             packages/server-v3/openapi.v3.yaml
@@ -333,7 +334,7 @@ jobs:
           restore-turbo-cache: "false"
 
       - name: Run CLI Tests
-        run: pnpm exec turbo run test:cli --filter=@browserbasehq/browse-cli
+        run: pnpm exec turbo run test:cli --filter=browse
 
   run-evals-unit-tests:
     name: Evals Unit Tests
