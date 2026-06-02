@@ -19,7 +19,7 @@ import {
 } from "../utils.js";
 import { isZod4Schema, isZod3Schema, toJsonSchema } from "./zodCompat.js";
 import { connectToMCPServer } from "./mcp/connection.js";
-import { listMCPTools, listWebMCPTools } from "./mcp/utils.js";
+import { listMCPTools } from "./mcp/utils.js";
 import { V3Evaluator } from "../v3Evaluator.js";
 import { tool } from "ai";
 import { getAISDKLanguageModel } from "./llm/LLMProvider.js";
@@ -69,8 +69,8 @@ export {
 export { isZod4Schema, isZod3Schema, toJsonSchema } from "./zodCompat.js";
 
 export { connectToMCPServer } from "./mcp/connection.js";
-export { listMCPTools, listWebMCPTools } from "./mcp/utils.js";
-export type { ListedMCPTool, ListedWebMCPTool } from "./mcp/utils.js";
+export { listMCPTools } from "./mcp/utils.js";
+export type { ListedMCPTool } from "./mcp/utils.js";
 export { V3Evaluator } from "../v3Evaluator.js";
 export type {
   V3EvaluatorBackend,
@@ -157,7 +157,6 @@ const StagehandDefault = {
   toJsonSchema,
   connectToMCPServer,
   listMCPTools,
-  listWebMCPTools,
   V3Evaluator,
   buildAgentEvidenceFromStepFinished,
   loadTrajectoryFromDisk,

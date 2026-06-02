@@ -1,7 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ToolSet } from "ai";
 import { JsonSchema, jsonSchemaToZod } from "../../utils.js";
-import type { Page } from "../understudy/page.js";
 import { connectToMCPServer } from "./connection.js";
 
 export interface ListedMCPTool {
@@ -9,67 +8,6 @@ export interface ListedMCPTool {
   description?: string;
   inputSchema?: JsonSchema;
 }
-
-export interface ListedWebMCPTool extends ListedMCPTool {
-  frameId: string;
-  annotations?: Record<string, unknown>;
-}
-
-type WebMCPCdpTool = {
-  name?: unknown;
-  description?: unknown;
-  inputSchema?: unknown;
-  annotations?: unknown;
-  frameId?: unknown;
-};
-
-const normalizeTool = (tool: WebMCPCdpTool): ListedWebMCPTool | null => {
-  if (
-    typeof tool.name !== "string" ||
-    tool.name.length === 0 ||
-    typeof tool.frameId !== "string"
-  ) {
-    return null;
-  }
-
-  let inputSchema: JsonSchema | undefined;
-  if (typeof tool.inputSchema === "string") {
-    try {
-      inputSchema = JSON.parse(tool.inputSchema) as JsonSchema;
-    } catch {
-      inputSchema = undefined;
-    }
-  } else if (tool.inputSchema && typeof tool.inputSchema === "object") {
-    inputSchema = tool.inputSchema as JsonSchema;
-  }
-
-  return {
-    name: tool.name,
-    ...(typeof tool.description === "string" && {
-      description: tool.description,
-    }),
-    ...(inputSchema && { inputSchema }),
-    ...(tool.annotations &&
-      typeof tool.annotations === "object" && {
-        annotations: tool.annotations as Record<string, unknown>,
-      }),
-    frameId: tool.frameId,
-  };
-};
-
-const normalizeWebMCPTools = (tools: unknown): ListedWebMCPTool[] => {
-  if (!Array.isArray(tools)) {
-    return [];
-  }
-
-  return tools
-    .map((tool) =>
-      tool && typeof tool === "object"
-        ? normalizeTool(tool as WebMCPCdpTool)
-        : null,
-    )
-    .filter((tool): tool is ListedWebMCPTool => tool !== null);
-};
 
 export const resolveTools = async (
   clients: (Client | string)[],
@@ -144,10 +82,4 @@ export const listMCPTools = async (
   }
 
   return tools;
-};
-
-export const listWebMCPTools = async (
-  page: Page,
-): Promise<ListedWebMCPTool[]> => {
-  return normalizeWebMCPTools(await page.listWebMCPTools());
 };
