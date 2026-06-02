@@ -26,7 +26,13 @@
  *                                analysis in the response.
  *   - fold_task_validity       — "true" / "false" — whether to emit task
  *                                validity classification in the response.
+ *   - final_state_block        — always-attached final URL + ariaTree of the
+ *                                last step probe and finalObservation; this
+ *                                bypasses the per-criterion top-K selection
+ *                                so the judge always has the closing page
+ *                                content available.
  */
+
 export const FUSED_JUDGMENT_PROMPT = `Task: $task_definition$init_url_context
 
 **Current Date:** $current_date
@@ -48,6 +54,9 @@ $rubric_block
 $evidence_block
 
 Each evidence reference points to an image attached below or to a text snippet inline above. Screenshots are listed in chronological order across the trajectory; when two screenshots show the same element, **the LATER screenshot reflects the final state and takes precedence**.
+
+**Final trajectory state** (authoritative — this is the page content and screenshot captured at the very end of the run; treat it as ground truth for what the agent saw on its final page, even if no \`extract\`/\`observe\` step appears in the action history):
+$final_state_block
 
 **Optional sections to include in the response:**
 - Failure analysis: $fold_failure_analysis

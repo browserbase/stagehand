@@ -117,6 +117,91 @@ describe("RubricVerifier", () => {
     expect(result.processScore).toBeUndefined();
     expect(result.perCriterion).toBeUndefined();
   });
+
+  it("always attaches the final probe screenshot and ariaTree to outcome verification", async () => {
+    // Regression test: the apple_trade_in case where the answer ($305) was
+    // visible in the final probe screenshot + ariaTree but the verifier called
+    // it fabricated because the per-criterion top-K selection didn't pick the
+    // final frame. The "always attach final state" path must guarantee the
+    // judge sees both image bytes and the full final ariaTree.
+    process.env.VERIFIER_APPROACH = "outcome-only";
+    const seenPrompt = vi.fn<(prompt: string) => void>();
+    const seenImageBytesLengths = vi.fn<(count: number) => void>();
+    const createChatCompletion = vi.fn().mockImplementation((args) => {
+      const userMsg = args.options.messages[1];
+      const parts = Array.isArray(userMsg.content)
+        ? userMsg.content
+        : [{ type: "text", text: userMsg.content }];
+      const text = parts
+        .filter((p: { type: string }) => p.type === "text")
+        .map((p: { text: string }) => p.text)
+        .join("\n");
+      const images = parts.filter(
+        (p: { type: string }) => p.type === "image_url",
+      );
+      seenPrompt(text);
+      seenImageBytesLengths(images.length);
+      return Promise.resolve({
+        data: {
+          outcome: {
+            primary_intent: "Find the trade-in value",
+            reasoning: "The final screenshot shows the value.",
+            output_success: true,
+            findings: [],
+          },
+        },
+      });
+    });
+
+    const verifier = new RubricVerifier({
+      getClient: () => ({ createChatCompletion }) as unknown as LLMClient,
+      getRubricGenClient: () => throwingClient(),
+    });
+    const taskSpec: TaskSpec = {
+      id: "apple_trade_in",
+      instruction: "Find the trade-in value for an iPhone 13 Pro Max.",
+    };
+
+    // Final state lives ONLY on probeEvidence (not in agentEvidence) — this is
+    // the configuration that previously starved the verifier of the answer.
+    const finalScreenshot = Buffer.from(
+      "final-page-with-$305-trade-in-value-bytes",
+    );
+    const finalAria =
+      "RootWebArea: Apple Trade In\n  heading: Get $305 trade-in credit toward a new iPhone.\n  StaticText: Trade-in values are estimates";
+    const trajectory: Trajectory = {
+      task: taskSpec,
+      steps: [
+        {
+          actionName: "click",
+          actionArgs: { describe: "Yes option for good condition" },
+          reasoning: "Click Yes to confirm good condition.",
+          agentEvidence: { modalities: [] },
+          probeEvidence: {
+            screenshot: finalScreenshot,
+            ariaTree: finalAria,
+            url: "https://www.apple.com/shop/trade-in",
+          },
+          toolOutput: { ok: true, result: "clicked" },
+        },
+      ],
+      finalAnswer: "The trade-in value is $305.",
+      status: "complete",
+      usage: { input_tokens: 0, output_tokens: 0 },
+    };
+
+    await verifier.verify(trajectory);
+
+    expect(createChatCompletion).toHaveBeenCalledTimes(1);
+    expect(seenImageBytesLengths).toHaveBeenCalledWith(1);
+    const prompt = seenPrompt.mock.calls[0][0];
+    // The "$" survives renderPrompt's $$-escaping because we render literal
+    // ariaTree content into the prompt unescaped.
+    expect(prompt).toContain("Final trajectory state");
+    expect(prompt).toContain(
+      "Get $305 trade-in credit toward a new iPhone.",
+    );
+  });
 });
 
 function restoreEnv(name: string, value: string | undefined): void {

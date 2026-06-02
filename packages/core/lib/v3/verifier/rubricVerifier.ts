@@ -172,6 +172,14 @@ const DEFAULT_TOP_K = 5;
 const DEFAULT_RELEVANCE_BATCH_SIZE = 4;
 const OUTCOME_EVIDENCE_MAX_STEPS = 14;
 const OUTCOME_EVIDENCE_STEP_CHARS = 900;
+/**
+ * How much of the final aria tree to include in the always-attached
+ * "Final trajectory state" block. The verifier needs to see the end-of-run
+ * page content reliably — the top-K/relevance selection can starve it out
+ * when the final probe doesn't textually match the task keywords. 20k chars
+ * (~5k tokens) is comfortably above typical page sizes while bounded.
+ */
+const FINAL_STATE_ARIA_CHARS = 20_000;
 type VerifierApproach = VerifierConfig["approach"];
 type OptionalStepsMode = VerifierConfig["optionalSteps"];
 const DEFAULT_APPROACH: VerifierApproach = "b";
@@ -729,6 +737,7 @@ export class RubricVerifier implements Verifier {
         taskSpec,
         config,
       ),
+      final_state_block: buildFinalStateBlock(trajectory),
       agent_predicted_output:
         trajectory.finalAnswer ?? "(no final answer recorded)",
       rubric_summary:
@@ -739,20 +748,27 @@ export class RubricVerifier implements Verifier {
       current_date: currentDateForVerifier(),
     });
 
-    const images = selectRecentImages(trajectory, config.outcomeMaxImages);
     const messageContent: Array<
       | { type: "text"; text: string }
       | { type: "image_url"; image_url: { url: string } }
     > = [{ type: "text", text: prompt }];
 
-    for (const img of images) {
+    // Final images first (always attached), then recent images deduped.
+    const seenImageKeys = new Set<string>();
+    const attachImage = (img: EvidenceImage): void => {
+      const key = `${img.bytes.length}:${img.bytes.subarray(0, 32).toString("base64")}`;
+      if (seenImageKeys.has(key)) return;
+      seenImageKeys.add(key);
       messageContent.push({
         type: "image_url",
         image_url: {
           url: `data:${img.mediaType};base64,${img.bytes.toString("base64")}`,
         },
       });
-    }
+    };
+    for (const img of selectFinalImages(trajectory)) attachImage(img);
+    for (const img of selectRecentImages(trajectory, config.outcomeMaxImages))
+      attachImage(img);
 
     let fused: z.infer<typeof FusedOutcomeResponseSchema>;
     try {
@@ -842,7 +858,7 @@ export class RubricVerifier implements Verifier {
         reasoning: fused.outcome.reasoning,
         approach: "outcome-only",
         optionalsMode: config.optionalSteps,
-        screenshotsAttached: images.length,
+        screenshotsAttached: seenImageKeys.size,
       },
     };
   }
@@ -1179,6 +1195,7 @@ export class RubricVerifier implements Verifier {
         trajectory.finalAnswer ?? "(no final answer recorded)",
       rubric_block: rubricBlock,
       evidence_block: evidenceBlock,
+      final_state_block: buildFinalStateBlock(trajectory),
       taxonomy_block: taxonomyBlock,
       fold_failure_analysis: foldFailure ? "true" : "false",
       fold_task_validity: foldValidity ? "true" : "false",
@@ -1190,7 +1207,26 @@ export class RubricVerifier implements Verifier {
       | { type: "image_url"; image_url: { url: string } }
     > = [{ type: "text", text: prompt }];
 
+    // Always include the terminal visual evidence first — these bytes are the
+    // single most reliable signal of what the agent actually saw at the end
+    // of the run, and they're not subject to the per-criterion top-K cutoff.
+    // Dedupe by content so we don't pay tokens twice when the top-K already
+    // picked the same frame.
+    const finalImageBytes = new Set<string>();
+    for (const img of selectFinalImages(trajectory)) {
+      const key = `${img.bytes.length}:${img.bytes.subarray(0, 32).toString("base64")}`;
+      finalImageBytes.add(key);
+      messageContent.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${img.mediaType};base64,${img.bytes.toString("base64")}`,
+        },
+      });
+    }
+
     for (const img of usedImages) {
+      const key = `${img.bytes.length}:${img.bytes.subarray(0, 32).toString("base64")}`;
+      if (finalImageBytes.has(key)) continue;
       messageContent.push({
         type: "image_url",
         image_url: {
@@ -1293,6 +1329,7 @@ export class RubricVerifier implements Verifier {
         taskSpec,
         config,
       ),
+      final_state_block: buildFinalStateBlock(trajectory),
       agent_predicted_output:
         trajectory.finalAnswer ?? "(no final answer recorded)",
       rubric_summary: this.formatScoredRubricSummary(rubric, perCriterion),
@@ -1301,6 +1338,22 @@ export class RubricVerifier implements Verifier {
       fold_task_validity: foldValidity ? "true" : "false",
       current_date: currentDateForVerifier(),
     });
+
+    // Always attach the terminal screenshots so the outcome judge can see the
+    // final page state, regardless of the (formerly text-only) evidence
+    // summary heuristics.
+    const messageContent: Array<
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string } }
+    > = [{ type: "text", text: prompt }];
+    for (const img of selectFinalImages(trajectory)) {
+      messageContent.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${img.mediaType};base64,${img.bytes.toString("base64")}`,
+        },
+      });
+    }
 
     try {
       const client = this.getClient();
@@ -1315,7 +1368,7 @@ export class RubricVerifier implements Verifier {
               content:
                 "You are an expert evaluator of web-navigation agent trajectories. Output only valid JSON conforming to the schema in the user message.",
             },
-            { role: "user", content: prompt },
+            { role: "user", content: messageContent },
           ],
           response_model: {
             name: "FusedOutcome",
@@ -1769,6 +1822,93 @@ function pLimit(concurrency: number): <T>(fn: () => Promise<T>) => Promise<T> {
       });
       next();
     });
+}
+
+/**
+ * Always-attach final visual evidence: the trajectory's terminal page
+ * observation plus the last step's probe screenshot, deduped. Returned in
+ * chronological order (last-step probe first if both are present, then
+ * finalObservation as the closing frame).
+ *
+ * This bypasses the per-criterion top-K relevance ranking used by
+ * {@link fusedJudgment} and the (previously) text-only outcome prompt, so the
+ * judge LLM always sees what the page actually looked like at the end of the
+ * run — not just whatever images happened to rank well against keyword
+ * heuristics.
+ */
+function selectFinalImages(trajectory: Trajectory): EvidenceImage[] {
+  const out: EvidenceImage[] = [];
+  const seen = new Set<string>();
+
+  const push = (label: string, bytes: Buffer | undefined): void => {
+    if (!bytes || bytes.length === 0) return;
+    const key = `${bytes.length}:${bytes.subarray(0, 32).toString("base64")}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ label, bytes, mediaType: "image/png" });
+  };
+
+  const lastStepIdx = trajectory.steps.length - 1;
+  if (lastStepIdx >= 0) {
+    push(
+      `step ${lastStepIdx} probe screenshot (final action)`,
+      trajectory.steps[lastStepIdx].probeEvidence.screenshot,
+    );
+  }
+  push(
+    "trajectory final observation",
+    trajectory.finalObservation?.screenshot,
+  );
+
+  return out;
+}
+
+/**
+ * Always-attach final textual evidence: the terminal page content (URL +
+ * ariaTree) at the end of the run. Prefers `trajectory.finalObservation`
+ * (the explicit post-run probe) and falls back to the last step's
+ * `probeEvidence`. Clamped to {@link FINAL_STATE_ARIA_CHARS}.
+ *
+ * Returns an empty string when no terminal observation is available — the
+ * caller should treat the resulting prompt section as "(no final state
+ * captured)" rather than omit the header entirely so the LLM doesn't think
+ * the field is missing.
+ */
+function buildFinalStateBlock(trajectory: Trajectory): string {
+  const last = trajectory.steps[trajectory.steps.length - 1];
+  const sources: Array<{
+    label: string;
+    url?: string;
+    ariaTree?: string;
+  }> = [];
+
+  if (last?.probeEvidence) {
+    sources.push({
+      label: `Last step (Step ${trajectory.steps.length - 1}, post-action)`,
+      url: last.probeEvidence.url,
+      ariaTree: last.probeEvidence.ariaTree,
+    });
+  }
+  if (trajectory.finalObservation) {
+    sources.push({
+      label: "Final observation (probed after trajectory ended)",
+      url: trajectory.finalObservation.url,
+      ariaTree: trajectory.finalObservation.ariaTree,
+    });
+  }
+
+  if (sources.length === 0) return "(no final state captured)";
+
+  return sources
+    .map((s) => {
+      const aria =
+        s.ariaTree && s.ariaTree.length > FINAL_STATE_ARIA_CHARS
+          ? `${s.ariaTree.slice(0, FINAL_STATE_ARIA_CHARS)}\n...[truncated ${s.ariaTree.length - FINAL_STATE_ARIA_CHARS} chars]`
+          : (s.ariaTree ?? "(no aria tree)");
+      const url = s.url ? `\n  url: ${s.url}` : "";
+      return `${s.label}:${url}\n  aria_tree:\n${aria}`;
+    })
+    .join("\n\n");
 }
 
 function selectRecentImages(

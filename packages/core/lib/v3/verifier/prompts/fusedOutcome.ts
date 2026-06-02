@@ -17,6 +17,11 @@
  *                                fold_failure_analysis is true; "" otherwise)
  *   - fold_failure_analysis    — "true" / "false"
  *   - fold_task_validity       — "true" / "false"
+ *   - final_state_block        — always-attached final URL + ariaTree of the
+ *                                last step probe and finalObservation; this
+ *                                bypasses the keyword-based excerpt selection
+ *                                used by outcome_evidence_summary so the
+ *                                judge always has the closing page content.
  */
 export const FUSED_OUTCOME_PROMPT = `Task: $task_definition$init_url_context
 
@@ -31,6 +36,9 @@ $action_history
 
 **Selected Trajectory Evidence:**
 $outcome_evidence_summary
+
+**Final trajectory state** (authoritative — page content and screenshot captured at the very end of the run; treat as ground truth for what the agent saw on its final page, even when no \`extract\`/\`observe\` step appears in the action history):
+$final_state_block
 
 **Agent's Predicted Output (Final Answer):**
 $agent_predicted_output
