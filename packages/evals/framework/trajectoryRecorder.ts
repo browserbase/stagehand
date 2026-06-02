@@ -1,6 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  resolveTrajectoryDir,
+  writeTrajectoryMetadata,
+} from "./trajectoryGroup.js";
+import {
   buildAgentEvidenceFromStepFinished,
   mergeAgentEvidence,
   redactInlineImagePayloads,
@@ -26,8 +30,9 @@ import type {
 export interface TrajectoryRecorderOptions {
   taskSpec: TaskSpec;
   /**
-   * Root directory under which trajectory dirs are written. Each task run
-   * gets a subdirectory named by runId/task.id.
+   * Root directory under which trajectory dirs are written. The on-disk layout
+   * is `<root>/<group>/<task.id>/<runId>/`, where <group> is the run-scoped
+   * EVAL_TRAJECTORY_GROUP (experiment+model) or "default".
    * Defaults to `<cwd>/.trajectories`.
    */
   outputRoot?: string;
@@ -143,7 +148,7 @@ export class TrajectoryRecorder {
     this.taskSpec = opts.taskSpec;
     this.runId = opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
     const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
-    this.outputDir = path.join(root, this.runId, opts.taskSpec.id);
+    this.outputDir = resolveTrajectoryDir(root, opts.taskSpec.id, this.runId);
     this.persistEnabled = shouldPersistTrajectory(opts.persist);
   }
 
@@ -183,6 +188,11 @@ export class TrajectoryRecorder {
 
     if (this.persistEnabled) {
       await writeTrajectoryDir(this.outputDir, trajectory);
+      await writeTrajectoryMetadata(this.outputDir, {
+        task: this.taskSpec.id,
+        runId: this.runId,
+        status: opts.status,
+      });
     }
 
     return trajectory;

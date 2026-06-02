@@ -10,6 +10,7 @@ import { TrajectoryRecorder } from "../../framework/trajectoryRecorder.js";
 const tempDirs: string[] = [];
 
 afterEach(async () => {
+  delete process.env.EVAL_TRAJECTORY_GROUP;
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
     if (dir) await fs.rm(dir, { recursive: true, force: true });
@@ -178,6 +179,8 @@ describe("TrajectoryRecorder", () => {
 
   it("persists trajectory files and evaluator results", async () => {
     const outputRoot = await makeTempDir();
+    // Trajectories are grouped by run: <root>/<group>/<task.id>/<runId>.
+    process.env.EVAL_TRAJECTORY_GROUP = "test-group";
     const recorder = new TrajectoryRecorder({
       taskSpec: makeTaskSpec(),
       outputRoot,
@@ -198,10 +201,11 @@ describe("TrajectoryRecorder", () => {
       explanation: "The task was completed.",
     });
 
-    const taskDir = path.join(outputRoot, "run-1", "recorder-task");
+    const taskDir = path.join(outputRoot, "test-group", "recorder-task", "run-1");
     await expect(fs.readdir(taskDir)).resolves.toEqual(
       expect.arrayContaining([
         "core.log",
+        "metadata.json",
         "scores",
         "screenshots",
         "task_data.json",
