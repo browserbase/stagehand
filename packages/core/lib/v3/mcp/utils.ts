@@ -3,12 +3,6 @@ import { ToolSet } from "ai";
 import { JsonSchema, jsonSchemaToZod } from "../../utils.js";
 import { connectToMCPServer } from "./connection.js";
 
-export interface ListedMCPTool {
-  name: string;
-  description?: string;
-  inputSchema?: JsonSchema;
-}
-
 export const resolveTools = async (
   clients: (Client | string)[],
   userTools: ToolSet,
@@ -42,40 +36,6 @@ export const resolveTools = async (
             return result;
           },
         };
-      }
-      nextCursor = clientTools.nextCursor;
-    } while (nextCursor);
-  }
-
-  return tools;
-};
-
-export const listMCPTools = async (
-  clients: (Client | string)[],
-): Promise<ListedMCPTool[]> => {
-  const tools: ListedMCPTool[] = [];
-
-  for (const client of clients) {
-    let clientInstance: Client;
-    if (typeof client === "string") {
-      clientInstance = await connectToMCPServer(client);
-    } else {
-      clientInstance = client;
-    }
-
-    let nextCursor: string | undefined = undefined;
-
-    do {
-      const clientTools = await clientInstance.listTools({
-        cursor: nextCursor,
-      });
-
-      for (const tool of clientTools.tools) {
-        tools.push({
-          name: tool.name,
-          description: tool.description,
-          inputSchema: tool.inputSchema as JsonSchema,
-        });
       }
       nextCursor = clientTools.nextCursor;
     } while (nextCursor);

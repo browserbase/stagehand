@@ -44,7 +44,6 @@ const publicApiShape = {
   isZod3Schema: Stagehand.isZod3Schema,
   isZod4Schema: Stagehand.isZod4Schema,
   jsonSchemaToZod: Stagehand.jsonSchemaToZod,
-  listMCPTools: Stagehand.listMCPTools,
   loadApiKeyFromEnv: Stagehand.loadApiKeyFromEnv,
   loadTrajectoryFromDisk: Stagehand.loadTrajectoryFromDisk,
   mergeAgentEvidence: Stagehand.mergeAgentEvidence,
