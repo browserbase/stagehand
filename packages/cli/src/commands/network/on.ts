@@ -10,7 +10,6 @@ export default class NetworkOn extends BrowseCommand {
 
   static override examples = [
     "browse network on",
-    "browse network path",
     "browse network on --session research",
   ];
 

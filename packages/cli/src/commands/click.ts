@@ -11,7 +11,6 @@ export default class Click extends BrowseCommand {
     "Click an element by snapshot ref, XPath, or selector. Use `browse mouse click` for raw coordinates.";
 
   static override examples = [
-    "browse snapshot --compact",
     "browse click @0-12",
     "browse click 'button[type=submit]'",
     "browse click @0-12 --session research",
