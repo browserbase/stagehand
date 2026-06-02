@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -23,7 +23,9 @@ async function walk(dir: string): Promise<string[]> {
 
 async function exists(path: string): Promise<boolean> {
   try {
-    await readFile(path);
+    // access() (unlike readFile) correctly reports directories as existing,
+    // which matters for the excluded-module directory assertions below.
+    await access(path);
     return true;
   } catch {
     return false;
