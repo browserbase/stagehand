@@ -38,6 +38,7 @@ import type { Locator } from "./locator.js";
 import {
   StagehandInvalidArgumentError,
   StagehandEvalError,
+  StagehandUnsupportedBrowserFeatureError,
 } from "../types/public/sdkErrors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
@@ -81,6 +82,9 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
   domcontentloaded: "DOMContentLoaded",
   networkidle: "networkIdle",
 };
+
+const WEB_MCP_SUPPORT_MESSAGE =
+  "Make sure you are using Chrome/Chromium newer than version 149 and that it is launched with --enable-features=WebMCPTesting,DevToolsWebMCPSupport.";
 
 type WebMCPCdpTool = WebMCPTool & { stackTrace?: unknown };
 
@@ -706,8 +710,10 @@ export class Page {
       .catch((error) => {
         this.teardownWebMCP();
         const message = error instanceof Error ? error.message : String(error);
-        throw new StagehandInvalidArgumentError(
-          `Unable to enable WebMCP. Make sure your Chrome version supports the CDP WebMCP domain and is launched with --enable-features=WebMCPTesting,DevToolsWebMCPSupport. CDP error: ${message}`,
+        throw new StagehandUnsupportedBrowserFeatureError(
+          "WebMCP",
+          `Unable to enable WebMCP. ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
+          error,
         );
       });
 
@@ -877,10 +883,12 @@ export class Page {
     try {
       return await this.collectWebMCPToolsSnapshot(timeoutMs);
     } catch (error) {
-      if (error instanceof StagehandInvalidArgumentError) throw error;
+      if (error instanceof StagehandUnsupportedBrowserFeatureError) throw error;
       const message = error instanceof Error ? error.message : String(error);
-      throw new StagehandInvalidArgumentError(
-        `Unable to list WebMCP tools. Make sure your Chrome version supports the CDP WebMCP domain and is launched with --enable-features=WebMCPTesting,DevToolsWebMCPSupport. CDP error: ${message}`,
+      throw new StagehandUnsupportedBrowserFeatureError(
+        "WebMCP",
+        `Unable to list WebMCP tools. ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
+        error,
       );
     }
   }
@@ -925,8 +933,10 @@ export class Page {
       invocationId = response.invocationId;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new StagehandInvalidArgumentError(
-        `Unable to invoke WebMCP tool "${toolName}". Make sure your Chrome version supports the CDP WebMCP domain and is launched with --enable-features=WebMCPTesting,DevToolsWebMCPSupport. CDP error: ${message}`,
+      throw new StagehandUnsupportedBrowserFeatureError(
+        "WebMCP",
+        `Unable to invoke WebMCP tool "${toolName}". ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
+        error,
       );
     }
 

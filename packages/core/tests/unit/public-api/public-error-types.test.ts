@@ -53,6 +53,8 @@ export const publicErrorTypes = {
   StreamingCallbacksInNonStreamingModeError:
     Stagehand.StreamingCallbacksInNonStreamingModeError,
   StagehandSnapshotError: Stagehand.StagehandSnapshotError,
+  StagehandUnsupportedBrowserFeatureError:
+    Stagehand.StagehandUnsupportedBrowserFeatureError,
   TimeoutError: Stagehand.TimeoutError,
   UnsupportedAISDKModelProviderError:
     Stagehand.UnsupportedAISDKModelProviderError,
