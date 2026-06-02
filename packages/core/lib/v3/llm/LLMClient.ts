@@ -133,7 +133,9 @@ function resolveLanguageModel<TModel>(
   client: LLMClient,
   model: TModel | undefined,
 ): TModel {
-  const resolvedModel = model ?? client.getLanguageModel?.();
+  const resolvedModel = (model ?? client.getLanguageModel?.()) as
+    | TModel
+    | undefined;
 
   if (!resolvedModel) {
     throw new Error(
@@ -141,7 +143,7 @@ function resolveLanguageModel<TModel>(
     );
   }
 
-  return resolvedModel as TModel;
+  return resolvedModel;
 }
 
 function withResolvedLanguageModel<TOptions extends object>(
