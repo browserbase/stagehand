@@ -84,6 +84,7 @@ export type AvailableModel =
   | "gemini-2.0-flash"
   | "gemini-2.5-flash-preview-04-17"
   | "gemini-2.5-pro-preview-03-25"
+  | "minimax-MiniMax-M3"
   | "minimax-MiniMax-M2.7"
   | "minimax-MiniMax-M2.7-highspeed"
   | "minimax-MiniMax-M2.5"
