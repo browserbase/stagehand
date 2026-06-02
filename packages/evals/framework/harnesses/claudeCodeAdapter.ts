@@ -23,7 +23,11 @@
  *     steps we have. The verifier flags evidence_insufficient on criteria it
  *     can't ground.
  */
-import type { TaskSpec, Trajectory } from "@browserbasehq/stagehand";
+import type {
+  ProbeEvidence,
+  TaskSpec,
+  Trajectory,
+} from "@browserbasehq/stagehand";
 import {
   buildTrajectory,
   type NormalizedToolCall,
@@ -57,6 +61,8 @@ interface ToolResultBlock {
   text: string;
   /** Original structured content when not flattened to text. */
   raw?: unknown;
+  /** Images returned by the tool (e.g., playwright_code screenshots). */
+  images: Array<{ bytes: Buffer; mediaType: string }>;
   isError: boolean;
 }
 
@@ -134,11 +140,12 @@ export class ClaudeCodeTrajectoryAdapter
           const toolUseId =
             typeof block.tool_use_id === "string" ? block.tool_use_id : "";
           const isError = block.is_error === true;
-          const { text, raw } = extractToolResultContent(block.content);
+          const { text, raw, images } = extractToolResultContent(block.content);
           toolResults.set(toolUseId, {
             toolUseId,
             text,
             raw,
+            images,
             isError,
           });
         }
@@ -158,6 +165,7 @@ export class ClaudeCodeTrajectoryAdapter
         ok,
         ...(matched?.isError && matched.text && { error: matched.text }),
         reasoning: use.reasoningPrefix.trim() || undefined,
+        ...(matched?.images.length && { images: matched.images }),
       };
     });
 
@@ -167,12 +175,27 @@ export class ClaudeCodeTrajectoryAdapter
       resultMessageText ??
       (trailing.length > 0 ? trailing : undefined);
 
+    // Anchor the closing frame with the most recent screenshot the agent
+    // captured. Claude Code doesn't run a post-task probe, so the last
+    // tool_result image is the best proxy for "terminal observation" — without
+    // it the verifier's final-screenshot anchor (evidence.ts:136-143) is empty.
+    let finalObservation: ProbeEvidence | undefined;
+    for (let i = toolUses.length - 1; i >= 0; i--) {
+      const matched = toolResults.get(toolUses[i].id);
+      const lastImage = matched?.images[matched.images.length - 1];
+      if (lastImage) {
+        finalObservation = { screenshot: lastImage.bytes };
+        break;
+      }
+    }
+
     return buildTrajectory({
       taskSpec,
       toolCalls,
       finalAnswer,
       status: result.status ?? "complete",
       usage: result.usage,
+      ...(finalObservation && { finalObservation }),
     });
   }
 }
@@ -194,29 +217,60 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *   - a string (legacy)
  *   - an array of { type: "text", text } / { type: "image", source } blocks
  *
- * We flatten text blocks and preserve the original array (when structured) as
- * `raw` so adapters that want the json modality can keep it.
+ * Text blocks are flattened to `text`. Image blocks (Anthropic's `{ type: "image",
+ * source: { type: "base64", media_type, data } }` shape) are decoded to Buffers
+ * and returned in `images` so the trajectory adapter can fold them into
+ * agentEvidence as image modalities. The original array is preserved as `raw`
+ * for json-modality consumers.
  */
 function extractToolResultContent(content: unknown): {
   text: string;
   raw?: unknown;
+  images: Array<{ bytes: Buffer; mediaType: string }>;
 } {
   if (typeof content === "string") {
-    return { text: content };
+    return { text: content, images: [] };
   }
   if (!Array.isArray(content)) {
-    return { text: "" };
+    return { text: "", images: [] };
   }
   const parts: string[] = [];
+  const images: Array<{ bytes: Buffer; mediaType: string }> = [];
   for (const block of content) {
     if (!isRecord(block)) continue;
     if (block.type === "text" && typeof block.text === "string") {
       parts.push(block.text);
     } else if (block.type === "image") {
-      parts.push("[image]");
+      const decoded = decodeAnthropicImageBlock(block);
+      if (decoded) {
+        images.push(decoded);
+        parts.push("[image]");
+      }
     } else if (typeof block.text === "string") {
       parts.push(block.text);
     }
   }
-  return { text: parts.join("\n"), raw: content };
+  return { text: parts.join("\n"), raw: content, images };
+}
+
+function decodeAnthropicImageBlock(
+  block: Record<string, unknown>,
+): { bytes: Buffer; mediaType: string } | undefined {
+  const source = block.source;
+  if (!isRecord(source)) return undefined;
+  // Base64 source: { type: "base64", media_type, data }
+  if (
+    source.type === "base64" &&
+    typeof source.data === "string" &&
+    source.data.length > 0
+  ) {
+    const mediaType =
+      typeof source.media_type === "string" ? source.media_type : "image/png";
+    try {
+      return { bytes: Buffer.from(source.data, "base64"), mediaType };
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
 }

@@ -1,6 +1,7 @@
 import type {
   AgentEvidence,
   AgentEvidenceModality,
+  ProbeEvidence,
   TaskSpec,
   Trajectory,
   TrajectoryStep,
@@ -37,6 +38,12 @@ export interface NormalizedToolCall {
   error?: string;
   /** Optional reasoning text the assistant emitted before/with this tool call. */
   reasoning?: string;
+  /**
+   * Optional image evidence the tool returned (e.g., screenshots from a
+   * playwright_code tool). Folded into agentEvidence as image modalities so
+   * the verifier can ground visual criteria against them.
+   */
+  images?: Array<{ bytes: Buffer; mediaType: string }>;
 }
 
 /**
@@ -46,7 +53,7 @@ export interface NormalizedToolCall {
  * to the caller — external harnesses don't emit independent observations.
  */
 export function actionToAgentEvidence(
-  call: Pick<NormalizedToolCall, "result" | "reasoning">,
+  call: Pick<NormalizedToolCall, "result" | "reasoning" | "images">,
 ): AgentEvidence {
   const modalities: AgentEvidenceModality[] = [];
 
@@ -55,32 +62,40 @@ export function actionToAgentEvidence(
   }
 
   const result = call.result;
-  if (result === undefined || result === null) {
-    return { modalities };
+  if (result !== undefined && result !== null) {
+    if (typeof result === "string") {
+      if (result.length > 0) {
+        modalities.push({ type: "text", content: result });
+      }
+    } else if (Buffer.isBuffer(result)) {
+      modalities.push({
+        type: "image",
+        bytes: result,
+        mediaType: "image/png",
+      });
+    } else if (typeof result === "object") {
+      // Provide both a JSON modality (preserved structure for prompts that
+      // accept JSON) and a stringified text modality (cheap fallback for prompts
+      // that only consume text). Step 2 relevance scoring tolerates duplicates.
+      modalities.push({ type: "json", content: result });
+      const asText = safeStringify(result);
+      if (asText) {
+        modalities.push({ type: "text", content: asText });
+      }
+    } else {
+      // Numbers, booleans, etc. — stringify so the verifier has a text handle.
+      modalities.push({ type: "text", content: String(result) });
+    }
   }
 
-  if (typeof result === "string") {
-    if (result.length > 0) {
-      modalities.push({ type: "text", content: result });
+  if (call.images?.length) {
+    for (const image of call.images) {
+      modalities.push({
+        type: "image",
+        bytes: image.bytes,
+        mediaType: image.mediaType,
+      });
     }
-  } else if (Buffer.isBuffer(result)) {
-    modalities.push({
-      type: "image",
-      bytes: result,
-      mediaType: "image/png",
-    });
-  } else if (typeof result === "object") {
-    // Provide both a JSON modality (preserved structure for prompts that
-    // accept JSON) and a stringified text modality (cheap fallback for prompts
-    // that only consume text). Step 2 relevance scoring tolerates duplicates.
-    modalities.push({ type: "json", content: result });
-    const asText = safeStringify(result);
-    if (asText) {
-      modalities.push({ type: "text", content: asText });
-    }
-  } else {
-    // Numbers, booleans, etc. — stringify so the verifier has a text handle.
-    modalities.push({ type: "text", content: String(result) });
   }
 
   return { modalities };
@@ -117,6 +132,14 @@ export interface BuildTrajectoryOptions {
   status?: Trajectory["status"];
   /** Token usage if the harness surfaced it; partial fields are filled with 0. */
   usage?: Partial<Trajectory["usage"]>;
+  /**
+   * Terminal observation evidence (typically the last screenshot the agent
+   * captured). The verifier anchors this as the closing frame of the
+   * trajectory — see core/lib/v3/verifier/evidence.ts. External harnesses that
+   * have no post-task probe path can pass the final tool_result screenshot
+   * here to preserve the legacy final-screenshot verification behavior.
+   */
+  finalObservation?: ProbeEvidence;
 }
 
 export function buildTrajectory(opts: BuildTrajectoryOptions): Trajectory {
@@ -129,6 +152,7 @@ export function buildTrajectory(opts: BuildTrajectoryOptions): Trajectory {
     steps,
     finalAnswer: opts.finalAnswer,
     status: opts.status ?? "complete",
+    ...(opts.finalObservation && { finalObservation: opts.finalObservation }),
     usage: {
       input_tokens: opts.usage?.input_tokens ?? 0,
       output_tokens: opts.usage?.output_tokens ?? 0,
