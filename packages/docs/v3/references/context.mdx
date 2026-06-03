@@ -8,9 +8,12 @@ import { V3Banner } from '/snippets/v3-banner.mdx';
 <V3Banner />
 
 
-<CardGroup cols={1}>
+<CardGroup cols={2}>
 <Card title="Stagehand" icon="wand-magic-sparkles" href="/v3/references/stagehand">
   Learn about the main Stagehand object
+</Card>
+<Card title="Clipboard" icon="clipboard" href="/v3/references/clipboard">
+  Learn about reading, writing, copying, cutting, and pasting clipboard text
 </Card>
 </CardGroup>
 
@@ -292,6 +295,18 @@ await context.clearCookies({
   domain: ".example.com",
 });
 ```
+
+## Properties
+
+### clipboard
+
+Access the browser clipboard API for the active page or a specific page.
+
+```typescript
+context.clipboard: BrowserClipboard
+```
+
+Use `context.clipboard` to read and write clipboard text, paste into focused elements, or copy and cut selected content. See the [clipboard reference](/v3/references/clipboard) for the full API.
 
 ### close()
 
