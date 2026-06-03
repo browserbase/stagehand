@@ -133,7 +133,7 @@ jobs:
           npm publish "$TARBALL" --provenance --access public --tag latest
 
       - name: Tag browse release
-        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish == 'true'
+        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
         run: |
           TAG="browse@${{ steps.browse_cli.outputs.version }}"
           if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then

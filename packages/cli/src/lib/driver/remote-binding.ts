@@ -14,7 +14,15 @@ export async function getRemote(): Promise<RemoteCapability> {
   const fullModule = "./remote.js";
   try {
     cached = (await import(fullModule)) as unknown as RemoteCapability;
-  } catch {
+  } catch (error) {
+    // The full build ships remote.js; the local-only build omits it. Only fall
+    // back to the disabled stub when the module is genuinely absent — rethrow
+    // any other error so a real failure inside remote.ts isn't masked as
+    // "remote disabled".
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    if (code !== "ERR_MODULE_NOT_FOUND" && code !== "MODULE_NOT_FOUND") {
+      throw error;
+    }
     cached =
       (await import("./remote.disabled.js")) as unknown as RemoteCapability;
   }
