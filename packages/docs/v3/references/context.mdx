@@ -296,18 +296,6 @@ await context.clearCookies({
 });
 ```
 
-## Properties
-
-### clipboard
-
-Access the browser clipboard API for the active page or a specific page.
-
-```typescript
-context.clipboard: BrowserClipboard
-```
-
-Use `context.clipboard` to read and write clipboard text, paste into focused elements, or copy and cut selected content. See the [clipboard reference](/v3/references/clipboard) for the full API.
-
 ### close()
 
 Close the browser context and all associated pages.
@@ -322,6 +310,18 @@ This method:
 - Clears all internal mappings
 
 **Note:** This is typically called internally by `stagehand.close()`. You usually don't need to call this directly.
+
+## Properties
+
+### clipboard
+
+Access the browser clipboard API for the active page or a specific page.
+
+```typescript
+context.clipboard: BrowserClipboard
+```
+
+Use `context.clipboard` to read and write clipboard text, paste into focused elements, or copy and cut selected content. See the [clipboard reference](/v3/references/clipboard) for the full API.
 
 ## Code Examples
 
