@@ -128,6 +128,7 @@
                   "v3/references/extract",
                   "v3/references/observe",
                   "v3/references/context",
+                  "v3/references/clipboard",
                   "v3/references/page",
                   "v3/references/locator",
                   "v3/references/deeplocator",
