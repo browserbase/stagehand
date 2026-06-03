@@ -44,6 +44,7 @@ interface ExtractOptions {
   timeout?: number;
   selector?: string;
   ignoreSelectors?: string[];
+  screenshot?: boolean;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   serverCache?: boolean;
 }
@@ -104,6 +105,14 @@ type ModelConfiguration =
 
   <Note>
     `ignoreSelectors` applies to all matches for each selector. `selector` keeps its single-target scoping behavior.
+  </Note>
+</ParamField>
+
+<ParamField path="screenshot" type="boolean" optional>
+  When `true`, includes a PNG screenshot of the current viewport in the extraction LLM call along with the page accessibility tree. Defaults to `false`.
+
+  <Note>
+    `screenshot: true` captures the current viewport, not the full page. It is only supported with AI SDK clients.
   </Note>
 </ParamField>
 
@@ -290,6 +299,30 @@ const data = await stagehand.extract(
   "name": "Product Name",
   "price": 100,
   "description": "Product description"
+}
+```
+
+</Tab>
+<Tab title="Screenshot">
+
+```typescript
+import { z } from 'zod';
+
+const BadgeSchema = z.object({
+  text: z.string()
+});
+
+const badge = await stagehand.extract(
+  "extract the text shown in the visible sale badge",
+  BadgeSchema,
+  { screenshot: true }
+);
+```
+
+#### Example Response
+```json
+{
+  "text": "25% off"
 }
 ```
 
