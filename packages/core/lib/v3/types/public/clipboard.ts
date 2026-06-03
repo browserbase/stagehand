@@ -2,7 +2,6 @@ import type { Page } from "../../understudy/page.js";
 
 export interface ClipboardOptions {
   page?: Page;
-  timeout?: number;
 }
 
 export interface ClipboardPasteOptions extends ClipboardOptions {
