@@ -12,7 +12,7 @@
 npm install -g browse
 ```
 
-<img src="https://github.com/browserbase/stagehand/blob/main/packages/cli/media/browse.gif" alt="browse CLI demo" width="100%" />
+<img src="https://github.com/browserbase/stagehand/blob/main/packages/cli/media/browse.gif?raw=true" alt="browse CLI demo" width="100%" />
 
 </div>
 
