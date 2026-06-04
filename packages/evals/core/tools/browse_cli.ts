@@ -47,11 +47,18 @@ const BROWSE_CLI_ENTRYPOINT = path.join(
   "bin",
   "run.js",
 );
+const BROWSE_CLI_BUILD_ARTIFACTS = [
+  path.join(getRepoRootDir(), "packages", "cli", "oclif.manifest.json"),
+  path.join(getRepoRootDir(), "packages", "cli", "dist", "commands", "open.js"),
+];
 
 function resolveBrowseCliEntrypoint(): string {
-  if (!fs.existsSync(BROWSE_CLI_ENTRYPOINT)) {
+  const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find(
+    (artifact) => !fs.existsSync(artifact),
+  );
+  if (missingArtifact) {
     throw new Error(
-      `browse_cli requires a built CLI entrypoint at ${BROWSE_CLI_ENTRYPOINT}. Run pnpm --dir packages/cli build first.`,
+      `browse_cli requires built CLI artifacts; missing ${missingArtifact}. Run pnpm --dir packages/cli build first.`,
     );
   }
 
