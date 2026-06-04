@@ -487,8 +487,9 @@ describe("driver foundation", () => {
     }));
 
     try {
-      const { DriverSessionManager: MockedDriverSessionManager } =
-        await import("../src/lib/driver/session-manager.js");
+      const { DriverSessionManager: MockedDriverSessionManager } = await import(
+        "../src/lib/driver/session-manager.js"
+      );
       const manager = new MockedDriverSessionManager("init-failure", {
         headless: true,
         kind: "managed-local",

@@ -124,7 +124,7 @@
     "eslint-plugin-security": "^4.0.0",
     "globals": "^17.6.0",
     "oclif": "^4.23.1",
-    "prettier": "^3.8.3",
+    "prettier": "3.5.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.59.3",
     "vitest": "^3.2.4"

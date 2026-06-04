@@ -144,8 +144,8 @@ importers:
         specifier: ^4.23.1
         version: 4.23.10(@types/node@20.17.32)
       prettier:
-        specifier: ^3.8.3
-        version: 3.8.3
+        specifier: 3.5.3
+        version: 3.5.3
       typescript:
         specifier: ^5.8.3
         version: 5.8.3

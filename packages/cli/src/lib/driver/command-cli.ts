@@ -86,24 +86,24 @@ export async function resolveTargetForCommand(
 export function hasExplicitDriverTarget(flags: DriverFlags): boolean {
   return Boolean(
     flags.local ||
-    flags.remote ||
-    flags["auto-connect"] ||
-    flags.cdp ||
-    flags["target-id"] ||
-    flags.headed ||
-    flags.headless,
+      flags.remote ||
+      flags["auto-connect"] ||
+      flags.cdp ||
+      flags["target-id"] ||
+      flags.headed ||
+      flags.headless,
   );
 }
 
 function hasModeOnlyFlag(flags: DriverFlags): boolean {
   return Boolean(
     (flags.local || flags.remote) &&
-    !flags["auto-connect"] &&
-    !flags.cdp &&
-    !flags["target-id"] &&
-    !flags.headed &&
-    !flags.headless &&
-    flags.local !== flags.remote,
+      !flags["auto-connect"] &&
+      !flags.cdp &&
+      !flags["target-id"] &&
+      !flags.headed &&
+      !flags.headless &&
+      flags.local !== flags.remote,
   );
 }
 
