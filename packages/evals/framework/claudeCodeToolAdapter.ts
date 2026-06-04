@@ -58,8 +58,8 @@ const BROWSE_CLI_ENTRYPOINT = path.join(
   getRepoRootDir(),
   "packages",
   "cli",
-  "dist",
-  "index.js",
+  "bin",
+  "run.js",
 );
 const BROWSE_CLI_PACKAGE_JSON = path.join(
   getRepoRootDir(),

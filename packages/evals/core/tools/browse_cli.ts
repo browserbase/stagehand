@@ -44,8 +44,8 @@ const BROWSE_CLI_ENTRYPOINT = path.join(
   getRepoRootDir(),
   "packages",
   "cli",
-  "dist",
-  "index.js",
+  "bin",
+  "run.js",
 );
 
 function resolveBrowseCliEntrypoint(): string {
