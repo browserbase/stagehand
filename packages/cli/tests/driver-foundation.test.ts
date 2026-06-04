@@ -475,11 +475,13 @@ describe("driver foundation", () => {
   it("closes Stagehand when initialization fails", async () => {
     const init = vi.fn().mockRejectedValue(new Error("init failed"));
     const close = vi.fn().mockResolvedValue(undefined);
-    const Stagehand = vi.fn(() => ({
-      close,
-      context: {},
-      init,
-    }));
+    const Stagehand = vi.fn(function () {
+      return {
+        close,
+        context: {},
+        init,
+      };
+    });
 
     vi.resetModules();
     vi.doMock("@browserbasehq/stagehand", () => ({
