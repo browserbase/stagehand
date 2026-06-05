@@ -1,387 +1,142 @@
-# Browse CLI
+<div align="center">
 
-Browser automation CLI for AI agents. Built on [Stagehand](https://github.com/browserbase/stagehand), providing raw browser control without requiring LLM integration.
+# >_ browse
 
-## Installation
+### The single CLI your AI agents need to access the internet reliably.
+
+[![npm version](https://img.shields.io/npm/v/browse.svg?style=flat-square&color=000000)](https://www.npmjs.com/package/browse)
+[![npm downloads](https://img.shields.io/npm/dm/browse.svg?style=flat-square&color=000000)](https://www.npmjs.com/package/browse)
+[![license](https://img.shields.io/npm/l/browse.svg?style=flat-square&color=000000)](https://github.com/browserbase/stagehand/blob/main/packages/cli/LICENSE)
 
 ```bash
-npm install -g @browserbasehq/browse-cli
+npm install -g browse
 ```
 
-Requires Chrome/Chromium installed on the system.
+<img src="https://github.com/browserbase/stagehand/blob/main/packages/cli/media/browse.gif?raw=true" alt="browse CLI demo" width="100%" />
 
-## Quick Start
+</div>
+
+---
+
+`browse` gives any agent — or any terminal — a reliable way to drive a real browser, learn how to use specific websites, and tap into Browserbase's cloud. One command to navigate the open web, capture telemetry while you do it, and reuse skills the community has already built.
+
+## Why browse
+
+- **Browser interactions** — Navigate tricky, complex websites with `browse click`, `browse mouse scroll`, `browse type`, `browse select`, and 20+ more DOM commands.
+- **Open web skills catalog** — `browse` is the official CLI for [browse.sh](https://browse.sh), the largest open web catalog. Run `browse skills add apartments.com` and your agent learns how to use that site and its APIs.
+- **Rich debugging** — Arm your agents with network, console, and other web telemetry.
+- **Cloud features** — Optionally use Browserbase cloud: load cookies via saved [Contexts](https://docs.browserbase.com/platform/browser/core-features/contexts), use [Verified Browsers](https://www.browserbase.com/verified), and call the [Fetch and Search APIs](https://www.browserbase.com/search).
+
+## Quick start
 
 ```bash
-# Navigate to a URL (auto-starts browser daemon)
+npm install -g browse
+
 browse open https://example.com
-
-# Take a snapshot to get element refs
-browse snapshot -c
-
-# Click an element by ref
-browse click @0-5
-
-# Type text
-browse type "Hello, world!"
-
-# Take a screenshot
-browse screenshot ./page.png
-
-# Stop the browser
-browse stop
-```
-
-## How It Works
-
-Browse uses a daemon architecture for fast, stateful interactions:
-
-1. **First command** auto-starts a Chrome browser daemon
-2. **Subsequent commands** reuse the same browser session
-3. **State persists** between commands (cookies, refs, etc.)
-4. **Multiple sessions** supported via `--session` or `BROWSE_SESSION` env var
-
-### Self-Healing Sessions
-
-The CLI automatically recovers from stale sessions. If the daemon or Chrome crashes:
-1. Detects the failure
-2. Cleans up stale processes and files
-3. Restarts the daemon
-4. Retries the command
-
-Agents don't need to handle recovery - commands "just work".
-
-## Commands
-
-### Navigation
-
-```bash
-browse open <url> [--wait load|domcontentloaded|networkidle] [-t|--timeout ms]
-browse reload
-browse back
-browse forward
-```
-
-The `--timeout` flag (default: 30000ms) controls how long to wait for the page load state. Use longer timeouts for slow-loading pages:
-
-```bash
-browse open https://slow-site.com --timeout 60000
-```
-
-### Click Actions
-
-```bash
-browse click <ref> [-b left|right|middle] [-c count]  # Click by ref (e.g., @0-5)
-browse click_xy <x> <y> [--button] [--xpath]          # Click at coordinates
-```
-
-### Coordinate Actions
-
-```bash
-browse hover <x> <y> [--xpath]
-browse scroll <x> <y> <deltaX> <deltaY> [--xpath]
-browse drag <fromX> <fromY> <toX> <toY> [--steps n] [--xpath]
-```
-
-### Keyboard
-
-```bash
-browse type <text> [-d delay] [--mistakes]
-browse press <key>  # e.g., Enter, Tab, Cmd+A
-```
-
-### Forms
-
-```bash
-browse fill <selector> <value> [--no-press-enter]
-browse select <selector> <values...>
-browse highlight <selector> [-d duration]
-```
-
-### Page Info
-
-```bash
-browse get url
+browse snapshot --compact
+browse click @0-12
+browse fill @0-8 "hello"
 browse get title
-browse get text <selector>
-browse get html <selector>
-browse get value <selector>
-browse get box <selector>  # Returns center coordinates
-
-browse snapshot [-c|--compact]  # Accessibility tree with refs
-browse screenshot [path] [-f|--full-page] [-t png|jpeg]
-```
-
-### Waiting
-
-```bash
-browse wait load [state]
-browse wait selector <selector> [-t timeout] [-s visible|hidden|attached|detached]
-browse wait timeout <ms>
-```
-
-### Multi-Tab
-
-```bash
-browse pages          # List all tabs
-browse newpage [url]  # Open new tab
-browse tab_switch <n> # Switch to tab by index
-browse tab_close [n]  # Close tab (default: last)
-```
-
-### Network Capture
-
-Capture HTTP requests to the filesystem for inspection:
-
-```bash
-browse network on     # Start capturing requests
-browse network off    # Stop capturing
-browse network path   # Get capture directory path
-browse network clear  # Clear captured requests
-```
-
-Captured requests are saved as directories:
-
-```
-/tmp/browse-default-network/
-  001-GET-api.github.com-repos/
-    request.json      # method, url, headers, body
-    response.json     # status, headers, body, duration
-```
-
-### Daemon Control
-
-```bash
-browse start          # Explicitly start daemon
-browse stop [--force] # Stop daemon
-browse status         # Check daemon status
-browse env [target]   # Show or switch environment: local | remote
-```
-
-### Environment Switching (Local vs Remote)
-
-Use environment switching when an agent should keep the same command flow, but the
-browser runtime needs to change:
-
-- `local` runs Chrome on your machine (best for local debugging/dev loops)
-- `remote` runs a Browserbase session (best for anti-bot hardening and cloud runs)
-
-```bash
-# Show active environment (if running) and desired environment for next start
-browse env
-
-# Switch current session to Browserbase (restarts daemon if needed)
-browse env remote
-
-# Switch back to local Chrome (clean isolated browser by default)
-browse env local
-```
-
-#### Local Browser Strategies
-
-By default, `browse env local` launches a clean isolated local browser.
-Use `browse env local --auto-connect` to opt into reusing an already-running
-Chrome with remote debugging enabled. If no debuggable Chrome is found, it
-falls back to launching an isolated browser.
-
-```bash
-# Use a clean isolated browser (default)
-browse env local
-
-# Auto-discover local Chrome, fallback to isolated
-browse env local --auto-connect
-
-# Attach to a specific CDP target (port or URL)
-browse env local 9222
-browse env local ws://localhost:9222/devtools/browser/...
-```
-
-Auto-discovery checks:
-1. `DevToolsActivePort` files in well-known Chrome/Chromium/Brave user-data directories
-2. Common debugging ports (9222, 9229)
-
-To make your Chrome discoverable:
-
-1. Open `chrome://inspect/#remote-debugging`
-2. Check the box **"Allow remote debugging for this browser instance"**
-
-For more information, see the [Chrome DevTools docs](https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session).
-
-Use `browse status` to see which strategy was resolved:
-
-```bash
-browse status
-# {"running":true,"session":"default","mode":"local","localStrategy":"isolated","localSource":"isolated"}
-```
-
-#### General Behavior
-
-- Environment is scoped per `--session`
-- `browse env <target>` persists an override and restarts the daemon
-- `browse stop` clears the override so next start falls back to env-var-based auto detection
-- Auto detection defaults to:
-  - `remote` when `BROWSERBASE_API_KEY` is set
-  - `local` otherwise
-
-## Global Options
-
-| Option | Description |
-|--------|-------------|
-| `--session <name>` | Session name for multiple browsers (default: "default") |
-| `--headless` | Run Chrome in headless mode |
-| `--headed` | Run Chrome with visible window (default) |
-| `--ws <url\|port>` | One-shot CDP connection (bypasses daemon) |
-| `--json` | Output as JSON |
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `BROWSE_SESSION` | Default session name (alternative to `--session`) |
-| `BROWSERBASE_API_KEY` | Browserbase API key (required for `browse env remote`) |
-
-## Element References
-
-After running `browse snapshot`, you can reference elements by their ref ID:
-
-```bash
-# Get snapshot with refs
-browse snapshot -c
-
-# Output includes refs like [0-5], [1-2], etc.
-# RootWebArea "Example" url="https://example.com"
-#   [0-0] link "Home"
-#   [0-1] link "About"
-#   [0-2] button "Sign In"
-
-# Click using ref (multiple formats supported)
-browse click @0-2       # @ prefix
-browse click 0-2        # Plain ref
-browse click ref=0-2    # Explicit prefix
-```
-
-The full snapshot output includes mappings:
-- **xpathMap**: Cross-frame XPath selectors
-- **cssMap**: Fast CSS selectors when available
-- **urlMap**: Extracted URLs from links
-
-## Multiple Sessions
-
-Run multiple browser instances simultaneously:
-
-```bash
-# Terminal 1
-BROWSE_SESSION=session1 browse open https://google.com
-
-# Terminal 2
-BROWSE_SESSION=session2 browse open https://github.com
-
-# Or use --session flag
-browse --session work open https://slack.com
-browse --session personal open https://twitter.com
-```
-
-## Direct CDP Connection
-
-Opt into using an existing Chrome instance:
-
-To make your Chrome discoverable:
-
-1. Open `chrome://inspect/#remote-debugging`
-2. Check the box **"Allow remote debugging for this browser instance"**
-3. Re-run the CLI with auto-connect enabled.
-
-For more information, see the [Chrome DevTools docs](https://developer.chrome.com/blog/chrome-devtools-mcp-debug-your-browser-session).
-
-```bash
-# Auto-discover Chrome with remote debugging enabled
-browse env local --auto-connect
-browse open https://example.com
-
-# Or target a specific port / WebSocket URL
-browse env local 9222
-browse --ws ws://localhost:9222/devtools/browser/... open https://example.com
-```
-
-## Optimal AI Workflow
-
-1. **Navigate** to target page (browser auto-starts)
-2. **Snapshot** to get the accessibility tree with refs
-3. **Click/Fill** using refs directly (e.g., `@0-5`)
-4. **Re-snapshot** after actions to verify state changes
-5. **Stop** when done
-
-```bash
-browse open https://example.com
-browse snapshot -c
-# [0-5] textbox: Search
-# [0-8] button: Submit
-browse fill @0-5 "my query"
-browse click @0-8
-browse snapshot -c  # Verify result
+browse screenshot --path page.png
 browse stop
 ```
 
-## Troubleshooting
+## Driver commands
 
-### Chrome not found
-
-The CLI uses your system Chrome/Chromium. If not found:
+Drive a real browser from the terminal — locally, over CDP, or on a remote Browserbase session.
 
 ```bash
-# macOS - Install Chrome or set path
-export CHROME_PATH=/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome
-
-# Linux - Install chromium
-sudo apt install chromium-browser
+browse open https://example.com
+browse open https://example.com --local --headed
+browse open https://example.com --remote
+browse open https://example.com --auto-connect
+browse open https://example.com --cdp 9222
+browse open https://example.com --cdp ws://127.0.0.1:9222/devtools/browser/<id> --target-id <target-id>
+browse snapshot --compact
+browse click @0-12
+browse fill @0-8 "hello"
+browse mouse click 240 320
+browse get title
+browse screenshot --path page.png
+browse tab list
+browse tab switch <target-id>
+browse network on
+browse cdp 9222 --pretty
+browse status
+browse stop
 ```
 
-### Stale daemon
+Use `--local`, `--remote`, `--auto-connect`, or `--cdp <url|port>` per command to choose the browser target. Use `--target-id <id>` with `--cdp` when attaching to a specific CDP target. Driver commands use `BROWSERBASE_API_KEY` for remote Browserbase sessions.
 
-If the daemon becomes unresponsive:
+> [!NOTE]
+> `browse network on` writes request/response headers and bodies to a local owner-only capture directory. These files can include cookies, authorization headers, and other secrets — use network capture only on trusted machines and run `browse network clear` when done.
+
+## Open web skills catalog
+
+Use [browse.sh](https://browse.sh), the largest open-source catalog of skills to reliably perform any task on the internet. Find a specialized skill to navigate `apartments.com`, for example, and drastically reduce your agent's time and token costs.
 
 ```bash
-browse stop --force
+browse skills install                                       # install the bundled browse CLI skill
+browse skills list                                          # list the public Browse.sh catalog
+browse skills find reviews                                  # search by slug, domain, title, tag…
+browse skills find yelp.com/extract-reviews
+browse skills add yelp.com/extract-reviews                  # install a catalog skill
+browse skills add mcdonalds.order.online/order-delivery-42q71n
 ```
 
-### Permission denied on socket
+## Browserbase cloud commands
+
+Manage projects, sessions, contexts, and extensions, or call the Fetch and Search APIs directly.
 
 ```bash
-# Clean up stale socket files
-rm /tmp/browse-*.sock /tmp/browse-*.pid
+browse cloud projects list
+browse cloud projects get <project-id>
+browse cloud projects usage <project-id>
+browse cloud sessions list
+browse cloud sessions get <session-id>
+browse cloud sessions create
+browse cloud sessions debug <session-id>
+browse cloud sessions logs <session-id>
+browse cloud sessions downloads get <session-id>
+browse cloud sessions uploads create <session-id> <file>
+browse cloud contexts create
+browse cloud contexts get <context-id>
+browse cloud extensions upload <file>
+browse cloud fetch <url>
+browse cloud search <query>
 ```
 
-## Platform Support
+`browse cloud fetch` returns markdown-formatted page content by default. Use `--format raw` for the original response body, or `--format json --schema <schema>` for structured extraction.
 
-- macOS (Intel and Apple Silicon)
-- Linux (x64 and arm64)
+## Functions
 
-Windows support requires WSL or TCP socket implementation.
-
-## Development
+Browserbase [Functions](https://docs.browserbase.com/platform/runtime/overview) let you deploy browser agents and automation scripts directly onto Browserbase's infrastructure. Build locally, test instantly, and deploy as APIs.
 
 ```bash
-# Clone and setup (in monorepo)
-cd packages/cli
-pnpm install         # Install dependencies first!
-pnpm run build       # Build the CLI
-
-# Run without building (for development)
-pnpm run dev -- <command>
-
-# Or with tsx directly
-npx tsx src/index.ts <command>
-
-# Run linting and formatting
-pnpm run lint
-pnpm run format
+browse functions init my-function
+browse functions dev index.ts
+browse functions publish index.ts
+browse functions publish index.ts --dry-run
+browse functions invoke <function-id> --params '{"url":"https://example.com"}'
+browse functions invoke --check-status <invocation-id>
 ```
+
+## Configuration
+
+Set your Browserbase API key to enable remote sessions and cloud commands:
+
+```bash
+export BROWSERBASE_API_KEY=bb_live_...
+```
+
+Local driver commands (`--local`) work without an API key.
+
+## Links
+
+- [browse.sh](https://browse.sh) — open web skills catalog
+- [Browserbase docs](https://docs.browserbase.com)
+- [GitHub](https://github.com/browserbase/stagehand/tree/main/packages/cli) · [Issues](https://github.com/browserbase/stagehand/issues)
 
 ## License
 
-MIT - see [LICENSE](./LICENSE)
-
-## Related
-
-- [Stagehand](https://github.com/browserbase/stagehand) - AI web browser automation framework
-- [Browserbase](https://browserbase.com) - Cloud browser infrastructure
+[MIT](https://github.com/browserbase/stagehand/blob/main/packages/cli/LICENSE)
