@@ -203,18 +203,45 @@ const ModelConfigBaseSchema = z
       description:
         "Custom headers sent with every request to the model provider",
     }),
+    temperature: z.number().optional().meta({
+      description: "Temperature for model inference",
+    }),
+  })
+  .strict();
+
+const YutoriNavigatorModelOptionsSchema = z
+  .object({
+    toolSet: z.string().optional().meta({
+      description:
+        'Yutori Navigator tool set, e.g. "browser_tools_core-20260403"',
+    }),
+    disableTools: z.array(z.string()).optional().meta({
+      description: "Yutori Navigator tool names to disable",
+    }),
+    jsonSchema: z.record(z.string(), z.unknown()).optional().meta({
+      description: "Yutori Navigator structured-output JSON schema",
+    }),
+    userTimezone: z.string().optional().meta({
+      description:
+        'Yutori Navigator user-context timezone, e.g. "America/New_York"',
+    }),
+    userLocation: z.string().optional().meta({
+      description:
+        'Yutori Navigator user-context location, e.g. "New York, NY, US"',
+    }),
   })
   .strict();
 
 export const GenericModelConfigObjectSchema = ModelConfigBaseSchema.extend({
   provider: z
-    .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
+    .enum(["openai", "anthropic", "google", "microsoft", "yutori", "bedrock"])
     .optional()
     .meta({
       description:
         "AI provider for the model (or provide a baseURL endpoint instead)",
       example: "openai",
     }),
+  ...YutoriNavigatorModelOptionsSchema.shape,
 })
   .strict()
   .meta({ id: "GenericModelConfigObject" });
@@ -830,7 +857,7 @@ export const ObserveResponseSchema = wrapResponse(
 export const AgentConfigSchema = z
   .object({
     provider: z // cloud accepts provider: at the top level for legacy reasons, in the future we should remove it
-      .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
+      .enum(["openai", "anthropic", "google", "microsoft", "yutori", "bedrock"])
       .optional()
       .meta({
         description:

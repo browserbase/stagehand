@@ -166,6 +166,16 @@ export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
   environment?: string;
   /** Max images for Microsoft FARA agent */
   maxImages?: number;
+  /** Yutori Navigator tool set. Only "browser_tools_core-20260403" is currently supported (the expanded set is not yet implemented). */
+  toolSet?: string;
+  /** Yutori Navigator tool names to disable from the active tool set */
+  disableTools?: string[];
+  /** Yutori Navigator structured-output JSON schema (result returned on AgentResult.output) */
+  jsonSchema?: Record<string, unknown>;
+  /** Yutori Navigator user-context timezone (IANA, e.g. "America/New_York"). Defaults to "America/Los_Angeles"; override for location/time-sensitive tasks. */
+  userTimezone?: string;
+  /** Yutori Navigator user-context location (e.g. "New York, NY, US"). Defaults to "San Francisco, CA, US"; override for location-sensitive tasks. */
+  userLocation?: string;
   /** Temperature for model inference */
   temperature?: number;
   /** Custom headers sent with every request to the provider */
