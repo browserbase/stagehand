@@ -11,6 +11,7 @@ import { AnthropicCUAClient } from "./AnthropicCUAClient.js";
 import { OpenAICUAClient } from "./OpenAICUAClient.js";
 import { GoogleCUAClient } from "./GoogleCUAClient.js";
 import { MicrosoftCUAClient } from "./MicrosoftCUAClient.js";
+import { YutoriCUAClient } from "./YutoriCUAClient.js";
 
 // Map model names to their provider types
 export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
@@ -31,6 +32,7 @@ export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
   "gemini-3-flash-preview": "google",
   "gemini-3-pro-preview": "google",
   "fara-7b": "microsoft",
+  "n1.5-latest": "yutori",
 };
 
 /**
@@ -99,9 +101,16 @@ export class AgentProvider {
             userProvidedInstructions,
             clientOptions,
           );
+        case "yutori":
+          return new YutoriCUAClient(
+            type,
+            modelName,
+            userProvidedInstructions,
+            clientOptions,
+          );
         default:
           throw new UnsupportedModelProviderError(
-            ["openai", "anthropic", "google", "microsoft"],
+            ["openai", "anthropic", "google", "microsoft", "yutori"],
             "Computer Use Agent",
           );
       }

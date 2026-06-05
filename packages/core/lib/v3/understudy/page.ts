@@ -1428,10 +1428,12 @@ export class Page {
       button?: "left" | "right" | "middle";
       clickCount?: number;
       returnXpath?: boolean;
+      modifiers?: string[];
     },
   ): Promise<string> {
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
+    const modifierMask = this.cdpModifierMask(options?.modifiers);
 
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
@@ -1490,6 +1492,7 @@ export class Page {
           y,
           button,
           clickCount: i,
+          modifiers: modifierMask,
         } as Protocol.Input.DispatchMouseEventRequest),
       );
       dispatches.push(
@@ -1499,12 +1502,40 @@ export class Page {
           y,
           button,
           clickCount: i,
+          modifiers: modifierMask,
         } as Protocol.Input.DispatchMouseEventRequest),
       );
     }
     await Promise.all(dispatches);
 
     return xpathResult ?? "";
+  }
+
+  /**
+   * Convert Playwright-style modifier key names (Control/Shift/Alt/Meta) into
+   * the CDP `Input.dispatchMouseEvent` modifiers bitmask (Alt=1, Control=2,
+   * Meta=4, Shift=8). Unknown names contribute nothing.
+   */
+  private cdpModifierMask(modifiers?: readonly string[]): number {
+    if (!modifiers?.length) return 0;
+    let mask = 0;
+    for (const modifier of modifiers) {
+      switch (modifier) {
+        case "Alt":
+          mask |= 1;
+          break;
+        case "Control":
+          mask |= 2;
+          break;
+        case "Meta":
+          mask |= 4;
+          break;
+        case "Shift":
+          mask |= 8;
+          break;
+      }
+    }
+    return mask;
   }
 
   /**
@@ -1569,8 +1600,9 @@ export class Page {
     y: number,
     deltaX: number,
     deltaY: number,
-    options?: { returnXpath?: boolean },
+    options?: { returnXpath?: boolean; modifiers?: string[] },
   ): Promise<string> {
+    const modifierMask = this.cdpModifierMask(options?.modifiers);
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {
@@ -1597,6 +1629,7 @@ export class Page {
       button: "none",
       deltaX,
       deltaY,
+      modifiers: modifierMask,
     } as Protocol.Input.DispatchMouseEventRequest);
 
     return xpathResult ?? "";
