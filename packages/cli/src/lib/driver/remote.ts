@@ -22,7 +22,7 @@ export function remoteStagehandOptions(): StagehandConstructorOptions {
   const apiKey = process.env.BROWSERBASE_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "Missing BROWSERBASE_API_KEY. Set it or pass --local for a managed local browser.",
+      "Missing BROWSERBASE_API_KEY for remote mode. Pass --local to run a managed local browser (no key needed), or set BROWSERBASE_API_KEY for cloud sessions.",
     );
   }
 
