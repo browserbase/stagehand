@@ -989,18 +989,14 @@ async function executeCommand(
           return { url: page!.url() };
         case "title":
           return { title: await page!.title() };
-        case "text":
-          return {
-            text: await page!
-              .deepLocator(resolveSelector(selector!))
-              .textContent(),
-          };
-        case "html":
-          return {
-            html: await page!
-              .deepLocator(resolveSelector(selector!))
-              .innerHtml(),
-          };
+        case "text": {
+          const target = selector ? resolveSelector(selector) : "body";
+          return { text: await page!.deepLocator(target).textContent() };
+        }
+        case "html": {
+          const target = selector ? resolveSelector(selector) : "body";
+          return { html: await page!.deepLocator(target).innerHtml() };
+        }
         case "value":
           return {
             value: await page!
