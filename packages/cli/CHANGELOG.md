@@ -1,5 +1,11 @@
 # browse
 
+## 0.8.3
+
+### Patch Changes
+
+- [#2192](https://github.com/browserbase/stagehand/pull/2192) [`e7d3b55`](https://github.com/browserbase/stagehand/commit/e7d3b55f69f2a1fd75e92dea8f831f96fa6180d3) Thanks [@shrey150](https://github.com/shrey150)! - Lead-with-local onboarding: the missing-API-key error on cloud commands now tells users that local browser automation needs no key and points them to `browse open <url> --local`. The remote-mode driver error is clearer about when a key is required versus when local mode works without one.
+
 ## 0.8.2
 
 ### Patch Changes
