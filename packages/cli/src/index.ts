@@ -1678,7 +1678,16 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
     }
   }
 
-  // Handle --connect flag: write session ID for daemon to read
+  // Handle --connect flag: write session ID for daemon to read.
+  //
+  // We only manage the connect file when the user explicitly passes
+  // --connect on this invocation. Unlinking it whenever --connect is
+  // omitted causes a race: `browse env remote --connect <id>` writes
+  // the file and spawns the daemon, but the daemon initializes lazily
+  // on first command. The very next command (e.g. `browse open <url>`)
+  // would land here without --connect and unlink the file before the
+  // daemon could read it, causing a fresh companion session to be
+  // created instead of resuming the requested one.
   if (opts.connect) {
     const desiredMode = await getDesiredMode(session);
     if (desiredMode === "local") {
@@ -1700,10 +1709,6 @@ async function runCommand(command: string, args: unknown[]): Promise<unknown> {
     }
 
     await fs.writeFile(getConnectPath(session), opts.connect);
-  } else {
-    try {
-      await fs.unlink(getConnectPath(session));
-    } catch {}
   }
 
   // Handle session params flags (--proxies, --advanced-stealth, etc.)
