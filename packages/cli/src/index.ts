@@ -1980,7 +1980,18 @@ envCommand.action(
     // Always restart daemon when switching env to pick up new local config
     if (await isDaemonRunning(session)) {
       const currentMode = (await readCurrentMode(session)) ?? "local";
-      const needsRestart = currentMode !== mapped || mapped === "local"; // local always restarts to pick up strategy change
+      let currentConnect: string | null = null;
+      try {
+        currentConnect = (
+          await fs.readFile(getConnectPath(session), "utf-8")
+        ).trim();
+      } catch {
+        // no connect file
+      }
+      const desiredConnect = (opts.connect as string | undefined) ?? null;
+      const connectChanged = desiredConnect !== currentConnect;
+      const needsRestart =
+        currentMode !== mapped || mapped === "local" || connectChanged; // local always restarts to pick up strategy change
       if (!needsRestart) {
         // needsRestart is false only when currentMode === mapped && mapped !== "local"
         // (local always restarts to pick up strategy changes)
@@ -1994,6 +2005,20 @@ envCommand.action(
         return;
       }
       await stopDaemonAndCleanup(session);
+    }
+
+    // Persist --connect for the daemon to pick up at init time. Mirror the
+    // behaviour of the generic command dispatcher, but only manage the file
+    // when the user explicitly sets/unsets --connect on this invocation.
+    if (mapped === "browserbase" && opts.connect) {
+      await fs.writeFile(getConnectPath(session), opts.connect as string);
+    } else if (mapped !== "browserbase") {
+      // Switching to local: drop any stale connect file
+      try {
+        await fs.unlink(getConnectPath(session));
+      } catch {
+        // ignore
+      }
     }
 
     await ensureDaemon(session, isHeadless(opts));
