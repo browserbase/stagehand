@@ -98,6 +98,39 @@ test.describe("tests performUnderstudyMethod", () => {
     expect(inputValue).toBe("Smog Check Technician");
   });
 
+  test("tests selecting multiple options from a multi-select dropdown", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(
+      "data:text/html," +
+        encodeURIComponent(
+          `<!doctype html><html><body>
+            <select id="colors" multiple>
+              <option value="red">Red</option>
+              <option value="green">Green</option>
+              <option value="blue">Blue</option>
+            </select>
+          </body></html>`,
+        ),
+    );
+
+    await performUnderstudyMethod(
+      page,
+      page.mainFrame(),
+      "selectOptionFromDropdown",
+      "xpath=//*[@id='colors']",
+      ["red", "blue"],
+      30000,
+    );
+
+    const selectedValues = await page.evaluate(() => {
+      const select = document.getElementById("colors") as
+        | HTMLSelectElement
+        | null;
+      return Array.from(select?.selectedOptions ?? []).map((o) => o.value);
+    });
+    expect(selectedValues).toEqual(["red", "blue"]);
+  });
+
   test("tests drag & drop works (start xpath & end xpath)", async () => {
     const page = v3.context.pages()[0];
     await page.goto(

@@ -953,19 +953,11 @@ async function executeCommand(
     }
     case "select": {
       const [selector, values] = args as [string, string[]];
-      if (!stagehand) {
-        throw new Error("Stagehand instance not available");
-      }
       const resolved = resolveSelector(selector);
-      // selectOption takes the first value as argument
-      const action = {
-        selector: resolved,
-        description: "select option",
-        method: "selectOption",
-        arguments: [values[0] || ""],
-      };
-      await stagehand.act(action);
-      return { selected: values };
+      const selected = await page!
+        .deepLocator(resolved)
+        .selectOption(values.length === 1 ? values[0] || "" : values);
+      return { selected };
     }
     case "upload": {
       const [selector, filePaths] = args as [string, string[]];
