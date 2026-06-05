@@ -75,11 +75,14 @@ jobs:
             if (pkg.devDependencies) delete pkg.devDependencies['@browserbasehq/stagehand'];
             fs.writeFileSync('packages/cli/package.json', JSON.stringify(pkg, null, 2) + '\n');
 
+            // Ignore every workspace package except browse so 'changeset version'
+            // only bumps browse. Keep this list in sync with the packages that
+            // actually exist on disk -- changeset validation fails if an entry
+            // here doesn't resolve to a real package.
             const config = JSON.parse(fs.readFileSync('.changeset/config.json', 'utf8'));
             config.ignore = [
               '@browserbasehq/stagehand',
               '@browserbasehq/stagehand-server-v3',
-              '@browserbasehq/stagehand-server-v4',
               '@browserbasehq/stagehand-evals',
               '@browserbasehq/stagehand-docs'
             ];
