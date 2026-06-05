@@ -31,8 +31,11 @@ export function resolveApiKey(args: { apiKey?: string }): string {
     apiKey ||
     fail(
       [
-        "Missing Browserbase API key. Set BROWSERBASE_API_KEY or pass --api-key.",
-        `You can find your API key at ${browserbaseSettingsUrl}.`,
+        "Missing Browserbase API key. Cloud commands (search, fetch, sessions, functions, ...) need one.",
+        "Set BROWSERBASE_API_KEY or pass --api-key.",
+        `Get a key at ${browserbaseSettingsUrl}.`,
+        "",
+        "No key? Local browser automation needs none. Try: browse open <url> --local",
       ].join("\n"),
       1,
       {
