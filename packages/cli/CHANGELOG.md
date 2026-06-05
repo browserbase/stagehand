@@ -1,8 +1,169 @@
-# @browserbasehq/browse-cli
+# browse
+
+## 0.8.2
+
+### Patch Changes
+
+- e29aeac: Update README demo GIF link
+
+## 0.8.1
+
+### Patch Changes
+
+- 67d0ce8: Restore CLI telemetry agent attribution.
+- c9a4236: Restore CLI completion telemetry result and HTTP metadata.
+
+## 0.8.0
+
+### Minor Changes
+
+- 013f345: Add Browserbase Fetch API output formats to `browse cloud fetch`, defaulting to markdown with support for raw and schema-based JSON output.
+
+## 0.7.3
+
+### Patch Changes
+
+- 87c0535: Publish the updated npm README.
+
+## 0.7.2
+
+### Patch Changes
+
+- c0ed7ff: Allow `browse skills list` and `browse skills find` to display any skill method value returned by the Browse.sh catalog.
+
+## 0.7.1
+
+### Patch Changes
+
+- 4d4f7f4: Make skills and templates list-style output human-readable in terminals while preserving JSON output for scripts.
+
+## 0.7.0
+
+### Minor Changes
+
+- 147540b: Add `browse skills list` and `browse skills find` for Browse.sh catalog discovery.
+
+### Patch Changes
+
+- f156c32: Add human-readable table output for cloud session, project, and search lists while preserving JSON for scripts.
 
 ## 0.6.1
 
 ### Patch Changes
 
-- Updated dependencies [[`3a53ed4`](https://github.com/browserbase/stagehand/commit/3a53ed4ea97e079b295059a338f1ef8e768f8919), [`6e75725`](https://github.com/browserbase/stagehand/commit/6e75725b39898b3cbad681272009a69d94ca8238), [`8fc16d2`](https://github.com/browserbase/stagehand/commit/8fc16d2e1845807103da6e62928b28e0de03ab90), [`78bcde8`](https://github.com/browserbase/stagehand/commit/78bcde88e28f147acc6ca9aef9753cd96c870c35), [`3e95a87`](https://github.com/browserbase/stagehand/commit/3e95a8722a46bd7fca4d79644fe4605d7dc61bf6), [`ebbdcd3`](https://github.com/browserbase/stagehand/commit/ebbdcd33cbd137d36c9469c5ef0f531ee45a0bd8), [`12703a6`](https://github.com/browserbase/stagehand/commit/12703a6659853e2afe2d28df71d8a9b916f9df65), [`1db5f1c`](https://github.com/browserbase/stagehand/commit/1db5f1c1937b3943e13d8a43cbdeee0a6906ff75), [`cb586a1`](https://github.com/browserbase/stagehand/commit/cb586a14e46e616caa712afa6b7ceb4dc42b7fc6), [`765861c`](https://github.com/browserbase/stagehand/commit/765861c04c46851663919277f330d27a87bae823), [`2cd60a3`](https://github.com/browserbase/stagehand/commit/2cd60a34b0cfd7ae9399dd1a1779df096e86369b), [`e102a89`](https://github.com/browserbase/stagehand/commit/e102a89c903d2f5badb335dd7b7f52f16b275151), [`49575d6`](https://github.com/browserbase/stagehand/commit/49575d62f56efbd3a91359a816823cbf70fde4fd), [`dc1445d`](https://github.com/browserbase/stagehand/commit/dc1445df805cd3ad1f577278f978932244023a2e)]:
-  - @browserbasehq/stagehand@3.5.0
+- cc5f649: Make browse driver sessions recover when no active page is selected and reuse matching daemon targets for broad local or remote mode flags.
+
+## 0.6.0
+
+### Minor Changes
+
+- b3425a3: Add Browserbase cloud API commands under the new `browse cloud` oclif taxonomy.
+- b3425a3: Port the browse driver command surface onto native oclif commands.
+- b3425a3: Add the initial native browse driver daemon foundation with top-level open, status, and stop commands.
+- b3425a3: Add native `browse functions` commands for initializing, developing, publishing, and invoking Browserbase Functions.
+- b3425a3: Add `browse skills add` for site-specific skill installation.
+- b3425a3: Add `browse skills install` for installing the bundled Browse CLI skill.
+- b3425a3: Add Browserbase template listing, search, and clone commands.
+- b3425a3: Add best-effort PostHog telemetry for oclif command lifecycle events.
+- b3425a3: Introduce the minimal oclif-based `browse` CLI scaffold.
+- b3425a3: Add a lightweight npm registry update notice for the browse CLI.
+
+### Patch Changes
+
+- b3425a3: Add alpha release automation for publishing browse canaries from the oclif and main trunks.
+- b3425a3: Add a read-only `browse doctor` command for browser driver session diagnostics.
+- b3425a3: Create a fresh browser page when `browse open` finds an initialized session with no pages.
+- b3425a3: Generate and package the oclif manifest to reduce browse CLI startup latency.
+- b3425a3: Harden local Functions dev CORS and owner-only driver runtime artifacts.
+- b3425a3: Use --verified for Browserbase Verified sessions while accepting --advanced-stealth as a hidden compatibility alias.
+
+## 0.5.7
+
+### Patch Changes
+
+- e0c7b2b: Improve CLI telemetry classification for browse wrapper failures and generic API HTTP errors.
+
+## 0.5.6
+
+### Patch Changes
+
+- 038517f: Capture structured telemetry result codes and HTTP status details for CLI fetch and search failures.
+
+## 0.5.5
+
+### Patch Changes
+
+- 644d4ce: Tag telemetry events with the detected agent harness (Claude Code, Codex, Cursor, etc.) so we can understand how the CLI is invoked across environments.
+
+## 0.5.4
+
+### Patch Changes
+
+- 4b9e2aa: Add a Browserbase settings hint to missing API key errors so users know where to find their API key.
+- 35cc5b0: Clarify browse and skills installation flows with explicit `--install` flags while keeping `--yes` as a compatibility alias.
+- 440f753: Add CLI auto-update checks with npm registry lookup, a shared global `--yes` prompt context, and update/install prompt handling improvements for `browse` and `skills`.
+
+## 0.5.3
+
+### Patch Changes
+
+- 5012468: Add privacy-safe lifecycle telemetry for command invocation and completion events.
+
+## 0.5.2
+
+### Patch Changes
+
+- 22df06e: Fix `bb templates clone` to scaffold full `create-browser-app` boilerplate instead of cloning only the raw template files.
+
+## 0.5.1
+
+### Patch Changes
+
+- 2f0ac7a: Add `bb templates` command for listing and cloning starter templates
+
+## 0.5.0
+
+### Minor Changes
+
+- e63ad9f: Add first-class flags to `bb sessions create` for commonly used session parameters (--proxies, --advanced-stealth, --solve-captchas, --region, --keep-alive, --timeout, --block-ads, --context-id, --persist, --record-session, --log-session, --viewport, --extension-id). Flags merge with --body JSON when both are provided, with flags taking precedence.
+
+## 0.4.0
+
+### Minor Changes
+
+- 69a88fe: Make CLI more agent-friendly: add `--yes`/`-y` flag to `browse` and `skills` to skip interactive prompts, add usage examples to `--help` for every subcommand, add `--stdin` flag for piped JSON input on `sessions create/update` and `contexts create`, and fix readline hanging in non-interactive environments.
+
+## 0.3.2
+
+### Patch Changes
+
+- e8822fe: Improve README with comprehensive command reference, usage examples, and configuration docs
+
+## 0.3.1
+
+### Patch Changes
+
+- 82ec911: Add ASCII art banner and hidden `bb b` easter egg command
+
+## 0.3.0
+
+### Minor Changes
+
+- 497145b: Add `bb search` command for the Browserbase Search API
+
+## 0.2.1
+
+### Patch Changes
+
+- 1728c46: Read CLI version from package.json instead of hardcoding it, so `bb -V` stays in sync with changesets
+
+## 0.2.0
+
+### Minor Changes
+
+- 09f4bf6: Add `bb skills` command to install Browserbase agent skills via `npx skills add browserbase/skills`.
+
+### Patch Changes
+
+- cd489c9: Improve CLI subcommand descriptions for clarity.
+- 5953230: Add release automation for publishing `@browserbasehq/cli` to npm.
