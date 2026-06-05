@@ -338,6 +338,9 @@ components:
             type: string
           additionalProperties:
             type: string
+        temperature:
+          description: Temperature for model inference
+          type: number
         provider:
           description: AI provider for the model (or provide a baseURL endpoint instead)
           example: openai
@@ -347,7 +350,28 @@ components:
             - anthropic
             - google
             - microsoft
+            - yutori
             - bedrock
+        toolSet:
+          description: Yutori Navigator tool set, e.g. "browser_tools_core-20260403"
+          type: string
+        disableTools:
+          description: Yutori Navigator tool names to disable
+          type: array
+          items:
+            type: string
+        jsonSchema:
+          description: Yutori Navigator structured-output JSON schema
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties: {}
+        userTimezone:
+          description: Yutori Navigator user-context timezone, e.g. "America/New_York"
+          type: string
+        userLocation:
+          description: Yutori Navigator user-context location, e.g. "New York, NY, US"
+          type: string
       required:
         - modelName
       additionalProperties: false
@@ -374,6 +398,9 @@ components:
             type: string
           additionalProperties:
             type: string
+        temperature:
+          description: Temperature for model inference
+          type: number
         provider:
           description: Vertex AI model provider
           type: string
@@ -1009,6 +1036,7 @@ components:
             - anthropic
             - google
             - microsoft
+            - yutori
             - bedrock
         model:
           description: Model configuration object or model name string (e.g.,
@@ -1946,6 +1974,7 @@ components:
             - anthropic
             - google
             - microsoft
+            - yutori
             - bedrock
         model:
           description: Model configuration object or model name string (e.g.,

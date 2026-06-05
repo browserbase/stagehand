@@ -461,6 +461,7 @@ export type AgentType =
   | "anthropic"
   | "google"
   | "microsoft"
+  | "yutori"
   | "bedrock"
   | "vertex"
   | "azure";
@@ -488,6 +489,7 @@ export const AVAILABLE_CUA_MODELS = [
   "google/gemini-3.5-flash",
   "google/gemini-3-pro-preview",
   "microsoft/fara-7b",
+  "yutori/n1.5-latest",
 ] as const;
 export type AvailableCuaModel = (typeof AVAILABLE_CUA_MODELS)[number];
 

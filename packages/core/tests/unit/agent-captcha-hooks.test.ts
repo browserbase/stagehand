@@ -11,6 +11,22 @@ type ConsoleListener = (message: { text: () => string }) => void;
 
 class MockPage {
   private listeners = new Set<ConsoleListener>();
+  public currentUrl = "https://example.com";
+  public clickCalls: Array<{
+    x: number;
+    y: number;
+    options?: Record<string, unknown>;
+  }> = [];
+  public keyPressCalls: Array<{ key: string; options?: { delay?: number } }> =
+    [];
+  public reloadCalls: Array<{ waitUntil?: string }> = [];
+  public scrollCalls: Array<{
+    x: number;
+    y: number;
+    scrollX: number;
+    scrollY: number;
+    options?: Record<string, unknown>;
+  }> = [];
   public captchaBoxes: Array<{
     left: number;
     top: number;
@@ -38,7 +54,7 @@ class MockPage {
   }
 
   url(): string {
-    return "https://example.com";
+    return this.currentUrl;
   }
 
   async screenshot(): Promise<Buffer> {
@@ -53,6 +69,33 @@ class MockPage {
     return {
       evaluate: async () => ({ w: 1288, h: 711 }),
     };
+  }
+
+  async click(
+    x: number,
+    y: number,
+    options?: Record<string, unknown>,
+  ): Promise<string> {
+    this.clickCalls.push({ x, y, options });
+    return "xpath=/html/body/button";
+  }
+
+  async keyPress(key: string, options?: { delay?: number }): Promise<void> {
+    this.keyPressCalls.push({ key, options });
+  }
+
+  async reload(options?: { waitUntil?: string }): Promise<void> {
+    this.reloadCalls.push(options ?? {});
+  }
+
+  async scroll(
+    x: number,
+    y: number,
+    scrollX: number,
+    scrollY: number,
+    options?: Record<string, unknown>,
+  ): Promise<void> {
+    this.scrollCalls.push({ x, y, scrollX, scrollY, options });
   }
 }
 
@@ -567,6 +610,225 @@ describe("v3 cua handler screenshot behavior", () => {
         line.message.includes("onEvidence callback failed for screenshot"),
       ),
     ).toBe(true);
+  });
+
+  it("keeps CUA client current URL fresh after screenshots and actions", async () => {
+    fakeCuaClient.executeImpl = vi.fn(async () => {
+      await fakeCuaClient.screenshotProvider?.();
+      page.currentUrl = "https://example.com/after-action";
+      await fakeCuaClient.actionHandler?.({ type: "wait", timeMs: 0 });
+      return {
+        success: true,
+        message: "ok",
+        actions: [],
+        completed: true,
+      };
+    });
+
+    const handler = new V3CuaAgentHandler(
+      {
+        context: {
+          awaitActivePage: async () => page,
+        },
+        isCaptchaAutoSolveEnabled: false,
+        isAdvancedStealth: false,
+        configuredViewport: { width: 1288, height: 711 },
+        isAgentReplayActive: () => false,
+        updateMetrics: vi.fn(),
+      } as never,
+      logger,
+      {
+        modelName: "openai/gpt-5.4",
+        clientOptions: { waitBetweenActions: 1 },
+      } as never,
+    );
+    vi.spyOn(
+      handler as unknown as {
+        executeAction: (action: Record<string, unknown>) => Promise<unknown>;
+      },
+      "executeAction",
+    ).mockResolvedValue({ success: true });
+
+    await handler.execute({
+      instruction: "wait",
+      highlightCursor: false,
+    });
+
+    expect(fakeCuaClient.setCurrentUrl).toHaveBeenCalledWith(
+      "https://example.com",
+    );
+    expect(fakeCuaClient.setCurrentUrl).toHaveBeenLastCalledWith(
+      "https://example.com/after-action",
+    );
+  });
+
+  it("refreshes the CUA client URL even when the action throws", async () => {
+    fakeCuaClient.executeImpl = vi.fn(async () => {
+      await fakeCuaClient.screenshotProvider?.();
+      // The action navigates the page and then throws (e.g. a click that
+      // triggers a load which times out). The Yutori client catches the
+      // action-handler error and continues the loop.
+      page.currentUrl = "https://example.com/after-error-nav";
+      await fakeCuaClient
+        .actionHandler?.({ type: "click", x: 1, y: 2, button: "left" })
+        .catch(() => {});
+      return { success: true, message: "ok", actions: [], completed: true };
+    });
+
+    const handler = new V3CuaAgentHandler(
+      {
+        context: {
+          awaitActivePage: async () => page,
+        },
+        isCaptchaAutoSolveEnabled: false,
+        isAdvancedStealth: false,
+        configuredViewport: { width: 1288, height: 711 },
+        isAgentReplayActive: () => false,
+        updateMetrics: vi.fn(),
+      } as never,
+      logger,
+      {
+        modelName: "openai/gpt-5.4",
+        clientOptions: { waitBetweenActions: 1 },
+      } as never,
+    );
+    vi.spyOn(
+      handler as unknown as {
+        executeAction: (action: Record<string, unknown>) => Promise<unknown>;
+      },
+      "executeAction",
+    ).mockRejectedValue(new Error("navigation timeout"));
+
+    await handler.execute({
+      instruction: "click",
+      highlightCursor: false,
+    });
+
+    // Even though the action threw, the post-action URL is pushed to the client
+    // so the tool-result "Current URL" suffix is not stale.
+    expect(fakeCuaClient.setCurrentUrl).toHaveBeenLastCalledWith(
+      "https://example.com/after-error-nav",
+    );
+  });
+
+  it("executes modifiers, hold-key delays, and refresh actions", async () => {
+    const recordAgentReplayStep = vi.fn();
+    const handler = new V3CuaAgentHandler(
+      {
+        context: {
+          awaitActivePage: async () => page,
+        },
+        isCaptchaAutoSolveEnabled: false,
+        isAdvancedStealth: false,
+        configuredViewport: { width: 1288, height: 711 },
+        isAgentReplayActive: () => false,
+        recordAgentReplayStep,
+        updateMetrics: vi.fn(),
+      } as never,
+      logger,
+      {
+        modelName: "openai/gpt-5.4",
+        clientOptions: { waitBetweenActions: 1 },
+      } as never,
+    );
+
+    const executeAction = (
+      handler as unknown as {
+        executeAction: (action: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).executeAction.bind(handler);
+
+    await executeAction({
+      type: "click",
+      x: 10,
+      y: 20,
+      button: "left",
+      modifier: "ctrl",
+    });
+    await executeAction({
+      type: "scroll",
+      x: 1,
+      y: 2,
+      scroll_x: 0,
+      scroll_y: 300,
+      modifier: "shift",
+    });
+    await executeAction({
+      type: "keypress",
+      keys: ["Shift"],
+      holdMs: 250,
+    });
+    await executeAction({ type: "refresh" });
+
+    // Modifiers are passed to page.click / page.scroll (which set the CDP
+    // mouse-event modifiers bitmask) rather than held via keyDown/keyUp.
+    expect(page.clickCalls).toEqual([
+      expect.objectContaining({
+        x: 10,
+        y: 20,
+        options: expect.objectContaining({ modifiers: ["Control"] }),
+      }),
+    ]);
+    expect(page.scrollCalls).toEqual([
+      {
+        x: 1,
+        y: 2,
+        scrollX: 0,
+        scrollY: 300,
+        options: { modifiers: ["Shift"] },
+      },
+    ]);
+    expect(page.keyPressCalls).toEqual([
+      { key: "Shift", options: { delay: 250 } },
+    ]);
+    expect(page.reloadCalls).toEqual([{ waitUntil: "load" }]);
+  });
+
+  it("passes modifiers to page.click on the recording path and still records a replay step", async () => {
+    const recordAgentReplayStep = vi.fn();
+    const handler = new V3CuaAgentHandler(
+      {
+        context: { awaitActivePage: async () => page },
+        isCaptchaAutoSolveEnabled: false,
+        isAdvancedStealth: false,
+        configuredViewport: { width: 1288, height: 711 },
+        isAgentReplayActive: () => true,
+        recordAgentReplayStep,
+        updateMetrics: vi.fn(),
+      } as never,
+      logger,
+      {
+        modelName: "openai/gpt-5.4",
+        clientOptions: { waitBetweenActions: 1 },
+      } as never,
+    );
+
+    const executeAction = (
+      handler as unknown as {
+        executeAction: (action: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).executeAction.bind(handler);
+
+    await executeAction({
+      type: "click",
+      x: 10,
+      y: 20,
+      button: "left",
+      modifier: "ctrl",
+    });
+
+    // The modifier is passed to page.click on the recording path too ...
+    expect(page.clickCalls).toEqual([
+      expect.objectContaining({
+        x: 10,
+        y: 20,
+        options: expect.objectContaining({ modifiers: ["Control"] }),
+      }),
+    ]);
+    // ... and the action is still recorded for replay.
+    expect(recordAgentReplayStep).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "act" }),
+    );
   });
 
   it("records a failed action as step_finished {ok:false} and rethrows the original error", async () => {
