@@ -19,15 +19,43 @@ interface UpdateCheckOptions {
   cacheFile?: string;
 }
 
-export async function maybeAutoUpdateCli(
+/**
+ * Read-only check for a newer published version. Returns the formatted notice
+ * text when a fresh cache shows an update is available, otherwise null. Never
+ * prints and never hits the network — call from human-facing surfaces (root
+ * help, `doctor`) rather than on every command so we don't spam automation.
+ */
+export async function getUpdateNotice(
   currentVersion: string,
   env: NodeJS.ProcessEnv = process.env,
   options: UpdateCheckOptions = {},
+): Promise<string | null> {
+  if (isUpdateCheckDisabled(env)) {
+    return null;
+  }
+
+  const cachePath = resolveUpdateCheckPath(env, options);
+  if (!cachePath) {
+    return null;
+  }
+
+  const cache = await readFreshUpdateCheckCache(cachePath);
+  if (!cache || !isVersionNewer(currentVersion, cache.version)) {
+    return null;
+  }
+
+  return formatUpdateNotice(currentVersion, cache.version);
+}
+
+/**
+ * Refresh the cached "latest version" in the background when it is stale, so
+ * the surfaces that show the notice have fresh data. Silent: never prints.
+ */
+export async function scheduleBackgroundUpdateCheck(
+  env: NodeJS.ProcessEnv = process.env,
+  options: UpdateCheckOptions = {},
 ): Promise<void> {
-  if (
-    env.BROWSE_DISABLE_UPDATE_CHECK === "1" ||
-    env.BB_DISABLE_UPDATE_CHECK === "1"
-  ) {
+  if (isUpdateCheckDisabled(env)) {
     return;
   }
 
@@ -38,13 +66,17 @@ export async function maybeAutoUpdateCli(
 
   const cache = await readFreshUpdateCheckCache(cachePath);
   if (cache) {
-    if (isVersionNewer(currentVersion, cache.version)) {
-      writeUpdateNotice(currentVersion, cache.version);
-    }
     return;
   }
 
   spawnBackgroundUpdateCheck(env, cachePath);
+}
+
+function isUpdateCheckDisabled(env: NodeJS.ProcessEnv): boolean {
+  return (
+    env.BROWSE_DISABLE_UPDATE_CHECK === "1" ||
+    env.BB_DISABLE_UPDATE_CHECK === "1"
+  );
 }
 
 export async function refreshUpdateCheckCache(
@@ -166,18 +198,16 @@ function resolveUpdateCheckWorkerPath(): string {
   );
 }
 
-function writeUpdateNotice(
+function formatUpdateNotice(
   currentVersion: string,
   latestVersion: string,
-): void {
-  process.stderr.write(
-    [
-      `Update available: ${currentVersion} -> ${latestVersion}.`,
-      "Run:",
-      `  npm i -g ${CLI_PACKAGE_NAME}@latest`,
-      "",
-    ].join("\n"),
-  );
+): string {
+  return [
+    `Update available: ${currentVersion} -> ${latestVersion}.`,
+    "Run:",
+    `  npm i -g ${CLI_PACKAGE_NAME}@latest`,
+    "",
+  ].join("\n");
 }
 
 async function fetchLatestCliVersion(): Promise<string | null> {

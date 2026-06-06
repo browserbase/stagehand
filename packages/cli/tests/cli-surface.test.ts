@@ -1,6 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
 
 import { runCli } from "./helpers/run-cli.js";
+
+const surfaceCleanup: string[] = [];
+
+async function homeWithoutSkill(): Promise<string> {
+  const home = await mkdtemp(join(tmpdir(), "browse-banner-noskill-"));
+  surfaceCleanup.push(home);
+  return home;
+}
+
+async function homeWithSkill(): Promise<string> {
+  const home = await mkdtemp(join(tmpdir(), "browse-banner-skill-"));
+  surfaceCleanup.push(home);
+  const dir = join(home, ".agents", "skills", "browse");
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, "SKILL.md"), "---\nname: browse\n---\n", "utf8");
+  return home;
+}
 
 const cloudCommandsWithExamples = [
   ["cloud", "projects", "list"],
@@ -46,6 +67,13 @@ const skillsCommandsWithExamples = [
 ];
 
 describe("CLI surface", () => {
+  afterEach(async () => {
+    while (surfaceCleanup.length > 0) {
+      const path = surfaceCleanup.pop();
+      if (path) await rm(path, { recursive: true, force: true });
+    }
+  });
+
   it("prints browse root help", async () => {
     const result = await runCli(["--help"]);
     expect(result.exitCode).toBe(0);
@@ -55,6 +83,23 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("functions");
     expect(result.stdout).toContain("templates");
     expect(result.stdout).toContain("skills");
+  });
+
+  it("shows the skill banner on root help when the skill is not installed", async () => {
+    const result = await runCli(["--help"], {
+      env: { HOME: await homeWithoutSkill() },
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Start here (for AI agents)");
+  });
+
+  it("hides the skill banner on root help when the skill is installed", async () => {
+    const result = await runCli(["--help"], {
+      env: { HOME: await homeWithSkill() },
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("Start here (for AI agents)");
+    expect(result.stdout).toContain("Unified Browserbase CLI");
   });
 
   it("prints cloud topic help", async () => {

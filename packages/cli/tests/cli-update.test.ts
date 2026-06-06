@@ -6,10 +6,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { runCli } from "./helpers/run-cli.js";
-import {
-  maybeAutoUpdateCli,
-  refreshUpdateCheckCache,
-} from "../src/lib/update.js";
+import { getUpdateNotice, refreshUpdateCheckCache } from "../src/lib/update.js";
 
 const require = createRequire(import.meta.url);
 const { version: cliVersion } = require("../package.json") as {
@@ -30,8 +27,31 @@ afterEach(async () => {
 });
 
 describe("CLI auto-update", () => {
-  it("uses a fresh cache to print an update notice without hitting the network", async () => {
+  it("shows the update notice on root help from a fresh cache without hitting the network", async () => {
     const cacheDir = await createTempDir("browse-update-cache-");
+    const cachePath = join(cacheDir, "update-check.json");
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      version: "99.0.0",
+    });
+
+    const result = await runCli(["--help"], {
+      env: {
+        BROWSE_CACHE_DIR: cacheDir,
+        BROWSE_DISABLE_UPDATE_CHECK: "0",
+        BROWSE_DAEMON_DIR: cacheDir,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain(
+      `Update available: ${cliVersion} -> 99.0.0.`,
+    );
+    expect(result.stderr).toContain("Run:\n  npm i -g browse@latest");
+  });
+
+  it("does not show the update notice on regular commands (no spam)", async () => {
+    const cacheDir = await createTempDir("browse-update-nospam-");
     const cachePath = join(cacheDir, "update-check.json");
     await writeUpdateCache(cachePath, {
       checkedAt: new Date().toISOString(),
@@ -51,13 +71,10 @@ describe("CLI auto-update", () => {
       browserConnected: false,
       session: "default",
     });
-    expect(result.stderr).toContain(
-      `Update available: ${cliVersion} -> 99.0.0.`,
-    );
-    expect(result.stderr).toContain("Run:\n  npm i -g browse@latest");
+    expect(result.stderr).not.toContain("Update available:");
   });
 
-  it("compares prerelease identifiers with ASCII ordering", async () => {
+  it("returns no notice for prerelease identifiers with ASCII ordering", async () => {
     const cacheDir = await createTempDir("browse-update-prerelease-");
     const cachePath = join(cacheDir, "update-check.json");
     await writeUpdateCache(cachePath, {
@@ -65,21 +82,13 @@ describe("CLI auto-update", () => {
       version: "1.0.0-beta.B",
     });
 
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
+    const notice = await getUpdateNotice("1.0.0-beta.b", {
+      ...process.env,
+      BROWSE_DISABLE_UPDATE_CHECK: "0",
+      BROWSE_UPDATE_CHECK_FILE: cachePath,
+    });
 
-    try {
-      await maybeAutoUpdateCli("1.0.0-beta.b", {
-        ...process.env,
-        BROWSE_DISABLE_UPDATE_CHECK: "0",
-        BROWSE_UPDATE_CHECK_FILE: cachePath,
-      });
-
-      expect(stderrSpy).not.toHaveBeenCalled();
-    } finally {
-      stderrSpy.mockRestore();
-    }
+    expect(notice).toBeNull();
   });
 
   it("refreshes the update cache from the npm registry", async () => {
@@ -115,7 +124,7 @@ describe("CLI auto-update", () => {
     });
   });
 
-  it("treats stale cache entries as refreshes instead of notifying immediately", async () => {
+  it("does not notify from a stale cache even on root help", async () => {
     const cacheDir = await createTempDir("browse-update-stale-");
     const cachePath = join(cacheDir, "update-check.json");
     await writeUpdateCache(cachePath, {
@@ -123,7 +132,7 @@ describe("CLI auto-update", () => {
       version: "98.0.0",
     });
 
-    const result = await runCli(["status"], {
+    const result = await runCli(["--help"], {
       env: {
         BROWSE_CACHE_DIR: cacheDir,
         BROWSE_DISABLE_UPDATE_CHECK: "0",
@@ -132,10 +141,6 @@ describe("CLI auto-update", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      browserConnected: false,
-      session: "default",
-    });
     expect(result.stderr).not.toContain("Update available:");
   });
 });
