@@ -109,6 +109,8 @@ browse get title
 browse get text body
 browse get html "#main"
 browse get value "#email"
+browse get markdown body                   # page/element content as markdown
+browse eval "document.title"              # run JavaScript in the active page
 browse screenshot                         # print base64 JSON
 browse screenshot --path page.png
 ```
@@ -134,6 +136,7 @@ browse mouse hover 240 320
 browse mouse drag 80 80 310 100
 browse mouse scroll 500 300 0 600
 browse viewport 1280 720
+browse cursor                             # show a visible cursor overlay
 ```
 
 Tabs, network, and CDP:
@@ -144,6 +147,7 @@ browse tab new https://example.com
 browse tab switch <target-id>
 browse tab close <target-id>              # refuses to close the last tab
 browse network on
+browse network off
 browse network path
 browse network clear
 browse cdp 9222 --pretty
