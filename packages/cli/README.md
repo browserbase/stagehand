@@ -288,5 +288,3 @@ Local driver commands (`--local`) work without an API key.
 ## License
 
 [MIT](https://github.com/browserbase/stagehand/blob/main/packages/cli/LICENSE)
-</content>
-</invoke>
