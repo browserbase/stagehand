@@ -55,6 +55,7 @@ const publicApiShape = {
   providerEnvVarMap: Stagehand.providerEnvVarMap,
   redactInlineImagePayloads: Stagehand.redactInlineImagePayloads,
   shouldPersistTrajectory: Stagehand.shouldPersistTrajectory,
+  STAGEHAND_DEFAULT_FLAGS: Stagehand.STAGEHAND_DEFAULT_FLAGS,
   toGeminiSchema: Stagehand.toGeminiSchema,
   toJsonSchema: Stagehand.toJsonSchema,
   tool: Stagehand.tool,

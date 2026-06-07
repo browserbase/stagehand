@@ -34,9 +34,11 @@ import {
   shouldPersistTrajectory,
   writeTrajectoryDir,
 } from "./verifier/index.js";
+import { STAGEHAND_DEFAULT_FLAGS } from "./launch/defaults.js";
 
 export { V3 } from "./v3.js";
 export { V3 as Stagehand } from "./v3.js";
+export { STAGEHAND_DEFAULT_FLAGS } from "./launch/defaults.js";
 
 export * from "./types/public/index.js";
 export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient.js";
@@ -161,6 +163,7 @@ const StagehandDefault = {
   normalizeRubric,
   redactInlineImagePayloads,
   shouldPersistTrajectory,
+  STAGEHAND_DEFAULT_FLAGS,
   writeTrajectoryDir,
   tool,
   getAISDKLanguageModel,

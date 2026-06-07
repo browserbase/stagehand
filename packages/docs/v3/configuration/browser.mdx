@@ -258,6 +258,50 @@ const stagehand = new Stagehand({
 await stagehand.init();
 ```
 
+### Ignoring Default Chrome Flags
+
+Use `ignoreDefaultArgs` to remove chrome-launcher's built-in defaults or Stagehand's own launch flags. This is useful when you need extensions enabled, want finer control over Chromium flags, or are running in environments that require custom sandbox settings.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    // Remove only chrome-launcher's --disable-extensions default
+    ignoreDefaultArgs: ["--disable-extensions"],
+  },
+});
+
+await stagehand.init();
+```
+
+Set `ignoreDefaultArgs: true` to drop all chrome-launcher defaults. Stagehand's own flags and your `args` are still applied.
+
+#### Site isolation and renderer limits
+
+Stagehand does not inject `--site-per-process` by default. To disable site isolation or cap renderer processes on multi-origin workloads, pass flags via `args`:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    args: [
+      "--disable-features=site-per-process,IsolateOrigins",
+      "--renderer-process-limit=6",
+    ],
+  },
+});
+
+await stagehand.init();
+```
+
+Users who need strict per-site isolation can opt in with `args: ["--site-per-process"]`.
+
+<Tip>
+An explicit `--site-per-process` switch overrides `--disable-features=site-per-process`, regardless of argv order. Avoid passing both.
+</Tip>
+
 ## Advanced Configuration
 
 ### Keep Alive

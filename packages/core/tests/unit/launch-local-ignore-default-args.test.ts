@@ -90,6 +90,18 @@ describe("launchLocalChrome ignoreDefaultArgs", () => {
     expect(args.chromeFlags).toContain("--site-per-process");
   });
 
+  it("adds sandbox disable flags when chromiumSandbox is false", async () => {
+    const args = await getLaunchArgs({ chromiumSandbox: false });
+    expect(args.chromeFlags).toContain("--no-sandbox");
+    expect(args.chromeFlags).toContain("--disable-setuid-sandbox");
+  });
+
+  it("does not add sandbox disable flags when chromiumSandbox is omitted", async () => {
+    const args = await getLaunchArgs({});
+    expect(args.chromeFlags).not.toContain("--no-sandbox");
+    expect(args.chromeFlags).not.toContain("--disable-setuid-sandbox");
+  });
+
   it("does not set ignoreDefaultFlags when ignoreDefaultArgs is omitted", async () => {
     const args = await getLaunchArgs({});
     expect(args.ignoreDefaultFlags).toBe(false);
