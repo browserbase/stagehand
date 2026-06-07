@@ -104,7 +104,7 @@
     "@browserbasehq/stagehand": "workspace:*",
     "@oclif/core": "^4.11.0",
     "@vercel/detect-agent": "^1.2.3",
-    "archiver": "^7.0.1",
+    "archiver": "^8.0.0",
     "deepmerge": "^4.3.1",
     "dotenv": "^16.5.0",
     "ignore": "^7.0.5",
@@ -116,7 +116,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/archiver": "^6.0.3",
+    "@types/archiver": "^8.0.0",
     "@types/node": "^20.11.30",
     "@types/semver": "^7.7.1",
     "@types/ws": "^8.18.1",
