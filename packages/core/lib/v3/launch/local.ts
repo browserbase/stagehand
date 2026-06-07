@@ -48,8 +48,9 @@ export async function launchLocalChrome(
     ...(opts.args ?? []),
   ].filter((f): f is string => typeof f === "string");
 
-  // Handle ignoreDefaultArgs: selectively remove chrome-launcher's built-in
-  // defaults while keeping Stagehand's own flags (already in chromeFlags).
+  // ignoreDefaultArgs: true skips chrome-launcher defaults entirely.
+  // ignoreDefaultArgs: string[] skips chrome-launcher defaults, then re-adds
+  // unlisted ones. Stagehand default flags are handled separately above.
   let ignoreDefaultFlags = false;
   if (opts.ignoreDefaultArgs === true) {
     ignoreDefaultFlags = true;
