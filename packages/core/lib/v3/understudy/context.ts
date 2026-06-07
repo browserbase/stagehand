@@ -107,7 +107,15 @@ export class V3Context {
     private readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
     private readonly apiClient: StagehandAPIClient | null = null,
     private readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
-  ) {}
+  ) {
+    const proxy = localBrowserLaunchOptions?.proxy;
+    if (proxy?.username && proxy?.password) {
+      this.proxyCredentials = {
+        username: proxy.username,
+        password: proxy.password,
+      };
+    }
+  }
 
   private readonly _piercerInstalled = new Set<string>();
   // Timestamp for most recent popup/open signal
@@ -127,6 +135,10 @@ export class V3Context {
   private readonly initScripts: string[] = [];
   private extraHttpHeaders: Record<string, string> | null = null;
   private _clipboard?: ContextClipboard;
+  private readonly proxyCredentials: {
+    username: string;
+    password: string;
+  } | null = null;
 
   private installTargetSessionListeners(session: CDPSessionLike): void {
     const sessionId = session.id;
@@ -697,6 +709,41 @@ export class V3Context {
         queuePreResume("Network.setExtraHTTPHeaders", { headers }),
       );
     }
+    const proxyPreResumeOps: Array<{
+      dispatched: Promise<boolean>;
+      response: Promise<boolean>;
+    }> = [];
+    if (this.proxyCredentials) {
+      const creds = this.proxyCredentials;
+      session.on<Protocol.Fetch.AuthRequiredEvent>(
+        "Fetch.authRequired",
+        (evt) => {
+          session
+            .send("Fetch.continueWithAuth", {
+              requestId: evt.requestId,
+              authChallengeResponse: {
+                response: "ProvideCredentials",
+                username: creds.username,
+                password: creds.password,
+              },
+            })
+            .catch(() => {});
+        },
+      );
+      session.on<Protocol.Fetch.RequestPausedEvent>(
+        "Fetch.requestPaused",
+        (evt) => {
+          session
+            .send("Fetch.continueRequest", { requestId: evt.requestId })
+            .catch(() => {});
+        },
+      );
+      proxyPreResumeOps.push(
+        queuePreResume("Fetch.enable", {
+          handleAuthRequests: true,
+        }),
+      );
+    }
     // Send init scripts only after auto-attach has been queued.
     if (this.initScripts.length) {
       for (const source of this.initScripts) {
@@ -728,6 +775,7 @@ export class V3Context {
       await Promise.all([
         ...corePreResumeOps.map((op) => op.dispatched),
         ...headerPreResumeOps.map((op) => op.dispatched),
+        ...proxyPreResumeOps.map((op) => op.dispatched),
         ...initScriptOps.map((op) => op.dispatched),
         piercerPreloadOp.dispatched,
       ])
@@ -741,17 +789,18 @@ export class V3Context {
     const [
       coreResults,
       headerResults,
+      proxyResults,
       initScriptResults,
       piercerPreRegistered,
     ] = await Promise.all([
       Promise.all(corePreResumeOps.map((op) => op.response)),
       Promise.all(headerPreResumeOps.map((op) => op.response)),
+      Promise.all(proxyPreResumeOps.map((op) => op.response)),
       Promise.all(initScriptOps.map((op) => op.response)),
       piercerPreloadOp.response,
     ]);
-    // Header propagation is independent of init-script determinism but still
-    // part of pre-resume attach setup; awaited above for ordering/lifecycle.
     void headerResults;
+    void proxyResults;
     if (!preResumeDispatched || !resumedDispatched || !resumedOk) {
       // Short-lived child targets can detach before resume is acknowledged.
       // Keep this noisy only for top-level pages where missing attach is fatal.
