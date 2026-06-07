@@ -61,6 +61,8 @@ export class CustomOpenAIClient extends LLMClient {
       },
     });
 
+    const messages = [...options.messages];
+
     if (image) {
       const imageParts: (
         | ChatCompletionContentPartImage
@@ -78,7 +80,7 @@ export class CustomOpenAIClient extends LLMClient {
         imageParts.push({ type: "text", text: image.description });
       }
 
-      options.messages.push({ role: "user", content: imageParts });
+      messages.push({ role: "user", content: imageParts });
     }
 
     let responseFormat:
@@ -109,8 +111,8 @@ export class CustomOpenAIClient extends LLMClient {
       },
     });
 
-    const formattedMessages: ChatCompletionMessageParam[] =
-      options.messages.map((message) => {
+    const formattedMessages: ChatCompletionMessageParam[] = messages.map(
+      (message) => {
         if (Array.isArray(message.content)) {
           const contentParts = message.content.map((content) => {
             if ("image_url" in content) {
@@ -164,7 +166,8 @@ export class CustomOpenAIClient extends LLMClient {
           ...message,
           content: message.content,
         } as ChatCompletionMessageParam;
-      });
+      },
+    );
 
     if (options.response_model) {
       const schemaJson = JSON.stringify(

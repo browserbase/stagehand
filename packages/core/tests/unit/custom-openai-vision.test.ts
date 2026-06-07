@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, type Mock } from "vitest";
 import OpenAI from "openai";
+import { z } from "zod";
 import { CustomOpenAIClient } from "../../lib/v3/external_clients/customOpenAI.js";
 import type { LogLine } from "../../lib/v3/types/public/logs.js";
 
@@ -121,5 +122,79 @@ describe("CustomOpenAIClient vision support", () => {
     );
 
     expect(hasImageMessage).toBe(false);
+  });
+
+  it("does not mutate options.messages when image is provided", async () => {
+    const mock = makeMockClient(FAKE_RESPONSE);
+    const client = new CustomOpenAIClient({
+      modelName: "test-model",
+      client: mock,
+    });
+
+    const options = {
+      messages: [{ role: "user" as const, content: "describe this page" }],
+      image: { buffer: Buffer.from("img") },
+      requestId: "test-4",
+    };
+
+    await client.createChatCompletion({
+      options,
+      logger: noopLogger,
+      retries: 0,
+    });
+
+    expect(options.messages).toHaveLength(1);
+  });
+
+  it("does not duplicate image messages across retries", async () => {
+    const createMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        choices: [{ message: { role: "assistant", content: "not json" } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      })
+      .mockResolvedValueOnce({
+        choices: [
+          { message: { role: "assistant", content: '{"value":"ok"}' } },
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      });
+    const mock = {
+      chat: { completions: { create: createMock } },
+    } as unknown as OpenAI;
+    const client = new CustomOpenAIClient({
+      modelName: "test-model",
+      client: mock,
+    });
+
+    const options = {
+      messages: [{ role: "user" as const, content: "extract value" }],
+      image: { buffer: Buffer.from("img") },
+      response_model: {
+        name: "value",
+        schema: z.object({ value: z.string() }),
+      },
+      requestId: "test-5",
+    };
+
+    await client.createChatCompletion({
+      options,
+      logger: noopLogger,
+      retries: 1,
+    });
+
+    expect(options.messages).toHaveLength(1);
+    expect(createMock).toHaveBeenCalledTimes(2);
+
+    for (const call of createMock.mock.calls) {
+      const imageMessageCount = (
+        call[0].messages as Array<{ content: unknown }>
+      ).filter(
+        (m) =>
+          Array.isArray(m.content) &&
+          m.content.some((c: { type: string }) => c.type === "image_url"),
+      ).length;
+      expect(imageMessageCount).toBe(1);
+    }
   });
 });
