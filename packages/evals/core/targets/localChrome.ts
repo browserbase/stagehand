@@ -118,7 +118,6 @@ export async function launchRunnerProvidedLocalChrome(): Promise<{
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-dev-shm-usage",
-    "--site-per-process",
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
     "about:blank",

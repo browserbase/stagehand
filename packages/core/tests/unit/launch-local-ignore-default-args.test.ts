@@ -80,6 +80,16 @@ async function getLaunchArgs(
 }
 
 describe("launchLocalChrome ignoreDefaultArgs", () => {
+  it("does not inject --site-per-process by default", async () => {
+    const args = await getLaunchArgs({});
+    expect(args.chromeFlags).not.toContain("--site-per-process");
+  });
+
+  it("allows users to opt in to --site-per-process via args", async () => {
+    const args = await getLaunchArgs({ args: ["--site-per-process"] });
+    expect(args.chromeFlags).toContain("--site-per-process");
+  });
+
   it("does not set ignoreDefaultFlags when ignoreDefaultArgs is omitted", async () => {
     const args = await getLaunchArgs({});
     expect(args.ignoreDefaultFlags).toBe(false);
