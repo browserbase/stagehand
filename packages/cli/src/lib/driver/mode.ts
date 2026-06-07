@@ -1,11 +1,14 @@
 import { fail } from "../errors.js";
 import { getRemote } from "./remote-binding.js";
 import { resolveWsTarget } from "./resolve-ws.js";
-import type { ConnectionTarget } from "./types.js";
+import type { ConnectionTarget, ManagedLocalLaunchOptions } from "./types.js";
 
 export interface DriverModeFlags {
   "auto-connect"?: boolean;
+  "chrome-arg"?: string[];
+  "chrome-path"?: string;
   cdp?: string;
+  "connect-timeout"?: number;
   headed?: boolean;
   headless?: boolean;
   local?: boolean;
@@ -28,6 +31,8 @@ function resolveHeadless(
 export async function resolveConnectionTarget(
   flags: DriverModeFlags,
 ): Promise<ConnectionTarget> {
+  failOnConflictingLocalLaunchFlags(flags);
+
   if (flags.cdp) {
     failOnConflictingFlags("--cdp", [
       flags["auto-connect"] ? "--auto-connect" : null,
@@ -70,7 +75,7 @@ export async function resolveConnectionTarget(
   }
 
   if (flags.local) {
-    return { kind: "managed-local", headless: resolveHeadless(flags) };
+    return buildManagedLocalTarget(flags);
   }
 
   const autoRemote = (await getRemote()).autoSelectRemoteTarget();
@@ -82,7 +87,61 @@ export async function resolveConnectionTarget(
     return autoRemote;
   }
 
-  return { kind: "managed-local", headless: resolveHeadless(flags) };
+  return buildManagedLocalTarget(flags);
+}
+
+function buildManagedLocalTarget(
+  flags: DriverModeFlags,
+): Extract<ConnectionTarget, { kind: "managed-local" }> {
+  const launch = resolveManagedLocalLaunch(flags);
+  return {
+    headless: resolveHeadless(flags),
+    kind: "managed-local",
+    ...(launch ? { launch } : {}),
+  };
+}
+
+function resolveManagedLocalLaunch(
+  flags: DriverModeFlags,
+): ManagedLocalLaunchOptions | undefined {
+  const executablePath = flags["chrome-path"] ?? process.env.CHROME_PATH;
+  const connectTimeoutMs = flags["connect-timeout"];
+  const args = flags["chrome-arg"]?.filter(Boolean);
+
+  if (!executablePath && connectTimeoutMs === undefined && !args?.length) {
+    return undefined;
+  }
+
+  return {
+    ...(executablePath ? { executablePath } : {}),
+    ...(connectTimeoutMs !== undefined ? { connectTimeoutMs } : {}),
+    ...(args?.length ? { args } : {}),
+  };
+}
+
+function failOnConflictingLocalLaunchFlags(flags: DriverModeFlags): void {
+  const hasLaunchFlags = Boolean(
+    flags["chrome-path"] ||
+      flags["connect-timeout"] !== undefined ||
+      flags["chrome-arg"]?.length,
+  );
+  if (!hasLaunchFlags) return;
+
+  failOnConflictingFlags("--chrome-path", [
+    flags.cdp ? "--cdp" : null,
+    flags["auto-connect"] ? "--auto-connect" : null,
+    flags.remote ? "--remote" : null,
+  ]);
+  failOnConflictingFlags("--connect-timeout", [
+    flags.cdp ? "--cdp" : null,
+    flags["auto-connect"] ? "--auto-connect" : null,
+    flags.remote ? "--remote" : null,
+  ]);
+  failOnConflictingFlags("--chrome-arg", [
+    flags.cdp ? "--cdp" : null,
+    flags["auto-connect"] ? "--auto-connect" : null,
+    flags.remote ? "--remote" : null,
+  ]);
 }
 
 function failOnConflictingFlags(
@@ -101,10 +160,28 @@ export function targetsCompatible(
   right: ConnectionTarget,
 ): boolean {
   if (left.kind !== right.kind) return false;
-  if (left.kind === "managed-local" && right.kind === "managed-local")
-    return left.headless === right.headless;
+  if (left.kind === "managed-local" && right.kind === "managed-local") {
+    return (
+      left.headless === right.headless &&
+      managedLocalLaunchCompatible(left.launch, right.launch)
+    );
+  }
   if (left.kind === "cdp" && right.kind === "cdp") {
     return left.endpoint === right.endpoint && left.targetId === right.targetId;
   }
   return true;
+}
+
+function managedLocalLaunchCompatible(
+  left?: ManagedLocalLaunchOptions,
+  right?: ManagedLocalLaunchOptions,
+): boolean {
+  if (!left && !right) return true;
+  if (!left || !right) return false;
+
+  return (
+    left.executablePath === right.executablePath &&
+    left.connectTimeoutMs === right.connectTimeoutMs &&
+    JSON.stringify(left.args ?? []) === JSON.stringify(right.args ?? [])
+  );
 }

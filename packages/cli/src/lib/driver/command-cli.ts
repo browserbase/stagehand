@@ -4,6 +4,9 @@ import type { DriverCommandName } from "./commands/types.js";
 import {
   autoConnectFlag,
   cdpFlag,
+  chromeArgFlag,
+  chromePathFlag,
+  connectTimeoutFlag,
   headedFlag,
   headlessFlag,
   localFlag,
@@ -20,7 +23,10 @@ import { runDriverCommandWithTarget } from "./runtime.js";
 
 export const driverCommandFlags = {
   "auto-connect": autoConnectFlag,
+  "chrome-arg": chromeArgFlag,
+  "chrome-path": chromePathFlag,
   cdp: cdpFlag,
+  "connect-timeout": connectTimeoutFlag,
   headed: headedFlag,
   headless: headlessFlag,
   local: localFlag,

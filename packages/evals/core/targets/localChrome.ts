@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { spawn, type ChildProcess } from "node:child_process";
+import { STAGEHAND_DEFAULT_FLAGS } from "@browserbasehq/stagehand";
 
 export function resolveLocalChromeExecutablePath(): string | undefined {
   const explicit = process.env.CHROME_PATH;
@@ -114,11 +115,7 @@ export async function launchRunnerProvidedLocalChrome(): Promise<{
   const userDataDir = await mkdtemp(path.join(os.tmpdir(), "stagehand-evals-"));
   const args = [
     "--headless=new",
-    "--remote-allow-origins=*",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-dev-shm-usage",
-    "--site-per-process",
+    ...STAGEHAND_DEFAULT_FLAGS,
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
     "about:blank",

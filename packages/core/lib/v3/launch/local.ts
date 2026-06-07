@@ -1,19 +1,12 @@
 import { launch, Launcher, LaunchedChrome } from "chrome-launcher";
 import WebSocket from "ws";
+import { STAGEHAND_DEFAULT_FLAGS } from "./defaults.js";
 import { ConnectionTimeoutError } from "../types/public/sdkErrors.js";
 import type { LocalBrowserLaunchOptions } from "../types/public/index.js";
 
 interface LaunchLocalOptions extends LocalBrowserLaunchOptions {
   handleSIGINT?: boolean;
 }
-
-const STAGEHAND_DEFAULT_FLAGS = [
-  "--remote-allow-origins=*",
-  "--no-first-run",
-  "--no-default-browser-check",
-  "--disable-dev-shm-usage",
-  "--site-per-process",
-];
 
 export async function launchLocalChrome(
   opts: LaunchLocalOptions,
@@ -48,13 +41,16 @@ export async function launchLocalChrome(
       : undefined,
     opts.hasTouch ? "--touch-events=enabled" : undefined,
     opts.ignoreHTTPSErrors ? "--ignore-certificate-errors" : undefined,
+    opts.chromiumSandbox === false ? "--no-sandbox" : undefined,
+    opts.chromiumSandbox === false ? "--disable-setuid-sandbox" : undefined,
     opts.proxy?.server ? `--proxy-server=${opts.proxy.server}` : undefined,
     opts.proxy?.bypass ? `--proxy-bypass-list=${opts.proxy.bypass}` : undefined,
     ...(opts.args ?? []),
   ].filter((f): f is string => typeof f === "string");
 
-  // Handle ignoreDefaultArgs: selectively remove chrome-launcher's built-in
-  // defaults while keeping Stagehand's own flags (already in chromeFlags).
+  // ignoreDefaultArgs: true skips chrome-launcher defaults entirely.
+  // ignoreDefaultArgs: string[] skips chrome-launcher defaults, then re-adds
+  // unlisted ones. Stagehand default flags are handled separately above.
   let ignoreDefaultFlags = false;
   if (opts.ignoreDefaultArgs === true) {
     ignoreDefaultFlags = true;

@@ -13,6 +13,7 @@ import {
   discoverLocalCdp,
   type LocalCdpDiscovery,
 } from "./local-cdp-discovery.js";
+import { resolveChromeExecutablePath } from "./chrome-path.js";
 import { hasExplicitDriverTarget, type DriverFlags } from "./command-cli.js";
 import { resolveConnectionTarget, targetsCompatible } from "./mode.js";
 import { getRemote } from "./remote-binding.js";
@@ -270,10 +271,31 @@ async function checkTargetPrerequisite(
   deps: DoctorDeps,
 ): Promise<DoctorCheck | null> {
   if (target.kind === "managed-local") {
+    const executablePath = resolveChromeExecutablePath({
+      explicit: target.launch?.executablePath,
+      env: env.CHROME_PATH,
+    });
+    if (!executablePath) {
+      return {
+        fix: "install Chrome/Chromium or pass --chrome-path / set CHROME_PATH",
+        message: "no Chrome executable found",
+        name: "browser",
+        status: "fail",
+      };
+    }
+
+    const mode = target.headless ? "headless" : "headed";
+    const details: Record<string, unknown> = { executablePath, mode };
+    if (target.launch?.connectTimeoutMs !== undefined) {
+      details.connectTimeoutMs = target.launch.connectTimeoutMs;
+    }
+    if (target.launch?.args?.length) {
+      details.args = target.launch.args;
+    }
+
     return {
-      message: target.headless
-        ? "managed local browser, headless"
-        : "managed local browser, headed",
+      details,
+      message: `managed local browser, ${mode}, ${executablePath}`,
       name: "browser",
       status: "ok",
     };

@@ -40,6 +40,25 @@ export const targetIdFlag = Flags.string({
   helpValue: "<target-id>",
 });
 
+export const chromePathFlag = Flags.string({
+  description:
+    "Path to the Chrome or Chromium executable for managed local sessions. Falls back to CHROME_PATH.",
+  helpValue: "<path>",
+});
+
+export const connectTimeoutFlag = Flags.integer({
+  description:
+    "Timeout in milliseconds when launching or connecting to a managed local browser.",
+  helpValue: "<ms>",
+});
+
+export const chromeArgFlag = Flags.string({
+  description:
+    "Extra Chromium flag for managed local sessions. Repeat for multiple flags.",
+  helpValue: "<flag>",
+  multiple: true,
+});
+
 export function sessionName(value?: string): string {
   return value ?? process.env.BROWSE_SESSION ?? "default";
 }

@@ -19,6 +19,7 @@ export default class Doctor extends BrowseCommand {
     "browse doctor --auto-connect",
     "browse doctor --cdp 9222",
     "browse doctor --session research --json",
+    "browse doctor --local --chrome-path /opt/chrome/chrome",
   ];
 
   static override flags = {

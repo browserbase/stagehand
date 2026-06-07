@@ -258,6 +258,66 @@ const stagehand = new Stagehand({
 await stagehand.init();
 ```
 
+### Ignoring Default Chrome Flags
+
+Use `ignoreDefaultArgs` to control which launch flags Stagehand and [chrome-launcher](https://github.com/GoogleChrome/chrome-launcher) inject. Stagehand adds its own defaults on top of chrome-launcher's:
+
+- `--remote-allow-origins=*`
+- `--no-first-run`
+- `--no-default-browser-check`
+- `--disable-dev-shm-usage`
+
+**Array** — exclude specific flags by name. Matching entries are removed from Stagehand's defaults above. chrome-launcher's built-in defaults are skipped, then every default *except* the listed flags is re-added. This is useful when you need extensions enabled:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    // Remove only chrome-launcher's --disable-extensions default
+    ignoreDefaultArgs: ["--disable-extensions"],
+  },
+});
+
+await stagehand.init();
+```
+
+**`true`** — drop *both* chrome-launcher defaults and Stagehand's default flags above. Your `args` and option-derived flags (for example `headless`, `chromiumSandbox: false`) are still applied. Re-add any Stagehand defaults you still need via `args`:
+
+```typescript
+localBrowserLaunchOptions: {
+  ignoreDefaultArgs: true,
+  args: ["--remote-allow-origins=*"], // opt back in if CDP connections require it
+},
+```
+
+**Omitted or `false`** — apply all Stagehand and chrome-launcher defaults.
+
+#### Site isolation and renderer limits
+
+Stagehand does not inject `--site-per-process` by default. To disable site isolation or cap renderer processes on multi-origin workloads, pass flags via `args`:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    args: [
+      "--disable-features=site-per-process,IsolateOrigins",
+      "--renderer-process-limit=6",
+    ],
+  },
+});
+
+await stagehand.init();
+```
+
+Users who need strict per-site isolation can opt in with `args: ["--site-per-process"]`.
+
+<Tip>
+An explicit `--site-per-process` switch overrides `--disable-features=site-per-process`, regardless of argv order. Avoid passing both.
+</Tip>
+
 ## Advanced Configuration
 
 ### Keep Alive
