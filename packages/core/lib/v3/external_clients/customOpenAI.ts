@@ -42,13 +42,6 @@ export class CustomOpenAIClient extends LLMClient {
   }: CreateChatCompletionOptions): Promise<T> {
     const { image, requestId, ...optionsWithoutImageAndRequestId } = options;
 
-    // TODO: Implement vision support
-    if (image) {
-      console.warn(
-        "Image provided. Vision is not currently supported for openai",
-      );
-    }
-
     logger({
       category: "openai",
       message: "creating chat completion",
@@ -67,6 +60,26 @@ export class CustomOpenAIClient extends LLMClient {
         },
       },
     });
+
+    if (image) {
+      const imageParts: (
+        | ChatCompletionContentPartImage
+        | ChatCompletionContentPartText
+      )[] = [
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:image/jpeg;base64,${image.buffer.toString("base64")}`,
+          },
+        },
+      ];
+
+      if (image.description) {
+        imageParts.push({ type: "text", text: image.description });
+      }
+
+      options.messages.push({ role: "user", content: imageParts });
+    }
 
     let responseFormat:
       | ChatCompletionCreateParamsNonStreaming["response_format"]
