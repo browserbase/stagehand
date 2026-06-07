@@ -19,6 +19,8 @@ export default class Open extends BrowseCommand {
     "browse open https://example.com --cdp 9222",
     "browse open https://example.com --cdp ws://127.0.0.1:9222/devtools/browser/<id> --target-id <target-id>",
     "browse open https://example.com --session research",
+    "browse open https://example.com --local --chrome-path /opt/chrome/chrome",
+    "browse open https://example.com --local --connect-timeout 30000 --chrome-arg --renderer-process-limit=6",
     "browse open https://example.com --wait networkidle --timeout 45000",
   ];
 

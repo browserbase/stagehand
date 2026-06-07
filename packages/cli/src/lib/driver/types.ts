@@ -1,5 +1,15 @@
+export interface ManagedLocalLaunchOptions {
+  args?: string[];
+  connectTimeoutMs?: number;
+  executablePath?: string;
+}
+
 export type ConnectionTarget =
-  | { kind: "managed-local"; headless: boolean }
+  | {
+      kind: "managed-local";
+      headless: boolean;
+      launch?: ManagedLocalLaunchOptions;
+    }
   | { kind: "remote" }
   | { kind: "auto-connect" }
   | { kind: "cdp"; endpoint: string; targetId?: string };

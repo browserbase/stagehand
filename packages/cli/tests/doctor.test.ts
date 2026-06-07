@@ -284,6 +284,42 @@ describe("doctor report builder", () => {
     expect(report.next).toBe("browse status");
   });
 
+  it("reports a missing Chrome executable for managed-local mode", async () => {
+    const daemonDir = await tempDaemonDir();
+    const report = await buildDoctorReport(
+      {
+        flags: {
+          "chrome-path": "/tmp/does-not-exist/chrome",
+          local: true,
+        },
+        session: "default",
+      },
+      {
+        env: { BROWSERBASE_API_KEY: "", CHROME_PATH: "" },
+        getDriverStatus: async () => null,
+        readPackageVersion: async () => "0.0.0-test",
+        resolveConnectionTarget: async (flags) => ({
+          headless: true,
+          kind: "managed-local",
+          launch: {
+            executablePath: flags["chrome-path"],
+          },
+        }),
+      },
+    );
+
+    expect(report).toMatchObject({
+      verdict: "fail",
+      checks: expect.arrayContaining([
+        expect.objectContaining({
+          message: "no Chrome executable found",
+          name: "browser",
+          status: "fail",
+        }),
+      ]),
+    });
+  });
+
   it("checks auto-connect discovery through injectable dependencies", async () => {
     const daemonDir = await tempDaemonDir();
     const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;

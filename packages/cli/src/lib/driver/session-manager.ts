@@ -7,6 +7,7 @@ import {
 } from "./commands/selectors.js";
 import { executeDriverCommand } from "./commands/registry.js";
 import type { DriverCommandName } from "./commands/types.js";
+import { buildManagedLocalLaunchOptions } from "./launch-options.js";
 import { discoverLocalCdp } from "./local-cdp-discovery.js";
 import { NetworkCapture } from "./network-capture.js";
 import { getRemote } from "./remote-binding.js";
@@ -280,6 +281,7 @@ export class DriverSessionManager {
         env: "LOCAL",
         localBrowserLaunchOptions: {
           headless: target.headless,
+          ...buildManagedLocalLaunchOptions(target.launch),
         },
         verbose: 0,
       };
