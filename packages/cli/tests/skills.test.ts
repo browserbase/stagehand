@@ -298,24 +298,33 @@ describe("skills", () => {
     );
   });
 
-  it("installs catalog skills from GitHub", async () => {
-    const stubDir = await createTempDir("browse-skills-github-bin-");
+  it("fails cleanly when a non-generated skill is missing from the catalog", async () => {
+    const stubDir = await createTempDir("browse-skills-missing-bin-");
     const logPath = join(stubDir, "npx.log");
     await writeNpxStub(stubDir, logPath);
+    // Empty server: the file API returns 404 for the requested id.
     const { server, baseUrl } = await startFakeSkillServer({});
     cleanupServers.push(server);
 
-    const result = await runCli(["skills", "add", "yelp.com/extract-reviews"], {
-      env: {
-        BROWSE_SKILLS_API_BASE_URL: baseUrl,
-        PATH: stubDir,
+    const result = await runCli(
+      ["skills", "add", "amazon.com/buy-something-fake"],
+      {
+        env: {
+          BROWSE_SKILLS_API_BASE_URL: baseUrl,
+          PATH: stubDir,
+        },
       },
-    });
-
-    expect(result.exitCode).toBe(0);
-    await expect(readFile(logPath, "utf8")).resolves.toContain(
-      "--yes skills add browserbase/browse.sh --skill yelp.com/extract-reviews",
     );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      'Skill "amazon.com/buy-something-fake" not found in the catalog',
+    );
+    expect(result.stderr).toContain("browse skills find amazon.com");
+    // It must NOT have shelled out to clone the browse.sh repo.
+    await expect(
+      readFile(logPath, "utf8").catch(() => ""),
+    ).resolves.not.toContain("browserbase/browse.sh");
   });
 
   it("installs suffix-shaped catalog skills from GitHub when the file API returns 404", async () => {
@@ -502,6 +511,15 @@ describe("skills", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("Invalid skill id");
+  });
+
+  it("guides the user when the skill id is missing", async () => {
+    const result = await runCli(["skills", "add"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("Missing skill id");
+    expect(result.stderr).toContain("<domain>/<task>");
+    expect(result.stderr).toContain("browse skills find");
   });
 
   it("rejects unsafe API file paths", async () => {

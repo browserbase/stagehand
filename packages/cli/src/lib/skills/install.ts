@@ -47,15 +47,36 @@ type SkillFilesApiResult =
       status: "not_found" | "unavailable";
     };
 
+type SkillFilesResult =
+  | {
+      status: "found";
+      files: SkillFileSource[];
+    }
+  | {
+      // The catalog responded with a definitive 404 for a non-generated id.
+      status: "not_found";
+    }
+  | {
+      // Either the API was unavailable or the id is suffix-shaped (generated)
+      // and may still resolve through the browse.sh GitHub clone fallback.
+      status: "fallback";
+    };
+
+const maxCapturedOutputBytes = 2048;
+
 export function parseSkillId(rawSkillId: string): ParsedSkillId {
   const parts = rawSkillId.split("/");
   if (parts.length !== 2) {
-    fail("Skill must be in the form <domain>/<task>.");
+    fail("Skill must be in the form <domain>/<task>.", 1, {
+      resultCode: "invalid_skill_id",
+    });
   }
 
   const [domain, task] = parts;
   if (!domain || !task) {
-    fail("Skill must be in the form <domain>/<task>.");
+    fail("Skill must be in the form <domain>/<task>.", 1, {
+      resultCode: "invalid_skill_id",
+    });
   }
 
   if (
@@ -67,7 +88,9 @@ export function parseSkillId(rawSkillId: string): ParsedSkillId {
     !domainPattern.test(domain) ||
     !taskPattern.test(task)
   ) {
-    fail(`Invalid skill id "${rawSkillId}". Use <domain>/<task>.`);
+    fail(`Invalid skill id "${rawSkillId}". Use <domain>/<task>.`, 1, {
+      resultCode: "invalid_skill_id",
+    });
   }
 
   return {
@@ -81,30 +104,43 @@ export function isBlobSkillId(skillId: ParsedSkillId): boolean {
   return generatedSkillSuffixPattern.test(skillId.task);
 }
 
-export async function installSkill(rawSkillId: string): Promise<number> {
+export async function installSkill(rawSkillId: string): Promise<void> {
   const skillId = parseSkillId(rawSkillId);
   const npxPath = await findExecutable("npx");
   if (!npxPath) {
     fail(
       "`npx` is not installed. Install Node.js from https://nodejs.org, then rerun `browse skills add`.",
+      1,
+      { resultCode: "npx_missing" },
     );
   }
 
   const files = await fetchSkillFiles(skillId);
-  if (files) {
-    const result = await downloadBlobSkill(skillId, files);
+  if (files.status === "found") {
+    const result = await downloadBlobSkill(skillId, files.files);
     process.stdout.write(
       `Downloaded ${result.fileCount} skill file${result.fileCount === 1 ? "" : "s"} to ${result.installPath}\n`,
     );
-    return await spawnPassthrough(npxPath, [
+    await runSkillsInstall(npxPath, [
       "--yes",
       "skills",
       "add",
       result.installPath,
     ]);
+    return;
   }
 
-  return await spawnPassthrough(npxPath, [
+  if (files.status === "not_found") {
+    fail(
+      `Skill "${skillId.id}" not found in the catalog. Run \`browse skills find ${skillId.domain}\` to discover available skills, or \`browse skills list\` to browse them.`,
+      1,
+      { resultCode: "skill_not_found" },
+    );
+  }
+
+  // Suffix-shaped (generated) ids, or a temporarily unavailable catalog, may
+  // still resolve through the browse.sh GitHub repo.
+  await runSkillsInstall(npxPath, [
     "--yes",
     "skills",
     "add",
@@ -114,15 +150,17 @@ export async function installSkill(rawSkillId: string): Promise<number> {
   ]);
 }
 
-export async function installBundledCliSkill(): Promise<number> {
+export async function installBundledCliSkill(): Promise<void> {
   const npxPath = await findExecutable("npx");
   if (!npxPath) {
     fail(
       "`npx` is not installed. Install Node.js from https://nodejs.org, then rerun `browse skills install`.",
+      1,
+      { resultCode: "npx_missing" },
     );
   }
 
-  return await spawnPassthrough(npxPath, [
+  await runSkillsInstall(npxPath, [
     "--yes",
     "skills",
     "add",
@@ -134,13 +172,38 @@ export async function installBundledCliSkill(): Promise<number> {
   ]);
 }
 
+// Runs `npx skills add ...` with live passthrough, but fails with a diagnostic
+// message (including a tail of the child's output) when the child exits nonzero
+// so the failure is recorded in telemetry instead of an opaque exit code.
+async function runSkillsInstall(
+  npxPath: string,
+  args: string[],
+): Promise<void> {
+  const result = await spawnPassthrough(npxPath, args);
+  if (result.exitCode === 0) {
+    return;
+  }
+
+  const detail = result.output.trim();
+  const reason = detail
+    ? `: ${detail}`
+    : " (see the output above for details).";
+  fail(`Could not install skill${reason}`, result.exitCode || 1, {
+    resultCode: "skill_install_failed",
+  });
+}
+
 export async function downloadBlobSkill(
   skillId: ParsedSkillId,
   files?: SkillFileSource[],
 ): Promise<BlobDownloadResult> {
-  const filesToDownload = files ?? (await fetchSkillFiles(skillId));
+  let filesToDownload = files;
   if (!filesToDownload) {
-    fail(`Skill ${skillId.id} was not found as a generated skill.`);
+    const resolved = await fetchSkillFiles(skillId);
+    if (resolved.status !== "found") {
+      fail(`Skill ${skillId.id} was not found as a generated skill.`);
+    }
+    filesToDownload = resolved.files;
   }
 
   const installPath = localSkillPath(skillId);
@@ -193,10 +256,10 @@ function packageRoot(): string {
 
 async function fetchSkillFiles(
   skillId: ParsedSkillId,
-): Promise<SkillFileSource[] | null> {
+): Promise<SkillFilesResult> {
   const apiResult = await fetchSkillFilesFromApi(skillId);
   if (apiResult.status === "found") {
-    return apiResult.files;
+    return { status: "found", files: apiResult.files };
   }
 
   if (
@@ -204,15 +267,26 @@ async function fetchSkillFiles(
     isBlobSkillId(skillId) &&
     (await directBlobSkillExists(skillId))
   ) {
-    return [
-      {
-        path: "SKILL.md",
-        url: skillBlobUrl(skillId, "SKILL.md"),
-      },
-    ];
+    return {
+      status: "found",
+      files: [
+        {
+          path: "SKILL.md",
+          url: skillBlobUrl(skillId, "SKILL.md"),
+        },
+      ],
+    };
   }
 
-  return null;
+  // Suffix-shaped ids correspond to generated catalog skills that live in the
+  // browse.sh repo even when the file API can't serve them directly, so keep
+  // the GitHub clone fallback for those. A plain 404 for a non-generated id is
+  // a definitive miss and should fail cleanly instead of cloning the repo.
+  if (apiResult.status === "not_found" && !isBlobSkillId(skillId)) {
+    return { status: "not_found" };
+  }
+
+  return { status: "fallback" };
 }
 
 async function fetchSkillFilesFromApi(
@@ -444,23 +518,47 @@ async function findExecutable(command: string): Promise<string | null> {
   return null;
 }
 
+interface SpawnPassthroughResult {
+  exitCode: number;
+  output: string;
+}
+
+// Like `stdio: "inherit"` for the human watching, but the child's stdout/stderr
+// are also buffered (tail only) so a nonzero exit can surface a real reason to
+// telemetry instead of a bare exit code.
 async function spawnPassthrough(
   command: string,
   args: string[],
-): Promise<number> {
-  return await new Promise<number>((resolvePromise, reject) => {
+): Promise<SpawnPassthroughResult> {
+  return await new Promise<SpawnPassthroughResult>((resolvePromise, reject) => {
     const child = spawn(command, args, {
-      stdio: "inherit",
+      stdio: ["inherit", "pipe", "pipe"],
       shell: shouldUseWindowsShell(command),
+    });
+
+    let captured = "";
+    const capture = (chunk: Buffer): void => {
+      captured += chunk.toString();
+      if (captured.length > maxCapturedOutputBytes) {
+        captured = captured.slice(-maxCapturedOutputBytes);
+      }
+    };
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      process.stdout.write(chunk);
+      capture(chunk);
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      process.stderr.write(chunk);
+      capture(chunk);
     });
 
     child.on("error", reject);
     child.on("close", (exitCode, signal) => {
-      if (signal) {
-        resolvePromise(1);
-        return;
-      }
-      resolvePromise(exitCode ?? 0);
+      resolvePromise({
+        exitCode: signal ? 1 : (exitCode ?? 0),
+        output: captured,
+      });
     });
   });
 }
