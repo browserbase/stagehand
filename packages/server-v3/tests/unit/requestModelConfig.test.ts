@@ -68,6 +68,37 @@ describe("getRequestModelConfig", () => {
     assert.deepEqual(config.model, model);
   });
 
+  it("preserves an Azure Entra model config from an action request so auth fields reach session initialization", () => {
+    const model = {
+      provider: "azure",
+      modelName: "azure/gpt-4.1-mini",
+      auth: {
+        type: "azureEntraId",
+        token: "test-entra-token",
+      },
+      providerOptions: {
+        azure: {
+          resourceName: "test-azure-resource",
+          apiVersion: "2024-10-01-preview",
+        },
+      },
+    };
+    const request = createRequest({
+      body: {
+        options: { model },
+      },
+      headers: {
+        "x-model-api-key": "sk-header",
+      },
+    });
+
+    const config = assertSuccess(getRequestModelConfig(request));
+
+    assert.equal(config.modelName, "azure/gpt-4.1-mini");
+    assert.equal(config.apiKey, "sk-header");
+    assert.deepEqual(config.model, model);
+  });
+
   it("does not read agentConfig.model as a request-level model config", () => {
     const request = createRequest({
       body: {

@@ -75,11 +75,28 @@ export function toAISDKClientOptions(
   subProvider: string,
   clientOptions?: ClientOptions,
 ): AISDKProviderClientOptions | undefined {
-  if (!clientOptions || subProvider !== "vertex") {
+  if (!clientOptions) {
     return clientOptions as AISDKProviderClientOptions | undefined;
   }
 
   const { auth, providerOptions, ...rest } = clientOptions;
+
+  if (subProvider === "azure") {
+    const azureOptions = providerOptions?.azure;
+
+    return {
+      ...rest,
+      ...(azureOptions ?? {}),
+      ...(auth?.type === "azureEntraId"
+        ? { tokenProvider: async () => auth.token }
+        : {}),
+    };
+  }
+
+  if (subProvider !== "vertex") {
+    return clientOptions as AISDKProviderClientOptions | undefined;
+  }
+
   const vertexOptions = providerOptions?.vertex;
 
   return {
