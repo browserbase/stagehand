@@ -10,6 +10,8 @@ import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
 import { endBrowserbaseSession } from "../browserbaseCleanup.js";
 import { EvalsError } from "../errors.js";
 import type { V3InitResult } from "../initV3.js";
+import { installStagehandV3FlowLoggerBraintrustReporting } from "./StagehandV3FlowLoggerBraintrust.js";
+import { StagehandV4BraintrustReporter } from "./StagehandV4BraintrustReporter.js";
 import type {
   BenchHarness,
   BenchHarnessStartInput,
@@ -56,6 +58,8 @@ export const StagehandAgentV3Harness: BenchHarness = {
     verbose,
   }: BenchHarnessStartInput): Promise<StartedBenchHarness> {
     let v3Result: V3InitResult | undefined;
+    let stopV3FlowLoggerBraintrustReporting: (() => void) | undefined;
+    const braintrustReporter = new StagehandV4BraintrustReporter([]);
     const createAgent = isAgentTask(task);
     if (row.config.harness !== "stagehand_v3") {
       throw new EvalsError(
@@ -109,6 +113,14 @@ export const StagehandAgentV3Harness: BenchHarness = {
         configOverrides: { env: config.environment },
       });
     }
+    stopV3FlowLoggerBraintrustReporting =
+      installStagehandV3FlowLoggerBraintrustReporting({
+        braintrustReporter,
+        category: "stagehand_v3",
+        logger,
+        v3: v3Result.v3,
+        verbose,
+      });
 
     return {
       ctx: {
@@ -119,9 +131,14 @@ export const StagehandAgentV3Harness: BenchHarness = {
         agent: v3Result.agent,
         page: v3Result.v3.context.pages()[0],
         debugUrl: v3Result.debugUrl ?? "",
+        onTaskStart: async () => {
+          await braintrustReporter.attachCurrentSpan();
+        },
         sessionUrl: v3Result.sessionUrl ?? "",
       },
       cleanup: async () => {
+        stopV3FlowLoggerBraintrustReporting?.();
+        stopV3FlowLoggerBraintrustReporting = undefined;
         if (v3Result?.v3) {
           try {
             await v3Result.v3.close();

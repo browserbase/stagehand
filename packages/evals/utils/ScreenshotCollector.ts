@@ -85,7 +85,9 @@ export class ScreenshotCollector {
 
     try {
       const page = await this.v3.context.awaitActivePage();
-      const screenshot = await page.screenshot({ fullPage: false });
+      const screenshot = screenshotToBuffer(
+        await page.screenshot({ fullPage: false }),
+      );
 
       // If stopped while awaiting screenshot (and not final), don't process further
       if (this.stopped && trigger !== "final") {
@@ -258,4 +260,23 @@ export class ScreenshotCollector {
       return 0;
     }
   }
+}
+
+function screenshotToBuffer(value: unknown): Buffer {
+  if (Buffer.isBuffer(value)) return value;
+  if (typeof value === "string") {
+    const base64 = value.includes(",")
+      ? value.slice(value.indexOf(",") + 1)
+      : value;
+    return Buffer.from(base64, "base64");
+  }
+  if (value != null && typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    for (const key of ["data", "base64", "screenshot", "screenshotBase64"]) {
+      if (typeof record[key] === "string") {
+        return screenshotToBuffer(record[key]);
+      }
+    }
+  }
+  throw new Error(`Unsupported screenshot result: ${String(value)}`);
 }

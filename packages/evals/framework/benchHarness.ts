@@ -32,6 +32,7 @@ export interface BenchHarnessContext {
   agent?: AgentInstance;
   page?: Page;
   debugUrl: string;
+  onTaskStart?: () => void | Promise<void>;
   sessionUrl: string;
 }
 

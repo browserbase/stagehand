@@ -94,6 +94,7 @@ type AsyncOriginalMethod<
 
 type FlowLoggerLogOptions = FlowEventInput & {
   context?: FlowLoggerContext;
+  includeResult?: boolean;
 };
 
 // AsyncLocalStorage is the authoritative source for the active flow parent stack inside a single async call-chain.
@@ -219,13 +220,16 @@ export class FlowLogger {
       data,
       eventParentIds,
     });
+    let resultForCompletion: TResult | undefined;
 
     // Push after emitting so nested work sees this event as its direct parent
     // for the rest of the wrapped method's lifetime.
     ctx.parentEvents.push(startedEvent);
 
     try {
-      return await originalMethod();
+      const result = await originalMethod();
+      resultForCompletion = result;
+      return result;
     } catch (error) {
       caughtError = error;
       // Error events attach directly under the started event even though the
@@ -234,9 +238,13 @@ export class FlowLogger {
         eventType: `${eventType}ErrorEvent`,
         eventParentIds: [...startedEvent.eventParentIds, startedEvent.eventId],
         data: {
+          ...(options.includeResult ? data : {}),
           error: error instanceof Error ? error.message : String(error),
           durationMs:
             Date.now() - new Date(startedEvent.eventCreatedAt).getTime(),
+          ...(options.includeResult
+            ? { started_at: startedEvent.eventCreatedAt }
+            : {}),
         },
       });
       throw error;
@@ -244,8 +252,20 @@ export class FlowLogger {
       // Pop only the frame owned by this wrapper. If nested code has already
       // mutated the stack unexpectedly, we skip the completed event rather than
       // emitting a misleading lifecycle edge.
-      const parentEvent = ctx.parentEvents.pop();
-      if (parentEvent?.eventId === startedEvent.eventId && !caughtError) {
+      const parentEvent = ctx.parentEvents.at(-1);
+      let shouldEmitCompletion = parentEvent?.eventId === startedEvent.eventId;
+      if (shouldEmitCompletion) {
+        ctx.parentEvents.pop();
+      } else if (options.includeResult) {
+        for (let index = ctx.parentEvents.length - 1; index >= 0; index -= 1) {
+          if (ctx.parentEvents[index]?.eventId !== startedEvent.eventId)
+            continue;
+          ctx.parentEvents.splice(index, 1);
+          shouldEmitCompletion = true;
+          break;
+        }
+      }
+      if (shouldEmitCompletion && !caughtError) {
         FlowLogger.emit({
           eventType: `${eventType}CompletedEvent`,
           eventParentIds: [
@@ -253,8 +273,15 @@ export class FlowLogger {
             startedEvent.eventId,
           ],
           data: {
+            ...(options.includeResult ? data : {}),
             durationMs:
               Date.now() - new Date(startedEvent.eventCreatedAt).getTime(),
+            ...(options.includeResult
+              ? {
+                  result: resultForCompletion,
+                  started_at: startedEvent.eventCreatedAt,
+                }
+              : {}),
           },
         });
       }
@@ -396,6 +423,20 @@ export class FlowLogger {
     }
 
     return outputSummary || "[empty]";
+  }
+
+  private static formatMiddlewareToolCall(
+    value: unknown,
+  ): Record<string, unknown> {
+    const toolCall =
+      value != null && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+    return {
+      id: toolCall.toolCallId,
+      name: toolCall.toolName,
+      arguments: toolCall.input,
+    };
   }
 
   // =============================================================================
@@ -622,12 +663,16 @@ export class FlowLogger {
 
   // Emits a best-effort LLM request event when logging occurs inside an active flow context.
   static logLlmRequest({
+    messages,
     requestId,
     model,
+    options,
     prompt,
   }: {
+    messages?: unknown;
     requestId: string;
     model: string;
+    options?: Record<string, unknown>;
     prompt?: string;
   }): void {
     FlowLogger.emitLlmEvent({
@@ -636,6 +681,8 @@ export class FlowLogger {
         requestId,
         model,
         prompt,
+        messages,
+        options,
       },
     });
   }
@@ -647,12 +694,18 @@ export class FlowLogger {
     output,
     inputTokens,
     outputTokens,
+    raw,
+    tool_calls,
+    usage,
   }: {
     requestId: string;
     model: string;
     output?: string;
     inputTokens?: number;
     outputTokens?: number;
+    raw?: unknown;
+    tool_calls?: unknown[];
+    usage?: Record<string, unknown>;
   }): void {
     FlowLogger.emitLlmEvent({
       eventType: "LlmResponseEvent",
@@ -662,6 +715,9 @@ export class FlowLogger {
         output,
         inputTokens,
         outputTokens,
+        raw,
+        tool_calls,
+        usage,
       },
     });
   }
@@ -678,10 +734,17 @@ export class FlowLogger {
     return {
       wrapGenerate: async ({ doGenerate, params }) => {
         const llmRequestId = uuidv7();
+        const requestOptions = params as Record<string, unknown>;
         FlowLogger.logLlmRequest({
           requestId: llmRequestId,
           model: modelId,
           prompt: FlowLogger.buildMiddlewarePromptSummary(params),
+          messages: params.prompt,
+          options: {
+            tools: requestOptions.tools,
+            tool_choice: requestOptions.toolChoice,
+            response_format: requestOptions.responseFormat,
+          },
         });
 
         const result = await doGenerate();
@@ -691,6 +754,7 @@ export class FlowLogger {
           content?: unknown;
           toolCalls?: unknown[];
         };
+        const usage = result.usage as Record<string, unknown> | undefined;
 
         FlowLogger.logLlmResponse({
           requestId: llmRequestId,
@@ -698,6 +762,11 @@ export class FlowLogger {
           output: FlowLogger.buildMiddlewareOutputSummary(res),
           inputTokens: result.usage?.inputTokens,
           outputTokens: result.usage?.outputTokens,
+          tool_calls: Array.isArray(res.toolCalls)
+            ? res.toolCalls.map(FlowLogger.formatMiddlewareToolCall)
+            : undefined,
+          usage,
+          raw: result,
         });
 
         return result;

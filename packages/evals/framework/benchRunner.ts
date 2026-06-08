@@ -1,6 +1,7 @@
 import { EvalsError } from "../errors.js";
 import { EvalLogger } from "../logger.js";
 import type { EvalInput } from "../types/evals.js";
+import { tracedSpan } from "./braintrust.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { RunEvalsOptions } from "./runner.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
@@ -65,45 +66,54 @@ export async function executeBenchTask(
     unregisterCleanup = registerActiveRunCleanup(cleanup);
 
     harnessCtx = startedHarness.ctx;
-    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
-    if (taskModule.definition) {
-      const taskFn =
-        taskModule.definition.benchFns?.[harnessCtx.harness] ??
-        taskModule.definition.benchFns?.default ??
-        taskModule.definition.fn;
-      const ctx = {
-        v3: harnessCtx.v3,
-        v4: harnessCtx.v4,
-        agent: harnessCtx.agent,
-        page: harnessCtx.page,
-        logger,
-        input,
-        modelName: input.modelName,
-        debugUrl: harnessCtx.debugUrl,
-        sessionUrl: harnessCtx.sessionUrl,
-      };
-      return withBenchSessionUrls(
-        (await taskFn(ctx)) as TaskResult,
-        harnessCtx,
-      );
-    }
-    if (taskModule.legacyFn) {
-      return withBenchSessionUrls(
-        await taskModule.legacyFn({
-          v3: harnessCtx.v3,
-          v4: harnessCtx.v4,
-          logger,
-          debugUrl: harnessCtx.debugUrl,
-          sessionUrl: harnessCtx.sessionUrl,
-          modelName: input.modelName,
-          agent: harnessCtx.agent,
-          input,
-        }),
-        harnessCtx,
-      );
-    }
+    return await tracedSpan(
+      async () => {
+        await harnessCtx?.onTaskStart?.();
+        const taskModule = await loadTaskModuleFromPath(
+          task.filePath,
+          task.name,
+        );
+        if (taskModule.definition) {
+          const taskFn =
+            taskModule.definition.benchFns?.[harnessCtx!.harness] ??
+            taskModule.definition.benchFns?.default ??
+            taskModule.definition.fn;
+          const ctx = {
+            v3: harnessCtx!.v3,
+            v4: harnessCtx!.v4,
+            agent: harnessCtx!.agent,
+            page: harnessCtx!.page,
+            logger,
+            input,
+            modelName: input.modelName,
+            debugUrl: harnessCtx!.debugUrl,
+            sessionUrl: harnessCtx!.sessionUrl,
+          };
+          return withBenchSessionUrls(
+            (await taskFn(ctx)) as TaskResult,
+            harnessCtx,
+          );
+        }
+        if (taskModule.legacyFn) {
+          return withBenchSessionUrls(
+            await taskModule.legacyFn({
+              v3: harnessCtx!.v3,
+              v4: harnessCtx!.v4,
+              logger,
+              debugUrl: harnessCtx!.debugUrl,
+              sessionUrl: harnessCtx!.sessionUrl,
+              modelName: input.modelName,
+              agent: harnessCtx!.agent,
+              input,
+            }),
+            harnessCtx,
+          );
+        }
 
-    throw new EvalsError(`No valid task export found in ${task.filePath}`);
+        throw new EvalsError(`No valid task export found in ${task.filePath}`);
+      },
+      { name: "task" },
+    );
   } catch (error) {
     console.error(`Error in ${input.name}: ${error}`);
     logger.error({
@@ -129,7 +139,12 @@ export async function executeBenchTask(
       harnessCtx,
     );
   } finally {
-    await cleanup();
+    await tracedSpan(
+      async () => {
+        await cleanup();
+      },
+      { name: "cleanup" },
+    );
     unregisterCleanup?.();
     logger.clear();
   }
