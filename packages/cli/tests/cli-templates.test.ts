@@ -86,7 +86,7 @@ describe("templates commands", () => {
       expect(result.exitCode).toBe(0);
       expect(requests).toHaveLength(1);
       expect(requests[0]?.method).toBe("GET");
-      expect(requests[0]?.path).toBe("/");
+      expect(requests[0]?.path).toBe("/?scope=all");
       expect(result.stdout).toContain("Template");
       expect(result.stdout).toContain("Title");
       expect(result.stdout).toContain("Source");
@@ -210,7 +210,10 @@ describe("templates commands", () => {
       );
 
       expect(result.exitCode).toBe(0);
-      expect(requests.map((request) => request.path)).toEqual(["/amazon", "/"]);
+      expect(requests.map((request) => request.path)).toEqual([
+        "/amazon",
+        "/?scope=all",
+      ]);
       expect(result.stdout).toContain('Templates matching "amazon" (1)');
       expect(result.stdout).toContain("Template");
       expect(result.stdout).toContain("amazon-product-scraping");
