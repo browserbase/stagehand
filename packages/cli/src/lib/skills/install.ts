@@ -530,7 +530,7 @@ async function spawnPassthrough(
   command: string,
   args: string[],
 ): Promise<SpawnPassthroughResult> {
-  return await new Promise<SpawnPassthroughResult>((resolvePromise, reject) => {
+  return await new Promise<SpawnPassthroughResult>((resolvePromise) => {
     const child = spawn(command, args, {
       stdio: ["inherit", "pipe", "pipe"],
       shell: shouldUseWindowsShell(command),
@@ -553,7 +553,16 @@ async function spawnPassthrough(
       capture(chunk);
     });
 
-    child.on("error", reject);
+    // Resolve (not reject) on spawn errors so the failure is classified as
+    // `skill_install_failed` by runSkillsInstall instead of escaping as an
+    // unclassified runtime error.
+    child.on("error", (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      resolvePromise({
+        exitCode: 1,
+        output: captured ? `${captured}\n${message}` : message,
+      });
+    });
     child.on("close", (exitCode, signal) => {
       resolvePromise({
         exitCode: signal ? 1 : (exitCode ?? 0),
