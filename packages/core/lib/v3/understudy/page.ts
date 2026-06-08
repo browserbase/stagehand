@@ -189,6 +189,7 @@ export class Page {
     PendingWebMCPInvocation
   >();
   private readonly bufferedWebMCPResults = new Map<string, WebMCPToolResult>();
+  private pendingWebMCPInvokeToolResponses = 0;
   /** Document-start scripts installed across every session this page owns. */
   private readonly initScripts: string[] = [];
   private extraHTTPHeaders: Record<string, string>;
@@ -685,7 +686,16 @@ export class Page {
     const result = webMCPResultFromEvent(event.invocationId, event);
     const pending = this.pendingWebMCPInvocations.get(event.invocationId);
     if (!pending) {
-      this.bufferedWebMCPResults.set(event.invocationId, result);
+      /*
+       * WebMCP.invokeTool returns the invocationId, while WebMCP.toolResponded
+       * is a separate event. Very fast tools can emit the event before the
+       * invokeTool command response reaches us, so there is not yet a pending
+       * invocation entry to resolve. Buffer only during that command-response
+       * window; otherwise unmatched events are stale or unexpected.
+       */
+      if (this.pendingWebMCPInvokeToolResponses > 0) {
+        this.bufferedWebMCPResults.set(event.invocationId, result);
+      }
       return;
     }
 
@@ -924,14 +934,16 @@ export class Page {
 
     try {
       await this.ensureWebMCPEnabled();
-      const response = await this.mainSession.send<WebMCPInvokeToolResponse>(
-        "WebMCP.invokeTool",
-        {
+      this.pendingWebMCPInvokeToolResponses += 1;
+      const response = await this.mainSession
+        .send<WebMCPInvokeToolResponse>("WebMCP.invokeTool", {
           frameId,
           toolName,
           input,
-        },
-      );
+        })
+        .finally(() => {
+          this.pendingWebMCPInvokeToolResponses -= 1;
+        });
       invocationId = response.invocationId;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

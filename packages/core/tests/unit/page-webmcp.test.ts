@@ -247,6 +247,51 @@ describe("Page WebMCP", () => {
     });
   });
 
+  it("does not buffer late responses after an invocation times out", async () => {
+    let invokeCount = 0;
+    const session = new MockCDPSession({
+      "WebMCP.invokeTool": () => {
+        invokeCount += 1;
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = makePage(session);
+
+    const timedOutInvocation = await page.invokeWebMCPTool(
+      "slow",
+      {},
+      { frameId: "frame-1", timeoutMs: 1 },
+    );
+    await expect(timedOutInvocation.result).rejects.toThrow(
+      'Timed out waiting for WebMCP tool "slow"',
+    );
+
+    session.emit("WebMCP.toolResponded", {
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: "late",
+    });
+
+    const currentInvocation = await page.invokeWebMCPTool(
+      "current",
+      {},
+      { frameId: "frame-1", timeoutMs: 100 },
+    );
+    expect(invokeCount).toBe(2);
+
+    session.emit("WebMCP.toolResponded", {
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: "current",
+    });
+
+    await expect(currentInvocation.result).resolves.toEqual({
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: "current",
+    });
+  });
+
   it("sends cancelInvocation without removing the pending result listener", async () => {
     const session = new MockCDPSession({
       "WebMCP.invokeTool": () => ({ invocationId: "invocation-1" }),
