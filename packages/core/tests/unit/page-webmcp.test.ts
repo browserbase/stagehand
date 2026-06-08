@@ -151,6 +151,43 @@ describe("Page WebMCP", () => {
     });
   });
 
+  it("throws a browser feature error when invokeTool is unsupported", async () => {
+    const session = new MockCDPSession({
+      "WebMCP.invokeTool": () => {
+        const error = new Error("Method not found");
+        Object.assign(error, { code: -32601 });
+        throw error;
+      },
+    });
+    const page = makePage(session);
+
+    await expect(
+      page.invokeWebMCPTool("echo", {}, { frameId: "frame-1", timeoutMs: 1 }),
+    ).rejects.toThrow(StagehandUnsupportedBrowserFeatureError);
+    await expect(
+      page.invokeWebMCPTool("echo", {}, { frameId: "frame-1", timeoutMs: 1 }),
+    ).rejects.toThrow("Chrome/Chromium newer than version 149");
+  });
+
+  it("rethrows invokeTool argument or state errors without classifying them as unsupported browser features", async () => {
+    const invocationError = new Error(
+      "No tool named echo is registered in frame-1",
+    );
+    const session = new MockCDPSession({
+      "WebMCP.invokeTool": () => {
+        throw invocationError;
+      },
+    });
+    const page = makePage(session);
+
+    const error = await page
+      .invokeWebMCPTool("echo", {}, { frameId: "frame-1", timeoutMs: 1 })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBe(invocationError);
+    expect(error).not.toBeInstanceOf(StagehandUnsupportedBrowserFeatureError);
+  });
+
   it("uses listWebMCPTools to resolve a unique frameId when omitted", async () => {
     const session = new MockCDPSession({
       "WebMCP.enable": () => {

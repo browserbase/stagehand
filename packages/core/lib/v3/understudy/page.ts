@@ -149,6 +149,16 @@ function webMCPResultFromEvent(
   };
 }
 
+function isWebMCPUnsupportedBrowserError(error: unknown): boolean {
+  if (error instanceof StagehandUnsupportedBrowserFeatureError) return true;
+
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === -32601) return true;
+
+  const message = error instanceof Error ? error.message : String(error);
+  return /method not found/i.test(message);
+}
+
 export class Page {
   /** Every CDP child session this page owns (top-level + adopted OOPIF sessions). */
   private readonly sessions = new Map<string, CDPSessionLike>(); // sessionId -> session
@@ -932,8 +942,9 @@ export class Page {
     const deferred = createDeferred<WebMCPToolResult>();
     let invocationId: string;
 
+    await this.ensureWebMCPEnabled();
+
     try {
-      await this.ensureWebMCPEnabled();
       this.pendingWebMCPInvokeToolResponses += 1;
       const response = await this.mainSession
         .send<WebMCPInvokeToolResponse>("WebMCP.invokeTool", {
@@ -947,11 +958,15 @@ export class Page {
       invocationId = response.invocationId;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new StagehandUnsupportedBrowserFeatureError(
-        "WebMCP",
-        `Unable to invoke WebMCP tool "${toolName}". ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
-        error,
-      );
+      if (isWebMCPUnsupportedBrowserError(error)) {
+        throw new StagehandUnsupportedBrowserFeatureError(
+          "WebMCP",
+          `Unable to invoke WebMCP tool "${toolName}". ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
+          error,
+        );
+      }
+
+      throw error;
     }
 
     const bufferedResult = this.bufferedWebMCPResults.get(invocationId);
