@@ -36,7 +36,7 @@
     "build:cjs": "tsx scripts/build-cjs.ts",
     "build:esm": "tsx scripts/build-esm.ts",
     "build": "pnpm --filter @browserbasehq/stagehand run --parallel \"/^build:(esm|cjs)$/\"",
-    "prepack": "pnpm build",
+    "prepack": "pnpm -w --dir ../.. exec turbo run build --filter=@browserbasehq/stagehand",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import('node:path').then(path=>import(new URL(path.resolve('examples', n + '.ts'), 'file:')));\" --",
     "test": "pnpm -w --dir ../.. exec turbo run test:core test:e2e --filter=@browserbasehq/stagehand --",
     "test:core": "tsx scripts/test-core.ts",
