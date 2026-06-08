@@ -730,11 +730,15 @@ export class Page {
       .catch((error) => {
         this.teardownWebMCP();
         const message = error instanceof Error ? error.message : String(error);
-        throw new StagehandUnsupportedBrowserFeatureError(
-          "WebMCP",
-          `Unable to enable WebMCP. ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
-          error,
-        );
+        if (isWebMCPUnsupportedBrowserError(error)) {
+          throw new StagehandUnsupportedBrowserFeatureError(
+            "WebMCP",
+            `Unable to enable WebMCP. ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
+            error,
+          );
+        }
+
+        throw error;
       });
 
     return this.webMCPEnablePromise;
@@ -906,11 +910,15 @@ export class Page {
     } catch (error) {
       if (error instanceof StagehandUnsupportedBrowserFeatureError) throw error;
       const message = error instanceof Error ? error.message : String(error);
-      throw new StagehandUnsupportedBrowserFeatureError(
-        "WebMCP",
-        `Unable to list WebMCP tools. ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
-        error,
-      );
+      if (isWebMCPUnsupportedBrowserError(error)) {
+        throw new StagehandUnsupportedBrowserFeatureError(
+          "WebMCP",
+          `Unable to list WebMCP tools. ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
+          error,
+        );
+      }
+
+      throw error;
     }
   }
 
