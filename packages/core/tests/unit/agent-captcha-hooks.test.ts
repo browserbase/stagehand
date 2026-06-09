@@ -825,9 +825,13 @@ describe("v3 cua handler screenshot behavior", () => {
         options: expect.objectContaining({ modifiers: ["Control"] }),
       }),
     ]);
-    // ... and the action is still recorded for replay.
+    // ... and the modifier is persisted on the recorded replay action so
+    // replay re-applies the chord instead of a plain click.
     expect(recordAgentReplayStep).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "act" }),
+      expect.objectContaining({
+        type: "act",
+        actions: [expect.objectContaining({ modifiers: ["Control"] })],
+      }),
     );
   });
 
