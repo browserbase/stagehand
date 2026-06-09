@@ -809,6 +809,7 @@ export class AgentCache {
       Math.round(anchor.y ?? 0),
       deltaX,
       deltaY,
+      { modifiers: step.modifiers },
     );
   }
 

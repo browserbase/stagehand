@@ -36,6 +36,7 @@ import {
 } from "../types/public/sdkErrors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { cdpModifierMask } from "./modifiers.js";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -1433,7 +1434,7 @@ export class Page {
   ): Promise<string> {
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
-    const modifierMask = this.cdpModifierMask(options?.modifiers);
+    const modifierMask = cdpModifierMask(options?.modifiers);
 
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
@@ -1512,33 +1513,6 @@ export class Page {
   }
 
   /**
-   * Convert Playwright-style modifier key names (Control/Shift/Alt/Meta) into
-   * the CDP `Input.dispatchMouseEvent` modifiers bitmask (Alt=1, Control=2,
-   * Meta=4, Shift=8). Unknown names contribute nothing.
-   */
-  private cdpModifierMask(modifiers?: readonly string[]): number {
-    if (!modifiers?.length) return 0;
-    let mask = 0;
-    for (const modifier of modifiers) {
-      switch (modifier) {
-        case "Alt":
-          mask |= 1;
-          break;
-        case "Control":
-          mask |= 2;
-          break;
-        case "Meta":
-          mask |= 4;
-          break;
-        case "Shift":
-          mask |= 8;
-          break;
-      }
-    }
-    return mask;
-  }
-
-  /**
    * Hover at absolute page coordinates (CSS pixels).
    * Dispatches mouseMoved via CDP Input domain on the top-level page target's
    * session.
@@ -1602,7 +1576,7 @@ export class Page {
     deltaY: number,
     options?: { returnXpath?: boolean; modifiers?: string[] },
   ): Promise<string> {
-    const modifierMask = this.cdpModifierMask(options?.modifiers);
+    const modifierMask = cdpModifierMask(options?.modifiers);
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {

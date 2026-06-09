@@ -121,6 +121,8 @@ export interface AgentReplayScrollStep {
   deltaX?: number;
   deltaY?: number;
   anchor?: { x: number; y: number };
+  /** Keyboard modifiers (Playwright key names) held during the scroll. */
+  modifiers?: string[];
 }
 
 export interface AgentReplayWaitStep {

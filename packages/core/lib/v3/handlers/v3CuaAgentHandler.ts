@@ -347,12 +347,13 @@ export class V3CuaAgentHandler {
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
+        const modifiers = this.cuaModifiers(action);
         if (recording) {
           const xpath = await page.click(x as number, y as number, {
             button: (button as "left" | "right" | "middle") ?? "left",
             clickCount: (clickCount as number) ?? 1,
             returnXpath: true,
-            modifiers: this.cuaModifiers(action),
+            modifiers,
           });
           const normalized = ensureXPath(xpath);
           if (normalized) {
@@ -361,6 +362,8 @@ export class V3CuaAgentHandler {
               description: this.describePointerAction("click", x, y),
               method: "click",
               arguments: [],
+              // Persist modifiers so replay re-applies the chord, not a plain click.
+              ...(modifiers ? { modifiers } : {}),
             };
             this.recordCuaActStep(
               action,
@@ -372,7 +375,7 @@ export class V3CuaAgentHandler {
           await page.click(x as number, y as number, {
             button: (button as "left" | "right" | "middle") ?? "left",
             clickCount: (clickCount as number) ?? 1,
-            modifiers: this.cuaModifiers(action),
+            modifiers,
           });
         }
         return { success: true };
@@ -494,12 +497,13 @@ export class V3CuaAgentHandler {
       }
       case "scroll": {
         const { x, y, scroll_x = 0, scroll_y = 0 } = action;
+        const scrollModifiers = this.cuaModifiers(action);
         await page.scroll(
           (x as number) ?? 0,
           (y as number) ?? 0,
           (scroll_x as number) ?? 0,
           (scroll_y as number) ?? 0,
-          { modifiers: this.cuaModifiers(action) },
+          { modifiers: scrollModifiers },
         );
         this.v3.recordAgentReplayStep({
           type: "scroll",
@@ -509,6 +513,8 @@ export class V3CuaAgentHandler {
             typeof x === "number" && typeof y === "number"
               ? { x: Math.round(x), y: Math.round(y) }
               : undefined,
+          // Persist modifiers so replay re-applies the chord (e.g. shift+scroll).
+          ...(scrollModifiers ? { modifiers: scrollModifiers } : {}),
         });
         return { success: true };
       }
