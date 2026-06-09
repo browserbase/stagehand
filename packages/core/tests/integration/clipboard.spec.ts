@@ -39,7 +39,28 @@ async function selectTextareaContents(page: Page, id: string): Promise<void> {
   }, `#${id}`);
 }
 
+async function setupCopyButton(
+  page: Page,
+  options: { id: string; text: string },
+): Promise<void> {
+  await page.goto(TEST_URL, {
+    waitUntil: "domcontentloaded",
+    timeoutMs: 15000,
+  });
+  await page.evaluate(({ id, text }) => {
+    document.body.innerHTML = `<button id="${id}">Copy</button>`;
+    const button = document.getElementById(id) as HTMLButtonElement;
+    button.addEventListener("click", () => {
+      void navigator.clipboard.writeText(text);
+    });
+  }, options);
+}
+
 test.describe("context.clipboard", () => {
+  // Clipboard access requires document focus; run serially so parallel workers
+  // don't race for it and fail with "Document is not focused".
+  test.describe.configure({ mode: "serial" });
+
   let v3: V3;
 
   test.beforeEach(async () => {
@@ -89,6 +110,22 @@ test.describe("context.clipboard", () => {
 
     await expect(v3.context.clipboard.readText()).resolves.toBe("cut me");
     await expect(textareaValue(page, "target")).resolves.toBe("");
+  });
+
+  test("a user-gesture copy event is readable via readText()", async () => {
+    const page = await v3.context.awaitActivePage();
+    await setupCopyButton(page, {
+      id: "copy-button",
+      text: "Hello I'm some text",
+    });
+
+    // A real click provides the user activation Chrome requires to allow the
+    // page's clipboard write; no permissions are pre-granted on the page.
+    await page.locator("#copy-button").click();
+
+    await expect
+      .poll(() => v3.context.clipboard.readText())
+      .toBe("Hello I'm some text");
   });
 
   test("defaults actions to the active page", async () => {
