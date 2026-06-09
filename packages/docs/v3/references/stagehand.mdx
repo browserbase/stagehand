@@ -120,6 +120,16 @@ interface V3Options {
       Additional Chrome launch arguments.
     </ParamField>
 
+    <ParamField path="ignoreDefaultArgs" type="boolean | string[]" optional>
+      Remove default Chrome launch arguments when launching a local browser.
+
+      Pass `true` to remove all default arguments. Pass an array of exact argument strings to remove only those defaults while keeping the rest.
+
+      Stagehand adds these default arguments before your `args`: `--remote-allow-origins=*`, `--no-first-run`, `--no-default-browser-check`, `--disable-dev-shm-usage`, and `--site-per-process`. Chrome Launcher also adds its own default arguments.
+
+      **Default:** `false`
+    </ParamField>
+
     <ParamField path="userDataDir" type="string" optional>
       Path to user data directory for browser profile.
     </ParamField>

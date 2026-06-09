@@ -232,6 +232,9 @@ const stagehand = new Stagehand({
     viewport: { width: 1280, height: 720 },
     executablePath: '/opt/google/chrome/chrome', // Custom Chrome path
     port: 9222, // Fixed CDP debugging port
+    ignoreDefaultArgs: [
+      '--site-per-process',
+    ], // Remove specific default launch args
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -257,6 +260,37 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+
+#### Default Local Launch Arguments
+
+When Stagehand launches a local browser, it adds the following Chrome arguments before any values in `localBrowserLaunchOptions.args`:
+
+```typescript
+[
+  "--remote-allow-origins=*",
+  "--no-first-run",
+  "--no-default-browser-check",
+  "--disable-dev-shm-usage",
+  "--site-per-process",
+]
+```
+
+Chrome Launcher also adds its own default arguments. To remove default arguments, set `localBrowserLaunchOptions.ignoreDefaultArgs`:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    ignoreDefaultArgs: ["--site-per-process"],
+    args: [
+      "--disable-features=site-per-process,IsolateOrigins",
+      "--renderer-process-limit=6",
+    ],
+  },
+});
+```
+
+Use `ignoreDefaultArgs: true` to remove all default arguments. Use a string array to remove only exact matches while preserving the rest.
 
 ## Advanced Configuration
 
