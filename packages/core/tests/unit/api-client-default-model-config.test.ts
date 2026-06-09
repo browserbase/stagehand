@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StagehandAPIClient } from "../../lib/v3/api.js";
+import { V3 as Stagehand } from "../../lib/v3/v3.js";
 import type { ModelConfiguration } from "../../lib/v3/types/public/model.js";
 
 const vertexModel = {
@@ -18,6 +19,20 @@ const vertexModel = {
     vertex: {
       project: "test-gcp-project",
       location: "us-central1",
+    },
+  },
+} as unknown as ModelConfiguration;
+
+const azureEntraModel = {
+  provider: "azure",
+  modelName: "azure/gpt-4.1-mini",
+  auth: {
+    type: "azureEntraId",
+    token: "test-entra-token",
+  },
+  providerOptions: {
+    azure: {
+      resourceName: "test-azure-resource",
     },
   },
 } as unknown as ModelConfiguration;
@@ -40,9 +55,11 @@ function createClientWithExecuteMock() {
 
 describe("StagehandAPIClient default model config", () => {
   let originalFetch: typeof globalThis.fetch;
+  let originalAzureApiKey: string | undefined;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
+    originalAzureApiKey = process.env.AZURE_API_KEY;
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -59,6 +76,11 @@ describe("StagehandAPIClient default model config", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (originalAzureApiKey === undefined) {
+      delete process.env.AZURE_API_KEY;
+    } else {
+      process.env.AZURE_API_KEY = originalAzureApiKey;
+    }
     vi.restoreAllMocks();
   });
 
@@ -338,5 +360,112 @@ describe("StagehandAPIClient default model config", () => {
         }),
       }),
     );
+  });
+
+  it("does not serialize AZURE_API_KEY when constructor Azure Entra auth provides provider credentials", async () => {
+    process.env.AZURE_API_KEY = "env-key-that-should-not-be-sent";
+    const { client, executeMock } = createClientWithExecuteMock();
+
+    await client.init({
+      modelName: "azure/gpt-4.1-mini",
+      modelApiKey: "header-key-that-should-not-be-merged",
+      defaultModelConfig: azureEntraModel,
+    });
+
+    await client.act({ input: "click the login button" });
+
+    expect(executeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "act",
+        args: expect.objectContaining({
+          options: expect.objectContaining({
+            model: expect.objectContaining({
+              provider: "azure",
+              modelName: "azure/gpt-4.1-mini",
+              auth: expect.objectContaining({
+                type: "azureEntraId",
+                token: "test-entra-token",
+              }),
+              providerOptions: {
+                azure: expect.objectContaining({
+                  resourceName: "test-azure-resource",
+                }),
+              },
+            }),
+          }),
+        }),
+      }),
+    );
+
+    const model = executeMock.mock.calls[0][0].args.options.model as Record<
+      string,
+      unknown
+    >;
+    expect(model).not.toHaveProperty("apiKey");
+  });
+
+  it("does not serialize AZURE_API_KEY when per-call Azure Entra auth provides provider credentials", async () => {
+    process.env.AZURE_API_KEY = "env-key-that-should-not-be-sent";
+    const { client, executeMock } = createClientWithExecuteMock();
+
+    await client.init({
+      modelName: "openai/gpt-4.1-mini",
+      modelApiKey: "sk-default",
+    });
+
+    await client.observe({
+      instruction: "find the login button",
+      options: {
+        model: azureEntraModel,
+      },
+    });
+
+    expect(executeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "observe",
+        args: expect.objectContaining({
+          options: expect.objectContaining({
+            model: expect.objectContaining({
+              provider: "azure",
+              modelName: "azure/gpt-4.1-mini",
+              auth: expect.objectContaining({
+                type: "azureEntraId",
+                token: "test-entra-token",
+              }),
+            }),
+          }),
+        }),
+      }),
+    );
+
+    const model = executeMock.mock.calls[0][0].args.options.model as Record<
+      string,
+      unknown
+    >;
+    expect(model).not.toHaveProperty("apiKey");
+  });
+
+  it("does not load AZURE_API_KEY into local constructor config when Azure Entra auth provides provider credentials", () => {
+    process.env.AZURE_API_KEY = "env-key-that-should-not-be-used";
+
+    const stagehand = new Stagehand({
+      env: "LOCAL",
+      model: azureEntraModel,
+    });
+
+    const modelClientOptions = (
+      stagehand as unknown as {
+        modelClientOptions: Record<string, unknown>;
+      }
+    ).modelClientOptions;
+    expect(modelClientOptions).toEqual(
+      expect.objectContaining({
+        auth: expect.objectContaining({
+          type: "azureEntraId",
+          token: "test-entra-token",
+        }),
+      }),
+    );
+    expect(modelClientOptions).not.toHaveProperty("apiKey");
   });
 });

@@ -736,6 +736,15 @@ export function loadApiKeyFromEnv(
   return undefined;
 }
 
+export function hasModelProviderAuth(clientOptions: unknown): boolean {
+  if (!clientOptions || typeof clientOptions !== "object") {
+    return false;
+  }
+
+  const auth = (clientOptions as { auth?: unknown }).auth;
+  return auth !== undefined && auth !== null;
+}
+
 export function trimTrailingTextNode(
   path: string | undefined,
 ): string | undefined {

@@ -184,4 +184,31 @@ describe("LLMProvider", () => {
       "test-entra-token",
     );
   });
+
+  it("does not pass an API key to Azure when provider auth is configured", async () => {
+    const options = toAISDKClientOptions("azure", {
+      apiKey: "env-or-default-key-that-should-not-be-used",
+      auth: {
+        type: "azureEntraId",
+        token: "test-entra-token",
+      },
+      providerOptions: {
+        azure: {
+          resourceName: "test-azure-resource",
+        },
+      },
+    } as never);
+
+    expect(options).not.toHaveProperty("apiKey");
+    expect(options).toEqual(
+      expect.objectContaining({
+        resourceName: "test-azure-resource",
+      }),
+    );
+    const tokenProvider = options?.tokenProvider;
+    expect(typeof tokenProvider).toBe("function");
+    await expect((tokenProvider as () => Promise<string>)()).resolves.toBe(
+      "test-entra-token",
+    );
+  });
 });

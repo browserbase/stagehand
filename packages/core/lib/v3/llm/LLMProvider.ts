@@ -79,13 +79,15 @@ export function toAISDKClientOptions(
     return clientOptions as AISDKProviderClientOptions | undefined;
   }
 
-  const { auth, providerOptions, ...rest } = clientOptions;
+  const { auth, providerOptions, apiKey, ...rest } = clientOptions;
+  const apiKeyOption = !auth && apiKey ? { apiKey } : {};
 
   if (subProvider === "azure") {
     const azureOptions = providerOptions?.azure;
 
     return {
       ...rest,
+      ...apiKeyOption,
       ...(azureOptions ?? {}),
       ...(auth?.type === "azureEntraId"
         ? { tokenProvider: async () => auth.token }
@@ -101,6 +103,7 @@ export function toAISDKClientOptions(
 
   return {
     ...rest,
+    ...apiKeyOption,
     ...(vertexOptions ?? {}),
     ...(auth?.type === "googleServiceAccount"
       ? {

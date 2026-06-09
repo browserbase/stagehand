@@ -1,5 +1,5 @@
 import makeFetchCookie from "fetch-cookie";
-import { loadApiKeyFromEnv } from "../utils.js";
+import { hasModelProviderAuth, loadApiKeyFromEnv } from "../utils.js";
 import { STAGEHAND_VERSION } from "../version.js";
 import {
   StagehandAPIError,
@@ -658,8 +658,9 @@ export class StagehandAPIClient {
         provider && provider === this.modelProvider
           ? this.getDefaultModelConfig()
           : undefined;
-      const apiKey =
-        provider && provider !== this.modelProvider
+      const apiKey = hasModelProviderAuth(inheritedDefault)
+        ? undefined
+        : provider && provider !== this.modelProvider
           ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
           : this.modelApiKey;
       return {
@@ -670,12 +671,19 @@ export class StagehandAPIClient {
     }
 
     const provider = this.getModelProvider(model.modelName);
+    const modelHasApiKey = Boolean((model as { apiKey?: string }).apiKey);
     const inheritedDefault =
-      provider && provider === this.modelProvider
+      provider &&
+      provider === this.modelProvider &&
+      !hasModelProviderAuth(model) &&
+      !modelHasApiKey
         ? this.getDefaultModelConfig()
         : undefined;
-    const apiKey =
-      !model.apiKey && provider && provider !== this.modelProvider
+    const hasProviderAuth =
+      hasModelProviderAuth(model) || hasModelProviderAuth(inheritedDefault);
+    const apiKey = hasProviderAuth
+      ? undefined
+      : !model.apiKey && provider && provider !== this.modelProvider
         ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
         : !model.apiKey
           ? this.modelApiKey
