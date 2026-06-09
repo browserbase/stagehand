@@ -310,6 +310,7 @@ export class ActHandler {
         action.selector,
         resolvedArgs,
         settleTimeout,
+        action.modifiers,
       );
       return {
         success: true,

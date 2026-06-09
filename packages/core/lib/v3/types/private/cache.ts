@@ -90,6 +90,7 @@ export type AgentReplayStep =
   | AgentReplayScrollStep
   | AgentReplayWaitStep
   | AgentReplayNavBackStep
+  | AgentReplayRefreshStep
   | AgentReplayKeysStep
   | { type: string; [key: string]: unknown };
 
@@ -120,6 +121,8 @@ export interface AgentReplayScrollStep {
   deltaX?: number;
   deltaY?: number;
   anchor?: { x: number; y: number };
+  /** Keyboard modifiers (Playwright key names) held during the scroll. */
+  modifiers?: string[];
 }
 
 export interface AgentReplayWaitStep {
@@ -129,6 +132,11 @@ export interface AgentReplayWaitStep {
 
 export interface AgentReplayNavBackStep {
   type: "navback";
+  waitUntil?: LoadState;
+}
+
+export interface AgentReplayRefreshStep {
+  type: "refresh";
   waitUntil?: LoadState;
 }
 

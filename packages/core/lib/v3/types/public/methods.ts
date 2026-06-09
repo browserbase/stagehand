@@ -41,6 +41,8 @@ export interface Action {
   description: string;
   method?: string;
   arguments?: string[];
+  /** Keyboard modifiers (Playwright key names) held during a click/scroll. */
+  modifiers?: string[];
 }
 
 export interface HistoryEntry {

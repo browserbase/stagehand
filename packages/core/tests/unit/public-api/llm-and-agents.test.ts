@@ -67,6 +67,7 @@ describe("LLM and Agents public API types", () => {
       "google/gemini-3-flash-preview",
       "google/gemini-3-pro-preview",
       "microsoft/fara-7b",
+      "yutori/n1.5-latest",
     ] as const;
 
     it("AvailableCuaModel matches the known literals", () => {

@@ -88,8 +88,10 @@ export class V3CuaAgentHandler {
       this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
+      const currentUrl = page.url();
 
-      await this.emitCuaScreenshot(screenshotBuffer, page.url());
+      this.agentClient.setCurrentUrl(currentUrl);
+      await this.emitCuaScreenshot(screenshotBuffer, currentUrl);
 
       return screenshotBuffer.toString("base64"); // base64 png
     });
@@ -206,6 +208,13 @@ export class V3CuaAgentHandler {
           }
         }
         throw error;
+      } finally {
+        // Refresh the client's URL on both success and failure: a throwing
+        // action (e.g. a click or goto that navigated before erroring) can
+        // still change the page, so the next tool result's "Current URL" suffix
+        // must not report the pre-action URL. updateClientUrl swallows its own
+        // errors, so it cannot mask the original action error here.
+        await this.updateClientUrl();
       }
     });
 
@@ -338,11 +347,13 @@ export class V3CuaAgentHandler {
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
+        const modifiers = this.cuaModifiers(action);
         if (recording) {
           const xpath = await page.click(x as number, y as number, {
             button: (button as "left" | "right" | "middle") ?? "left",
             clickCount: (clickCount as number) ?? 1,
             returnXpath: true,
+            modifiers,
           });
           const normalized = ensureXPath(xpath);
           if (normalized) {
@@ -351,6 +362,8 @@ export class V3CuaAgentHandler {
               description: this.describePointerAction("click", x, y),
               method: "click",
               arguments: [],
+              // Persist modifiers so replay re-applies the chord, not a plain click.
+              ...(modifiers ? { modifiers } : {}),
             };
             this.recordCuaActStep(
               action,
@@ -362,6 +375,7 @@ export class V3CuaAgentHandler {
           await page.click(x as number, y as number, {
             button: (button as "left" | "right" | "middle") ?? "left",
             clickCount: (clickCount as number) ?? 1,
+            modifiers,
           });
         }
         return { success: true };
@@ -452,10 +466,14 @@ export class V3CuaAgentHandler {
       case "keypress": {
         const { keys } = action;
         const keyList = Array.isArray(keys) ? keys : [keys];
+        const delay =
+          typeof action.holdMs === "number"
+            ? Math.max(0, Math.min(action.holdMs, 100_000))
+            : undefined;
         const stagehandActions: Action[] = [];
         for (const rawKey of keyList) {
           const mapped = mapKeyToPlaywright(String(rawKey ?? ""));
-          await page.keyPress(mapped);
+          await page.keyPress(mapped, delay ? { delay } : undefined);
           if (recording) {
             stagehandActions.push({
               selector: "xpath=/html",
@@ -479,11 +497,13 @@ export class V3CuaAgentHandler {
       }
       case "scroll": {
         const { x, y, scroll_x = 0, scroll_y = 0 } = action;
+        const scrollModifiers = this.cuaModifiers(action);
         await page.scroll(
           (x as number) ?? 0,
           (y as number) ?? 0,
           (scroll_x as number) ?? 0,
           (scroll_y as number) ?? 0,
+          { modifiers: scrollModifiers },
         );
         this.v3.recordAgentReplayStep({
           type: "scroll",
@@ -493,6 +513,8 @@ export class V3CuaAgentHandler {
             typeof x === "number" && typeof y === "number"
               ? { x: Math.round(x), y: Math.round(y) }
               : undefined,
+          // Persist modifiers so replay re-applies the chord (e.g. shift+scroll).
+          ...(scrollModifiers ? { modifiers: scrollModifiers } : {}),
         });
         return { success: true };
       }
@@ -599,6 +621,19 @@ export class V3CuaAgentHandler {
         }
         return { success: true };
       }
+      case "refresh": {
+        // True reload (re-fetches the current document, preserves URL/fragment)
+        // rather than goto(currentUrl), which would no-op on fragment URLs.
+        // Recorded as a dedicated "refresh" replay step so replay reloads too.
+        await page.reload({ waitUntil: "load" });
+        if (recording) {
+          this.v3.recordAgentReplayStep({
+            type: "refresh",
+            waitUntil: "load",
+          });
+        }
+        return { success: true };
+      }
       case "open_web_browser": {
         // Browser is already open, this is a no-op
         return { success: true };
@@ -618,6 +653,22 @@ export class V3CuaAgentHandler {
           error: `Unknown action ${String(action.type)}`,
         };
     }
+  }
+
+  /**
+   * Map a CUA action's `modifier` (Navigator n1.5 lowercase key names, e.g.
+   * "ctrl" or "ctrl+shift") to Playwright-style modifier names for the
+   * page.click/page.scroll `modifiers` option. Returns undefined when none,
+   * so the action is dispatched without modifiers.
+   */
+  private cuaModifiers(action: AgentAction): string[] | undefined {
+    if (typeof action.modifier !== "string") return undefined;
+    const keys = action.modifier
+      .trim()
+      .split(/[+\s]+/)
+      .filter(Boolean)
+      .map((key) => mapKeyToPlaywright(key));
+    return keys.length > 0 ? keys : undefined;
   }
 
   // helper to make pointer target human-readable for logging
