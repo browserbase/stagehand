@@ -118,10 +118,11 @@ export function getRequestModelConfig(
 
   const body = bodyResult.data;
   const model = body.options?.model;
+  const modelApiKey = model && "apiKey" in model ? model.apiKey : undefined;
   const configResult = requestModelConfigSchema.safeParse({
     model,
     modelName: model?.modelName ?? body.modelName,
-    apiKey: model?.apiKey ?? getOptionalHeader(request, "x-model-api-key"),
+    apiKey: modelApiKey ?? getOptionalHeader(request, "x-model-api-key"),
   });
   if (!configResult.success) {
     return configResult;

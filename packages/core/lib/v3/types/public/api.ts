@@ -233,27 +233,35 @@ export const VertexModelConfigObjectSchema = ModelConfigBaseSchema.extend({
   .strict()
   .meta({ id: "VertexModelConfigObject" });
 
-export const AzureModelConfigObjectSchema = ModelConfigBaseSchema.extend({
+const AzureModelConfigBaseSchema = ModelConfigBaseSchema.extend({
   provider: z.literal("azure").meta({
     description: "Azure OpenAI model provider",
-  }),
-  auth: AzureEntraIdAuthSchema.optional().meta({
-    description: "Azure provider authentication configuration",
   }),
   providerOptions: AzureModelProviderOptionsSchema.meta({
     description: "Azure provider-specific model configuration",
   }),
-})
-  .strict()
-  .superRefine((model, ctx) => {
-    if (model.apiKey && model.auth) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["auth"],
-        message: "Provide either apiKey or Azure Entra auth, not both.",
-      });
-    }
-  })
+}).strict();
+
+export const AzureEntraModelConfigObjectSchema =
+  AzureModelConfigBaseSchema.omit({ apiKey: true })
+    .extend({
+      auth: AzureEntraIdAuthSchema.meta({
+        description: "Azure provider authentication configuration",
+      }),
+    })
+    .strict()
+    .meta({ id: "AzureEntraModelConfigObject" });
+
+export const AzureApiKeyModelConfigObjectSchema =
+  AzureModelConfigBaseSchema.strict().meta({
+    id: "AzureApiKeyModelConfigObject",
+  });
+
+export const AzureModelConfigObjectSchema = z
+  .union([
+    AzureEntraModelConfigObjectSchema,
+    AzureApiKeyModelConfigObjectSchema,
+  ])
   .meta({ id: "AzureModelConfigObject" });
 
 export const ModelConfigObjectSchema = z
@@ -1297,6 +1305,12 @@ export type VertexModelConfigObject = z.infer<
 >;
 export type AzureModelConfigObject = z.infer<
   typeof AzureModelConfigObjectSchema
+>;
+export type AzureEntraModelConfigObject = z.infer<
+  typeof AzureEntraModelConfigObjectSchema
+>;
+export type AzureApiKeyModelConfigObject = z.infer<
+  typeof AzureApiKeyModelConfigObjectSchema
 >;
 export type GoogleServiceAccountCredentials = z.infer<
   typeof GoogleServiceAccountCredentialsSchema

@@ -8,6 +8,7 @@ import {
   getStagehandInitModelConfig,
   type RequestModelConfig,
 } from "../../src/lib/header.js";
+import { withModelApiKeyFallback } from "../../src/lib/InMemorySessionStore.js";
 
 function createRequest({
   body,
@@ -147,5 +148,54 @@ describe("getRequestModelConfig", () => {
 
     const result = getStagehandInitModelConfig(request);
     assert.equal(result.success, false);
+  });
+});
+
+describe("withModelApiKeyFallback", () => {
+  it("does not merge request header API keys into provider-authenticated model configs", () => {
+    const model = {
+      provider: "azure",
+      modelName: "azure/gpt-4.1-mini",
+      auth: {
+        type: "azureEntraId",
+        token: "test-entra-token",
+      },
+      providerOptions: {
+        azure: {
+          resourceName: "test-azure-resource",
+        },
+      },
+    } as const;
+
+    assert.deepEqual(withModelApiKeyFallback(model, "sk-header"), model);
+  });
+
+  it("still uses request header API keys as a fallback for simple model configs", () => {
+    assert.deepEqual(
+      withModelApiKeyFallback(
+        { modelName: "openai/gpt-4.1-mini" },
+        "sk-header",
+      ),
+      {
+        modelName: "openai/gpt-4.1-mini",
+        apiKey: "sk-header",
+      },
+    );
+  });
+
+  it("does not overwrite per-model API keys with request header API keys", () => {
+    assert.deepEqual(
+      withModelApiKeyFallback(
+        {
+          modelName: "openai/gpt-4.1-mini",
+          apiKey: "sk-body",
+        },
+        "sk-header",
+      ),
+      {
+        modelName: "openai/gpt-4.1-mini",
+        apiKey: "sk-body",
+      },
+    );
   });
 });
