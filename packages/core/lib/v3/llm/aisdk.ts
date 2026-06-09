@@ -263,9 +263,18 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           | ReturnType<typeof jsonSchema> = options.response_model.schema;
         let resolvedProviderOptions = providerOptions;
         if (useNativeStructuredOutput) {
-          objectSchema = jsonSchema(
-            toJsonSchema(options.response_model.schema),
-          );
+          // Pre-built JSON schema bypasses the AI SDK's own zod validation, so
+          // re-attach it via `validate` to keep parity with the forced-tool path
+          // (refinements/transforms/coercions still run on the model output).
+          const zodSchema = options.response_model.schema;
+          objectSchema = jsonSchema(toJsonSchema(zodSchema), {
+            validate: (value) => {
+              const parsed = zodSchema.safeParse(value);
+              return parsed.success
+                ? { success: true, value: parsed.data }
+                : { success: false, error: parsed.error };
+            },
+          });
           resolvedProviderOptions = {
             ...providerOptions,
             anthropic: {
