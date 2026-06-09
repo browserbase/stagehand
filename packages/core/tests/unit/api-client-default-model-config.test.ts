@@ -445,6 +445,51 @@ describe("StagehandAPIClient default model config", () => {
     expect(model).not.toHaveProperty("apiKey");
   });
 
+  it("keeps same-provider constructor options when per-call Azure Entra auth overrides credentials", async () => {
+    const { client, executeMock } = createClientWithExecuteMock();
+
+    await client.init({
+      modelName: "azure/gpt-4.1-mini",
+      modelApiKey: "header-key-that-should-not-be-merged",
+      defaultModelConfig: azureEntraModel,
+    });
+
+    await client.observe({
+      instruction: "find the login button",
+      options: {
+        model: {
+          provider: "azure",
+          modelName: "azure/gpt-4.1-mini",
+          auth: {
+            type: "azureEntraId",
+            token: "fresh-per-call-token",
+          },
+        } as unknown as ModelConfiguration,
+      },
+    });
+
+    const model = executeMock.mock.calls[0][0].args.options.model as Record<
+      string,
+      unknown
+    >;
+    expect(model).toEqual(
+      expect.objectContaining({
+        provider: "azure",
+        modelName: "azure/gpt-4.1-mini",
+        auth: {
+          type: "azureEntraId",
+          token: "fresh-per-call-token",
+        },
+        providerOptions: {
+          azure: {
+            resourceName: "test-azure-resource",
+          },
+        },
+      }),
+    );
+    expect(model).not.toHaveProperty("apiKey");
+  });
+
   it("does not load AZURE_API_KEY into local constructor config when Azure Entra auth provides provider credentials", () => {
     process.env.AZURE_API_KEY = "env-key-that-should-not-be-used";
 
@@ -467,5 +512,41 @@ describe("StagehandAPIClient default model config", () => {
       }),
     );
     expect(modelClientOptions).not.toHaveProperty("apiKey");
+  });
+
+  it("keeps same-provider constructor options when a local per-call API key overrides credentials", () => {
+    const stagehand = new Stagehand({
+      env: "LOCAL",
+      model: {
+        modelName: "openai/gpt-4.1-mini",
+        apiKey: "sk-constructor",
+        baseURL: "https://proxy.example.com/v1",
+        headers: {
+          "x-stagehand-test": "yes",
+        },
+      },
+    });
+    const getClient = vi.fn().mockReturnValue({});
+    const privateStagehand = stagehand as unknown as {
+      llmProvider: { getClient: typeof getClient };
+      resolveLlmClient(model: ModelConfiguration): unknown;
+    };
+    privateStagehand.llmProvider.getClient = getClient;
+
+    privateStagehand.resolveLlmClient({
+      modelName: "openai/gpt-4.1-mini",
+      apiKey: "sk-per-call",
+    } as ModelConfiguration);
+
+    const clientOptions = getClient.mock.calls[0][1] as Record<string, unknown>;
+    expect(clientOptions).toEqual(
+      expect.objectContaining({
+        apiKey: "sk-per-call",
+        baseURL: "https://proxy.example.com/v1",
+        headers: {
+          "x-stagehand-test": "yes",
+        },
+      }),
+    );
   });
 });

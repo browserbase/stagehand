@@ -10,7 +10,11 @@ import {
   StagehandZodSchema,
   toJsonSchema,
 } from "./zodCompat.js";
-import { hasModelProviderAuth, loadApiKeyFromEnv } from "../utils.js";
+import {
+  getInheritableModelOptions,
+  hasModelProviderAuth,
+  loadApiKeyFromEnv,
+} from "../utils.js";
 import { extractModelName } from "../modelUtils.js";
 import { StagehandLogger, LoggerOptions } from "../logger.js";
 import { ActCache } from "./cache/ActCache.js";
@@ -588,13 +592,19 @@ export class V3 {
     const overrideProvider = String(modelName).split("/")[0];
     const baseProvider = String(this.modelName).split("/")[0];
 
-    const shouldInheritBaseOptions =
-      overrideProvider === baseProvider &&
-      !hasModelProviderAuth(clientOptions) &&
-      !(clientOptions as { apiKey?: string } | undefined)?.apiKey;
+    const overrideHasCredentials =
+      hasModelProviderAuth(clientOptions) ||
+      Boolean((clientOptions as { apiKey?: string } | undefined)?.apiKey);
+
+    const inheritedOptions =
+      overrideProvider === baseProvider
+        ? overrideHasCredentials
+          ? getInheritableModelOptions(this.modelClientOptions)
+          : this.modelClientOptions
+        : undefined;
 
     const mergedOptions = {
-      ...(shouldInheritBaseOptions ? this.modelClientOptions : {}),
+      ...(inheritedOptions ?? {}),
       ...(clientOptions ?? {}),
     } as ClientOptions;
 

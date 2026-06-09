@@ -745,6 +745,22 @@ export function hasModelProviderAuth(clientOptions: unknown): boolean {
   return auth !== undefined && auth !== null;
 }
 
+export function getInheritableModelOptions<T extends object>(
+  clientOptions: T | undefined,
+): Partial<T> | undefined {
+  if (!clientOptions) {
+    return undefined;
+  }
+
+  const inheritableOptions = {
+    ...(clientOptions as Record<string, unknown>),
+  };
+  delete inheritableOptions.apiKey;
+  delete inheritableOptions.auth;
+
+  return inheritableOptions as Partial<T>;
+}
+
 export function trimTrailingTextNode(
   path: string | undefined,
 ): string | undefined {

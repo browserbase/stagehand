@@ -1,5 +1,9 @@
 import makeFetchCookie from "fetch-cookie";
-import { hasModelProviderAuth, loadApiKeyFromEnv } from "../utils.js";
+import {
+  getInheritableModelOptions,
+  hasModelProviderAuth,
+  loadApiKeyFromEnv,
+} from "../utils.js";
 import { STAGEHAND_VERSION } from "../version.js";
 import {
   StagehandAPIError,
@@ -671,27 +675,31 @@ export class StagehandAPIClient {
     }
 
     const provider = this.getModelProvider(model.modelName);
-    const modelHasApiKey = Boolean((model as { apiKey?: string }).apiKey);
-    const inheritedDefault =
-      provider &&
-      provider === this.modelProvider &&
-      !hasModelProviderAuth(model) &&
-      !modelHasApiKey
+    const modelHasCredentials =
+      hasModelProviderAuth(model) ||
+      Boolean((model as { apiKey?: string }).apiKey);
+    const defaultConfig =
+      provider && provider === this.modelProvider
         ? this.getDefaultModelConfig()
         : undefined;
-    const hasProviderAuth =
-      hasModelProviderAuth(model) || hasModelProviderAuth(inheritedDefault);
+    const inheritedDefault = modelHasCredentials
+      ? getInheritableModelOptions(defaultConfig)
+      : defaultConfig;
+    const mergedModel = {
+      ...(inheritedDefault ?? {}),
+      ...model,
+    } as PreparedModelConfig;
+    const hasProviderAuth = hasModelProviderAuth(mergedModel);
     const apiKey = hasProviderAuth
       ? undefined
-      : !model.apiKey && provider && provider !== this.modelProvider
+      : !mergedModel.apiKey && provider && provider !== this.modelProvider
         ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
-        : !model.apiKey
+        : !mergedModel.apiKey
           ? this.modelApiKey
           : undefined;
 
     return {
-      ...inheritedDefault,
-      ...model,
+      ...mergedModel,
       ...(apiKey ? { apiKey } : {}),
     } as PreparedModelConfig;
   }
