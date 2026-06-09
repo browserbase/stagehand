@@ -5,6 +5,7 @@ import {
   CoreUserMessage,
   generateObject,
   generateText,
+  jsonSchema,
   ImagePart,
   NoObjectGeneratedError,
   TextPart,
@@ -30,6 +31,12 @@ function inferProviderName(modelId: string): string | undefined {
   const [providerName] = modelId.split("/");
   return providerName || undefined;
 }
+
+// Anthropic model IDs observed (this process) to reject forced tool use, i.e.
+// "tool_choice forces tool use is not compatible with this model" (e.g.
+// claude-fable-5). Cached so structured-output calls for these models skip the
+// doomed forced attempt instead of eating a 400 every time.
+const forcedToolUseUnsupportedModels = new Set<string>();
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -242,16 +249,64 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         });
       }
 
-      try {
-        objectResponse = await generateObject({
+      // The AI SDK emulates generateObject for Anthropic via a forced `json` tool
+      // (tool_choice: {type:"tool"}). Some models (e.g. claude-fable-5) reject
+      // forced tool use. For those, fall back to Anthropic's native structured
+      // outputs (structuredOutputMode:"outputFormat"),
+      // which additionally require a strict JSON schema (additionalProperties:false
+      // on every object) — the AI SDK's converter doesn't add that for Stagehand's
+      // Standard-Schema-wrapped zod, so we hand it a pre-built strict schema.
+      const isAnthropic = this.model.provider?.startsWith("anthropic") ?? false;
+      const runGenerateObject = (useNativeStructuredOutput: boolean) => {
+        let objectSchema:
+          | typeof options.response_model.schema
+          | ReturnType<typeof jsonSchema> = options.response_model.schema;
+        let resolvedProviderOptions = providerOptions;
+        if (useNativeStructuredOutput) {
+          objectSchema = jsonSchema(
+            toJsonSchema(options.response_model.schema),
+          );
+          resolvedProviderOptions = {
+            ...providerOptions,
+            anthropic: {
+              ...providerOptions.anthropic,
+              structuredOutputMode: "outputFormat",
+            },
+          };
+        }
+        return generateObject({
           model: this.model,
           messages: formattedMessages,
-          schema: options.response_model.schema,
+          schema: objectSchema,
           temperature,
-          ...(Object.keys(providerOptions).length > 0
-            ? { providerOptions }
+          ...(Object.keys(resolvedProviderOptions).length > 0
+            ? { providerOptions: resolvedProviderOptions }
             : {}),
         });
+      };
+
+      try {
+        // Skip the doomed forced attempt if this model already rejected it once.
+        const skipForcedToolUse =
+          isAnthropic && forcedToolUseUnsupportedModels.has(this.model.modelId);
+        try {
+          objectResponse = await runGenerateObject(skipForcedToolUse);
+        } catch (forcedErr) {
+          const message =
+            forcedErr instanceof Error ? forcedErr.message : String(forcedErr);
+          const isForcedToolRejection =
+            isAnthropic &&
+            !skipForcedToolUse &&
+            /tool_choice|tool choice/i.test(message);
+          if (!isForcedToolRejection) throw forcedErr;
+          forcedToolUseUnsupportedModels.add(this.model.modelId);
+          this.logger?.({
+            category: "aisdk",
+            message: `Model ${this.model.modelId} rejected forced tool use; retrying with native structured outputs`,
+            level: 1,
+          });
+          objectResponse = await runGenerateObject(true);
+        }
       } catch (err) {
         // Log error response to maintain request/response pairing
         FlowLogger.logLlmResponse({

@@ -101,17 +101,39 @@ Call the "done" tool with:
       : "Provide your final assessment.",
   };
 
-  const result = await generateText({
+  // Force a final "done" tool call. Some models (e.g. claude-fable-5) reject
+  // forced tool use with "tool_choice forces tool use is not compatible with
+  // this model". Try forced first; on that specific error, retry with toolChoice
+  // "auto" — the prompt already instructs the model to call "done", and the
+  // no-tool-call branch below handles a plain-text answer.
+  const baseRequest = {
     model,
     system: systemPrompt,
     messages: [...inputMessages, userPrompt],
     tools: { done: doneTool } as ToolSet,
-    toolChoice: { type: "tool", toolName: "done" },
     providerOptions: {
       google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
       openai: { store: false },
     },
-  });
+  } satisfies Omit<Parameters<typeof generateText>[0], "toolChoice">;
+
+  let result: Awaited<ReturnType<typeof generateText>>;
+  try {
+    result = await generateText({
+      ...baseRequest,
+      toolChoice: { type: "tool", toolName: "done" },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // Only swallow the tool_choice incompatibility — rethrow anything else.
+    if (!/tool_choice|tool choice/i.test(message)) throw error;
+    logger({
+      category: "agent",
+      message: `Forced "done" tool call rejected; retrying with toolChoice "auto" (${message})`,
+      level: 1,
+    });
+    result = await generateText({ ...baseRequest, toolChoice: "auto" });
+  }
 
   const doneToolCall = result.toolCalls.find((tc) => tc.toolName === "done");
   const outputMessages: ModelMessage[] = [
