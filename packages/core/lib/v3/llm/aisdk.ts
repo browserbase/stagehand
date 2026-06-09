@@ -268,8 +268,10 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           // (refinements/transforms/coercions still run on the model output).
           const zodSchema = options.response_model.schema;
           objectSchema = jsonSchema(toJsonSchema(zodSchema), {
-            validate: (value) => {
-              const parsed = zodSchema.safeParse(value);
+            // async so schemas with async refinements/transforms validate
+            // correctly (safeParse throws on those; safeParseAsync handles both).
+            validate: async (value) => {
+              const parsed = await zodSchema.safeParseAsync(value);
               return parsed.success
                 ? { success: true, value: parsed.data }
                 : { success: false, error: parsed.error };
