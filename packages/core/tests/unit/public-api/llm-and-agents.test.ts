@@ -28,6 +28,25 @@ describe("LLM and Agents public API types", () => {
 
       void vertexConfig;
     });
+
+    it("accepts Azure provider options in model config", () => {
+      const azureConfig = {
+        provider: "azure",
+        modelName: "azure/gpt-4.1-mini",
+        auth: {
+          type: "azureEntraId",
+          token: "test-entra-token",
+        },
+        providerOptions: {
+          azure: {
+            resourceName: "test-azure-resource",
+            apiVersion: "2024-10-01-preview",
+          },
+        },
+      } satisfies Stagehand.ModelConfiguration;
+
+      void azureConfig;
+    });
   });
 
   describe("AISdkClient", () => {

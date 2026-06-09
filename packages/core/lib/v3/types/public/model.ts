@@ -38,7 +38,12 @@ export interface GoogleServiceAccountAuth {
   universeDomain?: string;
 }
 
-export type ModelAuth = GoogleServiceAccountAuth;
+export interface AzureEntraIdAuth {
+  type: "azureEntraId";
+  token: string;
+}
+
+export type ModelAuth = GoogleServiceAccountAuth | AzureEntraIdAuth;
 
 export interface VertexProviderOptions {
   project: string;
@@ -47,9 +52,17 @@ export interface VertexProviderOptions {
   headers?: Record<string, string>;
 }
 
-export interface ModelProviderOptions {
-  vertex: VertexProviderOptions;
+export interface AzureProviderOptions {
+  resourceName?: string;
+  baseURL?: string;
+  apiVersion?: string;
+  useDeploymentBasedUrls?: boolean;
+  headers?: Record<string, string>;
 }
+
+export type ModelProviderOptions =
+  | { vertex: VertexProviderOptions; azure?: never }
+  | { azure: AzureProviderOptions; vertex?: never };
 
 export type AnthropicJsonSchemaObject = {
   definitions?: {

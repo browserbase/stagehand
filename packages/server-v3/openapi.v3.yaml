@@ -230,9 +230,21 @@ components:
         - type
         - credentials
       additionalProperties: false
-    ModelAuth:
-      oneOf:
-        - $ref: "#/components/schemas/GoogleServiceAccountAuth"
+    AzureEntraIdAuth:
+      type: object
+      properties:
+        type:
+          description: Use a Microsoft Entra ID bearer token for authentication
+          type: string
+          const: azureEntraId
+        token:
+          description: Microsoft Entra ID bearer token for Azure OpenAI
+          type: string
+          minLength: 1
+      required:
+        - type
+        - token
+      additionalProperties: false
     VertexProviderOptions:
       type: object
       properties:
@@ -259,7 +271,33 @@ components:
         - project
         - location
       additionalProperties: false
-    ModelProviderOptions:
+    AzureProviderOptions:
+      type: object
+      properties:
+        resourceName:
+          description: Azure OpenAI resource name
+          example: my-azure-openai-resource
+          type: string
+        baseURL:
+          description: Base URL for the Azure OpenAI provider
+          type: string
+          format: uri
+        apiVersion:
+          description: Azure OpenAI API version
+          example: 2024-10-01-preview
+          type: string
+        useDeploymentBasedUrls:
+          description: Whether to use deployment-based Azure OpenAI URLs
+          type: boolean
+        headers:
+          description: Custom headers sent with every request to the Azure OpenAI provider
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+      additionalProperties: false
+    VertexModelProviderOptions:
       type: object
       properties:
         vertex:
@@ -267,6 +305,15 @@ components:
           $ref: "#/components/schemas/VertexProviderOptions"
       required:
         - vertex
+      additionalProperties: false
+    AzureModelProviderOptions:
+      type: object
+      properties:
+        azure:
+          description: Azure OpenAI provider-specific settings
+          $ref: "#/components/schemas/AzureProviderOptions"
+      required:
+        - azure
       additionalProperties: false
     GenericModelConfigObject:
       type: object
@@ -333,19 +380,94 @@ components:
           const: vertex
         auth:
           description: Vertex provider authentication configuration
-          $ref: "#/components/schemas/ModelAuth"
+          $ref: "#/components/schemas/GoogleServiceAccountAuth"
         providerOptions:
           description: Vertex provider-specific model configuration
-          $ref: "#/components/schemas/ModelProviderOptions"
+          $ref: "#/components/schemas/VertexModelProviderOptions"
       required:
         - modelName
         - provider
         - auth
         - providerOptions
       additionalProperties: false
+    AzureEntraModelConfigObject:
+      type: object
+      properties:
+        modelName:
+          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          example: openai/gpt-5.4-mini
+          type: string
+        baseURL:
+          description: Base URL for the model provider
+          example: https://api.openai.com/v1
+          type: string
+          format: uri
+        headers:
+          description: Custom headers sent with every request to the model provider
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+        provider:
+          description: Azure OpenAI model provider
+          type: string
+          const: azure
+        providerOptions:
+          description: Azure provider-specific model configuration
+          $ref: "#/components/schemas/AzureModelProviderOptions"
+        auth:
+          description: Azure provider authentication configuration
+          $ref: "#/components/schemas/AzureEntraIdAuth"
+      required:
+        - modelName
+        - provider
+        - providerOptions
+        - auth
+      additionalProperties: false
+    AzureApiKeyModelConfigObject:
+      type: object
+      properties:
+        modelName:
+          description: Model name string with provider prefix (e.g., 'openai/gpt-5-nano')
+          example: openai/gpt-5.4-mini
+          type: string
+        apiKey:
+          description: API key for the model provider
+          example: sk-some-openai-api-key
+          type: string
+        baseURL:
+          description: Base URL for the model provider
+          example: https://api.openai.com/v1
+          type: string
+          format: uri
+        headers:
+          description: Custom headers sent with every request to the model provider
+          type: object
+          propertyNames:
+            type: string
+          additionalProperties:
+            type: string
+        provider:
+          description: Azure OpenAI model provider
+          type: string
+          const: azure
+        providerOptions:
+          description: Azure provider-specific model configuration
+          $ref: "#/components/schemas/AzureModelProviderOptions"
+      required:
+        - modelName
+        - provider
+        - providerOptions
+      additionalProperties: false
+    AzureModelConfigObject:
+      anyOf:
+        - $ref: "#/components/schemas/AzureEntraModelConfigObject"
+        - $ref: "#/components/schemas/AzureApiKeyModelConfigObject"
     ModelConfigObject:
       anyOf:
         - $ref: "#/components/schemas/VertexModelConfigObject"
+        - $ref: "#/components/schemas/AzureModelConfigObject"
         - $ref: "#/components/schemas/GenericModelConfigObject"
     ModelConfig:
       $ref: "#/components/schemas/ModelConfigObject"
@@ -2082,6 +2204,20 @@ components:
         - status
         - message
       additionalProperties: false
+    ModelAuth:
+      oneOf:
+        - $ref: "#/components/schemas/GoogleServiceAccountAuth"
+        - $ref: "#/components/schemas/AzureEntraIdAuth"
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          googleServiceAccount: "#/components/schemas/GoogleServiceAccountAuth"
+          azureEntraId: "#/components/schemas/AzureEntraIdAuth"
+    ModelProviderOptions:
+      anyOf:
+        - $ref: "#/components/schemas/VertexModelProviderOptions"
+        - $ref: "#/components/schemas/AzureModelProviderOptions"
     SessionIdParams:
       type: object
       properties:

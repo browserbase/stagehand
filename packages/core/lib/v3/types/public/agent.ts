@@ -452,7 +452,8 @@ export type AgentType =
   | "google"
   | "microsoft"
   | "bedrock"
-  | "vertex";
+  | "vertex"
+  | "azure";
 
 export const AVAILABLE_CUA_MODELS = [
   "openai/gpt-5.4",
