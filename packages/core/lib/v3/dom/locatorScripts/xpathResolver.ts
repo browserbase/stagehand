@@ -53,7 +53,15 @@ export function resolveXPathAtIndex(
   }
 
   const composed = resolveXPathComposedMatches(xp, shadowCtx.getClosedRoot);
-  return composed[targetIndex] ?? null;
+  if (composed[targetIndex]) {
+    return composed[targetIndex] ?? null;
+  }
+
+  const shadowHopMatches = resolveXPathShadowHopMatches(
+    xp,
+    shadowCtx.getClosedRoot,
+  );
+  return shadowHopMatches[targetIndex] ?? null;
 }
 
 export function countXPathMatches(
@@ -76,7 +84,13 @@ export function countXPathMatches(
     return resolveXPathComposedMatches(xp, shadowCtx?.getClosedRoot).length;
   }
 
-  return resolveXPathComposedMatches(xp, shadowCtx.getClosedRoot).length;
+  const composedCount = resolveXPathComposedMatches(
+    xp,
+    shadowCtx.getClosedRoot,
+  ).length;
+  if (composedCount > 0) return composedCount;
+
+  return resolveXPathShadowHopMatches(xp, shadowCtx.getClosedRoot).length;
 }
 
 export function resolveXPathComposedMatches(
@@ -105,6 +119,58 @@ export function resolveXPathComposedMatches(
         step.axis === "child"
           ? composedChildren(root, closedRoot)
           : composedDescendants(root, closedRoot);
+      if (!pool.length) continue;
+
+      const tagMatches = pool.filter((candidate) =>
+        matchesTag(candidate, step),
+      );
+      const matches = applyPredicates(tagMatches, step.predicates);
+
+      for (const candidate of matches) {
+        if (!seen.has(candidate)) {
+          seen.add(candidate);
+          next.push(candidate);
+        }
+      }
+    }
+
+    if (!next.length) return [];
+    current = next;
+  }
+
+  return current as Element[];
+}
+
+function resolveXPathShadowHopMatches(
+  rawXp: string,
+  getClosedRoot?: ClosedRootGetter | null,
+): Element[] {
+  const xp = normalizeXPath(rawXp);
+  if (!xp) return [];
+
+  const steps = parseXPathSteps(xp);
+  if (!steps.some((step, index) => step.axis === "desc" && index > 0)) {
+    return [];
+  }
+
+  const closedRoot = getClosedRoot ?? null;
+  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [
+    document,
+  ];
+
+  for (let i = 0; i < steps.length; i += 1) {
+    const step = steps[i]!;
+    const next: Element[] = [];
+    const seen = new Set<Element>();
+
+    for (const root of current) {
+      if (!root) continue;
+      const pool =
+        step.axis === "child"
+          ? lightDomChildren(root)
+          : i === 0
+            ? composedDescendants(root, closedRoot)
+            : shadowRootChildren(root, closedRoot);
       if (!pool.length) continue;
 
       const tagMatches = pool.filter((candidate) =>
@@ -202,6 +268,45 @@ function composedChildren(
       if (closed) out.push(...Array.from(closed.children ?? []));
     }
     return out;
+  }
+
+  return out;
+}
+
+function lightDomChildren(node: Node | null | undefined): Element[] {
+  const out: Element[] = [];
+  if (!node) return out;
+
+  if (node instanceof Document) {
+    if (node.documentElement) out.push(node.documentElement);
+    return out;
+  }
+
+  if (node instanceof ShadowRoot || node instanceof DocumentFragment) {
+    out.push(...Array.from(node.children ?? []));
+    return out;
+  }
+
+  if (node instanceof Element) {
+    out.push(...Array.from(node.children ?? []));
+    return out;
+  }
+
+  return out;
+}
+
+function shadowRootChildren(
+  node: Node | null | undefined,
+  getClosedRoot: ClosedRootGetter | null,
+): Element[] {
+  const out: Element[] = [];
+  if (!(node instanceof Element)) return out;
+
+  const open = node.shadowRoot;
+  if (open) out.push(...Array.from(open.children ?? []));
+  if (getClosedRoot) {
+    const closed = getClosedRoot(node);
+    if (closed) out.push(...Array.from(closed.children ?? []));
   }
 
   return out;

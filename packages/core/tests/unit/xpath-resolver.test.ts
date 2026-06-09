@@ -102,4 +102,43 @@ describe("xpathResolver composed traversal", () => {
     expect(resolveXPathAtIndex("//div", 2)?.id).toBe("shadow-2");
     expect(resolveXPathAtIndex("//div", 3)?.id).toBe("light-2");
   });
+
+  it("resolves Stagehand shadow-hop paths when the host has light DOM children", () => {
+    document.body.innerHTML =
+      '<shadow-host id="host"><div id="light-child"></div></shadow-host>';
+
+    const host = document.getElementById("host") as HTMLElement;
+    const shadow = host.attachShadow({ mode: "open" });
+    shadow.innerHTML =
+      '<div id="shadow-wrapper"><div><select id="target"></select></div></div>';
+
+    const selector = "/html[1]/body[1]/shadow-host[1]//div[1]/div[1]/select[1]";
+
+    expect(countXPathMatches(selector)).toBe(1);
+    expect(resolveXPathAtIndex(selector, 0)?.id).toBe("target");
+  });
+
+  it("falls back to descendant-axis XPath when non-leading // is not a shadow hop", () => {
+    document.body.innerHTML =
+      "<section><article><button id='target'>Go</button></article></section>";
+
+    const selector = "/html[1]/body[1]/section[1]//button[1]";
+
+    expect(countXPathMatches(selector)).toBe(1);
+    expect(resolveXPathAtIndex(selector, 0)?.id).toBe("target");
+  });
+
+  it("preserves descendant-axis matches before trying shadow-hop fallback", () => {
+    document.body.innerHTML =
+      "<section><article><button id='light-target'>Go</button></article></section>";
+
+    const section = document.querySelector("section") as HTMLElement;
+    const shadow = section.attachShadow({ mode: "open" });
+    shadow.innerHTML = "<button id='shadow-target'>Shadow</button>";
+
+    const selector = "/html[1]/body[1]/section[1]//button[1]";
+
+    expect(countXPathMatches(selector)).toBe(1);
+    expect(resolveXPathAtIndex(selector, 0)?.id).toBe("light-target");
+  });
 });
