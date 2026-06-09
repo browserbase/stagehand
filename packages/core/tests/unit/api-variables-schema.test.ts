@@ -95,6 +95,20 @@ describe("API model config schemas", () => {
       },
     },
   };
+  const azureModel = {
+    provider: "azure",
+    modelName: "azure/gpt-4.1-mini",
+    auth: {
+      type: "azureEntraId",
+      token: "test-entra-token",
+    },
+    providerOptions: {
+      azure: {
+        resourceName: "test-azure-resource",
+        apiVersion: "2024-10-01-preview",
+      },
+    },
+  };
 
   it("preserves Vertex auth params for act requests", () => {
     const result = Api.ActRequestSchema.safeParse({
@@ -107,6 +121,19 @@ describe("API model config schemas", () => {
     expect(result.success).toBe(true);
     if (!result.success) throw result.error;
     expect(result.data.options?.model).toEqual(vertexModel);
+  });
+
+  it("preserves Azure Entra auth params for act requests", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: azureModel,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw result.error;
+    expect(result.data.options?.model).toEqual(azureModel);
   });
 
   it("accepts minimal Vertex service account credentials", () => {
@@ -230,6 +257,59 @@ describe("API model config schemas", () => {
     if (!result.success) throw result.error;
     expect(result.data.agentConfig.model).toEqual(vertexModel);
     expect(result.data.agentConfig.executionModel).toEqual(vertexModel);
+  });
+
+  it("preserves Azure Entra auth params for agent model configs", () => {
+    const result = Api.AgentExecuteRequestSchema.safeParse({
+      agentConfig: {
+        model: azureModel,
+        executionModel: azureModel,
+      },
+      executeOptions: {
+        instruction: "find the search box",
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw result.error;
+    expect(result.data.agentConfig.model).toEqual(azureModel);
+    expect(result.data.agentConfig.executionModel).toEqual(azureModel);
+  });
+
+  it("rejects Azure Entra auth when the provider is not azure", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          modelName: "azure/gpt-4.1-mini",
+          auth: {
+            type: "azureEntraId",
+            token: "test-entra-token",
+          },
+          providerOptions: {
+            azure: {
+              resourceName: "test-azure-resource",
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects Azure configs that provide both apiKey and Entra auth", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          ...azureModel,
+          apiKey: "test-api-key",
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it("rejects Vertex key file paths and external credential sources", () => {
