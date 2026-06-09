@@ -68,6 +68,7 @@ describe("Page WebMCP", () => {
 
     expect(session.callsFor("WebMCP.enable")).toHaveLength(1);
     expect(session.listenerCount("WebMCP.toolsAdded")).toBe(0);
+    expect(session.listenerCount("WebMCP.toolsRemoved")).toBe(0);
     expect(tools).toEqual([
       {
         name: "echo",
@@ -104,6 +105,30 @@ describe("Page WebMCP", () => {
     ]);
 
     expect(session.callsFor("WebMCP.enable")).toHaveLength(2);
+  });
+
+  it("removes tools from the snapshot when WebMCP.toolsRemoved fires during collection", async () => {
+    const session = new MockCDPSession({
+      "WebMCP.enable": () => {
+        session.emit("WebMCP.toolsAdded", {
+          tools: [
+            { name: "stale", description: "Stale tool", frameId: "frame-1" },
+            { name: "fresh", description: "Fresh tool", frameId: "frame-1" },
+          ],
+        });
+        session.emit("WebMCP.toolsRemoved", {
+          tools: [
+            { name: "stale", description: "Stale tool", frameId: "frame-1" },
+          ],
+        });
+      },
+    });
+    const page = makePage(session);
+
+    await expect(page.listWebMCPTools({ timeoutMs: 1 })).resolves.toEqual([
+      { name: "fresh", description: "Fresh tool", frameId: "frame-1" },
+    ]);
+    expect(session.listenerCount("WebMCP.toolsRemoved")).toBe(0);
   });
 
   it("throws a browser feature error when WebMCP.enable is unsupported while listing", async () => {

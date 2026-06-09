@@ -86,24 +86,6 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
 const WEB_MCP_SUPPORT_MESSAGE =
   "Make sure you are using Chrome/Chromium newer than version 149 and that it is launched with --enable-features=WebMCPTesting,DevToolsWebMCPSupport.";
 
-type WebMCPCdpTool = WebMCPTool & { stackTrace?: unknown };
-
-type WebMCPToolsAddedEvent = {
-  tools?: WebMCPCdpTool[];
-};
-
-type WebMCPInvokeToolResponse = {
-  invocationId: string;
-};
-
-type WebMCPToolRespondedEvent = {
-  invocationId?: string;
-  status?: WebMCPToolResult["status"];
-  output?: unknown;
-  errorText?: string;
-  exception?: unknown;
-};
-
 type Deferred<T> = {
   promise: Promise<T>;
   resolve: (value: T | PromiseLike<T>) => void;
@@ -125,20 +107,23 @@ function createDeferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
-function stripWebMCPToolDebugFields(tool: WebMCPCdpTool): WebMCPTool {
+function stripWebMCPToolDebugFields(tool: Protocol.WebMCP.Tool): WebMCPTool {
   const { name, description, inputSchema, annotations, frameId } = tool;
+  const publicAnnotations: Record<string, unknown> | undefined =
+    annotations === undefined ? undefined : { ...annotations };
+
   return {
     name,
     ...(description !== undefined && { description }),
     ...(inputSchema !== undefined && { inputSchema }),
-    ...(annotations !== undefined && { annotations }),
+    ...(publicAnnotations !== undefined && { annotations: publicAnnotations }),
     frameId,
   };
 }
 
 function webMCPResultFromEvent(
   invocationId: string,
-  event: WebMCPToolRespondedEvent,
+  event: Protocol.WebMCP.ToolRespondedEvent,
 ): WebMCPToolResult {
   return {
     invocationId,
@@ -689,7 +674,7 @@ export class Page {
   }
 
   private readonly onWebMCPToolResponded = (
-    event: WebMCPToolRespondedEvent,
+    event: Protocol.WebMCP.ToolRespondedEvent,
   ): void => {
     if (!event.invocationId) return;
 
@@ -719,7 +704,7 @@ export class Page {
       return this.webMCPEnablePromise;
     }
 
-    this.mainSession.on<WebMCPToolRespondedEvent>(
+    this.mainSession.on<Protocol.WebMCP.ToolRespondedEvent>(
       "WebMCP.toolResponded",
       this.onWebMCPToolResponded,
     );
@@ -757,10 +742,10 @@ export class Page {
     let toolsVersion = 0;
     let toolsLastUpdatedAt: number | null = null;
 
-    const toolKey = (tool: WebMCPTool): string =>
+    const toolKey = (tool: Pick<WebMCPTool, "frameId" | "name">): string =>
       `${tool.frameId}:${tool.name}`;
 
-    const onToolsAdded = (event: WebMCPToolsAddedEvent): void => {
+    const onToolsAdded = (event: Protocol.WebMCP.ToolsAddedEvent): void => {
       if (!Array.isArray(event.tools)) return;
 
       let changed = false;
@@ -776,12 +761,30 @@ export class Page {
       schedule?.();
     };
 
+    const onToolsRemoved = (event: Protocol.WebMCP.ToolsRemovedEvent): void => {
+      if (!Array.isArray(event.tools)) return;
+
+      let changed = false;
+      for (const tool of event.tools) {
+        changed = tools.delete(toolKey(tool)) || changed;
+      }
+
+      if (!changed) return;
+      toolsVersion += 1;
+      toolsLastUpdatedAt = Date.now();
+      schedule?.();
+    };
+
     const deadline = Date.now() + timeoutMs;
     let schedule: (() => void) | null = null;
 
-    this.mainSession.on<WebMCPToolsAddedEvent>(
+    this.mainSession.on<Protocol.WebMCP.ToolsAddedEvent>(
       "WebMCP.toolsAdded",
       onToolsAdded,
+    );
+    this.mainSession.on<Protocol.WebMCP.ToolsRemovedEvent>(
+      "WebMCP.toolsRemoved",
+      onToolsRemoved,
     );
 
     try {
@@ -831,9 +834,13 @@ export class Page {
         schedule();
       });
     } finally {
-      this.mainSession.off<WebMCPToolsAddedEvent>(
+      this.mainSession.off<Protocol.WebMCP.ToolsAddedEvent>(
         "WebMCP.toolsAdded",
         onToolsAdded,
+      );
+      this.mainSession.off<Protocol.WebMCP.ToolsRemovedEvent>(
+        "WebMCP.toolsRemoved",
+        onToolsRemoved,
       );
     }
 
@@ -848,7 +855,7 @@ export class Page {
   }
 
   private teardownWebMCP(): void {
-    this.mainSession.off<WebMCPToolRespondedEvent>(
+    this.mainSession.off<Protocol.WebMCP.ToolRespondedEvent>(
       "WebMCP.toolResponded",
       this.onWebMCPToolResponded,
     );
@@ -955,7 +962,7 @@ export class Page {
     try {
       this.pendingWebMCPInvokeToolResponses += 1;
       const response = await this.mainSession
-        .send<WebMCPInvokeToolResponse>("WebMCP.invokeTool", {
+        .send<Protocol.WebMCP.InvokeToolResponse>("WebMCP.invokeTool", {
           frameId,
           toolName,
           input,
