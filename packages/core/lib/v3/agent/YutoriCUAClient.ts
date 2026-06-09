@@ -778,6 +778,12 @@ export class YutoriCUAClient extends AgentClient {
         this.maxRequestBytes,
         this.keepRecentScreenshots,
       );
+      const llmRequestId = uuidv7();
+      FlowLogger.logLlmRequest({
+        requestId: llmRequestId,
+        model: this.modelName,
+        prompt: extractLlmCuaPromptSummary(requestMessages),
+      });
       const startTime = Date.now();
       // Omit json_schema: this turn asks for a free-text summary, not the
       // task's structured output.
@@ -792,6 +798,15 @@ export class YutoriCUAClient extends AgentClient {
         );
       }
       const message = choice.message;
+      FlowLogger.logLlmResponse({
+        requestId: llmRequestId,
+        model: this.modelName,
+        output: extractLlmCuaResponseSummary([
+          { text: message.content ?? "" },
+        ]),
+        inputTokens: response.usage?.prompt_tokens,
+        outputTokens: response.usage?.completion_tokens,
+      });
       this.messages.push(message as ChatCompletionMessageParam);
       return {
         message: message.content ?? "",
