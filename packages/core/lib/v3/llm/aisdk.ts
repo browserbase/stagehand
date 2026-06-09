@@ -32,12 +32,6 @@ function inferProviderName(modelId: string): string | undefined {
   return providerName || undefined;
 }
 
-// Anthropic model IDs observed (this process) to reject forced tool use, i.e.
-// "tool_choice forces tool use is not compatible with this model" (e.g.
-// claude-fable-5). Cached so structured-output calls for these models skip the
-// doomed forced attempt instead of eating a 400 every time.
-const forcedToolUseUnsupportedModels = new Set<string>();
-
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
   private model: LanguageModelV2;
@@ -297,20 +291,14 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       };
 
       try {
-        // Skip the doomed forced attempt if this model already rejected it once.
-        const skipForcedToolUse =
-          isAnthropic && forcedToolUseUnsupportedModels.has(this.model.modelId);
         try {
-          objectResponse = await runGenerateObject(skipForcedToolUse);
+          objectResponse = await runGenerateObject(false);
         } catch (forcedErr) {
           const message =
             forcedErr instanceof Error ? forcedErr.message : String(forcedErr);
           const isForcedToolRejection =
-            isAnthropic &&
-            !skipForcedToolUse &&
-            /tool_choice|tool choice/i.test(message);
+            isAnthropic && /tool_choice|tool choice/i.test(message);
           if (!isForcedToolRejection) throw forcedErr;
-          forcedToolUseUnsupportedModels.add(this.model.modelId);
           this.logger?.({
             category: "aisdk",
             message: `Model ${this.model.modelId} rejected forced tool use; retrying with native structured outputs`,
