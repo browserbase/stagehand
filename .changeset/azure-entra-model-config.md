@@ -1,3 +1,4 @@
+---
 "@browserbasehq/stagehand": patch
 "@browserbasehq/stagehand-server-v3": patch
 ---
