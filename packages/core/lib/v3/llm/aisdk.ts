@@ -17,6 +17,7 @@ import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs.js";
 import { AvailableModel, ClientOptions } from "../types/public/model.js";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
+import { anthropicFallbacksOptions } from "./anthropicOptions.js";
 import {
   FlowLogger,
   extractLlmPromptSummary,
@@ -182,7 +183,10 @@ export class AISdkClient extends LLMClient {
       case "anthropic":
         providerOptions.anthropic = {
           structuredOutputMode: "auto",
-        };
+          // Fable 5 opts into the API's server-side refusal fallback; the
+          // provider adds the required beta header automatically.
+          ...(anthropicFallbacksOptions(this.model.modelId) ?? {}),
+        } as unknown as ProviderOptionMap;
         break;
       case "azure":
         providerOptions.azure = {

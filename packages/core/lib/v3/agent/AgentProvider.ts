@@ -27,6 +27,7 @@ export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
   "claude-sonnet-4-6": "anthropic",
   "claude-haiku-4-5": "anthropic",
   "claude-haiku-4-5-20251001": "anthropic",
+  "claude-fable-5": "anthropic",
   "gemini-2.5-computer-use-preview-10-2025": "google",
   "gemini-3-flash-preview": "google",
   "gemini-3-pro-preview": "google",

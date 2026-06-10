@@ -26,6 +26,7 @@ import {
   extractLlmCuaPromptSummary,
   extractLlmCuaResponseSummary,
 } from "../flowlogger/FlowLogger.js";
+import { isAdaptiveThinkingAnthropicModel } from "../llm/anthropicOptions.js";
 import { v7 as uuidv7 } from "uuid";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
@@ -452,11 +453,9 @@ export class AnthropicCUAClient extends AgentClient {
         : this.modelName;
 
       // Check if this is a Claude 4.6+ model that supports adaptive thinking
-      const isAdaptiveThinkingModel = [
-        "claude-opus-4-8",
-        "claude-opus-4-6",
-        "claude-sonnet-4-6",
-      ].includes(modelBase);
+      // (shared source of truth with the hybrid path — see anthropicOptions.ts)
+      const isAdaptiveThinkingModel =
+        isAdaptiveThinkingAnthropicModel(modelBase);
 
       // claude-opus-4-5-20251101 uses the newer computer tool version but does
       // NOT support adaptive thinking — it still requires budget_tokens.
