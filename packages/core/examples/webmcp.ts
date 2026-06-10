@@ -39,9 +39,6 @@ async function example(stagehand: Stagehand) {
   const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 2,
-    localBrowserLaunchOptions: {
-      args: ["--enable-features=WebMCPTesting,DevToolsWebMCPSupport"],
-    },
   });
   try {
     await stagehand.init();

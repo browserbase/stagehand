@@ -156,6 +156,9 @@ describe("launchLocalChrome ignoreDefaultArgs", () => {
     // so this test doesn't break if Stagehand adds/removes its own flags.
     expect(args.chromeFlags).toContain("--remote-allow-origins=*");
     expect(args.chromeFlags).toContain("--no-first-run");
+    expect(args.chromeFlags).toContain(
+      "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+    );
 
     expect(args.chromeFlags).not.toContain("--mute-audio");
     expect(args.chromeFlags).toContain("--disable-extensions");
