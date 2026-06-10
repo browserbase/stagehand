@@ -80,10 +80,15 @@ function parseArgs(args: string[]): ParsedArgs {
       parsed.json = true;
     } else if (a === "--dry-run") {
       parsed.dryRun = true;
-    } else if (a === "--model") {
-      parsed.model = args[++i];
-    } else if (a === "--label") {
-      parsed.label = args[++i];
+    } else if (a === "--model" || a === "--label") {
+      const value = args[++i];
+      if (value === undefined || value.startsWith("-")) {
+        throw new Error(
+          `Missing value for ${a}. Run 'evals verify --help' for usage.`,
+        );
+      }
+      if (a === "--model") parsed.model = value;
+      else parsed.label = value;
     } else if (!a.startsWith("-") && !parsed.trajectoryDir) {
       parsed.trajectoryDir = a;
     } else {
