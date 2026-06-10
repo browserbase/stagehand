@@ -144,6 +144,75 @@ export interface Trajectory {
   usage: TrajectoryUsage;
 }
 
+/** A single screenshot kept by Step 1, ready for downstream relevance scoring. */
+export interface CanonicalScreenshot {
+  /** 0-based position in the kept-screenshots array. Stable across the pipeline. */
+  canonicalIndex: number;
+  /**
+   * 0-based position in `Trajectory.steps` this screenshot came from
+   * (steps.length for the final observation). Lets downstream prompts
+   * cross-reference the action history.
+   */
+  originalStepIndex: number;
+  /** The resized PNG/JPEG buffer (or native bytes if sharp unavailable). */
+  bytes: Buffer;
+  /** MIME media type. Always "image/png" after the optional resize. */
+  mediaType: string;
+  /** Reason this frame was kept: "first" / "last" / "diverges". */
+  keptReason: "first" | "last" | "diverges" | "no-dedup";
+}
+
+/**
+ * A text evidence point sourced from tier-2 probes or tier-1 tool outputs.
+ * These feed the same relevance + scoring path as screenshots, letting DOM
+ * and hybrid agents preserve extract/aria/tool-return evidence without a
+ * separate verifier architecture.
+ */
+export interface CanonicalTextEvidence {
+  /** 0-based position in the combined evidence-point array. */
+  canonicalIndex: number;
+  originalStepIndex: number;
+  /** Where the text came from. */
+  source: "probe-aria" | "agent-text" | "agent-json" | "tool-output";
+  /** The text payload, already truncated. */
+  content: string;
+}
+
+export type CanonicalEvidence = CanonicalScreenshot | CanonicalTextEvidence;
+
+/** Result of Step 1 evidence loading. */
+export interface EvidenceLoadResult {
+  /** Kept frames, in chronological order. */
+  screenshots: CanonicalScreenshot[];
+  /**
+   * Maps trajectory step position → canonical index in `screenshots`. Steps
+   * whose screenshots were deduplicated point to the surviving canonical frame
+   * (typically the prior kept frame). Useful for "find me the screenshot for
+   * step K" lookups in downstream prompts.
+   */
+  stepIndexToCanonical: Map<number, number>;
+  /** Number of original frames considered. */
+  originalCount: number;
+  /** Number of frames kept post-dedup (== screenshots.length). */
+  keptCount: number;
+  /** Effective thresholds used (resolved from env). */
+  thresholds: {
+    ssim: number;
+    mse: number;
+    resize: number;
+  };
+}
+
+/** Options for evidence loading. Mainly env override hooks for tests. */
+export interface EvidenceLoadOptions {
+  /** Override VERIFIER_SSIM_THRESHOLD. */
+  ssimThreshold?: number;
+  /** Override VERIFIER_MSE_THRESHOLD. */
+  mseThreshold?: number;
+  /** Override VERIFIER_IMAGE_RESIZE. */
+  imageResize?: number;
+}
+
 /** Score for a single rubric criterion after evidence analysis + rescoring. */
 export interface CriterionScore {
   /** Matches RubricCriterion.criterion (the criterion's short name). */
@@ -151,9 +220,9 @@ export interface CriterionScore {
   /** Maximum possible points for this criterion. */
   maxPoints: number;
   /**
-   * Points earned post-evidence-analysis (paper's post_image_earned_points).
-   * Null if the criterion was conditional and its condition wasn't met (excluded
-   * from both numerator and denominator in the process score).
+   * Points earned after evidence analysis. Null when the criterion is
+   * conditional and its condition was not met — excluded from both numerator
+   * and denominator in the process score.
    */
   earnedPoints: number | null;
   /** Verifier's explanation for the score. */
@@ -165,16 +234,15 @@ export interface CriterionScore {
   conditionMet?: boolean;
   /**
    * Set when the verifier had no evidence to ground this criterion in either
-   * tier. Per paper §2, treated as uncontrollable failure → full credit, but
-   * surfaced here so dashboards can flag low-confidence results.
+   * tier. Treated as uncontrollable failure (full credit) but surfaced here
+   * so dashboards can flag low-confidence results.
    */
   evidenceInsufficient?: boolean;
 }
 
 /**
- * First-point-of-failure analysis (paper Step 9a). Identifies the earliest
- * step where the agent's trajectory went off-track, using a structured error
- * taxonomy (7 top-level categories, 1.1–7.4 sub-codes).
+ * Earliest step where the agent's trajectory went off-track, classified
+ * against the error taxonomy (7 top-level categories, 1.1–7.4 sub-codes).
  */
 export interface FirstPointOfFailure {
   stepIndex: number;
@@ -241,7 +309,7 @@ export interface VerifierRawSteps {
   screenshotCount?: number;
 }
 
-/** Task-validity classification (paper Step 10). */
+/** Task-validity classification: whether the task is even answerable. */
 export interface TaskValidity {
   /** True if the task is underspecified / has multiple valid interpretations. */
   isAmbiguous: boolean;
