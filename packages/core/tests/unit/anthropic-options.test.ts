@@ -1,21 +1,14 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   ANTHROPIC_FABLE_5_FALLBACK_MODEL_ID,
+  DEFAULT_ANTHROPIC_ADAPTIVE_EFFORT,
   anthropicAdaptiveThinkingOptions,
   anthropicFallbacksOptions,
   isAdaptiveThinkingAnthropicModel,
   rejectsForcedToolUse,
   resolveAdaptiveEffort,
 } from "../../lib/v3/llm/anthropicOptions.js";
-
-const ENV_KEY = "STAGEHAND_THINKING_EFFORT";
-const envBefore = process.env[ENV_KEY];
-
-afterEach(() => {
-  if (envBefore === undefined) delete process.env[ENV_KEY];
-  else process.env[ENV_KEY] = envBefore;
-});
 
 describe("isAdaptiveThinkingAnthropicModel", () => {
   it("matches adaptive-capable models with or without a provider prefix", () => {
@@ -35,50 +28,50 @@ describe("isAdaptiveThinkingAnthropicModel", () => {
 });
 
 describe("resolveAdaptiveEffort", () => {
-  it("returns undefined when nothing is configured (API default)", () => {
-    delete process.env[ENV_KEY];
-    expect(resolveAdaptiveEffort("claude-fable-5")).toBeUndefined();
+  it("defaults to the shared default when nothing is configured", () => {
+    expect(resolveAdaptiveEffort("claude-fable-5")).toBe(
+      DEFAULT_ANTHROPIC_ADAPTIVE_EFFORT,
+    );
   });
 
-  it("passes xhigh through on capable models", () => {
-    expect(resolveAdaptiveEffort("claude-opus-4-8", "xhigh")).toBe("xhigh");
-    expect(resolveAdaptiveEffort("claude-fable-5", "xhigh")).toBe("xhigh");
-  });
-
-  it("clamps xhigh to high on models that reject it", () => {
-    expect(resolveAdaptiveEffort("claude-sonnet-4-6", "xhigh")).toBe("high");
-  });
-
-  it("prefers the explicit value over the env knob", () => {
-    process.env[ENV_KEY] = "low";
-    expect(resolveAdaptiveEffort("claude-opus-4-8", "medium")).toBe("medium");
-    expect(resolveAdaptiveEffort("claude-opus-4-8")).toBe("low");
-  });
-
-  it("ignores invalid values and none", () => {
-    expect(resolveAdaptiveEffort("claude-opus-4-8", "none")).toBeUndefined();
-    expect(resolveAdaptiveEffort("claude-opus-4-8", "bogus")).toBeUndefined();
-  });
-
-  it("passes max through", () => {
+  it("honors the client's explicit effort", () => {
+    expect(resolveAdaptiveEffort("claude-opus-4-8", "low")).toBe("low");
     expect(resolveAdaptiveEffort("claude-opus-4-8", "max")).toBe("max");
   });
 
-  it("clamps an env-provided xhigh on models that reject it", () => {
-    process.env[ENV_KEY] = "xhigh";
-    expect(resolveAdaptiveEffort("claude-sonnet-4-6")).toBe("high");
-    expect(resolveAdaptiveEffort("claude-fable-5")).toBe("xhigh");
+  it("passes xhigh through on capable models and clamps it elsewhere", () => {
+    expect(resolveAdaptiveEffort("claude-opus-4-8", "xhigh")).toBe("xhigh");
+    expect(resolveAdaptiveEffort("claude-fable-5", "xhigh")).toBe("xhigh");
+    expect(resolveAdaptiveEffort("claude-sonnet-4-6", "xhigh")).toBe("high");
+  });
+
+  it("falls back to the default for invalid values", () => {
+    expect(resolveAdaptiveEffort("claude-opus-4-8", "bogus")).toBe(
+      DEFAULT_ANTHROPIC_ADAPTIVE_EFFORT,
+    );
   });
 });
 
 describe("anthropicAdaptiveThinkingOptions", () => {
-  it("requests adaptive thinking for capable models", () => {
+  it("requests adaptive thinking at the default effort", () => {
     expect(
       anthropicAdaptiveThinkingOptions("anthropic/claude-fable-5"),
-    ).toEqual({ thinking: { type: "adaptive" } });
+    ).toEqual({
+      thinking: { type: "adaptive" },
+      effort: DEFAULT_ANTHROPIC_ADAPTIVE_EFFORT,
+    });
+  });
+
+  it("honors a client-provided effort", () => {
     expect(
       anthropicAdaptiveThinkingOptions("claude-opus-4-8", "xhigh"),
     ).toEqual({ thinking: { type: "adaptive" }, effort: "xhigh" });
+  });
+
+  it('treats "none" as an explicit opt-out of thinking', () => {
+    expect(
+      anthropicAdaptiveThinkingOptions("claude-fable-5", "none"),
+    ).toBeUndefined();
   });
 
   it("returns undefined for non-adaptive models", () => {
@@ -88,14 +81,6 @@ describe("anthropicAdaptiveThinkingOptions", () => {
     expect(
       anthropicAdaptiveThinkingOptions("claude-opus-4-5-20251101"),
     ).toBeUndefined();
-  });
-
-  it('treats "none" as an explicit opt-out of thinking', () => {
-    expect(
-      anthropicAdaptiveThinkingOptions("claude-fable-5", "none"),
-    ).toBeUndefined();
-    process.env[ENV_KEY] = "none";
-    expect(anthropicAdaptiveThinkingOptions("claude-fable-5")).toBeUndefined();
   });
 });
 

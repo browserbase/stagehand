@@ -488,10 +488,10 @@ export class AnthropicCUAClient extends AgentClient {
           // Default to "medium" effort if not explicitly specified
           // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
           thinking = { type: "adaptive" };
-          // Clamp efforts the model rejects (e.g. xhigh on sonnet-4-6).
+          // Clamp efforts the model rejects (e.g. xhigh on sonnet-4-6);
+          // defaults to the shared "medium" (see anthropicOptions.ts).
           outputConfig = {
-            effort:
-              resolveAdaptiveEffort(modelBase, this.thinkingEffort) ?? "medium",
+            effort: resolveAdaptiveEffort(modelBase, this.thinkingEffort),
           };
           useAdaptiveThinking = true;
         }

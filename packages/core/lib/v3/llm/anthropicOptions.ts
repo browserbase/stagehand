@@ -79,39 +79,39 @@ const VALID_EFFORTS: ReadonlySet<string> = new Set([
   "max",
 ]);
 
-/** The configured effort, before model clamping: explicit arg (e.g.
- * clientOptions.thinkingEffort) > STAGEHAND_THINKING_EFFORT env. */
-function configuredEffort(explicit?: string): string | undefined {
-  return explicit ?? process.env.STAGEHAND_THINKING_EFFORT;
-}
+/** Default adaptive effort on both agent paths (CUA and hybrid/DOM),
+ * overridable per client via `thinkingEffort`. */
+export const DEFAULT_ANTHROPIC_ADAPTIVE_EFFORT: Exclude<
+  ThinkingEffort,
+  "none"
+> = "medium";
 
 /**
  * Resolve the adaptive effort to send, clamped to what the model accepts.
- * Returns undefined when nothing valid is configured (the API default,
- * "high", then applies). "none" is handled by the callers: it means
- * "do not request thinking at all", not an effort level.
+ * Precedence: the client's `thinkingEffort` > the shared default ("medium").
+ * "none" is handled by the callers: it means "do not request thinking at
+ * all", not an effort level.
  */
 export function resolveAdaptiveEffort(
   modelId: string,
   explicit?: string,
-): Exclude<ThinkingEffort, "none"> | undefined {
-  const candidate = configuredEffort(explicit);
-  if (!candidate || !VALID_EFFORTS.has(candidate)) {
-    return undefined;
-  }
+): Exclude<ThinkingEffort, "none"> {
+  const candidate =
+    explicit && VALID_EFFORTS.has(explicit)
+      ? (explicit as Exclude<ThinkingEffort, "none">)
+      : DEFAULT_ANTHROPIC_ADAPTIVE_EFFORT;
   if (
     candidate === "xhigh" &&
     !XHIGH_CAPABLE_MODEL_BASES.has(stripModelProvider(modelId))
   ) {
     return "high";
   }
-  return candidate as Exclude<ThinkingEffort, "none">;
+  return candidate;
 }
 
 /**
  * Typed `anthropic` provider options requesting adaptive thinking for models
- * that support it, or `undefined` otherwise. Effort is omitted unless
- * configured, leaving the API default ("high") in charge.
+ * that support it, or `undefined` otherwise.
  */
 export function anthropicAdaptiveThinkingOptions(
   modelId: string,
@@ -119,11 +119,10 @@ export function anthropicAdaptiveThinkingOptions(
 ): AnthropicAgentProviderOptions | undefined {
   if (!isAdaptiveThinkingAnthropicModel(modelId)) return undefined;
   // "none" is an explicit opt-out: request no thinking at all.
-  if (configuredEffort(effort) === "none") return undefined;
-  const resolved = resolveAdaptiveEffort(modelId, effort);
+  if (effort === "none") return undefined;
   return {
     thinking: { type: "adaptive" },
-    ...(resolved ? { effort: resolved } : {}),
+    effort: resolveAdaptiveEffort(modelId, effort),
   } satisfies AnthropicProviderOptions as AnthropicAgentProviderOptions;
 }
 
