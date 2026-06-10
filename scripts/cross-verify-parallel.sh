@@ -56,7 +56,7 @@ for d in "${DIRS[@]}"; do
   JOBS+=("$d|a")
 done
 
-printf '%s\n' "${JOBS[@]}" | xargs -I {} -n 1 -P "$PARALLEL" bash -c '
+printf '%s\0' "${JOBS[@]}" | xargs -0 -I {} -n 1 -P "$PARALLEL" bash -c '
   IFS="|" read -r dir approach <<< "$1"
   run_one "$dir" "$approach"
 ' _ {}
