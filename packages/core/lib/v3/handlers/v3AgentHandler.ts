@@ -19,6 +19,11 @@ import { processMessages } from "../agent/utils/messageProcessing.js";
 import { LLMClient } from "../llm/LLMClient.js";
 import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import {
+  anthropicAdaptiveThinkingOptions,
+  anthropicFallbacksOptions,
+} from "../llm/anthropicOptions.js";
+import type { JSONValue } from "@ai-sdk/provider";
+import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
   AgentExecuteOptionsBase,
@@ -91,6 +96,26 @@ function prependSystemMessage(
     },
     ...messages,
   ];
+}
+
+/**
+ * Request-level providerOptions for the hybrid/DOM agent loop.
+ *
+ * Anthropic models that support adaptive thinking (Claude 4.6+) get it
+ * enabled here — previously the hybrid path sent no thinking config for
+ * Anthropic at all. Fable 5 additionally opts into the API's server-side
+ * refusal fallback.
+ */
+function buildAgentProviderOptions(modelId: string) {
+  const anthropic = {
+    ...(anthropicAdaptiveThinkingOptions(modelId) ?? {}),
+    ...(anthropicFallbacksOptions(modelId) ?? {}),
+  } as Record<string, JSONValue>;
+  return {
+    google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
+    openai: { store: false },
+    ...(Object.keys(anthropic).length > 0 ? { anthropic } : {}),
+  };
 }
 
 export class V3AgentHandler {
@@ -447,10 +472,7 @@ export class V3AgentHandler {
           },
         }),
         abortSignal: preparedOptions.signal,
-        providerOptions: {
-          google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
-          openai: { store: false },
-        },
+        providerOptions: buildAgentProviderOptions(wrappedModel.modelId),
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
@@ -664,10 +686,7 @@ export class V3AgentHandler {
           rejectResult(new AgentAbortError(reason));
         },
         abortSignal: options.signal,
-        providerOptions: {
-          google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
-          openai: { store: false },
-        },
+        providerOptions: buildAgentProviderOptions(wrappedModel.modelId),
       });
     } catch (error) {
       captchaSolver?.dispose();

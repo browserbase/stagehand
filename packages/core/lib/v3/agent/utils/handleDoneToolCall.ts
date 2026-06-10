@@ -2,6 +2,7 @@ import { generateText, ModelMessage, LanguageModel, ToolSet } from "ai";
 import { z } from "zod";
 import { tool } from "ai";
 import { LogLine } from "../../types/public/logs.js";
+import { rejectsForcedToolUse } from "../../llm/anthropicOptions.js";
 import { StagehandZodObject } from "../../zodCompat.js";
 import { getZFactory } from "../../../utils.js";
 import type { StagehandZodSchema } from "../../zodCompat.js";
@@ -101,17 +102,49 @@ Call the "done" tool with:
       : "Provide your final assessment.",
   };
 
-  const result = await generateText({
+  const baseRequest = {
     model,
     system: systemPrompt,
     messages: [...inputMessages, userPrompt],
     tools: { done: doneTool } as ToolSet,
-    toolChoice: { type: "tool", toolName: "done" },
     providerOptions: {
       google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
       openai: { store: false },
     },
-  });
+  } satisfies Omit<Parameters<typeof generateText>[0], "toolChoice">;
+
+  // Models known to reject forced tool use skip the forced attempt entirely;
+  // the prompt already instructs calling "done", and the no-tool-call case
+  // below handles a plain-text answer.
+  const modelId = typeof model === "string" ? model : model.modelId;
+  const forceDone = !rejectsForcedToolUse(modelId);
+
+  let result: Awaited<ReturnType<typeof generateText>>;
+  try {
+    result = await generateText({
+      ...baseRequest,
+      toolChoice: forceDone
+        ? { type: "tool", toolName: "done" }
+        : ("auto" as const),
+    });
+  } catch (error) {
+    // Safety net for models not in the capability table that also reject
+    // forced tool use ("tool_choice forces tool use is not compatible with
+    // this model"): retry once with auto.
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/tool_choice|tool choice/i.test(message)) {
+      throw error;
+    }
+    logger({
+      category: "agent",
+      message: `Forced "done" tool call rejected by model; retrying with toolChoice "auto" (${message})`,
+      level: 1,
+    });
+    result = await generateText({
+      ...baseRequest,
+      toolChoice: "auto",
+    });
+  }
 
   const doneToolCall = result.toolCalls.find((tc) => tc.toolName === "done");
   const outputMessages: ModelMessage[] = [
