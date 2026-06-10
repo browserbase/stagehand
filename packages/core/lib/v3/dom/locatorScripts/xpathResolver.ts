@@ -5,6 +5,7 @@ import {
 } from "./xpathParser.js";
 
 type ClosedRootGetter = (host: Element) => ShadowRoot | null;
+type TraversalRoot = Document | Element | ShadowRoot | DocumentFragment;
 
 export type XPathResolveOptions = {
   pierceShadow?: boolean;
@@ -53,7 +54,15 @@ export function resolveXPathAtIndex(
   }
 
   const composed = resolveXPathComposedMatches(xp, shadowCtx.getClosedRoot);
-  return composed[targetIndex] ?? null;
+  if (composed.length > 0) {
+    return composed[targetIndex] ?? null;
+  }
+
+  const shadowHopMatches = resolveStagehandShadowHopMatches(
+    xp,
+    shadowCtx.getClosedRoot,
+  );
+  return shadowHopMatches[targetIndex] ?? null;
 }
 
 export function countXPathMatches(
@@ -76,7 +85,13 @@ export function countXPathMatches(
     return resolveXPathComposedMatches(xp, shadowCtx?.getClosedRoot).length;
   }
 
-  return resolveXPathComposedMatches(xp, shadowCtx.getClosedRoot).length;
+  const composedCount = resolveXPathComposedMatches(
+    xp,
+    shadowCtx.getClosedRoot,
+  ).length;
+  if (composedCount > 0) return composedCount;
+
+  return resolveStagehandShadowHopMatches(xp, shadowCtx.getClosedRoot).length;
 }
 
 export function resolveXPathComposedMatches(
@@ -91,20 +106,66 @@ export function resolveXPathComposedMatches(
 
   const closedRoot = getClosedRoot ?? null;
 
-  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [
-    document,
-  ];
+  let current: TraversalRoot[] = [document];
 
   for (const step of steps) {
     const next: Element[] = [];
     const seen = new Set<Element>();
 
     for (const root of current) {
-      if (!root) continue;
       const pool =
         step.axis === "child"
           ? composedChildren(root, closedRoot)
           : composedDescendants(root, closedRoot);
+      if (!pool.length) continue;
+
+      const tagMatches = pool.filter((candidate) =>
+        matchesTag(candidate, step),
+      );
+      const matches = applyPredicates(tagMatches, step.predicates);
+
+      for (const candidate of matches) {
+        if (!seen.has(candidate)) {
+          seen.add(candidate);
+          next.push(candidate);
+        }
+      }
+    }
+
+    if (!next.length) return [];
+    current = next;
+  }
+
+  return current as Element[];
+}
+
+function resolveStagehandShadowHopMatches(
+  rawXp: string,
+  getClosedRoot?: ClosedRootGetter | null,
+): Element[] {
+  const xp = normalizeXPath(rawXp);
+  if (!xp) return [];
+
+  const steps = parseXPathSteps(xp);
+  if (!steps.some((step, index) => step.axis === "desc" && index > 0)) {
+    return [];
+  }
+
+  const closedRoot = getClosedRoot ?? null;
+  let current: TraversalRoot[] = [document];
+
+  for (let i = 0; i < steps.length; i += 1) {
+    const step = steps[i]!;
+    const next: Element[] = [];
+    const seen = new Set<Element>();
+
+    for (const root of current) {
+      const pool =
+        step.axis === "child"
+          ? domChildren(root)
+          : i === 0
+            ? composedDescendants(root, closedRoot)
+            : shadowRootChildren(root, closedRoot);
       if (!pool.length) continue;
 
       const tagMatches = pool.filter((candidate) =>
@@ -177,11 +238,10 @@ function getShadowContext(): ShadowContext {
 }
 
 function composedChildren(
-  node: Node | null | undefined,
+  node: TraversalRoot,
   getClosedRoot: ClosedRootGetter | null,
 ): Element[] {
   const out: Element[] = [];
-  if (!node) return out;
 
   if (node instanceof Document) {
     if (node.documentElement) out.push(node.documentElement);
@@ -207,8 +267,46 @@ function composedChildren(
   return out;
 }
 
+function domChildren(node: TraversalRoot): Element[] {
+  const out: Element[] = [];
+
+  if (node instanceof Document) {
+    if (node.documentElement) out.push(node.documentElement);
+    return out;
+  }
+
+  if (node instanceof ShadowRoot || node instanceof DocumentFragment) {
+    out.push(...Array.from(node.children ?? []));
+    return out;
+  }
+
+  if (node instanceof Element) {
+    out.push(...Array.from(node.children ?? []));
+    return out;
+  }
+
+  return out;
+}
+
+function shadowRootChildren(
+  node: TraversalRoot,
+  getClosedRoot: ClosedRootGetter | null,
+): Element[] {
+  const out: Element[] = [];
+  if (!(node instanceof Element)) return out;
+
+  const open = node.shadowRoot;
+  if (open) out.push(...Array.from(open.children ?? []));
+  if (getClosedRoot) {
+    const closed = getClosedRoot(node);
+    if (closed) out.push(...Array.from(closed.children ?? []));
+  }
+
+  return out;
+}
+
 function composedDescendants(
-  node: Node | null | undefined,
+  node: TraversalRoot,
   getClosedRoot: ClosedRootGetter | null,
 ): Element[] {
   const out: Element[] = [];
@@ -216,8 +314,8 @@ function composedDescendants(
   const stack = [...composedChildren(node, getClosedRoot)].reverse();
 
   while (stack.length) {
-    const next = stack.pop();
-    if (!next || seen.has(next)) continue;
+    const next = stack.pop()!;
+    if (seen.has(next)) continue;
     seen.add(next);
     out.push(next);
 
