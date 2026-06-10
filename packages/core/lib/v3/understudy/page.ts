@@ -17,6 +17,11 @@ import {
   LoadState,
   SnapshotResult,
   PageSnapshotOptions,
+  WebMCPListToolsOptions,
+  WebMCPTool,
+  WebMCPToolInvocation,
+  WebMCPToolInvocationOptions,
+  WebMCPToolResult,
 } from "../types/public/page.js";
 import { NetworkManager } from "./networkManager.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
@@ -33,6 +38,7 @@ import type { Locator } from "./locator.js";
 import {
   StagehandInvalidArgumentError,
   StagehandEvalError,
+  StagehandUnsupportedBrowserFeatureError,
 } from "../types/public/sdkErrors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
@@ -77,6 +83,67 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
   networkidle: "networkIdle",
 };
 
+const WEB_MCP_SUPPORT_MESSAGE =
+  "Make sure you are using Chrome/Chromium newer than version 149 and that it is launched with --enable-features=WebMCPTesting,DevToolsWebMCPSupport.";
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  reject: (error: Error) => void;
+};
+
+type PendingWebMCPInvocation = {
+  deferred: Deferred<WebMCPToolResult>;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: Deferred<T>["resolve"];
+  let reject!: Deferred<T>["reject"];
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function stripWebMCPToolDebugFields(tool: Protocol.WebMCP.Tool): WebMCPTool {
+  const { name, description, inputSchema, annotations, frameId } = tool;
+  const publicAnnotations: Record<string, unknown> | undefined =
+    annotations === undefined ? undefined : { ...annotations };
+
+  return {
+    name,
+    ...(description !== undefined && { description }),
+    ...(inputSchema !== undefined && { inputSchema }),
+    ...(publicAnnotations !== undefined && { annotations: publicAnnotations }),
+    frameId,
+  };
+}
+
+function webMCPResultFromEvent(
+  invocationId: string,
+  event: Protocol.WebMCP.ToolRespondedEvent,
+): WebMCPToolResult {
+  return {
+    invocationId,
+    status: event.status ?? "Error",
+    ...(event.output !== undefined && { output: event.output }),
+    ...(event.errorText !== undefined && { errorText: event.errorText }),
+    ...(event.exception !== undefined && { exception: event.exception }),
+  };
+}
+
+function isWebMCPUnsupportedBrowserError(error: unknown): boolean {
+  if (error instanceof StagehandUnsupportedBrowserFeatureError) return true;
+
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === -32601) return true;
+
+  const message = error instanceof Error ? error.message : String(error);
+  return /method not found/i.test(message);
+}
+
 export class Page {
   /** Every CDP child session this page owns (top-level + adopted OOPIF sessions). */
   private readonly sessions = new Map<string, CDPSessionLike>(); // sessionId -> session
@@ -111,6 +178,13 @@ export class Page {
     string,
     (evt: Protocol.Runtime.ConsoleAPICalledEvent) => void
   >();
+  private webMCPEnablePromise: Promise<void> | null = null;
+  private readonly pendingWebMCPInvocations = new Map<
+    string,
+    PendingWebMCPInvocation
+  >();
+  private readonly bufferedWebMCPResults = new Map<string, WebMCPToolResult>();
+  private pendingWebMCPInvokeToolResponses = 0;
   /** Document-start scripts installed across every session this page owns. */
   private readonly initScripts: string[] = [];
   private extraHTTPHeaders: Record<string, string>;
@@ -599,6 +673,205 @@ export class Page {
     return this;
   }
 
+  private readonly onWebMCPToolResponded = (
+    event: Protocol.WebMCP.ToolRespondedEvent,
+  ): void => {
+    if (!event.invocationId) return;
+
+    const result = webMCPResultFromEvent(event.invocationId, event);
+    const pending = this.pendingWebMCPInvocations.get(event.invocationId);
+    if (!pending) {
+      /*
+       * WebMCP.invokeTool returns the invocationId, while WebMCP.toolResponded
+       * is a separate event. Very fast tools can emit the event before the
+       * invokeTool command response reaches us, so there is not yet a pending
+       * invocation entry to resolve. Buffer only during that command-response
+       * window; otherwise unmatched events are stale or unexpected.
+       */
+      if (this.pendingWebMCPInvokeToolResponses > 0) {
+        this.bufferedWebMCPResults.set(event.invocationId, result);
+      }
+      return;
+    }
+
+    clearTimeout(pending.timer);
+    this.pendingWebMCPInvocations.delete(event.invocationId);
+    pending.deferred.resolve(result);
+  };
+
+  private async ensureWebMCPEnabled(): Promise<void> {
+    if (this.webMCPEnablePromise) {
+      return this.webMCPEnablePromise;
+    }
+
+    this.mainSession.on<Protocol.WebMCP.ToolRespondedEvent>(
+      "WebMCP.toolResponded",
+      this.onWebMCPToolResponded,
+    );
+
+    this.webMCPEnablePromise = this.mainSession
+      .send("WebMCP.enable")
+      .then((): void => undefined)
+      .catch((error) => {
+        this.teardownWebMCP();
+        const message = error instanceof Error ? error.message : String(error);
+        if (isWebMCPUnsupportedBrowserError(error)) {
+          throw new StagehandUnsupportedBrowserFeatureError(
+            "WebMCP",
+            `Unable to enable WebMCP. ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
+            error,
+          );
+        }
+
+        throw error;
+      });
+
+    return this.webMCPEnablePromise;
+  }
+
+  /**
+   * `WebMCP.enable` is the browser's source-of-truth snapshot trigger: CDP emits
+   * `WebMCP.toolsAdded` for all tools currently registered on the page. Keep
+   * this scoped to the list call so tools from old documents are not cached here.
+   */
+  private async collectWebMCPToolsSnapshot(
+    timeoutMs: number,
+  ): Promise<WebMCPTool[]> {
+    const quietWindowMs = Math.min(100, Math.max(0, timeoutMs));
+    const tools = new Map<string, WebMCPTool>();
+    let toolsVersion = 0;
+    let toolsLastUpdatedAt: number | null = null;
+
+    const toolKey = (tool: Pick<WebMCPTool, "frameId" | "name">): string =>
+      `${tool.frameId}:${tool.name}`;
+
+    const onToolsAdded = (event: Protocol.WebMCP.ToolsAddedEvent): void => {
+      if (!Array.isArray(event.tools)) return;
+
+      let changed = false;
+      for (const tool of event.tools) {
+        const normalized = stripWebMCPToolDebugFields(tool);
+        tools.set(toolKey(normalized), normalized);
+        changed = true;
+      }
+
+      if (!changed) return;
+      toolsVersion += 1;
+      toolsLastUpdatedAt = Date.now();
+      schedule?.();
+    };
+
+    const onToolsRemoved = (event: Protocol.WebMCP.ToolsRemovedEvent): void => {
+      if (!Array.isArray(event.tools)) return;
+
+      let changed = false;
+      for (const tool of event.tools) {
+        changed = tools.delete(toolKey(tool)) || changed;
+      }
+
+      if (!changed) return;
+      toolsVersion += 1;
+      toolsLastUpdatedAt = Date.now();
+      schedule?.();
+    };
+
+    const deadline = Date.now() + timeoutMs;
+    let schedule: (() => void) | null = null;
+
+    this.mainSession.on<Protocol.WebMCP.ToolsAddedEvent>(
+      "WebMCP.toolsAdded",
+      onToolsAdded,
+    );
+    this.mainSession.on<Protocol.WebMCP.ToolsRemovedEvent>(
+      "WebMCP.toolsRemoved",
+      onToolsRemoved,
+    );
+
+    try {
+      await this.mainSession.send("WebMCP.enable");
+      if (quietWindowMs === 0) return [...tools.values()];
+
+      await new Promise<void>((resolve) => {
+        const startVersion = toolsVersion;
+        let quietTimer: ReturnType<typeof setTimeout> | null = null;
+        let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+        let done = false;
+
+        const cleanup = () => {
+          if (done) return;
+          done = true;
+          if (quietTimer) clearTimeout(quietTimer);
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+          resolve();
+        };
+
+        schedule = (): void => {
+          if (done) return;
+          if (quietTimer) {
+            clearTimeout(quietTimer);
+            quietTimer = null;
+          }
+
+          const now = Date.now();
+          if (now >= deadline) {
+            cleanup();
+            return;
+          }
+
+          const sawToolsSinceStart = toolsVersion > startVersion;
+          const lastUpdate = toolsLastUpdatedAt;
+          const quietRemaining =
+            sawToolsSinceStart && lastUpdate !== null
+              ? Math.max(0, quietWindowMs - (now - lastUpdate))
+              : quietWindowMs;
+          quietTimer = setTimeout(
+            cleanup,
+            Math.min(quietRemaining, deadline - now),
+          );
+        };
+
+        timeoutTimer = setTimeout(cleanup, timeoutMs);
+        schedule();
+      });
+    } finally {
+      this.mainSession.off<Protocol.WebMCP.ToolsAddedEvent>(
+        "WebMCP.toolsAdded",
+        onToolsAdded,
+      );
+      this.mainSession.off<Protocol.WebMCP.ToolsRemovedEvent>(
+        "WebMCP.toolsRemoved",
+        onToolsRemoved,
+      );
+    }
+
+    return [...tools.values()];
+  }
+
+  private cleanupWebMCPInvocation(invocationId: string): void {
+    const pending = this.pendingWebMCPInvocations.get(invocationId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingWebMCPInvocations.delete(invocationId);
+  }
+
+  private teardownWebMCP(): void {
+    this.mainSession.off<Protocol.WebMCP.ToolRespondedEvent>(
+      "WebMCP.toolResponded",
+      this.onWebMCPToolResponded,
+    );
+    for (const [invocationId, pending] of this.pendingWebMCPInvocations) {
+      clearTimeout(pending.timer);
+      pending.deferred.reject(
+        new StagehandInvalidArgumentError(
+          `WebMCP invocation "${invocationId}" was disposed before it completed.`,
+        ),
+      );
+    }
+    this.pendingWebMCPInvocations.clear();
+    this.bufferedWebMCPResults.clear();
+    this.webMCPEnablePromise = null;
+  }
+
   // ---------------- MAIN APIs ----------------
 
   public targetId(): string {
@@ -626,6 +899,121 @@ export class Page {
    */
   public sendCDP<T = unknown>(method: string, params?: object): Promise<T> {
     return this.mainSession.send<T>(method, params);
+  }
+
+  /**
+   * List WebMCP tools registered by the current page.
+   * CDP emits WebMCP.toolsAdded for all currently registered tools each time
+   * WebMCP.enable is called, so this method treats the browser as the source of
+   * truth and collects that per-call snapshot instead of keeping a tool cache.
+   */
+  @FlowLogger.wrapWithLogging({ eventType: "PageListWebMCPTools" })
+  public async listWebMCPTools(
+    options?: WebMCPListToolsOptions,
+  ): Promise<WebMCPTool[]> {
+    const timeoutMs = options?.timeoutMs ?? 1_000;
+    try {
+      return await this.collectWebMCPToolsSnapshot(timeoutMs);
+    } catch (error) {
+      if (error instanceof StagehandUnsupportedBrowserFeatureError) throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (isWebMCPUnsupportedBrowserError(error)) {
+        throw new StagehandUnsupportedBrowserFeatureError(
+          "WebMCP",
+          `Unable to list WebMCP tools. ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
+          error,
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  @FlowLogger.wrapWithLogging({ eventType: "PageInvokeWebMCPTool" })
+  public async invokeWebMCPTool(
+    toolName: string,
+    input: Record<string, unknown>,
+    options?: WebMCPToolInvocationOptions,
+  ): Promise<WebMCPToolInvocation> {
+    const timeoutMs = options?.timeoutMs ?? 30_000;
+    let frameId = options?.frameId;
+    if (!frameId) {
+      const matchingTools = (await this.listWebMCPTools()).filter(
+        (tool) => tool.name === toolName,
+      );
+      if (matchingTools.length === 0) {
+        throw new StagehandInvalidArgumentError(
+          `Unable to invoke WebMCP tool "${toolName}" because it was not found on the current page.`,
+        );
+      }
+      if (matchingTools.length > 1) {
+        throw new StagehandInvalidArgumentError(
+          `Unable to invoke WebMCP tool "${toolName}" because multiple frames registered a tool with that name. Pass options.frameId to disambiguate.`,
+        );
+      }
+      frameId = matchingTools[0].frameId;
+    }
+
+    const deferred = createDeferred<WebMCPToolResult>();
+    let invocationId: string;
+
+    await this.ensureWebMCPEnabled();
+
+    try {
+      this.pendingWebMCPInvokeToolResponses += 1;
+      const response = await this.mainSession
+        .send<Protocol.WebMCP.InvokeToolResponse>("WebMCP.invokeTool", {
+          frameId,
+          toolName,
+          input,
+        })
+        .finally(() => {
+          this.pendingWebMCPInvokeToolResponses -= 1;
+        });
+      invocationId = response.invocationId;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (isWebMCPUnsupportedBrowserError(error)) {
+        throw new StagehandUnsupportedBrowserFeatureError(
+          "WebMCP",
+          `Unable to invoke WebMCP tool "${toolName}". ${WEB_MCP_SUPPORT_MESSAGE} CDP error: ${message}`,
+          error,
+        );
+      }
+
+      throw error;
+    }
+
+    const bufferedResult = this.bufferedWebMCPResults.get(invocationId);
+    if (bufferedResult) {
+      this.bufferedWebMCPResults.delete(invocationId);
+      deferred.resolve(bufferedResult);
+    } else {
+      const timer = setTimeout(() => {
+        this.cleanupWebMCPInvocation(invocationId);
+        deferred.reject(
+          new StagehandInvalidArgumentError(
+            `Timed out waiting for WebMCP tool "${toolName}" invocation result after ${timeoutMs}ms.`,
+          ),
+        );
+      }, timeoutMs);
+      this.pendingWebMCPInvocations.set(invocationId, {
+        deferred,
+        timer,
+      });
+    }
+
+    return {
+      invocationId,
+      toolName,
+      frameId,
+      result: deferred.promise,
+      cancel: async () => {
+        await this.mainSession.send("WebMCP.cancelInvocation", {
+          invocationId,
+        });
+      },
+    };
   }
 
   /** Seed the cached URL before navigation events converge. */
@@ -664,6 +1052,7 @@ export class Page {
         const targets = await this.conn.getTargets();
         if (!targets.some((t) => t.targetId === this._targetId)) {
           this.networkManager.dispose();
+          this.teardownWebMCP();
           return;
         }
       } catch {
@@ -672,6 +1061,7 @@ export class Page {
       await new Promise((r) => setTimeout(r, 25));
     }
     this.networkManager.dispose();
+    this.teardownWebMCP();
     this.removeAllConsoleTaps();
     this.consoleListeners.clear();
   }
