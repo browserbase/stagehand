@@ -10,7 +10,11 @@ import {
   StagehandZodSchema,
   toJsonSchema,
 } from "./zodCompat.js";
-import { loadApiKeyFromEnv } from "../utils.js";
+import {
+  getInheritableModelOptions,
+  hasModelProviderAuth,
+  loadApiKeyFromEnv,
+} from "../utils.js";
 import { extractModelName } from "../modelUtils.js";
 import { StagehandLogger, LoggerOptions } from "../logger.js";
 import { ActCache } from "./cache/ActCache.js";
@@ -357,9 +361,9 @@ export class V3 {
       this.modelClientOptions = baseClientOptions;
       this.disableAPI = true;
     } else {
-      // Ensure API key is set
+      // Ensure API key is set unless provider-native auth was configured.
       let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
-      if (!apiKey) {
+      if (!apiKey && !hasModelProviderAuth(baseClientOptions)) {
         try {
           apiKey = loadApiKeyFromEnv(
             this.modelName.split("/")[0], // "openai", "anthropic", etc
@@ -376,7 +380,7 @@ export class V3 {
       }
       this.modelClientOptions = {
         ...baseClientOptions,
-        apiKey,
+        ...(apiKey ? { apiKey } : {}),
       } as ClientOptions;
 
       // Get the default client for this model
@@ -538,6 +542,27 @@ export class V3 {
     );
   }
 
+  private getApiDefaultModelConfig(): ModelConfiguration | undefined {
+    const clientOptions = Object.fromEntries(
+      Object.entries(this.modelClientOptions).filter(
+        ([key, value]) => key !== "apiKey" && value !== undefined,
+      ),
+    );
+
+    if (Object.keys(clientOptions).length === 0) {
+      return undefined;
+    }
+
+    return {
+      modelName: this.modelName,
+      ...clientOptions,
+      ...(!hasModelProviderAuth(this.modelClientOptions) &&
+      (this.modelClientOptions as { apiKey?: string }).apiKey
+        ? { apiKey: (this.modelClientOptions as { apiKey?: string }).apiKey }
+        : {}),
+    } as ModelConfiguration;
+  }
+
   private resolveLlmClient(model?: ModelConfiguration): LLMClient {
     if (!model) {
       return this.llmClient;
@@ -567,13 +592,27 @@ export class V3 {
     const overrideProvider = String(modelName).split("/")[0];
     const baseProvider = String(this.modelName).split("/")[0];
 
+    const overrideHasCredentials =
+      hasModelProviderAuth(clientOptions) ||
+      Boolean((clientOptions as { apiKey?: string } | undefined)?.apiKey);
+
+    const inheritedOptions =
+      overrideProvider === baseProvider
+        ? overrideHasCredentials
+          ? getInheritableModelOptions(this.modelClientOptions)
+          : this.modelClientOptions
+        : undefined;
+
     const mergedOptions = {
-      ...(overrideProvider === baseProvider ? this.modelClientOptions : {}),
+      ...(inheritedOptions ?? {}),
       ...(clientOptions ?? {}),
     } as ClientOptions;
 
     const providerKey = overrideProvider;
-    if (!(mergedOptions as { apiKey?: string }).apiKey) {
+    if (
+      !hasModelProviderAuth(mergedOptions) &&
+      !(mergedOptions as { apiKey?: string }).apiKey
+    ) {
       const apiKey = loadApiKeyFromEnv(providerKey, this.logger);
       if (apiKey) {
         (mergedOptions as { apiKey?: string }).apiKey = apiKey;
@@ -1043,6 +1082,7 @@ export class V3 {
             const { sessionId, available } = await this.apiClient.init({
               modelName: this.modelName,
               modelApiKey: this.modelClientOptions.apiKey,
+              defaultModelConfig: this.getApiDefaultModelConfig(),
               domSettleTimeoutMs: this.domSettleTimeoutMs,
               verbose: this.verbose,
               systemPrompt: this.opts.systemPrompt,

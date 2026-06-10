@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getAISDKLanguageModel } from "../../lib/v3/llm/LLMProvider.js";
+import {
+  getAISDKLanguageModel,
+  LLMProvider,
+  toAISDKClientOptions,
+} from "../../lib/v3/llm/LLMProvider.js";
 
 describe("getAISDKLanguageModel", () => {
   describe("ollama provider", () => {
@@ -66,5 +70,145 @@ describe("getAISDKLanguageModel", () => {
       });
       expect(model).toBeDefined();
     });
+  });
+});
+
+describe("LLMProvider", () => {
+  it("allows Vertex models without experimental mode", () => {
+    const provider = new LLMProvider(() => {});
+
+    expect(() =>
+      provider.getClient(
+        "vertex/gemini-2.5-flash" as never,
+        {
+          auth: {
+            type: "googleServiceAccount",
+            credentials: {
+              client_email: "stagehand@example.iam.gserviceaccount.com",
+              private_key:
+                "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+            },
+          },
+          providerOptions: {
+            vertex: {
+              project: "test-project",
+              location: "us-central1",
+            },
+          },
+        } as never,
+        { experimental: false, disableAPI: false },
+      ),
+    ).not.toThrow();
+  });
+
+  it("adapts canonical Vertex auth into AI SDK googleAuthOptions", () => {
+    expect(
+      toAISDKClientOptions("vertex", {
+        auth: {
+          type: "googleServiceAccount",
+          credentials: {
+            client_email: "stagehand@example.iam.gserviceaccount.com",
+            private_key:
+              "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+          },
+          projectId: "test-project",
+          universeDomain: "googleapis.com",
+        },
+        providerOptions: {
+          vertex: {
+            project: "test-project",
+            location: "us-central1",
+          },
+        },
+      }),
+    ).toEqual({
+      project: "test-project",
+      location: "us-central1",
+      googleAuthOptions: {
+        credentials: {
+          client_email: "stagehand@example.iam.gserviceaccount.com",
+          private_key:
+            "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+        },
+        projectId: "test-project",
+        universeDomain: "googleapis.com",
+      },
+    });
+  });
+
+  it("allows Azure models without experimental mode", () => {
+    const provider = new LLMProvider(() => {});
+
+    expect(() =>
+      provider.getClient(
+        "azure/gpt-4.1-mini" as never,
+        {
+          auth: {
+            type: "azureEntraId",
+            token: "test-entra-token",
+          },
+          providerOptions: {
+            azure: {
+              resourceName: "test-azure-resource",
+            },
+          },
+        } as never,
+        { experimental: false, disableAPI: false },
+      ),
+    ).not.toThrow();
+  });
+
+  it("adapts canonical Azure Entra auth into an AI SDK tokenProvider", async () => {
+    const options = toAISDKClientOptions("azure", {
+      auth: {
+        type: "azureEntraId",
+        token: "test-entra-token",
+      },
+      providerOptions: {
+        azure: {
+          resourceName: "test-azure-resource",
+          apiVersion: "2024-10-01-preview",
+        },
+      },
+    });
+
+    expect(options).toEqual(
+      expect.objectContaining({
+        resourceName: "test-azure-resource",
+        apiVersion: "2024-10-01-preview",
+      }),
+    );
+    const tokenProvider = options?.tokenProvider;
+    expect(typeof tokenProvider).toBe("function");
+    await expect((tokenProvider as () => Promise<string>)()).resolves.toBe(
+      "test-entra-token",
+    );
+  });
+
+  it("does not pass an API key to Azure when provider auth is configured", async () => {
+    const options = toAISDKClientOptions("azure", {
+      apiKey: "env-or-default-key-that-should-not-be-used",
+      auth: {
+        type: "azureEntraId",
+        token: "test-entra-token",
+      },
+      providerOptions: {
+        azure: {
+          resourceName: "test-azure-resource",
+        },
+      },
+    } as never);
+
+    expect(options).not.toHaveProperty("apiKey");
+    expect(options).toEqual(
+      expect.objectContaining({
+        resourceName: "test-azure-resource",
+      }),
+    );
+    const tokenProvider = options?.tokenProvider;
+    expect(typeof tokenProvider).toBe("function");
+    await expect((tokenProvider as () => Promise<string>)()).resolves.toBe(
+      "test-entra-token",
+    );
   });
 });
