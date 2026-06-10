@@ -73,9 +73,8 @@ describe("API model config schemas", () => {
   const vertexModel = {
     provider: "vertex",
     modelName: "vertex/gemini-2.5-flash",
-    project: "test-gcp-project",
-    location: "us-central1",
-    googleAuthOptions: {
+    auth: {
+      type: "googleServiceAccount",
       credentials: {
         type: "service_account",
         project_id: "test-gcp-project",
@@ -88,6 +87,26 @@ describe("API model config schemas", () => {
       scopes: ["https://www.googleapis.com/auth/cloud-platform"],
       projectId: "test-gcp-project",
       universeDomain: "googleapis.com",
+    },
+    providerOptions: {
+      vertex: {
+        project: "test-gcp-project",
+        location: "us-central1",
+      },
+    },
+  };
+  const azureModel = {
+    provider: "azure",
+    modelName: "azure/gpt-4.1-mini",
+    auth: {
+      type: "azureEntraId",
+      token: "test-entra-token",
+    },
+    providerOptions: {
+      azure: {
+        resourceName: "test-azure-resource",
+        apiVersion: "2024-10-01-preview",
+      },
     },
   };
 
@@ -104,6 +123,19 @@ describe("API model config schemas", () => {
     expect(result.data.options?.model).toEqual(vertexModel);
   });
 
+  it("preserves Azure Entra auth params for act requests", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: azureModel,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw result.error;
+    expect(result.data.options?.model).toEqual(azureModel);
+  });
+
   it("accepts minimal Vertex service account credentials", () => {
     const result = Api.ActRequestSchema.safeParse({
       input: "click the search button",
@@ -111,13 +143,18 @@ describe("API model config schemas", () => {
         model: {
           provider: "vertex",
           modelName: "vertex/gemini-2.5-flash",
-          project: "test-gcp-project",
-          location: "us-central1",
-          googleAuthOptions: {
+          auth: {
+            type: "googleServiceAccount",
             credentials: {
               client_email: "vertex@example.iam.gserviceaccount.com",
               private_key:
                 "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+            },
+          },
+          providerOptions: {
+            vertex: {
+              project: "test-gcp-project",
+              location: "us-central1",
             },
           },
         },
@@ -131,13 +168,78 @@ describe("API model config schemas", () => {
     if (typeof parsedModel !== "object" || parsedModel === null) {
       throw new Error("Expected object model config");
     }
-    expect(parsedModel.googleAuthOptions).toEqual({
+    if (!("auth" in parsedModel)) {
+      throw new Error("Expected Vertex auth config");
+    }
+    expect(parsedModel.auth).toEqual({
+      type: "googleServiceAccount",
       credentials: {
         client_email: "vertex@example.iam.gserviceaccount.com",
         private_key:
           "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
       },
     });
+  });
+
+  it("requires explicit Vertex provider configs to include service account auth and provider options", () => {
+    for (const model of [
+      {
+        provider: "vertex",
+        modelName: "vertex/gemini-2.5-flash",
+        providerOptions: {
+          vertex: {
+            project: "test-gcp-project",
+            location: "us-central1",
+          },
+        },
+      },
+      {
+        provider: "vertex",
+        modelName: "vertex/gemini-2.5-flash",
+        auth: {
+          type: "googleServiceAccount",
+          credentials: {
+            client_email: "vertex@example.iam.gserviceaccount.com",
+            private_key:
+              "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+          },
+        },
+      },
+    ]) {
+      const result = Api.ActRequestSchema.safeParse({
+        input: "click the search button",
+        options: { model },
+      });
+
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it("requires provider vertex when passing Vertex auth and provider options", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          modelName: "vertex/gemini-2.5-flash",
+          auth: {
+            type: "googleServiceAccount",
+            credentials: {
+              client_email: "vertex@example.iam.gserviceaccount.com",
+              private_key:
+                "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+            },
+          },
+          providerOptions: {
+            vertex: {
+              project: "test-gcp-project",
+              location: "us-central1",
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it("preserves Vertex auth params for agent model configs", () => {
@@ -157,7 +259,74 @@ describe("API model config schemas", () => {
     expect(result.data.agentConfig.executionModel).toEqual(vertexModel);
   });
 
+  it("preserves Azure Entra auth params for agent model configs", () => {
+    const result = Api.AgentExecuteRequestSchema.safeParse({
+      agentConfig: {
+        model: azureModel,
+        executionModel: azureModel,
+      },
+      executeOptions: {
+        instruction: "find the search box",
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw result.error;
+    expect(result.data.agentConfig.model).toEqual(azureModel);
+    expect(result.data.agentConfig.executionModel).toEqual(azureModel);
+  });
+
+  it("rejects Azure Entra auth when the provider is not azure", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          modelName: "azure/gpt-4.1-mini",
+          auth: {
+            type: "azureEntraId",
+            token: "test-entra-token",
+          },
+          providerOptions: {
+            azure: {
+              resourceName: "test-azure-resource",
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects Azure configs that provide both apiKey and Entra auth", () => {
+    const result = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          ...azureModel,
+          apiKey: "test-api-key",
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("rejects Vertex key file paths and external credential sources", () => {
+    const topLevelLegacyShape = Api.ActRequestSchema.safeParse({
+      input: "click the search button",
+      options: {
+        model: {
+          provider: "vertex",
+          modelName: "vertex/gemini-2.5-flash",
+          project: "test-gcp-project",
+          location: "us-central1",
+          googleAuthOptions: {},
+        },
+      },
+    });
+    expect(topLevelLegacyShape.success).toBe(false);
+
     for (const blockedAuthOptions of [
       { keyFilename: "/etc/passwd" },
       { keyFile: "/etc/passwd" },
@@ -169,7 +338,7 @@ describe("API model config schemas", () => {
           model: {
             provider: "vertex",
             modelName: "vertex/gemini-2.5-flash",
-            googleAuthOptions: blockedAuthOptions,
+            auth: blockedAuthOptions,
           },
         },
       });
@@ -183,7 +352,8 @@ describe("API model config schemas", () => {
         model: {
           provider: "vertex",
           modelName: "vertex/gemini-2.5-flash",
-          googleAuthOptions: {
+          auth: {
+            type: "googleServiceAccount",
             credentials: {
               type: "external_account",
               credential_source: {

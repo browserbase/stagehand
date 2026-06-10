@@ -82,6 +82,12 @@ type ExpectedExportedTypes = {
   PuppeteerPage: Stagehand.PuppeteerPage;
   ConsoleListener: Stagehand.ConsoleListener;
   LoadState: Stagehand.LoadState;
+  WebMCPTool: Stagehand.WebMCPTool;
+  WebMCPToolInvocationStatus: Stagehand.WebMCPToolInvocationStatus;
+  WebMCPToolResult: Stagehand.WebMCPToolResult;
+  WebMCPToolInvocation: Stagehand.WebMCPToolInvocation;
+  WebMCPListToolsOptions: Stagehand.WebMCPListToolsOptions;
+  WebMCPToolInvocationOptions: Stagehand.WebMCPToolInvocationOptions;
   // Types from LLMClient.ts
   ChatMessage: Stagehand.ChatMessage;
   ChatMessageContent: Stagehand.ChatMessageContent;
@@ -104,6 +110,10 @@ type ExpectedExportedTypes = {
   Cookie: Stagehand.Cookie;
   CookieParam: Stagehand.CookieParam;
   ClearCookieOptions: Stagehand.ClearCookieOptions;
+  // Types from clipboard.ts
+  ClipboardOptions: Stagehand.ClipboardOptions;
+  ClipboardPasteOptions: Stagehand.ClipboardPasteOptions;
+  BrowserClipboard: Stagehand.BrowserClipboard;
 };
 
 describe("Stagehand public API types", () => {
@@ -198,6 +208,45 @@ describe("Stagehand public API types", () => {
 
     it("matches expected type shape", () => {
       expectTypeOf<Stagehand.Action>().toEqualTypeOf<ExpectedAction>();
+    });
+  });
+
+  describe("ClipboardOptions", () => {
+    type ExpectedClipboardOptions = {
+      page?: Stagehand.Page;
+    };
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.ClipboardOptions>().toEqualTypeOf<ExpectedClipboardOptions>();
+    });
+  });
+
+  describe("ClipboardPasteOptions", () => {
+    type ExpectedClipboardPasteOptions = {
+      page?: Stagehand.Page;
+      shortcut?: "ControlOrMeta+V" | "Meta+V" | "Control+V";
+    };
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.ClipboardPasteOptions>().toEqualTypeOf<ExpectedClipboardPasteOptions>();
+    });
+  });
+
+  describe("BrowserClipboard", () => {
+    type ExpectedBrowserClipboard = {
+      readText(options?: Stagehand.ClipboardOptions): Promise<string>;
+      writeText(
+        text: string,
+        options?: Stagehand.ClipboardOptions,
+      ): Promise<void>;
+      clear(options?: Stagehand.ClipboardOptions): Promise<void>;
+      paste(options?: Stagehand.ClipboardPasteOptions): Promise<void>;
+      copy(options?: Stagehand.ClipboardOptions): Promise<void>;
+      cut(options?: Stagehand.ClipboardOptions): Promise<void>;
+    };
+
+    it("matches expected type shape", () => {
+      expectTypeOf<Stagehand.BrowserClipboard>().toEqualTypeOf<ExpectedBrowserClipboard>();
     });
   });
 
