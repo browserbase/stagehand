@@ -58,9 +58,13 @@ const BROWSE_CLI_ENTRYPOINT = path.join(
   getRepoRootDir(),
   "packages",
   "cli",
-  "dist",
-  "index.js",
+  "bin",
+  "run.js",
 );
+const BROWSE_CLI_BUILD_ARTIFACTS = [
+  path.join(getRepoRootDir(), "packages", "cli", "oclif.manifest.json"),
+  path.join(getRepoRootDir(), "packages", "cli", "dist", "commands", "open.js"),
+];
 const BROWSE_CLI_PACKAGE_JSON = path.join(
   getRepoRootDir(),
   "packages",
@@ -285,9 +289,12 @@ async function prepareBrowseCliAdapter(
 export async function prepareBrowseCliHarnessAdapter(
   input: BrowseCliHarnessAdapterInput,
 ): Promise<PreparedBrowseCliHarnessAdapter> {
-  if (!fs.existsSync(BROWSE_CLI_ENTRYPOINT)) {
+  const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find(
+    (artifact) => !fs.existsSync(artifact),
+  );
+  if (missingArtifact) {
     throw new EvalsError(
-      `browse_cli requires a built CLI entrypoint at ${BROWSE_CLI_ENTRYPOINT}. Run pnpm --dir packages/cli build first.`,
+      `browse_cli requires built CLI artifacts; missing ${missingArtifact}. Run pnpm --dir packages/cli build first.`,
     );
   }
 

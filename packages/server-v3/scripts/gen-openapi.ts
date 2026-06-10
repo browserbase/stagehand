@@ -27,6 +27,23 @@ import readinessRoute from "../src/routes/readiness.js";
 
 const OUTPUT_PATH = path.resolve(getCurrentDirPath(), "../openapi.v3.yaml");
 
+function renderAzureModelConfigSchema() {
+  return `    AzureModelConfigObject:
+      anyOf:
+        - $ref: "#/components/schemas/AzureEntraModelConfigObject"
+        - $ref: "#/components/schemas/AzureApiKeyModelConfigObject"
+`;
+}
+
+function normalizeGeneratedOpenApiYaml(yaml: string) {
+  // fastify-zod-openapi flattens same-provider union branches into a single
+  // object, which loses the Azure apiKey/auth mutual-exclusion contract.
+  return yaml.replace(
+    / {4}AzureModelConfigObject:\n(?:(?: {6}.*)\n)*(?= {4}ModelConfigObject:)/,
+    renderAzureModelConfigSchema(),
+  );
+}
+
 async function main() {
   const app = fastify({
     logger: false,
@@ -44,7 +61,19 @@ async function main() {
       LocalBrowserLaunchOptions: Api.LocalBrowserLaunchOptionsSchema,
       GoogleServiceAccountCredentials:
         Api.GoogleServiceAccountCredentialsSchema,
-      GoogleAuthOptions: Api.GoogleAuthOptionsSchema,
+      GoogleServiceAccountAuth: Api.GoogleServiceAccountAuthSchema,
+      AzureEntraIdAuth: Api.AzureEntraIdAuthSchema,
+      ModelAuth: Api.ModelAuthSchema,
+      VertexProviderOptions: Api.VertexProviderOptionsSchema,
+      AzureProviderOptions: Api.AzureProviderOptionsSchema,
+      VertexModelProviderOptions: Api.VertexModelProviderOptionsSchema,
+      AzureModelProviderOptions: Api.AzureModelProviderOptionsSchema,
+      ModelProviderOptions: Api.ModelProviderOptionsSchema,
+      GenericModelConfigObject: Api.GenericModelConfigObjectSchema,
+      VertexModelConfigObject: Api.VertexModelConfigObjectSchema,
+      AzureEntraModelConfigObject: Api.AzureEntraModelConfigObjectSchema,
+      AzureApiKeyModelConfigObject: Api.AzureApiKeyModelConfigObjectSchema,
+      AzureModelConfigObject: Api.AzureModelConfigObjectSchema,
       ModelConfigObject: Api.ModelConfigObjectSchema,
       ModelConfig: Api.ModelConfigSchema,
       Action: Api.ActionSchema,
@@ -175,7 +204,7 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
 
   const yaml = app.swagger({ yaml: true });
   // Mintlify expects OpenAPI version fields to be strings, so quote them here.
-  const fixedYaml = yaml
+  const fixedYaml = normalizeGeneratedOpenApiYaml(yaml)
     .replace(/^openapi:\s*(?!['"])([^#\s]+)\s*$/m, 'openapi: "$1"')
     .replace(/^ {2}version:\s*(?!['"])([^#\s]+)\s*$/m, '  version: "$1"');
 

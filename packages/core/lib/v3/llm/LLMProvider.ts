@@ -1,6 +1,5 @@
 import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
 import {
-  ExperimentalNotConfiguredError,
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
   UnsupportedModelProviderError,
@@ -70,6 +69,57 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   gateway: createGateway,
 };
 
+type AISDKProviderClientOptions = ClientOptions & Record<string, unknown>;
+
+export function toAISDKClientOptions(
+  subProvider: string,
+  clientOptions?: ClientOptions,
+): AISDKProviderClientOptions | undefined {
+  if (!clientOptions) {
+    return clientOptions as AISDKProviderClientOptions | undefined;
+  }
+
+  const { auth, providerOptions, apiKey, ...rest } = clientOptions;
+  const apiKeyOption = !auth && apiKey ? { apiKey } : {};
+
+  if (subProvider === "azure") {
+    const azureOptions = providerOptions?.azure;
+
+    return {
+      ...rest,
+      ...apiKeyOption,
+      ...(azureOptions ?? {}),
+      ...(auth?.type === "azureEntraId"
+        ? { tokenProvider: async () => auth.token }
+        : {}),
+    };
+  }
+
+  if (subProvider !== "vertex") {
+    return clientOptions as AISDKProviderClientOptions | undefined;
+  }
+
+  const vertexOptions = providerOptions?.vertex;
+
+  return {
+    ...rest,
+    ...apiKeyOption,
+    ...(vertexOptions ?? {}),
+    ...(auth?.type === "googleServiceAccount"
+      ? {
+          googleAuthOptions: {
+            credentials: auth.credentials,
+            ...(auth.scopes ? { scopes: auth.scopes } : {}),
+            ...(auth.projectId ? { projectId: auth.projectId } : {}),
+            ...(auth.universeDomain
+              ? { universeDomain: auth.universeDomain }
+              : {}),
+          },
+        }
+      : {}),
+  };
+}
+
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gpt-4.1": "openai",
   "gpt-4.1-mini": "openai",
@@ -106,9 +156,12 @@ export function getAISDKLanguageModel(
   clientOptions?: ClientOptions,
   middleware?: LanguageModelV2Middleware,
 ) {
+  const aiSdkClientOptions = toAISDKClientOptions(subProvider, clientOptions);
   const hasValidOptions =
-    clientOptions &&
-    Object.values(clientOptions).some((v) => v !== undefined && v !== null);
+    aiSdkClientOptions &&
+    Object.values(aiSdkClientOptions).some(
+      (v) => v !== undefined && v !== null,
+    );
 
   let model;
   if (hasValidOptions) {
@@ -119,7 +172,7 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProvidersWithAPIKey),
       );
     }
-    const provider = creator(clientOptions);
+    const provider = creator(aiSdkClientOptions as ClientOptions);
     model = provider(subModelName);
   } else {
     const provider = AISDKProviders[subProvider];
@@ -163,13 +216,6 @@ export class LLMProvider {
       const firstSlashIndex = modelName.indexOf("/");
       const subProvider = modelName.substring(0, firstSlashIndex);
       const subModelName = modelName.substring(firstSlashIndex + 1);
-      if (
-        subProvider === "vertex" &&
-        !options?.disableAPI &&
-        !options?.experimental
-      ) {
-        throw new ExperimentalNotConfiguredError("Vertex provider");
-      }
 
       const effectiveMiddleware = options?.middleware ?? this.middleware;
       const languageModel = getAISDKLanguageModel(

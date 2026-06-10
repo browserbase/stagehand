@@ -1,5 +1,4 @@
 import type { ClientOptions as AnthropicClientOptionsBase } from "@anthropic-ai/sdk";
-import type { GoogleVertexProviderSettings as GoogleVertexProviderSettingsBase } from "@ai-sdk/google-vertex";
 import type {
   LanguageModelV2,
   LanguageModelV2Middleware,
@@ -31,19 +30,39 @@ export interface GoogleServiceAccountCredentials {
   universe_domain?: string;
 }
 
-export interface GoogleVertexAuthOptions {
-  credentials?: GoogleServiceAccountCredentials;
+export interface GoogleServiceAccountAuth {
+  type: "googleServiceAccount";
+  credentials: GoogleServiceAccountCredentials;
   scopes?: string | string[];
   projectId?: string;
   universeDomain?: string;
 }
 
-export type GoogleVertexProviderSettings = Pick<
-  GoogleVertexProviderSettingsBase,
-  "project" | "location" | "headers" | "baseURL"
-> & {
-  googleAuthOptions?: GoogleVertexAuthOptions;
-};
+export interface AzureEntraIdAuth {
+  type: "azureEntraId";
+  token: string;
+}
+
+export type ModelAuth = GoogleServiceAccountAuth | AzureEntraIdAuth;
+
+export interface VertexProviderOptions {
+  project: string;
+  location: string;
+  baseURL?: string;
+  headers?: Record<string, string>;
+}
+
+export interface AzureProviderOptions {
+  resourceName?: string;
+  baseURL?: string;
+  apiVersion?: string;
+  useDeploymentBasedUrls?: boolean;
+  headers?: Record<string, string>;
+}
+
+export type ModelProviderOptions =
+  | { vertex: VertexProviderOptions; azure?: never }
+  | { azure: AzureProviderOptions; vertex?: never };
 
 export type AnthropicJsonSchemaObject = {
   definitions?: {
@@ -113,13 +132,11 @@ export type ModelProvider =
  */
 export type ThinkingEffort = "none" | "low" | "medium" | "high" | "max";
 
-export type ClientOptions = (
-  | OpenAIClientOptions
-  | AnthropicClientOptions
-  | GoogleVertexProviderSettings
-) & {
+export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
   apiKey?: string;
   provider?: AgentProviderType;
+  auth?: ModelAuth;
+  providerOptions?: ModelProviderOptions;
   baseURL?: string;
   /** OpenAI organization ID */
   organization?: string;
