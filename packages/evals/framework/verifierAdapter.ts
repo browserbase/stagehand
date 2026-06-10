@@ -89,10 +89,14 @@ export async function runWithVerifier(
     });
   } catch (e) {
     recorderStatus = "error";
-    const trajectory = await recorder.finish({ status: recorderStatus });
     // Re-throw after persisting so the bench task can decide how to report.
     const wrapped = e instanceof Error ? e : new Error(String(e));
-    Object.assign(wrapped, { trajectoryDir: recorder.directory, trajectory });
+    try {
+      const trajectory = await recorder.finish({ status: recorderStatus });
+      Object.assign(wrapped, { trajectoryDir: recorder.directory, trajectory });
+    } catch {
+      // Persistence failure must not mask the original agent error.
+    }
     throw wrapped;
   }
 
