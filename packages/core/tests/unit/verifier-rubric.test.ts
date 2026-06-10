@@ -198,9 +198,7 @@ describe("RubricVerifier", () => {
     // The "$" survives renderPrompt's $$-escaping because we render literal
     // ariaTree content into the prompt unescaped.
     expect(prompt).toContain("Final trajectory state");
-    expect(prompt).toContain(
-      "Get $305 trade-in credit toward a new iPhone.",
-    );
+    expect(prompt).toContain("Get $305 trade-in credit toward a new iPhone.");
   });
 });
 

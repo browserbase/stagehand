@@ -44,10 +44,7 @@ describe("claudeCodeAdapter image evidence", () => {
             {
               type: "tool_result",
               tool_use_id: "tu_1",
-              content: [
-                { type: "text", text: "OK" },
-                imageBlock(base64),
-              ],
+              content: [{ type: "text", text: "OK" }, imageBlock(base64)],
             },
           ],
         },
@@ -146,7 +143,12 @@ describe("claudeCodeAdapter image evidence", () => {
         type: "assistant",
         message: {
           content: [
-            { type: "tool_use", id: "tu_1", name: "playwright_code", input: {} },
+            {
+              type: "tool_use",
+              id: "tu_1",
+              name: "playwright_code",
+              input: {},
+            },
           ],
         },
       },
@@ -166,7 +168,12 @@ describe("claudeCodeAdapter image evidence", () => {
         type: "assistant",
         message: {
           content: [
-            { type: "tool_use", id: "tu_2", name: "playwright_code", input: {} },
+            {
+              type: "tool_use",
+              id: "tu_2",
+              name: "playwright_code",
+              input: {},
+            },
           ],
         },
       },
@@ -198,7 +205,12 @@ describe("claudeCodeAdapter image evidence", () => {
         type: "assistant",
         message: {
           content: [
-            { type: "tool_use", id: "tu_1", name: "playwright_code", input: {} },
+            {
+              type: "tool_use",
+              id: "tu_1",
+              name: "playwright_code",
+              input: {},
+            },
           ],
         },
       },
