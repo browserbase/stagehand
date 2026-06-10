@@ -484,10 +484,15 @@ export class GoogleCUAClient extends AgentClient {
       // Execute actions and collect function responses
       const functionResponses: Part[] = [];
 
-      if (result.actions.length > 0) {
+      // Always process the model's response, even when it produced no
+      // executable action (e.g. a standalone take_screenshot). The model
+      // expects exactly one function response — a fresh screenshot — per
+      // computer-use call; skipping it when there are 0 actions leaves the
+      // model blind and it gives up after one empty turn.
+      {
         let hasError = false;
 
-        // Execute all actions
+        // Execute all actions (a no-op when there are none).
         for (let i = 0; i < result.actions.length; i++) {
           const action = result.actions[i];
 
@@ -504,6 +509,14 @@ export class GoogleCUAClient extends AgentClient {
             logger({
               category: "agent",
               message: "Skipping open_web_browser action",
+              level: 2,
+            });
+          } else if (action.type === "screenshot") {
+            // No interaction to perform — the screenshot captured below is
+            // returned to the model as this call's function response.
+            logger({
+              category: "agent",
+              message: "take_screenshot: capturing current page",
               level: 2,
             });
           } else if (action.type === "custom_tool") {
@@ -716,23 +729,24 @@ export class GoogleCUAClient extends AgentClient {
         // Convert function call to action(s)
         const action = this.convertFunctionCallToAction(part.functionCall);
         if (action) {
-          // Special handling for type_text_at - we need to click first
-          if (
-            part.functionCall.name === "type_text_at" &&
-            action.type === "type"
-          ) {
+          // Special handling for type actions. gemini-2.5 type_text_at carries
+          // coordinates (click the field first); gemini-3.x `type` has none and
+          // types into the element the model already focused.
+          if (action.type === "type") {
             logger({
               category: "agent",
               message: `Adding action: ${JSON.stringify(action)}`,
               level: 2,
             });
-            // First add a click action at the same coordinates
-            actions.push({
-              type: "click",
-              x: action.x,
-              y: action.y,
-              button: "left",
-            });
+            // Click the target first only when coordinates are provided.
+            if (typeof action.x === "number" && typeof action.y === "number") {
+              actions.push({
+                type: "click",
+                x: action.x,
+                y: action.y,
+                button: "left",
+              });
+            }
 
             // If clear_before_typing is true (default), add a select all
             if (action.clearBeforeTyping) {
@@ -794,16 +808,59 @@ export class GoogleCUAClient extends AgentClient {
   private convertFunctionCallToAction(
     functionCall: FunctionCall,
   ): AgentAction | null {
-    const { name, args } = functionCall;
+    const { name: rawName } = functionCall;
+    // Default args to an empty object so no-argument predefined functions
+    // (e.g. take_screenshot, go_back) are not rejected by the guard below.
+    const args = functionCall.args ?? {};
 
-    if (!name || !args) {
+    if (!rawName) {
       return null;
     }
+
+    // The gemini-3.x computer-use tool renamed several of the predefined
+    // functions that gemini-2.5-computer-use-preview used, and adds a
+    // descriptive `intent` arg to every call. The argument fields are otherwise
+    // unchanged (confirmed for click/navigate). Normalize the 3.x names to the
+    // canonical 2.5 names so a single set of handlers serves both generations;
+    // `intent` is ignored since handlers only read the args they need.
+    // NOTE: click and take_screenshot are confirmed from live gemini-3.5-flash
+    // traffic; the rest are inferred from the same drop-the-qualifier pattern
+    // and are safe aliases (any unmapped name still hits the warning below).
+    const NAME_ALIASES: Record<string, string> = {
+      click: "click_at",
+      left_click: "click_at",
+      double_click: "click_at",
+      triple_click: "click_at",
+      type: "type_text_at",
+      type_text: "type_text_at",
+      hover: "hover_at",
+      scroll: "scroll_at",
+      drag: "drag_and_drop",
+      key: "key_combination",
+      keys: "key_combination",
+      key_press: "key_combination",
+      press_key: "key_combination",
+      press_keys: "key_combination",
+      hotkey: "key_combination",
+      screenshot: "take_screenshot",
+      wait: "wait_5_seconds",
+    };
+    const name = NAME_ALIASES[rawName] ?? rawName;
 
     switch (name) {
       case "open_web_browser":
         return {
           type: "open_web_browser",
+          timestamp: Date.now(),
+        };
+
+      case "take_screenshot":
+        // No UI interaction. The step loop captures a fresh screenshot and
+        // returns it to the model as this call's function response; marked as a
+        // recognized action (not null) so it isn't dropped, and skipped in the
+        // executor like open_web_browser.
+        return {
+          type: "screenshot",
           timestamp: Date.now(),
         };
 
@@ -821,32 +878,42 @@ export class GoogleCUAClient extends AgentClient {
       }
 
       case "type_text_at": {
-        const { x, y } = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
-        // Google's type_text_at includes press_enter and clear_before_typing parameters
+        // press_enter and clear_before_typing are shared across generations.
         const pressEnter = (args.press_enter as boolean) ?? false;
         const clearBeforeTyping = (args.clear_before_typing as boolean) ?? true;
-
-        // For type_text_at, we need to click first then type
-        // This matches the behavior expected by Google's CUA
-        // We'll handle this in the executeStep method by converting to two actions
-        return {
-          type: "type",
+        const base = {
+          type: "type" as const,
           text: args.text as string,
-          x,
-          y,
           pressEnter,
           clearBeforeTyping,
         };
+
+        // gemini-2.5 type_text_at carries x/y (click the field, then type).
+        // gemini-3.x `type` has no coordinates and types into the element the
+        // model already focused with a preceding click. Only attach coords when
+        // present so the executor doesn't click at NaN.
+        if (typeof args.x === "number" && typeof args.y === "number") {
+          const { x, y } = this.normalizeCoordinates(args.x, args.y);
+          return { ...base, x, y };
+        }
+        return base;
       }
 
       case "key_combination": {
-        const keys = (args.keys as string)
-          .split("+")
-          .map((key: string) => key.trim())
-          .map((key: string) => mapKeyToPlaywright(key));
+        // gemini-2.5 key_combination sends `keys` as a "+"-joined string;
+        // gemini-3.x `hotkey` sends a `keys` array, and `press_key` sends a
+        // single `key`. Accept all three.
+        const raw = args.keys !== undefined ? args.keys : args.key;
+        const parts = Array.isArray(raw)
+          ? (raw as string[])
+          : String(raw ?? "").split("+");
+        const keys = parts
+          .map((key) => String(key).trim())
+          .filter(Boolean)
+          .map((key) => mapKeyToPlaywright(key));
+        if (keys.length === 0) {
+          return null;
+        }
         return {
           type: "keypress",
           keys,
@@ -862,13 +929,26 @@ export class GoogleCUAClient extends AgentClient {
       }
 
       case "scroll_at": {
+        // A coordinate-less `scroll` alias (gemini-3.x) scrolls the document.
+        if (typeof args.x !== "number" || typeof args.y !== "number") {
+          const dir = ((args.direction as string) || "down").toLowerCase();
+          return {
+            type: "keypress",
+            keys: [dir === "up" ? "PageUp" : "PageDown"],
+          };
+        }
         const { x, y } = this.normalizeCoordinates(
           args.x as number,
           args.y as number,
         );
         const direction = ((args.direction as string) || "down").toLowerCase();
+        // 2.5 uses `magnitude`; gemini-3.x `scroll` uses `magnitude_in_pixels`.
         const magnitude =
-          typeof args.magnitude === "number" ? (args.magnitude as number) : 800;
+          typeof args.magnitude === "number"
+            ? (args.magnitude as number)
+            : typeof args.magnitude_in_pixels === "number"
+              ? (args.magnitude_in_pixels as number)
+              : 800;
 
         let scroll_x = 0;
         let scroll_y = 0;
@@ -935,14 +1015,22 @@ export class GoogleCUAClient extends AgentClient {
         };
 
       case "drag_and_drop": {
-        const startPoint = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
-        const endPoint = this.normalizeCoordinates(
-          args.destination_x as number,
-          args.destination_y as number,
-        );
+        // 2.5 uses x/y + destination_x/destination_y; gemini-3.x `drag_and_drop`
+        // uses start_x/start_y + end_x/end_y. Accept either.
+        const sx = (args.x ?? args.start_x) as number;
+        const sy = (args.y ?? args.start_y) as number;
+        const ex = (args.destination_x ?? args.end_x) as number;
+        const ey = (args.destination_y ?? args.end_y) as number;
+        if (
+          typeof sx !== "number" ||
+          typeof sy !== "number" ||
+          typeof ex !== "number" ||
+          typeof ey !== "number"
+        ) {
+          return null;
+        }
+        const startPoint = this.normalizeCoordinates(sx, sy);
+        const endPoint = this.normalizeCoordinates(ex, ey);
         return {
           type: "drag",
           path: [

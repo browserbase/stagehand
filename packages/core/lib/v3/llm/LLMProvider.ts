@@ -148,6 +148,7 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.0-flash": "google",
   "gemini-2.5-flash-preview-04-17": "google",
   "gemini-2.5-pro-preview-03-25": "google",
+  "gemini-3.5-flash": "google",
 };
 
 export function getAISDKLanguageModel(
