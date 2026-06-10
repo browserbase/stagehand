@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { fail } from "../errors.js";
 import { getRemote } from "./remote-binding.js";
 import { resolveWsTarget } from "./resolve-ws.js";
@@ -178,12 +180,7 @@ export function targetsCompatible(
 }
 
 function chromeArgsEqual(left?: string[], right?: string[]): boolean {
-  const normalizedLeft = left?.length ? left : [];
-  const normalizedRight = right?.length ? right : [];
-  return (
-    normalizedLeft.length === normalizedRight.length &&
-    normalizedLeft.every((arg, index) => arg === normalizedRight[index])
-  );
+  return isDeepStrictEqual(left ?? [], right ?? []);
 }
 
 function ignoreDefaultArgsEqual(
