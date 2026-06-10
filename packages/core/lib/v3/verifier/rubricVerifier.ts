@@ -1855,10 +1855,7 @@ function selectFinalImages(trajectory: Trajectory): EvidenceImage[] {
       trajectory.steps[lastStepIdx].probeEvidence.screenshot,
     );
   }
-  push(
-    "trajectory final observation",
-    trajectory.finalObservation?.screenshot,
-  );
+  push("trajectory final observation", trajectory.finalObservation?.screenshot);
 
   return out;
 }
