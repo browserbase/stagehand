@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { V3Options, LogLine } from "@browserbasehq/stagehand";
+import type { V3Options, LogLine, Api } from "@browserbasehq/stagehand";
 import { V3 } from "@browserbasehq/stagehand";
 import type {
   SessionStore,
@@ -23,6 +23,25 @@ interface LruNode {
   expiry: number;
   prev: LruNode | null;
   next: LruNode | null;
+}
+
+function hasProviderAuth(model: Api.ModelConfig): boolean {
+  return "auth" in model && model.auth !== undefined;
+}
+
+export function withModelApiKeyFallback(
+  model: Api.ModelConfig,
+  modelApiKey?: string,
+): Api.ModelConfig {
+  if (
+    !modelApiKey ||
+    hasProviderAuth(model) ||
+    ("apiKey" in model && model.apiKey)
+  ) {
+    return model;
+  }
+
+  return { ...model, apiKey: modelApiKey } as Api.ModelConfig;
 }
 
 /**
@@ -208,10 +227,12 @@ export class InMemorySessionStore implements SessionStore {
 
     const options: V3Options = {
       env: isBrowserbase ? "BROWSERBASE" : "LOCAL",
-      model: {
-        modelName: params.modelName,
-        apiKey: ctx.modelApiKey,
-      },
+      model: ctx.requestModelConfig
+        ? withModelApiKeyFallback(ctx.requestModelConfig, ctx.modelApiKey)
+        : {
+            modelName: params.modelName,
+            apiKey: ctx.modelApiKey,
+          },
       verbose: params.verbose,
       systemPrompt: params.systemPrompt,
       selfHeal: params.selfHeal,
