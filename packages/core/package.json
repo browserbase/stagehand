@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "type": "module",
   "main": "./dist/cjs/index.js",
@@ -36,6 +36,7 @@
     "build:cjs": "tsx scripts/build-cjs.ts",
     "build:esm": "tsx scripts/build-esm.ts",
     "build": "pnpm --filter @browserbasehq/stagehand run --parallel \"/^build:(esm|cjs)$/\"",
+    "prepack": "pnpm -w --dir ../.. exec turbo run build --filter=@browserbasehq/stagehand",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import('node:path').then(path=>import(new URL(path.resolve('examples', n + '.ts'), 'file:')));\" --",
     "test": "pnpm -w --dir ../.. exec turbo run test:core test:e2e --filter=@browserbasehq/stagehand --",
     "test:core": "tsx scripts/test-core.ts",
@@ -46,10 +47,15 @@
     "lint": "cd ../.. && prettier --check packages/core && cd packages/core && pnpm run eslint && pnpm run typecheck"
   },
   "files": [
-    "dist/esm",
-    "dist/cjs",
-    "!dist/esm/tests",
-    "!dist/cjs/tests"
+    "dist/esm/index.d.ts",
+    "dist/esm/index.js",
+    "dist/esm/lib",
+    "dist/esm/package.json",
+    "dist/cjs/cli.js",
+    "dist/cjs/index.d.ts",
+    "dist/cjs/index.js",
+    "dist/cjs/lib",
+    "dist/cjs/package.json"
   ],
   "keywords": [
     "ai",
@@ -84,19 +90,19 @@
     "@google/genai": "^1.22.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^5.0.133",
-    "devtools-protocol": "^0.0.1464554",
+    "devtools-protocol": "^0.0.1642743",
     "fetch-cookie": "^3.1.0",
     "openai": "^4.104.0",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "uuid": "^11.1.1",
-    "ws": "^8.18.0",
+    "ws": "^8.21.0",
     "zod-to-json-schema": "^3.25.0"
   },
   "optionalDependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.73",
     "@ai-sdk/anthropic": "^2.0.34",
-    "@ai-sdk/azure": "^2.0.54",
+    "@ai-sdk/azure": "^2.0.109",
     "@ai-sdk/cerebras": "^1.0.25",
     "@ai-sdk/deepseek": "^1.0.23",
     "@ai-sdk/google": "^2.0.53",

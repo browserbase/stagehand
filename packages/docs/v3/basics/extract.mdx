@@ -153,7 +153,7 @@ This returns the accessibility tree representation of the page without LLM proce
 
 ## Advanced Configuration
 
-You can pass additional options to configure the model, timeout, and selector scope:
+You can pass additional options to configure the model, timeout, selector scope, and whether to include a screenshot:
 ```typescript
 const result = await stagehand.extract("extract the repository name", {
   model: "anthropic/claude-sonnet-4-5",
@@ -221,6 +221,26 @@ const article = await stagehand.extract(
 
 <Note>
   `ignoreSelectors` removes all matches for each selector, along with each matched node's descendants. `selector` still scopes extraction to a single resolved subtree.
+</Note>
+
+### Visual Extract
+
+Set `screenshot: true` when the extraction needs visual information from the current viewport in addition to the page accessibility tree.
+
+```typescript
+const saleBadge = await stagehand.extract(
+  "extract the text shown in the visible sale badge",
+  z.object({
+    text: z.string()
+  }),
+  {
+    screenshot: true
+  }
+);
+```
+
+<Note>
+  `screenshot: true` captures the current viewport, not the full page. It is only supported with AI SDK clients.
 </Note>
 
 

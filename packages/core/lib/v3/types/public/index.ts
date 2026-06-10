@@ -5,6 +5,7 @@ export * as Api from "./api.js";
 // Also export BrowserbaseRegion directly for convenience
 export type { BrowserbaseRegion } from "./api.js";
 export * from "./apiErrors.js";
+export * from "./clipboard.js";
 export * from "./logs.js";
 export * from "./methods.js";
 export * from "./metrics.js";

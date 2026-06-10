@@ -34,3 +34,7 @@ ctrf/
 packages/evals/playwright-mcp-screenshot-*.png
 packages/evals/chrome-devtools-mcp-screenshot-*.png
 .trajectories/
+
+# The browse CLI has a command source dir named "downloads" that must be tracked
+# despite the broad downloads/ rule above.
+!packages/cli/src/commands/cloud/sessions/downloads/
