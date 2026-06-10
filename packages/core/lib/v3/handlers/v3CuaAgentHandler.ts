@@ -855,8 +855,9 @@ export class V3CuaAgentHandler {
     screenshot: Buffer,
     url: string,
   ): Promise<void> {
+    if (!this.evidenceCallback) return;
     this.lastAgentScreenshotUrl = url;
-    await this.evidenceCallback?.({
+    await this.evidenceCallback({
       type: "screenshot",
       screenshot,
       url,
