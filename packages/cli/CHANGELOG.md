@@ -1,5 +1,18 @@
 # browse
 
+## 0.8.4
+
+### Patch Changes
+
+- [#2213](https://github.com/browserbase/stagehand/pull/2213) [`7449046`](https://github.com/browserbase/stagehand/commit/7449046647c30800404c333dd604bacccba0aa7c) Thanks [@shrey150](https://github.com/shrey150)! - fix(cli): request the full template catalog via scope=all so `browse templates list` returns all templates, not just playground-runnable ones
+
+- [#2210](https://github.com/browserbase/stagehand/pull/2210) [`a9552fd`](https://github.com/browserbase/stagehand/commit/a9552fde629a2b13bc32dedc002e401af90b866c) Thanks [@shrey150](https://github.com/shrey150)! - Make `browse skills add` failures diagnosable and fail cleanly on unknown skills.
+
+  - Unknown (non-generated) skill ids now fail fast with an actionable "not found in the catalog" message pointing at `browse skills find`/`browse skills list`, instead of silently git-cloning the entire browse.sh repo and exiting with an opaque error.
+  - The `npx skills add` child's output is now buffered (tail) while still streaming live to the terminal, so a nonzero exit surfaces the real reason instead of a bare exit code.
+  - Failures now record distinct telemetry result codes (`skill_not_found`, `invalid_skill_id`, `npx_missing`, `skill_install_failed`) so the failure modes are measurable.
+  - `browse skills add` with no argument now prints actionable guidance (the `<domain>/<task>` form plus `browse skills find`) instead of oclif's bare "Missing 1 required arg".
+
 ## 0.8.3
 
 ### Patch Changes

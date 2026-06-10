@@ -1,6 +1,6 @@
 {
   "name": "browse",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Unified Browserbase CLI for browser automation and cloud APIs.",
   "type": "module",
   "private": false,
