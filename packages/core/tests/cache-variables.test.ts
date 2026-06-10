@@ -74,6 +74,104 @@ describe("ActCache variable handling", () => {
     expect(context2?.variables).toEqual({ username: "user2@example.com" });
   });
 
+  it("normalizes query parameter order for cache keys only", async () => {
+    const storage = {
+      enabled: true,
+      readJson: vi.fn(),
+      writeJson: vi.fn().mockResolvedValue({}),
+      directory: "/tmp/cache",
+    } as unknown as CacheStorage;
+
+    const cache = new ActCache({
+      storage,
+      logger: vi.fn(),
+      getActHandler: () => null as unknown as ActHandler,
+      getDefaultLlmClient: () => ({}) as LLMClient,
+      domSettleTimeoutMs: undefined,
+    });
+
+    const firstPage = {
+      url: vi.fn().mockReturnValue("https://example.com/search?b=2&a=1"),
+    } as unknown as Page;
+    const secondPage = {
+      url: vi.fn().mockReturnValue("https://example.com/search?a=1&b=2"),
+    } as unknown as Page;
+
+    const context1 = await cache.prepareContext(
+      "click the first result",
+      firstPage,
+    );
+    const context2 = await cache.prepareContext(
+      "click the first result",
+      secondPage,
+    );
+
+    expect(context1?.cacheKey).toBe(context2?.cacheKey);
+    expect(context1?.legacyCacheKey).toBeDefined();
+    expect(context1?.legacyCacheKey).not.toBe(context1?.cacheKey);
+    expect(context1?.pageUrl).toBe("https://example.com/search?b=2&a=1");
+    expect(context2?.pageUrl).toBe("https://example.com/search?a=1&b=2");
+  });
+
+  it("falls back to legacy raw URL cache keys", async () => {
+    const action: Action = {
+      selector: "xpath=/html/body/button",
+      description: "click button",
+      method: "click",
+      arguments: [],
+    };
+    const entry: CachedActEntry = {
+      version: 1,
+      instruction: "click the first result",
+      url: "https://example.com/search?b=2&a=1",
+      variableKeys: [],
+      actions: [action],
+      actionDescription: "click button",
+      message: "done",
+    };
+    const storage = {
+      enabled: true,
+      readJson: vi
+        .fn()
+        .mockResolvedValueOnce({ value: null })
+        .mockResolvedValueOnce({ value: entry }),
+      writeJson: vi.fn().mockResolvedValue({}),
+      directory: "/tmp/cache",
+    } as unknown as CacheStorage;
+    const handler = {
+      takeDeterministicAction: vi.fn().mockResolvedValue({
+        success: true,
+        message: "ok",
+        actionDescription: "click button",
+        actions: [action],
+      }),
+    } as unknown as ActHandler;
+    const cache = new ActCache({
+      storage,
+      logger: vi.fn(),
+      getActHandler: () => handler,
+      getDefaultLlmClient: () => ({}) as LLMClient,
+      domSettleTimeoutMs: undefined,
+    });
+    const page = {
+      waitForSelector: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Page;
+    const context = {
+      instruction: "click the first result",
+      cacheKey: "normalized-key",
+      legacyCacheKey: "legacy-key",
+      pageUrl: "https://example.com/search?b=2&a=1",
+      variableKeys: [],
+    };
+
+    const result = await cache.tryReplay(context, page);
+
+    expect(result?.success).toBe(true);
+    expect(storage.readJson).toHaveBeenCalledWith("normalized-key.json");
+    expect(storage.readJson).toHaveBeenCalledWith("legacy-key.json");
+    expect(handler.takeDeterministicAction).toHaveBeenCalledTimes(1);
+  });
+
   it("replays cached actions with variable substitution", async () => {
     // Cached action contains variable placeholder %username%
     const action: Action = {
