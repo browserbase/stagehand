@@ -40,6 +40,8 @@ async function main() {
         apiKey: process.env.YUTORI_API_KEY,
         // baseURL: "https://api.yutori.com/v1",
         // Optional Navigator tuning:
+        // Defaults to the expanded tool set (adds extract_elements/find/
+        // set_element_value/execute_js). Pass core for coordinate-only:
         // toolSet: "browser_tools_core-20260403",
         // disableTools: ["mouse_down", "mouse_up"],
         // User context defaults to San Francisco / America/Los_Angeles —

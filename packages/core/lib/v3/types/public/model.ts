@@ -166,7 +166,7 @@ export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
   environment?: string;
   /** Max images for Microsoft FARA agent */
   maxImages?: number;
-  /** Yutori Navigator tool set. Only "browser_tools_core-20260403" is currently supported (the expanded set is not yet implemented). */
+  /** Yutori Navigator tool set. Defaults to the expanded set ("browser_tools_expanded-20260403"), which adds the DOM tools (extract_elements/find/set_element_value/execute_js) on top of the core coordinate tools; pass "browser_tools_core-20260403" for coordinate-only. */
   toolSet?: string;
   /** Yutori Navigator tool names to disable from the active tool set */
   disableTools?: string[];
