@@ -149,12 +149,11 @@ export interface CanonicalScreenshot {
   /** 0-based position in the kept-screenshots array. Stable across the pipeline. */
   canonicalIndex: number;
   /**
-   * 0-based trajectory step position this screenshot came from. Lets downstream
-   * prompts cross-reference the action history.
+   * 0-based position in `Trajectory.steps` this screenshot came from
+   * (steps.length for the final observation). Lets downstream prompts
+   * cross-reference the action history.
    */
   originalStepIndex: number;
-  /** Position of the step in `Trajectory.steps` (0..steps.length-1). */
-  trajectoryStepPosition: number;
   /** The resized PNG/JPEG buffer (or native bytes if sharp unavailable). */
   bytes: Buffer;
   /** MIME media type. Always "image/png" after the optional resize. */
@@ -173,7 +172,6 @@ export interface CanonicalTextEvidence {
   /** 0-based position in the combined evidence-point array. */
   canonicalIndex: number;
   originalStepIndex: number;
-  trajectoryStepPosition: number;
   /** Where the text came from. */
   source: "probe-aria" | "agent-text" | "agent-json" | "tool-output";
   /** The text payload, already truncated. */

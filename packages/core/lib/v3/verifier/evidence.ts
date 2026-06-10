@@ -139,7 +139,6 @@ export async function loadAndReduceScreenshots(
   const rawFrames: Array<{
     bytes: Buffer;
     originalStepIndex: number;
-    trajectoryStepPosition: number;
   }> = [];
 
   for (let i = 0; i < trajectory.steps.length; i++) {
@@ -150,7 +149,6 @@ export async function loadAndReduceScreenshots(
         rawFrames.push({
           bytes: m.bytes,
           originalStepIndex: i,
-          trajectoryStepPosition: i,
         });
       }
     }
@@ -160,7 +158,6 @@ export async function loadAndReduceScreenshots(
       rawFrames.push({
         bytes: buf,
         originalStepIndex: i,
-        trajectoryStepPosition: i,
       });
     }
   }
@@ -173,7 +170,6 @@ export async function loadAndReduceScreenshots(
     rawFrames.push({
       bytes: finalShot,
       originalStepIndex: trajectory.steps.length,
-      trajectoryStepPosition: trajectory.steps.length,
     });
   }
 
@@ -202,7 +198,6 @@ export async function loadAndReduceScreenshots(
   const keptRaw: Array<{
     bytes: Buffer;
     originalStepIndex: number;
-    trajectoryStepPosition: number;
     keptReason: CanonicalScreenshot["keptReason"];
   }> = [];
 
@@ -248,7 +243,6 @@ export async function loadAndReduceScreenshots(
       keptRaw.push({
         bytes: frame.bytes,
         originalStepIndex: frame.originalStepIndex,
-        trajectoryStepPosition: frame.trajectoryStepPosition,
         keptReason: reason,
       });
       lastKeptIdx = keptRaw.length - 1;
@@ -265,7 +259,6 @@ export async function loadAndReduceScreenshots(
       return {
         canonicalIndex,
         originalStepIndex: raw.originalStepIndex,
-        trajectoryStepPosition: raw.trajectoryStepPosition,
         bytes: resized,
         mediaType: "image/png",
         keptReason: raw.keptReason,
@@ -327,7 +320,6 @@ export async function collectCanonicalEvidence(
     | { kind: "image"; shot: CanonicalScreenshot }
     | {
         kind: "text";
-        stepPos: number;
         stepIdx: number;
         source: CanonicalTextEvidence["source"];
         content: string;
@@ -340,12 +332,10 @@ export async function collectCanonicalEvidence(
 
   const seenText = new Set<string>();
   const addTextEvidence = (
-    stepPos: number,
     stepIdx: number,
     source: CanonicalTextEvidence["source"],
-    raw: unknown,
+    text: string | undefined,
   ) => {
-    const text = typeof raw === "string" ? raw : safeStringifyEvidence(raw);
     if (!text || text.length === 0) return;
     const trimmed = text.length > 4000 ? text.slice(0, 4000) : text;
     const normalized = trimmed.replace(/\s+/g, " ").trim();
@@ -356,7 +346,6 @@ export async function collectCanonicalEvidence(
     seenText.add(normalized);
     pending.push({
       kind: "text",
-      stepPos,
       stepIdx,
       source,
       content: trimmed,
@@ -365,37 +354,43 @@ export async function collectCanonicalEvidence(
 
   for (let i = 0; i < trajectory.steps.length; i++) {
     const step = trajectory.steps[i];
-    addTextEvidence(i, i, "probe-aria", step.probeEvidence?.ariaTree);
+    addTextEvidence(i, "probe-aria", step.probeEvidence?.ariaTree);
 
     for (const modality of step.agentEvidence?.modalities ?? []) {
       if (modality.type === "text") {
-        addTextEvidence(i, i, "agent-text", modality.content);
+        addTextEvidence(i, "agent-text", modality.content);
       } else if (modality.type === "json") {
-        addTextEvidence(i, i, "agent-json", modality.content);
+        addTextEvidence(
+          i,
+          "agent-json",
+          safeStringifyEvidence(modality.content),
+        );
       }
     }
 
     // Defensive: agentEvidence is derived from toolOutput today, but keeping
     // the native result as a fallback preserves evidence if that mapping
     // changes or an adapter omits modalities.
-    addTextEvidence(i, i, "tool-output", step.toolOutput?.result);
+    addTextEvidence(
+      i,
+      "tool-output",
+      safeStringifyEvidence(step.toolOutput?.result),
+    );
   }
 
   // Terminal aria observation — mirrors the final screenshot frame so the
   // closing page state is scoreable even when the last step had no probe.
-  const finalPos = trajectory.steps.length;
   addTextEvidence(
-    finalPos,
-    finalPos,
+    trajectory.steps.length,
     "probe-aria",
     trajectory.finalObservation?.ariaTree,
   );
 
-  // Sort by trajectoryStepPosition asc; ties → image before text so the
+  // Sort by step position asc; ties → image before text so the
   // "page state before the harness probed text" reads naturally.
   pending.sort((a, b) => {
-    const pa = a.kind === "image" ? a.shot.trajectoryStepPosition : a.stepPos;
-    const pb = b.kind === "image" ? b.shot.trajectoryStepPosition : b.stepPos;
+    const pa = a.kind === "image" ? a.shot.originalStepIndex : a.stepIdx;
+    const pb = b.kind === "image" ? b.shot.originalStepIndex : b.stepIdx;
     if (pa !== pb) return pa - pb;
     return a.kind === "image" ? -1 : 1;
   });
@@ -415,7 +410,6 @@ export async function collectCanonicalEvidence(
       evidence.push({
         canonicalIndex: evidence.length,
         originalStepIndex: p.stepIdx,
-        trajectoryStepPosition: p.stepPos,
         source: p.source,
         content: p.content,
       });
@@ -424,7 +418,9 @@ export async function collectCanonicalEvidence(
 
   const remappedScreenshots = loaded.screenshots.map((shot) => {
     const combined = screenshotIdxToCombined.get(shot.canonicalIndex);
-    return combined === undefined ? shot : { ...shot, canonicalIndex: combined };
+    return combined === undefined
+      ? shot
+      : { ...shot, canonicalIndex: combined };
   });
   const remappedStepIndex = new Map<number, number>();
   for (const [stepIdx, screenshotIdx] of loaded.stepIndexToCanonical) {
@@ -446,6 +442,8 @@ export async function collectCanonicalEvidence(
 
 function safeStringifyEvidence(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
+  // Strings pass through verbatim — JSON.stringify would wrap them in quotes.
+  if (typeof value === "string") return value;
   try {
     return JSON.stringify(value);
   } catch {
