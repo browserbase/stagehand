@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://cubic.dev/schema/cubic-repository-config.schema.json
+
+version: 1
+
+reviews:
+  custom_rules:
+    - name: Docs style guide
+      description: Enforce docs writing, terminology, tagline, structure, SEO, and product-description rules. Treat violations as blocking bugs on docs and Markdown changes.
+      file_paths:
+        - .cubic/docs-style-guide.md
+      include:
+        - packages/docs/**
