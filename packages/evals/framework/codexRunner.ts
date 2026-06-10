@@ -299,8 +299,7 @@ export async function runCodexAgent({
             taskId: verifier.taskSpec.id,
             dataset: verifier.dataset,
             hasPrecomputedRubric: Boolean(verifier.taskSpec.precomputedRubric),
-            cacheDisabled:
-              process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1",
+            cacheDisabled: process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1",
           },
         },
       },
