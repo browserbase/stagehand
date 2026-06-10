@@ -26,7 +26,11 @@ import {
   extractLlmCuaPromptSummary,
   extractLlmCuaResponseSummary,
 } from "../flowlogger/FlowLogger.js";
-import { isAdaptiveThinkingAnthropicModel } from "../llm/anthropicOptions.js";
+import {
+  isAdaptiveThinkingAnthropicModel,
+  resolveAdaptiveEffort,
+} from "../llm/anthropicOptions.js";
+import { stripModelProvider } from "../../utils.js";
 import { v7 as uuidv7 } from "uuid";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
@@ -448,9 +452,7 @@ export class AnthropicCUAClient extends AgentClient {
 
       // Claude 4.6+ models require the newer computer_20251124 tool version
       // and support adaptive thinking instead of budget_tokens
-      const modelBase = this.modelName.includes("/")
-        ? this.modelName.split("/")[1]
-        : this.modelName;
+      const modelBase = stripModelProvider(this.modelName);
 
       // Check if this is a Claude 4.6+ model that supports adaptive thinking
       // (shared source of truth with the hybrid path — see anthropicOptions.ts)
@@ -486,7 +488,11 @@ export class AnthropicCUAClient extends AgentClient {
           // Default to "medium" effort if not explicitly specified
           // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
           thinking = { type: "adaptive" };
-          outputConfig = { effort: this.thinkingEffort || "medium" };
+          // Clamp efforts the model rejects (e.g. xhigh on sonnet-4-6).
+          outputConfig = {
+            effort:
+              resolveAdaptiveEffort(modelBase, this.thinkingEffort) ?? "medium",
+          };
           useAdaptiveThinking = true;
         }
       } else if (this.thinkingBudget) {

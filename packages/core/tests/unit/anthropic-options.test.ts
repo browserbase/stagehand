@@ -59,6 +59,16 @@ describe("resolveAdaptiveEffort", () => {
     expect(resolveAdaptiveEffort("claude-opus-4-8", "none")).toBeUndefined();
     expect(resolveAdaptiveEffort("claude-opus-4-8", "bogus")).toBeUndefined();
   });
+
+  it("passes max through", () => {
+    expect(resolveAdaptiveEffort("claude-opus-4-8", "max")).toBe("max");
+  });
+
+  it("clamps an env-provided xhigh on models that reject it", () => {
+    process.env[ENV_KEY] = "xhigh";
+    expect(resolveAdaptiveEffort("claude-sonnet-4-6")).toBe("high");
+    expect(resolveAdaptiveEffort("claude-fable-5")).toBe("xhigh");
+  });
 });
 
 describe("anthropicAdaptiveThinkingOptions", () => {
@@ -78,6 +88,14 @@ describe("anthropicAdaptiveThinkingOptions", () => {
     expect(
       anthropicAdaptiveThinkingOptions("claude-opus-4-5-20251101"),
     ).toBeUndefined();
+  });
+
+  it('treats "none" as an explicit opt-out of thinking', () => {
+    expect(
+      anthropicAdaptiveThinkingOptions("claude-fable-5", "none"),
+    ).toBeUndefined();
+    process.env[ENV_KEY] = "none";
+    expect(anthropicAdaptiveThinkingOptions("claude-fable-5")).toBeUndefined();
   });
 });
 

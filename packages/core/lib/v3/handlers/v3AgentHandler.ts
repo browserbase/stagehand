@@ -22,7 +22,6 @@ import {
   anthropicAdaptiveThinkingOptions,
   anthropicFallbacksOptions,
 } from "../llm/anthropicOptions.js";
-import type { JSONValue } from "@ai-sdk/provider";
 import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
@@ -110,7 +109,7 @@ function buildAgentProviderOptions(modelId: string) {
   const anthropic = {
     ...(anthropicAdaptiveThinkingOptions(modelId) ?? {}),
     ...(anthropicFallbacksOptions(modelId) ?? {}),
-  } as Record<string, JSONValue>;
+  };
   return {
     google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
     openai: { store: false },

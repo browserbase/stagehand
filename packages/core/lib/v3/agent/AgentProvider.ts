@@ -1,4 +1,5 @@
 import { ToolSet } from "ai";
+import { stripModelProvider } from "../../utils.js";
 import { AgentProviderType } from "../types/public/agent.js";
 import { LogLine } from "../types/public/logs.js";
 import { ClientOptions } from "../types/public/model.js";
@@ -119,9 +120,7 @@ export class AgentProvider {
   }
 
   static getAgentProvider(modelName: string): AgentProviderType {
-    const normalized = modelName.includes("/")
-      ? modelName.split("/")[1]
-      : modelName;
+    const normalized = stripModelProvider(modelName);
 
     if (normalized in modelToAgentProviderMap) {
       return modelToAgentProviderMap[normalized];

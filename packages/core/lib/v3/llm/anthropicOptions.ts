@@ -16,7 +16,17 @@
  */
 
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
+import type { JSONValue } from "@ai-sdk/provider";
 import type { ThinkingEffort } from "../types/public/model.js";
+import { stripModelProvider } from "../../utils.js";
+
+/**
+ * Shape accepted by the AI SDK's per-provider `providerOptions` maps. The
+ * helpers below build values as typed `AnthropicProviderOptions` (so field
+ * names stay checked) and return them under this JSON-compatible alias so
+ * call sites need no casts.
+ */
+export type AnthropicAgentProviderOptions = Record<string, JSONValue>;
 
 export const ANTHROPIC_FABLE_5_MODEL_ID = "claude-fable-5" as const;
 
@@ -41,13 +51,6 @@ const XHIGH_CAPABLE_MODEL_BASES = new Set<string>([
   "claude-opus-4-8",
   ANTHROPIC_FABLE_5_MODEL_ID,
 ]);
-
-/** Strip a leading `provider/` segment, e.g. "anthropic/claude-opus-4-8". */
-export function stripModelProvider(modelId: string): string {
-  return modelId.includes("/")
-    ? modelId.slice(modelId.indexOf("/") + 1)
-    : modelId;
-}
 
 /** True for Anthropic models that support adaptive thinking. */
 export function isAdaptiveThinkingAnthropicModel(modelId: string): boolean {
@@ -76,17 +79,24 @@ const VALID_EFFORTS: ReadonlySet<string> = new Set([
   "max",
 ]);
 
+/** The configured effort, before model clamping: explicit arg (e.g.
+ * clientOptions.thinkingEffort) > STAGEHAND_THINKING_EFFORT env. */
+function configuredEffort(explicit?: string): string | undefined {
+  return explicit ?? process.env.STAGEHAND_THINKING_EFFORT;
+}
+
 /**
  * Resolve the adaptive effort to send, clamped to what the model accepts.
- * Precedence: explicit arg (e.g. clientOptions.thinkingEffort) >
- * STAGEHAND_THINKING_EFFORT env > undefined (the API default, "high").
+ * Returns undefined when nothing valid is configured (the API default,
+ * "high", then applies). "none" is handled by the callers: it means
+ * "do not request thinking at all", not an effort level.
  */
 export function resolveAdaptiveEffort(
   modelId: string,
   explicit?: string,
 ): Exclude<ThinkingEffort, "none"> | undefined {
-  const candidate = explicit ?? process.env.STAGEHAND_THINKING_EFFORT;
-  if (!candidate || !VALID_EFFORTS.has(candidate) || candidate === "none") {
+  const candidate = configuredEffort(explicit);
+  if (!candidate || !VALID_EFFORTS.has(candidate)) {
     return undefined;
   }
   if (
@@ -106,13 +116,15 @@ export function resolveAdaptiveEffort(
 export function anthropicAdaptiveThinkingOptions(
   modelId: string,
   effort?: string,
-): AnthropicProviderOptions | undefined {
+): AnthropicAgentProviderOptions | undefined {
   if (!isAdaptiveThinkingAnthropicModel(modelId)) return undefined;
+  // "none" is an explicit opt-out: request no thinking at all.
+  if (configuredEffort(effort) === "none") return undefined;
   const resolved = resolveAdaptiveEffort(modelId, effort);
   return {
     thinking: { type: "adaptive" },
     ...(resolved ? { effort: resolved } : {}),
-  } satisfies AnthropicProviderOptions;
+  } satisfies AnthropicProviderOptions as AnthropicAgentProviderOptions;
 }
 
 /**
@@ -122,9 +134,9 @@ export function anthropicAdaptiveThinkingOptions(
  */
 export function anthropicFallbacksOptions(
   modelId: string,
-): AnthropicProviderOptions | undefined {
+): AnthropicAgentProviderOptions | undefined {
   if (!isAnthropicFable5Model(modelId)) return undefined;
   return {
     fallbacks: [{ model: ANTHROPIC_FABLE_5_FALLBACK_MODEL_ID }],
-  } satisfies AnthropicProviderOptions;
+  } satisfies AnthropicProviderOptions as AnthropicAgentProviderOptions;
 }
