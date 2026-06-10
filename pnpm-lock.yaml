@@ -206,8 +206,8 @@ importers:
         specifier: ^3.0.73
         version: 3.0.73(zod@4.2.1)
       '@ai-sdk/anthropic':
-        specifier: ^2.0.34
-        version: 2.0.57(zod@4.2.1)
+        specifier: ^2.0.81
+        version: 2.0.81(zod@4.2.1)
       '@ai-sdk/azure':
         specifier: ^2.0.109
         version: 2.0.109(zod@4.2.1)
@@ -474,6 +474,12 @@ packages:
 
   '@ai-sdk/anthropic@2.0.57':
     resolution: {integrity: sha512-DREpYqW2pylgaj69gZ+K8u92bo9DaMgFdictYnY+IwYeY3bawQ4zI7l/o1VkDsBDljAx8iYz5lPURwVZNu+Xpg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/anthropic@2.0.81':
+    resolution: {integrity: sha512-0iqx9hZc9xqdhxOdZkYJAKuCs9o+5a86gStYl0M7IBZzmx6jTDrynXiOigDjH3SQrmLclLCspTjW5E6YFrlyHQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -4370,6 +4376,10 @@ packages:
     resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
     engines: {node: '>=18.0.0'}
 
+  eventsource-parser@3.1.0:
+    resolution: {integrity: sha512-kJezFj9YFAMLeORyi7aCLxLbD5/qWMQnoMVlVPyHIll7lgRJCc3JVln9Vgl9nwQi0YkMnhdGTMNn7CkRRAptMg==}
+    engines: {node: '>=18.0.0'}
+
   eventsource@3.0.7:
     resolution: {integrity: sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA==}
     engines: {node: '>=18.0.0'}
@@ -7864,6 +7874,13 @@ snapshots:
       zod: 4.2.1
     optional: true
 
+  '@ai-sdk/anthropic@2.0.81(zod@4.2.1)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.3
+      '@ai-sdk/provider-utils': 3.0.25(zod@4.2.1)
+      zod: 4.2.1
+    optional: true
+
   '@ai-sdk/azure@2.0.109(zod@4.2.1)':
     dependencies:
       '@ai-sdk/openai': 2.0.106(zod@4.2.1)
@@ -7998,7 +8015,7 @@ snapshots:
     dependencies:
       '@ai-sdk/provider': 2.0.3
       '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.0.6
+      eventsource-parser: 3.1.0
       zod: 4.2.1
     optional: true
 
@@ -12604,6 +12621,9 @@ snapshots:
   eventsource-parser@1.1.2: {}
 
   eventsource-parser@3.0.6: {}
+
+  eventsource-parser@3.1.0:
+    optional: true
 
   eventsource@3.0.7:
     dependencies:

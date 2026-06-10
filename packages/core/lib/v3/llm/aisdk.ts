@@ -11,19 +11,20 @@ import {
   ToolSet,
   Tool,
 } from "ai";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
+import type { JSONValue, LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import { v7 as uuidv7 } from "uuid";
 import { LogLine } from "../types/public/logs.js";
 import { AvailableModel, ClientOptions } from "../types/public/model.js";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
+import { anthropicFallbacksOptions } from "./anthropicOptions.js";
 import {
   FlowLogger,
   extractLlmPromptSummary,
 } from "../flowlogger/FlowLogger.js";
 import { toJsonSchema } from "../zodCompat.js";
 
-type ProviderOptionValue = string | number | boolean | null;
+type ProviderOptionValue = JSONValue;
 type ProviderOptionMap = Record<string, ProviderOptionValue>;
 
 function inferProviderName(modelId: string): string | undefined {
@@ -182,6 +183,9 @@ export class AISdkClient extends LLMClient {
       case "anthropic":
         providerOptions.anthropic = {
           structuredOutputMode: "auto",
+          // Fable 5 opts into the API's server-side refusal fallback; the
+          // provider adds the required beta header automatically.
+          ...(anthropicFallbacksOptions(this.model.modelId) ?? {}),
         };
         break;
       case "azure":

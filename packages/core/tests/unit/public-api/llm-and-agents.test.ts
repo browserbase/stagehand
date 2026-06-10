@@ -82,6 +82,7 @@ describe("LLM and Agents public API types", () => {
       "anthropic/claude-haiku-4-5-20251001",
       "anthropic/claude-sonnet-4-20250514",
       "anthropic/claude-sonnet-4-5-20250929",
+      "anthropic/claude-fable-5",
       "google/gemini-2.5-computer-use-preview-10-2025",
       "google/gemini-3-flash-preview",
       "google/gemini-3-pro-preview",

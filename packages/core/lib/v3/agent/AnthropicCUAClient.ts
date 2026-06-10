@@ -26,6 +26,11 @@ import {
   extractLlmCuaPromptSummary,
   extractLlmCuaResponseSummary,
 } from "../flowlogger/FlowLogger.js";
+import {
+  isAdaptiveThinkingAnthropicModel,
+  resolveAdaptiveEffort,
+} from "../llm/anthropicOptions.js";
+import { stripModelProvider } from "../../utils.js";
 import { v7 as uuidv7 } from "uuid";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
@@ -447,16 +452,12 @@ export class AnthropicCUAClient extends AgentClient {
 
       // Claude 4.6+ models require the newer computer_20251124 tool version
       // and support adaptive thinking instead of budget_tokens
-      const modelBase = this.modelName.includes("/")
-        ? this.modelName.split("/")[1]
-        : this.modelName;
+      const modelBase = stripModelProvider(this.modelName);
 
       // Check if this is a Claude 4.6+ model that supports adaptive thinking
-      const isAdaptiveThinkingModel = [
-        "claude-opus-4-8",
-        "claude-opus-4-6",
-        "claude-sonnet-4-6",
-      ].includes(modelBase);
+      // (shared source of truth with the hybrid path — see anthropicOptions.ts)
+      const isAdaptiveThinkingModel =
+        isAdaptiveThinkingAnthropicModel(modelBase);
 
       // claude-opus-4-5-20251101 uses the newer computer tool version but does
       // NOT support adaptive thinking — it still requires budget_tokens.
@@ -487,7 +488,11 @@ export class AnthropicCUAClient extends AgentClient {
           // Default to "medium" effort if not explicitly specified
           // See: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
           thinking = { type: "adaptive" };
-          outputConfig = { effort: this.thinkingEffort || "medium" };
+          // Clamp efforts the model rejects (e.g. xhigh on sonnet-4-6);
+          // defaults to the shared "medium" (see anthropicOptions.ts).
+          outputConfig = {
+            effort: resolveAdaptiveEffort(modelBase, this.thinkingEffort),
+          };
           useAdaptiveThinking = true;
         }
       } else if (this.thinkingBudget) {

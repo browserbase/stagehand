@@ -211,6 +211,17 @@ export function validateZodSchema(schema: StagehandZodSchema, data: unknown) {
 }
 
 /**
+ * Strip a leading `provider/` segment from a model id, e.g.
+ * "anthropic/claude-opus-4-8" -> "claude-opus-4-8". Ids without a
+ * provider prefix pass through unchanged.
+ */
+export function stripModelProvider(modelId: string): string {
+  return modelId.includes("/")
+    ? modelId.slice(modelId.indexOf("/") + 1)
+    : modelId;
+}
+
+/**
  * Detects if the code is running in the Bun runtime environment.
  * @returns {boolean} True if running in Bun, false otherwise.
  */

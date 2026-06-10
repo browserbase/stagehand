@@ -19,6 +19,10 @@ import { processMessages } from "../agent/utils/messageProcessing.js";
 import { LLMClient } from "../llm/LLMClient.js";
 import { FlowLogger } from "../flowlogger/FlowLogger.js";
 import {
+  anthropicAdaptiveThinkingOptions,
+  anthropicFallbacksOptions,
+} from "../llm/anthropicOptions.js";
+import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
   AgentExecuteOptionsBase,
@@ -93,6 +97,26 @@ function prependSystemMessage(
   ];
 }
 
+/**
+ * Request-level providerOptions for the hybrid/DOM agent loop.
+ *
+ * Anthropic models that support adaptive thinking (Claude 4.6+) get it
+ * enabled here — previously the hybrid path sent no thinking config for
+ * Anthropic at all. Fable 5 additionally opts into the API's server-side
+ * refusal fallback.
+ */
+function buildAgentProviderOptions(modelId: string, thinkingEffort?: string) {
+  const anthropic = {
+    ...(anthropicAdaptiveThinkingOptions(modelId, thinkingEffort) ?? {}),
+    ...(anthropicFallbacksOptions(modelId) ?? {}),
+  };
+  return {
+    google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
+    openai: { store: false },
+    ...(Object.keys(anthropic).length > 0 ? { anthropic } : {}),
+  };
+}
+
 export class V3AgentHandler {
   private v3: V3;
   private logger: (message: LogLine) => void;
@@ -102,6 +126,7 @@ export class V3AgentHandler {
   private mcpTools?: ToolSet;
   private mode: AgentToolMode;
   private captchaAutoSolveEnabled: boolean;
+  private thinkingEffort?: string;
 
   constructor(
     v3: V3,
@@ -112,6 +137,7 @@ export class V3AgentHandler {
     mcpTools?: ToolSet,
     mode?: AgentToolMode,
     captchaAutoSolveEnabled?: boolean,
+    thinkingEffort?: string,
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -121,6 +147,7 @@ export class V3AgentHandler {
     this.mcpTools = mcpTools;
     this.mode = mode ?? "dom";
     this.captchaAutoSolveEnabled = captchaAutoSolveEnabled ?? false;
+    this.thinkingEffort = thinkingEffort;
   }
 
   private async prepareAgent(
@@ -447,10 +474,10 @@ export class V3AgentHandler {
           },
         }),
         abortSignal: preparedOptions.signal,
-        providerOptions: {
-          google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
-          openai: { store: false },
-        },
+        providerOptions: buildAgentProviderOptions(
+          wrappedModel.modelId,
+          this.thinkingEffort,
+        ),
       });
 
       const allMessages = [...messages, ...(result.response?.messages || [])];
@@ -664,10 +691,10 @@ export class V3AgentHandler {
           rejectResult(new AgentAbortError(reason));
         },
         abortSignal: options.signal,
-        providerOptions: {
-          google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
-          openai: { store: false },
-        },
+        providerOptions: buildAgentProviderOptions(
+          wrappedModel.modelId,
+          this.thinkingEffort,
+        ),
       });
     } catch (error) {
       captchaSolver?.dispose();

@@ -2,6 +2,10 @@ import { generateText, ModelMessage, LanguageModel, ToolSet } from "ai";
 import { z } from "zod";
 import { tool } from "ai";
 import { LogLine } from "../../types/public/logs.js";
+import {
+  anthropicFallbacksOptions,
+  rejectsForcedToolUse,
+} from "../../llm/anthropicOptions.js";
 import { StagehandZodObject } from "../../zodCompat.js";
 import { getZFactory } from "../../../utils.js";
 import type { StagehandZodSchema } from "../../zodCompat.js";
@@ -101,15 +105,24 @@ Call the "done" tool with:
       : "Provide your final assessment.",
   };
 
+  const modelId = typeof model === "string" ? model : model.modelId;
+  const fallbacks = anthropicFallbacksOptions(modelId);
+
+  // Models whose always-on thinking rejects forced tool use go straight to
+  // "auto" — the prompt already instructs calling "done", and the
+  // no-tool-call case below handles a plain-text answer.
   const result = await generateText({
     model,
     system: systemPrompt,
     messages: [...inputMessages, userPrompt],
     tools: { done: doneTool } as ToolSet,
-    toolChoice: { type: "tool", toolName: "done" },
+    toolChoice: rejectsForcedToolUse(modelId)
+      ? "auto"
+      : { type: "tool", toolName: "done" },
     providerOptions: {
       google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
       openai: { store: false },
+      ...(fallbacks ? { anthropic: fallbacks } : {}),
     },
   });
 

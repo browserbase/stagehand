@@ -128,9 +128,16 @@ export type ModelProvider =
  * - "low": Claude minimizes thinking, skips for simple tasks
  * - "medium": Claude uses moderate thinking, may skip for simple queries (default)
  * - "high": Claude always thinks with deep reasoning
- * - "max": Claude always thinks with no constraints (Opus 4.6 only)
+ * - "xhigh": Deeper reasoning than "high" (Opus 4.7/4.8 and Fable 5 only)
+ * - "max": Claude always thinks with no constraints
  */
-export type ThinkingEffort = "none" | "low" | "medium" | "high" | "max";
+export type ThinkingEffort =
+  | "none"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
 
 export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
   apiKey?: string;
