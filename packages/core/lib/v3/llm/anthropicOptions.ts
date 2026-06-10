@@ -28,8 +28,6 @@ import { stripModelProvider } from "../../utils.js";
  */
 export type AnthropicAgentProviderOptions = Record<string, JSONValue>;
 
-export const ANTHROPIC_FABLE_5_MODEL_ID = "claude-fable-5" as const;
-
 // Fallback model used when Fable 5 declines a turn.
 export const ANTHROPIC_FABLE_5_FALLBACK_MODEL_ID = "claude-opus-4-8" as const;
 
@@ -41,7 +39,7 @@ const ADAPTIVE_THINKING_MODEL_BASES = new Set<string>([
   "claude-opus-4-7",
   "claude-opus-4-8",
   "claude-sonnet-4-6",
-  ANTHROPIC_FABLE_5_MODEL_ID,
+  "claude-fable-5",
 ]);
 
 // Models that accept effort "xhigh". Sending xhigh to other models (e.g.
@@ -49,7 +47,7 @@ const ADAPTIVE_THINKING_MODEL_BASES = new Set<string>([
 const XHIGH_CAPABLE_MODEL_BASES = new Set<string>([
   "claude-opus-4-7",
   "claude-opus-4-8",
-  ANTHROPIC_FABLE_5_MODEL_ID,
+  "claude-fable-5",
 ]);
 
 /** True for Anthropic models that support adaptive thinking. */
@@ -58,7 +56,7 @@ export function isAdaptiveThinkingAnthropicModel(modelId: string): boolean {
 }
 
 export function isAnthropicFable5Model(modelId: string): boolean {
-  return stripModelProvider(modelId) === ANTHROPIC_FABLE_5_MODEL_ID;
+  return stripModelProvider(modelId) === "claude-fable-5";
 }
 
 /**
