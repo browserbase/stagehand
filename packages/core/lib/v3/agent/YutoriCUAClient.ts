@@ -30,17 +30,51 @@ import {
   DEFAULT_MAX_REQUEST_BYTES,
   DEFAULT_KEEP_RECENT_SCREENSHOTS,
 } from "./utils/yutoriActions.js";
+import {
+  NavigatorRefRegistry,
+  renderExpandedSnapshot,
+  findInSnapshot,
+} from "./utils/navigatorExpandedTools.js";
+import type { HybridSnapshot } from "../types/private/snapshot.js";
 
 const NAVIGATOR_BASE_URL = "https://api.yutori.com/v1";
 const TOOL_SET_CORE = "browser_tools_core-20260403";
+const TOOL_SET_EXPANDED = "browser_tools_expanded-20260403";
 
 /**
- * Navigator n1.5 tool sets Stagehand currently implements. Acts as the single
- * source of truth: the `YutoriToolSet` union tightens automatically as entries
- * are added (e.g. once the expanded tool set is supported).
+ * Navigator n1.5 tool sets Stagehand implements. The expanded set adds the
+ * DOM tools (extract_elements/find/set_element_value/execute_js) backed by
+ * Stagehand's a11y snapshot + deepLocator/evaluate.
  */
-export const SUPPORTED_TOOL_SETS = [TOOL_SET_CORE] as const;
+export const SUPPORTED_TOOL_SETS = [TOOL_SET_CORE, TOOL_SET_EXPANDED] as const;
 export type YutoriToolSet = (typeof SUPPORTED_TOOL_SETS)[number];
+
+/** The Navigator expanded-tool names handled directly by this client. */
+const EXPANDED_DOM_TOOLS = new Set([
+  "extract_elements",
+  "find",
+  "set_element_value",
+  "execute_js",
+]);
+
+/**
+ * Page operations the expanded DOM tools need. Supplied by the CUA handler
+ * (which owns the page) so all Navigator-specific logic stays in this client.
+ */
+export interface NavigatorPageBridge {
+  /** Capture Stagehand's hybrid a11y snapshot of the active page. */
+  snapshot(): Promise<
+    Pick<HybridSnapshot, "combinedTree" | "combinedUrlMap" | "combinedXpathMap">
+  >;
+  /** Evaluate JS in the page and return a JSON-serializable result. */
+  evaluate(source: string): Promise<unknown>;
+  /**
+   * Scroll the element at `xpath` into view and return its viewport-pixel
+   * center, or null if it can't be located. Backs ref-targeted coordinate
+   * tools (the model may pass `ref` instead of `coordinates`).
+   */
+  elementCenter(xpath: string): Promise<{ x: number; y: number } | null>;
+}
 
 function normalizeYutoriModelName(modelName: string): string {
   const name = modelName || "n1.5-latest";
@@ -70,6 +104,16 @@ function cloneMessagesForRequest(
       ? { ...message, content: [...message.content] }
       : { ...message },
   ) as ChatCompletionMessageParam[];
+}
+
+/** Stringify an execute_js result for the model; tolerant of undefined/cycles. */
+function safeJsonStringify(value: unknown): string {
+  if (value === undefined) return "undefined";
+  try {
+    return JSON.stringify(value) ?? "undefined";
+  } catch {
+    return String(value);
+  }
 }
 
 /**
@@ -105,7 +149,11 @@ export class YutoriCUAClient extends AgentClient {
   private actionHandler?: (action: AgentAction) => Promise<void>;
 
   private temperature = 0.3;
-  private toolSet = TOOL_SET_CORE;
+  // Default to the expanded set: it adds the a11y-backed DOM tools
+  // (extract_elements/find/set_element_value/execute_js) on top of the core
+  // coordinate tools, and the CUA handler always wires the page bridge they
+  // need. Override via clientOptions.toolSet (e.g. TOOL_SET_CORE).
+  private toolSet = TOOL_SET_EXPANDED;
   // mouse_down / mouse_up have no equivalent in the shared CUA action handler
   // (drag covers press-move-release), so disable them by default. Overridable
   // via clientOptions.disableTools.
@@ -118,6 +166,12 @@ export class YutoriCUAClient extends AgentClient {
 
   private messages: ChatCompletionMessageParam[] = [];
   private parsedJson?: Record<string, unknown>;
+
+  // Expanded tool set (browser_tools_expanded): ref registry maps Navigator
+  // ref_N tokens to a11y encodedId/xpath; bridge runs page ops for the DOM
+  // tools. Both are unused unless the expanded tool set is selected + bridged.
+  private readonly refRegistry = new NavigatorRefRegistry();
+  private pageBridge?: NavigatorPageBridge;
 
   constructor(
     type: AgentType,
@@ -146,7 +200,7 @@ export class YutoriCUAClient extends AgentClient {
     if (!(SUPPORTED_TOOL_SETS as readonly string[]).includes(this.toolSet)) {
       throw new Error(
         `Yutori Navigator tool set "${this.toolSet}" is not supported by Stagehand yet. ` +
-          `Use "${TOOL_SET_CORE}" or omit clientOptions.toolSet.`,
+          `Use "${TOOL_SET_EXPANDED}" (default), "${TOOL_SET_CORE}", or omit clientOptions.toolSet.`,
       );
     }
     if (Array.isArray(clientOptions?.disableTools)) {
@@ -227,6 +281,11 @@ export class YutoriCUAClient extends AgentClient {
     this.actionHandler = handler;
   }
 
+  /** Provide the page operations the expanded DOM tools need. */
+  setPageBridge(bridge: NavigatorPageBridge): void {
+    this.pageBridge = bridge;
+  }
+
   async captureScreenshot(options?: {
     base64Image?: string;
     currentUrl?: string;
@@ -264,6 +323,7 @@ export class YutoriCUAClient extends AgentClient {
 
     this.messages = [];
     this.parsedJson = undefined;
+    this.refRegistry.reset();
 
     if (this.userProvidedInstructions) {
       this.messages.push({
@@ -531,10 +591,38 @@ export class YutoriCUAClient extends AgentClient {
       };
     }
 
+    // Expanded tool set (DOM tools) — handled via the page bridge / a11y, not
+    // the coordinate action mapping.
+    if (EXPANDED_DOM_TOOLS.has(name)) {
+      return this.runExpandedTool(name, args, reasoning, logger);
+    }
+
+    // Expanded tool set: coordinate tools may target an element by `ref`
+    // (from extract_elements/find) instead of pixel coordinates. Resolve the
+    // ref to its on-screen center; it takes priority over model-predicted
+    // coordinates, falling back to them if it can't be resolved.
+    let refPoint: { x: number; y: number } | undefined;
+    if (typeof args.ref === "string" && args.ref) {
+      refPoint = (await this.resolveRefPoint(args.ref)) ?? undefined;
+      const hasCoords =
+        Array.isArray(args.coordinates) && args.coordinates.length === 2;
+      if (!refPoint && !hasCoords) {
+        return {
+          actions: [],
+          result: `[ERROR] ${name}: unknown or stale ref "${args.ref}" — call extract_elements or find first`,
+        };
+      }
+    }
+
     let action: AgentAction | null;
     let result: string;
     try {
-      const converted = this.convertToolCallToAction(name, args, reasoning);
+      const converted = this.convertToolCallToAction(
+        name,
+        args,
+        reasoning,
+        refPoint,
+      );
       action = converted.action;
       result = converted.result;
     } catch (error) {
@@ -564,13 +652,135 @@ export class YutoriCUAClient extends AgentClient {
   }
 
   /**
+   * Run a Navigator expanded DOM tool against Stagehand's a11y/page primitives.
+   *  - extract_elements / find: read the a11y snapshot, render in Navigator
+   *    format, mint `ref_N` tokens. (No page mutation.)
+   *  - execute_js: evaluate JS in the page.
+   *  - set_element_value: resolve the ref to an xpath and fill via the action
+   *    handler (recorded/observed like other actions).
+   */
+  private async runExpandedTool(
+    name: string,
+    args: Record<string, unknown>,
+    reasoning: string | undefined,
+    logger: (message: LogLine) => void,
+  ): Promise<{ actions: AgentAction[]; result: string }> {
+    if (!this.pageBridge) {
+      return {
+        actions: [],
+        result: `[ERROR] ${name}: expanded tools are unavailable (no page bridge)`,
+      };
+    }
+    try {
+      switch (name) {
+        case "extract_elements": {
+          const snapshot = await this.pageBridge.snapshot();
+          const text = renderExpandedSnapshot(snapshot, this.refRegistry);
+          return { actions: [], result: text || "(no interactive elements)" };
+        }
+        case "find": {
+          const query = String(args.text ?? args.query ?? "");
+          const snapshot = await this.pageBridge.snapshot();
+          const { matches, total } = findInSnapshot(
+            snapshot,
+            this.refRegistry,
+            query,
+          );
+          const result =
+            total === 0
+              ? `No elements matching "${query}" found.`
+              : `Found ${total} element(s) matching "${query}":\n${matches.join("\n")}`;
+          return { actions: [], result };
+        }
+        case "execute_js": {
+          const source = String(args.text ?? args.code ?? "");
+          let value: unknown;
+          try {
+            // Expression form first (e.g. "document.title").
+            value = await this.pageBridge.evaluate(
+              `(async () => (${source}))()`,
+            );
+          } catch {
+            // Fall back to a statement body (e.g. "const x = 1; return x;").
+            value = await this.pageBridge.evaluate(
+              `(async () => { ${source} })()`,
+            );
+          }
+          return { actions: [], result: safeJsonStringify(value) };
+        }
+        case "set_element_value": {
+          const ref = String(args.ref ?? "");
+          const value = String(args.value ?? "");
+          const entry = this.refRegistry.resolve(ref);
+          if (!entry?.xpath) {
+            return {
+              actions: [],
+              result: `[ERROR] set_element_value: unknown or stale ref "${ref}" — call extract_elements or find first`,
+            };
+          }
+          const action: AgentAction = {
+            type: "set_value",
+            selector: entry.xpath,
+            text: value,
+            ...(reasoning ? { reasoning } : {}),
+          };
+          if (this.actionHandler) {
+            try {
+              await this.actionHandler(action);
+            } catch (error) {
+              const msg =
+                error instanceof Error ? error.message : String(error);
+              return {
+                actions: [action],
+                result: `[ERROR] set_element_value: ${msg}`,
+              };
+            }
+          }
+          return { actions: [action], result: `Set ${ref} to "${value}"` };
+        }
+        default:
+          return { actions: [], result: `[ERROR] Unsupported tool: ${name}` };
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      logger({
+        category: "agent",
+        message: `Expanded tool ${name} failed: ${msg}`,
+        level: 1,
+      });
+      return { actions: [], result: `[ERROR] ${name}: ${msg}` };
+    }
+  }
+
+  /**
+   * Resolve an expanded-tool `ref` to its on-screen center point via the page
+   * bridge, or null if the ref is unknown/stale or can't be located.
+   */
+  private async resolveRefPoint(
+    ref: string,
+  ): Promise<{ x: number; y: number } | null> {
+    const entry = this.refRegistry.resolve(ref);
+    if (!entry?.xpath || !this.pageBridge) return null;
+    try {
+      return await this.pageBridge.elementCenter(entry.xpath);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Map a Navigator n1.5 action (core tool set) to a Stagehand AgentAction.
    * Returns `action: null` for tools handled inline (no page interaction).
+   *
+   * `refPoint`, when present, is an already-resolved viewport-pixel point from
+   * an expanded-tool `ref`; it replaces (and is used in preference to) the
+   * model's normalized coordinates for the primary target.
    */
   private convertToolCallToAction(
     name: string,
     args: Record<string, unknown>,
     stepReasoning?: string,
+    refPoint?: { x: number; y: number },
   ): { action: AgentAction | null; result: string } {
     const { width, height } = this.currentViewport;
     // Prefer the assistant message content (where Navigator n1.5 puts its
@@ -594,7 +804,7 @@ export class YutoriCUAClient extends AgentClient {
       case "triple_click":
       case "middle_click":
       case "right_click": {
-        const point = coords(args.coordinates);
+        const point = refPoint ?? coords(args.coordinates);
         if (!point) return { action: null, result: "[ERROR] No coordinates" };
         const button =
           name === "middle_click"
@@ -621,7 +831,7 @@ export class YutoriCUAClient extends AgentClient {
       }
 
       case "mouse_move": {
-        const point = coords(args.coordinates);
+        const point = refPoint ?? coords(args.coordinates);
         if (!point) return { action: null, result: "[ERROR] No coordinates" };
         return {
           action: { ...base, type: "move", x: point.x, y: point.y },
@@ -660,8 +870,24 @@ export class YutoriCUAClient extends AgentClient {
       }
 
       case "scroll": {
-        const point = coords(args.coordinates);
+        const point = refPoint ?? coords(args.coordinates);
         if (!point) return { action: null, result: "[ERROR] No coordinates" };
+        // A ref target means "scroll this element into view". Resolving the ref
+        // already scrolled it into view, so — like Navigator's reference — we
+        // do not apply an additional directional scroll (which would overshoot).
+        if (refPoint) {
+          return {
+            action: {
+              ...base,
+              type: "scroll",
+              x: point.x,
+              y: point.y,
+              scroll_x: 0,
+              scroll_y: 0,
+            },
+            result: "Scrolled element into view",
+          };
+        }
         const direction = String(args.direction ?? "down");
         const amount = typeof args.amount === "number" ? args.amount : 3;
         const px = amount * 100; // 1 unit ~= 100px
@@ -689,7 +915,7 @@ export class YutoriCUAClient extends AgentClient {
 
       case "drag": {
         const start = coords(args.start_coordinates);
-        const end = coords(args.coordinates);
+        const end = refPoint ?? coords(args.coordinates);
         if (!start || !end) {
           return { action: null, result: "[ERROR] Missing drag coordinates" };
         }
@@ -801,9 +1027,7 @@ export class YutoriCUAClient extends AgentClient {
       FlowLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.modelName,
-        output: extractLlmCuaResponseSummary([
-          { text: message.content ?? "" },
-        ]),
+        output: extractLlmCuaResponseSummary([{ text: message.content ?? "" }]),
         inputTokens: response.usage?.prompt_tokens,
         outputTokens: response.usage?.completion_tokens,
       });

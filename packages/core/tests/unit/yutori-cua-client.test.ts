@@ -202,7 +202,8 @@ describe("YutoriCUAClient", () => {
       disable_tools?: string[];
     };
     expect(body.model).toBe("n1.5-latest");
-    expect(body.tool_set).toBe("browser_tools_core-20260403");
+    // Stagehand defaults Navigator n1.5 to the expanded tool set.
+    expect(body.tool_set).toBe("browser_tools_expanded-20260403");
     expect(body.disable_tools).toEqual(["mouse_down", "mouse_up"]);
   });
 
@@ -240,15 +241,18 @@ describe("YutoriCUAClient", () => {
     );
   });
 
-  it("rejects unsupported Navigator tool sets until expanded tools are implemented", () => {
-    expect(
-      () =>
-        new YutoriCUAClient("yutori", "n1.5-latest", undefined, {
-          apiKey: "test-key",
-          baseURL: "https://example.com",
-          toolSet: "browser_tools_expanded-20260403",
-        }),
-    ).toThrow("not supported by Stagehand yet");
+  it("accepts the core and expanded tool sets, rejects unknown ones", () => {
+    const make = (toolSet: string) =>
+      new YutoriCUAClient("yutori", "n1.5-latest", undefined, {
+        apiKey: "test-key",
+        baseURL: "https://example.com",
+        toolSet,
+      });
+    expect(() => make("browser_tools_core-20260403")).not.toThrow();
+    expect(() => make("browser_tools_expanded-20260403")).not.toThrow();
+    expect(() => make("browser_tools_bogus")).toThrow(
+      "not supported by Stagehand yet",
+    );
   });
 
   it("requests a stop-and-summarize when max steps are exhausted", async () => {
@@ -292,14 +296,14 @@ describe("YutoriCUAClient", () => {
     expect(JSON.stringify(lastMessages)).toContain("Stop here.");
     // The step-loop call requests structured output ...
     expect(create.mock.calls[0][0]).toMatchObject({
-      tool_set: "browser_tools_core-20260403",
+      tool_set: "browser_tools_expanded-20260403",
       disable_tools: ["mouse_down", "mouse_up", "drag"],
       json_schema: jsonSchema,
     });
     // ... but the summarize turn asks for a free-text summary, so it must NOT
     // constrain decoding with json_schema (that would corrupt the message).
     expect(create.mock.calls[1][0]).toMatchObject({
-      tool_set: "browser_tools_core-20260403",
+      tool_set: "browser_tools_expanded-20260403",
       disable_tools: ["mouse_down", "mouse_up", "drag"],
     });
     expect(
