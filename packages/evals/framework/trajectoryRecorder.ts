@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   resolveTrajectoryDir,
+  resolveTrajectoryRoot,
   writeTrajectoryMetadata,
 } from "./trajectoryGroup.js";
 import {
@@ -147,7 +148,9 @@ export class TrajectoryRecorder {
   constructor(opts: TrajectoryRecorderOptions) {
     this.taskSpec = opts.taskSpec;
     this.runId = opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
-    const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
+    // Same resolution as the entrypoint's experiment-link write, so the
+    // EVAL_TRAJECTORY_ROOT override can't split them across two roots.
+    const root = opts.outputRoot ?? resolveTrajectoryRoot();
     this.outputDir = resolveTrajectoryDir(root, opts.taskSpec.id, this.runId);
     this.persistEnabled = shouldPersistTrajectory(opts.persist);
   }
