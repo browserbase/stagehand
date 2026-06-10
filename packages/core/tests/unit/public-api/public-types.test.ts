@@ -82,6 +82,12 @@ type ExpectedExportedTypes = {
   PuppeteerPage: Stagehand.PuppeteerPage;
   ConsoleListener: Stagehand.ConsoleListener;
   LoadState: Stagehand.LoadState;
+  WebMCPTool: Stagehand.WebMCPTool;
+  WebMCPToolInvocationStatus: Stagehand.WebMCPToolInvocationStatus;
+  WebMCPToolResult: Stagehand.WebMCPToolResult;
+  WebMCPToolInvocation: Stagehand.WebMCPToolInvocation;
+  WebMCPListToolsOptions: Stagehand.WebMCPListToolsOptions;
+  WebMCPToolInvocationOptions: Stagehand.WebMCPToolInvocationOptions;
   // Types from LLMClient.ts
   ChatMessage: Stagehand.ChatMessage;
   ChatMessageContent: Stagehand.ChatMessageContent;

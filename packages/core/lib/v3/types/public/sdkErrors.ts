@@ -78,6 +78,12 @@ export class UnsupportedAISDKModelProviderError extends StagehandError {
   }
 }
 
+export class StagehandUnsupportedBrowserFeatureError extends StagehandError {
+  constructor(feature: string, message: string, cause?: unknown) {
+    super(`Unsupported browser feature "${feature}": ${message}`, cause);
+  }
+}
+
 export class InvalidAISDKModelFormatError extends StagehandError {
   constructor(modelName: string) {
     super(

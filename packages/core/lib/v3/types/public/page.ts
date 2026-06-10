@@ -21,3 +21,38 @@ export type SnapshotResult = {
 export type PageSnapshotOptions = {
   includeIframes?: boolean;
 };
+
+export type WebMCPTool = {
+  name: string;
+  description?: string;
+  inputSchema?: string | Record<string, unknown>;
+  annotations?: Record<string, unknown>;
+  frameId: string;
+};
+
+export type WebMCPToolInvocationStatus = "Completed" | "Canceled" | "Error";
+
+export type WebMCPToolResult = {
+  invocationId: string;
+  status: WebMCPToolInvocationStatus;
+  output?: unknown;
+  errorText?: string;
+  exception?: unknown;
+};
+
+export type WebMCPToolInvocation = {
+  invocationId: string;
+  toolName: string;
+  frameId: string;
+  result: Promise<WebMCPToolResult>;
+  cancel: () => Promise<void>;
+};
+
+export type WebMCPListToolsOptions = {
+  timeoutMs?: number;
+};
+
+export type WebMCPToolInvocationOptions = {
+  frameId?: string;
+  timeoutMs?: number;
+};
