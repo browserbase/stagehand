@@ -5,7 +5,10 @@ import {
   isImageEvidence,
   isTextEvidence,
 } from "../../lib/v3/verifier/evidence.js";
-import type { Trajectory, TrajectoryStep } from "../../lib/v3/verifier/types.js";
+import type {
+  Trajectory,
+  TrajectoryStep,
+} from "../../lib/v3/verifier/types.js";
 
 const AGENT_IMG = Buffer.from("agent-screenshot-bytes");
 const PROBE_IMG = Buffer.from("probe-screenshot-bytes");
@@ -23,7 +26,10 @@ function step(overrides: Partial<TrajectoryStep>): TrajectoryStep {
   };
 }
 
-function makeTrajectory(steps: TrajectoryStep[], extra: Partial<Trajectory> = {}): Trajectory {
+function makeTrajectory(
+  steps: TrajectoryStep[],
+  extra: Partial<Trajectory> = {},
+): Trajectory {
   return {
     task: { id: "t", instruction: "do it" },
     steps,
@@ -45,7 +51,11 @@ describe("collectCanonicalEvidence", () => {
               { type: "text", content: "model reasoning" },
             ],
           },
-          probeEvidence: { url: "https://x", screenshot: PROBE_IMG, ariaTree: "tree" },
+          probeEvidence: {
+            url: "https://x",
+            screenshot: PROBE_IMG,
+            ariaTree: "tree",
+          },
         }),
       ],
       {
@@ -74,19 +84,27 @@ describe("collectCanonicalEvidence", () => {
   });
 
   it("keeps canonicalIndex consistent across evidence and loaded (P2b)", async () => {
-    const trajectory = makeTrajectory(
-      [
-        step({
-          agentEvidence: {
-            modalities: [{ type: "image", bytes: AGENT_IMG, mediaType: "image/png" }],
-          },
-          probeEvidence: { url: "https://x", screenshot: PROBE_IMG, ariaTree: "tree-a" },
-        }),
-        step({
-          probeEvidence: { url: "https://y", screenshot: FINAL_IMG, ariaTree: "tree-b" },
-        }),
-      ],
-    );
+    const trajectory = makeTrajectory([
+      step({
+        agentEvidence: {
+          modalities: [
+            { type: "image", bytes: AGENT_IMG, mediaType: "image/png" },
+          ],
+        },
+        probeEvidence: {
+          url: "https://x",
+          screenshot: PROBE_IMG,
+          ariaTree: "tree-a",
+        },
+      }),
+      step({
+        probeEvidence: {
+          url: "https://y",
+          screenshot: FINAL_IMG,
+          ariaTree: "tree-b",
+        },
+      }),
+    ]);
 
     const { evidence, loaded } = await collectCanonicalEvidence(trajectory);
 
