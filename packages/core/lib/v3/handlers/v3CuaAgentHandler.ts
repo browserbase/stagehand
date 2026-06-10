@@ -1,10 +1,14 @@
-import { computeActiveElementXpath } from "../understudy/a11y/snapshot/index.js";
+import {
+  computeActiveElementXpath,
+  captureHybridSnapshot,
+} from "../understudy/a11y/snapshot/index.js";
 import { V3 } from "../v3.js";
 import { ToolSet } from "ai";
 import { AgentClient } from "../agent/AgentClient.js";
 import { AgentProvider } from "../agent/AgentProvider.js";
 import { GoogleCUAClient } from "../agent/GoogleCUAClient.js";
 import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
+import { YutoriCUAClient } from "../agent/YutoriCUAClient.js";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping.js";
 import { ensureXPath } from "../agent/utils/xpath.js";
 import {
@@ -217,6 +221,38 @@ export class V3CuaAgentHandler {
         await this.updateClientUrl();
       }
     });
+
+    // Provide the page operations the Navigator expanded DOM tools need
+    // (a11y snapshot + JS evaluate). All expanded-tool logic stays in the
+    // Yutori client; the handler only supplies generic page access.
+    if (this.agentClient instanceof YutoriCUAClient) {
+      this.agentClient.setPageBridge({
+        snapshot: async () => {
+          this.ensureNotClosed();
+          const page = await this.v3.context.awaitActivePage();
+          return captureHybridSnapshot(page, {
+            experimental: !!this.options.experimental,
+          });
+        },
+        evaluate: async (source: string) => {
+          this.ensureNotClosed();
+          const page = await this.v3.context.awaitActivePage();
+          return page.mainFrame().evaluate(source);
+        },
+        elementCenter: async (xpath: string) => {
+          this.ensureNotClosed();
+          const page = await this.v3.context.awaitActivePage();
+          // Scrolls the element into view and returns its viewport-pixel center
+          // (or null if it has no box). Mirrors Navigator's ref resolution so a
+          // ref-targeted coordinate tool clicks the element's center.
+          try {
+            return await page.deepLocator(xpath).centroid();
+          } catch {
+            return null;
+          }
+        },
+      });
+    }
 
     void this.updateClientViewport();
     void this.updateClientUrl();
@@ -460,6 +496,32 @@ export class V3CuaAgentHandler {
               stagehandAction.description,
             );
           }
+        }
+        return { success: true };
+      }
+      case "set_value": {
+        // Navigator expanded tool `set_element_value`: fill a form field
+        // resolved (by the client) to an xpath, via deepLocator (cross-frame /
+        // shadow aware). Recorded as a deterministic "fill" act step for replay.
+        const { selector, text } = action;
+        const xpath = ensureXPath(String(selector ?? ""));
+        if (!xpath) {
+          return { success: false, error: "set_value: missing selector" };
+        }
+        const value = String(text ?? "");
+        await page.deepLocator(xpath).fill(value);
+        if (recording) {
+          const stagehandAction: Action = {
+            selector: xpath,
+            description: this.describeTypeAction(value),
+            method: "fill",
+            arguments: [value],
+          };
+          this.recordCuaActStep(
+            action,
+            [stagehandAction],
+            stagehandAction.description,
+          );
         }
         return { success: true };
       }
