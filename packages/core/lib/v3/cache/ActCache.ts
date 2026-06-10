@@ -4,7 +4,11 @@ import type { LLMClient } from "../llm/LLMClient.js";
 import type { Action, ActResult, Logger } from "../types/public/index.js";
 import type { Page } from "../understudy/page.js";
 import { CacheStorage } from "./CacheStorage.js";
-import { safeGetPageUrl, waitForCachedSelector } from "./utils.js";
+import {
+  normalizeUrlForCacheKey,
+  safeGetPageUrl,
+  waitForCachedSelector,
+} from "./utils.js";
 import {
   ActCacheContext,
   ActCacheDeps,
@@ -52,7 +56,7 @@ export class ActCache {
     const pageUrl = await safeGetPageUrl(page);
     const cacheKey = this.buildActCacheKey(
       sanitizedInstruction,
-      pageUrl,
+      normalizeUrlForCacheKey(pageUrl),
       variableKeys,
     );
     return {
