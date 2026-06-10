@@ -58,6 +58,16 @@ export function isAnthropicFable5Model(modelId: string): boolean {
   return stripModelProvider(modelId) === ANTHROPIC_FABLE_5_MODEL_ID;
 }
 
+/**
+ * True for models that reject forced tool use
+ * (`tool_choice: { type: "tool" }`). Forced tool choice is incompatible with
+ * active extended thinking, and on Fable 5 thinking is always on — so the
+ * rejection is a certainty there, not a transient quirk.
+ */
+export function rejectsForcedToolUse(modelId: string): boolean {
+  return isAnthropicFable5Model(modelId);
+}
+
 const VALID_EFFORTS: ReadonlySet<string> = new Set([
   "low",
   "medium",

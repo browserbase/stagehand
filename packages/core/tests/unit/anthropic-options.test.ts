@@ -5,6 +5,7 @@ import {
   anthropicAdaptiveThinkingOptions,
   anthropicFallbacksOptions,
   isAdaptiveThinkingAnthropicModel,
+  rejectsForcedToolUse,
   resolveAdaptiveEffort,
 } from "../../lib/v3/llm/anthropicOptions.js";
 
@@ -77,6 +78,19 @@ describe("anthropicAdaptiveThinkingOptions", () => {
     expect(
       anthropicAdaptiveThinkingOptions("claude-opus-4-5-20251101"),
     ).toBeUndefined();
+  });
+});
+
+describe("rejectsForcedToolUse", () => {
+  it("is true for Fable 5, where thinking is always on", () => {
+    expect(rejectsForcedToolUse("claude-fable-5")).toBe(true);
+    expect(rejectsForcedToolUse("anthropic/claude-fable-5")).toBe(true);
+  });
+
+  it("is false for models that accept forced tool use", () => {
+    expect(rejectsForcedToolUse("claude-opus-4-8")).toBe(false);
+    expect(rejectsForcedToolUse("claude-haiku-4-5-20251001")).toBe(false);
+    expect(rejectsForcedToolUse("gpt-5.4")).toBe(false);
   });
 });
 
