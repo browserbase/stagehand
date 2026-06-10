@@ -49,6 +49,7 @@ export type AgentCacheDeps = {
 export type ActCacheContext = {
   instruction: string;
   cacheKey: string;
+  legacyCacheKey?: string;
   pageUrl: string;
   variableKeys: string[];
   variables?: Record<string, string>;

@@ -15,6 +15,23 @@ export async function safeGetPageUrl(page: Page): Promise<string> {
   }
 }
 
+export function normalizeUrlForCacheKey(url: string): string {
+  if (!url) return url;
+
+  try {
+    const parsedUrl = new URL(url);
+    if (!parsedUrl.search) return url;
+
+    const originalSearch = parsedUrl.search;
+    parsedUrl.searchParams.sort();
+    if (parsedUrl.search === originalSearch) return url;
+
+    return parsedUrl.toString();
+  } catch {
+    return url;
+  }
+}
+
 /**
  * Waits for a cached action's selector to be attached to the DOM before executing.
  * Logs a warning and proceeds if the wait times out (non-blocking).

@@ -4,7 +4,11 @@ import type { LLMClient } from "../llm/LLMClient.js";
 import type { Action, ActResult, Logger } from "../types/public/index.js";
 import type { Page } from "../understudy/page.js";
 import { CacheStorage } from "./CacheStorage.js";
-import { safeGetPageUrl, waitForCachedSelector } from "./utils.js";
+import {
+  normalizeUrlForCacheKey,
+  safeGetPageUrl,
+  waitForCachedSelector,
+} from "./utils.js";
 import {
   ActCacheContext,
   ActCacheDeps,
@@ -50,14 +54,21 @@ export class ActCache {
       ? Object.keys(sanitizedVariables).sort()
       : [];
     const pageUrl = await safeGetPageUrl(page);
+    const normalizedPageUrl = normalizeUrlForCacheKey(pageUrl);
     const cacheKey = this.buildActCacheKey(
       sanitizedInstruction,
-      pageUrl,
+      normalizedPageUrl,
       variableKeys,
     );
+    const legacyCacheKey =
+      normalizedPageUrl === pageUrl
+        ? undefined
+        : this.buildActCacheKey(sanitizedInstruction, pageUrl, variableKeys);
+
     return {
       instruction: sanitizedInstruction,
       cacheKey,
+      legacyCacheKey,
       pageUrl,
       variableKeys,
       variables: sanitizedVariables,
@@ -72,7 +83,7 @@ export class ActCache {
   ): Promise<ActResult | null> {
     if (!this.enabled) return null;
 
-    const {
+    let {
       value: entry,
       error,
       path,
@@ -88,6 +99,28 @@ export class ActCache {
       });
       return null;
     }
+
+    if (!entry && context.legacyCacheKey) {
+      const legacyResult = await this.storage.readJson<CachedActEntry>(
+        `${context.legacyCacheKey}.json`,
+      );
+      entry = legacyResult.value;
+      error = legacyResult.error;
+      path = legacyResult.path;
+
+      if (error && path) {
+        this.logger({
+          category: "cache",
+          message: `failed to read legacy act cache entry: ${path}`,
+          level: 2,
+          auxiliary: {
+            error: { value: String(error), type: "string" },
+          },
+        });
+        return null;
+      }
+    }
+
     if (!entry) return null;
     if (entry.version !== 1) return null;
     if (!Array.isArray(entry.actions) || entry.actions.length === 0) {
