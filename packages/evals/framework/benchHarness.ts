@@ -74,10 +74,7 @@ function isAgentTask(task: DiscoveredTask): boolean {
  * for V3Evaluator.verify() — never `init()`-ed, never drives a browser.
  * The instance's logger is what V3Evaluator uses to construct its LLMProvider.
  */
-function buildVerifierCarrierV3(
-  input: EvalInput,
-  logger: EvalLogger,
-): V3 {
+function buildVerifierCarrierV3(input: EvalInput, logger: EvalLogger): V3 {
   return new V3({
     env: "LOCAL",
     model: input.modelName,
