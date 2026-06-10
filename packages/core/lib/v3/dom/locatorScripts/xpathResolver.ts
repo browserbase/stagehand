@@ -5,6 +5,7 @@ import {
 } from "./xpathParser.js";
 
 type ClosedRootGetter = (host: Element) => ShadowRoot | null;
+type TraversalRoot = Document | Element | ShadowRoot | DocumentFragment;
 
 export type XPathResolveOptions = {
   pierceShadow?: boolean;
@@ -105,16 +106,13 @@ export function resolveXPathComposedMatches(
 
   const closedRoot = getClosedRoot ?? null;
 
-  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [
-    document,
-  ];
+  let current: TraversalRoot[] = [document];
 
   for (const step of steps) {
     const next: Element[] = [];
     const seen = new Set<Element>();
 
     for (const root of current) {
-      if (!root) continue;
       const pool =
         step.axis === "child"
           ? composedChildren(root, closedRoot)
@@ -154,9 +152,7 @@ function resolveStagehandShadowHopMatches(
   }
 
   const closedRoot = getClosedRoot ?? null;
-  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [
-    document,
-  ];
+  let current: TraversalRoot[] = [document];
 
   for (let i = 0; i < steps.length; i += 1) {
     const step = steps[i]!;
@@ -164,7 +160,6 @@ function resolveStagehandShadowHopMatches(
     const seen = new Set<Element>();
 
     for (const root of current) {
-      if (!root) continue;
       const pool =
         step.axis === "child"
           ? domChildren(root)
@@ -243,11 +238,10 @@ function getShadowContext(): ShadowContext {
 }
 
 function composedChildren(
-  node: Node | null | undefined,
+  node: TraversalRoot,
   getClosedRoot: ClosedRootGetter | null,
 ): Element[] {
   const out: Element[] = [];
-  if (!node) return out;
 
   if (node instanceof Document) {
     if (node.documentElement) out.push(node.documentElement);
@@ -273,9 +267,8 @@ function composedChildren(
   return out;
 }
 
-function domChildren(node: Node | null | undefined): Element[] {
+function domChildren(node: TraversalRoot): Element[] {
   const out: Element[] = [];
-  if (!node) return out;
 
   if (node instanceof Document) {
     if (node.documentElement) out.push(node.documentElement);
@@ -296,7 +289,7 @@ function domChildren(node: Node | null | undefined): Element[] {
 }
 
 function shadowRootChildren(
-  node: Node | null | undefined,
+  node: TraversalRoot,
   getClosedRoot: ClosedRootGetter | null,
 ): Element[] {
   const out: Element[] = [];
@@ -313,7 +306,7 @@ function shadowRootChildren(
 }
 
 function composedDescendants(
-  node: Node | null | undefined,
+  node: TraversalRoot,
   getClosedRoot: ClosedRootGetter | null,
 ): Element[] {
   const out: Element[] = [];
@@ -321,8 +314,8 @@ function composedDescendants(
   const stack = [...composedChildren(node, getClosedRoot)].reverse();
 
   while (stack.length) {
-    const next = stack.pop();
-    if (!next || seen.has(next)) continue;
+    const next = stack.pop()!;
+    if (seen.has(next)) continue;
     seen.add(next);
     out.push(next);
 
