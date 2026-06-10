@@ -336,7 +336,9 @@ export async function collectCanonicalEvidence(
     source: CanonicalTextEvidence["source"],
     text: string | undefined,
   ) => {
-    if (!text || text.length === 0) return;
+    // Runtime guard, not just the type: trajectory JSON loaded from disk is
+    // unvalidated, so a malformed non-string field must not crash collection.
+    if (typeof text !== "string" || text.length === 0) return;
     const trimmed = text.length > 4000 ? text.slice(0, 4000) : text;
     const normalized = trimmed.replace(/\s+/g, " ").trim();
     if (normalized.length === 0) return;
