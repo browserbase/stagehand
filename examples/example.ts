@@ -5,6 +5,7 @@
  * npx create-browser-app@latest my-browser-app
  */
 import { Stagehand } from "@browserbasehq/stagehand";
+import StagehandConfig from "../stagehand.config";
 
 async function example(stagehand: Stagehand) {
   /**
@@ -17,13 +18,9 @@ async function example(stagehand: Stagehand) {
 
 (async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
-    modelName: "openai/gpt-4.1-mini" /* Name of the model to use */,
-    modelClientOptions: {
-      apiKey: process.env.OPENAI_API_KEY,
-    },
+    ...StagehandConfig,
   });
   await stagehand.init();
   await example(stagehand);
-  // await stagehand.close();
+  await stagehand.close();
 })();
