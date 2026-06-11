@@ -5,6 +5,8 @@
  * Hybrid runs preserve tool-return text/JSON evidence, while CUA runs preserve
  * screenshots sent to the provider plus independent harness probes.
  */
+import type { LLMClient } from "../llm/LLMClient.js";
+import type { LogLine } from "../types/public/logs.js";
 
 /** Token usage for one or more LLM calls. Matches AgentResult.usage shape. */
 export interface TrajectoryUsage {
@@ -127,12 +129,15 @@ export type TrajectoryStatus = "complete" | "aborted" | "stalled" | "error";
  * The on-disk layout is one directory per task:
  *
  *   .trajectories/<run-id>/<task-id>/
- *     ├── task_data.json    — TaskSpec + result metadata
- *     ├── trajectory.json   — this object, with screenshotPath instead of bytes
- *     ├── screenshots/      — step probe/agent images plus final observation
+ *     ├── task_data.json           — TaskSpec + result metadata
+ *     ├── trajectory.json          — this object, with image paths instead of bytes
+ *     ├── screenshots/
+ *     │   ├── probe/<N>.png        — tier-2 probe screenshot per step
+ *     │   ├── probe/final.png      — final terminal observation screenshot
+ *     │   └── agent/<N>.png        — tier-1 image the model received per step
  *     ├── scores/
- *     │   └── result.json       — Result from V3Evaluator.verify()
- *     └── core.log          — captured action log
+ *     │   └── result.json          — Result from V3Evaluator.verify()
+ *     └── core.log                 — captured action log
  */
 export interface Trajectory {
   task: TaskSpec;
@@ -203,13 +208,13 @@ export interface EvidenceLoadResult {
   };
 }
 
-/** Options for evidence loading. Mainly env override hooks for tests. */
+/** Options for evidence loading; primarily test seams over the defaults. */
 export interface EvidenceLoadOptions {
-  /** Override VERIFIER_SSIM_THRESHOLD. */
+  /** SSIM similarity threshold for dedup (default 0.75). */
   ssimThreshold?: number;
-  /** Override VERIFIER_MSE_THRESHOLD. */
+  /** MSE similarity threshold for dedup (default 30). */
   mseThreshold?: number;
-  /** Override VERIFIER_IMAGE_RESIZE. */
+  /** Scale factor applied before relevance scoring (default 0.7). */
   imageResize?: number;
 }
 
@@ -295,16 +300,18 @@ export interface VerifierFinding {
 /** Stable debugging summary emitted by verifier backends. */
 export interface VerifierRawSteps {
   backend?: "legacy" | "verifier";
+  reason?: string;
   primaryIntent?: string;
   reasoning?: string;
   rubricSource?: "precomputed" | "generated" | "none";
-  approach?: "a" | "b";
+  approach?: "a" | "b" | "outcome-only";
   optionalsMode?: "folded" | "separate" | "skip";
   totalEarned?: number;
   totalMax?: number;
   evidenceImages?: number;
   evidenceTexts?: number;
   evidenceOriginalScreenshots?: number;
+  screenshotsAttached?: number;
   legacyEvaluation?: string;
   screenshotCount?: number;
 }
@@ -313,8 +320,12 @@ export interface VerifierRawSteps {
 export interface TaskValidity {
   /** True if the task is underspecified / has multiple valid interpretations. */
   isAmbiguous: boolean;
+  /** Explanation for why the task is ambiguous, when available. */
+  ambiguityReason?: string;
   /** True if the task is impossible / illegal / NSFW / otherwise infeasible. */
   isInvalid: boolean;
+  /** Explanation for why the task is invalid, when available. */
+  invalidReason?: string;
   /** Optional sub-codes from the task-classification taxonomy. */
   ambiguityCodes?: string[];
   invalidTaskCodes?: string[];
@@ -364,4 +375,83 @@ export interface EvaluationResult {
  */
 export interface Verifier {
   verify(trajectory: Trajectory): Promise<EvaluationResult>;
+}
+
+export interface RubricVerifierOptions {
+  /** Factory that returns a configured LLMClient. Called per pipeline step so callers can supply step-specific clients. */
+  getClient: () => LLMClient;
+  /** Optional factory for rubric generation so callers can route it to a stronger model. */
+  getRubricGenClient?: () => LLMClient;
+  /** Logger; defaults to a no-op so the verifier stays quiet inside V3Evaluator. */
+  logger?: (line: LogLine) => void;
+  /**
+   * Override any verifier knob. Env vars supply the defaults; values here win.
+   * Useful for tests and for cross-verify sweeps that want different budgets
+   * per run.
+   */
+  config?: Partial<VerifierConfig>;
+}
+
+/**
+ * Resolved verifier knobs. Constructed once from env (and optional overrides)
+ * by RubricVerifier's constructor; subsequent verify() calls can pass a
+ * Partial to shift any field.
+ */
+export interface VerifierConfig {
+  /** Which pipeline path to take: per-criterion (a), fused (b), or skip rubric entirely (outcome-only). */
+  approach: "a" | "b" | "outcome-only";
+  /** Folded (in fused call), separate (own calls), or skip (omit). */
+  optionalSteps: "folded" | "separate" | "skip";
+  /** Top-K evidence points selected per criterion. */
+  topK: number;
+  /** Batch size for the relevance-scoring LLM call. */
+  relevanceBatchSize: number;
+  /** Image cap on the outcome-only path. */
+  outcomeMaxImages: number;
+  /** Concurrent LLM calls across batches / criteria. */
+  maxParallel: number;
+  /** Token budgets for the three evidence channels. */
+  evidenceTokenBudget: number;
+  outcomeEvidenceTokenBudget: number;
+  actionHistoryTokenBudget: number;
+  /** Per-section character limits applied during evidence-text assembly. */
+  truncation: {
+    /** Master switch: when true, all per-section limits go to MAX_SAFE_INTEGER. */
+    disabled: boolean;
+    evidenceTextPreview: number;
+    groupedEvidenceText: number;
+    buildEvidenceText: number;
+    buildEvidenceAria: number;
+    actionHistoryReasoning: number;
+  };
+}
+
+export interface ErrorTaxonomySubCategory {
+  /** Sub-code (e.g., "2.3"). */
+  code: string;
+  /** Human-readable name (e.g., "Output fabrication"). */
+  name: string;
+  /** Detailed description ported from the .md. Markdown formatting preserved. */
+  description: string;
+}
+
+export interface ErrorTaxonomyCategory {
+  /** Top-level number (1-8). */
+  number: number;
+  /** Top-level name (e.g., "Hallucination Errors"). */
+  name: string;
+  /** One-sentence summary of the category. */
+  summary: string;
+  /** Sub-categories. The last one is always an "Other" catch-all. */
+  subCategories: ErrorTaxonomySubCategory[];
+}
+
+export interface ParseFailureStepNumbersOptions {
+  /**
+   * Maximum unique step numbers to expand from ranges. Protects the verifier
+   * from malformed model output such as "0-2147483647".
+   */
+  maxExpandedSteps?: number;
+  /** Optional inclusive upper bound for accepted step numbers. */
+  maxStep?: number;
 }

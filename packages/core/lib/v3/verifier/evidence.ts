@@ -1,38 +1,9 @@
 /**
- * Evidence — Step 1 of the rubric verifier pipeline.
- *
- * Loads probe screenshots from a Trajectory (file path or in-memory Buffer),
- * deduplicates near-identical frames using a quick MSE + SSIM dissimilarity
- * check (mirrors `packages/evals/utils/ScreenshotCollector`), and downsizes
- * each kept frame by `VERIFIER_IMAGE_RESIZE` (default 0.7) so the
- * Step 2 relevance scoring LLM call sees smaller images.
- *
- * Always-keep policy: the first and last screenshots are kept regardless of
- * similarity, so the verifier can always cite the trajectory's bookends.
- *
- * Environment knobs:
- *   - VERIFIER_SSIM_THRESHOLD (default 0.75) — frames with SSIM >= threshold
- *     are considered duplicates and dropped.
- *   - VERIFIER_MSE_THRESHOLD  (default 30)   — frames with MSE < threshold
- *     short-circuit to "duplicate" without running SSIM.
- *   - VERIFIER_IMAGE_RESIZE   (default 0.7)  — scale factor applied before
- *     relevance scoring.
- *
- * Architectural notes:
- *   - This module never touches a live browser. It reads screenshots from
- *     tier-1 `agentEvidence.modalities` images (the exact frames a CUA
- *     provider saw, plus inline act() screenshots), tier-2
- *     `probeEvidence.{screenshot,screenshotPath}`, and the terminal
- *     `finalObservation` — never from a live page.
- *   - `sharp` is loaded via dynamic import so core stays portable for
- *     consumers that don't install image deps; if sharp is unavailable, the
- *     dedup/resize steps no-op and every screenshot is kept at its native
- *     size. The verifier still runs end-to-end, just with more tokens spent
- *     on near-duplicate frames.
- *   - trajectory step position → canonicalScreenshotIndex mapping is exposed so
- *     downstream prompts can keep citing the trajectory step (e.g.,
- *     "Screenshot N — step=K, action=..."), preserving the rubric's link
- *     between visual evidence and the action history.
+ * Evidence loader: hydrate tier-1 agent screenshots, tier-2 probe screenshots,
+ * and the terminal final observation from a trajectory; dedup near-identical
+ * frames with MSE + SSIM; and downsize for the relevance LLM call. The first
+ * and last frames are always kept so the verifier can cite the trajectory's
+ * bookends. `sharp` is loaded dynamically; if unavailable, dedup/resize no-op.
  */
 import type {
   CanonicalEvidence,
@@ -120,15 +91,9 @@ export async function loadAndReduceScreenshots(
   trajectory: Trajectory,
   opts: EvidenceLoadOptions = {},
 ): Promise<EvidenceLoadResult> {
-  const ssimThreshold =
-    opts.ssimThreshold ??
-    readPositiveFloatEnv("VERIFIER_SSIM_THRESHOLD", DEFAULT_SSIM_THRESHOLD);
-  const mseThreshold =
-    opts.mseThreshold ??
-    readPositiveFloatEnv("VERIFIER_MSE_THRESHOLD", DEFAULT_MSE_THRESHOLD);
-  const imageResize =
-    opts.imageResize ??
-    readPositiveFloatEnv("VERIFIER_IMAGE_RESIZE", DEFAULT_IMAGE_RESIZE);
+  const ssimThreshold = opts.ssimThreshold ?? DEFAULT_SSIM_THRESHOLD;
+  const mseThreshold = opts.mseThreshold ?? DEFAULT_MSE_THRESHOLD;
+  const imageResize = opts.imageResize ?? DEFAULT_IMAGE_RESIZE;
 
   // Collect raw frames in chronological order. Per step we take tier-1
   // agent-mirrored screenshots first (the exact bytes a CUA provider saw, plus
@@ -545,11 +510,4 @@ async function calculateSSIM(
   const numerator = (2 * mean1 * mean2 + c1) * (2 * cov12 + c2);
   const denominator = (mean1 * mean1 + mean2 * mean2 + c1) * (var1 + var2 + c2);
   return numerator / denominator;
-}
-
-function readPositiveFloatEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const parsed = Number.parseFloat(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
