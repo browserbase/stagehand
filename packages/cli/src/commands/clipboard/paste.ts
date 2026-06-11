@@ -2,13 +2,13 @@ import { Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
 import {
+  clipboardScopeNote,
   driverCommandFlags,
   runDriverCommandFromFlags,
 } from "../../lib/driver/command-cli.js";
 
 export default class ClipboardPaste extends BrowseCommand {
-  static override description =
-    "Paste clipboard text into the focused field on the active page.";
+  static override description = `Paste session clipboard text into the focused field on the active page.\n\n${clipboardScopeNote}`;
 
   static override examples = [
     "browse clipboard paste",

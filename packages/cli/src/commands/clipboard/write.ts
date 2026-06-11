@@ -2,13 +2,13 @@ import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
 import {
+  clipboardScopeNote,
   driverCommandFlags,
   runDriverCommandFromFlags,
 } from "../../lib/driver/command-cli.js";
 
 export default class ClipboardWrite extends BrowseCommand {
-  static override description =
-    "Write text to the browser clipboard for the active page.";
+  static override description = `Write text to the session clipboard.\n\n${clipboardScopeNote}`;
 
   static override examples = [
     "browse clipboard write 'hello world'",

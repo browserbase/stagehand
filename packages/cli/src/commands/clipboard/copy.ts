@@ -1,12 +1,12 @@
 import { BrowseCommand } from "../../base.js";
 import {
+  clipboardScopeNote,
   driverCommandFlags,
   runDriverCommandFromFlags,
 } from "../../lib/driver/command-cli.js";
 
 export default class ClipboardCopy extends BrowseCommand {
-  static override description =
-    "Copy the current selection to the browser clipboard on the active page.";
+  static override description = `Copy the current page selection to the session clipboard.\n\n${clipboardScopeNote}`;
 
   static override examples = [
     "browse clipboard copy",

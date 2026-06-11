@@ -1,12 +1,12 @@
 import { BrowseCommand } from "../../base.js";
 import {
+  clipboardScopeNote,
   driverCommandFlags,
   runDriverCommandFromFlags,
 } from "../../lib/driver/command-cli.js";
 
 export default class ClipboardClear extends BrowseCommand {
-  static override description =
-    "Clear the browser clipboard for the active page.";
+  static override description = `Clear the clipboard for the active browser session.\n\n${clipboardScopeNote}`;
 
   static override examples = [
     "browse clipboard clear",

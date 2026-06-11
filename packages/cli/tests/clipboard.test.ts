@@ -63,4 +63,44 @@ describe("clipboard driver handlers", () => {
     expect(copy).toHaveBeenCalledOnce();
     expect(cut).toHaveBeenCalledOnce();
   });
+
+  it("rejects write without text", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const manager = makeManager({ writeText });
+
+    await expect(
+      clipboardHandlers["clipboard.write"]!(manager, {}),
+    ).rejects.toThrow();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("rejects write with non-string text", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const manager = makeManager({ writeText });
+
+    await expect(
+      clipboardHandlers["clipboard.write"]!(manager, { text: 42 }),
+    ).rejects.toThrow();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("rejects paste with an unsupported shortcut", async () => {
+    const paste = vi.fn().mockResolvedValue(undefined);
+    const manager = makeManager({ paste });
+
+    await expect(
+      clipboardHandlers["clipboard.paste"]!(manager, { shortcut: "Alt+V" }),
+    ).rejects.toThrow();
+    expect(paste).not.toHaveBeenCalled();
+  });
+
+  it("pastes without options when no shortcut is given", async () => {
+    const paste = vi.fn().mockResolvedValue(undefined);
+    const manager = makeManager({ paste });
+
+    await expect(
+      clipboardHandlers["clipboard.paste"]!(manager, undefined),
+    ).resolves.toEqual({ ok: true });
+    expect(paste).toHaveBeenCalledWith(undefined);
+  });
 });
