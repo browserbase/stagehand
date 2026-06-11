@@ -75,7 +75,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.4.0",
-    "@google/genai": "^1.22.0",
+    "@google/genai": "^1.52.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^4.3.9",
     "devtools-protocol": "^0.0.1464554",
