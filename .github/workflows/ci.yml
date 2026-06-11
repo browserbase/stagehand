@@ -7,8 +7,6 @@ on:
       - synchronize
       - labeled
       - unlabeled
-    paths-ignore:
-      - "docs/**"
 
 env:
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-haiku-4-5"
