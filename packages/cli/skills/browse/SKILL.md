@@ -64,6 +64,15 @@ browse open https://example.com --cdp ws://127.0.0.1:9222/devtools/browser/<id>
 
 Use local mode for development, localhost, trusted sites, and fast iteration. Use `--auto-connect` only when the user explicitly wants to attach to an already-running debuggable Chrome session with existing cookies or login state; use `--local` when no debuggable Chrome is available. Use remote mode when Browserbase credentials are available and the site needs hosted browser infrastructure, Verified browser mode, CAPTCHA solving, proxies, or session persistence.
 
+Choose headed/headless and local/remote mode when starting a session. A running session keeps its mode: passing a conflicting flag such as `--headed` to an already-running headless session fails until you run `browse stop --session <name>` or target a different session.
+
+Use named sessions for any non-trivial work, especially when multiple agents or parallel tasks may run at once. Every browser command accepts `--session <name>` (or `-s <name>`); the `BROWSE_SESSION` env var sets the default, and commands without either share the `default` session.
+
+```bash
+browse open https://example.com --session research --local
+browse snapshot --session research
+```
+
 Remote browser and cloud API commands require:
 
 ```bash
@@ -75,15 +84,34 @@ export BROWSERBASE_API_KEY=...
 Start by opening the page, then inspect state, act, and verify.
 
 ```bash
-browse open https://example.com --local
-browse snapshot
-browse click @0-5
-browse type "hello"
-browse snapshot
-browse stop
+browse open https://example.com --session research --local
+browse snapshot --session research
+browse click @0-5 --session research
+browse type "hello" --session research
+browse snapshot --session research
+browse stop --session research
 ```
 
 Prefer `browse snapshot` over screenshots for most browser work. It is structured, fast, and returns refs like `@0-5` for reliable element interaction. Use screenshots when visual layout, images, or pixel-level state matter.
+
+Refs are refreshed on every snapshot. After clicks, form submits, navigation, or UI re-renders, take a new snapshot before using another ref.
+
+## Parallel Browser Work
+
+Use a different `--session` value for each independent browser task. Sessions isolate tabs, cookies, refs, and daemon state; parallel tasks that omit `--session` share the `default` session and overwrite each other's active page.
+
+```bash
+browse open https://example.com/search-a --session search-a --local
+browse open https://example.com/search-b --session search-b --local
+browse snapshot --session search-a
+browse snapshot --session search-b
+```
+
+When a task is complete, stop only that task's session:
+
+```bash
+browse stop --session search-a
+```
 
 ## Core Browser Commands
 
@@ -164,6 +192,15 @@ browse stop --force
 ```
 
 Use `browse doctor` before debugging a broken browser session. Use `browse doctor --json` when another agent or CI needs structured diagnostics.
+
+If a page command reports that no active page is available, inspect and recover the named session:
+
+```bash
+browse status --session research
+browse tab list --session research
+browse tab new https://example.com --session research
+browse open https://example.com --session research
+```
 
 ## Cloud APIs
 
@@ -293,14 +330,15 @@ JSON output includes every match with full descriptions and ignores `--limit`; `
 3. Re-run `browse snapshot` after navigation or DOM-changing actions because refs can change.
 4. Prefer refs from snapshots for clicks and uploads; use selectors or XPath when refs are unavailable.
 5. Use `--local` for localhost and repeatable development; use `--remote` for protected sites or Browserbase-specific behavior.
-6. Use `--auto-connect` only when attaching to an existing debuggable local Chrome session is intended.
-7. Use `browse doctor` when session startup, browser discovery, CDP attach, or Browserbase auth looks wrong.
-8. Use `browse stop` when finished to clean up daemon state.
-9. For unfamiliar command details, run `browse <topic> --help` and follow the exact dash-case flags.
+6. Use a distinct `--session <name>` for each parallel or long-running task; commands without the flag share the `default` session.
+7. Use `--auto-connect` only when attaching to an existing debuggable local Chrome session is intended.
+8. Use `browse doctor` when session startup, browser discovery, CDP attach, or Browserbase auth looks wrong.
+9. Use `browse stop` (or `browse stop --session <name>`) when finished to clean up daemon state.
+10. For unfamiliar command details, run `browse <topic> --help` and follow the exact dash-case flags.
 
 ## Troubleshooting
 
-- "No active page": run `browse status`, then `browse open <url>` or `browse stop --force` if the daemon is stale.
+- "No active page": run `browse status --session <name>`, then `browse open <url> --session <name>` or `browse tab new <url> --session <name>`; use `browse stop --force` if the daemon is stale.
 - Chrome not found: use `--remote` with Browserbase credentials, install Chrome, or attach with `--cdp`.
 - Action fails: run `browse snapshot` and use a visible ref from the current page state.
 - Remote command fails: verify `BROWSERBASE_API_KEY` and inspect `browse cloud projects list`.
