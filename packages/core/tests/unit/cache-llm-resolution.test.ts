@@ -166,7 +166,7 @@ describe("Cache LLM client selection", () => {
     expect(call?.[3]).toBe(overrideClient);
   });
 
-  it("AgentCache replays non-act steps without requiring an override client", async () => {
+  it("AgentCache replays non-act navigation steps without requiring an override client", async () => {
     const gotoEntry: CachedAgentEntry = {
       version: 1,
       instruction: "navigate home",
@@ -177,6 +177,17 @@ describe("Cache LLM client selection", () => {
         {
           type: "goto",
           url: "https://example.com/target",
+          waitUntil: "load",
+        },
+        {
+          type: "navback",
+          waitUntil: "networkidle",
+        },
+        {
+          type: "back",
+        },
+        {
+          type: "forward",
           waitUntil: "load",
         },
       ],
@@ -195,7 +206,11 @@ describe("Cache LLM client selection", () => {
       takeDeterministicAction: vi.fn(),
     } as unknown as ActHandler;
 
-    const fakePage = { goto: vi.fn() } as unknown as Page;
+    const fakePage = {
+      goto: vi.fn(),
+      goBack: vi.fn(),
+      goForward: vi.fn(),
+    } as unknown as Page;
     const ctx = {
       awaitActivePage: vi.fn().mockResolvedValue(fakePage),
     } as unknown as V3Context;
@@ -226,6 +241,16 @@ describe("Cache LLM client selection", () => {
     expect(result?.success).toBe(true);
     expect(handler.takeDeterministicAction).not.toHaveBeenCalled();
     expect(fakePage.goto).toHaveBeenCalledWith("https://example.com/target", {
+      waitUntil: "load",
+    });
+    expect(fakePage.goBack).toHaveBeenCalledTimes(2);
+    expect(fakePage.goBack).toHaveBeenNthCalledWith(1, {
+      waitUntil: "networkidle",
+    });
+    expect(fakePage.goBack).toHaveBeenNthCalledWith(2, {
+      waitUntil: "domcontentloaded",
+    });
+    expect(fakePage.goForward).toHaveBeenCalledWith({
       waitUntil: "load",
     });
   });
