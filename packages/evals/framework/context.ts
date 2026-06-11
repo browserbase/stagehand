@@ -44,6 +44,7 @@ export function resolveDefaultCoreStartupProfile(
     case "understudy_code":
     case "playwright_code":
     case "cdp_code":
+    case "modcdp_code":
     case "playwright_mcp":
     case "chrome_devtools_mcp":
       return environment === "BROWSERBASE"

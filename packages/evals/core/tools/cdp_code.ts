@@ -19,7 +19,7 @@ import { loadWsModule } from "../runtime/coreDeps.js";
 const DEFAULT_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 100;
 
-const SUPPORTED_CAPABILITIES: CoreCapability[] = [
+export const CDP_CODE_SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "session",
   "navigation",
   "evaluation",
@@ -39,6 +39,16 @@ export type CdpEventMessage = {
   params?: Record<string, unknown>;
   sessionId?: string;
 };
+
+export interface CdpConnectionLike {
+  onEvent(listener: (event: CdpEventMessage) => void): () => void;
+  send<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+    sessionId?: string,
+  ): Promise<T>;
+  close(): Promise<void>;
+}
 
 type SelectorInspection = {
   count: number;
@@ -156,7 +166,7 @@ async function resolveWebSocketEndpoint(input: {
   return payload.webSocketDebuggerUrl;
 }
 
-export class CdpConnection {
+export class CdpConnection implements CdpConnectionLike {
   private readonly pending = new Map<
     number,
     {
@@ -353,7 +363,7 @@ class CdpLocatorHandle implements CoreLocatorHandle {
 
 class CdpPageHandle implements CorePageHandle {
   constructor(
-    private readonly connection: CdpConnection,
+    private readonly connection: CdpConnectionLike,
     private readonly state: CdpPageState,
   ) {}
 
@@ -1015,12 +1025,12 @@ class CdpPageHandle implements CorePageHandle {
   }
 }
 
-class CdpSession implements CoreSession {
+export class CdpSession implements CoreSession {
   private readonly pages = new Map<string, CdpPageState>();
   private activePageId: string | null = null;
   private closed = false;
 
-  private constructor(private readonly connection: CdpConnection) {}
+  private constructor(private readonly connection: CdpConnectionLike) {}
 
   static async connect(input: {
     providedEndpoint: {
@@ -1030,6 +1040,12 @@ class CdpSession implements CoreSession {
     };
   }): Promise<CdpSession> {
     const connection = await CdpConnection.connect(input.providedEndpoint);
+    return CdpSession.fromConnection(connection);
+  }
+
+  static async fromConnection(
+    connection: CdpConnectionLike,
+  ): Promise<CdpSession> {
     const session = new CdpSession(connection);
     await session.bootstrap();
     return session;
@@ -1183,7 +1199,7 @@ class CdpSession implements CoreSession {
   }
 }
 
-function connectionModeFromProfile(
+export function connectionModeFromProfile(
   startupProfile: StartupProfile,
   endpointKind?: "ws" | "http",
 ): ConnectionMode {
@@ -1210,7 +1226,7 @@ export class CdpCodeTool implements CoreTool {
     "tool_attach_browserbase",
   ];
   readonly supportedCapabilities: CoreCapability[] = [
-    ...SUPPORTED_CAPABILITIES,
+    ...CDP_CODE_SUPPORTED_CAPABILITIES,
   ];
   readonly supportedTargetKinds: TargetKind[] = [
     "selector",

@@ -13,6 +13,9 @@ describe("resolveDefaultCoreStartupProfile", () => {
     expect(resolveDefaultCoreStartupProfile("cdp_code", "LOCAL")).toBe(
       "runner_provided_local_cdp",
     );
+    expect(resolveDefaultCoreStartupProfile("modcdp_code", "LOCAL")).toBe(
+      "runner_provided_local_cdp",
+    );
     expect(resolveDefaultCoreStartupProfile("playwright_mcp", "LOCAL")).toBe(
       "runner_provided_local_cdp",
     );
@@ -35,6 +38,9 @@ describe("resolveDefaultCoreStartupProfile", () => {
       resolveDefaultCoreStartupProfile("playwright_code", "BROWSERBASE"),
     ).toBe("runner_provided_browserbase_cdp");
     expect(resolveDefaultCoreStartupProfile("cdp_code", "BROWSERBASE")).toBe(
+      "runner_provided_browserbase_cdp",
+    );
+    expect(resolveDefaultCoreStartupProfile("modcdp_code", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
     );
     expect(
