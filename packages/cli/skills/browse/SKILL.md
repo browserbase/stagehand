@@ -273,7 +273,7 @@ browse skills find food --limit 5               # 5. category keyword, capped
 - Querying an exact slug (`browse skills find yelp.com/extract-reviews-2ikb22`) prints a detail view with the full description and install command.
 - If a search returns nothing, try synonyms (`flights` vs `travel`, `food` vs `restaurants`) before concluding no skill exists.
 - Each result shows a recommended method — `api`, `fetch`, `browser`, or `hybrid` — indicating how the skill drives the site. Install counts signal which skills are proven.
-- Slugs end in a generated suffix (`-2ikb22`), so never guess them. Install only with an exact slug copied from `list` or `find` output: `browse skills add yelp.com/extract-reviews-2ikb22`. The installed skill becomes available to the agent as a regular skill; a new agent session may be needed to pick it up.
+- Many slugs end in a generated suffix (`-2ikb22`), so never guess or construct them. Install only with an exact slug copied from `list` or `find` output: `browse skills add yelp.com/extract-reviews-2ikb22`. The installed skill becomes available to the agent as a regular skill; a new agent session may be needed to pick it up.
 
 ### Output Formats
 
