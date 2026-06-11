@@ -70,6 +70,7 @@ export class ExtractHandler {
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly experimental: boolean;
+  private readonly enableContextCompression: boolean;
   private readonly onMetrics?: (
     functionName: V3FunctionName,
     promptTokens: number,
@@ -95,6 +96,7 @@ export class ExtractHandler {
       cachedInputTokens: number,
       inferenceTimeMs: number,
     ) => void,
+    enableContextCompression?: boolean,
   ) {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
@@ -103,6 +105,7 @@ export class ExtractHandler {
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;
+    this.enableContextCompression = enableContextCompression ?? false;
     this.onMetrics = onMetrics;
   }
 
@@ -216,6 +219,7 @@ export class ExtractHandler {
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
         screenshot: screenshotBuffer,
+        enableContextCompression: this.enableContextCompression,
       });
 
     const {

@@ -259,6 +259,7 @@ export class V3 {
   };
   public readonly experimental: boolean = false;
   public readonly logInferenceToFile: boolean = false;
+  public readonly enableContextCompression: boolean = false;
   public readonly disableAPI: boolean = false;
   private externalLogger?: (logLine: LogLine) => void;
   public verbose: 0 | 1 | 2 = 1;
@@ -349,6 +350,7 @@ export class V3 {
     this.modelName = modelName;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
+    this.enableContextCompression = opts.enableContextCompression ?? false;
     this.llmProvider = new LLMProvider(this.logger, middleware);
     this.domSettleTimeoutMs = opts.domSettleTimeout;
     this.disableAPI = opts.disableAPI ?? false;
@@ -867,6 +869,7 @@ export class V3 {
               inferenceTimeMs,
             ),
           this.domSettleTimeoutMs,
+          this.enableContextCompression,
         );
         this.extractHandler = new ExtractHandler(
           this.llmClient,
@@ -892,6 +895,7 @@ export class V3 {
               cachedInputTokens,
               inferenceTimeMs,
             ),
+          this.enableContextCompression,
         );
         this.observeHandler = new ObserveHandler(
           this.llmClient,
@@ -917,6 +921,7 @@ export class V3 {
               cachedInputTokens,
               inferenceTimeMs,
             ),
+          this.enableContextCompression,
         );
         if (this.opts.env === "LOCAL") {
           // chrome-launcher conditionally adds --headless when the environment variable
