@@ -27,6 +27,27 @@ interface InitFailure {
   retryAt: number;
 }
 
+function readBrowseChromeArgs(): string[] {
+  const raw = process.env.BROWSE_CHROME_ARGS?.trim();
+  if (!raw) return [];
+
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((arg) => typeof arg === "string")
+      ) {
+        return parsed;
+      }
+    } catch {
+      // Fall back to whitespace-separated args below.
+    }
+  }
+
+  return raw.split(/\s+/).filter(Boolean);
+}
+
 export class DriverSessionManager {
   readonly network: NetworkCapture;
 
@@ -275,10 +296,12 @@ export class DriverSessionManager {
     }
 
     if (target.kind === "managed-local") {
+      const chromeArgs = readBrowseChromeArgs();
       return {
         disablePino: true,
         env: "LOCAL",
         localBrowserLaunchOptions: {
+          ...(chromeArgs.length > 0 ? { args: chromeArgs } : {}),
           headless: target.headless,
         },
         verbose: 0,
