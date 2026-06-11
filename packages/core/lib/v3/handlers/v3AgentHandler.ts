@@ -461,7 +461,7 @@ export class V3AgentHandler {
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
         toolChoice: "auto",
-
+        allowSystemInMessages: true,
         prepareStep: this.createPrepareStep(
           callbacks?.prepareStep,
           captchaSolver,
@@ -619,6 +619,7 @@ export class V3AgentHandler {
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
         toolChoice: "auto",
+        allowSystemInMessages: true,
         prepareStep: this.createPrepareStep(
           callbacks?.prepareStep,
           captchaSolver,
