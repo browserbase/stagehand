@@ -177,7 +177,7 @@ Please try it and give us your feedback, stay tuned for upcoming release announc
         securitySchemes: Api.openApiSecuritySchemes,
         links: Api.openApiLinks,
       },
-      security: [{ BrowserbaseApiKey: [], BrowserbaseProjectId: [] }],
+      security: [{ BrowserbaseApiKey: [] }],
     },
     ...fastifyZodOpenApiTransformers,
   });
