@@ -2,7 +2,12 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
 import type { Action } from "../../types/public/methods.js";
+import type {
+  ClickAndHoldToolResult,
+  ModelOutputContentItem,
+} from "../../types/public/agent.js";
 import { processCoordinates } from "../utils/coordinateNormalization.js";
+import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { ensureXPath } from "../utils/xpath.js";
 
 export const clickAndHoldTool = (v3: V3, provider?: string) =>
@@ -21,7 +26,11 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
         .array(z.number())
         .describe("The (x, y) coordinates to click on"),
     }),
-    execute: async ({ describe, coordinates, duration }) => {
+    execute: async ({
+      describe,
+      coordinates,
+      duration,
+    }): Promise<ClickAndHoldToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
         const processed = processCoordinates(
@@ -58,6 +67,8 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
           { delay: duration, returnXpath: shouldCollectXpath },
         );
 
+        const screenshotBase64 = await waitAndCaptureScreenshot(page);
+
         // Record as "act" step with proper Action for deterministic replay (only when caching)
         if (shouldCollectXpath) {
           const normalizedXpath = ensureXPath(xpath);
@@ -77,12 +88,48 @@ export const clickAndHoldTool = (v3: V3, provider?: string) =>
           }
         }
 
-        return { success: true, describe };
+        return {
+          success: true,
+          describe,
+          duration,
+          coordinates: [processed.x, processed.y],
+          screenshotBase64,
+        };
       } catch (error) {
         return {
           success: false,
           error: `Error clicking and holding: ${error.message}`,
         };
       }
+    },
+    toModelOutput: (result) => {
+      if (result.success === false || result.error !== undefined) {
+        return {
+          type: "content",
+          value: [{ type: "text", text: JSON.stringify(result) }],
+        };
+      }
+
+      const content: ModelOutputContentItem[] = [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: result.success,
+            describe: result.describe,
+            duration: result.duration,
+            coordinates: result.coordinates,
+          }),
+        },
+      ];
+
+      if (result.screenshotBase64) {
+        content.push({
+          type: "media",
+          mediaType: "image/png",
+          data: result.screenshotBase64,
+        });
+      }
+
+      return { type: "content", value: content };
     },
   });
