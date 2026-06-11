@@ -1860,6 +1860,11 @@ export class V3 {
     const resolvedMode =
       options?.mode ?? this.resolveDefaultAgentMode(options?.model);
 
+    const agentThinkingEffort =
+      options?.model && typeof options.model === "object"
+        ? (options.model as { thinkingEffort?: string }).thinkingEffort
+        : undefined;
+
     const handler = new V3AgentHandler(
       this,
       this.logger,
@@ -1869,6 +1874,7 @@ export class V3 {
       tools,
       resolvedMode,
       this.isCaptchaAutoSolveEnabled,
+      agentThinkingEffort,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =

@@ -13,6 +13,7 @@ const STAGEHAND_DEFAULT_FLAGS = [
   "--no-default-browser-check",
   "--disable-dev-shm-usage",
   "--site-per-process",
+  "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 ];
 
 export async function launchLocalChrome(

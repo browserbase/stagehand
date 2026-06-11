@@ -16,6 +16,23 @@ export async function safeGetPageUrl(page: Page): Promise<string> {
 }
 
 /**
+ * Normalizes a URL for use in cache key derivation: parses the URL and
+ * sorts its query parameters so that equivalent URLs that differ only in
+ * parameter order produce the same cache key. Returns the input unchanged
+ * if it isn't a parseable URL (e.g. empty string, `about:blank`).
+ */
+export function normalizeUrlForCacheKey(rawUrl: string): string {
+  if (!rawUrl) return rawUrl;
+  try {
+    const url = new URL(rawUrl);
+    url.searchParams.sort();
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+/**
  * Waits for a cached action's selector to be attached to the DOM before executing.
  * Logs a warning and proceeds if the wait times out (non-blocking).
  */
