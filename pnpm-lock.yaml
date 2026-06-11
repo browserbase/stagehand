@@ -6,11 +6,14 @@ settings:
 
 overrides:
   ajv@>=8 <8.18.0: ^8.18.0
+  ajv@<6.14.0: ^6.14.0
   brace-expansion@<1.1.13: ^1.1.13
   brace-expansion@>=2 <2.0.3: ^2.0.3
   fast-uri: ^3.1.2
   flatted: ^3.4.2
   glob@>=10.2.0 <10.5.0: ^10.5.0
+  js-yaml@<3.14.2: ^3.14.2
+  js-yaml@>=4 <4.1.1: ^4.1.1
   langsmith: ^0.6.0
   minimatch@<3.1.4: ^3.1.4
   minimatch@>=9 <9.0.7: ^9.0.7
@@ -23,6 +26,7 @@ overrides:
   simple-git: ^3.36.0
   uuid: ^11.1.1
   whatwg-url: ^14.0.0
+  yaml@>=2 <2.8.3: ^2.8.3
 
 importers:
 
@@ -188,7 +192,7 @@ importers:
         version: 1.3.0
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.8.1)
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.10.5
         version: 4.20.6
@@ -1343,8 +1347,8 @@ packages:
       ajv:
         optional: true
 
-  ajv@6.12.6:
-    resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
+  ajv@6.15.0:
+    resolution: {integrity: sha512-fgFx7Hfoq60ytK2c7DhnF8jIvzYgOMxfugjLOSMHjLIPgenqa7S7oaagATUq99mV6IYvN2tRmC0wnTYX6iPbMw==}
 
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
@@ -2235,12 +2239,12 @@ packages:
   js-tiktoken@1.0.21:
     resolution: {integrity: sha512-biOj/6M5qdgx5TKjDnFT1ymSpM5tbd3ylwDtrQvFQSu0Z7bBYko2dF+W/aUkXUPuk6IVpRxk/3Q2sHOzGlS36g==}
 
-  js-yaml@3.14.1:
-    resolution: {integrity: sha512-okMH7OXXJ7YrN9Ok3/SXrnu4iX9yOk+25nqX4imS2npuvTYDmo/QEZoqwZkYaIDk3jVvBOTOIEgEhaLOynBS9g==}
+  js-yaml@3.14.2:
+    resolution: {integrity: sha512-PMSmkqxr106Xa156c2M265Z+FTrPl+oxd/rgOQy2tijQeK5TxQ43psO1ZCwhVOSdnn+RzkzlRz/eY4BgJBYVpg==}
     hasBin: true
 
-  js-yaml@4.1.0:
-    resolution: {integrity: sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA==}
+  js-yaml@4.2.0:
+    resolution: {integrity: sha512-ePWsvanv0DWuDRsW8dnt+R4jQ31SCRCQ7hhNcPXZPsoBZiemuZNYGf7adZdqX2D86j6rvKp3RpCxVTSb8WQlOw==}
     hasBin: true
 
   json-bigint@1.0.0:
@@ -2725,7 +2729,7 @@ packages:
       jiti: '>=1.21.0'
       postcss: '>=8.0.9'
       tsx: ^4.8.1
-      yaml: ^2.4.2
+      yaml: ^2.8.3
     peerDependenciesMeta:
       jiti:
         optional: true
@@ -3260,8 +3264,8 @@ packages:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
 
-  yaml@2.8.1:
-    resolution: {integrity: sha512-lcYcMxX2PO9XMGvAJkJ3OsNMw+/7FKes7/hgerGUYWIoWu5j/+YQqcZr5JnPZWzOsEBgMbSbiSTn/dv/69Mkpw==}
+  yaml@2.9.0:
+    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
     engines: {node: '>= 14.6'}
     hasBin: true
 
@@ -3567,7 +3571,7 @@ snapshots:
   '@changesets/parse@0.4.1':
     dependencies:
       '@changesets/types': 6.1.0
-      js-yaml: 3.14.1
+      js-yaml: 3.14.2
 
   '@changesets/pre@2.0.2':
     dependencies:
@@ -3788,13 +3792,13 @@ snapshots:
 
   '@eslint/eslintrc@3.3.1':
     dependencies:
-      ajv: 6.12.6
+      ajv: 6.15.0
       debug: 4.4.3
       espree: 10.4.0
       globals: 14.0.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: 4.1.0
+      js-yaml: 4.2.0
       minimatch: 3.1.5
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -4374,7 +4378,7 @@ snapshots:
     optionalDependencies:
       ajv: 8.20.0
 
-  ajv@6.12.6:
+  ajv@6.15.0:
     dependencies:
       fast-deep-equal: 3.1.3
       fast-json-stable-stringify: 2.1.0
@@ -4425,7 +4429,7 @@ snapshots:
       '@braintrust/core': 0.0.34
       compute-cosine-similarity: 1.1.0
       js-levenshtein: 1.1.6
-      js-yaml: 4.1.0
+      js-yaml: 4.2.0
       linear-sum-assignment: 1.0.7
       mustache: 4.2.0
       openai: 4.23.0
@@ -4912,7 +4916,7 @@ snapshots:
       '@humanwhocodes/retry': 0.4.3
       '@types/estree': 1.0.8
       '@types/json-schema': 7.0.15
-      ajv: 6.12.6
+      ajv: 6.15.0
       chalk: 4.1.2
       cross-spawn: 7.0.6
       debug: 4.4.3
@@ -5406,12 +5410,12 @@ snapshots:
     dependencies:
       base64-js: 1.5.1
 
-  js-yaml@3.14.1:
+  js-yaml@3.14.2:
     dependencies:
       argparse: 1.0.10
       esprima: 4.0.1
 
-  js-yaml@4.1.0:
+  js-yaml@4.2.0:
     dependencies:
       argparse: 2.0.1
 
@@ -5712,7 +5716,7 @@ snapshots:
 
   openapi3-ts@4.5.0:
     dependencies:
-      yaml: 2.8.1
+      yaml: 2.9.0
 
   optionator@0.9.4:
     dependencies:
@@ -5878,14 +5882,14 @@ snapshots:
 
   pluralize@8.0.0: {}
 
-  postcss-load-config@6.0.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.20.6)(yaml@2.8.1):
+  postcss-load-config@6.0.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.20.6)(yaml@2.9.0):
     dependencies:
       lilconfig: 3.1.3
     optionalDependencies:
       jiti: 1.21.7
       postcss: 8.5.15
       tsx: 4.20.6
-      yaml: 2.8.1
+      yaml: 2.9.0
 
   postcss@8.5.15:
     dependencies:
@@ -5962,7 +5966,7 @@ snapshots:
   read-yaml-file@1.1.0:
     dependencies:
       graceful-fs: 4.2.11
-      js-yaml: 3.14.1
+      js-yaml: 3.14.2
       pify: 4.0.1
       strip-bom: 3.0.0
 
@@ -6321,7 +6325,7 @@ snapshots:
   tslib@2.8.1:
     optional: true
 
-  tsup@8.5.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.8.1):
+  tsup@8.5.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.9.0):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.27.7)
       cac: 6.7.14
@@ -6332,7 +6336,7 @@ snapshots:
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1
       picocolors: 1.1.1
-      postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.20.6)(yaml@2.8.1)
+      postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.20.6)(yaml@2.9.0)
       resolve-from: 5.0.0
       rollup: 4.61.1
       source-map: 0.7.6
@@ -6459,7 +6463,7 @@ snapshots:
 
   xtend@4.0.2: {}
 
-  yaml@2.8.1: {}
+  yaml@2.9.0: {}
 
   yocto-queue@0.1.0: {}
 
