@@ -1,6 +1,6 @@
 ---
 name: browse
-description: Use the browse CLI for Browserbase browser automation, Browserbase cloud APIs, Browserbase Functions, templates, web fetch/search, diagnostics, and Browse.sh skill discovery/installation. Use when the user asks to navigate pages, inspect browser state, run local or remote browser sessions, manage Browserbase resources, call Browserbase Functions, browse or scaffold Browserbase templates, fetch or search web content, diagnose browse setup, discover site-specific Browse.sh skills, or install/refresh this browse skill.
+description: Use the browse CLI for Browserbase browser automation, Browserbase cloud APIs, Browserbase Functions, templates, web fetch/search, diagnostics, and Browse.sh skill discovery/installation. Use when the user asks to navigate pages, inspect browser state, run local or remote browser sessions, manage Browserbase resources, call Browserbase Functions, browse or scaffold Browserbase templates, fetch or search web content, diagnose browse setup, find or install a skill for a website task, discover site-specific Browse.sh skills, or install/refresh this browse skill.
 compatibility: "Requires the browse CLI (`npm install -g browse`). Remote Browserbase sessions and cloud API commands require `BROWSERBASE_API_KEY`. Local mode uses Chrome/Chromium on the machine."
 license: MIT
 allowed-tools: Bash
@@ -242,18 +242,49 @@ Install or refresh this bundled CLI skill:
 browse skills install
 ```
 
-Discover and install site-specific Browse.sh skills:
+### Discovering Browse.sh Skills
+
+Browse.sh (https://browse.sh) is a catalog of site-specific browser automation skills. Each skill is scoped to one task on one website and identified by a `<domain>/<task>` slug. An installed skill encodes a proven strategy for that site — API endpoints, selectors, anti-bot handling — so it completes the task faster and more reliably than exploring the site from scratch.
+
+Search the catalog proactively when:
+
+- the user asks to complete a task on a specific website — search the domain before automating it by hand
+- the user asks for a task in a common category like flights, food delivery, reviews, recipes, tickets, jobs, or shopping — search the keyword
+- the user asks "is there a skill for X" or wants new capabilities
 
 ```bash
-browse skills list
-browse skills list --json
-browse skills find reviews
-browse skills find yelp.com/extract-reviews
-browse skills find "restaurant reviews" --json
-browse skills add yelp.com/extract-reviews
+browse skills list                              # browse the catalog
+browse skills find <query>                      # search by slug, domain, title, description, category, alias, or tag
+browse skills add <domain>/<task>               # install an exact slug
 ```
 
-Use `browse skills find` when the exact skill slug is uncertain. Use `browse skills add <domain>/<task>` only after choosing an exact slug from `list` or `find`.
+### Search Strategy
+
+Search the domain first, then the task, then broaden:
+
+```bash
+browse skills find yelp.com                     # 1. exact domain
+browse skills find yelp                         # 2. site name
+browse skills find reviews                      # 3. task keyword
+browse skills find "restaurant reviews"         # 4. multi-word query
+browse skills find food --limit 5               # 5. category keyword, capped
+```
+
+- Querying an exact slug (`browse skills find yelp.com/extract-reviews-2ikb22`) prints a detail view with the full description and install command.
+- If a search returns nothing, try synonyms (`flights` vs `travel`, `food` vs `restaurants`) before concluding no skill exists.
+- Each result shows a recommended method — `api`, `fetch`, `browser`, or `hybrid` — indicating how the skill drives the site. Install counts signal which skills are proven.
+- Slugs end in a generated suffix (`-2ikb22`), so never guess them. Install only with an exact slug copied from `list` or `find` output: `browse skills add yelp.com/extract-reviews-2ikb22`. The installed skill becomes available to the agent as a regular skill; a new agent session may be needed to pick it up.
+
+### Output Formats
+
+Output is a table in a terminal and JSON when piped, so agents get structured JSON by default. Force a format with `--format table|json` or `--json`.
+
+```bash
+browse skills find food --format table --limit 10
+browse skills find food --json | jq -r '.skills[] | "\(.slug)\t\(.title)"'
+```
+
+JSON output includes every match with full descriptions and ignores `--limit`; `browse skills list --json` returns the entire catalog, which is large. Prefer `browse skills find <query>` to narrow first, or `--format table --limit <n>` for a compact view.
 
 ## Best Practices
 
@@ -275,3 +306,6 @@ Use `browse skills find` when the exact skill slug is uncertain. Use `browse ski
 - Remote command fails: verify `BROWSERBASE_API_KEY` and inspect `browse cloud projects list`.
 - Session setup is unclear: run `browse doctor` or `browse doctor --json`.
 - Protected site blocks local mode: retry with `--remote`.
+- `browse skills find` returns nothing: broaden the query — bare domain, then site name, then a task keyword or synonym.
+- `browse skills add` fails on `npx`: install Node.js from https://nodejs.org, then rerun.
+- Newly added skill is not available: it installs for future sessions; list installed skills or start a new agent session.
