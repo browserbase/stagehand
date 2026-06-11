@@ -37,7 +37,7 @@ importers:
         version: 3.1.0
       openai:
         specifier: ^4.87.1
-        version: 4.104.0(ws@8.18.3)(zod@3.25.67)
+        version: 4.104.0(ws@8.21.0)(zod@3.25.67)
       pino:
         specifier: ^9.6.0
         version: 9.13.1
@@ -48,8 +48,8 @@ importers:
         specifier: ^1.52.0
         version: 1.56.0
       ws:
-        specifier: ^8.18.0
-        version: 8.18.3
+        specifier: ^8.21.0
+        version: 8.21.0
       zod:
         specifier: '>=3.25.0 <3.25.68'
         version: 3.25.67
@@ -105,10 +105,10 @@ importers:
         version: 9.37.0
       '@langchain/core':
         specifier: ^0.3.80
-        version: 0.3.80(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.18.3)(zod@3.25.67))
+        version: 0.3.80(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.21.0)(zod@3.25.67))
       '@langchain/openai':
         specifier: ^0.4.4
-        version: 0.4.9(@langchain/core@0.3.80(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.18.3)(zod@3.25.67)))(ws@8.18.3)
+        version: 0.4.9(@langchain/core@0.3.80(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.21.0)(zod@3.25.67)))(ws@8.21.0)
       '@playwright/test':
         specifier: ^1.42.1
         version: 1.56.0
@@ -135,7 +135,7 @@ importers:
         version: 0.0.64
       braintrust:
         specifier: ^0.0.171
-        version: 0.0.171(openai@4.104.0(ws@8.18.3)(zod@3.25.67))(react@19.2.0)(sswr@2.2.0(svelte@5.39.10))(svelte@5.39.10)(vue@3.5.22(typescript@5.9.3))(zod@3.25.67)
+        version: 0.0.171(openai@4.104.0(ws@8.21.0)(zod@3.25.67))(react@19.2.0)(sswr@2.2.0(svelte@5.39.10))(svelte@5.39.10)(vue@3.5.22(typescript@5.9.3))(zod@3.25.67)
       chalk:
         specifier: ^5.4.1
         version: 5.6.2
@@ -3354,8 +3354,8 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
-  ws@8.18.3:
-    resolution: {integrity: sha512-PEIGCY5tSlUt50cqyMXfCzX+oOPqN0vuGqWzbcJ2xvnkzkq46oOpz7dQaTDBdfICb4N14+GARUDw2XV2N4tvzg==}
+  ws@8.21.0:
+    resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -3996,7 +3996,7 @@ snapshots:
   '@google/genai@1.22.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.67))':
     dependencies:
       google-auth-library: 9.15.1
-      ws: 8.18.3
+      ws: 8.21.0
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.67)
     transitivePeerDependencies:
@@ -4138,14 +4138,14 @@ snapshots:
 
   '@kwsites/promise-deferred@1.1.1': {}
 
-  '@langchain/core@0.3.80(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.18.3)(zod@3.25.67))':
+  '@langchain/core@0.3.80(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.21.0)(zod@3.25.67))':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       ansi-styles: 5.2.0
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.3.72(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.18.3)(zod@3.25.67))
+      langsmith: 0.3.72(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.21.0)(zod@3.25.67))
       mustache: 4.2.0
       p-queue: 6.6.2
       p-retry: 4.6.2
@@ -4158,11 +4158,11 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - openai
 
-  '@langchain/openai@0.4.9(@langchain/core@0.3.80(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.18.3)(zod@3.25.67)))(ws@8.18.3)':
+  '@langchain/openai@0.4.9(@langchain/core@0.3.80(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.21.0)(zod@3.25.67)))(ws@8.21.0)':
     dependencies:
-      '@langchain/core': 0.3.80(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.18.3)(zod@3.25.67))
+      '@langchain/core': 0.3.80(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.21.0)(zod@3.25.67))
       js-tiktoken: 1.0.21
-      openai: 4.104.0(ws@8.18.3)(zod@3.25.67)
+      openai: 4.104.0(ws@8.21.0)(zod@3.25.67)
       zod: 3.25.67
       zod-to-json-schema: 3.24.6(zod@3.25.67)
     transitivePeerDependencies:
@@ -4566,7 +4566,7 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai@3.4.33(openai@4.104.0(ws@8.18.3)(zod@3.25.67))(react@19.2.0)(sswr@2.2.0(svelte@5.39.10))(svelte@5.39.10)(vue@3.5.22(typescript@5.9.3))(zod@3.25.67):
+  ai@3.4.33(openai@4.104.0(ws@8.21.0)(zod@3.25.67))(react@19.2.0)(sswr@2.2.0(svelte@5.39.10))(svelte@5.39.10)(vue@3.5.22(typescript@5.9.3))(zod@3.25.67):
     dependencies:
       '@ai-sdk/provider': 0.0.26
       '@ai-sdk/provider-utils': 1.0.22(zod@3.25.67)
@@ -4582,7 +4582,7 @@ snapshots:
       secure-json-parse: 2.7.0
       zod-to-json-schema: 3.24.6(zod@3.25.67)
     optionalDependencies:
-      openai: 4.104.0(ws@8.18.3)(zod@3.25.67)
+      openai: 4.104.0(ws@8.21.0)(zod@3.25.67)
       react: 19.2.0
       sswr: 2.2.0(svelte@5.39.10)
       svelte: 5.39.10
@@ -4731,13 +4731,13 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
-  braintrust@0.0.171(openai@4.104.0(ws@8.18.3)(zod@3.25.67))(react@19.2.0)(sswr@2.2.0(svelte@5.39.10))(svelte@5.39.10)(vue@3.5.22(typescript@5.9.3))(zod@3.25.67):
+  braintrust@0.0.171(openai@4.104.0(ws@8.21.0)(zod@3.25.67))(react@19.2.0)(sswr@2.2.0(svelte@5.39.10))(svelte@5.39.10)(vue@3.5.22(typescript@5.9.3))(zod@3.25.67):
     dependencies:
       '@ai-sdk/provider': 0.0.11
       '@braintrust/core': 0.0.67
       '@next/env': 14.2.33
       '@vercel/functions': 1.6.0
-      ai: 3.4.33(openai@4.104.0(ws@8.18.3)(zod@3.25.67))(react@19.2.0)(sswr@2.2.0(svelte@5.39.10))(svelte@5.39.10)(vue@3.5.22(typescript@5.9.3))(zod@3.25.67)
+      ai: 3.4.33(openai@4.104.0(ws@8.21.0)(zod@3.25.67))(react@19.2.0)(sswr@2.2.0(svelte@5.39.10))(svelte@5.39.10)(vue@3.5.22(typescript@5.9.3))(zod@3.25.67)
       argparse: 2.0.1
       chalk: 4.1.2
       cli-progress: 3.12.0
@@ -5723,7 +5723,7 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
-  langsmith@0.3.72(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.18.3)(zod@3.25.67)):
+  langsmith@0.3.72(@opentelemetry/api@1.9.0)(openai@4.104.0(ws@8.21.0)(zod@3.25.67)):
     dependencies:
       '@types/uuid': 10.0.0
       chalk: 4.1.2
@@ -5734,7 +5734,7 @@ snapshots:
       uuid: 10.0.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
-      openai: 4.104.0(ws@8.18.3)(zod@3.25.67)
+      openai: 4.104.0(ws@8.21.0)(zod@3.25.67)
 
   levn@0.4.1:
     dependencies:
@@ -5939,7 +5939,7 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@4.104.0(ws@8.18.3)(zod@3.25.67):
+  openai@4.104.0(ws@8.21.0)(zod@3.25.67):
     dependencies:
       '@types/node': 18.19.129
       '@types/node-fetch': 2.6.13
@@ -5949,7 +5949,7 @@ snapshots:
       formdata-node: 4.4.1
       node-fetch: 2.7.0
     optionalDependencies:
-      ws: 8.18.3
+      ws: 8.21.0
       zod: 3.25.67
     transitivePeerDependencies:
       - encoding
@@ -6755,7 +6755,7 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  ws@8.18.3: {}
+  ws@8.21.0: {}
 
   xtend@4.0.2: {}
 
