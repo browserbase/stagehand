@@ -145,6 +145,9 @@ describe("Page WebMCP", () => {
     await expect(page.listWebMCPTools({ timeoutMs: 1 })).rejects.toThrow(
       "Chrome/Chromium newer than version 149",
     );
+    await expect(page.listWebMCPTools({ timeoutMs: 1 })).rejects.toThrow(
+      "Stagehand's local Chrome launcher enables WebMCP flags by default",
+    );
   });
 
   it("invokes a tool with an explicit frameId and resolves the response event", async () => {
