@@ -15,7 +15,6 @@
     "prettier:fix": "prettier --write .",
     "eslint": "eslint .",
     "cache:clear": "rm -rf .cache",
-    "docs": "pnpm --filter @browserbasehq/stagehand-docs run dev",
     "evals": "tsx scripts/run-evals.ts",
     "evals:legacy": "tsx scripts/run-evals.ts",
     "e2e": "pnpm run build && cd evals/deterministic && playwright test --config=e2e.playwright.config.ts",
@@ -77,7 +76,7 @@
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.4.0",
     "@google/genai": "^1.22.0",
-    "@modelcontextprotocol/sdk": "^1.17.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^4.3.9",
     "devtools-protocol": "^0.0.1464554",
     "fetch-cookie": "^3.1.0",
@@ -103,7 +102,6 @@
     "ollama-ai-provider": "^1.2.0"
   },
   "directories": {
-    "doc": "docs",
     "example": "examples",
     "lib": "lib"
   },

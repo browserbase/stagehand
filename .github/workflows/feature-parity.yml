@@ -7,8 +7,6 @@ on:
       - synchronize
       - labeled
       - unlabeled
-    paths-ignore:
-      - "docs/**"
 
 jobs:
   check-parity-label:
