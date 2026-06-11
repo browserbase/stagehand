@@ -42,7 +42,7 @@
     "@changesets/cli": "^2.27.9",
     "@eslint/js": "^9.16.0",
     "@langchain/core": "^0.3.80",
-    "@langchain/openai": "^0.4.4",
+    "@langchain/openai": "^0.4.9",
     "@playwright/test": "^1.42.1",
     "@types/adm-zip": "^0.5.7",
     "@types/cheerio": "^0.22.35",
@@ -116,9 +116,22 @@
   "pnpm": {
     "overrides": {
       "ajv@>=8 <8.18.0": "^8.18.0",
+      "brace-expansion@<1.1.13": "^1.1.13",
+      "brace-expansion@>=2 <2.0.3": "^2.0.3",
       "fast-uri": "^3.1.2",
+      "flatted": "^3.4.2",
+      "glob@>=10.2.0 <10.5.0": "^10.5.0",
+      "langsmith": "^0.6.0",
+      "minimatch@<3.1.4": "^3.1.4",
+      "minimatch@>=9 <9.0.7": "^9.0.7",
+      "path-to-regexp@<0.1.13": "^0.1.13",
       "path-to-regexp@>=8 <8.4.0": "^8.4.0",
+      "picomatch@<2.3.2": "^2.3.2",
+      "picomatch@>=4 <4.0.4": "^4.0.4",
+      "qs": "^6.15.2",
+      "rollup@>=4 <4.59.0": "^4.59.0",
       "simple-git": "^3.36.0",
+      "uuid": "^11.1.1",
       "whatwg-url": "^14.0.0"
     }
   },
