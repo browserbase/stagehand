@@ -84,7 +84,7 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
 };
 
 const WEB_MCP_SUPPORT_MESSAGE =
-  "Make sure you are using Chrome/Chromium newer than version 149 and that it is launched with --enable-features=WebMCPTesting,DevToolsWebMCPSupport.";
+  "Make sure you are using Chrome/Chromium newer than version 149. Stagehand's local Chrome launcher enables WebMCP flags by default; if you are connecting to an existing browser or remote CDP endpoint, launch it with --enable-features=WebMCPTesting,DevToolsWebMCPSupport.";
 
 type Deferred<T> = {
   promise: Promise<T>;
