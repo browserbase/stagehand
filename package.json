@@ -115,6 +115,9 @@
   "homepage": "https://stagehand.dev",
   "pnpm": {
     "overrides": {
+      "ajv@>=8 <8.18.0": "^8.18.0",
+      "fast-uri": "^3.1.2",
+      "path-to-regexp@>=8 <8.4.0": "^8.4.0",
       "simple-git": "^3.36.0",
       "whatwg-url": "^14.0.0"
     }
