@@ -58,6 +58,7 @@ export class GoogleCUAClient extends AgentClient {
   private tools?: ToolSet;
   private baseURL?: string;
   private safetyConfirmationHandler?: SafetyConfirmationHandler;
+  private pendingContextNotes: string[] = [];
   constructor(
     type: AgentType,
     modelName: string,
@@ -144,6 +145,10 @@ export class GoogleCUAClient extends AgentClient {
 
   setSafetyConfirmationHandler(handler?: SafetyConfirmationHandler): void {
     this.safetyConfirmationHandler = handler;
+  }
+
+  addContextNote(note: string): void {
+    this.pendingContextNotes.push(note);
   }
 
   private async handleSafetyConfirmation(
@@ -265,6 +270,16 @@ export class GoogleCUAClient extends AgentClient {
         // Update completion status
         completed = result.completed;
 
+        const contextNotes = this.drainContextNotes();
+        if (!completed && contextNotes.length > 0) {
+          this.history.push(
+            ...contextNotes.map((note) => ({
+              role: "user" as const,
+              parts: [{ text: note }],
+            })),
+          );
+        }
+
         // Record any message for this step
         if (result.message) {
           messageList.push(result.message);
@@ -308,6 +323,16 @@ export class GoogleCUAClient extends AgentClient {
         },
       };
     }
+  }
+
+  private drainContextNotes(): string[] {
+    if (this.pendingContextNotes.length === 0) {
+      return [];
+    }
+
+    const notes = [...this.pendingContextNotes];
+    this.pendingContextNotes = [];
+    return notes;
   }
 
   /**
