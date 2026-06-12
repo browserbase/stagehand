@@ -325,7 +325,7 @@ export async function runEvals(
     (t: DiscoveredTask) => t.tier === "core",
   );
   const effectiveCoreToolSurface = hasCoreOnly
-    ? (options.coreToolSurface ?? "understudy_code")
+    ? (options.coreToolSurface ?? "understudy_v3_code")
     : undefined;
   const effectiveCoreStartupProfile =
     hasCoreOnly && effectiveCoreToolSurface

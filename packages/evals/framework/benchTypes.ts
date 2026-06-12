@@ -1,18 +1,20 @@
 import type { AgentToolMode, AvailableModel } from "@browserbasehq/stagehand";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 
-export type Harness = "stagehand" | "claude_code" | "codex";
+export type Harness = "stagehand_v3" | "stagehand_v4" | "claude_code" | "codex";
 
-export const DEFAULT_BENCH_HARNESS: Harness = "stagehand";
+export const DEFAULT_BENCH_HARNESS: Harness = "stagehand_v3";
 
 export const SUPPORTED_BENCH_HARNESSES = [
-  "stagehand",
+  "stagehand_v3",
+  "stagehand_v4",
   "claude_code",
   "codex",
 ] as const satisfies readonly Harness[];
 
 export const EXECUTABLE_BENCH_HARNESSES = [
-  "stagehand",
+  "stagehand_v3",
+  "stagehand_v4",
   "claude_code",
   "codex",
 ] as const satisfies readonly Harness[];
@@ -42,7 +44,7 @@ export type BenchTaskKind =
   | "suite";
 
 export interface StagehandHarnessConfig {
-  harness: "stagehand";
+  harness: "stagehand_v3" | "stagehand_v4";
   model: AvailableModel;
   provider?: string;
   environment: "LOCAL" | "BROWSERBASE";

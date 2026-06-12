@@ -32,7 +32,10 @@ export async function captureProbeEvidence({
   let screenshot: Buffer | undefined;
   try {
     const page = await v3.context.awaitActivePage();
-    probeUrl = page.url();
+    probeUrl =
+      typeof page.url === "function"
+        ? page.url()
+        : String((page as unknown as { url?: unknown }).url ?? probeUrl);
     screenshot = await page.screenshot({ fullPage: false });
   } catch (e) {
     logger({

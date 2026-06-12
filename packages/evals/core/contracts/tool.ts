@@ -17,7 +17,8 @@ import type {
 } from "./results.js";
 
 export type ToolSurface =
-  | "understudy_code"
+  | "understudy_v3_code"
+  | "understudy_v4_code"
   | "playwright_code"
   | "cdp_code"
   | "playwright_mcp"

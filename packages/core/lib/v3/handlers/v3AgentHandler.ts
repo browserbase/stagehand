@@ -162,7 +162,11 @@ export class V3AgentHandler {
       const maxSteps = options.maxSteps || 20;
 
       // Get the initial page URL first (needed for the system prompt)
-      const initialPageUrl = (await this.v3.context.awaitActivePage()).url();
+      const initialPage = await this.v3.context.awaitActivePage();
+      const initialPageUrl =
+        typeof initialPage.url === "function"
+          ? initialPage.url()
+          : String((initialPage as unknown as { url?: unknown }).url ?? "");
 
       // Build the system prompt with mode-aware tool guidance
       const systemPrompt = buildAgentSystemPrompt({
@@ -193,6 +197,27 @@ export class V3AgentHandler {
         options.useSearch,
       );
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
+      for (const [toolName, toolDefinition] of Object.entries(allTools)) {
+        const execute = toolDefinition.execute;
+        if (typeof execute !== "function") continue;
+        allTools[toolName] = {
+          ...toolDefinition,
+          execute: async (args, toolOptions) =>
+            await FlowLogger.runWithLogging(
+              {
+                eventType: "AgentToolCall",
+                includeResult: true,
+                data: {
+                  method: toolName,
+                  llm_tool_name: toolName,
+                  tool_call_id: readToolCallId(toolOptions),
+                },
+              },
+              async () => await execute.call(toolDefinition, args, toolOptions),
+              [args],
+            ),
+        };
+      }
 
       // Use provided messages for continuation, or start fresh with the instruction
       const messages: ModelMessage[] = options.messages?.length
@@ -358,7 +383,11 @@ export class V3AgentHandler {
             toolOutput: inferToolOutput(toolResult),
           });
         }
-        state.currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+        const activePage = await this.v3.context.awaitActivePage();
+        state.currentPageUrl =
+          typeof activePage.url === "function"
+            ? activePage.url()
+            : String((activePage as unknown as { url?: unknown }).url ?? "");
 
         // Harness probe — one screenshot / a11y snapshot per AI SDK step.
         // The recorder applies the probe to every step_finished received
@@ -867,4 +896,12 @@ export class V3AgentHandler {
       output: doneResult.output,
     };
   }
+}
+
+function readToolCallId(value: unknown): string | undefined {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const toolCallId = (value as Record<string, unknown>).toolCallId;
+  return typeof toolCallId === "string" ? toolCallId : undefined;
 }

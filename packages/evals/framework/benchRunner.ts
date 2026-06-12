@@ -1,6 +1,7 @@
 import { EvalsError } from "../errors.js";
 import { EvalLogger } from "../logger.js";
 import type { EvalInput } from "../types/evals.js";
+import { tracedSpan } from "./braintrust.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { RunEvalsOptions } from "./runner.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
@@ -29,7 +30,6 @@ export async function executeBenchTask(
 ): Promise<TaskResult> {
   const logger = new EvalLogger(Boolean(options.verbose));
   const harnessName = options.harness ?? DEFAULT_BENCH_HARNESS;
-  const harness = getBenchHarness(harnessName);
   const row = buildBenchMatrixRow(
     task,
     input.modelName,
@@ -38,6 +38,7 @@ export async function executeBenchTask(
     input.isCUA,
     input.agentMode,
   );
+  const harness = getBenchHarness(harnessName);
   let cleanup: () => Promise<void> = async () => {};
   let unregisterCleanup: (() => void) | undefined;
   let harnessCtx: BenchHarnessContext | undefined;
@@ -65,39 +66,54 @@ export async function executeBenchTask(
     unregisterCleanup = registerActiveRunCleanup(cleanup);
 
     harnessCtx = startedHarness.ctx;
-    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
-    if (taskModule.definition) {
-      const ctx = {
-        v3: harnessCtx.v3,
-        agent: harnessCtx.agent,
-        page: harnessCtx.page,
-        logger,
-        input,
-        modelName: input.modelName,
-        debugUrl: harnessCtx.debugUrl,
-        sessionUrl: harnessCtx.sessionUrl,
-      };
-      return withBenchSessionUrls(
-        (await taskModule.definition.fn(ctx)) as TaskResult,
-        harnessCtx,
-      );
-    }
-    if (taskModule.legacyFn) {
-      return withBenchSessionUrls(
-        await taskModule.legacyFn({
-          v3: harnessCtx.v3,
-          logger,
-          debugUrl: harnessCtx.debugUrl,
-          sessionUrl: harnessCtx.sessionUrl,
-          modelName: input.modelName,
-          agent: harnessCtx.agent,
-          input,
-        }),
-        harnessCtx,
-      );
-    }
+    return await tracedSpan(
+      async () => {
+        await harnessCtx?.onTaskStart?.();
+        const taskModule = await loadTaskModuleFromPath(
+          task.filePath,
+          task.name,
+        );
+        if (taskModule.definition) {
+          const taskFn =
+            taskModule.definition.benchFns?.[harnessCtx!.harness] ??
+            taskModule.definition.benchFns?.default ??
+            taskModule.definition.fn;
+          const ctx = {
+            v3: harnessCtx!.v3,
+            v4: harnessCtx!.v4,
+            agent: harnessCtx!.agent,
+            page: harnessCtx!.page,
+            logger,
+            input,
+            modelName: input.modelName,
+            debugUrl: harnessCtx!.debugUrl,
+            sessionUrl: harnessCtx!.sessionUrl,
+          };
+          return withBenchSessionUrls(
+            (await taskFn(ctx)) as TaskResult,
+            harnessCtx,
+          );
+        }
+        if (taskModule.legacyFn) {
+          return withBenchSessionUrls(
+            await taskModule.legacyFn({
+              v3: harnessCtx!.v3,
+              v4: harnessCtx!.v4,
+              logger,
+              debugUrl: harnessCtx!.debugUrl,
+              sessionUrl: harnessCtx!.sessionUrl,
+              modelName: input.modelName,
+              agent: harnessCtx!.agent,
+              input,
+            }),
+            harnessCtx,
+          );
+        }
 
-    throw new EvalsError(`No valid task export found in ${task.filePath}`);
+        throw new EvalsError(`No valid task export found in ${task.filePath}`);
+      },
+      { name: "task" },
+    );
   } catch (error) {
     console.error(`Error in ${input.name}: ${error}`);
     logger.error({
@@ -117,16 +133,18 @@ export async function executeBenchTask(
     return withBenchSessionUrls(
       {
         _success: false,
-        error:
-          error instanceof Error
-            ? JSON.parse(JSON.stringify(error, null, 2))
-            : String(error),
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
       },
       harnessCtx,
     );
   } finally {
-    await cleanup();
+    await tracedSpan(
+      async () => {
+        await cleanup();
+      },
+      { name: "cleanup" },
+    );
     unregisterCleanup?.();
     logger.clear();
   }

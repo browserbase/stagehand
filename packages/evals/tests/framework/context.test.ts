@@ -4,9 +4,9 @@ import { prepareCoreBrowserTarget } from "../../core/targets/index.js";
 
 describe("resolveDefaultCoreStartupProfile", () => {
   it("uses runner-provided local CDP for code surfaces in LOCAL", () => {
-    expect(resolveDefaultCoreStartupProfile("understudy_code", "LOCAL")).toBe(
-      "runner_provided_local_cdp",
-    );
+    expect(
+      resolveDefaultCoreStartupProfile("understudy_v3_code", "LOCAL"),
+    ).toBe("runner_provided_local_cdp");
     expect(resolveDefaultCoreStartupProfile("playwright_code", "LOCAL")).toBe(
       "runner_provided_local_cdp",
     );
@@ -29,7 +29,7 @@ describe("resolveDefaultCoreStartupProfile", () => {
 
   it("uses runner-provided Browserbase CDP for code surfaces in BROWSERBASE", () => {
     expect(
-      resolveDefaultCoreStartupProfile("understudy_code", "BROWSERBASE"),
+      resolveDefaultCoreStartupProfile("understudy_v3_code", "BROWSERBASE"),
     ).toBe("runner_provided_browserbase_cdp");
     expect(
       resolveDefaultCoreStartupProfile("playwright_code", "BROWSERBASE"),
@@ -55,7 +55,7 @@ describe("resolveDefaultCoreStartupProfile", () => {
     await expect(
       prepareCoreBrowserTarget({
         environment: "BROWSERBASE",
-        toolSurface: "understudy_code",
+        toolSurface: "understudy_v3_code",
         startupProfile: "runner_provided_local_cdp",
       }),
     ).rejects.toThrow(/requires LOCAL environment/);
@@ -65,7 +65,7 @@ describe("resolveDefaultCoreStartupProfile", () => {
     await expect(
       prepareCoreBrowserTarget({
         environment: "LOCAL",
-        toolSurface: "understudy_code",
+        toolSurface: "understudy_v3_code",
         startupProfile: "runner_provided_browserbase_cdp",
       }),
     ).rejects.toThrow(/requires BROWSERBASE environment/);

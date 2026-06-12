@@ -222,7 +222,7 @@ class UnderstudyPageHandle implements CorePageHandle {
         return;
       default:
         throw new Error(
-          `understudy_code does not support click target kind "${target.kind}" yet`,
+          `understudy_v3_code does not support click target kind "${target.kind}" yet`,
         );
     }
   }
@@ -253,7 +253,7 @@ class UnderstudyPageHandle implements CorePageHandle {
         return;
       default:
         throw new Error(
-          `understudy_code does not support hover target kind "${target.kind}" yet`,
+          `understudy_v3_code does not support hover target kind "${target.kind}" yet`,
         );
     }
   }
@@ -298,7 +298,7 @@ class UnderstudyPageHandle implements CorePageHandle {
         return;
       default:
         throw new Error(
-          `understudy_code does not support type target kind "${target.kind}" yet`,
+          `understudy_v3_code does not support type target kind "${target.kind}" yet`,
         );
     }
   }
@@ -335,7 +335,7 @@ class UnderstudyPageHandle implements CorePageHandle {
         return;
       default:
         throw new Error(
-          `understudy_code does not support press target kind "${target.kind}" yet`,
+          `understudy_v3_code does not support press target kind "${target.kind}" yet`,
         );
     }
   }
@@ -462,8 +462,8 @@ function connectionModeFromProfile(
   return "launch";
 }
 
-export class UnderstudyCodeTool implements CoreTool {
-  readonly id = "understudy_code";
+export class UnderstudyV3CodeTool implements CoreTool {
+  readonly id = "understudy_v3_code";
   readonly surface = "code";
   readonly family = "understudy";
   readonly supportedStartupProfiles: StartupProfile[] = [
@@ -485,7 +485,7 @@ export class UnderstudyCodeTool implements CoreTool {
   async start(input: ToolStartInput): Promise<ToolStartResult> {
     if (input.startupProfile === "tool_attach_local_cdp") {
       throw new Error(
-        `understudy_code does not support startup profile "${input.startupProfile}" yet`,
+        `understudy_v3_code does not support startup profile "${input.startupProfile}" yet`,
       );
     }
 

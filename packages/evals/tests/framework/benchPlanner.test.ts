@@ -34,7 +34,7 @@ describe("benchPlanner", () => {
     );
 
     expect(row).toMatchObject({
-      harness: "stagehand",
+      harness: "stagehand_v3",
       task: "dropdown",
       category: "act",
       taskKind: "act",
@@ -43,7 +43,7 @@ describe("benchPlanner", () => {
       environment: "BROWSERBASE",
       useApi: true,
       config: {
-        harness: "stagehand",
+        harness: "stagehand_v3",
         model: "openai/gpt-4.1-mini",
         provider: "openai",
         environment: "BROWSERBASE",
@@ -55,13 +55,13 @@ describe("benchPlanner", () => {
   it("annotates generated bench testcases with harness metadata", () => {
     const [testcase] = generateBenchTestcases([makeTask()], {
       modelOverride: "openai/gpt-4.1-mini",
-      harness: "stagehand",
+      harness: "stagehand_v3",
       environment: "LOCAL",
     });
 
     expect(testcase.input.modelName).toBe("openai/gpt-4.1-mini");
-    expect(testcase.tags).toContain("harness/stagehand");
-    expect(testcase.metadata.harness).toBe("stagehand");
+    expect(testcase.tags).toContain("harness/stagehand_v3");
+    expect(testcase.metadata.harness).toBe("stagehand_v3");
     expect(testcase.metadata.environment).toBe("LOCAL");
   });
 
@@ -78,7 +78,7 @@ describe("benchPlanner", () => {
       {
         modelOverride: cuaModel,
         datasetFilter: "webvoyager",
-        harness: "stagehand",
+        harness: "stagehand_v3",
       },
     );
 
@@ -100,7 +100,7 @@ describe("benchPlanner", () => {
       {
         modelOverride: "openai/gpt-5.4-mini",
         datasetFilter: "webvoyager",
-        harness: "stagehand",
+        harness: "stagehand_v3",
       },
     );
 
@@ -123,7 +123,7 @@ describe("benchPlanner", () => {
       {
         modelOverride: "openai/gpt-4.1-mini",
         datasetFilter: "webvoyager",
-        harness: "stagehand",
+        harness: "stagehand_v3",
         agentMode: "dom",
       },
     );
@@ -153,7 +153,7 @@ describe("benchPlanner", () => {
           {
             modelOverride: "openai/gpt-4.1-mini",
             datasetFilter: "webvoyager",
-            harness: "stagehand",
+            harness: "stagehand_v3",
             agentModes: ["dom", "hybrid"],
           },
         ),
@@ -191,7 +191,7 @@ describe("benchPlanner", () => {
           ],
           {
             datasetFilter: "webvoyager",
-            harness: "stagehand",
+            harness: "stagehand_v3",
           },
         ),
     );
@@ -226,7 +226,7 @@ describe("benchPlanner", () => {
           ],
           {
             datasetFilter: "webvoyager",
-            harness: "stagehand",
+            harness: "stagehand_v3",
             agentModes: ["dom", "hybrid"],
           },
         ),
@@ -265,7 +265,7 @@ describe("benchPlanner", () => {
           ],
           {
             datasetFilter: "webvoyager",
-            harness: "stagehand",
+            harness: "stagehand_v3",
             agentModes: ["cua"],
           },
         ),
@@ -296,7 +296,7 @@ describe("benchPlanner", () => {
             {
               modelOverride: "openai/gpt-4.1-mini",
               datasetFilter: "webvoyager",
-              harness: "stagehand",
+              harness: "stagehand_v3",
               agentMode: "cua",
             },
           ),
@@ -323,7 +323,7 @@ describe("benchPlanner", () => {
           ],
           {
             datasetFilter: "webvoyager",
-            harness: "stagehand",
+            harness: "stagehand_v3",
             agentModes: ["cua"],
           },
         ),
@@ -338,7 +338,7 @@ describe("benchPlanner", () => {
   it("does not expand non-agent model overrides across agent modes", () => {
     const testcases = generateBenchTestcases([makeTask()], {
       modelOverride: "openai/gpt-4.1-mini",
-      harness: "stagehand",
+      harness: "stagehand_v3",
       agentModes: ["dom", "hybrid"],
     });
 
@@ -475,7 +475,7 @@ describe("benchPlanner", () => {
           {
             modelOverride: "openai/gpt-4.1-mini",
             datasetFilter: "webvoyager",
-            harness: "stagehand",
+            harness: "stagehand_v3",
           },
         ),
     );
@@ -510,7 +510,7 @@ describe("benchPlanner", () => {
           {
             modelOverride: "openai/gpt-4.1-mini",
             datasetFilter: "onlineMind2Web",
-            harness: "stagehand",
+            harness: "stagehand_v3",
           },
         ),
     );
@@ -541,7 +541,7 @@ describe("benchPlanner", () => {
           {
             modelOverride: "openai/gpt-4.1-mini",
             datasetFilter: "webtailbench",
-            harness: "stagehand",
+            harness: "stagehand_v3",
           },
         ),
     );

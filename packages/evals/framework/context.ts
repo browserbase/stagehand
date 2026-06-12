@@ -13,7 +13,6 @@ import { type V3InitResult, initV3 } from "../initV3.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { coreFixtureRoutes } from "../core/fixtures/index.js";
 import { prepareCoreBrowserTarget } from "../core/targets/index.js";
-import { getCoreTool } from "../core/tools/registry.js";
 import { ensureCoreFixtureServer } from "../core/fixtures/server.js";
 import { EvalLogger } from "../logger.js";
 import { createAssertHelpers } from "./assertions.js";
@@ -41,7 +40,7 @@ export function resolveDefaultCoreStartupProfile(
       return environment === "BROWSERBASE"
         ? "tool_create_browserbase"
         : "tool_launch_local";
-    case "understudy_code":
+    case "understudy_v3_code":
     case "playwright_code":
     case "cdp_code":
     case "playwright_mcp":
@@ -69,7 +68,8 @@ export async function buildCoreContext(
 ): Promise<CoreContextResult> {
   const logger = options.logger ?? new EvalLogger();
   const environment = options.environment ?? "LOCAL";
-  const toolSurface = options.toolSurface ?? "understudy_code";
+  const toolSurface = options.toolSurface ?? "understudy_v3_code";
+  const { getCoreTool } = await import("../core/tools/registry.js");
   const tool = getCoreTool(toolSurface);
   const startupProfile =
     options.startupProfile ??
