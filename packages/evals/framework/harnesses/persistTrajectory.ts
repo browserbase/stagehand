@@ -4,6 +4,10 @@ import {
   shouldPersistTrajectory,
   writeTrajectoryDir,
 } from "@browserbasehq/stagehand";
+import {
+  resolveTrajectoryDir,
+  writeTrajectoryMetadata,
+} from "../trajectoryGroup.js";
 import type {
   EvaluationResult,
   TaskSpec,
@@ -16,7 +20,8 @@ export interface PersistAdapterTrajectoryOptions {
   /** EvaluationResult from V3Evaluator.verify(). Written to scores/result.json. */
   evaluationResult?: EvaluationResult;
   /**
-   * Output directory root. Final layout lives at `<outputRoot>/<runId>/<task.id>/`.
+   * Output directory root. Final layout lives at
+   * `<outputRoot>/<group>/<task.id>/<runId>/` (group = EVAL_TRAJECTORY_GROUP or "default").
    * Defaults to `<cwd>/.trajectories`.
    */
   outputRoot?: string;
@@ -48,7 +53,7 @@ export async function persistAdapterTrajectory(
 ): Promise<PersistAdapterTrajectoryResult> {
   const runId = opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
   const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
-  const directory = path.join(root, runId, opts.taskSpec.id);
+  const directory = resolveTrajectoryDir(root, opts.taskSpec.id, runId);
   const persisted = shouldPersistTrajectory(opts.persist);
 
   if (!persisted) {
@@ -56,6 +61,11 @@ export async function persistAdapterTrajectory(
   }
 
   await writeTrajectoryDir(directory, opts.trajectory);
+  await writeTrajectoryMetadata(directory, {
+    task: opts.taskSpec.id,
+    runId,
+    status: opts.trajectory.status,
+  });
 
   if (opts.evaluationResult) {
     await fs.writeFile(

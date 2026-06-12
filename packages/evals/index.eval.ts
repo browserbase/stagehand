@@ -22,6 +22,11 @@ import {
   filterByEvalName,
 } from "./args.js";
 import { generateExperimentName } from "./utils.js";
+import {
+  buildTrajectoryGroupSlug,
+  resolveTrajectoryRoot,
+  writeExperimentLink,
+} from "./framework/trajectoryGroup.js";
 import { exactMatch, errorMatch } from "./scoring.js";
 import {
   tasksByName,
@@ -341,6 +346,15 @@ const generateFilteredTestcases = (): Testcase[] => {
     environment: env,
   });
 
+  // Stamp the run-scoped trajectory group so every task in this run lands under
+  // one folder (`<root>/<experiment>__<model>/...`) instead of scattered
+  // per-task timestamps. Local persistence only — does not affect Braintrust.
+  process.env.EVAL_EXPERIMENT_NAME = experimentName;
+  process.env.EVAL_TRAJECTORY_GROUP = buildTrajectoryGroupSlug({
+    experimentName,
+    model: process.env.EVAL_MODEL_OVERRIDE,
+  });
+
   // Determine braintrust project name to use (stagehand in CI, stagehand-dev otherwise)
   const braintrustProjectName =
     process.env.CI === "true" ? "stagehand" : "stagehand-dev";
@@ -544,6 +558,21 @@ const generateFilteredTestcases = (): Testcase[] => {
         score: output._success ? 1 : 0,
       };
     });
+
+    // Cross-link local trajectories to the resolved Braintrust experiment.
+    // The hashed name (e.g. `agent/onlineMind2Web-92918006`) is only known now,
+    // after Eval() resolves — so write it once at the group-dir root.
+    const summary = evalResult.summary;
+    if (summary) {
+      await writeExperimentLink(resolveTrajectoryRoot(), {
+        braintrustExperiment: summary.experimentName,
+        braintrustExperimentId: summary.experimentId ?? null,
+        braintrustExperimentUrl: summary.experimentUrl ?? null,
+        braintrustProject: summary.projectName,
+        braintrustProjectUrl: summary.projectUrl ?? null,
+        requestedExperimentName: experimentName,
+      });
+    }
 
     // Generate and write the summary
     await generateSummary(summaryResults, experimentName);
