@@ -255,6 +255,7 @@ function commandCompletedProperties(
       failureTelemetry?.requestHadHttpResponse ??
       runTelemetry.requestHadHttpResponse ??
       null,
+    skill_id: runTelemetry.skillId ?? null,
   };
 }
 

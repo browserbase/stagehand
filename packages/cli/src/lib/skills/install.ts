@@ -13,6 +13,7 @@ import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { fail } from "../errors.js";
+import { setRunTelemetryCompletion } from "../run-telemetry.js";
 import { defaultSkillsApiBaseUrl, isRecord, responseDetail } from "./shared.js";
 
 const defaultBlobBaseUrl =
@@ -106,6 +107,10 @@ export function isBlobSkillId(skillId: ParsedSkillId): boolean {
 
 export async function installSkill(rawSkillId: string): Promise<void> {
   const skillId = parseSkillId(rawSkillId);
+  // Attach only the validated, catalog-public id to telemetry — never the raw
+  // argument, which can contain arbitrary user input. Setting it right after
+  // parsing covers success and every downstream failure path.
+  setRunTelemetryCompletion({ skillId: skillId.id });
   const npxPath = await findExecutable("npx");
   if (!npxPath) {
     fail(
@@ -151,6 +156,7 @@ export async function installSkill(rawSkillId: string): Promise<void> {
 }
 
 export async function installBundledCliSkill(): Promise<void> {
+  setRunTelemetryCompletion({ skillId: "bundled/browse" });
   const npxPath = await findExecutable("npx");
   if (!npxPath) {
     fail(
