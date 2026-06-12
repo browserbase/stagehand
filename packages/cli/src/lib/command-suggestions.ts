@@ -84,11 +84,38 @@ export function levenshtein(a: string, b: string): number {
   return previous[b.length] ?? 0;
 }
 
-function suggestionThreshold(attempted: string): number {
-  return Math.min(
-    Math.max(2, Math.floor(attempted.length / 3)),
-    maxSuggestionDistance,
-  );
+function tokenThreshold(token: string): number {
+  return Math.max(2, Math.floor(token.length / 3));
+}
+
+/**
+ * Segment-aligned fuzzy distance between a token prefix and a command id.
+ * Only command ids with the same number of segments are considered, and every
+ * token must be within its own edit-distance threshold of the corresponding
+ * segment. This means a trailing token can only ever be retained in the
+ * attempted command when it itself looks like a typo of a real command
+ * segment — free-form user values can never ride along.
+ */
+function prefixDistance(
+  tokens: readonly string[],
+  commandId: string,
+): number | null {
+  const segments = commandId.split(":");
+  if (segments.length !== tokens.length) {
+    return null;
+  }
+
+  let total = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i] ?? "";
+    const distance = levenshtein(token, segments[i] ?? "");
+    if (distance > tokenThreshold(token)) {
+      return null;
+    }
+    total += distance;
+  }
+
+  return total > maxSuggestionDistance ? null : total;
 }
 
 /**
@@ -117,14 +144,11 @@ export function suggestCommand(
 
   let best: (CommandSuggestion & { distance: number }) | undefined;
   for (let length = tokens.length; length >= 1; length--) {
-    const attempted = tokens.slice(0, length).join(":");
+    const prefix = tokens.slice(0, length);
     for (const commandId of commandIds) {
-      const distance = levenshtein(attempted, commandId);
-      if (
-        distance <= suggestionThreshold(attempted) &&
-        (!best || distance < best.distance)
-      ) {
-        best = { attempted, suggestion: commandId, distance };
+      const distance = prefixDistance(prefix, commandId);
+      if (distance !== null && (!best || distance < best.distance)) {
+        best = { attempted: prefix.join(":"), suggestion: commandId, distance };
       }
     }
   }

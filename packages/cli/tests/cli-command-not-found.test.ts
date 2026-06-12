@@ -120,6 +120,22 @@ describe("suggestCommand", () => {
     expect(noMatch.suggestion).toBe(null);
   });
 
+  it("drops trailing user tokens that do not align with command segments", () => {
+    // "stat:s" must not fuzzy-match "status" as a whole string, which would
+    // retain the user-provided "s" in the attempted command and telemetry.
+    expect(suggestCommand("stat:s", commandIds)).toEqual({
+      attempted: "stat",
+      suggestion: "status",
+    });
+
+    // Per-segment matching still retains tokens that look like command-word
+    // typos of the aligned segment.
+    expect(suggestCommand("cloud:sessions:lst", commandIds)).toEqual({
+      attempted: "cloud:sessions:lst",
+      suggestion: "cloud:sessions:list",
+    });
+  });
+
   it("handles ids with no command-shaped tokens", () => {
     expect(suggestCommand("--badflag", commandIds)).toEqual({
       attempted: "",
