@@ -79,7 +79,7 @@ export function classifyRemoteInitError(
 export function driverInitHints(): DriverInitHints {
   return {
     chromeNotFound:
-      "Chrome was not found on this machine. Install Chrome (https://www.google.com/chrome/), attach to a running browser with --cdp <port>, or set BROWSERBASE_API_KEY to use a remote browser.",
+      "No Chrome or Chromium found on this machine. Install one (Linux: apt install chromium \u00b7 macOS: brew install --cask google-chrome, or Chromium with CHROME_PATH set), attach to a running browser with --cdp <port>, or set BROWSERBASE_API_KEY to use a remote browser.",
     repeatedInitFailure:
       " (failing repeatedly — fix BROWSERBASE_API_KEY, use --local, or run browse doctor)",
   };

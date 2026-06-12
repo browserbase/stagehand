@@ -42,7 +42,7 @@ export function driverInitHints(): DriverInitHints {
   // Key-free variants: a local-only artifact must not mention the API key.
   return {
     chromeNotFound:
-      "Chrome was not found on this machine. Install Chrome (https://www.google.com/chrome/) or attach to a running browser with --cdp <port>.",
+      "No Chrome or Chromium found on this machine. Install one (Linux: apt install chromium \u00b7 macOS: brew install --cask google-chrome, or Chromium with CHROME_PATH set) or attach to a running browser with --cdp <port>.",
     repeatedInitFailure:
       " (failing repeatedly — check your browser setup or run browse doctor)",
   };
