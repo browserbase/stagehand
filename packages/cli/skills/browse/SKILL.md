@@ -1,6 +1,6 @@
 ---
 name: browse
-description: Use the browse CLI for Browserbase browser automation, Browserbase cloud APIs, Browserbase Functions, templates, web fetch/search, diagnostics, and Browse.sh skill discovery/installation. Use when the user asks to navigate pages, inspect browser state, run local or remote browser sessions, manage Browserbase resources, call Browserbase Functions, browse or scaffold Browserbase templates, fetch or search web content, diagnose browse setup, discover site-specific Browse.sh skills, or install/refresh this browse skill.
+description: Use the browse CLI for Browserbase browser automation, Browserbase cloud APIs, Browserbase Functions, templates, web fetch/search, diagnostics, and Browse.sh skill discovery/installation. Use when the user asks to navigate pages, inspect browser state, run local or remote browser sessions, manage Browserbase resources, call Browserbase Functions, browse or scaffold Browserbase templates, fetch or search web content, diagnose browse setup, find or install a skill for a website task, discover site-specific Browse.sh skills, or install/refresh this browse skill.
 compatibility: "Requires the browse CLI (`npm install -g browse`). Remote Browserbase sessions and cloud API commands require `BROWSERBASE_API_KEY`. Local mode uses Chrome/Chromium on the machine."
 license: MIT
 allowed-tools: Bash
@@ -64,6 +64,15 @@ browse open https://example.com --cdp ws://127.0.0.1:9222/devtools/browser/<id>
 
 Use local mode for development, localhost, trusted sites, and fast iteration. Use `--auto-connect` only when the user explicitly wants to attach to an already-running debuggable Chrome session with existing cookies or login state; use `--local` when no debuggable Chrome is available. Use remote mode when Browserbase credentials are available and the site needs hosted browser infrastructure, Verified browser mode, CAPTCHA solving, proxies, or session persistence.
 
+Choose headed/headless and local/remote mode when starting a session. A running session keeps its mode: passing a conflicting flag such as `--headed` to an already-running headless session fails until you run `browse stop --session <name>` or target a different session.
+
+Use named sessions for any non-trivial work, especially when multiple agents or parallel tasks may run at once. Every browser command accepts `--session <name>` (or `-s <name>`); the `BROWSE_SESSION` env var sets the default, and commands without either share the `default` session.
+
+```bash
+browse open https://example.com --session research --local
+browse snapshot --session research
+```
+
 Remote browser and cloud API commands require:
 
 ```bash
@@ -75,15 +84,34 @@ export BROWSERBASE_API_KEY=...
 Start by opening the page, then inspect state, act, and verify.
 
 ```bash
-browse open https://example.com --local
-browse snapshot
-browse click @0-5
-browse type "hello"
-browse snapshot
-browse stop
+browse open https://example.com --session research --local
+browse snapshot --session research
+browse click @0-5 --session research
+browse type "hello" --session research
+browse snapshot --session research
+browse stop --session research
 ```
 
 Prefer `browse snapshot` over screenshots for most browser work. It is structured, fast, and returns refs like `@0-5` for reliable element interaction. Use screenshots when visual layout, images, or pixel-level state matter.
+
+Refs are refreshed on every snapshot. After clicks, form submits, navigation, or UI re-renders, take a new snapshot before using another ref.
+
+## Parallel Browser Work
+
+Use a different `--session` value for each independent browser task. Sessions isolate tabs, cookies, refs, and daemon state; parallel tasks that omit `--session` share the `default` session and overwrite each other's active page.
+
+```bash
+browse open https://example.com/search-a --session search-a --local
+browse open https://example.com/search-b --session search-b --local
+browse snapshot --session search-a
+browse snapshot --session search-b
+```
+
+When a task is complete, stop only that task's session:
+
+```bash
+browse stop --session search-a
+```
 
 ## Core Browser Commands
 
@@ -165,6 +193,15 @@ browse stop --force
 
 Use `browse doctor` before debugging a broken browser session. Use `browse doctor --json` when another agent or CI needs structured diagnostics.
 
+If a page command reports that no active page is available, inspect and recover the named session:
+
+```bash
+browse status --session research
+browse tab list --session research
+browse tab new https://example.com --session research
+browse open https://example.com --session research
+```
+
 ## Cloud APIs
 
 Use `browse cloud` for Browserbase platform APIs:
@@ -242,18 +279,49 @@ Install or refresh this bundled CLI skill:
 browse skills install
 ```
 
-Discover and install site-specific Browse.sh skills:
+### Discovering Browse.sh Skills
+
+Browse.sh (https://browse.sh) is a catalog of site-specific browser automation skills. Each skill is scoped to one task on one website and identified by a `<domain>/<task>` slug. An installed skill encodes a proven strategy for that site — API endpoints, selectors, anti-bot handling — so it completes the task faster and more reliably than exploring the site from scratch.
+
+Search the catalog proactively when:
+
+- the user asks to complete a task on a specific website — search the domain before automating it by hand
+- the user asks for a task in a common category like flights, food delivery, reviews, recipes, tickets, jobs, or shopping — search the keyword
+- the user asks "is there a skill for X" or wants new capabilities
 
 ```bash
-browse skills list
-browse skills list --json
-browse skills find reviews
-browse skills find yelp.com/extract-reviews
-browse skills find "restaurant reviews" --json
-browse skills add yelp.com/extract-reviews
+browse skills list                              # browse the catalog
+browse skills find <query>                      # search by slug, domain, title, description, category, alias, or tag
+browse skills add <domain>/<task>               # install an exact slug
 ```
 
-Use `browse skills find` when the exact skill slug is uncertain. Use `browse skills add <domain>/<task>` only after choosing an exact slug from `list` or `find`.
+### Search Strategy
+
+Search the domain first, then the task, then broaden:
+
+```bash
+browse skills find yelp.com                     # 1. exact domain
+browse skills find yelp                         # 2. site name
+browse skills find reviews                      # 3. task keyword
+browse skills find "restaurant reviews"         # 4. multi-word query
+browse skills find food --limit 5               # 5. category keyword, capped
+```
+
+- Querying an exact slug (`browse skills find yelp.com/extract-reviews-2ikb22`) prints a detail view with the full description and install command.
+- If a search returns nothing, try synonyms (`flights` vs `travel`, `food` vs `restaurants`) before concluding no skill exists.
+- Each result shows a recommended method — `api`, `fetch`, `browser`, or `hybrid` — indicating how the skill drives the site. Install counts signal which skills are proven.
+- Many slugs end in a generated suffix (`-2ikb22`), so never guess or construct them. Install only with an exact slug copied from `list` or `find` output: `browse skills add yelp.com/extract-reviews-2ikb22`. The installed skill becomes available to the agent as a regular skill; a new agent session may be needed to pick it up.
+
+### Output Formats
+
+Output is a table in a terminal and JSON when piped, so agents get structured JSON by default. Force a format with `--format table|json` or `--json`.
+
+```bash
+browse skills find food --format table --limit 10
+browse skills find food --json | jq -r '.skills[] | "\(.slug)\t\(.title)"'
+```
+
+JSON output includes every match with full descriptions and ignores `--limit`; `browse skills list --json` returns the entire catalog, which is large. Prefer `browse skills find <query>` to narrow first, or `--format table --limit <n>` for a compact view.
 
 ## Best Practices
 
@@ -262,16 +330,20 @@ Use `browse skills find` when the exact skill slug is uncertain. Use `browse ski
 3. Re-run `browse snapshot` after navigation or DOM-changing actions because refs can change.
 4. Prefer refs from snapshots for clicks and uploads; use selectors or XPath when refs are unavailable.
 5. Use `--local` for localhost and repeatable development; use `--remote` for protected sites or Browserbase-specific behavior.
-6. Use `--auto-connect` only when attaching to an existing debuggable local Chrome session is intended.
-7. Use `browse doctor` when session startup, browser discovery, CDP attach, or Browserbase auth looks wrong.
-8. Use `browse stop` when finished to clean up daemon state.
-9. For unfamiliar command details, run `browse <topic> --help` and follow the exact dash-case flags.
+6. Use a distinct `--session <name>` for each parallel or long-running task; commands without the flag share the `default` session.
+7. Use `--auto-connect` only when attaching to an existing debuggable local Chrome session is intended.
+8. Use `browse doctor` when session startup, browser discovery, CDP attach, or Browserbase auth looks wrong.
+9. Use `browse stop` (or `browse stop --session <name>`) when finished to clean up daemon state.
+10. For unfamiliar command details, run `browse <topic> --help` and follow the exact dash-case flags.
 
 ## Troubleshooting
 
-- "No active page": run `browse status`, then `browse open <url>` or `browse stop --force` if the daemon is stale.
+- "No active page": run `browse status --session <name>`, then `browse open <url> --session <name>` or `browse tab new <url> --session <name>`; use `browse stop --force` if the daemon is stale.
 - Chrome not found: use `--remote` with Browserbase credentials, install Chrome, or attach with `--cdp`.
 - Action fails: run `browse snapshot` and use a visible ref from the current page state.
 - Remote command fails: verify `BROWSERBASE_API_KEY` and inspect `browse cloud projects list`.
 - Session setup is unclear: run `browse doctor` or `browse doctor --json`.
 - Protected site blocks local mode: retry with `--remote`.
+- `browse skills find` returns nothing: broaden the query — bare domain, then site name, then a task keyword or synonym.
+- `browse skills add` fails on `npx`: install Node.js from https://nodejs.org, then rerun.
+- Newly added skill is not available: it installs for future sessions; list installed skills or start a new agent session.
