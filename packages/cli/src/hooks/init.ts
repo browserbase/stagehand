@@ -6,7 +6,7 @@ import { maybeNudgeInstallSkill } from "../lib/skill-nudge.js";
 import { startTelemetryInvocation } from "../lib/telemetry.js";
 import {
   scheduleBackgroundUpdateCheck,
-  takeFirstUpdateNotice,
+  takeUpdateNotice,
 } from "../lib/update.js";
 
 const hook: Hook.Init = async function ({ config, id }) {
@@ -26,10 +26,10 @@ const hook: Hook.Init = async function ({ config, id }) {
   }
 
   try {
-    // Push notice exactly once per discovered release; help and doctor render
+    // Remind until upgraded, at most once per interval; help and doctor render
     // it themselves, so skip those surfaces to avoid double-printing.
     if (id && id !== "help" && id !== "doctor") {
-      const notice = await takeFirstUpdateNotice(config.version, process.env, {
+      const notice = await takeUpdateNotice(config.version, process.env, {
         cacheFile: join(config.cacheDir, "update-check.json"),
       });
       if (notice) {

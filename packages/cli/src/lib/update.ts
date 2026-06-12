@@ -8,13 +8,16 @@ import semver from "semver";
 const CLI_PACKAGE_NAME = "browse";
 const DEFAULT_NPM_REGISTRY_BASE_URL = "https://registry.npmjs.org/";
 const UPDATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+// Codex-parity cadence (codex-rs/tui/src/updates.rs uses 20h): remind on
+// regular commands until the user upgrades, at most once per interval.
+const UPDATE_NOTIFY_INTERVAL_MS = 20 * 60 * 60 * 1000;
 const UPDATE_TIMEOUT_MS = 1500;
 
 interface UpdateCheckCache {
   checkedAt: string;
   version: string;
-  /** Latest version the user has already been told about (once per version). */
-  notifiedVersion?: string;
+  /** When the user was last shown the update notice (any surface). */
+  lastNotifiedAt?: string;
 }
 
 interface UpdateCheckOptions {
@@ -46,26 +49,24 @@ export async function getUpdateNotice(
     return null;
   }
 
-  // Pull surfaces always render; marking is best-effort so the one-time
-  // push notice does not repeat what the user has already seen.
-  if (cache.notifiedVersion !== cache.version) {
-    await writeUpdateCheckCache(cachePath, {
-      ...cache,
-      notifiedVersion: cache.version,
-    });
-  }
+  // Pull surfaces always render; marking is best-effort so the push notice
+  // does not immediately repeat what the user has already seen.
+  await writeUpdateCheckCache(cachePath, {
+    ...cache,
+    lastNotifiedAt: new Date().toISOString(),
+  });
 
   return formatUpdateNotice(currentVersion, cache.version);
 }
 
 /**
- * One-time push notice: returns the update notice the FIRST time a given
- * newer version is seen, then stays silent until the next release. No time
- * windows — state is just "which version was already announced" in the same
- * update-check cache. The notice is only returned when recording that state
+ * Push notice for regular commands: reminds until the user upgrades, at most
+ * once per UPDATE_NOTIFY_INTERVAL_MS (Codex shows its upgrade banner every
+ * session until upgraded; the interval is the one-shot-CLI analog of "once
+ * per session"). The notice is only returned when recording lastNotifiedAt
  * succeeds, so a read-only cache dir can never cause repeated printing.
  */
-export async function takeFirstUpdateNotice(
+export async function takeUpdateNotice(
   currentVersion: string,
   env: NodeJS.ProcessEnv = process.env,
   options: UpdateCheckOptions = {},
@@ -84,13 +85,19 @@ export async function takeFirstUpdateNotice(
     return null;
   }
 
-  if (cache.notifiedVersion === cache.version) {
+  const lastNotifiedMs = cache.lastNotifiedAt
+    ? Date.parse(cache.lastNotifiedAt)
+    : Number.NaN;
+  if (
+    Number.isFinite(lastNotifiedMs) &&
+    Date.now() - lastNotifiedMs < UPDATE_NOTIFY_INTERVAL_MS
+  ) {
     return null;
   }
 
   const recorded = await writeUpdateCheckCache(cachePath, {
     ...cache,
-    notifiedVersion: cache.version,
+    lastNotifiedAt: new Date().toISOString(),
   });
   if (!recorded) {
     return null;
@@ -179,7 +186,7 @@ async function readUpdateCheckCache(
     const parsed = JSON.parse(contents) as {
       checkedAt?: unknown;
       version?: unknown;
-      notifiedVersion?: unknown;
+      lastNotifiedAt?: unknown;
     };
 
     if (typeof parsed.version !== "string" || parsed.version.length === 0) {
@@ -193,9 +200,9 @@ async function readUpdateCheckCache(
     return {
       checkedAt: parsed.checkedAt,
       version: parsed.version,
-      ...(typeof parsed.notifiedVersion === "string" &&
-      parsed.notifiedVersion.length > 0
-        ? { notifiedVersion: parsed.notifiedVersion }
+      ...(typeof parsed.lastNotifiedAt === "string" &&
+      parsed.lastNotifiedAt.length > 0
+        ? { lastNotifiedAt: parsed.lastNotifiedAt }
         : {}),
     };
   } catch {

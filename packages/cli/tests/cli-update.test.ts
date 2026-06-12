@@ -9,7 +9,7 @@ import { runCli } from "./helpers/run-cli.js";
 import {
   getUpdateNotice,
   refreshUpdateCheckCache,
-  takeFirstUpdateNotice,
+  takeUpdateNotice,
 } from "../src/lib/update.js";
 
 const require = createRequire(import.meta.url);
@@ -54,7 +54,7 @@ describe("CLI auto-update", () => {
     expect(result.stderr).toContain("Run:\n  npm i -g browse@latest");
   });
 
-  it("shows the update notice exactly once per release on regular commands", async () => {
+  it("shows the update notice on regular commands, deduped within the notify interval", async () => {
     const cacheDir = await createTempDir("browse-update-once-");
     const cachePath = join(cacheDir, "update-check.json");
     await writeUpdateCache(cachePath, {
@@ -82,7 +82,7 @@ describe("CLI auto-update", () => {
     expect(second.stderr).not.toContain("Update available:");
   });
 
-  it("announces again when a newer release supersedes the notified one", async () => {
+  it("reminds again after the notify interval until the user upgrades", async () => {
     const cacheDir = await createTempDir("browse-update-renotify-");
     const cachePath = join(cacheDir, "update-check.json");
     const env = {
@@ -95,16 +95,25 @@ describe("CLI auto-update", () => {
       checkedAt: new Date().toISOString(),
       version: "99.0.0",
     });
-    expect(await takeFirstUpdateNotice("1.0.0", env)).toContain("99.0.0");
-    expect(await takeFirstUpdateNotice("1.0.0", env)).toBeNull();
+    expect(await takeUpdateNotice("1.0.0", env)).toContain("99.0.0");
+    expect(await takeUpdateNotice("1.0.0", env)).toBeNull();
 
+    // 21h-old lastNotifiedAt (past the 20h interval) -> reminds again.
     await writeUpdateCache(cachePath, {
       checkedAt: new Date().toISOString(),
-      notifiedVersion: "99.0.0",
-      version: "100.0.0",
+      lastNotifiedAt: new Date(Date.now() - 21 * 60 * 60 * 1000).toISOString(),
+      version: "99.0.0",
     });
-    expect(await takeFirstUpdateNotice("1.0.0", env)).toContain("100.0.0");
-    expect(await takeFirstUpdateNotice("1.0.0", env)).toBeNull();
+    expect(await takeUpdateNotice("1.0.0", env)).toContain("99.0.0");
+    expect(await takeUpdateNotice("1.0.0", env)).toBeNull();
+
+    // Upgraded -> silence even past the interval.
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      lastNotifiedAt: new Date(Date.now() - 21 * 60 * 60 * 1000).toISOString(),
+      version: "99.0.0",
+    });
+    expect(await takeUpdateNotice("99.0.0", env)).toBeNull();
   });
 
   it("never repeats the push notice when the cache is unwritable", async () => {
@@ -119,7 +128,7 @@ describe("CLI auto-update", () => {
 
     // A file standing in for the parent directory makes the path unwritable.
     await writeFile(join(cacheDir, "update-check.json"), "not a directory");
-    expect(await takeFirstUpdateNotice("1.0.0", env)).toBeNull();
+    expect(await takeUpdateNotice("1.0.0", env)).toBeNull();
   });
 
   it("does not repeat the push notice after help already showed it", async () => {
@@ -136,7 +145,7 @@ describe("CLI auto-update", () => {
       version: "99.0.0",
     });
     expect(await getUpdateNotice("1.0.0", env)).toContain("99.0.0");
-    expect(await takeFirstUpdateNotice("1.0.0", env)).toBeNull();
+    expect(await takeUpdateNotice("1.0.0", env)).toBeNull();
   });
 
   it("returns no notice for prerelease identifiers with ASCII ordering", async () => {
