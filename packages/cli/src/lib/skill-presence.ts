@@ -3,19 +3,36 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 /**
- * Check the single canonical install location for the browse skill:
- * `~/.agents/skills/browse`. This is the directory `browse skills install`
- * itself writes (via `npx skills add --global --agent '*'`) and the path
- * `skills ls` prints — agent-specific dirs are just symlinks into it, so one
- * filesystem check covers every agent.
+ * Check the canonical install locations for the bundled browse skill, matching
+ * the `skills` CLI's own two scopes (its source resolves
+ * `join(global ? homedir() : cwd, ".agents", "skills")`):
+ *
+ *   - global:  `~/.agents/skills/browse` — what `browse skills install`
+ *     itself writes (`npx skills add --global --agent '*'`)
+ *   - project: `<cwd>/.agents/skills/browse` — `skills add` without `-g`
+ *
+ * Agent-specific dirs are symlinks/copies alongside the canonical dir, so two
+ * filesystem checks cover every agent at both scopes. The public `browser`
+ * skill (browserbase/skills) is deliberately not checked: it is being
+ * deprecated in favor of this bundled, CLI-version-pinned skill.
  */
 export async function isBrowseSkillInstalled(
   home: string = homedir(),
+  cwd: string = process.cwd(),
 ): Promise<boolean> {
-  try {
-    await access(join(home, ".agents", "skills", "browse"));
-    return true;
-  } catch {
-    return false;
+  const candidates = [
+    join(home, ".agents", "skills", "browse"),
+    join(cwd, ".agents", "skills", "browse"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      await access(candidate);
+      return true;
+    } catch {
+      // Keep checking the remaining scopes.
+    }
   }
+
+  return false;
 }
