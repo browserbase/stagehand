@@ -27,7 +27,8 @@
     "hooks": {
       "init": "./dist/hooks/init.js",
       "prerun": "./dist/hooks/prerun.js",
-      "finally": "./dist/hooks/finally.js"
+      "finally": "./dist/hooks/finally.js",
+      "command_not_found": "./dist/hooks/command-not-found.js"
     },
     "topicSeparator": " ",
     "topics": {
@@ -107,6 +108,7 @@
     "archiver": "^7.0.1",
     "deepmerge": "^4.3.1",
     "dotenv": "^16.5.0",
+    "fastest-levenshtein": "^1.0.16",
     "ignore": "^7.0.5",
     "node-html-markdown": "^1.3.0",
     "semver": "^7.7.4",
