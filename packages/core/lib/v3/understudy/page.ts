@@ -42,7 +42,6 @@ import {
 } from "../types/public/sdkErrors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
-import { cdpModifierMask } from "./modifiers.js";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -1819,12 +1818,10 @@ export class Page {
       button?: "left" | "right" | "middle";
       clickCount?: number;
       returnXpath?: boolean;
-      modifiers?: string[];
     },
   ): Promise<string> {
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
-    const modifierMask = cdpModifierMask(options?.modifiers);
 
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
@@ -1883,7 +1880,6 @@ export class Page {
           y,
           button,
           clickCount: i,
-          modifiers: modifierMask,
         } as Protocol.Input.DispatchMouseEventRequest),
       );
       dispatches.push(
@@ -1893,7 +1889,6 @@ export class Page {
           y,
           button,
           clickCount: i,
-          modifiers: modifierMask,
         } as Protocol.Input.DispatchMouseEventRequest),
       );
     }
@@ -1964,9 +1959,8 @@ export class Page {
     y: number,
     deltaX: number,
     deltaY: number,
-    options?: { returnXpath?: boolean; modifiers?: string[] },
+    options?: { returnXpath?: boolean },
   ): Promise<string> {
-    const modifierMask = cdpModifierMask(options?.modifiers);
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {
@@ -1993,7 +1987,6 @@ export class Page {
       button: "none",
       deltaX,
       deltaY,
-      modifiers: modifierMask,
     } as Protocol.Input.DispatchMouseEventRequest);
 
     return xpathResult ?? "";

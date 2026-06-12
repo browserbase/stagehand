@@ -176,12 +176,7 @@ export const stagehandHarness: BenchHarness = {
       });
     } else {
       let llmClient: LLMClient | undefined;
-      // CUA-only models (e.g. yutori/n1.5-latest, microsoft/fara-7b) are not
-      // AI SDK text providers, so getAISDKLanguageModel() would throw. initV3
-      // ignores llmClient in CUA mode anyway (it picks an internal grader
-      // model), so only build the AI SDK client for non-CUA models.
-      const isCuaModel = isCUA || agentMode === "cua";
-      if (!isCuaModel && input.modelName.includes("/")) {
+      if (input.modelName.includes("/")) {
         const firstSlashIndex = input.modelName.indexOf("/");
         llmClient = new AISdkClientWrapped({
           model: getAISDKLanguageModel(
