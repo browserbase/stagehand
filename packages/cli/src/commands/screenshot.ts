@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { closeSync, openSync, statSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { Flags } from "@oclif/core";
@@ -63,35 +63,59 @@ export default class Screenshot extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(Screenshot);
-    const path =
-      flags.path ??
-      (flags.base64 ? undefined : defaultScreenshotPath(flags.type));
-    await runDriverCommandFromFlags(
-      "screenshot",
-      {
-        animations: flags.animations,
-        caret: flags.caret,
-        clip: parseClip(flags.clip),
-        fullPage: flags["full-page"],
-        path,
-        quality: flags.quality,
-        type: flags.type,
-      },
-      flags,
-    );
+    const defaultPath =
+      flags.path || flags.base64
+        ? undefined
+        : reserveDefaultScreenshotPath(flags.type);
+    try {
+      await runDriverCommandFromFlags(
+        "screenshot",
+        {
+          animations: flags.animations,
+          caret: flags.caret,
+          clip: parseClip(flags.clip),
+          fullPage: flags["full-page"],
+          path: flags.path ?? defaultPath,
+          quality: flags.quality,
+          type: flags.type,
+        },
+        flags,
+      );
+    } catch (error) {
+      if (defaultPath) removeIfEmpty(defaultPath);
+      throw error;
+    }
   }
 }
 
-function defaultScreenshotPath(type: string | undefined): string {
+/**
+ * Picks the next free screenshot-<timestamp>[-<counter>].<type> name in the
+ * current directory and atomically reserves it with an exclusive create, so
+ * concurrent invocations can never claim (and overwrite) the same file.
+ */
+function reserveDefaultScreenshotPath(type: string | undefined): string {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
   const stamp =
     `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
     `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   const extension = type === "jpeg" ? "jpeg" : "png";
-  let candidate = resolve(`screenshot-${stamp}.${extension}`);
-  for (let counter = 2; existsSync(candidate); counter += 1) {
-    candidate = resolve(`screenshot-${stamp}-${counter}.${extension}`);
+  for (let counter = 1; ; counter += 1) {
+    const suffix = counter === 1 ? "" : `-${counter}`;
+    const candidate = resolve(`screenshot-${stamp}${suffix}.${extension}`);
+    try {
+      closeSync(openSync(candidate, "wx"));
+      return candidate;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
   }
-  return candidate;
+}
+
+function removeIfEmpty(path: string): void {
+  try {
+    if (statSync(path).size === 0) unlinkSync(path);
+  } catch {
+    // Best effort: leave the placeholder behind rather than mask the error.
+  }
 }
