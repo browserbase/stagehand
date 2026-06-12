@@ -1,11 +1,9 @@
 import { access, mkdtemp, rm } from "node:fs/promises";
-import net from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getSocketPath } from "../src/lib/driver/daemon/paths.js";
 import {
   jsonResponse,
   startFakeBrowserbaseServer,
@@ -67,10 +65,6 @@ describe("CLI telemetry", () => {
       expect(completedPayload.properties.http_status).toBe(null);
       expect(completedPayload.properties.request_had_http_response).toBe(null);
       expect(completedPayload.properties.skill_id).toBe(null);
-      expect(completedPayload.properties).not.toHaveProperty("first_success");
-      await expect(
-        access(join(dirname(installIdFile), "activated")),
-      ).rejects.toThrow();
     } finally {
       await telemetryServer.close();
     }
@@ -259,7 +253,6 @@ describe("CLI telemetry", () => {
         "example.com/extract-reviews",
       );
       expect(completedPayload.properties.result_code).toBe("skill_not_found");
-      expect(completedPayload.properties).not.toHaveProperty("first_success");
 
       const invokedPayload = findPayload(payloads, "cli.command_invoked");
       expect(invokedPayload.properties).not.toHaveProperty("skill_id");
@@ -289,106 +282,6 @@ describe("CLI telemetry", () => {
       expect(completedPayload.properties.result_code).toBe("invalid_skill_id");
       expect(JSON.stringify(payloads)).not.toContain("secret-local-path");
     } finally {
-      await telemetryServer.close();
-    }
-  });
-
-  it("emits first_success exactly once for successful driver commands", async () => {
-    const telemetryServer = await startTelemetryServer();
-    const daemonDir = await mkdtemp(join(tmpdir(), "browse-telemetry-daemon-"));
-    cleanupPaths.push(daemonDir);
-    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
-    process.env.BROWSE_DAEMON_DIR = daemonDir;
-    const session = "telemetry-first-success";
-    const server = net.createServer((socket) => {
-      let buffer = "";
-      socket.on("data", (chunk) => {
-        buffer += chunk.toString();
-        const newline = buffer.indexOf("\n");
-        if (newline === -1) return;
-
-        const request = JSON.parse(buffer.slice(0, newline)) as {
-          id: string;
-          type: string;
-        };
-
-        if (request.type === "status") {
-          socket.end(
-            JSON.stringify({
-              data: {
-                browserConnected: true,
-                initialized: true,
-                mode: "managed-local",
-                pages: [],
-                pid: process.pid,
-                session,
-                target: { headless: true, kind: "managed-local" },
-              },
-              id: request.id,
-              type: "success",
-            }) + "\n",
-          );
-          return;
-        }
-
-        socket.end(
-          JSON.stringify({
-            data: { ok: true },
-            id: request.id,
-            type: "success",
-          }) + "\n",
-        );
-      });
-    });
-
-    try {
-      await new Promise<void>((resolve, reject) => {
-        server.once("error", reject);
-        server.listen(getSocketPath(session), resolve);
-      });
-
-      const installIdFile = await tempInstallIdFile(
-        "browse-telemetry-first-success-",
-      );
-      const env = {
-        ...telemetryEnv(telemetryServer, installIdFile),
-        BROWSE_DAEMON_DIR: daemonDir,
-      };
-
-      const first = await runCli(
-        ["viewport", "1024", "768", "--session", session],
-        { env },
-      );
-      expect(first.exitCode).toBe(0);
-
-      const second = await runCli(
-        ["viewport", "800", "600", "--session", session],
-        { env },
-      );
-      expect(second.exitCode).toBe(0);
-
-      const completedPayloads = telemetryPayloads(telemetryServer).filter(
-        (payload) => payload.event === "cli.command_completed",
-      );
-      expect(completedPayloads).toHaveLength(2);
-      expect(completedPayloads[0]?.properties.first_success).toBe(true);
-      expect(completedPayloads[1]?.properties).not.toHaveProperty(
-        "first_success",
-      );
-
-      // The activation marker persists alongside the anonymous install id.
-      await expect(
-        access(join(dirname(installIdFile), "activated")),
-      ).resolves.toBeUndefined();
-    } finally {
-      if (previousDaemonDir === undefined) {
-        delete process.env.BROWSE_DAEMON_DIR;
-      } else {
-        process.env.BROWSE_DAEMON_DIR = previousDaemonDir;
-      }
-      await new Promise<void>((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve()));
-      });
       await telemetryServer.close();
     }
   });

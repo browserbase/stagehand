@@ -113,14 +113,12 @@ export async function captureCommandCompleted(
 
   const exitCode = resolveExitCode(error);
   const success = exitCode === 0;
-  const firstSuccess = await detectFirstSuccess(command, success);
   const completionCapture = getCliTelemetry(cliVersion)
     .capture(
       "cli.command_completed",
       commandCompletedProperties(command, {
         error,
         exitCode,
-        firstSuccess,
         recordedError: state.recordedError,
         success,
       }),
@@ -223,7 +221,6 @@ function commandCompletedProperties(
   completion: {
     error: Error | undefined;
     exitCode: number;
-    firstSuccess?: boolean;
     recordedError?: RecordedCommandError;
     success: boolean;
   },
@@ -239,7 +236,7 @@ function commandCompletedProperties(
     runTelemetry.resultCode ??
     fallbackResultCode(completion.success, errorType);
 
-  const properties: TelemetryProperties = {
+  return {
     command_path: invocation.commandPath,
     top_level_command: invocation.topLevelCommand,
     leaf_command: invocation.leafCommand,
@@ -260,67 +257,6 @@ function commandCompletedProperties(
       null,
     skill_id: runTelemetry.skillId ?? null,
   };
-
-  if (completion.firstSuccess) {
-    properties.first_success = true;
-  }
-
-  return properties;
-}
-
-// Top-level command topics that are not browser-driver commands. Activation
-// (first_success) counts only successful driver commands, so new driver
-// commands are covered by default.
-const nonDriverTopLevelCommands = new Set([
-  "cloud",
-  "daemon",
-  "doctor",
-  "functions",
-  "skills",
-  "status",
-  "stop",
-  "templates",
-]);
-
-const activatedMarkerFileName = "activated";
-
-// Returns true exactly once per install: the first time a browser-driver
-// command completes successfully. Tracked via a marker file alongside the
-// anonymous install id. Best-effort — never throws, never blocks the command.
-async function detectFirstSuccess(
-  command: CommandInvocation,
-  success: boolean,
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<boolean> {
-  if (
-    !success ||
-    nonDriverTopLevelCommands.has(command.topLevelCommand) ||
-    isTelemetryDisabled(env)
-  ) {
-    return false;
-  }
-
-  const markerPath = join(
-    dirname(resolveInstallIdPath(env)),
-    activatedMarkerFileName,
-  );
-
-  try {
-    await mkdir(dirname(markerPath), { recursive: true });
-    // Atomic create: exactly one run can win the race, so concurrent
-    // commands cannot both report first_success.
-    await writeFile(markerPath, `${new Date().toISOString()}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-    });
-  } catch {
-    // Marker already exists (this install already activated, or a concurrent
-    // run won the race) or persistence failed. Either way, do not report —
-    // and never affect CLI behavior.
-    return false;
-  }
-
-  return true;
 }
 
 function fallbackResultCode(
