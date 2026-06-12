@@ -6,7 +6,11 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { runCli } from "./helpers/run-cli.js";
-import { getUpdateNotice, refreshUpdateCheckCache } from "../src/lib/update.js";
+import {
+  getUpdateNotice,
+  refreshUpdateCheckCache,
+  takeFirstUpdateNotice,
+} from "../src/lib/update.js";
 
 const require = createRequire(import.meta.url);
 const { version: cliVersion } = require("../package.json") as {
@@ -50,28 +54,89 @@ describe("CLI auto-update", () => {
     expect(result.stderr).toContain("Run:\n  npm i -g browse@latest");
   });
 
-  it("does not show the update notice on regular commands (no spam)", async () => {
-    const cacheDir = await createTempDir("browse-update-nospam-");
+  it("shows the update notice exactly once per release on regular commands", async () => {
+    const cacheDir = await createTempDir("browse-update-once-");
     const cachePath = join(cacheDir, "update-check.json");
     await writeUpdateCache(cachePath, {
       checkedAt: new Date().toISOString(),
       version: "99.0.0",
     });
+    const env = {
+      BROWSE_CACHE_DIR: cacheDir,
+      BROWSE_DISABLE_UPDATE_CHECK: "0",
+      BROWSE_DAEMON_DIR: cacheDir,
+    };
 
-    const result = await runCli(["status"], {
-      env: {
-        BROWSE_CACHE_DIR: cacheDir,
-        BROWSE_DISABLE_UPDATE_CHECK: "0",
-        BROWSE_DAEMON_DIR: cacheDir,
-      },
-    });
-
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    const first = await runCli(["status"], { env });
+    expect(first.exitCode).toBe(0);
+    expect(JSON.parse(first.stdout)).toMatchObject({
       browserConnected: false,
       session: "default",
     });
-    expect(result.stderr).not.toContain("Update available:");
+    expect(first.stderr).toContain(
+      `Update available: ${cliVersion} -> 99.0.0.`,
+    );
+
+    const second = await runCli(["status"], { env });
+    expect(second.exitCode).toBe(0);
+    expect(second.stderr).not.toContain("Update available:");
+  });
+
+  it("announces again when a newer release supersedes the notified one", async () => {
+    const cacheDir = await createTempDir("browse-update-renotify-");
+    const cachePath = join(cacheDir, "update-check.json");
+    const env = {
+      ...process.env,
+      BROWSE_DISABLE_UPDATE_CHECK: "0",
+      BROWSE_UPDATE_CHECK_FILE: cachePath,
+    };
+
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      version: "99.0.0",
+    });
+    expect(await takeFirstUpdateNotice("1.0.0", env)).toContain("99.0.0");
+    expect(await takeFirstUpdateNotice("1.0.0", env)).toBeNull();
+
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      notifiedVersion: "99.0.0",
+      version: "100.0.0",
+    });
+    expect(await takeFirstUpdateNotice("1.0.0", env)).toContain("100.0.0");
+    expect(await takeFirstUpdateNotice("1.0.0", env)).toBeNull();
+  });
+
+  it("never repeats the push notice when the cache is unwritable", async () => {
+    const cacheDir = await createTempDir("browse-update-unwritable-");
+    const cachePath = join(cacheDir, "update-check.json", "nested.json");
+
+    const env = {
+      ...process.env,
+      BROWSE_DISABLE_UPDATE_CHECK: "0",
+      BROWSE_UPDATE_CHECK_FILE: cachePath,
+    };
+
+    // A file standing in for the parent directory makes the path unwritable.
+    await writeFile(join(cacheDir, "update-check.json"), "not a directory");
+    expect(await takeFirstUpdateNotice("1.0.0", env)).toBeNull();
+  });
+
+  it("does not repeat the push notice after help already showed it", async () => {
+    const cacheDir = await createTempDir("browse-update-pullmark-");
+    const cachePath = join(cacheDir, "update-check.json");
+    const env = {
+      ...process.env,
+      BROWSE_DISABLE_UPDATE_CHECK: "0",
+      BROWSE_UPDATE_CHECK_FILE: cachePath,
+    };
+
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      version: "99.0.0",
+    });
+    expect(await getUpdateNotice("1.0.0", env)).toContain("99.0.0");
+    expect(await takeFirstUpdateNotice("1.0.0", env)).toBeNull();
   });
 
   it("returns no notice for prerelease identifiers with ASCII ordering", async () => {

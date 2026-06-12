@@ -13,6 +13,8 @@ const UPDATE_TIMEOUT_MS = 1500;
 interface UpdateCheckCache {
   checkedAt: string;
   version: string;
+  /** Latest version the user has already been told about (once per version). */
+  notifiedVersion?: string;
 }
 
 interface UpdateCheckOptions {
@@ -41,6 +43,56 @@ export async function getUpdateNotice(
 
   const cache = await readFreshUpdateCheckCache(cachePath);
   if (!cache || !isVersionNewer(currentVersion, cache.version)) {
+    return null;
+  }
+
+  // Pull surfaces always render; marking is best-effort so the one-time
+  // push notice does not repeat what the user has already seen.
+  if (cache.notifiedVersion !== cache.version) {
+    await writeUpdateCheckCache(cachePath, {
+      ...cache,
+      notifiedVersion: cache.version,
+    });
+  }
+
+  return formatUpdateNotice(currentVersion, cache.version);
+}
+
+/**
+ * One-time push notice: returns the update notice the FIRST time a given
+ * newer version is seen, then stays silent until the next release. No time
+ * windows — state is just "which version was already announced" in the same
+ * update-check cache. The notice is only returned when recording that state
+ * succeeds, so a read-only cache dir can never cause repeated printing.
+ */
+export async function takeFirstUpdateNotice(
+  currentVersion: string,
+  env: NodeJS.ProcessEnv = process.env,
+  options: UpdateCheckOptions = {},
+): Promise<string | null> {
+  if (isUpdateCheckDisabled(env)) {
+    return null;
+  }
+
+  const cachePath = resolveUpdateCheckPath(env, options);
+  if (!cachePath) {
+    return null;
+  }
+
+  const cache = await readFreshUpdateCheckCache(cachePath);
+  if (!cache || !isVersionNewer(currentVersion, cache.version)) {
+    return null;
+  }
+
+  if (cache.notifiedVersion === cache.version) {
+    return null;
+  }
+
+  const recorded = await writeUpdateCheckCache(cachePath, {
+    ...cache,
+    notifiedVersion: cache.version,
+  });
+  if (!recorded) {
     return null;
   }
 
@@ -127,6 +179,7 @@ async function readUpdateCheckCache(
     const parsed = JSON.parse(contents) as {
       checkedAt?: unknown;
       version?: unknown;
+      notifiedVersion?: unknown;
     };
 
     if (typeof parsed.version !== "string" || parsed.version.length === 0) {
@@ -140,6 +193,10 @@ async function readUpdateCheckCache(
     return {
       checkedAt: parsed.checkedAt,
       version: parsed.version,
+      ...(typeof parsed.notifiedVersion === "string" &&
+      parsed.notifiedVersion.length > 0
+        ? { notifiedVersion: parsed.notifiedVersion }
+        : {}),
     };
   } catch {
     return null;
@@ -149,12 +206,14 @@ async function readUpdateCheckCache(
 async function writeUpdateCheckCache(
   cachePath: string,
   cache: UpdateCheckCache,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await mkdir(dirname(cachePath), { recursive: true });
     await writeFile(cachePath, `${JSON.stringify(cache)}\n`, "utf8");
+    return true;
   } catch {
     // Best-effort cache writes should never affect CLI behavior.
+    return false;
   }
 }
 
