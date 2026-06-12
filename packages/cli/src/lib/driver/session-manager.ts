@@ -279,6 +279,10 @@ export class DriverSessionManager {
         disablePino: true,
         env: "LOCAL",
         localBrowserLaunchOptions: {
+          ...(target.chromeArgs?.length ? { args: target.chromeArgs } : {}),
+          ...(target.ignoreDefaultArgs !== undefined
+            ? { ignoreDefaultArgs: target.ignoreDefaultArgs }
+            : {}),
           headless: target.headless,
         },
         verbose: 0,

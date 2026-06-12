@@ -64,6 +64,48 @@ describe("driver foundation", () => {
       kind: "managed-local",
     });
     await expect(
+      resolveConnectionTarget({
+        "chrome-arg": ["--no-focus-on-navigate"],
+        headed: true,
+        local: true,
+      }),
+    ).resolves.toEqual({
+      chromeArgs: ["--no-focus-on-navigate"],
+      headless: false,
+      kind: "managed-local",
+    });
+    await expect(
+      resolveConnectionTarget({
+        "chrome-arg": [],
+        local: true,
+      }),
+    ).resolves.toEqual({
+      headless: true,
+      kind: "managed-local",
+    });
+    await expect(
+      resolveConnectionTarget({
+        "ignore-default-chrome-arg": ["--enable-automation"],
+        local: true,
+      }),
+    ).resolves.toEqual({
+      headless: true,
+      ignoreDefaultArgs: ["--enable-automation"],
+      kind: "managed-local",
+    });
+    await expect(
+      resolveConnectionTarget({
+        "chrome-arg": ["--no-sandbox"],
+        "no-default-chrome-args": true,
+        local: true,
+      }),
+    ).resolves.toEqual({
+      chromeArgs: ["--no-sandbox"],
+      headless: true,
+      ignoreDefaultArgs: true,
+      kind: "managed-local",
+    });
+    await expect(
       resolveConnectionTarget({ "auto-connect": true }),
     ).resolves.toEqual({ kind: "auto-connect" });
     await expect(
@@ -87,6 +129,12 @@ describe("driver foundation", () => {
       resolveConnectionTarget({ "auto-connect": true, remote: true }),
     ).rejects.toThrow("--auto-connect cannot be combined with --remote");
     await expect(
+      resolveConnectionTarget({
+        "auto-connect": true,
+        "chrome-arg": ["--no-focus-on-navigate"],
+      }),
+    ).rejects.toThrow("--auto-connect cannot be combined with --chrome-arg");
+    await expect(
       resolveConnectionTarget({ "auto-connect": true, local: true }),
     ).rejects.toThrow("--auto-connect cannot be combined with --local");
     await expect(
@@ -96,11 +144,23 @@ describe("driver foundation", () => {
       resolveConnectionTarget({ "auto-connect": true, headless: true }),
     ).rejects.toThrow("--auto-connect cannot be combined with --headless");
     await expect(
+      resolveConnectionTarget({
+        "chrome-arg": ["--no-focus-on-navigate"],
+        remote: true,
+      }),
+    ).rejects.toThrow("--remote cannot be combined with --chrome-arg");
+    await expect(
       resolveConnectionTarget({ remote: true, headed: true }),
     ).rejects.toThrow("--remote cannot be combined with --headed");
     await expect(
       resolveConnectionTarget({ remote: true, headless: true }),
     ).rejects.toThrow("--remote cannot be combined with --headless");
+    await expect(
+      resolveConnectionTarget({
+        cdp: "9222",
+        "chrome-arg": ["--no-focus-on-navigate"],
+      }),
+    ).rejects.toThrow("--cdp cannot be combined with --chrome-arg");
     await expect(
       resolveConnectionTarget({ cdp: "9222", local: true }),
     ).rejects.toThrow("--cdp cannot be combined with --local");
@@ -121,6 +181,18 @@ describe("driver foundation", () => {
     ).rejects.toThrow("--target-id requires --cdp");
   });
 
+  it("rejects combining --no-default-chrome-args with --ignore-default-chrome-arg", async () => {
+    await expect(
+      resolveConnectionTarget({
+        "ignore-default-chrome-arg": ["--enable-automation"],
+        "no-default-chrome-args": true,
+        local: true,
+      }),
+    ).rejects.toThrow(
+      "--no-default-chrome-args cannot be combined with --ignore-default-chrome-arg.",
+    );
+  });
+
   it("rejects local-only display flags for implicit remote mode", async () => {
     const previousApiKey = process.env.BROWSERBASE_API_KEY;
     process.env.BROWSERBASE_API_KEY = "test-key";
@@ -132,12 +204,87 @@ describe("driver foundation", () => {
       await expect(resolveConnectionTarget({ headless: true })).rejects.toThrow(
         "remote mode cannot be combined with --headless",
       );
+      await expect(
+        resolveConnectionTarget({
+          "chrome-arg": ["--no-focus-on-navigate"],
+        }),
+      ).rejects.toThrow("remote mode cannot be combined with --chrome-arg");
     } finally {
       restoreEnv("BROWSERBASE_API_KEY", previousApiKey);
     }
   });
 
-  it("only reuses daemon sessions for matching CDP targets", () => {
+  it("only reuses daemon sessions for matching launch targets", () => {
+    expect(
+      targetsCompatible(
+        {
+          chromeArgs: ["--no-focus-on-navigate"],
+          headless: false,
+          kind: "managed-local",
+        },
+        {
+          chromeArgs: ["--no-focus-on-navigate"],
+          headless: false,
+          kind: "managed-local",
+        },
+      ),
+    ).toBe(true);
+    expect(
+      targetsCompatible(
+        { headless: false, kind: "managed-local" },
+        { chromeArgs: [], headless: false, kind: "managed-local" },
+      ),
+    ).toBe(true);
+    expect(
+      targetsCompatible(
+        {
+          chromeArgs: ["--no-focus-on-navigate"],
+          headless: false,
+          kind: "managed-local",
+        },
+        {
+          chromeArgs: ["--disable-features=CalculateNativeWinOcclusion"],
+          headless: false,
+          kind: "managed-local",
+        },
+      ),
+    ).toBe(false);
+    expect(
+      targetsCompatible(
+        { headless: false, ignoreDefaultArgs: true, kind: "managed-local" },
+        { headless: false, ignoreDefaultArgs: true, kind: "managed-local" },
+      ),
+    ).toBe(true);
+    expect(
+      targetsCompatible(
+        {
+          headless: false,
+          ignoreDefaultArgs: ["--enable-automation"],
+          kind: "managed-local",
+        },
+        {
+          headless: false,
+          ignoreDefaultArgs: ["--enable-automation"],
+          kind: "managed-local",
+        },
+      ),
+    ).toBe(true);
+    expect(
+      targetsCompatible(
+        { headless: false, ignoreDefaultArgs: true, kind: "managed-local" },
+        {
+          headless: false,
+          ignoreDefaultArgs: ["--enable-automation"],
+          kind: "managed-local",
+        },
+      ),
+    ).toBe(false);
+    expect(
+      targetsCompatible(
+        { headless: false, kind: "managed-local" },
+        { headless: false, ignoreDefaultArgs: true, kind: "managed-local" },
+      ),
+    ).toBe(false);
     expect(
       targetsCompatible(
         { endpoint: "ws://127.0.0.1:9222/devtools/browser/a", kind: "cdp" },
@@ -206,6 +353,7 @@ describe("driver foundation", () => {
       expect(result.stdout).toContain("DESCRIPTION");
       expect(result.stdout).toContain("FLAGS");
       expect(result.stdout).toContain("EXAMPLES");
+      if (command === "open") expect(result.stdout).toContain("--chrome-arg");
     }
   });
 
@@ -506,6 +654,90 @@ describe("driver foundation", () => {
       expect(Stagehand).toHaveBeenCalledTimes(1);
       expect(init).toHaveBeenCalledTimes(1);
       expect(close).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
+  it("passes Chrome args to managed local Stagehand launches", async () => {
+    const init = vi.fn().mockResolvedValue(undefined);
+    const Stagehand = vi.fn(function () {
+      return {
+        close: vi.fn().mockResolvedValue(undefined),
+        context: {},
+        init,
+      };
+    });
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      Stagehand,
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } = await import(
+        "../src/lib/driver/session-manager.js"
+      );
+      const manager = new MockedDriverSessionManager("chrome-args", {
+        chromeArgs: ["--no-focus-on-navigate"],
+        headless: false,
+        kind: "managed-local",
+      });
+
+      await manager.stagehandInstance();
+
+      expect(Stagehand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          env: "LOCAL",
+          localBrowserLaunchOptions: {
+            args: ["--no-focus-on-navigate"],
+            headless: false,
+          },
+        }),
+      );
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
+  it("passes ignored default Chrome args to managed local Stagehand launches", async () => {
+    const init = vi.fn().mockResolvedValue(undefined);
+    const Stagehand = vi.fn(function () {
+      return {
+        close: vi.fn().mockResolvedValue(undefined),
+        context: {},
+        init,
+      };
+    });
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      Stagehand,
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } = await import(
+        "../src/lib/driver/session-manager.js"
+      );
+      const manager = new MockedDriverSessionManager("ignore-default-args", {
+        headless: true,
+        ignoreDefaultArgs: ["--enable-automation"],
+        kind: "managed-local",
+      });
+
+      await manager.stagehandInstance();
+
+      expect(Stagehand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          env: "LOCAL",
+          localBrowserLaunchOptions: {
+            headless: true,
+            ignoreDefaultArgs: ["--enable-automation"],
+          },
+        }),
+      );
     } finally {
       vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();

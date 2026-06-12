@@ -1,5 +1,10 @@
 export type ConnectionTarget =
-  | { kind: "managed-local"; headless: boolean }
+  | {
+      chromeArgs?: string[];
+      ignoreDefaultArgs?: boolean | string[];
+      kind: "managed-local";
+      headless: boolean;
+    }
   | { kind: "remote" }
   | { kind: "auto-connect" }
   | { kind: "cdp"; endpoint: string; targetId?: string };
