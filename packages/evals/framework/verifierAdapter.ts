@@ -11,6 +11,7 @@ import {
   type V3,
 } from "@browserbasehq/stagehand";
 
+import { tracedSpan } from "./braintrust.js";
 import { RubricCache } from "./rubricCache.js";
 import { TrajectoryRecorder } from "./trajectoryRecorder.js";
 
@@ -49,15 +50,58 @@ export async function runWithVerifier(
   const evaluator = new V3Evaluator(v3, { backend: "verifier" });
 
   // ── Resolve rubric ──────────────────────────────────────────────────────
-  let resolvedRubric: Rubric;
-  if (taskSpec.precomputedRubric) {
-    resolvedRubric = normalizeRubric(taskSpec.precomputedRubric)!;
-  } else if (process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1") {
-    resolvedRubric = await evaluator.generateRubric(taskSpec);
-  } else {
-    const cache = new RubricCache({ dataset });
-    resolvedRubric = await cache.getOrGenerate(taskSpec, evaluator);
-  }
+  const { rubric: resolvedRubric } = await tracedSpan(
+    async (span) => {
+      let rubric: Rubric;
+      let source: "precomputed" | "cached" | "generated";
+
+      if (taskSpec.precomputedRubric) {
+        rubric = normalizeRubric(taskSpec.precomputedRubric)!;
+        source = "precomputed";
+      } else if (process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1") {
+        rubric = await evaluator.generateRubric(taskSpec);
+        source = "generated";
+      } else {
+        const cache = new RubricCache({ dataset });
+        const cached = await cache.read(taskSpec);
+        if (cached) {
+          rubric = cached;
+          source = "cached";
+        } else {
+          rubric = await evaluator.generateRubric(taskSpec);
+          await cache.write(taskSpec, rubric);
+          source = "generated";
+        }
+      }
+
+      span.log({
+        output: {
+          source,
+          rubric,
+        },
+        metadata: {
+          taskId: taskSpec.id,
+          dataset,
+          source,
+          criterionCount: rubric.items.length,
+        },
+      });
+
+      return { rubric, source };
+    },
+    {
+      name: "verifier.rubric",
+      type: "eval",
+      event: {
+        input: {
+          taskId: taskSpec.id,
+          dataset,
+          hasPrecomputedRubric: Boolean(taskSpec.precomputedRubric),
+          cacheDisabled: process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1",
+        },
+      },
+    },
+  );
 
   // Hand a fully-hydrated TaskSpec to the verifier so it doesn't regenerate.
   const hydratedTaskSpec: TaskSpec = {
@@ -76,17 +120,27 @@ export async function runWithVerifier(
   let agentResult: AgentResult;
   let recorderStatus: "complete" | "aborted" | "error" = "complete";
   try {
-    agentResult = await agent.execute({
-      ...restAgentOptions,
-      instruction: taskSpec.instruction,
-      callbacks: {
-        ...userCallbacks,
-        onEvidence: async (event) => {
-          recorder.record(event);
-          await userCallbacks?.onEvidence?.(event);
-        },
+    agentResult = await tracedSpan(
+      async (span) => {
+        const result = await agent.execute({
+          ...restAgentOptions,
+          instruction: taskSpec.instruction,
+          callbacks: {
+            ...userCallbacks,
+            onEvidence: async (event) => {
+              recorder.record(event);
+              await userCallbacks?.onEvidence?.(event);
+            },
+          },
+        });
+        span.log({
+          output: { message: result.message?.slice(0, 500) },
+          metrics: usageMetrics(result.usage),
+        });
+        return result;
       },
-    });
+      { name: "agent.execute", type: "task" },
+    );
   } catch (e) {
     recorderStatus = "error";
     // Re-throw after persisting so the bench task can decide how to report.
@@ -107,7 +161,37 @@ export async function runWithVerifier(
   });
 
   // ── Verify ──────────────────────────────────────────────────────────────
-  const evaluationResult = await evaluator.verify(trajectory);
+  const evaluationResult = await tracedSpan(
+    async (span) => {
+      const v = await evaluator.verify(trajectory);
+      const rawSteps = asRecord(v.rawSteps);
+      span.log({
+        output: v,
+        scores: {
+          outcome: v.outcomeSuccess ? 1 : 0,
+          process: v.processScore,
+        },
+        metadata: {
+          taskId: taskSpec.id,
+          dataset,
+          stepCount: trajectory.steps.length,
+          criterionCount: v.perCriterion?.length ?? 0,
+          findingCount: v.findings?.length ?? 0,
+          evidenceInsufficientCount: v.evidenceInsufficient?.length ?? 0,
+          firstFailStep: v.firstPointOfFailure?.stepIndex,
+          firstFailCode: v.firstPointOfFailure?.errorCode,
+          isAmbiguous: v.taskValidity?.isAmbiguous,
+          isInvalid: v.taskValidity?.isInvalid,
+          ambiguityReason: v.taskValidity?.ambiguityReason,
+          invalidReason: v.taskValidity?.invalidReason,
+          primaryIntent: rawSteps?.primaryIntent,
+          reasoning: rawSteps?.reasoning,
+        },
+      });
+      return v;
+    },
+    { name: "verifier.verify", type: "eval" },
+  );
   await recorder.persistResult(evaluationResult);
 
   return {
@@ -117,6 +201,23 @@ export async function runWithVerifier(
     rubric: resolvedRubric,
     trajectoryDir: recorder.directory,
   };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function usageMetrics(
+  usage: AgentResult["usage"] | undefined,
+): Record<string, number> {
+  if (!usage) return {};
+  return Object.fromEntries(
+    Object.entries(usage).filter(
+      (e): e is [string, number] => typeof e[1] === "number",
+    ),
+  );
 }
 
 /**

@@ -552,5 +552,14 @@ describe("benchPlanner", () => {
     expect(testcases[0].input.isCUA).toBe(false);
     expect(testcases[0].input.params?.id).toBeTruthy();
     expect(testcases[0].metadata.dataset).toBe("webtailbench");
+    // task_category must carry the dataset row's fine-grained category
+    // (e.g. hotels_head / flights), not collapse to the directory category.
+    const rowCategory = testcases[0].input.params?.category as string;
+    expect(rowCategory).toBeTruthy();
+    expect(testcases[0].metadata.task_category).toBe(rowCategory);
+    expect(testcases[0].metadata.task_category).not.toBe(
+      testcases[0].metadata.category,
+    );
+    expect(testcases[0].metadata.task_category).not.toBe("agent");
   });
 });
