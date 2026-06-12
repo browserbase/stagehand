@@ -63,6 +63,26 @@ type SkillFilesResult =
     };
 
 const maxCapturedOutputBytes = 2048;
+const defaultInstallTimeoutMs = 180_000;
+const defaultFetchTimeoutMs = 10_000;
+
+function envTimeoutMs(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function installTimeoutMs(): number {
+  return envTimeoutMs(
+    "BROWSE_SKILLS_INSTALL_TIMEOUT_MS",
+    defaultInstallTimeoutMs,
+  );
+}
+
+function fetchTimeoutSignal(): AbortSignal {
+  return AbortSignal.timeout(
+    envTimeoutMs("BROWSE_SKILLS_FETCH_TIMEOUT_MS", defaultFetchTimeoutMs),
+  );
+}
 
 export function parseSkillId(rawSkillId: string): ParsedSkillId {
   const parts = rawSkillId.split("/");
@@ -179,9 +199,18 @@ async function runSkillsInstall(
   npxPath: string,
   args: string[],
 ): Promise<void> {
-  const result = await spawnPassthrough(npxPath, args);
-  if (result.exitCode === 0) {
+  const timeoutMs = installTimeoutMs();
+  const result = await spawnPassthrough(npxPath, args, timeoutMs);
+  if (result.exitCode === 0 && !result.timedOut) {
     return;
+  }
+
+  if (result.timedOut) {
+    fail(
+      `Skill install timed out after ${Math.round(timeoutMs / 1000)}s waiting for \`npx skills add\`. Check your network connection and rerun \`browse skills add\`.`,
+      1,
+      { resultCode: "skill_install_timeout" },
+    );
   }
 
   const detail = result.output.trim();
@@ -295,8 +324,10 @@ async function fetchSkillFilesFromApi(
   const url = skillFilesApiUrl(skillId);
   let response: Response;
   try {
-    response = await fetch(url);
+    response = await fetch(url, { signal: fetchTimeoutSignal() });
   } catch {
+    // Network failures and timeouts both mean the catalog is unavailable;
+    // callers fall back (or fail cleanly) exactly as before.
     return { status: "unavailable" };
   }
 
@@ -334,6 +365,7 @@ async function directBlobSkillExists(skillId: ParsedSkillId): Promise<boolean> {
   try {
     response = await fetch(skillBlobUrl(skillId, "SKILL.md"), {
       method: "HEAD",
+      signal: fetchTimeoutSignal(),
     });
   } catch {
     return false;
@@ -451,7 +483,7 @@ async function fetchSkillFile(url: URL, label: string): Promise<Uint8Array> {
 async function fetchFromUrl(url: URL, label: string): Promise<Response> {
   let response: Response;
   try {
-    response = await fetch(url);
+    response = await fetch(url, { signal: fetchTimeoutSignal() });
   } catch (error) {
     fail(`Could not download ${label}: ${(error as Error).message}`);
   }
@@ -521,20 +553,52 @@ async function findExecutable(command: string): Promise<string | null> {
 interface SpawnPassthroughResult {
   exitCode: number;
   output: string;
+  timedOut: boolean;
+}
+
+// Quotes a single token for the command line Node hands to cmd.exe when
+// `shell: true`. Node joins command+args UNQUOTED into `cmd.exe /d /s /c
+// "..."`, so an unquoted `C:\Program Files\nodejs\npx.cmd` splits at the
+// space and cmd runs `C:\Program`. Wrapping tokens that contain whitespace,
+// quotes, or cmd metacharacters in double quotes (with embedded quotes
+// doubled) keeps them intact; `/s` makes cmd strip only the outer quotes.
+export function quoteForCmdShell(token: string): string {
+  if (token === "") {
+    return '""';
+  }
+  return /[\s"^&|<>]/.test(token) ? `"${token.replaceAll('"', '""')}"` : token;
 }
 
 // Like `stdio: "inherit"` for the human watching, but the child's stdout/stderr
 // are also buffered (tail only) so a nonzero exit can surface a real reason to
-// telemetry instead of a bare exit code.
-async function spawnPassthrough(
+// telemetry instead of a bare exit code. The child is killed after `timeoutMs`
+// (SIGTERM, then SIGKILL) so a hung `npx` cannot stall the install forever.
+// Exported for tests.
+export async function spawnPassthrough(
   command: string,
   args: string[],
+  timeoutMs = installTimeoutMs(),
 ): Promise<SpawnPassthroughResult> {
+  const useWindowsShell = shouldUseWindowsShell(command);
+  const spawnCommand = useWindowsShell ? quoteForCmdShell(command) : command;
+  const spawnArgs = useWindowsShell ? args.map(quoteForCmdShell) : args;
   return await new Promise<SpawnPassthroughResult>((resolvePromise) => {
-    const child = spawn(command, args, {
+    const child = spawn(spawnCommand, spawnArgs, {
       stdio: ["inherit", "pipe", "pipe"],
-      shell: shouldUseWindowsShell(command),
+      shell: useWindowsShell,
     });
+
+    let timedOut = false;
+    let killTimer: NodeJS.Timeout | undefined;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+      killTimer = setTimeout(() => child.kill("SIGKILL"), 5_000);
+    }, timeoutMs);
+    const clearTimers = (): void => {
+      clearTimeout(deadline);
+      clearTimeout(killTimer);
+    };
 
     let captured = "";
     const capture = (chunk: Buffer): void => {
@@ -557,16 +621,20 @@ async function spawnPassthrough(
     // `skill_install_failed` by runSkillsInstall instead of escaping as an
     // unclassified runtime error.
     child.on("error", (error) => {
+      clearTimers();
       const message = error instanceof Error ? error.message : String(error);
       resolvePromise({
         exitCode: 1,
         output: captured ? `${captured}\n${message}` : message,
+        timedOut,
       });
     });
     child.on("close", (exitCode, signal) => {
+      clearTimers();
       resolvePromise({
         exitCode: signal ? 1 : (exitCode ?? 0),
         output: captured,
+        timedOut,
       });
     });
   });
