@@ -143,9 +143,7 @@ function createCliTelemetry(options: CreateCliTelemetryOptions): CliTelemetry {
     : Promise.resolve("");
   const agentPromise = telemetryEnabled ? detectAgent() : Promise.resolve(null);
   const skillPresentPromise: Promise<boolean | null> = telemetryEnabled
-    ? agentPromise
-        .then((agent) => (agent ? isBrowseSkillInstalled(agent, env) : null))
-        .catch(() => null)
+    ? isBrowseSkillInstalled().catch(() => null)
     : Promise.resolve(null);
 
   const baseProperties: TelemetryProperties = {

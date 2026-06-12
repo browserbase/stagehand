@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -25,20 +25,19 @@ async function setup(options: { skillInstalled?: boolean } = {}): Promise<{
   const home = await mkdtemp(join(tmpdir(), "browse-nudge-home-"));
   cleanupPaths.push(home);
   if (options.skillInstalled) {
-    const skillDir = join(home, ".agents", "skills", "browse");
-    await mkdir(skillDir, { recursive: true });
-    await writeFile(join(skillDir, "SKILL.md"), "---\nname: browse\n---\n");
+    await mkdir(join(home, ".agents", "skills", "browse"), {
+      recursive: true,
+    });
   }
 
-  // Detected agent = codex (checked before CLAUDECODE in @vercel/detect-agent),
-  // so the test is deterministic even when run inside another agent harness.
+  // os.homedir() honors $HOME, so the canonical-path check stays inside the
+  // temp dir even when the suite runs on a machine with the skill installed.
   vi.stubEnv("HOME", home);
-  vi.stubEnv("CODEX_THREAD_ID", "sess-1");
   vi.stubEnv("NODE_ENV", "development");
   vi.stubEnv("CI", "");
   vi.stubEnv("BROWSE_DISABLE_SKILL_NUDGE", "");
 
-  return { home, cacheFile: join(home, "skill-nudge.json") };
+  return { home, cacheFile: join(home, "cache", "skill-nudge.json") };
 }
 
 function stderrSpy() {
@@ -52,7 +51,7 @@ function nudged(spy: ReturnType<typeof stderrSpy>): boolean {
 }
 
 describe("maybeNudgeInstallSkill", () => {
-  it("nudges a detected agent that is missing the skill", async () => {
+  it("nudges once when the canonical skill dir is absent and writes the marker", async () => {
     const { cacheFile } = await setup();
     const spy = stderrSpy();
     await maybeNudgeInstallSkill(process.env, {
@@ -60,35 +59,23 @@ describe("maybeNudgeInstallSkill", () => {
       commandId: "status",
     });
     expect(nudged(spy)).toBe(true);
+    await expect(access(cacheFile)).resolves.toBeUndefined();
   });
 
-  it("does not nudge twice in the same session", async () => {
+  it("stays silent on the next run once the marker exists", async () => {
     const { cacheFile } = await setup();
+    const spy = stderrSpy();
     await maybeNudgeInstallSkill(process.env, {
       cacheFile,
       commandId: "status",
     });
-    const spy = stderrSpy();
+    expect(nudged(spy)).toBe(true);
+    spy.mockClear();
     await maybeNudgeInstallSkill(process.env, {
       cacheFile,
       commandId: "open",
     });
     expect(nudged(spy)).toBe(false);
-  });
-
-  it("nudges again for a new session id", async () => {
-    const { cacheFile } = await setup();
-    await maybeNudgeInstallSkill(process.env, {
-      cacheFile,
-      commandId: "status",
-    });
-    vi.stubEnv("CODEX_THREAD_ID", "sess-2");
-    const spy = stderrSpy();
-    await maybeNudgeInstallSkill(process.env, {
-      cacheFile,
-      commandId: "status",
-    });
-    expect(nudged(spy)).toBe(true);
   });
 
   it("does not nudge when the skill is already installed", async () => {
@@ -101,19 +88,40 @@ describe("maybeNudgeInstallSkill", () => {
     expect(nudged(spy)).toBe(false);
   });
 
-  it("does not nudge on skills subcommands", async () => {
+  it("does not nudge on skills subcommands, help, or a missing commandId", async () => {
     const { cacheFile } = await setup();
     const spy = stderrSpy();
-    await maybeNudgeInstallSkill(process.env, {
-      cacheFile,
-      commandId: "skills:install",
-    });
+    for (const commandId of ["skills:install", "skills", "help", undefined]) {
+      await maybeNudgeInstallSkill(process.env, { cacheFile, commandId });
+    }
     expect(nudged(spy)).toBe(false);
   });
 
-  it("respects BROWSE_DISABLE_SKILL_NUDGE", async () => {
+  it("respects env opt-outs and CI", async () => {
     const { cacheFile } = await setup();
-    vi.stubEnv("BROWSE_DISABLE_SKILL_NUDGE", "1");
+    const spy = stderrSpy();
+    for (const overrides of [
+      { BROWSE_DISABLE_SKILL_NUDGE: "1" },
+      { BB_DISABLE_SKILL_NUDGE: "1" },
+      { NODE_ENV: "test" },
+      { CI: "true" },
+    ]) {
+      const env: NodeJS.ProcessEnv = {
+        NODE_ENV: "development",
+        CI: "",
+        ...overrides,
+      };
+      await maybeNudgeInstallSkill(env, { cacheFile, commandId: "status" });
+    }
+    expect(nudged(spy)).toBe(false);
+  });
+
+  it("does not nudge when the marker cannot be written", async () => {
+    const { home } = await setup();
+    // Parent "directory" is a regular file, so mkdir/writeFile must fail.
+    const blocker = join(home, "blocked");
+    await writeFile(blocker, "not a directory\n", "utf8");
+    const cacheFile = join(blocker, "skill-nudge.json");
     const spy = stderrSpy();
     await maybeNudgeInstallSkill(process.env, {
       cacheFile,

@@ -93,12 +93,12 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("Start here (for AI agents)");
   });
 
-  it("hides the skill banner on root help when the skill is installed", async () => {
+  it("shows the skill banner on root help even when the skill is installed", async () => {
     const result = await runCli(["--help"], {
       env: { HOME: await homeWithSkill() },
     });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).not.toContain("Start here (for AI agents)");
+    expect(result.stdout).toContain("Start here (for AI agents)");
     expect(result.stdout).toContain("Unified Browserbase CLI");
   });
 
