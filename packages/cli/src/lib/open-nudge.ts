@@ -35,8 +35,9 @@ export async function maybeNudgeOpen(
     return null;
   }
 
-  await writeNudgeMarker(cachePath);
-  return OPEN_NUDGE_HINT;
+  // Only nudge when the marker actually lands, so an unwritable cache dir
+  // can't cause the "once-per-install" tip to fire on every run.
+  return (await writeNudgeMarker(cachePath)) ? OPEN_NUDGE_HINT : null;
 }
 
 /**
@@ -97,7 +98,7 @@ async function markerExists(cachePath: string): Promise<boolean> {
   }
 }
 
-async function writeNudgeMarker(cachePath: string): Promise<void> {
+async function writeNudgeMarker(cachePath: string): Promise<boolean> {
   try {
     await mkdir(dirname(cachePath), { recursive: true });
     await writeFile(
@@ -105,7 +106,9 @@ async function writeNudgeMarker(cachePath: string): Promise<void> {
       `${JSON.stringify({ shownAt: new Date().toISOString() })}\n`,
       "utf8",
     );
+    return true;
   } catch {
     // Best-effort marker writes should never affect CLI behavior.
+    return false;
   }
 }

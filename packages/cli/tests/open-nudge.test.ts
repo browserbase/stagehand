@@ -1,5 +1,4 @@
-import { access } from "node:fs/promises";
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -66,5 +65,13 @@ describe("maybeNudgeOpen", () => {
 
   it("returns null when no cache file is configured", async () => {
     expect(await maybeNudgeOpen({}, enabledEnv)).toBeNull();
+  });
+
+  it("returns null when the marker cannot be written", async () => {
+    // Parent "directory" is a regular file, so mkdir/writeFile must fail.
+    const blocker = await freshCacheFile();
+    await writeFile(blocker, "not a directory\n", "utf8");
+    const cacheFile = join(blocker, "open-nudge.json");
+    expect(await maybeNudgeOpen({ cacheFile }, enabledEnv)).toBeNull();
   });
 });
