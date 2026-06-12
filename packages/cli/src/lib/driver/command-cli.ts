@@ -4,16 +4,23 @@ import type { DriverCommandName } from "./commands/types.js";
 import {
   autoConnectFlag,
   cdpFlag,
+  chromeArgFlag,
   headedFlag,
   headlessFlag,
+  ignoreDefaultChromeArgFlag,
   localFlag,
+  noDefaultChromeArgsFlag,
   remoteFlag,
   sessionFlag,
   sessionName,
   targetIdFlag,
 } from "./flags.js";
 import { getDriverStatus } from "./daemon/client.js";
-import { resolveConnectionTarget, type DriverModeFlags } from "./mode.js";
+import {
+  hasChromeArgFlags,
+  resolveConnectionTarget,
+  type DriverModeFlags,
+} from "./mode.js";
 import type { ConnectionTarget } from "./types.js";
 import { outputJson } from "../output.js";
 import { runDriverCommandWithTarget } from "./runtime.js";
@@ -21,9 +28,12 @@ import { runDriverCommandWithTarget } from "./runtime.js";
 export const driverCommandFlags = {
   "auto-connect": autoConnectFlag,
   cdp: cdpFlag,
+  "chrome-arg": chromeArgFlag,
   headed: headedFlag,
   headless: headlessFlag,
+  "ignore-default-chrome-arg": ignoreDefaultChromeArgFlag,
   local: localFlag,
+  "no-default-chrome-args": noDefaultChromeArgsFlag,
   remote: remoteFlag,
   session: sessionFlag,
   "target-id": targetIdFlag,
@@ -89,6 +99,7 @@ export function hasExplicitDriverTarget(flags: DriverFlags): boolean {
       flags.remote ||
       flags["auto-connect"] ||
       flags.cdp ||
+      hasChromeArgFlags(flags) ||
       flags["target-id"] ||
       flags.headed ||
       flags.headless,
@@ -100,6 +111,7 @@ function hasModeOnlyFlag(flags: DriverFlags): boolean {
     (flags.local || flags.remote) &&
       !flags["auto-connect"] &&
       !flags.cdp &&
+      !hasChromeArgFlags(flags) &&
       !flags["target-id"] &&
       !flags.headed &&
       !flags.headless &&
