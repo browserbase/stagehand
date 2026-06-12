@@ -8,6 +8,8 @@
  * argv content beyond the tokens that matched a known command shape.
  */
 
+import { distance } from "fastest-levenshtein";
+
 /**
  * Old Commander-era syntax (and common agent guesses) mapped to the current
  * command tree. Keys and values are colon-separated oclif ids; values may
@@ -55,32 +57,6 @@ export function extractCommandTokens(id: string): string[] {
   return tokens;
 }
 
-export function levenshtein(a: string, b: string): number {
-  if (a === b) {
-    return 0;
-  }
-  if (a.length === 0 || b.length === 0) {
-    return a.length || b.length;
-  }
-
-  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
-  let current = new Array<number>(b.length + 1).fill(0);
-
-  for (let i = 1; i <= a.length; i++) {
-    current[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const deletion = (previous[j] ?? 0) + 1;
-      const insertion = (current[j - 1] ?? 0) + 1;
-      const substitution =
-        (previous[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1);
-      current[j] = Math.min(deletion, insertion, substitution);
-    }
-    [previous, current] = [current, previous];
-  }
-
-  return previous[b.length] ?? 0;
-}
-
 function tokenThreshold(token: string): number {
   return Math.max(2, Math.floor(token.length / 3));
 }
@@ -105,11 +81,11 @@ function prefixDistance(
   let total = 0;
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i] ?? "";
-    const distance = levenshtein(token, segments[i] ?? "");
-    if (distance > tokenThreshold(token)) {
+    const segmentDistance = distance(token, segments[i] ?? "");
+    if (segmentDistance > tokenThreshold(token)) {
       return null;
     }
-    total += distance;
+    total += segmentDistance;
   }
 
   return total > maxSuggestionDistance ? null : total;
@@ -143,9 +119,13 @@ export function suggestCommand(
   for (let length = tokens.length; length >= 1; length--) {
     const prefix = tokens.slice(0, length);
     for (const commandId of commandIds) {
-      const distance = prefixDistance(prefix, commandId);
-      if (distance !== null && (!best || distance < best.distance)) {
-        best = { attempted: prefix.join(":"), suggestion: commandId, distance };
+      const prefixDist = prefixDistance(prefix, commandId);
+      if (prefixDist !== null && (!best || prefixDist < best.distance)) {
+        best = {
+          attempted: prefix.join(":"),
+          suggestion: commandId,
+          distance: prefixDist,
+        };
       }
     }
   }

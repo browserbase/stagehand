@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   aliasSuggestions,
   extractCommandTokens,
-  levenshtein,
   suggestCommand,
 } from "../src/lib/command-suggestions.js";
 import {
@@ -25,16 +24,6 @@ afterEach(async () => {
     if (!path) continue;
     await rm(path, { recursive: true, force: true });
   }
-});
-
-describe("levenshtein", () => {
-  it("computes edit distances", () => {
-    expect(levenshtein("open", "open")).toBe(0);
-    expect(levenshtein("opne", "open")).toBe(2);
-    expect(levenshtein("", "open")).toBe(4);
-    expect(levenshtein("open", "")).toBe(4);
-    expect(levenshtein("kitten", "sitting")).toBe(3);
-  });
 });
 
 describe("extractCommandTokens", () => {
