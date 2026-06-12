@@ -1,14 +1,10 @@
-import {
-  computeActiveElementXpath,
-  captureHybridSnapshot,
-} from "../understudy/a11y/snapshot/index.js";
+import { computeActiveElementXpath } from "../understudy/a11y/snapshot/index.js";
 import { V3 } from "../v3.js";
 import { ToolSet } from "ai";
 import { AgentClient } from "../agent/AgentClient.js";
 import { AgentProvider } from "../agent/AgentProvider.js";
 import { GoogleCUAClient } from "../agent/GoogleCUAClient.js";
 import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
-import { YutoriCUAClient } from "../agent/YutoriCUAClient.js";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping.js";
 import { ensureXPath } from "../agent/utils/xpath.js";
 import {
@@ -92,10 +88,8 @@ export class V3CuaAgentHandler {
       this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
       const screenshotBuffer = await page.screenshot({ fullPage: false });
-      const currentUrl = page.url();
 
-      this.agentClient.setCurrentUrl(currentUrl);
-      await this.emitCuaScreenshot(screenshotBuffer, currentUrl);
+      await this.emitCuaScreenshot(screenshotBuffer, page.url());
 
       return screenshotBuffer.toString("base64"); // base64 png
     });
@@ -212,47 +206,8 @@ export class V3CuaAgentHandler {
           }
         }
         throw error;
-      } finally {
-        // Refresh the client's URL on both success and failure: a throwing
-        // action (e.g. a click or goto that navigated before erroring) can
-        // still change the page, so the next tool result's "Current URL" suffix
-        // must not report the pre-action URL. updateClientUrl swallows its own
-        // errors, so it cannot mask the original action error here.
-        await this.updateClientUrl();
       }
     });
-
-    // Provide the page operations the Navigator expanded DOM tools need
-    // (a11y snapshot + JS evaluate). All expanded-tool logic stays in the
-    // Yutori client; the handler only supplies generic page access.
-    if (this.agentClient instanceof YutoriCUAClient) {
-      this.agentClient.setPageBridge({
-        snapshot: async () => {
-          this.ensureNotClosed();
-          const page = await this.v3.context.awaitActivePage();
-          return captureHybridSnapshot(page, {
-            experimental: !!this.options.experimental,
-          });
-        },
-        evaluate: async (source: string) => {
-          this.ensureNotClosed();
-          const page = await this.v3.context.awaitActivePage();
-          return page.mainFrame().evaluate(source);
-        },
-        elementCenter: async (xpath: string) => {
-          this.ensureNotClosed();
-          const page = await this.v3.context.awaitActivePage();
-          // Scrolls the element into view and returns its viewport-pixel center
-          // (or null if it has no box). Mirrors Navigator's ref resolution so a
-          // ref-targeted coordinate tool clicks the element's center.
-          try {
-            return await page.deepLocator(xpath).centroid();
-          } catch {
-            return null;
-          }
-        },
-      });
-    }
 
     void this.updateClientViewport();
     void this.updateClientUrl();
@@ -383,13 +338,11 @@ export class V3CuaAgentHandler {
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
-        const modifiers = this.cuaModifiers(action);
         if (recording) {
           const xpath = await page.click(x as number, y as number, {
             button: (button as "left" | "right" | "middle") ?? "left",
             clickCount: (clickCount as number) ?? 1,
             returnXpath: true,
-            modifiers,
           });
           const normalized = ensureXPath(xpath);
           if (normalized) {
@@ -398,8 +351,6 @@ export class V3CuaAgentHandler {
               description: this.describePointerAction("click", x, y),
               method: "click",
               arguments: [],
-              // Persist modifiers so replay re-applies the chord, not a plain click.
-              ...(modifiers ? { modifiers } : {}),
             };
             this.recordCuaActStep(
               action,
@@ -411,7 +362,6 @@ export class V3CuaAgentHandler {
           await page.click(x as number, y as number, {
             button: (button as "left" | "right" | "middle") ?? "left",
             clickCount: (clickCount as number) ?? 1,
-            modifiers,
           });
         }
         return { success: true };
@@ -499,32 +449,6 @@ export class V3CuaAgentHandler {
         }
         return { success: true };
       }
-      case "set_value": {
-        // Navigator expanded tool `set_element_value`: fill a form field
-        // resolved (by the client) to an xpath, via deepLocator (cross-frame /
-        // shadow aware). Recorded as a deterministic "fill" act step for replay.
-        const { selector, text } = action;
-        const xpath = ensureXPath(String(selector ?? ""));
-        if (!xpath) {
-          return { success: false, error: "set_value: missing selector" };
-        }
-        const value = String(text ?? "");
-        await page.deepLocator(xpath).fill(value);
-        if (recording) {
-          const stagehandAction: Action = {
-            selector: xpath,
-            description: this.describeTypeAction(value),
-            method: "fill",
-            arguments: [value],
-          };
-          this.recordCuaActStep(
-            action,
-            [stagehandAction],
-            stagehandAction.description,
-          );
-        }
-        return { success: true };
-      }
       case "keypress": {
         const { keys } = action;
         const keyList = Array.isArray(keys) ? keys : [keys];
@@ -559,13 +483,11 @@ export class V3CuaAgentHandler {
       }
       case "scroll": {
         const { x, y, scroll_x = 0, scroll_y = 0 } = action;
-        const scrollModifiers = this.cuaModifiers(action);
         await page.scroll(
           (x as number) ?? 0,
           (y as number) ?? 0,
           (scroll_x as number) ?? 0,
           (scroll_y as number) ?? 0,
-          { modifiers: scrollModifiers },
         );
         this.v3.recordAgentReplayStep({
           type: "scroll",
@@ -575,8 +497,6 @@ export class V3CuaAgentHandler {
             typeof x === "number" && typeof y === "number"
               ? { x: Math.round(x), y: Math.round(y) }
               : undefined,
-          // Persist modifiers so replay re-applies the chord (e.g. shift+scroll).
-          ...(scrollModifiers ? { modifiers: scrollModifiers } : {}),
         });
         return { success: true };
       }
@@ -683,19 +603,6 @@ export class V3CuaAgentHandler {
         }
         return { success: true };
       }
-      case "refresh": {
-        // True reload (re-fetches the current document, preserves URL/fragment)
-        // rather than goto(currentUrl), which would no-op on fragment URLs.
-        // Recorded as a dedicated "refresh" replay step so replay reloads too.
-        await page.reload({ waitUntil: "load" });
-        if (recording) {
-          this.v3.recordAgentReplayStep({
-            type: "refresh",
-            waitUntil: "load",
-          });
-        }
-        return { success: true };
-      }
       case "open_web_browser": {
         // Browser is already open, this is a no-op
         return { success: true };
@@ -715,22 +622,6 @@ export class V3CuaAgentHandler {
           error: `Unknown action ${String(action.type)}`,
         };
     }
-  }
-
-  /**
-   * Map a CUA action's `modifier` (Navigator n1.5 lowercase key names, e.g.
-   * "ctrl" or "ctrl+shift") to Playwright-style modifier names for the
-   * page.click/page.scroll `modifiers` option. Returns undefined when none,
-   * so the action is dispatched without modifiers.
-   */
-  private cuaModifiers(action: AgentAction): string[] | undefined {
-    if (typeof action.modifier !== "string") return undefined;
-    const keys = action.modifier
-      .trim()
-      .split(/[+\s]+/)
-      .filter(Boolean)
-      .map((key) => mapKeyToPlaywright(key));
-    return keys.length > 0 ? keys : undefined;
   }
 
   // helper to make pointer target human-readable for logging

@@ -4,7 +4,9 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionMessageToolCall,
   ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionTool,
 } from "openai/resources/chat/completions";
+import { ToolSet } from "ai";
 import { LogLine } from "../types/public/logs.js";
 import {
   AgentAction,
@@ -30,51 +32,19 @@ import {
   DEFAULT_MAX_REQUEST_BYTES,
   DEFAULT_KEEP_RECENT_SCREENSHOTS,
 } from "./utils/yutoriActions.js";
-import {
-  NavigatorRefRegistry,
-  renderExpandedSnapshot,
-  findInSnapshot,
-} from "./utils/navigatorExpandedTools.js";
-import type { HybridSnapshot } from "../types/private/snapshot.js";
+import { toJsonSchema } from "../zodCompat.js";
+import type { StagehandZodSchema } from "../zodCompat.js";
 
 const NAVIGATOR_BASE_URL = "https://api.yutori.com/v1";
+// Stagehand drives Navigator with the core (coordinate) tool set. Richer page
+// capabilities (DOM extraction, JS evaluation, etc.) are supplied by the user
+// as custom tools via `stagehand.agent({ tools })`, like other CUA providers.
 const TOOL_SET_CORE = "browser_tools_core-20260403";
-const TOOL_SET_EXPANDED = "browser_tools_expanded-20260403";
 
-/**
- * Navigator n1.5 tool sets Stagehand implements. The expanded set adds the
- * DOM tools (extract_elements/find/set_element_value/execute_js) backed by
- * Stagehand's a11y snapshot + deepLocator/evaluate.
- */
-export const SUPPORTED_TOOL_SETS = [TOOL_SET_CORE, TOOL_SET_EXPANDED] as const;
-export type YutoriToolSet = (typeof SUPPORTED_TOOL_SETS)[number];
-
-/** The Navigator expanded-tool names handled directly by this client. */
-const EXPANDED_DOM_TOOLS = new Set([
-  "extract_elements",
-  "find",
-  "set_element_value",
-  "execute_js",
-]);
-
-/**
- * Page operations the expanded DOM tools need. Supplied by the CUA handler
- * (which owns the page) so all Navigator-specific logic stays in this client.
- */
-export interface NavigatorPageBridge {
-  /** Capture Stagehand's hybrid a11y snapshot of the active page. */
-  snapshot(): Promise<
-    Pick<HybridSnapshot, "combinedTree" | "combinedUrlMap" | "combinedXpathMap">
-  >;
-  /** Evaluate JS in the page and return a JSON-serializable result. */
-  evaluate(source: string): Promise<unknown>;
-  /**
-   * Scroll the element at `xpath` into view and return its viewport-pixel
-   * center, or null if it can't be located. Backs ref-targeted coordinate
-   * tools (the model may pass `ref` instead of `coordinates`).
-   */
-  elementCenter(xpath: string): Promise<{ x: number; y: number } | null>;
-}
+// Tools disabled server-side by default. mouse_down / mouse_up have no
+// equivalent in the shared CUA action handler (drag covers
+// press-move-release); hold_key likewise has no key-hold support there.
+const DEFAULT_DISABLED_TOOLS = ["mouse_down", "mouse_up", "hold_key"];
 
 function normalizeYutoriModelName(modelName: string): string {
   const name = modelName || "n1.5-latest";
@@ -106,7 +76,7 @@ function cloneMessagesForRequest(
   ) as ChatCompletionMessageParam[];
 }
 
-/** Stringify an execute_js result for the model; tolerant of undefined/cycles. */
+/** Stringify a custom-tool result for the model; tolerant of undefined/cycles. */
 function safeJsonStringify(value: unknown): string {
   if (value === undefined) return "undefined";
   try {
@@ -137,6 +107,12 @@ interface NavigatorExtraParams {
  * with a current-URL suffix, payload trimming, completion when no tool calls
  * are returned, and stop-and-summarize on max steps.
  *
+ * Stagehand always drives Navigator with the core (coordinate) tool set.
+ * Custom tools are supported via `stagehand.agent({ tools })` (sent as OpenAI
+ * function tools and executed by this client), and structured output via
+ * `agent.execute({ output })` (forwarded as Navigator's `json_schema` param
+ * and surfaced on `AgentResult.output`).
+ *
  * @see https://docs.yutori.com/reference/n1-5.md
  */
 export class YutoriCUAClient extends AgentClient {
@@ -149,35 +125,28 @@ export class YutoriCUAClient extends AgentClient {
   private actionHandler?: (action: AgentAction) => Promise<void>;
 
   private temperature = 0.3;
-  // Default to the expanded set: it adds the a11y-backed DOM tools
-  // (extract_elements/find/set_element_value/execute_js) on top of the core
-  // coordinate tools, and the CUA handler always wires the page bridge they
-  // need. Override via clientOptions.toolSet (e.g. TOOL_SET_CORE).
-  private toolSet = TOOL_SET_EXPANDED;
+  // Tools Navigator must not call, sent server-side via `disable_tools`.
   // mouse_down / mouse_up have no equivalent in the shared CUA action handler
-  // (drag covers press-move-release), so disable them by default. Overridable
-  // via clientOptions.disableTools.
-  private disableTools: string[] = ["mouse_down", "mouse_up"];
+  // (drag covers press-move-release), and hold_key has no key-hold support
+  // there either, so all three are disabled by default. Per run, this becomes
+  // the union of the defaults and `execute({ excludeTools })`.
+  private runDisabledTools: string[] = [...DEFAULT_DISABLED_TOOLS];
+  // Per-run structured-output schema, derived in execute() from
+  // `execute({ output })` and sent as Navigator's `json_schema` param.
   private jsonSchema?: Record<string, unknown>;
-  private userTimezone?: string;
-  private userLocation?: string;
+  private tools?: ToolSet;
   private maxRequestBytes = DEFAULT_MAX_REQUEST_BYTES;
   private keepRecentScreenshots = DEFAULT_KEEP_RECENT_SCREENSHOTS;
 
   private messages: ChatCompletionMessageParam[] = [];
   private parsedJson?: Record<string, unknown>;
 
-  // Expanded tool set (browser_tools_expanded): ref registry maps Navigator
-  // ref_N tokens to a11y encodedId/xpath; bridge runs page ops for the DOM
-  // tools. Both are unused unless the expanded tool set is selected + bridged.
-  private readonly refRegistry = new NavigatorRefRegistry();
-  private pageBridge?: NavigatorPageBridge;
-
   constructor(
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
     clientOptions?: ClientOptions,
+    tools?: ToolSet,
   ) {
     super(type, normalizeYutoriModelName(modelName), userProvidedInstructions);
 
@@ -194,35 +163,7 @@ export class YutoriCUAClient extends AgentClient {
     if (clientOptions?.temperature !== undefined) {
       this.temperature = clientOptions.temperature as number;
     }
-    if (typeof clientOptions?.toolSet === "string") {
-      this.toolSet = clientOptions.toolSet;
-    }
-    if (!(SUPPORTED_TOOL_SETS as readonly string[]).includes(this.toolSet)) {
-      throw new Error(
-        `Yutori Navigator tool set "${this.toolSet}" is not supported by Stagehand yet. ` +
-          `Use "${TOOL_SET_EXPANDED}" (default), "${TOOL_SET_CORE}", or omit clientOptions.toolSet.`,
-      );
-    }
-    if (Array.isArray(clientOptions?.disableTools)) {
-      this.disableTools = Array.from(
-        new Set([
-          ...this.disableTools,
-          ...(clientOptions.disableTools as string[]),
-        ]),
-      );
-    }
-    if (
-      clientOptions?.jsonSchema &&
-      typeof clientOptions.jsonSchema === "object"
-    ) {
-      this.jsonSchema = clientOptions.jsonSchema as Record<string, unknown>;
-    }
-    if (typeof clientOptions?.userTimezone === "string") {
-      this.userTimezone = clientOptions.userTimezone;
-    }
-    if (typeof clientOptions?.userLocation === "string") {
-      this.userLocation = clientOptions.userLocation;
-    }
+    this.tools = tools;
 
     this.clientOptions = { apiKey: this.apiKey, baseURL: this.baseURL };
     this.client = new OpenAI({ apiKey: this.apiKey, baseURL: this.baseURL });
@@ -233,12 +174,43 @@ export class YutoriCUAClient extends AgentClient {
   }): NavigatorExtraParams {
     const includeJsonSchema = options?.includeJsonSchema ?? true;
     return {
-      tool_set: this.toolSet,
-      ...(this.disableTools.length ? { disable_tools: this.disableTools } : {}),
+      tool_set: TOOL_SET_CORE,
+      ...(this.runDisabledTools.length
+        ? { disable_tools: this.runDisabledTools }
+        : {}),
       ...(includeJsonSchema && this.jsonSchema
         ? { json_schema: this.jsonSchema }
         : {}),
     };
+  }
+
+  /**
+   * Convert user-provided custom tools (`stagehand.agent({ tools })`) into
+   * OpenAI function-tool definitions for the request. Returns undefined when
+   * the user provided none — the core path must not send a `tools` key.
+   */
+  private customToolParams(): ChatCompletionTool[] | undefined {
+    if (!this.tools || Object.keys(this.tools).length === 0) return undefined;
+    return Object.entries(this.tools).map(([name, tool]) => {
+      const jsonSchema = toJsonSchema(
+        tool.inputSchema as StagehandZodSchema,
+      ) as {
+        properties?: Record<string, unknown>;
+        required?: string[];
+      };
+      return {
+        type: "function",
+        function: {
+          name,
+          description: tool.description,
+          parameters: {
+            type: "object",
+            properties: jsonSchema.properties || {},
+            required: jsonSchema.required || [],
+          },
+        },
+      };
+    });
   }
 
   /**
@@ -257,10 +229,12 @@ export class YutoriCUAClient extends AgentClient {
     messages: ChatCompletionMessageParam[],
     options?: { includeJsonSchema?: boolean },
   ): ChatCompletionCreateParamsNonStreaming {
+    const customTools = this.customToolParams();
     const base: ChatCompletionCreateParamsNonStreaming = {
       model: this.modelName,
       messages,
       temperature: this.temperature,
+      ...(customTools ? { tools: customTools } : {}),
     };
     return { ...base, ...this.navigatorExtraParams(options) };
   }
@@ -279,11 +253,6 @@ export class YutoriCUAClient extends AgentClient {
 
   setActionHandler(handler: (action: AgentAction) => Promise<void>): void {
     this.actionHandler = handler;
-  }
-
-  /** Provide the page operations the expanded DOM tools need. */
-  setPageBridge(bridge: NavigatorPageBridge): void {
-    this.pageBridge = bridge;
   }
 
   async captureScreenshot(options?: {
@@ -315,15 +284,21 @@ export class YutoriCUAClient extends AgentClient {
     // Keep the original instruction for stop-and-summarize; send the
     // context-augmented form (location/timezone/date) to the model.
     const originalTask = options.instruction;
-    const task = formatTaskWithContext(
-      originalTask,
-      this.userTimezone,
-      this.userLocation,
+    const task = formatTaskWithContext(originalTask);
+
+    // Per-run server-side tool gating and structured-output schema.
+    this.runDisabledTools = Array.from(
+      new Set([...DEFAULT_DISABLED_TOOLS, ...(options.excludeTools ?? [])]),
     );
+    this.jsonSchema = options.output
+      ? (toJsonSchema(options.output as StagehandZodSchema) as Record<
+          string,
+          unknown
+        >)
+      : undefined;
 
     this.messages = [];
     this.parsedJson = undefined;
-    this.refRegistry.reset();
 
     if (this.userProvidedInstructions) {
       this.messages.push({
@@ -591,38 +566,49 @@ export class YutoriCUAClient extends AgentClient {
       };
     }
 
-    // Expanded tool set (DOM tools) — handled via the page bridge / a11y, not
-    // the coordinate action mapping.
-    if (EXPANDED_DOM_TOOLS.has(name)) {
-      return this.runExpandedTool(name, args, reasoning, logger);
-    }
-
-    // Expanded tool set: coordinate tools may target an element by `ref`
-    // (from extract_elements/find) instead of pixel coordinates. Resolve the
-    // ref to its on-screen center; it takes priority over model-predicted
-    // coordinates, falling back to them if it can't be resolved.
-    let refPoint: { x: number; y: number } | undefined;
-    if (typeof args.ref === "string" && args.ref) {
-      refPoint = (await this.resolveRefPoint(args.ref)) ?? undefined;
-      const hasCoords =
-        Array.isArray(args.coordinates) && args.coordinates.length === 2;
-      if (!refPoint && !hasCoords) {
+    // Custom user tool (stagehand.agent({ tools })): execute it directly —
+    // it is not a page action, so it never goes through the action handler —
+    // and record it in the trajectory like the other CUA providers do.
+    if (this.tools && name in this.tools) {
+      const action: AgentAction = {
+        type: "custom_tool",
+        name,
+        arguments: args,
+        ...(reasoning ? { reasoning } : {}),
+        pageUrl: this.currentUrl,
+      };
+      const tool = this.tools[name];
+      if (typeof tool.execute !== "function") {
         return {
-          actions: [],
-          result: `[ERROR] ${name}: unknown or stale ref "${args.ref}" — call extract_elements or find first`,
+          actions: [action],
+          result: `[ERROR] ${name}: tool has no execute function`,
         };
+      }
+      try {
+        const result = await tool.execute(args, {
+          toolCallId: toolCall.id,
+          messages: [],
+        });
+        return {
+          actions: [action],
+          result:
+            typeof result === "string" ? result : safeJsonStringify(result),
+        };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        logger({
+          category: "agent",
+          message: `Custom tool ${name} failed: ${msg}`,
+          level: 1,
+        });
+        return { actions: [action], result: `[ERROR] ${name}: ${msg}` };
       }
     }
 
     let action: AgentAction | null;
     let result: string;
     try {
-      const converted = this.convertToolCallToAction(
-        name,
-        args,
-        reasoning,
-        refPoint,
-      );
+      const converted = this.convertToolCallToAction(name, args, reasoning);
       action = converted.action;
       result = converted.result;
     } catch (error) {
@@ -652,135 +638,13 @@ export class YutoriCUAClient extends AgentClient {
   }
 
   /**
-   * Run a Navigator expanded DOM tool against Stagehand's a11y/page primitives.
-   *  - extract_elements / find: read the a11y snapshot, render in Navigator
-   *    format, mint `ref_N` tokens. (No page mutation.)
-   *  - execute_js: evaluate JS in the page.
-   *  - set_element_value: resolve the ref to an xpath and fill via the action
-   *    handler (recorded/observed like other actions).
-   */
-  private async runExpandedTool(
-    name: string,
-    args: Record<string, unknown>,
-    reasoning: string | undefined,
-    logger: (message: LogLine) => void,
-  ): Promise<{ actions: AgentAction[]; result: string }> {
-    if (!this.pageBridge) {
-      return {
-        actions: [],
-        result: `[ERROR] ${name}: expanded tools are unavailable (no page bridge)`,
-      };
-    }
-    try {
-      switch (name) {
-        case "extract_elements": {
-          const snapshot = await this.pageBridge.snapshot();
-          const text = renderExpandedSnapshot(snapshot, this.refRegistry);
-          return { actions: [], result: text || "(no interactive elements)" };
-        }
-        case "find": {
-          const query = String(args.text ?? args.query ?? "");
-          const snapshot = await this.pageBridge.snapshot();
-          const { matches, total } = findInSnapshot(
-            snapshot,
-            this.refRegistry,
-            query,
-          );
-          const result =
-            total === 0
-              ? `No elements matching "${query}" found.`
-              : `Found ${total} element(s) matching "${query}":\n${matches.join("\n")}`;
-          return { actions: [], result };
-        }
-        case "execute_js": {
-          const source = String(args.text ?? args.code ?? "");
-          let value: unknown;
-          try {
-            // Expression form first (e.g. "document.title").
-            value = await this.pageBridge.evaluate(
-              `(async () => (${source}))()`,
-            );
-          } catch {
-            // Fall back to a statement body (e.g. "const x = 1; return x;").
-            value = await this.pageBridge.evaluate(
-              `(async () => { ${source} })()`,
-            );
-          }
-          return { actions: [], result: safeJsonStringify(value) };
-        }
-        case "set_element_value": {
-          const ref = String(args.ref ?? "");
-          const value = String(args.value ?? "");
-          const entry = this.refRegistry.resolve(ref);
-          if (!entry?.xpath) {
-            return {
-              actions: [],
-              result: `[ERROR] set_element_value: unknown or stale ref "${ref}" — call extract_elements or find first`,
-            };
-          }
-          const action: AgentAction = {
-            type: "set_value",
-            selector: entry.xpath,
-            text: value,
-            ...(reasoning ? { reasoning } : {}),
-          };
-          if (this.actionHandler) {
-            try {
-              await this.actionHandler(action);
-            } catch (error) {
-              const msg =
-                error instanceof Error ? error.message : String(error);
-              return {
-                actions: [action],
-                result: `[ERROR] set_element_value: ${msg}`,
-              };
-            }
-          }
-          return { actions: [action], result: `Set ${ref} to "${value}"` };
-        }
-        default:
-          return { actions: [], result: `[ERROR] Unsupported tool: ${name}` };
-      }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      logger({
-        category: "agent",
-        message: `Expanded tool ${name} failed: ${msg}`,
-        level: 1,
-      });
-      return { actions: [], result: `[ERROR] ${name}: ${msg}` };
-    }
-  }
-
-  /**
-   * Resolve an expanded-tool `ref` to its on-screen center point via the page
-   * bridge, or null if the ref is unknown/stale or can't be located.
-   */
-  private async resolveRefPoint(
-    ref: string,
-  ): Promise<{ x: number; y: number } | null> {
-    const entry = this.refRegistry.resolve(ref);
-    if (!entry?.xpath || !this.pageBridge) return null;
-    try {
-      return await this.pageBridge.elementCenter(entry.xpath);
-    } catch {
-      return null;
-    }
-  }
-
-  /**
    * Map a Navigator n1.5 action (core tool set) to a Stagehand AgentAction.
    * Returns `action: null` for tools handled inline (no page interaction).
-   *
-   * `refPoint`, when present, is an already-resolved viewport-pixel point from
-   * an expanded-tool `ref`; it replaces (and is used in preference to) the
-   * model's normalized coordinates for the primary target.
    */
   private convertToolCallToAction(
     name: string,
     args: Record<string, unknown>,
     stepReasoning?: string,
-    refPoint?: { x: number; y: number },
   ): { action: AgentAction | null; result: string } {
     const { width, height } = this.currentViewport;
     // Prefer the assistant message content (where Navigator n1.5 puts its
@@ -804,8 +668,14 @@ export class YutoriCUAClient extends AgentClient {
       case "triple_click":
       case "middle_click":
       case "right_click": {
-        const point = refPoint ?? coords(args.coordinates);
+        const point = coords(args.coordinates);
         if (!point) return { action: null, result: "[ERROR] No coordinates" };
+        if (typeof args.modifier === "string" && args.modifier.trim()) {
+          return {
+            action: null,
+            result: `[ERROR] ${name}: modifier keys are not supported`,
+          };
+        }
         const button =
           name === "middle_click"
             ? "middle"
@@ -822,16 +692,13 @@ export class YutoriCUAClient extends AgentClient {
             y: point.y,
             button,
             clickCount,
-            ...(typeof args.modifier === "string"
-              ? { modifier: args.modifier }
-              : {}),
           },
           result: `Clicked ${clickCount}x with ${button}`,
         };
       }
 
       case "mouse_move": {
-        const point = refPoint ?? coords(args.coordinates);
+        const point = coords(args.coordinates);
         if (!point) return { action: null, result: "[ERROR] No coordinates" };
         return {
           action: { ...base, type: "move", x: point.x, y: point.y },
@@ -847,45 +714,26 @@ export class YutoriCUAClient extends AgentClient {
         };
       }
 
+      // hold_key is disabled by default (the shared action handler has no
+      // key-hold support); if a user re-enables it, it degrades to a plain
+      // key press.
       case "key_press":
       case "hold_key": {
         const keyExpr = String(args.key ?? "");
         const keys = mapNavigatorKeyToPlaywright(keyExpr);
-        const duration =
-          name === "hold_key" && typeof args.duration === "number"
-            ? Math.max(0, Math.min(args.duration, 100)) * 1000
-            : undefined;
         return {
-          action: {
-            ...base,
-            type: "keypress",
-            keys,
-            ...(duration && duration > 0 ? { holdMs: duration } : {}),
-          },
-          result:
-            duration && duration > 0
-              ? `Held key '${keyExpr}' for ${duration / 1000}s`
-              : `Pressed key: ${keyExpr}`,
+          action: { ...base, type: "keypress", keys },
+          result: `Pressed key: ${keyExpr}`,
         };
       }
 
       case "scroll": {
-        const point = refPoint ?? coords(args.coordinates);
+        const point = coords(args.coordinates);
         if (!point) return { action: null, result: "[ERROR] No coordinates" };
-        // A ref target means "scroll this element into view". Resolving the ref
-        // already scrolled it into view, so — like Navigator's reference — we
-        // do not apply an additional directional scroll (which would overshoot).
-        if (refPoint) {
+        if (typeof args.modifier === "string" && args.modifier.trim()) {
           return {
-            action: {
-              ...base,
-              type: "scroll",
-              x: point.x,
-              y: point.y,
-              scroll_x: 0,
-              scroll_y: 0,
-            },
-            result: "Scrolled element into view",
+            action: null,
+            result: `[ERROR] ${name}: modifier keys are not supported`,
           };
         }
         const direction = String(args.direction ?? "down");
@@ -905,9 +753,6 @@ export class YutoriCUAClient extends AgentClient {
             y: point.y,
             scroll_x,
             scroll_y,
-            ...(typeof args.modifier === "string"
-              ? { modifier: args.modifier }
-              : {}),
           },
           result: `Scrolled ${direction}`,
         };
@@ -915,7 +760,7 @@ export class YutoriCUAClient extends AgentClient {
 
       case "drag": {
         const start = coords(args.start_coordinates);
-        const end = refPoint ?? coords(args.coordinates);
+        const end = coords(args.coordinates);
         if (!start || !end) {
           return { action: null, result: "[ERROR] Missing drag coordinates" };
         }
@@ -951,10 +796,14 @@ export class YutoriCUAClient extends AgentClient {
         };
 
       case "refresh":
-        return {
-          action: { ...base, type: "refresh" },
-          result: "Refreshed the page",
-        };
+        // The shared action handler has no reload action; re-navigating to
+        // the current URL is the closest equivalent.
+        return this.currentUrl
+          ? {
+              action: { ...base, type: "goto", url: this.currentUrl },
+              result: "Refreshed the page",
+            }
+          : { action: null, result: "[ERROR] refresh: current URL unknown" };
 
       case "wait": {
         const duration = Math.max(0, Math.min(Number(args.duration ?? 5), 100));

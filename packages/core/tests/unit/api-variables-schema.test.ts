@@ -136,38 +136,6 @@ describe("API model config schemas", () => {
     expect(result.data.options?.model).toEqual(azureModel);
   });
 
-  it("preserves Yutori Navigator model options for agent execute requests", () => {
-    const yutoriModel = {
-      provider: "yutori",
-      modelName: "yutori/n1.5-latest",
-      apiKey: "yt-test",
-      baseURL: "https://api.yutori.com/v1",
-      temperature: 0.2,
-      toolSet: "browser_tools_core-20260403",
-      disableTools: ["drag"],
-      jsonSchema: {
-        type: "object",
-        properties: { status: { type: "string" } },
-      },
-      userTimezone: "America/New_York",
-      userLocation: "New York, NY, US",
-    };
-
-    const result = Api.AgentExecuteRequestSchema.safeParse({
-      agentConfig: {
-        mode: "cua",
-        model: yutoriModel,
-      },
-      executeOptions: {
-        instruction: "Use Navigator to inspect the page",
-      },
-    });
-
-    expect(result.success).toBe(true);
-    if (!result.success) throw result.error;
-    expect(result.data.agentConfig.model).toEqual(yutoriModel);
-  });
-
   it("accepts minimal Vertex service account credentials", () => {
     const result = Api.ActRequestSchema.safeParse({
       input: "click the search button",

@@ -204,7 +204,6 @@ describe("Stagehand public API types", () => {
       description: string;
       method?: string;
       arguments?: string[];
-      modifiers?: string[];
     };
 
     it("matches expected type shape", () => {

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+import type { ToolSet } from "ai";
 import { YutoriCUAClient } from "../../lib/v3/agent/YutoriCUAClient.js";
 import type { AgentAction } from "../../lib/v3/types/public/agent.js";
 import type { ClientOptions } from "../../lib/v3/types/public/model.js";
@@ -8,12 +10,19 @@ type CreateFn = (...args: unknown[]) => unknown;
 function createClient(
   clientOptions: Partial<ClientOptions> = {},
   modelName = "n1.5-latest",
+  tools?: ToolSet,
 ) {
-  const client = new YutoriCUAClient("yutori", modelName, undefined, {
-    apiKey: "test-key",
-    baseURL: "https://example.com",
-    ...clientOptions,
-  });
+  const client = new YutoriCUAClient(
+    "yutori",
+    modelName,
+    undefined,
+    {
+      apiKey: "test-key",
+      baseURL: "https://example.com",
+      ...clientOptions,
+    },
+    tools,
+  );
   client.setScreenshotProvider(async () => "mock-base64-screenshot");
   client.setViewport(1280, 800);
   client.setCurrentUrl("https://example.com/page");
@@ -113,17 +122,13 @@ describe("YutoriCUAClient", () => {
       expected: Partial<AgentAction>;
     }> = [
       {
-        tool: toolCall("double_click", {
-          coordinates: [0, 0],
-          modifier: "ctrl",
-        }),
+        tool: toolCall("double_click", { coordinates: [0, 0] }),
         expected: {
           type: "click",
           x: 0,
           y: 0,
           clickCount: 2,
           button: "left",
-          modifier: "ctrl",
         },
       },
       {
@@ -134,16 +139,16 @@ describe("YutoriCUAClient", () => {
         tool: toolCall("key_press", { key: "ctrl+a" }),
         expected: { type: "keypress", keys: ["Control+a"] },
       },
+      // hold_key is disabled by default; if re-enabled it degrades to a press.
       {
         tool: toolCall("hold_key", { key: "shift", duration: 0.25 }),
-        expected: { type: "keypress", keys: ["Shift"], holdMs: 250 },
+        expected: { type: "keypress", keys: ["Shift"] },
       },
       {
         tool: toolCall("scroll", {
           coordinates: [500, 500],
           direction: "down",
           amount: 3,
-          modifier: "shift",
         }),
         expected: {
           type: "scroll",
@@ -151,16 +156,17 @@ describe("YutoriCUAClient", () => {
           y: 400,
           scroll_x: 0,
           scroll_y: 300,
-          modifier: "shift",
         },
       },
       {
         tool: toolCall("goto_url", { url: "example.org" }),
         expected: { type: "goto", url: "https://example.org" },
       },
+      // The shared handler has no reload action; refresh re-navigates to the
+      // current URL.
       {
         tool: toolCall("refresh", {}),
-        expected: { type: "refresh" },
+        expected: { type: "goto", url: "https://example.com/page" },
       },
     ];
 
@@ -202,27 +208,37 @@ describe("YutoriCUAClient", () => {
       disable_tools?: string[];
     };
     expect(body.model).toBe("n1.5-latest");
-    // Stagehand defaults Navigator n1.5 to the expanded tool set.
-    expect(body.tool_set).toBe("browser_tools_expanded-20260403");
-    expect(body.disable_tools).toEqual(["mouse_down", "mouse_up"]);
+    // Stagehand drives Navigator with the core (coordinate) tool set.
+    expect(body.tool_set).toBe("browser_tools_core-20260403");
+    expect(body.disable_tools).toEqual(["mouse_down", "mouse_up", "hold_key"]);
+    // No custom tools were provided, so the core path sends no `tools` key.
+    expect(
+      (create.mock.calls[0][0] as { tools?: unknown[] }).tools,
+    ).toBeUndefined();
+    // No `output` schema was provided, so no json_schema is sent either.
+    expect(
+      (create.mock.calls[0][0] as { json_schema?: unknown }).json_schema,
+    ).toBeUndefined();
   });
 
-  it("merges user-disabled Navigator tools with always-unsupported mouse tools", async () => {
-    const client = createClient({
-      disableTools: ["drag", "mouse_down"],
-    });
+  it("merges execute excludeTools with always-unsupported default tools", async () => {
+    const client = createClient();
     client.setActionHandler(async () => {});
     const create = vi.fn().mockResolvedValueOnce(assistant("done"));
     mockCreate(client, create);
 
     await client.execute({
-      options: { instruction: "x", maxSteps: 3 },
+      options: {
+        instruction: "x",
+        maxSteps: 3,
+        excludeTools: ["drag", "mouse_down"],
+      },
       logger,
     });
 
     expect(
       (create.mock.calls[0][0] as { disable_tools?: string[] }).disable_tools,
-    ).toEqual(["mouse_down", "mouse_up", "drag"]);
+    ).toEqual(["mouse_down", "mouse_up", "hold_key", "drag"]);
   });
 
   it("strips the Stagehand provider prefix before calling the Yutori API", async () => {
@@ -241,29 +257,199 @@ describe("YutoriCUAClient", () => {
     );
   });
 
-  it("accepts the core and expanded tool sets, rejects unknown ones", () => {
-    const make = (toolSet: string) =>
-      new YutoriCUAClient("yutori", "n1.5-latest", undefined, {
-        apiKey: "test-key",
-        baseURL: "https://example.com",
-        toolSet,
+  it("rejects modifier keys on click and scroll without dispatching an action", async () => {
+    for (const tool of [
+      toolCall("left_click", { coordinates: [500, 500], modifier: "ctrl" }),
+      toolCall("double_click", { coordinates: [0, 0], modifier: "ctrl" }),
+      toolCall("scroll", {
+        coordinates: [500, 500],
+        direction: "down",
+        modifier: "shift",
+      }),
+    ]) {
+      const client = createClient();
+      const handler = vi.fn();
+      client.setActionHandler(handler);
+      const create = vi
+        .fn()
+        .mockResolvedValueOnce(assistant("acting", [tool]))
+        .mockResolvedValueOnce(assistant("done"));
+      mockCreate(client, create);
+
+      await client.execute({
+        options: { instruction: "x", maxSteps: 5 },
+        logger,
       });
-    expect(() => make("browser_tools_core-20260403")).not.toThrow();
-    expect(() => make("browser_tools_expanded-20260403")).not.toThrow();
-    expect(() => make("browser_tools_bogus")).toThrow(
-      "not supported by Stagehand yet",
+
+      expect(handler).not.toHaveBeenCalled();
+      const secondCallMessages = (
+        create.mock.calls[1][0] as { messages: unknown[] }
+      ).messages;
+      expect(JSON.stringify(secondCallMessages)).toContain(
+        "modifier keys are not supported",
+      );
+    }
+  });
+
+  it("sends custom tools as OpenAI function tools and executes them in the client", async () => {
+    const execute = vi.fn().mockResolvedValue({ answer: 42 });
+    const tools = {
+      lookup: {
+        description: "Look something up",
+        inputSchema: z.object({ query: z.string() }),
+        execute,
+      },
+    } as unknown as ToolSet;
+    const client = createClient({}, "n1.5-latest", tools);
+    const handler = vi.fn();
+    client.setActionHandler(handler);
+
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(
+        assistant("calling tool", [toolCall("lookup", { query: "stagehand" })]),
+      )
+      .mockResolvedValueOnce(assistant("done"));
+    mockCreate(client, create);
+
+    const result = await client.execute({
+      options: { instruction: "x", maxSteps: 5 },
+      logger,
+    });
+
+    // The request advertises the custom tool as an OpenAI function tool.
+    const requestTools = (
+      create.mock.calls[0][0] as {
+        tools?: Array<{
+          type: string;
+          function: {
+            name: string;
+            description?: string;
+            parameters: Record<string, unknown>;
+          };
+        }>;
+      }
+    ).tools;
+    expect(requestTools).toHaveLength(1);
+    expect(requestTools?.[0].type).toBe("function");
+    expect(requestTools?.[0].function.name).toBe("lookup");
+    expect(requestTools?.[0].function.description).toBe("Look something up");
+    expect(requestTools?.[0].function.parameters).toMatchObject({
+      type: "object",
+      properties: { query: { type: "string" } },
+      required: ["query"],
+    });
+
+    // The client executes the tool itself — never via the action handler.
+    expect(execute).toHaveBeenCalledWith(
+      { query: "stagehand" },
+      { toolCallId: "call_1", messages: [] },
+    );
+    expect(handler).not.toHaveBeenCalled();
+
+    // The trajectory records a custom_tool action; the JSON-stringified
+    // result goes back to the model as the tool message.
+    expect(result.actions[0]).toMatchObject({
+      type: "custom_tool",
+      name: "lookup",
+      arguments: { query: "stagehand" },
+      pageUrl: "https://example.com/page",
+    });
+    const secondCallMessages = (
+      create.mock.calls[1][0] as { messages: unknown[] }
+    ).messages as Array<{
+      role: string;
+      tool_call_id?: string;
+      content: unknown;
+    }>;
+    const toolMsg = secondCallMessages.find((m) => m.role === "tool");
+    expect(toolMsg?.tool_call_id).toBe("call_1");
+    const serialized = JSON.stringify(toolMsg?.content);
+    expect(serialized).toContain('{\\"answer\\":42}');
+    // Tool results carry the same current-URL suffix as page actions.
+    expect(serialized).toContain("Current URL: https://example.com/page");
+  });
+
+  it("feeds an [ERROR] tool result back when a custom tool throws, and continues", async () => {
+    const execute = vi.fn().mockRejectedValue(new Error("lookup exploded"));
+    const tools = {
+      lookup: {
+        description: "Look something up",
+        inputSchema: z.object({ query: z.string() }),
+        execute,
+      },
+    } as unknown as ToolSet;
+    const client = createClient({}, "n1.5-latest", tools);
+    const handler = vi.fn();
+    client.setActionHandler(handler);
+
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(
+        assistant("calling tool", [toolCall("lookup", { query: "boom" })]),
+      )
+      .mockResolvedValueOnce(assistant("done"));
+    mockCreate(client, create);
+
+    const result = await client.execute({
+      options: { instruction: "x", maxSteps: 5 },
+      logger,
+    });
+
+    // The loop continues: the model gets the error and finishes on turn 2.
+    expect(result.completed).toBe(true);
+    expect(create).toHaveBeenCalledTimes(2);
+    // The attempted call is still recorded in the trajectory.
+    expect(result.actions[0]).toMatchObject({
+      type: "custom_tool",
+      name: "lookup",
+      arguments: { query: "boom" },
+    });
+    expect(handler).not.toHaveBeenCalled();
+    const secondCallMessages = (
+      create.mock.calls[1][0] as { messages: unknown[] }
+    ).messages as Array<{ role: string; content: unknown }>;
+    const toolMsg = secondCallMessages.find((m) => m.role === "tool");
+    expect(JSON.stringify(toolMsg?.content)).toContain(
+      "[ERROR] lookup: lookup exploded",
+    );
+  });
+
+  it("refresh with an unknown current URL yields an [ERROR] result and no action", async () => {
+    // Construct without setCurrentUrl: the client has never seen a URL.
+    const client = new YutoriCUAClient("yutori", "n1.5-latest", undefined, {
+      apiKey: "test-key",
+      baseURL: "https://example.com",
+    });
+    client.setScreenshotProvider(async () => "mock-base64-screenshot");
+    client.setViewport(1280, 800);
+    const handler = vi.fn();
+    client.setActionHandler(handler);
+
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(assistant("refreshing", [toolCall("refresh", {})]))
+      .mockResolvedValueOnce(assistant("done"));
+    mockCreate(client, create);
+
+    const result = await client.execute({
+      options: { instruction: "x", maxSteps: 5 },
+      logger,
+    });
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.actions).toHaveLength(0);
+    const secondCallMessages = (
+      create.mock.calls[1][0] as { messages: unknown[] }
+    ).messages as Array<{ role: string; content: unknown }>;
+    const toolMsg = secondCallMessages.find((m) => m.role === "tool");
+    expect(JSON.stringify(toolMsg?.content)).toContain(
+      "[ERROR] refresh: current URL unknown",
     );
   });
 
   it("requests a stop-and-summarize when max steps are exhausted", async () => {
-    const jsonSchema = {
-      type: "object",
-      properties: { status: { type: "string" } },
-    };
-    const client = createClient({
-      disableTools: ["drag"],
-      jsonSchema,
-    });
+    const client = createClient();
     client.setActionHandler(async () => {});
 
     // Every step returns a tool call (never naturally completes).
@@ -281,7 +467,12 @@ describe("YutoriCUAClient", () => {
     mockCreate(client, create);
 
     const result = await client.execute({
-      options: { instruction: "Do something long", maxSteps: 1 },
+      options: {
+        instruction: "Do something long",
+        maxSteps: 1,
+        excludeTools: ["drag"],
+        output: z.object({ status: z.string() }),
+      },
       logger,
     });
 
@@ -294,17 +485,21 @@ describe("YutoriCUAClient", () => {
     const lastMessages = (create.mock.calls[1][0] as { messages: unknown[] })
       .messages as Array<{ role: string; content: unknown }>;
     expect(JSON.stringify(lastMessages)).toContain("Stop here.");
-    // The step-loop call requests structured output ...
+    // The step-loop call requests structured output (json_schema derived from
+    // the `output` Zod schema) ...
     expect(create.mock.calls[0][0]).toMatchObject({
-      tool_set: "browser_tools_expanded-20260403",
-      disable_tools: ["mouse_down", "mouse_up", "drag"],
-      json_schema: jsonSchema,
+      tool_set: "browser_tools_core-20260403",
+      disable_tools: ["mouse_down", "mouse_up", "hold_key", "drag"],
+      json_schema: {
+        type: "object",
+        properties: { status: { type: "string" } },
+      },
     });
     // ... but the summarize turn asks for a free-text summary, so it must NOT
     // constrain decoding with json_schema (that would corrupt the message).
     expect(create.mock.calls[1][0]).toMatchObject({
-      tool_set: "browser_tools_expanded-20260403",
-      disable_tools: ["mouse_down", "mouse_up", "drag"],
+      tool_set: "browser_tools_core-20260403",
+      disable_tools: ["mouse_down", "mouse_up", "hold_key", "drag"],
     });
     expect(
       (create.mock.calls[1][0] as { json_schema?: unknown }).json_schema,

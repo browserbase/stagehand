@@ -22,8 +22,6 @@ export interface UnderstudyMethodHandlerContext {
   page: Page;
   initialUrl: string;
   domSettleTimeoutMs?: number;
-  /** Keyboard modifiers (Playwright key names) to hold during the action. */
-  modifiers?: string[];
 }
 
 // Normalize cases where the XPath is the root "/" to point to the HTML element.
@@ -41,7 +39,6 @@ export async function performUnderstudyMethod(
   rawXPath: string,
   args: ReadonlyArray<unknown>,
   domSettleTimeoutMs?: number,
-  modifiers?: string[],
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
 
@@ -82,7 +79,6 @@ export async function performUnderstudyMethod(
           page,
           initialUrl,
           domSettleTimeoutMs,
-          modifiers,
         };
         const handler = METHOD_HANDLER_MAP[method] ?? null;
 
@@ -314,10 +310,7 @@ async function clickElement(
 ): Promise<void> {
   const { locator, xpath, args } = ctx;
   try {
-    await locator.click({
-      button: (args[0] as MouseButton) || undefined,
-      modifiers: ctx.modifiers,
-    });
+    await locator.click({ button: (args[0] as MouseButton) || undefined });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     v3Logger({

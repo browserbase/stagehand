@@ -20,7 +20,6 @@ import {
   ElementNotVisibleError,
 } from "../types/public/sdkErrors.js";
 import { normalizeInputFiles } from "./fileUploadUtils.js";
-import { cdpModifierMask } from "./modifiers.js";
 import { SetInputFilesArgument, MouseButton } from "../types/public/locator.js";
 import { NormalizedFilePayload } from "../types/private/locator.js";
 
@@ -386,14 +385,12 @@ export class Locator {
   async click(options?: {
     button?: MouseButton;
     clickCount?: number;
-    modifiers?: string[];
   }): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
 
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
-    const modifierMask = cdpModifierMask(options?.modifiers);
 
     try {
       // Scroll into view using objectId (avoids frontend nodeId dependence)
@@ -427,7 +424,6 @@ export class Locator {
             y: cy,
             button,
             clickCount: i,
-            modifiers: modifierMask,
           } as Protocol.Input.DispatchMouseEventRequest),
         );
         dispatches.push(
@@ -437,7 +433,6 @@ export class Locator {
             y: cy,
             button,
             clickCount: i,
-            modifiers: modifierMask,
           } as Protocol.Input.DispatchMouseEventRequest),
         );
       }

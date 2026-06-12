@@ -39,6 +39,17 @@ export const modelToAgentProviderMap: Record<string, AgentProviderType> = {
 };
 
 /**
+ * Execute options (`execute({ excludeTools, output })`) each CUA provider's
+ * client implements beyond the shared action loop. Providers absent from this
+ * map support neither; their use is rejected by validateExperimentalFeatures.
+ */
+export const CUA_SUPPORTED_EXECUTE_OPTIONS: Partial<
+  Record<AgentProviderType, { excludeTools?: boolean; output?: boolean }>
+> = {
+  yutori: { excludeTools: true, output: true },
+};
+
+/**
  * Provider for agent clients
  * This class is responsible for creating the appropriate agent client
  * based on the provider type
@@ -110,6 +121,7 @@ export class AgentProvider {
             modelName,
             userProvidedInstructions,
             clientOptions,
+            tools,
           );
         default:
           throw new UnsupportedModelProviderError(

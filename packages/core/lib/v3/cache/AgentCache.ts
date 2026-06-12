@@ -7,7 +7,6 @@ import type {
   AgentReplayGotoStep,
   AgentReplayKeysStep,
   AgentReplayNavBackStep,
-  AgentReplayRefreshStep,
   AgentReplayScrollStep,
   AgentReplayStep,
   AgentReplayWaitStep,
@@ -661,9 +660,6 @@ export class AgentCache {
       case "navback":
         await this.replayAgentNavBackStep(step as AgentReplayNavBackStep, ctx);
         return step;
-      case "refresh":
-        await this.replayAgentRefreshStep(step as AgentReplayRefreshStep, ctx);
-        return step;
       case "keys":
         await this.replayAgentKeysStep(
           step as AgentReplayKeysStep,
@@ -780,14 +776,6 @@ export class AgentCache {
     await page.goto(step.url, { waitUntil: step.waitUntil ?? "load" });
   }
 
-  private async replayAgentRefreshStep(
-    step: AgentReplayRefreshStep,
-    ctx: V3Context,
-  ): Promise<void> {
-    const page = await ctx.awaitActivePage();
-    await page.reload({ waitUntil: step.waitUntil ?? "load" });
-  }
-
   private async replayAgentScrollStep(
     step: AgentReplayScrollStep,
     ctx: V3Context,
@@ -809,7 +797,6 @@ export class AgentCache {
       Math.round(anchor.y ?? 0),
       deltaX,
       deltaY,
-      { modifiers: step.modifiers },
     );
   }
 
