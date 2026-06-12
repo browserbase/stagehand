@@ -1,54 +1,59 @@
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  evaluationResultToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/sf_library_card" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
+      const initUrl = "https://sflib1.sfpl.org/selfreg";
       const page = v3.context.pages()[0];
-      await page.goto("https://sflib1.sfpl.org/selfreg");
-      const agentResult = await agent.execute({
-        instruction: "Fill in the 'street Address' field with '166 Geary St'",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 1,
-      });
-      logger.log(agentResult);
-      const evaluator = new V3Evaluator(v3);
-      const result = await evaluator.ask({
-        question:
+      await page.goto(initUrl);
+
+      const instruction =
+        "Fill in the 'street Address' field with '166 Geary St'";
+
+      const taskSpec: TaskSpec = {
+        id: "agent/sf_library_card",
+        instruction,
+        initUrl,
+        precomputedRubric: adHocRubric(
           "Does the page show the 'street Address' field filled with '166 Geary St'?",
+        ),
+      };
+
+      const { evaluationResult, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "agent-custom",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 1,
+        },
       });
 
-      if (result.evaluation !== "YES" && result.evaluation !== "NO") {
-        return {
-          _success: false,
-          observations: "Evaluator provided an invalid response",
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      const successMode = process.env.EVAL_SUCCESS_MODE;
 
-      if (result.evaluation === "YES") {
-        return {
-          _success: true,
-          observations: result.reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      } else {
-        return {
-          _success: false,
-          observations: result.reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      return {
+        _success: evaluationResultToSuccess(evaluationResult, successMode),
+        outcomeSuccess: evaluationResult.outcomeSuccess,
+        processScore: evaluationResult.processScore,
+        trajectoryDir,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
     } catch (error) {
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
-        error: error,
+        error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

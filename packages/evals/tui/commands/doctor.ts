@@ -172,7 +172,7 @@ async function summarizeDiscovery(): Promise<DiscoverySummary> {
 }
 
 /**
- * Verdict rules (plan §07):
+ * Verdict rules:
  *   fail  — zero provider keys, OR defaults.env=browserbase with both BB
  *           vars missing, OR discovery threw.
  *   warn  — at least one provider key present, but Braintrust missing or

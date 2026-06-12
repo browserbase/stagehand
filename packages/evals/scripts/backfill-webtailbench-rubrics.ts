@@ -29,7 +29,7 @@ const JSONL_PATH = path.join(
   "WebTailBench_data.jsonl",
 );
 
-interface Rubric {
+interface RawRubric {
   items: Array<Record<string, unknown>>;
 }
 
@@ -38,7 +38,7 @@ interface LocalRow {
   category?: string;
   ques: string;
   web?: string;
-  precomputed_rubric?: Rubric;
+  precomputed_rubric?: RawRubric;
 }
 
 /**
@@ -114,12 +114,12 @@ async function main(): Promise<void> {
     );
   }
 
-  const rubricsById = new Map<string, Rubric>();
+  const rubricsById = new Map<string, RawRubric>();
   for (let i = 1; i < rows.length; i++) {
     const cols = rows[i];
     if (!cols[idIdx]) continue;
     try {
-      const parsed = JSON.parse(cols[rubricIdx]) as Rubric;
+      const parsed = JSON.parse(cols[rubricIdx]) as RawRubric;
       rubricsById.set(cols[idIdx], parsed);
     } catch (e) {
       console.warn(
@@ -149,7 +149,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `  ✓ matched ${matched}/${inLines.length} rows; ${missing} unmatched (will fall back to Step 0a generation)`,
+    `  ✓ matched ${matched}/${inLines.length} rows; ${missing} unmatched (will fall back to generated rubrics)`,
   );
 
   await fs.writeFile(JSONL_PATH, out.join("\n") + "\n", "utf8");

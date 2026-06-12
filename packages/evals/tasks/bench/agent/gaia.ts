@@ -1,12 +1,22 @@
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  evaluationResultToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 /**
- * Data-driven GAIA agent eval
- * - Expects per-test params injected via eval runner: { id, level, web, ques }
- * - Starts at `web`, runs the agent with `ques` as instruction
- * - Requires the agent to output a final answer in the form: "Final Answer: <value>"
- * - Marks success if such an answer string is present (exact matching against dataset can be layered later)
+ * Data-driven GAIA agent eval.
+ *
+ * Per-test params (injected via the eval runner):
+ *   { id, level, web, ques, expected? }
+ *
+ * Starts at `web`, runs the agent with `ques` as the instruction. The
+ * verifier scores against a single criterion that checks the final answer
+ * against `expected` when present; otherwise falls back to a generic
+ * "did the agent complete this task?" criterion.
  */
 export default defineBenchTask(
   { name: "agent/gaia" },
@@ -17,6 +27,7 @@ export default defineBenchTask(
         level?: number;
         web?: string;
         ques?: string;
+        expected?: string;
       };
 
       if (!params.web || !params.ques) {
@@ -36,6 +47,7 @@ export default defineBenchTask(
           logs: logger.getLogs(),
         };
       }
+
       const page = v3.context.pages()[0];
       await page.goto(params.web);
 
@@ -47,30 +59,42 @@ export default defineBenchTask(
         systemPrompt,
       });
 
-      const result = await agent.execute({
+      const criterion = params.expected
+        ? `Did the agent's final answer match the expected answer: "${params.expected}"?`
+        : `did the agent complete this task successfully? ${params.ques}`;
+
+      const taskSpec: TaskSpec = {
+        id: params.id ?? `gaia/${input.name}`,
         instruction: params.ques,
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+        initUrl: params.web,
+        expectedAnswer: params.expected,
+        precomputedRubric: adHocRubric(criterion),
+      };
+
+      const { evaluationResult, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "gaia",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+        },
       });
 
-      const expected = (params as Record<string, unknown>).expected as
-        | string
-        | undefined;
-      const evaluator = new V3Evaluator(v3);
-      const evalResult = await evaluator.ask({
-        question: `Did the agent provide the expected answer: "${expected}"?`,
-        answer: result?.message || "",
-        screenshot: false,
-      });
+      const successMode = process.env.EVAL_SUCCESS_MODE;
 
       return {
-        _success: evalResult.evaluation === "YES",
-        reasoning: evalResult.reasoning,
-        expectedAnswer: expected,
+        _success: evaluationResultToSuccess(evaluationResult, successMode),
+        outcomeSuccess: evaluationResult.outcomeSuccess,
+        processScore: evaluationResult.processScore,
+        expectedAnswer: params.expected,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } catch (error) {
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       logger.error({
         category: "gaia",
         level: 0,
@@ -80,15 +104,12 @@ export default defineBenchTask(
             value: error instanceof Error ? error.message : String(error),
             type: "string",
           },
-          trace: {
-            value: error instanceof Error && error.stack ? error.stack : "",
-            type: "string",
-          },
         },
       });
       return {
         _success: false,
         error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
