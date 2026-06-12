@@ -1,13 +1,24 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
-import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
-import { imageResize } from "../../../utils/imageResize.js";
+import type { TaskSpec } from "@browserbasehq/stagehand";
 
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import {
+  runWithVerifier,
+  evaluationResultToSuccess,
+} from "../../../framework/verifierAdapter.js";
+
+/**
+ * WebVoyager bench task.
+ *
+ * Runs through TrajectoryRecorder + V3Evaluator.verify(). WebVoyager doesn't
+ * ship precomputed rubrics, so the verifier generates one on first encounter
+ * per task id and caches under packages/evals/.rubric-cache/webvoyager/.
+ *
+ * --success knob: defaults to "outcome".
+ * Override via the EVAL_SUCCESS_MODE env var: outcome | process | both.
+ */
 export default defineBenchTask(
   { name: "agent/webvoyager" },
   async ({ v3, logger, debugUrl, sessionUrl, modelName, input }) => {
-    let screenshotCollector: ScreenshotCollector | null = null;
-
     try {
       const params = ((input && input.params) || {}) as {
         id?: string;
@@ -27,89 +38,75 @@ export default defineBenchTask(
       }
 
       const page = v3.context.pages()[0];
-      await page.goto(params.web, {
-        timeoutMs: 120_000,
-      });
+      await page.goto(params.web, { timeoutMs: 120_000 });
 
       const systemPrompt = `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}`;
       const agentMode = input.agentMode ?? (input.isCUA ? "cua" : "hybrid");
-      const agent =
-        agentMode === "cua"
-          ? v3.agent({
-              mode: "cua",
-              model: modelName,
-              systemPrompt,
-            })
-          : v3.agent({
-              mode: agentMode,
-              model: modelName,
-              systemPrompt,
-            });
-
-      screenshotCollector = new ScreenshotCollector(v3, {
-        interval: 3000,
-        maxScreenshots: 7,
+      const agent = v3.agent({
+        mode: agentMode,
+        model: modelName,
+        systemPrompt,
       });
-      screenshotCollector.start();
 
-      const agentResult = await agent.execute({
+      const taskSpec: TaskSpec = {
+        id: params.id ?? `webvoyager/${input.name}`,
         instruction: params.ques,
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
-      });
+        initUrl: params.web,
+        // No precomputedRubric; RubricCache generates one, then hydrates from
+        // cache on subsequent runs.
+      };
 
-      // Stop collecting and get all screenshots
-      let screenshots = await screenshotCollector.stop();
+      const { evaluationResult, trajectory, trajectoryDir, rubric } =
+        await runWithVerifier({
+          v3,
+          agent,
+          taskSpec,
+          dataset: "webvoyager",
+          agentOptions: {
+            maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+          },
+        });
 
-      // Resize screenshots if we have any
-      if (screenshots.length > 0) {
-        screenshots = await Promise.all(
-          screenshots.map(async (screenshot) => {
-            return await imageResize(screenshot, 0.7);
-          }),
-        );
-      }
+      const successMode = process.env.EVAL_SUCCESS_MODE;
 
       logger.log({
         category: "evaluation",
-        message: `Collected ${screenshots.length} screenshots for evaluation`,
+        message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} criteria=${rubric.items.length} steps=${trajectory.steps.length}`,
         level: 1,
       });
 
-      const evaluator = new V3Evaluator(v3);
-      const evalResult = await evaluator.ask({
-        question: `Did the agent successfully complete this task: "${params.ques}"?`,
-        screenshot: screenshots,
-        agentReasoning:
-          agentResult.message ||
-          "no reasoning available, agent potentially hit step limit",
-      });
-
-      // Clear screenshot buffers to free memory
-      screenshots.length = 0;
+      const raw = evaluationResult.rawSteps;
 
       return {
-        _success: evalResult.evaluation === "YES",
-        reasoning: evalResult.reasoning,
+        _success: evaluationResultToSuccess(evaluationResult, successMode),
+        outcomeSuccess: evaluationResult.outcomeSuccess,
+        processScore: evaluationResult.processScore,
+        evidenceInsufficient: evaluationResult.evidenceInsufficient,
+        criterionCount: rubric.items.length,
+        stepCount: trajectory.steps.length,
+        trajectoryDir,
+        rubricSource: raw?.rubricSource,
+        primaryIntent: raw?.primaryIntent,
+        reasoning: raw?.reasoning,
+        webName: params.web_name,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } catch (error) {
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
         error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      if (screenshotCollector) {
-        try {
-          await screenshotCollector.stop();
-        } catch {
-          // Ignore errors during cleanup
-        }
-      }
     }
   },
 );
+
+function formatProcessScore(score: number | undefined): string {
+  return typeof score === "number" ? score.toFixed(2) : "n/a";
+}

@@ -1,56 +1,59 @@
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  evaluationResultToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/sf_library_card_multiple" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
+      const initUrl = "https://sflib1.sfpl.org/selfreg";
       const page = v3.context.pages()[0];
-      await page.goto("https://sflib1.sfpl.org/selfreg");
+      await page.goto(initUrl);
 
-      const agentResult = await agent.execute({
-        instruction:
-          "Fill in ALL the required fields with mock data. DO NOT submit the form",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
+      const instruction =
+        "Fill in ALL the required fields with mock data. DO NOT submit the form";
+
+      const taskSpec: TaskSpec = {
+        id: "agent/sf_library_card_multiple",
+        instruction,
+        initUrl,
+        precomputedRubric: adHocRubric(
+          "Does the page show all the required fields filled?",
+        ),
+      };
+
+      const { evaluationResult, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "agent-custom",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
+        },
       });
-      logger.log(agentResult);
 
-      const evaluator = new V3Evaluator(v3);
-      const result = await evaluator.ask({
-        question: "Does the page show all the required fields filled?",
-      });
+      const successMode = process.env.EVAL_SUCCESS_MODE;
 
-      if (result.evaluation !== "YES" && result.evaluation !== "NO") {
-        return {
-          _success: false,
-          observations: "Evaluator provided an invalid response",
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
-
-      if (result.evaluation === "YES") {
-        return {
-          _success: true,
-          observations: result.reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      } else {
-        return {
-          _success: false,
-          observations: result.reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      return {
+        _success: evaluationResultToSuccess(evaluationResult, successMode),
+        outcomeSuccess: evaluationResult.outcomeSuccess,
+        processScore: evaluationResult.processScore,
+        trajectoryDir,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
     } catch (error) {
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
-        error: error,
+        error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
