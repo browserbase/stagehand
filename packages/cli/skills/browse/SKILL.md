@@ -139,8 +139,8 @@ browse get html "#main"
 browse get value "#email"
 browse get markdown body                   # page/element content as markdown
 browse eval "document.title"              # run JavaScript in the active page
-browse screenshot --path page.png         # write the image to a file (recommended)
-browse screenshot                         # prints ~22KB of base64 to stdout — avoid in agent loops
+browse screenshot                         # print base64 JSON
+browse screenshot --path page.png
 ```
 
 Interaction:
