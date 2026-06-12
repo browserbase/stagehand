@@ -87,6 +87,10 @@ import { Page } from "./understudy/page.js";
 import { resolveModel } from "../modelUtils.js";
 import { StagehandAPIClient } from "./api.js";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
+import {
+  AgentProvider,
+  CUA_SUPPORTED_EXECUTE_OPTIONS,
+} from "./agent/AgentProvider.js";
 import { flattenVariables } from "./agent/utils/variables.js";
 import { FlowLogger, type FlowLoggerContext } from "./flowlogger/FlowLogger.js";
 import { EventEmitterWithWildcardSupport } from "./flowlogger/EventEmitter.js";
@@ -1990,6 +1994,20 @@ export class V3 {
         throw new CuaModelRequiredError(AVAILABLE_CUA_MODELS);
       }
 
+      // Execute options (excludeTools/output) this provider's CUA client
+      // implements; everything else is rejected at validation time.
+      let cuaSupportedExecuteOptions:
+        | { excludeTools?: boolean; output?: boolean }
+        | undefined;
+      try {
+        const providerType =
+          clientOptions?.provider ?? AgentProvider.getAgentProvider(modelName);
+        cuaSupportedExecuteOptions =
+          CUA_SUPPORTED_EXECUTE_OPTIONS[providerType];
+      } catch {
+        cuaSupportedExecuteOptions = undefined;
+      }
+
       const agentConfigSignature =
         this.agentCache.buildConfigSignature(options);
       const execute = async (
@@ -2005,6 +2023,7 @@ export class V3 {
                 typeof instructionOrOptions === "object"
                   ? instructionOrOptions
                   : null,
+              cuaSupportedExecuteOptions,
             });
 
             const tools = options?.integrations
