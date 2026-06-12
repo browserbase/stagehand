@@ -57,10 +57,14 @@ Every driver command accepts the same flags to pick where the browser runs. Mix 
 | `--auto-connect` | Auto-discover and attach to a local Chrome with remote debugging enabled |
 | `--cdp <url\|port>` | Attach directly to a CDP endpoint (port, `http(s)://`, or `ws(s)://`) |
 | `--target-id <id>` | Select a specific CDP target when attaching to an existing browser |
+| `--chrome-arg <flag>` | Append a Chrome launch arg on top of the defaults (repeatable, managed-local only) |
+| `--ignore-default-chrome-arg <flag>` | Drop a specific Chrome default launch arg (repeatable, managed-local only) |
+| `--no-default-chrome-args` | Launch without any of Chrome's default args (managed-local only) |
 
 ```bash
 browse open https://example.com                 # default target
 browse open https://example.com --local --headed
+browse open https://example.com --local --headed --chrome-arg=--no-focus-on-navigate
 browse open https://example.com --remote
 browse open https://example.com --auto-connect
 browse open https://example.com --cdp 9222

@@ -40,6 +40,25 @@ export const targetIdFlag = Flags.string({
   helpValue: "<target-id>",
 });
 
+export const chromeArgFlag = Flags.string({
+  description:
+    "Add a Chrome launch arg for managed local sessions. Repeatable.",
+  helpValue: "<flag>",
+  multiple: true,
+});
+
+export const ignoreDefaultChromeArgFlag = Flags.string({
+  description:
+    "Drop one of Chrome's default launch args for managed local sessions. Repeatable.",
+  helpValue: "<flag>",
+  multiple: true,
+});
+
+export const noDefaultChromeArgsFlag = Flags.boolean({
+  description:
+    "Launch managed local Chrome without any of its default launch args.",
+});
+
 export function sessionName(value?: string): string {
   return value ?? process.env.BROWSE_SESSION ?? "default";
 }

@@ -59,6 +59,19 @@ describe("driver commands", () => {
     expect(hasExplicitDriverTarget({ headed: true })).toBe(true);
     expect(hasExplicitDriverTarget({ headless: true })).toBe(true);
     expect(hasExplicitDriverTarget({ cdp: "9222" })).toBe(true);
+    expect(
+      hasExplicitDriverTarget({
+        "chrome-arg": ["--no-focus-on-navigate"],
+      }),
+    ).toBe(true);
+    expect(
+      hasExplicitDriverTarget({
+        "ignore-default-chrome-arg": ["--enable-automation"],
+      }),
+    ).toBe(true);
+    expect(hasExplicitDriverTarget({ "no-default-chrome-args": true })).toBe(
+      true,
+    );
   });
 
   it("reuses an existing daemon when a broad mode flag matches", async () => {
