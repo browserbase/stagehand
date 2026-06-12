@@ -14,9 +14,6 @@
  * also be topics (e.g. `cloud:contexts`, which prints topic help).
  */
 export const aliasSuggestions: ReadonlyMap<string, string> = new Map([
-  ["auth", "doctor"],
-  ["auth:status", "doctor"],
-  ["login", "doctor"],
   ["sessions", "cloud:sessions:list"],
   ["sessions:list", "cloud:sessions:list"],
   ["sessions:create", "cloud:sessions:create"],

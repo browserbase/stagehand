@@ -79,14 +79,21 @@ describe("suggestCommand", () => {
   });
 
   it("matches the longest alias prefix first", () => {
-    expect(suggestCommand("auth:status", commandIds)).toEqual({
-      attempted: "auth:status",
-      suggestion: "doctor",
+    expect(suggestCommand("sessions:create", commandIds)).toEqual({
+      attempted: "sessions:create",
+      suggestion: "cloud:sessions:create",
     });
-    expect(suggestCommand("auth", commandIds)).toEqual({
-      attempted: "auth",
-      suggestion: "doctor",
+    expect(suggestCommand("sessions", commandIds)).toEqual({
+      attempted: "sessions",
+      suggestion: "cloud:sessions:list",
     });
+  });
+
+  it("does not map auth/login to unrelated commands", () => {
+    expect(suggestCommand("auth:status", commandIds)?.suggestion).not.toBe(
+      "doctor",
+    );
+    expect(suggestCommand("login", commandIds)?.suggestion).not.toBe("doctor");
   });
 
   it("falls back to nearest command by edit distance", () => {
@@ -189,12 +196,14 @@ describe("command_not_found hook (built CLI)", () => {
 
     try {
       const installIdFile = await tempInstallIdFile("browse-notfound-");
-      const result = await runCli(["auth", "status"], {
+      const result = await runCli(["sessions", "list"], {
         env: telemetryEnv(telemetryServer, installIdFile),
       });
 
       expect(result.exitCode).toBe(2);
-      expect(result.stderr).toContain('Did you mean "browse doctor"?');
+      expect(result.stderr).toContain(
+        'Did you mean "browse cloud sessions list"?',
+      );
 
       const payload = telemetryServer.requests
         .filter((request) => request.path === "/i/v0/e/")
@@ -208,8 +217,10 @@ describe("command_not_found hook (built CLI)", () => {
         .find((body) => body.event === "cli.command_not_found");
 
       expect(payload).toBeDefined();
-      expect(payload?.properties?.attempted_command).toBe("auth.status");
-      expect(payload?.properties?.suggested_command).toBe("doctor");
+      expect(payload?.properties?.attempted_command).toBe("sessions.list");
+      expect(payload?.properties?.suggested_command).toBe(
+        "cloud.sessions.list",
+      );
       expect(payload?.properties?.source).toBe("cli");
     } finally {
       await telemetryServer.close();
