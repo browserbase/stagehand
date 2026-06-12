@@ -27,7 +27,8 @@
     "hooks": {
       "init": "./dist/hooks/init.js",
       "prerun": "./dist/hooks/prerun.js",
-      "finally": "./dist/hooks/finally.js"
+      "finally": "./dist/hooks/finally.js",
+      "command_not_found": "./dist/hooks/command-not-found.js"
     },
     "topicSeparator": " ",
     "topics": {
