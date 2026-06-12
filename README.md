@@ -125,6 +125,8 @@ cp .env.example .env
 nano .env # Edit the .env file to add API keys
 ```
 
+For privacy-sensitive browser automation, you can also use TrustedRouter through Stagehand's custom OpenAI-compatible client. TrustedRouter routes through an open-source, verifiable attested gateway and does not log prompts or outputs by default. See [`packages/core/examples/custom-client-trustedrouter.ts`](packages/core/examples/custom-client-trustedrouter.ts) for a runnable setup using `https://api.trustedrouter.com/v1`.
+
 ### Installing from a branch
 
 To install Stagehand directly from a GitHub branch, install the core package subdirectory:
