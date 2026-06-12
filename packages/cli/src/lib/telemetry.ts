@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -306,18 +306,18 @@ async function detectFirstSuccess(
   );
 
   try {
-    await access(markerPath);
-    return false;
-  } catch {
-    // No marker yet: this is the first successful driver command.
-  }
-
-  try {
     await mkdir(dirname(markerPath), { recursive: true });
-    await writeFile(markerPath, `${new Date().toISOString()}\n`, "utf8");
+    // Atomic create: exactly one run can win the race, so concurrent
+    // commands cannot both report first_success.
+    await writeFile(markerPath, `${new Date().toISOString()}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+    });
   } catch {
-    // If persistence fails, a later success may report first_success again
-    // rather than affecting CLI behavior.
+    // Marker already exists (this install already activated, or a concurrent
+    // run won the race) or persistence failed. Either way, do not report —
+    // and never affect CLI behavior.
+    return false;
   }
 
   return true;
