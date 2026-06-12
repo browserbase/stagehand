@@ -1,5 +1,7 @@
 import type {
+  DriverInitHints,
   RemoteDoctorResult,
+  RemoteInitErrorClassification,
   StagehandConstructorOptions,
 } from "./remote-types.js";
 import type { ConnectionTarget } from "./types.js";
@@ -23,6 +25,27 @@ export function autoSelectRemoteTarget(): ConnectionTarget | null {
 
 export function remoteStagehandOptions(): StagehandConstructorOptions {
   throw new Error(DISABLED_MESSAGE);
+}
+
+export function classifyRemoteInitError(
+  error: unknown,
+): RemoteInitErrorClassification {
+  // Remote targets cannot be selected in a local-only build, so this is only
+  // reachable if a remote error somehow surfaces anyway; preserve it as-is.
+  return {
+    code: "remote_session_create_failed",
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+export function driverInitHints(): DriverInitHints {
+  // Key-free variants: a local-only artifact must not mention the API key.
+  return {
+    chromeNotFound:
+      "Chrome was not found on this machine. Install Chrome (https://www.google.com/chrome/) or attach to a running browser with --cdp <port>.",
+    repeatedInitFailure:
+      " (failing repeatedly — check your browser setup or run browse doctor)",
+  };
 }
 
 export function remoteDoctorCheck(): RemoteDoctorResult {

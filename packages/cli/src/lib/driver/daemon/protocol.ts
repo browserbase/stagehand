@@ -41,7 +41,9 @@ export const SuccessResponseSchema = z.object({
 });
 
 export const ErrorResponseSchema = z.object({
+  code: z.string().optional(),
   error: z.string(),
+  httpStatus: z.number().optional(),
   id: z.string().optional(),
   type: z.literal("error"),
 });
