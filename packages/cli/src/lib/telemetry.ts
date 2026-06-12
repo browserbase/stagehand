@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -113,12 +113,14 @@ export async function captureCommandCompleted(
 
   const exitCode = resolveExitCode(error);
   const success = exitCode === 0;
+  const firstSuccess = await detectFirstSuccess(command, success);
   const completionCapture = getCliTelemetry(cliVersion)
     .capture(
       "cli.command_completed",
       commandCompletedProperties(command, {
         error,
         exitCode,
+        firstSuccess,
         recordedError: state.recordedError,
         success,
       }),
@@ -221,6 +223,7 @@ function commandCompletedProperties(
   completion: {
     error: Error | undefined;
     exitCode: number;
+    firstSuccess?: boolean;
     recordedError?: RecordedCommandError;
     success: boolean;
   },
@@ -236,7 +239,7 @@ function commandCompletedProperties(
     runTelemetry.resultCode ??
     fallbackResultCode(completion.success, errorType);
 
-  return {
+  const properties: TelemetryProperties = {
     command_path: invocation.commandPath,
     top_level_command: invocation.topLevelCommand,
     leaf_command: invocation.leafCommand,
@@ -255,7 +258,69 @@ function commandCompletedProperties(
       failureTelemetry?.requestHadHttpResponse ??
       runTelemetry.requestHadHttpResponse ??
       null,
+    skill_id: runTelemetry.skillId ?? null,
   };
+
+  if (completion.firstSuccess) {
+    properties.first_success = true;
+  }
+
+  return properties;
+}
+
+// Top-level command topics that are not browser-driver commands. Activation
+// (first_success) counts only successful driver commands, so new driver
+// commands are covered by default.
+const nonDriverTopLevelCommands = new Set([
+  "cloud",
+  "daemon",
+  "doctor",
+  "functions",
+  "skills",
+  "status",
+  "stop",
+  "templates",
+]);
+
+const activatedMarkerFileName = "activated";
+
+// Returns true exactly once per install: the first time a browser-driver
+// command completes successfully. Tracked via a marker file alongside the
+// anonymous install id. Best-effort — never throws, never blocks the command.
+async function detectFirstSuccess(
+  command: CommandInvocation,
+  success: boolean,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<boolean> {
+  if (
+    !success ||
+    nonDriverTopLevelCommands.has(command.topLevelCommand) ||
+    isTelemetryDisabled(env)
+  ) {
+    return false;
+  }
+
+  const markerPath = join(
+    dirname(resolveInstallIdPath(env)),
+    activatedMarkerFileName,
+  );
+
+  try {
+    await access(markerPath);
+    return false;
+  } catch {
+    // No marker yet: this is the first successful driver command.
+  }
+
+  try {
+    await mkdir(dirname(markerPath), { recursive: true });
+    await writeFile(markerPath, `${new Date().toISOString()}\n`, "utf8");
+  } catch {
+    // If persistence fails, a later success may report first_success again
+    // rather than affecting CLI behavior.
+  }
+
+  return true;
 }
 
 function fallbackResultCode(

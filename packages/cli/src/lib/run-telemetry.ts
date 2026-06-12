@@ -2,6 +2,7 @@ export interface RunTelemetryState {
   resultCode?: string;
   httpStatus?: number;
   requestHadHttpResponse?: boolean;
+  skillId?: string;
 }
 
 let currentRunTelemetry: RunTelemetryState = {};
