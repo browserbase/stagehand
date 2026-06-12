@@ -3,7 +3,7 @@
  *
  * Models the user-visible command surface as a tree:
  *   root → run, list, new, config{path,set,reset,core{path,set,reset,setup}},
- *          experiments{list,show,open,compare}
+ *          experiments{list,show,open,compare}, verify, doctor
  *
  * Both the REPL (tui/repl.ts) and argv mode (cli.ts) build the same tree
  * via `buildCommandTree()` and dispatch user input through it. This is the
@@ -321,19 +321,20 @@ async function runMeta(
       return;
     }
 
+    case "clear": {
+      if (ctx.contextPath === null) {
+        throw new Error("`clear` is not available outside the REPL");
+      }
+      console.clear();
+      return;
+    }
+
     case "exit": {
       if (ctx.contextPath === null) {
         throw new Error("`exit` is not available outside the REPL");
       }
       console.log(dim("\n  Goodbye.\n"));
       process.exit(0);
-    }
-    // eslint-disable-next-line no-fallthrough -- exit terminates
-    case "clear": {
-      if (ctx.contextPath === null) {
-        throw new Error("`clear` is not available outside the REPL");
-      }
-      console.clear();
       return;
     }
 
@@ -643,6 +644,17 @@ export function buildCommandTree(): CommandNode {
     },
   };
 
+  const verifyNode: CommandNode = {
+    name: "verify",
+    summary: "Re-score a saved trajectory",
+    printHelp: async () =>
+      (await import("./commands/verify.js")).printVerifyHelp(),
+    handler: async (args) => {
+      const { handleVerify } = await import("./commands/verify.js");
+      await handleVerify(args);
+    },
+  };
+
   const root: CommandNode = {
     name: "evals",
     summary: "Stagehand evals CLI",
@@ -653,6 +665,7 @@ export function buildCommandTree(): CommandNode {
       configNode,
       experimentsNode,
       newNode,
+      verifyNode,
       doctorNode,
     ],
   };
