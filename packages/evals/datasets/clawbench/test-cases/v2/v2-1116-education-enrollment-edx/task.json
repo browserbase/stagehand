@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1116,
+    "metaclass": "education",
+    "class": "enrollment",
+    "description": "Enroll in the free 'Python Basics for Data Science' course by IBM on edX",
+    "sites_involved": [
+      "edx.org"
+    ],
+    "platform": "edx",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Log into edX and enroll in the free 'Python Basics for Data Science' course by IBM on edX",
+  "eval_schema": {
+    "url_pattern": "www\\.edx\\.org/(track-select/|learn/)",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

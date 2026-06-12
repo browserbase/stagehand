@@ -1,0 +1,30 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 179,
+    "metaclass": "dev-tech",
+    "class": "github-ops",
+    "description": "Create repo \"openclaw-agent-benchmark\" on GitHub + README + MIT LICENSE + .gitignore",
+    "sites_involved": [
+      "github.com"
+    ],
+    "platform": "github",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Create repo \"openclaw-agent-benchmark\" on GitHub + README + MIT LICENSE + .gitignore",
+  "eval_schema": {
+    "url_pattern": "github\\.com/repositories$",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": [
+    {
+      "path": "extra_info/config.json",
+      "description": "Configuration details for the task"
+    }
+  ]
+}

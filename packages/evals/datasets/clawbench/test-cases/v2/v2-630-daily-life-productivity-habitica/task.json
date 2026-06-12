@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 630,
+    "metaclass": "daily-life",
+    "class": "productivity",
+    "description": "Add a new daily task on Habitica for 'Drink 8 glasses of water'",
+    "sites_involved": [
+      "habitica.com"
+    ],
+    "platform": "habitica",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Add a new daily task on Habitica for 'Drink 8 glasses of water'",
+  "eval_schema": {
+    "url_pattern": "habitica\\.com/api/v\\d+/tasks/user",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

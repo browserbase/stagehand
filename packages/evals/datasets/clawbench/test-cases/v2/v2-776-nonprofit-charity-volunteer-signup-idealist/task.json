@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 776,
+    "metaclass": "nonprofit-charity",
+    "class": "volunteer-signup",
+    "description": "On Idealist, search for Program Manager positions at nonprofits in Washington DC, select a qualifying position and submit a job application",
+    "sites_involved": [
+      "idealist.org"
+    ],
+    "platform": "idealist",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On Idealist, search for Program Manager positions at nonprofits in Washington DC, select a qualifying position and submit a job application",
+  "eval_schema": {
+    "url_pattern": "www\\.idealist\\.org/data/userdashboard/missing-info",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

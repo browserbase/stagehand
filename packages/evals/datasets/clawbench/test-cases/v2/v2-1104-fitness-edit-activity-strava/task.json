@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1104,
+    "metaclass": "fitness",
+    "class": "activity-edit",
+    "description": "Navigate to the most recent Strava activity, open the edit form, and save a new description",
+    "sites_involved": [
+      "strava.com"
+    ],
+    "platform": "strava",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Edit the most recent activity on Strava and add the description 'Felt strong today — great tempo throughout.'",
+  "eval_schema": {
+    "url_pattern": "strava\\.com\\/activities\\/\\d+",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

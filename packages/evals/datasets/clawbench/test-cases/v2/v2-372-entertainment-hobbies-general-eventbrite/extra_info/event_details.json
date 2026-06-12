@@ -1,0 +1,10 @@
+{
+  "event_name": "ML Paper Reading Group",
+  "event_type": "free",
+  "date": "2026-04-15",
+  "time": "6:00 PM - 8:00 PM ET",
+  "location": "Online (Zoom)",
+  "description": "Weekly paper reading group focusing on recent ML research. This week: attention mechanisms and transformer architectures. All levels welcome.",
+  "capacity": 50,
+  "organizer": "Alex Green"
+}

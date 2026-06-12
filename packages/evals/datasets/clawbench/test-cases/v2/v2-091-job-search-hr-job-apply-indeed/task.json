@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 91,
+    "metaclass": "job-search-hr",
+    "class": "job-apply",
+    "description": "Search \"Senior Software Engineer\" (Toronto) on Indeed, apply to the top-ranked listing",
+    "sites_involved": [
+      "indeed.com"
+    ],
+    "platform": "indeed",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search \"Senior Software Engineer\" (Toronto) on Indeed, apply to the top-ranked listing",
+  "eval_schema": {
+    "url_pattern": "smartapply\\.indeed\\.com/beta/indeedapply/resumeapply|apply\\.indeed\\.com/indeedapply/postresumeapply|smartapply\\.indeed\\.com/beta/indeedapply/submit",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

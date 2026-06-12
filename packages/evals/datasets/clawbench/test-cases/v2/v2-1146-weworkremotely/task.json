@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1146,
+    "metaclass": "jobs",
+    "class": "posting",
+    "description": "Go to We Work Remotely (https://weworkremotely.com). Find any remote job listing in the 'Back-End Programming' category and save it by clicking the 'Save Job' button on the job detail page.",
+    "sites_involved": [
+      "weworkremotely.com"
+    ],
+    "platform": "weworkremotely",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Go to We Work Remotely (https://weworkremotely.com). Find any remote job listing in the 'Back-End Programming' category and save it by clicking the 'Save Job' button on the job detail page.\n\nNote: The user is already logged in. Any available Back-End Programming job listing works. The 'Save Job' button appears on the individual job detail page. After clicking, the button changes to 'Remove Job' to confirm success.",
+  "eval_schema": {
+    "url_pattern": "weworkremotely\\.com/listings/[^/]+/toggle_save",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

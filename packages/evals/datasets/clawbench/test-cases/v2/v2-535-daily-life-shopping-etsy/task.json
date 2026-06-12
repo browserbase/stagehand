@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 535,
+    "metaclass": "daily-life",
+    "class": "shopping",
+    "description": "Search Etsy for a handmade blue ceramic flower vase under $50 and add it to your favorites",
+    "sites_involved": [
+      "etsy.com"
+    ],
+    "platform": "etsy",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search Etsy for a handmade blue ceramic flower vase under $50 and add it to your favorites",
+  "eval_schema": {
+    "url_pattern": "etsy\\.com/api/v\\d+/ajax/bespoke/member/neu/specs/favoriteConfirmationToast",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

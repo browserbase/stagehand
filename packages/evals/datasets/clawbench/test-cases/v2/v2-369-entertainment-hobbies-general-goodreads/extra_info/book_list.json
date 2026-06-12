@@ -1,0 +1,14 @@
+{
+  "books": [
+    "Deep Learning by Ian Goodfellow",
+    "Pattern Recognition and Machine Learning by Christopher Bishop",
+    "The Hundred-Page Machine Learning Book by Andriy Burkov",
+    "Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow by Aur\u00e9lien G\u00e9ron",
+    "Machine Learning: A Probabilistic Perspective by Kevin Murphy",
+    "Reinforcement Learning: An Introduction by Richard Sutton",
+    "Speech and Language Processing by Dan Jurafsky",
+    "Information Theory, Inference and Learning Algorithms by David MacKay",
+    "Probabilistic Graphical Models by Daphne Koller",
+    "The Elements of Statistical Learning by Trevor Hastie"
+  ]
+}

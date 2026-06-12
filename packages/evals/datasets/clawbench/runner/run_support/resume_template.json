@@ -1,0 +1,104 @@
+{
+  "// NOTE": "All overlapping fields MUST match personal_info.json exactly.",
+  "header": {
+    "name": "Alex Green",
+    "title": "Senior Software Engineer",
+    "email": "dummy_email",
+    "location": "Toronto, ON, Canada"
+  },
+  "summary": "Senior Software Engineer with 23+ years of experience in full-stack development, distributed systems, and cloud infrastructure. PhD in Computer Science from the University of Toronto. Currently leading a backend team at Pinecrest Technologies Inc., building enterprise data pipeline solutions. Previously built real-time transaction processing systems in FinTech. AWS and Kubernetes certified.",
+  "experience": [
+    {
+      "title": "Senior Software Engineer",
+      "company": "Pinecrest Technologies Inc.",
+      "location": "Toronto, ON",
+      "dates": "Mar 2019 – Present",
+      "bullets": [
+        "Lead backend team of 5 engineers building distributed data pipelines for enterprise SaaS platform",
+        "Design and implement RESTful APIs serving 2M+ daily requests with sub-100ms p99 latency",
+        "Mentor junior developers and conduct code reviews, improving team velocity by 30%"
+      ]
+    },
+    {
+      "title": "Software Engineer",
+      "company": "Crestridge Digital Corp.",
+      "location": "Toronto, ON",
+      "dates": "Jun 2012 - Feb 2019",
+      "bullets": [
+        "Developed real-time transaction processing systems handling $50M+ daily volume in FinTech",
+        "Built automated testing frameworks reducing QA cycle by 40%",
+        "Collaborated with product team on mobile banking features serving 500K+ users"
+      ]
+    },
+    {
+      "title": "Software Developer",
+      "company": "Cedarbrook Solutions Ltd.",
+      "location": "Toronto, ON",
+      "dates": "Sep 2002 - May 2012",
+      "bullets": [
+        "Full-stack web development for enterprise clients across multiple industries",
+        "Database administration and performance optimization for high-traffic applications",
+        "Part-time during graduate studies (2002-2010); full-time from 2010"
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Ph.D. in Computer Science",
+      "institution": "University of Toronto",
+      "dates": "2004 - 2010",
+      "detail": "Dissertation: Scalable Real-Time Data Pipeline Architectures for High-Throughput Transaction Processing"
+    },
+    {
+      "degree": "M.Sc. in Computer Science",
+      "institution": "University of Toronto",
+      "dates": "2002 - 2004",
+      "detail": "GPA: 3.8/4.0 | Thesis: Efficient Query Processing in Distributed Database Systems"
+    },
+    {
+      "degree": "B.Sc. in Computer Science",
+      "institution": "University of Toronto",
+      "dates": "1998 - 2002",
+      "detail": "GPA: 3.6/4.0 | Dean's List (2001, 2002)"
+    }
+  ],
+  "skills": {
+    "languages": [
+      "Python",
+      "Java",
+      "TypeScript",
+      "Go"
+    ],
+    "databases": [
+      "PostgreSQL",
+      "Redis"
+    ],
+    "cloud_devops": [
+      "AWS",
+      "Docker",
+      "Kubernetes",
+      "Terraform",
+      "CI/CD"
+    ],
+    "frameworks": [
+      "React",
+      "Node.js",
+      "GraphQL",
+      "REST API Design"
+    ]
+  },
+  "certifications": [
+    "AWS Solutions Architect – Associate (2024)",
+    "Certified Kubernetes Administrator – CKA (2025)"
+  ],
+  "languages": [
+    {
+      "language": "English",
+      "proficiency": "Native"
+    },
+    {
+      "language": "French",
+      "proficiency": "Intermediate (B1)"
+    }
+  ]
+}

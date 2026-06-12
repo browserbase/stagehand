@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 601,
+    "metaclass": "hobbies-gaming",
+    "class": "reviews",
+    "description": "Find a highly-rated crochet amigurumi pattern on Ravelry and add it to your favorites",
+    "sites_involved": [
+      "ravelry.com"
+    ],
+    "platform": "ravelry",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Find a highly-rated crochet amigurumi pattern on Ravelry and add it to your favorites",
+  "eval_schema": {
+    "url_pattern": "ravelry\\.com/patterns/library/[^/]+/bookmark",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

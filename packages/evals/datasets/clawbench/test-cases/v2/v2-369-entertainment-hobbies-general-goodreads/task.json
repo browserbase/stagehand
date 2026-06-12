@@ -1,0 +1,30 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 369,
+    "metaclass": "entertainment-hobbies",
+    "class": "general",
+    "description": "Goodreads: Create a shelf \"ML Must-Reads\" and add 10 books",
+    "sites_involved": [
+      "goodreads.com"
+    ],
+    "platform": "goodreads",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Goodreads: Create a shelf \"ML Must-Reads\" and add 10 books",
+  "eval_schema": {
+    "url_pattern": "goodreads\\.com/shelf/add_to_shelf",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": [
+    {
+      "path": "extra_info/book_list.json",
+      "description": "List of 10 ML books to add to shelf"
+    }
+  ]
+}

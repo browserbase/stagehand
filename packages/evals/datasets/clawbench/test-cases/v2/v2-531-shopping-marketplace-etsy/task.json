@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 531,
+    "metaclass": "shopping",
+    "class": "marketplace",
+    "description": "Find a leather dog collar with custom name embroidery for a medium-sized dog on Etsy and add to cart",
+    "sites_involved": [
+      "etsy.com"
+    ],
+    "platform": "etsy",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Find a leather dog collar with custom name embroidery for a medium-sized dog on Etsy and add to cart",
+  "eval_schema": {
+    "url_pattern": "etsy\\.com/cart/listing",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

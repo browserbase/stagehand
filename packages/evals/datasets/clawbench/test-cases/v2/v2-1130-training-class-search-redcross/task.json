@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1130,
+    "metaclass": "charity",
+    "class": "search",
+    "description": "Search for CPR certification classes by zip code on the Red Cross training site",
+    "sites_involved": [
+      "redcross.org"
+    ],
+    "platform": "redcross",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search for CPR certification classes in zip code 10001 on the Red Cross training website and find the first available in-person class",
+  "eval_schema": {
+    "url_pattern": "redcross\\.org\\/take-a-class\\/search.*(?:q|query|zip|searchtype|location)=",
+    "method": "GET"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

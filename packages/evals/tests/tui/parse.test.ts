@@ -98,6 +98,11 @@ describe("resolveRunOptions", () => {
     expect(webtailbench.target).toBe("agent/webtailbench");
     expect(webtailbench.datasetFilter).toBe("webtailbench");
     expect(webtailbench.envOverrides.EVAL_WEBTAILBENCH_LIMIT).toBe("2");
+
+    const clawbench = applyBenchmarkShorthand("b:clawbench", { limit: 1 });
+    expect(clawbench.target).toBe("agent/clawbench");
+    expect(clawbench.datasetFilter).toBe("clawbench");
+    expect(clawbench.envOverrides.EVAL_CLAWBENCH_LIMIT).toBe("1");
   });
 
   it("marks GAIA as legacy-only in the unified runner", () => {

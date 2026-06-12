@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Schema for a single model entry in models/models.yaml. The YAML key is the model name.",
+  "type": "object",
+  "required": ["base_url", "api_type"],
+  "properties": {
+    "api_key": {
+      "type": "string",
+      "description": "API key for the provider"
+    },
+    "api_keys": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Multiple API keys for round-robin rotation (takes precedence over api_key)"
+    },
+    "thinking_level": {
+      "type": "string",
+      "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "adaptive"],
+      "description": "Reasoning depth for the model"
+    },
+    "temperature": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "description": "Sampling temperature"
+    },
+    "max_tokens": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Maximum output tokens"
+    },
+    "base_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "API base URL (e.g. https://api.openai.com/v1)"
+    },
+    "api_type": {
+      "type": "string",
+      "enum": ["anthropic-messages", "openai-responses", "openai-completions", "google-generative-ai"],
+      "description": "API type for the provider endpoint"
+    }
+  },
+  "additionalProperties": false
+}

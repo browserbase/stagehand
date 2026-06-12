@@ -1,0 +1,26 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1121,
+    "metaclass": "home-services",
+    "class": "booking",
+    "description": "Navigate to handy.com/services/tv-mounting, enter ZIP 11201, set quantity to 1 TV, set date to next Wednesday at 10am, then click 'Get a Price'.",
+    "sites_involved": [
+      "handy.com"
+    ],
+    "platform": "handy",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    },
+    "task_key": "1121b"
+  },
+  "instruction": "Get a price quote on Handy for a TV mounting service for next Wednesday at 10am in Brooklyn (ZIP 11201) for 1 TV.",
+  "eval_schema": {
+    "url_pattern": "handy\\.com/quotes/\\d+/finalize",
+    "method": "GET"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

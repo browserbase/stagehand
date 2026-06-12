@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 735,
+    "metaclass": "home-services-maintenance",
+    "class": "house-cleaning",
+    "description": "Post a home cleaning project on Bark, fill in the service description, address, and required date, and submit the project",
+    "sites_involved": [
+      "bark.com"
+    ],
+    "platform": "bark",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Post a home cleaning project on Bark, fill in the service description, address, and required date, and submit the project",
+  "eval_schema": {
+    "url_pattern": "api\\.bark\\.com/bark/pre",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

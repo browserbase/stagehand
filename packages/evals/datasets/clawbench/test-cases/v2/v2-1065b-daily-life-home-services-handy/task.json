@@ -1,0 +1,26 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1065,
+    "metaclass": "daily-life",
+    "class": "home-services",
+    "description": "Navigate to handy.com/services/home-cleaning, fill in ZIP 11201, 3 beds, 2 baths, next Saturday at 9am, 3 hours, then click 'Get a Price'.",
+    "sites_involved": [
+      "handy.com"
+    ],
+    "platform": "handy",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    },
+    "task_key": "1065b"
+  },
+  "instruction": "Get a price quote on Handy for a house cleaning service for next Saturday at 9am for a 3-bedroom, 2-bathroom apartment in Brooklyn (ZIP 11201). Select 3 hours duration.",
+  "eval_schema": {
+    "url_pattern": "handy\\.com/quotes/\\d+/finalize",
+    "method": "GET"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

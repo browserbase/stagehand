@@ -1,0 +1,28 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 817,
+    "metaclass": "pet-animal-care",
+    "class": "adopter-profile",
+    "description": "Navigate to any adoptable dog's profile, click Start Your Inquiry, and complete the adopter profile creation form — verifying the CreateAdopterProfile mutation fires.",
+    "sites_involved": [
+      "petfinder.com"
+    ],
+    "platform": "petfinder",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On Petfinder, start the process of submitting an adoption inquiry for any adoptable dog. When prompted, complete the adopter profile creation form with your details to proceed.",
+  "eval_schema": {
+    "url_pattern": "psl\\.petfinder\\.com/graphql",
+    "method": "POST",
+    "body": {
+      "operationName": "CreateAdopterProfile"
+    }
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

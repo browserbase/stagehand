@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 474,
+    "metaclass": "rating-voting",
+    "class": "general",
+    "description": "Write a review for Notion on Capterra with overall rating 4 stars and exactly this text: \"Flexible workspace, steep learning curve.\"",
+    "sites_involved": [
+      "capterra.com"
+    ],
+    "platform": "capterra",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Write a review for Notion on Capterra with overall rating 4 stars and exactly this text: \"Flexible workspace, steep learning curve.\"",
+  "eval_schema": {
+    "url_pattern": "reviews\\.capterra\\.com/api/v1/products/[^/]+/partial-review",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

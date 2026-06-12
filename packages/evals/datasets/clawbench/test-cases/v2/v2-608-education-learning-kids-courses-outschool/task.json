@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 608,
+    "metaclass": "education-learning",
+    "class": "kids-courses",
+    "description": "Search for a Minecraft coding class for kids on Outschool and open the detail page of one of the results to view its description, schedule, and teacher information",
+    "sites_involved": [
+      "outschool.com"
+    ],
+    "platform": "outschool",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search for a Minecraft coding class for kids on Outschool and open the detail page of one of the results to view its description, schedule, and teacher information",
+  "eval_schema": {
+    "url_pattern": "outschool\\.com/classes/",
+    "method": "GET"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}
