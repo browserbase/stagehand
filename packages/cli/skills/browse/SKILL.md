@@ -333,14 +333,17 @@ JSON output includes every match with full descriptions and ignores `--limit`; `
 6. Use a distinct `--session <name>` for each parallel or long-running task; commands without the flag share the `default` session.
 7. Use `--auto-connect` only when attaching to an existing debuggable local Chrome session is intended.
 8. Use `browse doctor` when session startup, browser discovery, CDP attach, or Browserbase auth looks wrong.
-9. Use `browse stop` (or `browse stop --session <name>`) when finished to clean up daemon state.
-10. For unfamiliar command details, run `browse <topic> --help` and follow the exact dash-case flags.
+9. Never retry a failing command unchanged. If the same command fails twice with the same error, stop — run `browse doctor --json`, then change approach (fix the key, switch `--local`/`--remote`, or `browse stop --force` and start fresh). Repeating an identical failing command will keep failing.
+10. Use `browse stop` (or `browse stop --session <name>`) when finished to clean up daemon state.
+11. For unfamiliar command details, run `browse <topic> --help` and follow the exact dash-case flags.
 
 ## Troubleshooting
 
 - "No active page": run `browse status --session <name>`, then `browse open <url> --session <name>` or `browse tab new <url> --session <name>`; use `browse stop --force` if the daemon is stale.
 - Chrome not found: use `--remote` with Browserbase credentials, install Chrome, or attach with `--cdp`.
 - Action fails: run `browse snapshot` and use a visible ref from the current page state.
+- 401 Unauthorized on `open`, `get`, or other driver commands: a set `BROWSERBASE_API_KEY` makes `browse` default to remote mode. Fix the key at https://browserbase.com/settings, unset it, or pass `--local` to run a managed local browser (no key needed).
+- Same command fails twice with the same error: stop retrying — never retry a failing command unchanged. Init failures are cached for several seconds, so instant retries return identical errors. Run `browse doctor --json`, then change approach: fix the key, switch `--local`/`--remote`, or `browse stop --force` and start fresh.
 - Remote command fails: verify `BROWSERBASE_API_KEY` and inspect `browse cloud projects list`.
 - Session setup is unclear: run `browse doctor` or `browse doctor --json`.
 - Protected site blocks local mode: retry with `--remote`.
