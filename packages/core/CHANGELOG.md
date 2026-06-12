@@ -1,5 +1,27 @@
 # @browserbasehq/stagehand
 
+## 3.6.0
+
+### Minor Changes
+
+- [#2178](https://github.com/browserbase/stagehand/pull/2178) [`c49a3fc`](https://github.com/browserbase/stagehand/commit/c49a3fc47ada88322f7e11b7b72085f0147c43e3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add support for WebMCP
+
+### Patch Changes
+
+- [#2217](https://github.com/browserbase/stagehand/pull/2217) [`147e310`](https://github.com/browserbase/stagehand/commit/147e310b12ffa9a5a03d770b0f071495d7a3287d) Thanks [@monadoid](https://github.com/monadoid)! - Add Azure OpenAI Microsoft Entra ID model auth support.
+
+- [#2231](https://github.com/browserbase/stagehand/pull/2231) [`cf3603d`](https://github.com/browserbase/stagehand/commit/cf3603d1c1f017cd7c195bcbe4300814c694454b) Thanks [@miguelg719](https://github.com/miguelg719)! - Add claude-fable-5 support: native structured outputs via the @ai-sdk/anthropic bump, adaptive thinking (including the new "xhigh" effort) on the agent path, the API's built-in server-side refusal fallback to claude-opus-4-8, and auto tool choice for the final done call on models that reject forced tool use.
+
+- [#2233](https://github.com/browserbase/stagehand/pull/2233) [`8d7d414`](https://github.com/browserbase/stagehand/commit/8d7d414c70676a31ea9322073f514d5b9dd5ecb1) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Normalize URLs in `ActCache` key derivation by sorting query parameters before hashing. Semantically equivalent URLs that differ only in parameter order (e.g. `?utm_source=email&id=42` vs `?id=42&utm_source=email`) now hit the cache instead of silently missing. Fragments and duplicate keys are preserved.
+
+- [#2229](https://github.com/browserbase/stagehand/pull/2229) [`fd42e65`](https://github.com/browserbase/stagehand/commit/fd42e65bb84825bdb7341a4953472db1ff774989) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - launch local browser with --enable-features=WebMCPTesting,DevToolsWebMCPSupport by default
+
+- [#2220](https://github.com/browserbase/stagehand/pull/2220) [`a64c6b7`](https://github.com/browserbase/stagehand/commit/a64c6b74cfce7341ad4bbb2d39ae22c082f5f61e) Thanks [@monadoid](https://github.com/monadoid)! - Fix Stagehand-generated shadow-root XPath resolution so deterministic actions can target elements inside web components.
+
+- [#2132](https://github.com/browserbase/stagehand/pull/2132) [`ed3e566`](https://github.com/browserbase/stagehand/commit/ed3e56636ee35b6eb2b1ad1af2bfb098a97aa39c) Thanks [@miguelg719](https://github.com/miguelg719)! - Add canonical verifier evidence normalization for screenshots and text signals without requiring image dependencies in core installs.
+
+- [#2133](https://github.com/browserbase/stagehand/pull/2133) [`840aac8`](https://github.com/browserbase/stagehand/commit/840aac8bfcd9b3debcddffea0ca0c3de4670cf2a) Thanks [@miguelg719](https://github.com/miguelg719)! - Add the rubric-based verifier engine with normalized public rubric output and bounded failure-step parsing.
+
 ## 3.5.0
 
 ### Minor Changes
