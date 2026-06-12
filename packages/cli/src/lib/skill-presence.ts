@@ -12,9 +12,7 @@ import { join } from "node:path";
  *   - project: `<cwd>/.agents/skills/browse` — `skills add` without `-g`
  *
  * Agent-specific dirs are symlinks/copies alongside the canonical dir, so two
- * filesystem checks cover every agent at both scopes. The public `browser`
- * skill (browserbase/skills) is deliberately not checked: it is being
- * deprecated in favor of this bundled, CLI-version-pinned skill.
+ * filesystem checks cover every agent at both scopes.
  */
 export async function isBrowseSkillInstalled(
   home: string = homedir(),
