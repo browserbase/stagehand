@@ -8,26 +8,113 @@ import semver from "semver";
 const CLI_PACKAGE_NAME = "browse";
 const DEFAULT_NPM_REGISTRY_BASE_URL = "https://registry.npmjs.org/";
 const UPDATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+// Codex-parity cadence (codex-rs/tui/src/updates.rs uses 20h): remind on
+// regular commands until the user upgrades, at most once per interval.
+const UPDATE_NOTIFY_INTERVAL_MS = 20 * 60 * 60 * 1000;
 const UPDATE_TIMEOUT_MS = 1500;
 
 interface UpdateCheckCache {
   checkedAt: string;
   version: string;
+  /** When the user was last shown the update notice (any surface). */
+  lastNotifiedAt?: string;
 }
 
 interface UpdateCheckOptions {
   cacheFile?: string;
 }
 
-export async function maybeAutoUpdateCli(
+/**
+ * Read-only check for a newer published version. Returns the formatted notice
+ * text when a fresh cache shows an update is available, otherwise null. Never
+ * prints and never hits the network — call from human-facing surfaces (root
+ * help, `doctor`) rather than on every command so we don't spam automation.
+ */
+export async function getUpdateNotice(
   currentVersion: string,
   env: NodeJS.ProcessEnv = process.env,
   options: UpdateCheckOptions = {},
-): Promise<void> {
+): Promise<string | null> {
+  if (isUpdateCheckDisabled(env)) {
+    return null;
+  }
+
+  const cachePath = resolveUpdateCheckPath(env, options);
+  if (!cachePath) {
+    return null;
+  }
+
+  const cache = await readFreshUpdateCheckCache(cachePath);
+  if (!cache || !isVersionNewer(currentVersion, cache.version)) {
+    return null;
+  }
+
+  // Pull surfaces always render; marking is best-effort so the push notice
+  // does not immediately repeat what the user has already seen.
+  await writeUpdateCheckCache(cachePath, {
+    ...cache,
+    lastNotifiedAt: new Date().toISOString(),
+  });
+
+  return formatUpdateNotice(currentVersion, cache.version);
+}
+
+/**
+ * Push notice for regular commands: reminds until the user upgrades, at most
+ * once per UPDATE_NOTIFY_INTERVAL_MS (Codex shows its upgrade banner every
+ * session until upgraded; the interval is the one-shot-CLI analog of "once
+ * per session"). The notice is only returned when recording lastNotifiedAt
+ * succeeds, so a read-only cache dir can never cause repeated printing.
+ */
+export async function takeUpdateNotice(
+  currentVersion: string,
+  env: NodeJS.ProcessEnv = process.env,
+  options: UpdateCheckOptions = {},
+): Promise<string | null> {
+  if (isUpdateCheckDisabled(env)) {
+    return null;
+  }
+
+  const cachePath = resolveUpdateCheckPath(env, options);
+  if (!cachePath) {
+    return null;
+  }
+
+  const cache = await readFreshUpdateCheckCache(cachePath);
+  if (!cache || !isVersionNewer(currentVersion, cache.version)) {
+    return null;
+  }
+
+  const lastNotifiedMs = cache.lastNotifiedAt
+    ? Date.parse(cache.lastNotifiedAt)
+    : Number.NaN;
   if (
-    env.BROWSE_DISABLE_UPDATE_CHECK === "1" ||
-    env.BB_DISABLE_UPDATE_CHECK === "1"
+    Number.isFinite(lastNotifiedMs) &&
+    Date.now() - lastNotifiedMs < UPDATE_NOTIFY_INTERVAL_MS
   ) {
+    return null;
+  }
+
+  const recorded = await writeUpdateCheckCache(cachePath, {
+    ...cache,
+    lastNotifiedAt: new Date().toISOString(),
+  });
+  if (!recorded) {
+    return null;
+  }
+
+  return formatUpdateNotice(currentVersion, cache.version);
+}
+
+/**
+ * Refresh the cached "latest version" in the background when it is stale, so
+ * the surfaces that show the notice have fresh data. Silent: never prints.
+ */
+export async function scheduleBackgroundUpdateCheck(
+  env: NodeJS.ProcessEnv = process.env,
+  options: UpdateCheckOptions = {},
+): Promise<void> {
+  if (isUpdateCheckDisabled(env)) {
     return;
   }
 
@@ -38,13 +125,17 @@ export async function maybeAutoUpdateCli(
 
   const cache = await readFreshUpdateCheckCache(cachePath);
   if (cache) {
-    if (isVersionNewer(currentVersion, cache.version)) {
-      writeUpdateNotice(currentVersion, cache.version);
-    }
     return;
   }
 
   spawnBackgroundUpdateCheck(env, cachePath);
+}
+
+function isUpdateCheckDisabled(env: NodeJS.ProcessEnv): boolean {
+  return (
+    env.BROWSE_DISABLE_UPDATE_CHECK === "1" ||
+    env.BB_DISABLE_UPDATE_CHECK === "1"
+  );
 }
 
 export async function refreshUpdateCheckCache(
@@ -95,6 +186,7 @@ async function readUpdateCheckCache(
     const parsed = JSON.parse(contents) as {
       checkedAt?: unknown;
       version?: unknown;
+      lastNotifiedAt?: unknown;
     };
 
     if (typeof parsed.version !== "string" || parsed.version.length === 0) {
@@ -108,6 +200,10 @@ async function readUpdateCheckCache(
     return {
       checkedAt: parsed.checkedAt,
       version: parsed.version,
+      ...(typeof parsed.lastNotifiedAt === "string" &&
+      parsed.lastNotifiedAt.length > 0
+        ? { lastNotifiedAt: parsed.lastNotifiedAt }
+        : {}),
     };
   } catch {
     return null;
@@ -117,12 +213,14 @@ async function readUpdateCheckCache(
 async function writeUpdateCheckCache(
   cachePath: string,
   cache: UpdateCheckCache,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await mkdir(dirname(cachePath), { recursive: true });
     await writeFile(cachePath, `${JSON.stringify(cache)}\n`, "utf8");
+    return true;
   } catch {
     // Best-effort cache writes should never affect CLI behavior.
+    return false;
   }
 }
 
@@ -166,18 +264,16 @@ function resolveUpdateCheckWorkerPath(): string {
   );
 }
 
-function writeUpdateNotice(
+function formatUpdateNotice(
   currentVersion: string,
   latestVersion: string,
-): void {
-  process.stderr.write(
-    [
-      `Update available: ${currentVersion} -> ${latestVersion}.`,
-      "Run:",
-      `  npm i -g ${CLI_PACKAGE_NAME}@latest`,
-      "",
-    ].join("\n"),
-  );
+): string {
+  return [
+    `Update available: ${currentVersion} -> ${latestVersion}.`,
+    "Run:",
+    `  npm i -g ${CLI_PACKAGE_NAME}@latest`,
+    "",
+  ].join("\n");
 }
 
 async function fetchLatestCliVersion(): Promise<string | null> {
