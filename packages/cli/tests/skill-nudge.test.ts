@@ -1,16 +1,24 @@
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { maybeNudgeInstallSkill } from "../src/lib/skill-nudge.js";
 
 const cleanupPaths: string[] = [];
+let stderrSpy: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  stderrSpy = vi
+    .spyOn(process.stderr, "write")
+    .mockImplementation(() => true);
+});
 
 afterEach(async () => {
+  stderrSpy.mockRestore();
   vi.unstubAllEnvs();
-  vi.restoreAllMocks();
+
   while (cleanupPaths.length > 0) {
     const path = cleanupPaths.pop();
     if (!path) continue;
@@ -18,115 +26,63 @@ afterEach(async () => {
   }
 });
 
-async function setup(options: { skillInstalled?: boolean } = {}): Promise<{
-  home: string;
-  cacheFile: string;
-}> {
+async function createTempHome(withSkill: boolean): Promise<string> {
   const home = await mkdtemp(join(tmpdir(), "browse-nudge-home-"));
   cleanupPaths.push(home);
-  if (options.skillInstalled) {
+  if (withSkill) {
     await mkdir(join(home, ".agents", "skills", "browse"), {
       recursive: true,
     });
   }
-
-  // os.homedir() honors $HOME, so the canonical-path check stays inside the
-  // temp dir even when the suite runs on a machine with the skill installed.
-  vi.stubEnv("HOME", home);
-  vi.stubEnv("NODE_ENV", "development");
-  vi.stubEnv("CI", "");
-  vi.stubEnv("BROWSE_DISABLE_SKILL_NUDGE", "");
-
-  return { home, cacheFile: join(home, "cache", "skill-nudge.json") };
+  return home;
 }
 
-function stderrSpy() {
-  return vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+function nudgeEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  return {
+    BROWSE_DISABLE_SKILL_NUDGE: "0",
+    CI: "0",
+    NODE_ENV: "production",
+    ...overrides,
+  };
 }
 
-function nudged(spy: ReturnType<typeof stderrSpy>): boolean {
-  return spy.mock.calls.some((call) =>
-    String(call[0]).includes("browse skills install"),
-  );
+function stderrText(): string {
+  return stderrSpy.mock.calls.map((call) => String(call[0])).join("");
 }
 
-describe("maybeNudgeInstallSkill", () => {
-  it("nudges once when the canonical skill dir is absent and writes the marker", async () => {
-    const { cacheFile } = await setup();
-    const spy = stderrSpy();
-    await maybeNudgeInstallSkill(process.env, {
-      cacheFile,
-      commandId: "status",
-    });
-    expect(nudged(spy)).toBe(true);
-    await expect(access(cacheFile)).resolves.toBeUndefined();
+describe("maybeNudgeInstallSkill (session start)", () => {
+  it("nudges when the skill is absent", async () => {
+    const home = await createTempHome(false);
+    vi.stubEnv("HOME", home);
+    await maybeNudgeInstallSkill(nudgeEnv());
+    expect(stderrText()).toContain("browse skills install");
   });
 
-  it("stays silent on the next run once the marker exists", async () => {
-    const { cacheFile } = await setup();
-    const spy = stderrSpy();
-    await maybeNudgeInstallSkill(process.env, {
-      cacheFile,
-      commandId: "status",
-    });
-    expect(nudged(spy)).toBe(true);
-    spy.mockClear();
-    await maybeNudgeInstallSkill(process.env, {
-      cacheFile,
-      commandId: "open",
-    });
-    expect(nudged(spy)).toBe(false);
+  it("nudges on every call while the skill is absent (one per session start)", async () => {
+    const home = await createTempHome(false);
+    vi.stubEnv("HOME", home);
+    await maybeNudgeInstallSkill(nudgeEnv());
+    await maybeNudgeInstallSkill(nudgeEnv());
+    const matches = stderrText().match(/browse skills install/g) ?? [];
+    expect(matches).toHaveLength(2);
   });
 
-  it("does not nudge when the skill is already installed", async () => {
-    const { cacheFile } = await setup({ skillInstalled: true });
-    const spy = stderrSpy();
-    await maybeNudgeInstallSkill(process.env, {
-      cacheFile,
-      commandId: "status",
-    });
-    expect(nudged(spy)).toBe(false);
+  it("stays silent when the skill is installed", async () => {
+    const home = await createTempHome(true);
+    vi.stubEnv("HOME", home);
+    await maybeNudgeInstallSkill(nudgeEnv());
+    expect(stderrText()).not.toContain("browse skills install");
   });
 
-  it("does not nudge on skills subcommands, help, or a missing commandId", async () => {
-    const { cacheFile } = await setup();
-    const spy = stderrSpy();
-    for (const commandId of ["skills:install", "skills", "help", undefined]) {
-      await maybeNudgeInstallSkill(process.env, { cacheFile, commandId });
-    }
-    expect(nudged(spy)).toBe(false);
-  });
-
-  it("respects env opt-outs and CI", async () => {
-    const { cacheFile } = await setup();
-    const spy = stderrSpy();
-    for (const overrides of [
-      { BROWSE_DISABLE_SKILL_NUDGE: "1" },
-      { BB_DISABLE_SKILL_NUDGE: "1" },
-      { NODE_ENV: "test" },
-      { CI: "true" },
-    ]) {
-      const env: NodeJS.ProcessEnv = {
-        NODE_ENV: "development",
-        CI: "",
-        ...overrides,
-      };
-      await maybeNudgeInstallSkill(env, { cacheFile, commandId: "status" });
-    }
-    expect(nudged(spy)).toBe(false);
-  });
-
-  it("does not nudge when the marker cannot be written", async () => {
-    const { home } = await setup();
-    // Parent "directory" is a regular file, so mkdir/writeFile must fail.
-    const blocker = join(home, "blocked");
-    await writeFile(blocker, "not a directory\n", "utf8");
-    const cacheFile = join(blocker, "skill-nudge.json");
-    const spy = stderrSpy();
-    await maybeNudgeInstallSkill(process.env, {
-      cacheFile,
-      commandId: "status",
-    });
-    expect(nudged(spy)).toBe(false);
+  it.each([
+    ["BROWSE_DISABLE_SKILL_NUDGE", { BROWSE_DISABLE_SKILL_NUDGE: "1" }],
+    ["BB_DISABLE_SKILL_NUDGE", { BB_DISABLE_SKILL_NUDGE: "1" }],
+    ["CI", { CI: "true" }],
+    ["NODE_ENV=test", { NODE_ENV: "test" }],
+  ])("stays silent under %s", async (_label, overrides) => {
+    const home = await createTempHome(false);
+    vi.stubEnv("HOME", home);
+    await maybeNudgeInstallSkill(nudgeEnv(overrides));
+    expect(stderrText()).not.toContain("browse skills install");
   });
 });

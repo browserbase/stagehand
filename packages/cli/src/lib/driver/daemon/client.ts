@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import net from "node:net";
 
 import { fail } from "../../errors.js";
+import { maybeNudgeInstallSkill } from "../../skill-nudge.js";
 import type { DriverCommandName } from "../commands/types.js";
 import { targetsCompatible } from "../mode.js";
 import type { ConnectionTarget, DriverStatus, OpenResult } from "../types.js";
@@ -56,6 +57,12 @@ export async function ensureDriverDaemon({
     }
     spawnDaemon(session, target);
     await waitForSocketReady(getSocketPath(session), 30_000);
+    try {
+      // A fresh daemon marks the start of a browser session.
+      await maybeNudgeInstallSkill();
+    } catch {
+      // Best-effort nudge must never affect daemon startup.
+    }
   } finally {
     await releaseLock(session);
   }

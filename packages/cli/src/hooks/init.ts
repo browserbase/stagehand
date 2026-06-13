@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import type { Hook } from "@oclif/core";
 
-import { maybeNudgeInstallSkill } from "../lib/skill-nudge.js";
 import { startTelemetryInvocation } from "../lib/telemetry.js";
 import {
   scheduleBackgroundUpdateCheck,
@@ -40,14 +39,6 @@ const hook: Hook.Init = async function ({ config, id }) {
     // Best-effort update notices should never affect CLI behavior.
   }
 
-  try {
-    await maybeNudgeInstallSkill(process.env, {
-      cacheFile: join(config.cacheDir, "skill-nudge.json"),
-      commandId: id,
-    });
-  } catch {
-    // Best-effort skill nudges should never affect CLI behavior.
-  }
 };
 
 export default hook;
