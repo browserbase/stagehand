@@ -38,7 +38,6 @@ const hook: Hook.Init = async function ({ config, id }) {
   } catch {
     // Best-effort update notices should never affect CLI behavior.
   }
-
 };
 
 export default hook;
