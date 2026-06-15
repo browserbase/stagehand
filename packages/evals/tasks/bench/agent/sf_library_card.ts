@@ -33,7 +33,7 @@ export default defineBenchTask(
         taskSpec,
         dataset: "agent-custom",
         agentOptions: {
-          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 1,
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,
         },
       });
 
