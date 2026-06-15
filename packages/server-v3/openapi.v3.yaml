@@ -761,6 +761,40 @@ components:
         actTimeoutMs:
           description: Timeout in ms for act operations (deprecated, v2 only)
           type: number
+        valkeyCache:
+          description: Valkey cache backend configuration
+          type: object
+          properties:
+            valkeyHost:
+              description: Valkey host address
+              type: string
+            valkeyPort:
+              description: "Valkey port (default: 6379)"
+              type: number
+            valkeyTls:
+              description: Enable TLS for the connection
+              type: boolean
+            valkeyPassword:
+              description: Authentication password
+              type: string
+            valkeyUsername:
+              description: Authentication username
+              type: string
+            cacheTtl:
+              description: TTL in seconds for cache entries
+              type: number
+            valkeyKeyPrefix:
+              description: 'Key prefix namespace (default: "stagehand")'
+              type: string
+            valkeyRequestTimeout:
+              description: "Request timeout in ms for Valkey operations (default: 5000)"
+              type: number
+            valkeyMaxCacheValueBytes:
+              description: "Max allowed cache value size in bytes (default: 5MB). Writes
+                exceeding this are skipped."
+              type: number
+          required:
+            - valkeyHost
       required:
         - modelName
     SessionStartResult:

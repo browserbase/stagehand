@@ -550,6 +550,44 @@ export const SessionStartRequestSchema = z
     actTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms for act operations (deprecated, v2 only)",
     }),
+    valkeyCache: z
+      .object({
+        valkeyHost: z.string().meta({ description: "Valkey host address" }),
+        valkeyPort: z
+          .number()
+          .optional()
+          .meta({ description: "Valkey port (default: 6379)" }),
+        valkeyTls: z
+          .boolean()
+          .optional()
+          .meta({ description: "Enable TLS for the connection" }),
+        valkeyPassword: z
+          .string()
+          .optional()
+          .meta({ description: "Authentication password" }),
+        valkeyUsername: z
+          .string()
+          .optional()
+          .meta({ description: "Authentication username" }),
+        cacheTtl: z
+          .number()
+          .optional()
+          .meta({ description: "TTL in seconds for cache entries" }),
+        valkeyKeyPrefix: z
+          .string()
+          .optional()
+          .meta({ description: 'Key prefix namespace (default: "stagehand")' }),
+        valkeyRequestTimeout: z.number().optional().meta({
+          description:
+            "Request timeout in ms for Valkey operations (default: 5000)",
+        }),
+        valkeyMaxCacheValueBytes: z.number().optional().meta({
+          description:
+            "Max allowed cache value size in bytes (default: 5MB). Writes exceeding this are skipped.",
+        }),
+      })
+      .optional()
+      .meta({ description: "Valkey cache backend configuration" }),
   })
   .meta({ id: "SessionStartRequest" });
 

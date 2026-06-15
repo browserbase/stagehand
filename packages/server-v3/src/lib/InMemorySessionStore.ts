@@ -12,6 +12,16 @@ import type {
 const DEFAULT_MAX_CAPACITY = 100;
 const DEFAULT_TTL_MS = 0; // 0 = infinite (no TTL-based eviction)
 
+function parseIntEnv(name: string): number | undefined {
+  const raw = process.env[name];
+  if (!raw) return undefined;
+  const n = parseInt(raw, 10);
+  if (Number.isNaN(n)) {
+    throw new Error(`Env var ${name} must be numeric, got: "${raw}"`);
+  }
+  return n;
+}
+
 /**
  * Internal node for LRU linked list
  */
@@ -245,6 +255,27 @@ export class InMemorySessionStore implements SessionStore {
         }
       },
     };
+
+    if (params.valkeyCache) {
+      Object.assign(options, params.valkeyCache);
+    } else if (process.env.VALKEY_HOST) {
+      options.valkeyHost = process.env.VALKEY_HOST;
+      options.valkeyPort = parseIntEnv("VALKEY_PORT");
+      options.valkeyTls =
+        process.env.VALKEY_TLS === "true"
+          ? true
+          : process.env.VALKEY_TLS === "false"
+            ? false
+            : undefined;
+      options.valkeyPassword = process.env.VALKEY_PASSWORD || undefined;
+      options.valkeyUsername = process.env.VALKEY_USERNAME || undefined;
+      options.cacheTtl = parseIntEnv("CACHE_TTL");
+      options.valkeyKeyPrefix = process.env.VALKEY_KEY_PREFIX || undefined;
+      options.valkeyRequestTimeout = parseIntEnv("VALKEY_REQUEST_TIMEOUT");
+      options.valkeyMaxCacheValueBytes = parseIntEnv(
+        "VALKEY_MAX_CACHE_VALUE_BYTES",
+      );
+    }
 
     if (isBrowserbase) {
       options.apiKey = params.browserbaseApiKey;

@@ -59,6 +59,27 @@ export interface V3Options {
   logger?: (line: LogLine) => void;
   /** Directory used to persist cached actions for act(). */
   cacheDir?: string;
+  /**
+   * Valkey host address. When set, uses Valkey as the cache backend.
+   * Takes precedence over `cacheDir` if both are provided.
+   */
+  valkeyHost?: string;
+  /** Valkey port (default: 6379). */
+  valkeyPort?: number;
+  /** Enable TLS for the Valkey connection. */
+  valkeyTls?: boolean;
+  /** Valkey authentication password (IAM token or static auth token). */
+  valkeyPassword?: string;
+  /** Valkey authentication username (for ACL-enabled instances). */
+  valkeyUsername?: string;
+  /** TTL in seconds for cache entries stored in Valkey. Omit for no expiry. */
+  cacheTtl?: number;
+  /** Key prefix namespace for Valkey keys (default: "stagehand"). */
+  valkeyKeyPrefix?: string;
+  /** Request timeout in ms for Valkey operations (default: 5000). */
+  valkeyRequestTimeout?: number;
+  /** Max allowed cache value size in bytes for Valkey writes (default: 5MB). Writes exceeding this are skipped. */
+  valkeyMaxCacheValueBytes?: number;
   domSettleTimeout?: number;
   disableAPI?: boolean;
   /**

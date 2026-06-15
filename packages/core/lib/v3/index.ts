@@ -37,6 +37,7 @@ import {
 
 export { V3 } from "./v3.js";
 export { V3 as Stagehand } from "./v3.js";
+export { mapV3OptsToValkeyConfig } from "./v3.js";
 
 export * from "./types/public/index.js";
 export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient.js";
@@ -119,6 +120,7 @@ export { getAISDKLanguageModel } from "./llm/LLMProvider.js";
 export { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
 export { maybeRunShutdownSupervisorFromArgv as __internalMaybeRunShutdownSupervisorFromArgv } from "./shutdown/supervisor.js";
 export type { ServerAgentCacheHandle } from "./cache/serverAgentCache.js";
+export type { ValkeyCacheOptions } from "./cache/CacheStorage.js";
 
 export type {
   ChatMessage,
