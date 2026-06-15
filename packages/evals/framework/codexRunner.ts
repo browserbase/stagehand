@@ -1,9 +1,12 @@
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import type { AvailableModel, TaskSpec, V3 } from "@browserbasehq/stagehand";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
+import { codexAdapter } from "./harnesses/codexAdapter.js";
+import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
+import { evaluationResultToSuccess } from "./verifierAdapter.js";
 
 type MetricValue = { count: number; value: number };
 type CodexEvent = Record<string, unknown>;
@@ -25,6 +28,25 @@ export type CodexSdk = {
   startThread: (options?: Record<string, unknown>) => CodexThread;
 };
 
+export interface CodexVerifierConfig {
+  /**
+   * V3 instance used solely as the LLM-client carrier for V3Evaluator. The
+   * instance does NOT need to have `init()` been called — V3Evaluator.verify()
+   * uses only `v3.logger` to construct its LLMProvider.
+   */
+  v3: V3;
+  /** TaskSpec to verify against. id + instruction + optional rubric/initUrl. */
+  taskSpec: TaskSpec;
+  /** Dataset name for rubric cache partitioning (used when no precomputedRubric). */
+  dataset: string;
+  /** Override --success mode. Defaults to EVAL_SUCCESS_MODE env or "outcome". */
+  successMode?: "outcome" | "process" | "both";
+  /** Override trajectory persistence root. */
+  trajectoryRoot?: string;
+  /** Override the run id (defaults to ISO timestamp). */
+  runId?: string;
+}
+
 export interface CodexRunnerInput {
   plan: ExternalHarnessTaskPlan;
   model: AvailableModel;
@@ -32,6 +54,16 @@ export interface CodexRunnerInput {
   toolAdapter?: PreparedCodexToolAdapter;
   signal?: AbortSignal;
   sdk?: CodexSdk;
+  /**
+   * Optional verifier integration. When provided, the runner builds a
+   * Trajectory from the codex event stream (via codexAdapter), runs
+   * V3Evaluator.verify() against the trajectory's embedded TaskSpec, and folds
+   * the EvaluationResult into the returned TaskResult ({_success} mode follows
+   * EVAL_SUCCESS_MODE).
+   * When omitted, the runner falls back to parsing the legacy JSON result —
+   * preserves current behavior for callers that haven't migrated.
+   */
+  verifier?: CodexVerifierConfig;
 }
 
 export interface ParsedCodexResult {
@@ -114,6 +146,7 @@ export async function runCodexAgent({
   toolAdapter,
   signal,
   sdk: injectedSdk,
+  verifier,
 }: CodexRunnerInput): Promise<TaskResult> {
   const sdk = injectedSdk ?? (await loadCodexSdk(toolAdapter?.env));
   const prompt = buildCodexPrompt(plan, toolAdapter?.promptInstructions);
@@ -191,8 +224,7 @@ export async function runCodexAgent({
       finalResponse ||
       transcriptText ||
       "Codex did not report success");
-
-  return {
+  const baseResult: TaskResult = {
     _success: parsed.success,
     error: !parsed.success ? errorMessage : undefined,
     reasoning: parsed.summary,
@@ -203,6 +235,97 @@ export async function runCodexAgent({
     logs: logger.getLogs(),
     metrics: buildCodexMetrics(usage),
   };
+
+  if (!verifier) {
+    return baseResult;
+  }
+
+  try {
+    const trajectory = codexAdapter.fromHarnessResult(
+      {
+        events,
+        finalAnswer: parsed.finalAnswer ?? finalResponse,
+        status: status === "completed" ? "complete" : "error",
+        usage: {
+          input_tokens: toFiniteNumber(usage?.input_tokens),
+          output_tokens: toFiniteNumber(usage?.output_tokens),
+          ...(usage?.reasoning_output_tokens !== undefined && {
+            reasoning_tokens: toFiniteNumber(usage.reasoning_output_tokens),
+          }),
+          ...(usage?.cached_input_tokens !== undefined && {
+            cached_input_tokens: toFiniteNumber(usage.cached_input_tokens),
+          }),
+        },
+      },
+      verifier.taskSpec,
+    );
+
+    const { V3Evaluator } = await import("@browserbasehq/stagehand");
+    const { RubricCache } = await import("./rubricCache.js");
+    const evaluator = new V3Evaluator(verifier.v3, { backend: "verifier" });
+
+    let rubric = verifier.taskSpec.precomputedRubric;
+    if (!rubric) {
+      if (process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1") {
+        rubric = await evaluator.generateRubric(verifier.taskSpec);
+      } else {
+        const cache = new RubricCache({ dataset: verifier.dataset });
+        rubric = await cache.getOrGenerate(verifier.taskSpec, evaluator);
+      }
+    }
+    const hydratedSpec: TaskSpec = {
+      ...verifier.taskSpec,
+      precomputedRubric: rubric,
+    };
+    const hydratedTrajectory = { ...trajectory, task: hydratedSpec };
+
+    const evaluationResult = await evaluator.verify(hydratedTrajectory);
+    const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
+    const verifiedSuccess = evaluationResultToSuccess(
+      evaluationResult,
+      successMode,
+    );
+
+    const { directory: trajectoryDir } = await persistAdapterTrajectory({
+      trajectory: hydratedTrajectory,
+      taskSpec: hydratedSpec,
+      evaluationResult,
+      outputRoot: verifier.trajectoryRoot,
+      runId: verifier.runId,
+    });
+
+    logger.log({
+      category: "codex",
+      message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} steps=${hydratedTrajectory.steps.length}`,
+      level: 1,
+    });
+
+    return {
+      ...baseResult,
+      _success: verifiedSuccess,
+      error: verifiedSuccess ? undefined : (baseResult.error ?? errorMessage),
+      outcomeSuccess: evaluationResult.outcomeSuccess,
+      processScore: evaluationResult.processScore,
+      evidenceInsufficient: evaluationResult.evidenceInsufficient,
+      criterionCount: rubric.items.length,
+      stepCount: hydratedTrajectory.steps.length,
+      trajectoryDir,
+    };
+  } catch (verifyError) {
+    logger.warn({
+      category: "codex",
+      message: `verifier integration failed: ${stringifyError(verifyError)}`,
+      level: 0,
+      auxiliary: {
+        error: { value: stringifyError(verifyError), type: "string" },
+      },
+    });
+    return baseResult;
+  }
+}
+
+function formatProcessScore(score: number | undefined): string {
+  return typeof score === "number" ? score.toFixed(2) : "n/a";
 }
 
 function tryParseCodexJson(
