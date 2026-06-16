@@ -106,11 +106,11 @@ export function isBlobSkillId(skillId: ParsedSkillId): boolean {
 }
 
 export async function installSkill(rawSkillId: string): Promise<void> {
-  const skillId = parseSkillId(rawSkillId);
+  const skill = parseSkillId(rawSkillId);
   // Attach only the validated, catalog-public id to telemetry — never the raw
   // argument, which can contain arbitrary user input. Setting it right after
   // parsing covers success and every downstream failure path.
-  setRunTelemetryCompletion({ skillId: skillId.id });
+  setRunTelemetryCompletion({ skillId: skill.id });
   const npxPath = await findExecutable("npx");
   if (!npxPath) {
     fail(
@@ -120,9 +120,9 @@ export async function installSkill(rawSkillId: string): Promise<void> {
     );
   }
 
-  const files = await fetchSkillFiles(skillId);
+  const files = await fetchSkillFiles(skill);
   if (files.status === "found") {
-    const result = await downloadBlobSkill(skillId, files.files);
+    const result = await downloadBlobSkill(skill, files.files);
     process.stdout.write(
       `Downloaded ${result.fileCount} skill file${result.fileCount === 1 ? "" : "s"} to ${result.installPath}\n`,
     );
@@ -137,7 +137,7 @@ export async function installSkill(rawSkillId: string): Promise<void> {
 
   if (files.status === "not_found") {
     fail(
-      `Skill "${skillId.id}" not found in the catalog. Run \`browse skills find ${skillId.domain}\` to discover available skills, or \`browse skills list\` to browse them.`,
+      `Skill "${skill.id}" not found in the catalog. Run \`browse skills find ${skill.domain}\` to discover available skills, or \`browse skills list\` to browse them.`,
       1,
       { resultCode: "skill_not_found" },
     );
@@ -151,7 +151,7 @@ export async function installSkill(rawSkillId: string): Promise<void> {
     "add",
     "browserbase/browse.sh",
     "--skill",
-    skillId.id,
+    skill.id,
   ]);
 }
 

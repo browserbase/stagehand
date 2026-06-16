@@ -248,11 +248,12 @@ describe("CLI telemetry", () => {
 
       const payloads = telemetryPayloads(telemetryServer);
       const completedPayload = findPayload(payloads, "cli.command_completed");
-      expect(completedPayload.properties.command_path).toBe("skills.add");
-      expect(completedPayload.properties.skill_id).toBe(
-        "example.com/extract-reviews",
-      );
-      expect(completedPayload.properties.result_code).toBe("skill_not_found");
+      expect(completedPayload.properties).toMatchObject({
+        command_path: "skills.add",
+        skill_id: "example.com/extract-reviews",
+        result_code: "skill_not_found",
+        success: false,
+      });
 
       const invokedPayload = findPayload(payloads, "cli.command_invoked");
       expect(invokedPayload.properties).not.toHaveProperty("skill_id");
