@@ -6,11 +6,11 @@ description: "Add the Browserbase MCP Server to your MCP client"
 
 ## Quick Installation
 
-<Card title="Install with Cursor" icon="arrow-pointer" href="cursor://anysphere.cursor-deeplink/mcp/install?name=browserbase&config=eyJ1cmwiOiJodHRwczovL21jcC5icm93c2VyYmFzZS5jb20vbWNwP2Jyb3dzZXJiYXNlQXBpS2V5PVlPVVJfQlJPV1NFUkJBU0VfQVBJX0tFWSJ9">
+<Card title="Install with Cursor" icon="arrow-pointer" href="cursor://anysphere.cursor-deeplink/mcp/install?name=browserbase&config=eyJ1cmwiOiJodHRwczovL21jcC5icm93c2VyYmFzZS5jb20vbWNwIiwiaGVhZGVycyI6eyJBdXRob3JpemF0aW9uIjoiQmVhcmVyIFlPVVJfQlJPV1NFUkJBU0VfQVBJX0tFWSJ9fQ==">
   One-click installation directly in Cursor
 </Card>
 
-You can also add Browserbase MCP to Claude Code with a single command:
+You can also add Browserbase MCP to Claude Code with a single command. If your client supports HTTP request headers, prefer `Authorization: Bearer YOUR_BROWSERBASE_API_KEY`; otherwise, use the legacy query-parameter fallback:
 
 ```bash
 claude mcp add --transport http browserbase "https://mcp.browserbase.com/mcp?browserbaseApiKey=YOUR_BROWSERBASE_API_KEY"
@@ -40,15 +40,21 @@ Then copy your API Key directly from the input.
 </Step>
 </Steps>
 
-## Query Parameters (Hosted [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http))
+## Authentication and Query Parameters (Hosted [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http))
 
 ### Required for tool calls
 
 <CardGroup cols={1}>
-<Card title="browserbaseApiKey" icon="key">
-Browserbase API key.
+<Card title="Authorization" icon="key">
+Pass your Browserbase API key as an HTTP authorization header: `Authorization: Bearer YOUR_BROWSERBASE_API_KEY`.
 </Card>
 </CardGroup>
+
+<Note>
+  The hosted server also accepts `x-bb-api-key: YOUR_BROWSERBASE_API_KEY`.
+  The `browserbaseApiKey` query parameter remains supported as a deprecated
+  compatibility fallback for clients that cannot set request headers.
+</Note>
 
 ### Optional
 
@@ -146,7 +152,10 @@ Use your MCP client config:
 {
   "mcpServers": {
     "browserbase": {
-      "url": "https://mcp.browserbase.com/mcp?browserbaseApiKey=YOUR_BROWSERBASE_API_KEY"
+      "url": "https://mcp.browserbase.com/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_BROWSERBASE_API_KEY"
+      }
     }
   }
 }
@@ -158,7 +167,10 @@ For custom models, include `modelName` and `modelApiKey`:
 {
   "mcpServers": {
     "browserbase": {
-      "url": "https://mcp.browserbase.com/mcp?browserbaseApiKey=YOUR_BROWSERBASE_API_KEY&modelName=openai/gpt-4.1&modelApiKey=YOUR_MODEL_API_KEY"
+      "url": "https://mcp.browserbase.com/mcp?modelName=openai/gpt-4.1&modelApiKey=YOUR_MODEL_API_KEY",
+      "headers": {
+        "Authorization": "Bearer YOUR_BROWSERBASE_API_KEY"
+      }
     }
   }
 }
