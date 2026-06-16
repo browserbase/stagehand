@@ -18,8 +18,8 @@ overrides:
   esbuild: 0.28.1
   form-data: ^4.0.6
   tar: ^7.5.16
-  '@changesets/parse>js-yaml': ^4.2.0
-  '@asyncapi/parser>js-yaml': ^4.2.0
+  js-yaml@4.1.1: 4.2.0
+  read-yaml-file: 2.1.0
 
 importers:
 
@@ -5027,10 +5027,6 @@ packages:
     resolution: {integrity: sha512-PMSmkqxr106Xa156c2M265Z+FTrPl+oxd/rgOQy2tijQeK5TxQ43psO1ZCwhVOSdnn+RzkzlRz/eY4BgJBYVpg==}
     hasBin: true
 
-  js-yaml@4.1.1:
-    resolution: {integrity: sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==}
-    hasBin: true
-
   js-yaml@4.2.0:
     resolution: {integrity: sha512-ePWsvanv0DWuDRsW8dnt+R4jQ31SCRCQ7hhNcPXZPsoBZiemuZNYGf7adZdqX2D86j6rvKp3RpCxVTSb8WQlOw==}
     hasBin: true
@@ -5924,10 +5920,6 @@ packages:
     resolution: {integrity: sha512-udgsAY+fTnvv7kI7aaxbqwWNb0AHiB0qBO89PZKPkoTmGOgdbrHDKD+0B2X4uTfJ/FT1R09r9gTsjUjNJotuog==}
     engines: {node: '>=0.10.0'}
 
-  pify@4.0.1:
-    resolution: {integrity: sha512-uB80kBFb/tfd68bVleG9T5GGsGPjJrLAUpR5PZIrhBnIaRTQRjqdJSsIKkOP6OAIFbj7GOrcudc5pNjZ+geV2g==}
-    engines: {node: '>=6'}
-
   pino-abstract-transport@2.0.0:
     resolution: {integrity: sha512-F63x5tizV6WCh4R6RHyi2Ml+M70DNRXt/+HANowMflpgGFMAym/VKm6G7ZOQRjqN7XbGxK1Lg9t6ZrtzOaivMw==}
 
@@ -6218,9 +6210,9 @@ packages:
   read-cache@1.0.0:
     resolution: {integrity: sha512-Owdv/Ft7IjOgm/i0xvNDZ1LrRANRfew4b2prF3OWMQLxLfu3bS8FVhCsrSCMK4lR56Y9ya+AThoTpDCTxCmpRA==}
 
-  read-yaml-file@1.1.0:
-    resolution: {integrity: sha512-VIMnQi/Z4HT2Fxuwg5KrY174U1VdUIASQVWXXyqtNRtxSr9IYkn1rsI6Tb6HsrHCmB7gVpNwX6JxPTHcH6IoTA==}
-    engines: {node: '>=6'}
+  read-yaml-file@2.1.0:
+    resolution: {integrity: sha512-UkRNRIwnhG+y7hpqnycCL/xbTk7+ia9VuVTC0S+zVbwd65DI9eUpRMfsWIGrCWxTU/mi+JW8cHQCrv+zfCbEPQ==}
+    engines: {node: '>=10.13'}
 
   readable-stream@2.3.8:
     resolution: {integrity: sha512-8p0AUk4XODgIewSi0l8Epjs+EVnWiK7NoDIEGU0HhE7+ZyY8D1IMY7odu5lRrFXGg71L15KG8QrPmum45RTtdA==}
@@ -6765,9 +6757,9 @@ packages:
     resolution: {integrity: sha512-yDPMNjp4WyfYBkHnjIRLfca1i6KMyGCtsVgoKe/z1+6vukgaENdgGBZt+ZmKPc4gavvEZ5OgHfHdrazhgNyG7w==}
     engines: {node: '>=12'}
 
-  strip-bom@3.0.0:
-    resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
-    engines: {node: '>=4'}
+  strip-bom@4.0.0:
+    resolution: {integrity: sha512-3xurFv5tEgii33Zi8Jtp55wEIILR9eh34FAW00PZf+JnSsTmV/ioewSgQl97JHvgjoRGwPShsWm+IdrxB35d0w==}
+    engines: {node: '>=8'}
 
   strip-json-comments@2.0.1:
     resolution: {integrity: sha512-4gB8na07fecVVkOI6Rs4e7T6NOTki5EmL7TUduTs6bu3EdnSycntVJ4re8kgZA+wx9IueI2Y11bfbgwtzuE0KQ==}
@@ -9183,7 +9175,7 @@ snapshots:
       '@manypkg/find-root': 1.1.0
       fs-extra: 8.1.0
       globby: 11.1.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.1.0
 
   '@mdx-js/mdx@3.1.0(acorn@8.11.2)':
     dependencies:
@@ -9238,7 +9230,7 @@ snapshots:
       fs-extra: 11.2.0
       ink: 6.3.0(@types/react@19.1.3)(bufferutil@4.0.9)(react@19.2.3)
       inquirer: 12.3.0(@types/node@25.6.2)
-      js-yaml: 4.1.1
+      js-yaml: 4.2.0
       mdast-util-mdx-jsx: 3.2.0
       open: 8.4.2
       openid-client: 6.8.2
@@ -9289,7 +9281,7 @@ snapshots:
       hast-util-to-text: 4.0.2
       hex-rgb: 5.0.0
       ignore: 7.0.5
-      js-yaml: 4.1.1
+      js-yaml: 4.2.0
       lodash: 4.18.1
       mdast-util-from-markdown: 2.0.2
       mdast-util-gfm: 3.0.0
@@ -9413,7 +9405,7 @@ snapshots:
       favicons: 7.2.0
       front-matter: 4.0.2
       fs-extra: 11.1.0
-      js-yaml: 4.1.1
+      js-yaml: 4.2.0
       openapi-types: 12.1.3
       sharp: 0.33.5
       sharp-ico: 0.1.5
@@ -9452,7 +9444,7 @@ snapshots:
       ink: 6.3.0(@types/react@19.1.3)(bufferutil@4.0.9)(react@19.2.3)
       ink-spinner: 5.0.0(ink@6.3.0(@types/react@19.1.3)(bufferutil@4.0.9)(react@19.2.3))(react@19.2.3)
       is-online: 10.0.0
-      js-yaml: 4.1.1
+      js-yaml: 4.2.0
       openapi-types: 12.1.3
       react: 19.2.3
       socket.io: 4.8.0(bufferutil@4.0.9)
@@ -9482,7 +9474,7 @@ snapshots:
       '@mintlify/openapi-parser': 0.0.8
       fs-extra: 11.1.1
       hast-util-to-mdast: 10.1.0
-      js-yaml: 4.1.1
+      js-yaml: 4.2.0
       mdast-util-mdx-jsx: 3.1.3
       neotraverse: 0.6.18
       puppeteer: 22.14.0(bufferutil@4.0.9)(typescript@5.9.3)
@@ -9516,7 +9508,7 @@ snapshots:
       '@mintlify/mdx': 3.0.4(@radix-ui/react-popover@1.1.15(@types/react@19.1.3)(react-dom@18.3.1(react@19.2.3))(react@19.2.3))(@types/react@19.1.3)(acorn@8.11.2)(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       '@mintlify/models': 0.0.309
       arktype: 2.1.27
-      js-yaml: 4.1.1
+      js-yaml: 4.2.0
       lcm: 0.0.3
       lodash: 4.18.1
       neotraverse: 0.6.18
@@ -11414,7 +11406,7 @@ snapshots:
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
-      js-yaml: 4.1.1
+      js-yaml: 4.2.0
       parse-json: 5.2.0
     optionalDependencies:
       typescript: 5.9.3
@@ -13375,10 +13367,6 @@ snapshots:
       argparse: 1.0.10
       esprima: 4.0.1
 
-  js-yaml@4.1.1:
-    dependencies:
-      argparse: 2.0.1
-
   js-yaml@4.2.0:
     dependencies:
       argparse: 2.0.1
@@ -14655,8 +14643,6 @@ snapshots:
 
   pify@2.3.0: {}
 
-  pify@4.0.1: {}
-
   pino-abstract-transport@2.0.0:
     dependencies:
       split2: 4.2.0
@@ -14997,12 +14983,10 @@ snapshots:
     dependencies:
       pify: 2.3.0
 
-  read-yaml-file@1.1.0:
+  read-yaml-file@2.1.0:
     dependencies:
-      graceful-fs: 4.2.11
-      js-yaml: 3.14.2
-      pify: 4.0.1
-      strip-bom: 3.0.0
+      js-yaml: 4.2.0
+      strip-bom: 4.0.0
 
   readable-stream@2.3.8:
     dependencies:
@@ -15869,7 +15853,7 @@ snapshots:
     dependencies:
       ansi-regex: 6.2.2
 
-  strip-bom@3.0.0: {}
+  strip-bom@4.0.0: {}
 
   strip-json-comments@2.0.1:
     optional: true
