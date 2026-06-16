@@ -46,7 +46,7 @@
     "@eslint/js": "^10.0.1",
     "c8": "^11.0.0",
     "dotenv": "^17.3.1",
-    "esbuild": "0.27.2",
+    "esbuild": "0.28.1",
     "eslint": "^10.3.0",
     "eslint-plugin-security": "^3.0.1",
     "globals": "^15.13.0",
