@@ -123,7 +123,7 @@
     "@types/jsdom": "^27.0.0",
     "@types/node": "^20.11.30",
     "@types/ws": "^8.5.13",
-    "@vitest/coverage-v8": "^4.0.8",
+    "@vitest/coverage-v8": "^4.1.9",
     "adm-zip": "^0.5.16",
     "chalk": "^5.4.1",
     "eslint": "10.0.2",
@@ -134,8 +134,8 @@
     "prettier": "^3.2.5",
     "puppeteer-core": "^24.43.0",
     "tsx": "*",
-    "vite": "^7.3.3",
-    "vitest": "^4.1.6",
+    "vite": "^7.3.5",
+    "vitest": "^4.1.9",
     "zod": "^3.25.76 || ^4.2.0"
   },
   "repository": {
