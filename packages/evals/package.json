@@ -39,7 +39,7 @@
     "braintrust": "^0.4.10",
     "chalk": "^5.4.1",
     "string-comparison": "^1.3.0",
-    "vite": "^7.3.3",
-    "vitest": "^4.1.6"
+    "vite": "^7.3.5",
+    "vitest": "^4.1.9"
   }
 }
