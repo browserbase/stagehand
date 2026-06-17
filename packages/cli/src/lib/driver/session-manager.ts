@@ -7,6 +7,7 @@ import {
 } from "./commands/selectors.js";
 import { executeDriverCommand } from "./commands/registry.js";
 import type { DriverCommandName } from "./commands/types.js";
+import { DriverError } from "./errors.js";
 import { discoverLocalCdp } from "./local-cdp-discovery.js";
 import { NetworkCapture } from "./network-capture.js";
 import { getRemote } from "./remote-binding.js";
@@ -21,15 +22,49 @@ export type DriverContext = Stagehand["context"];
 export type DriverPage = Awaited<ReturnType<DriverContext["awaitActivePage"]>>;
 
 const INIT_FAILURE_RETRY_MS = 5_000;
+const INIT_FAILURE_RETRY_MAX_MS = 60_000;
+
+// chrome-launcher reports "no Chrome on this machine" with these codes (its
+// LaunchErrorCodes const enum, which can't be imported directly: const enums
+// are erased at build time and isolatedModules forbids cross-module access).
+const CHROME_NOT_FOUND_ERROR_CODES = new Set([
+  "ERR_LAUNCHER_NOT_INSTALLED",
+  "ERR_LAUNCHER_PATH_NOT_SET",
+]);
 
 interface InitFailure {
   error: unknown;
   retryAt: number;
 }
 
+/**
+ * Exponential backoff for cached init failures: 5s, 10s, 20s, ... capped at
+ * 1 minute. Prevents agents stuck in retry loops from hammering init while
+ * still allowing a quick retry after the first failure.
+ */
+export function initFailureBackoffMs(consecutiveFailures: number): number {
+  const attempt = Math.max(1, consecutiveFailures);
+  return Math.min(
+    INIT_FAILURE_RETRY_MS * 2 ** (attempt - 1),
+    INIT_FAILURE_RETRY_MAX_MS,
+  );
+}
+
+export function isChromeNotFoundError(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  if (typeof code === "string" && CHROME_NOT_FOUND_ERROR_CODES.has(code)) {
+    return true;
+  }
+  return (
+    error instanceof Error &&
+    error.message.includes("No Chrome installations found")
+  );
+}
+
 export class DriverSessionManager {
   readonly network: NetworkCapture;
 
+  private consecutiveInitFailures = 0;
   private context: DriverContext | null = null;
   private initFailure: InitFailure | null = null;
   private initPromise: Promise<void> | null = null;
@@ -116,6 +151,7 @@ export class DriverSessionManager {
     this.stagehand = null;
     this.context = null;
     this.initFailure = null;
+    this.consecutiveInitFailures = 0;
     await this.network.disable().catch(() => undefined);
     if (stagehand) {
       await stagehand.close().catch(() => undefined);
@@ -198,8 +234,9 @@ export class DriverSessionManager {
       return page;
     }
 
-    throw new Error(
+    throw new DriverError(
       `No active page in session "${this.session}". Run browse open <url> --session ${this.session} or browse tab new <url> --session ${this.session}.`,
+      { code: "no_active_page" },
     );
   }
 
@@ -225,18 +262,33 @@ export class DriverSessionManager {
     this.initPromise = this.initialize()
       .then(() => {
         this.initFailure = null;
+        this.consecutiveInitFailures = 0;
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
+        this.consecutiveInitFailures += 1;
+        const failure = await this.markRepeatedInitFailure(error);
         this.initFailure = {
-          error,
-          retryAt: Date.now() + INIT_FAILURE_RETRY_MS,
+          error: failure,
+          retryAt:
+            Date.now() + initFailureBackoffMs(this.consecutiveInitFailures),
         };
-        throw error;
+        throw failure;
       })
       .finally(() => {
         this.initPromise = null;
       });
     return this.initPromise;
+  }
+
+  private async markRepeatedInitFailure(error: unknown): Promise<unknown> {
+    if (this.consecutiveInitFailures < 3 || !(error instanceof Error)) {
+      return error;
+    }
+    const hint = (await getRemote()).driverInitHints().repeatedInitFailure;
+    if (!error.message.includes(hint)) {
+      error.message += hint;
+    }
+    return error;
   }
 
   private async initialize(): Promise<void> {
@@ -248,7 +300,7 @@ export class DriverSessionManager {
       await stagehand.init();
     } catch (error) {
       await stagehand.close().catch(() => undefined);
-      throw error;
+      throw await describeInitError(error, resolvedTarget);
     }
     this.stagehand = stagehand;
     this.context = stagehand.context;
@@ -310,4 +362,36 @@ async function safeTitle(page: DriverPage): Promise<string> {
   } catch {
     return "";
   }
+}
+
+/**
+ * Turn raw `stagehand.init()` failures into typed, actionable errors. Remote
+ * failures are classified by the remote capability (401/403/etc.); a missing
+ * local Chrome gets install/escape-hatch guidance. Anything else is rethrown
+ * unchanged.
+ */
+async function describeInitError(
+  error: unknown,
+  target: ConnectionTarget,
+): Promise<unknown> {
+  if (error instanceof DriverError) return error;
+
+  if (target.kind === "remote") {
+    const { code, httpStatus, message } = (
+      await getRemote()
+    ).classifyRemoteInitError(error);
+    return new DriverError(message, { cause: error, code, httpStatus });
+  }
+
+  if (target.kind === "managed-local" && isChromeNotFoundError(error)) {
+    return new DriverError(
+      (await getRemote()).driverInitHints().chromeNotFound,
+      {
+        cause: error,
+        code: "no_chrome_found",
+      },
+    );
+  }
+
+  return error;
 }
