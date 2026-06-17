@@ -11,6 +11,7 @@ import {
   spawnPassthrough,
 } from "../src/lib/skills/install.js";
 import { runCli } from "./helpers/run-cli.js";
+import { itPosix } from "./helpers/platform.js";
 
 const cleanupPaths: string[] = [];
 const cleanupServers: Server[] = [];
@@ -33,7 +34,7 @@ afterEach(async () => {
 });
 
 describe("skills install", () => {
-  it("installs the bundled browse CLI skill", async () => {
+  itPosix("installs the bundled browse CLI skill", async () => {
     const stubDir = await createTempDir("browse-skills-install-bin-");
     const logPath = join(stubDir, "npx.log");
     await writeNpxStub(stubDir);
@@ -59,46 +60,52 @@ describe("skills install", () => {
     expect(shouldUseWindowsShell("C:\\npm\\npx.exe", "win32")).toBe(false);
   });
 
-  it("fails with a timeout message when the npx child hangs past the deadline", async () => {
-    const stubDir = await createTempDir("browse-skills-timeout-bin-");
-    await writeSleepingNpxStub(stubDir);
+  itPosix(
+    "fails with a timeout message when the npx child hangs past the deadline",
+    async () => {
+      const stubDir = await createTempDir("browse-skills-timeout-bin-");
+      await writeSleepingNpxStub(stubDir);
 
-    const result = await runCli(["skills", "install"], {
-      env: {
-        PATH: stubDir,
-        BROWSE_SKILLS_INSTALL_TIMEOUT_MS: "1000",
-      },
-    });
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Skill install timed out after 1s");
-  });
-
-  it("falls back to the GitHub installer when the catalog fetch hangs", async () => {
-    const stubDir = await createTempDir("browse-skills-hang-bin-");
-    const logPath = join(stubDir, "npx.log");
-    await writeNpxStub(stubDir);
-    const { server, baseUrl } = await startHangingServer();
-    cleanupServers.push(server);
-
-    const result = await runCli(
-      ["skills", "add", "airline.example/book-flight-ab12cd"],
-      {
+      const result = await runCli(["skills", "install"], {
         env: {
-          BB_STUB_LOG: logPath,
-          BROWSE_SKILLS_API_BASE_URL: baseUrl,
-          BROWSE_SKILLS_BLOB_BASE_URL: baseUrl,
-          BROWSE_SKILLS_FETCH_TIMEOUT_MS: "500",
           PATH: stubDir,
+          BROWSE_SKILLS_INSTALL_TIMEOUT_MS: "1000",
         },
-      },
-    );
+      });
 
-    expect(result.exitCode).toBe(0);
-    await expect(readFile(logPath, "utf8")).resolves.toContain(
-      "--yes skills add browserbase/browse.sh --skill airline.example/book-flight-ab12cd",
-    );
-  });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Skill install timed out after 1s");
+    },
+  );
+
+  itPosix(
+    "falls back to the GitHub installer when the catalog fetch hangs",
+    async () => {
+      const stubDir = await createTempDir("browse-skills-hang-bin-");
+      const logPath = join(stubDir, "npx.log");
+      await writeNpxStub(stubDir);
+      const { server, baseUrl } = await startHangingServer();
+      cleanupServers.push(server);
+
+      const result = await runCli(
+        ["skills", "add", "airline.example/book-flight-ab12cd"],
+        {
+          env: {
+            BB_STUB_LOG: logPath,
+            BROWSE_SKILLS_API_BASE_URL: baseUrl,
+            BROWSE_SKILLS_BLOB_BASE_URL: baseUrl,
+            BROWSE_SKILLS_FETCH_TIMEOUT_MS: "500",
+            PATH: stubDir,
+          },
+        },
+      );
+
+      expect(result.exitCode).toBe(0);
+      await expect(readFile(logPath, "utf8")).resolves.toContain(
+        "--yes skills add browserbase/browse.sh --skill airline.example/book-flight-ab12cd",
+      );
+    },
+  );
 });
 
 describe("quoteForCmdShell", () => {

@@ -351,13 +351,12 @@ jobs:
           use-prebuilt-artifacts: "true"
           restore-turbo-cache: "false"
 
-      # Targeted Windows gate: the platform-specific spawn/quoting tests that
-      # guard the cmd.exe npx invocation. The rest of the CLI suite still has
-      # POSIX-only harness assumptions (#!/bin/sh stubs), so it stays on the
-      # ubuntu job until the harness is made cross-platform.
-      - name: Run win32 CLI tests
-        shell: bash
-        run: pnpm --filter=browse exec vitest run tests/skills-install.test.ts -t "quoteForCmdShell|spawnPassthrough|uses a shell for Windows command shims"
+      # Runs the full CLI suite on Windows. POSIX-only tests opt out at the test
+      # site via the itPosix/describePosix helpers (tests/helpers/platform.ts),
+      # so coverage is on by default — a new test runs here unless it explicitly
+      # skips. No test-name knowledge lives in this workflow.
+      - name: Run CLI Tests
+        run: pnpm exec turbo run test:cli --filter=browse
 
   run-evals-unit-tests:
     name: Evals Unit Tests
