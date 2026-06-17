@@ -7,6 +7,7 @@ import {
   appendMacroStepIfRecording,
   startMacroRecording,
   stopMacroRecording,
+  tryAppendMacroStepIfRecording,
 } from "../src/lib/macro/recording.js";
 import { replayMacro } from "../src/lib/macro/replay.js";
 import {
@@ -123,5 +124,17 @@ describe("macro store and recording", () => {
 
     const file = path.join(macrosDir(), "paths.json");
     await expect(fs.access(file)).resolves.toBeUndefined();
+  });
+
+  it("swallows recording persistence errors in best-effort mode", async () => {
+    await startMacroRecording("fragile");
+    await fs.rm(process.env.BROWSE_DAEMON_DIR!, {
+      force: true,
+      recursive: true,
+    });
+
+    await expect(
+      tryAppendMacroStepIfRecording("click", { selector: "@0-1" }),
+    ).resolves.toBeUndefined();
   });
 });

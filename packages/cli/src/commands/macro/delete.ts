@@ -1,17 +1,15 @@
-import { Args, Flags } from "@oclif/core";
+import { Args } from "@oclif/core";
 import { promises as fs } from "node:fs";
 
 import { BrowseCommand } from "../../base.js";
+import { fail } from "../../lib/errors.js";
 import { macroFilePath } from "../../lib/macro/store.js";
 import { outputJson } from "../../lib/output.js";
 
 export default class MacroDelete extends BrowseCommand {
   static override description = "Delete a saved browse macro.";
 
-  static override examples = [
-    "browse macro delete login-flow",
-    "browse macro delete login-flow --force",
-  ];
+  static override examples = ["browse macro delete login-flow"];
 
   static override args = {
     name: Args.string({
@@ -20,24 +18,19 @@ export default class MacroDelete extends BrowseCommand {
     }),
   };
 
-  static override flags = {
-    force: Flags.boolean({
-      default: false,
-      description: "Delete without confirmation.",
-    }),
-  };
-
   async run(): Promise<void> {
-    const { args, flags } = await this.parse(MacroDelete);
+    const { args } = await this.parse(MacroDelete);
     const file = macroFilePath(args.name);
 
-    if (!flags.force) {
-      throw new Error(
-        `Refusing to delete macro "${args.name}" without --force.`,
-      );
+    try {
+      await fs.unlink(file);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        fail(`Macro "${args.name}" not found.`);
+      }
+      throw error;
     }
 
-    await fs.unlink(file);
     outputJson({
       deleted: true,
       name: args.name,

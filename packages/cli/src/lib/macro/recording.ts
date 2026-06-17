@@ -82,3 +82,14 @@ export async function getActiveRecordingName(): Promise<string | null> {
   const active = await readRecordingState();
   return active?.name ?? null;
 }
+
+export async function tryAppendMacroStepIfRecording(
+  command: DriverCommandName,
+  params: unknown,
+): Promise<void> {
+  try {
+    await appendMacroStepIfRecording(command, params);
+  } catch {
+    // Best-effort recording must not mask successful driver commands.
+  }
+}
