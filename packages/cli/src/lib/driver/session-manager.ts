@@ -215,21 +215,21 @@ export class DriverSessionManager {
           `Target ${target.targetId} was not found in the attached browser.`,
         );
       }
-      this.context.setActivePage(page);
+      this.activateIfNeeded(page);
       this.selectedTargetId = page.targetId();
       return page;
     }
 
     const existingPage = this.activePageIfPresent() ?? this.context.pages()[0];
     if (existingPage) {
-      this.context.setActivePage(existingPage);
+      this.activateIfNeeded(existingPage);
       this.selectedTargetId = existingPage.targetId();
       return existingPage;
     }
 
     if (options.createIfMissing) {
       const page = await this.context.newPage();
-      this.context.setActivePage(page);
+      this.activateIfNeeded(page);
       this.selectedTargetId = page.targetId();
       return page;
     }
@@ -245,6 +245,22 @@ export class DriverSessionManager {
       return this.context?.activePage() ?? undefined;
     } catch {
       return undefined;
+    }
+  }
+
+  /**
+   * Mark `page` active only when it isn't already the active page.
+   *
+   * `setActivePage` ends in a CDP `Target.activateTarget`, which on macOS
+   * raises the whole Chrome app to the OS foreground and steals keyboard focus.
+   * The daemon resolves the active page on every subcommand, so calling this
+   * unconditionally yanks focus away from the user's editor/terminal on each
+   * command in headed local mode. Skipping the redundant re-activation keeps a
+   * headed session usable alongside a coding agent.
+   */
+  private activateIfNeeded(page: DriverPage): void {
+    if (page !== this.activePageIfPresent()) {
+      this.context?.setActivePage(page);
     }
   }
 
