@@ -13,6 +13,24 @@ export interface RemoteDoctorResult {
   fix?: string;
 }
 
+export interface RemoteInitErrorClassification {
+  code: string;
+  httpStatus?: number;
+  message: string;
+}
+
+/**
+ * Driver init remediation strings that may reference `BROWSERBASE_API_KEY`.
+ * They live behind the remote capability so the local-only artifact contains
+ * key-free variants (its build excludes `remote.ts` entirely).
+ */
+export interface DriverInitHints {
+  /** Actionable message when no local Chrome can be found. */
+  chromeNotFound: string;
+  /** Suffix appended after repeated consecutive init failures. */
+  repeatedInitFailure: string;
+}
+
 /**
  * The Browserbase (cloud) capability surface. The real implementation lives in
  * `remote.ts` and is the only place that reads `BROWSERBASE_API_KEY`. The
@@ -26,6 +44,10 @@ export interface RemoteCapability {
   autoSelectRemoteTarget(): ConnectionTarget | null;
   /** Stagehand options for a remote (BROWSERBASE) session. */
   remoteStagehandOptions(): StagehandConstructorOptions;
+  /** Map a failed remote `stagehand.init()` to an actionable message + code. */
+  classifyRemoteInitError(error: unknown): RemoteInitErrorClassification;
+  /** Remediation strings for driver init failures. */
+  driverInitHints(): DriverInitHints;
   /** Doctor readiness check for remote/Browserbase. */
   remoteDoctorCheck(env: NodeJS.ProcessEnv): RemoteDoctorResult;
 }

@@ -106,6 +106,9 @@ importers:
       fastest-levenshtein:
         specifier: ^1.0.16
         version: 1.0.16
+      http-status-codes:
+        specifier: ^2.3.0
+        version: 2.3.0
       ignore:
         specifier: ^7.0.5
         version: 7.0.5

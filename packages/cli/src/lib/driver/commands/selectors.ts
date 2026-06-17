@@ -1,3 +1,5 @@
+import { DriverError } from "../errors.js";
+
 export interface RefMaps {
   urlMap: Record<string, string>;
   xpathMap: Record<string, string>;
@@ -36,8 +38,9 @@ export function resolveSelector(selector: string, refMaps: RefMaps): string {
 
   const xpath = refMaps.xpathMap[ref];
   if (!xpath) {
-    throw new Error(
+    throw new DriverError(
       `Unknown ref "${ref}" - run browse snapshot first to populate refs (have ${Object.keys(refMaps.xpathMap).length} refs).`,
+      { code: "stale_ref" },
     );
   }
 

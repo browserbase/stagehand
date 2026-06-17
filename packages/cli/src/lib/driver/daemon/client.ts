@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import net from "node:net";
 
-import { fail } from "../../errors.js";
+import { CommandFailure, fail } from "../../errors.js";
 import type { DriverCommandName } from "../commands/types.js";
 import { targetsCompatible } from "../mode.js";
 import type { ConnectionTarget, DriverStatus, OpenResult } from "../types.js";
@@ -40,7 +40,11 @@ export async function ensureDriverDaemon({
 
   const locked = await acquireLock(session);
   if (!locked) {
-    fail(`Timed out waiting for driver daemon lock for session "${session}".`);
+    fail(
+      `Timed out waiting for driver daemon lock for session "${session}".`,
+      1,
+      { resultCode: "daemon_lock_timeout" },
+    );
   }
 
   try {
@@ -52,6 +56,8 @@ export async function ensureDriverDaemon({
     if (await isDaemonPidAlive(session)) {
       fail(
         `Driver daemon session "${session}" is running but not responding. Run browse stop --session ${session} --force to clean it up.`,
+        1,
+        { resultCode: "daemon_unresponsive" },
       );
     }
     spawnDaemon(session, target);
@@ -180,7 +186,11 @@ async function sendDriverRequest<T>(
 
     const timeout = setTimeout(() => {
       failRequest(
-        new Error(`Timed out waiting for driver daemon session "${session}".`),
+        new CommandFailure(
+          `Timed out waiting for driver daemon session "${session}".`,
+          1,
+          { resultCode: "daemon_socket_timeout" },
+        ),
       );
     }, 35_000);
 
@@ -196,7 +206,14 @@ async function sendDriverRequest<T>(
           JSON.parse(buffer.slice(0, newline)),
         );
         if (response.type === "error") {
-          failRequest(new Error(response.error));
+          failRequest(
+            new CommandFailure(response.error, 1, {
+              ...(response.code ? { resultCode: response.code } : {}),
+              ...(response.httpStatus !== undefined
+                ? { httpStatus: response.httpStatus }
+                : {}),
+            }),
+          );
           return;
         }
         completeRequest(response.data as T);
@@ -219,7 +236,9 @@ async function sendDriverRequest<T>(
 function spawnDaemon(session: string, target: ConnectionTarget): void {
   const entrypoint = process.argv[1];
   if (!entrypoint) {
-    fail("Unable to locate browse CLI entrypoint for daemon startup.");
+    fail("Unable to locate browse CLI entrypoint for daemon startup.", 1, {
+      resultCode: "daemon_spawn_failed",
+    });
   }
 
   const child = spawn(
