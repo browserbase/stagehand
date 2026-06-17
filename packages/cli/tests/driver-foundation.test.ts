@@ -4,6 +4,7 @@ import net from "node:net";
 import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { itPosix } from "./helpers/platform.js";
 
 import {
   resolveConnectionTarget,
@@ -402,26 +403,29 @@ describe("driver foundation", () => {
     }
   });
 
-  it("does not remove daemon files for an alive unresponsive daemon", async () => {
-    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
-    cleanupPaths.push(daemonDir);
-    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
-    process.env.BROWSE_DAEMON_DIR = daemonDir;
-    const session = "alive-unresponsive";
-    const pidPath = getPidPath(session);
-    const socketPath = getSocketPath(session);
+  itPosix(
+    "does not remove daemon files for an alive unresponsive daemon",
+    async () => {
+      const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+      cleanupPaths.push(daemonDir);
+      const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+      process.env.BROWSE_DAEMON_DIR = daemonDir;
+      const session = "alive-unresponsive";
+      const pidPath = getPidPath(session);
+      const socketPath = getSocketPath(session);
 
-    try {
-      await writeFile(pidPath, String(process.pid));
-      await writeFile(socketPath, "not-a-socket");
+      try {
+        await writeFile(pidPath, String(process.pid));
+        await writeFile(socketPath, "not-a-socket");
 
-      await expect(getDriverStatus(session)).resolves.toBeNull();
-      await expect(access(pidPath)).resolves.toBeUndefined();
-      await expect(access(socketPath)).resolves.toBeUndefined();
-    } finally {
-      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
-    }
-  });
+        await expect(getDriverStatus(session)).resolves.toBeNull();
+        await expect(access(pidPath)).resolves.toBeUndefined();
+        await expect(access(socketPath)).resolves.toBeUndefined();
+      } finally {
+        restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      }
+    },
+  );
 
   it("checks target compatibility after waiting for the daemon lock", async () => {
     const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));

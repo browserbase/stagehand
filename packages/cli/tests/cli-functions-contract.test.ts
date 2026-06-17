@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { itPosix } from "./helpers/platform.js";
 
 import {
   jsonResponse,
@@ -44,7 +45,7 @@ afterEach(async () => {
 });
 
 describe("functions API contracts", () => {
-  it("publishes a Functions archive and polls build status", async () => {
+  itPosix("publishes a Functions archive and polls build status", async () => {
     const cwd = await createFunctionFixture("functions-publish-");
 
     await withServer(
@@ -151,7 +152,7 @@ describe("functions API contracts", () => {
     );
   });
 
-  it("exits nonzero when a build fails", async () => {
+  itPosix("exits nonzero when a build fails", async () => {
     const cwd = await createFunctionFixture("functions-publish-fail-");
 
     await withServer(
@@ -303,7 +304,7 @@ describe("functions API contracts", () => {
 });
 
 describe("functions scaffolding and local dev", () => {
-  it("scaffolds a Functions project", async () => {
+  itPosix("scaffolds a Functions project", async () => {
     const cwd = await createTempDir("functions-init-");
     const fakeBin = await createFakePackageManagerBin();
 
