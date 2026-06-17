@@ -1,3 +1,5 @@
+import { StatusCodes } from "http-status-codes";
+
 import type {
   DriverInitHints,
   RemoteDoctorResult,
@@ -51,7 +53,7 @@ export function classifyRemoteInitError(
   const httpStatus = typeof status === "number" ? status : undefined;
   const original = error instanceof Error ? error.message : String(error);
 
-  if (httpStatus === 401) {
+  if (httpStatus === StatusCodes.UNAUTHORIZED) {
     return {
       code: "remote_auth_401",
       httpStatus,
@@ -60,7 +62,7 @@ export function classifyRemoteInitError(
     };
   }
 
-  if (httpStatus === 403) {
+  if (httpStatus === StatusCodes.FORBIDDEN) {
     return {
       code: "remote_auth_403",
       httpStatus,

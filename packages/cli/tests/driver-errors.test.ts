@@ -51,22 +51,29 @@ describe("classifyRemoteInitError", () => {
 });
 
 describe("initFailureBackoffMs", () => {
-  it("doubles from 5s per consecutive failure", () => {
-    expect(initFailureBackoffMs(1)).toBe(5_000);
-    expect(initFailureBackoffMs(2)).toBe(10_000);
-    expect(initFailureBackoffMs(3)).toBe(20_000);
-    expect(initFailureBackoffMs(4)).toBe(40_000);
-  });
-
-  it("caps at 5 minutes", () => {
-    expect(initFailureBackoffMs(7)).toBe(300_000);
-    expect(initFailureBackoffMs(50)).toBe(300_000);
-  });
-
-  it("treats nonsense counts as the first failure", () => {
-    expect(initFailureBackoffMs(0)).toBe(5_000);
-    expect(initFailureBackoffMs(-3)).toBe(5_000);
-  });
+  it.each([
+    { failureCount: 1, expected: 5_000, description: "doubles from 5s" },
+    { failureCount: 2, expected: 10_000, description: "doubles from 5s" },
+    { failureCount: 3, expected: 20_000, description: "doubles from 5s" },
+    { failureCount: 4, expected: 40_000, description: "doubles from 5s" },
+    { failureCount: 5, expected: 60_000, description: "caps at 1 minute" },
+    { failureCount: 50, expected: 60_000, description: "caps at 1 minute" },
+    {
+      failureCount: 0,
+      expected: 5_000,
+      description: "nonsense count -> first failure",
+    },
+    {
+      failureCount: -3,
+      expected: 5_000,
+      description: "nonsense count -> first failure",
+    },
+  ])(
+    "failure #$failureCount $description -> $expected ms",
+    ({ failureCount, expected }) => {
+      expect(initFailureBackoffMs(failureCount)).toBe(expected);
+    },
+  );
 });
 
 describe("isChromeNotFoundError", () => {

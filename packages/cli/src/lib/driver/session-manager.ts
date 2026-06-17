@@ -22,7 +22,15 @@ export type DriverContext = Stagehand["context"];
 export type DriverPage = Awaited<ReturnType<DriverContext["awaitActivePage"]>>;
 
 const INIT_FAILURE_RETRY_MS = 5_000;
-const INIT_FAILURE_RETRY_MAX_MS = 300_000;
+const INIT_FAILURE_RETRY_MAX_MS = 60_000;
+
+// chrome-launcher reports "no Chrome on this machine" with these codes (its
+// LaunchErrorCodes const enum, which can't be imported directly: const enums
+// are erased at build time and isolatedModules forbids cross-module access).
+const CHROME_NOT_FOUND_ERROR_CODES = new Set([
+  "ERR_LAUNCHER_NOT_INSTALLED",
+  "ERR_LAUNCHER_PATH_NOT_SET",
+]);
 
 interface InitFailure {
   error: unknown;
@@ -31,7 +39,7 @@ interface InitFailure {
 
 /**
  * Exponential backoff for cached init failures: 5s, 10s, 20s, ... capped at
- * 5 minutes. Prevents agents stuck in retry loops from hammering init while
+ * 1 minute. Prevents agents stuck in retry loops from hammering init while
  * still allowing a quick retry after the first failure.
  */
 export function initFailureBackoffMs(consecutiveFailures: number): number {
@@ -42,13 +50,9 @@ export function initFailureBackoffMs(consecutiveFailures: number): number {
   );
 }
 
-/** chrome-launcher signals "no Chrome on this machine" via these codes. */
 export function isChromeNotFoundError(error: unknown): boolean {
   const code = (error as { code?: unknown } | null | undefined)?.code;
-  if (
-    code === "ERR_LAUNCHER_NOT_INSTALLED" ||
-    code === "ERR_LAUNCHER_PATH_NOT_SET"
-  ) {
+  if (typeof code === "string" && CHROME_NOT_FOUND_ERROR_CODES.has(code)) {
     return true;
   }
   return (
