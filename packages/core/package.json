@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "type": "module",
   "main": "./dist/cjs/index.js",
@@ -37,6 +37,7 @@
     "build:esm": "tsx scripts/build-esm.ts",
     "build": "pnpm --filter @browserbasehq/stagehand run --parallel \"/^build:(esm|cjs)$/\"",
     "example": "node --import tsx --env-file-if-exists=../../.env -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import('node:path').then(path=>import(new URL(path.resolve('examples', n + '.ts'), 'file:')));\" --",
+    "prepack": "pnpm -w --dir ../.. exec turbo run build --filter=@browserbasehq/stagehand",
     "test": "pnpm -w --dir ../.. exec turbo run test:core test:e2e --filter=@browserbasehq/stagehand --",
     "test:core": "tsx scripts/test-core.ts",
     "test:e2e": "tsx scripts/test-e2e.ts",
@@ -46,10 +47,15 @@
     "lint": "cd ../.. && prettier --check packages/core && cd packages/core && pnpm run eslint && pnpm run typecheck"
   },
   "files": [
-    "dist/esm",
-    "dist/cjs",
-    "!dist/esm/tests",
-    "!dist/cjs/tests"
+    "dist/esm/index.d.ts",
+    "dist/esm/index.js",
+    "dist/esm/lib",
+    "dist/esm/package.json",
+    "dist/cjs/cli.js",
+    "dist/cjs/index.d.ts",
+    "dist/cjs/index.js",
+    "dist/cjs/lib",
+    "dist/cjs/package.json"
   ],
   "keywords": [
     "ai",
@@ -84,7 +90,7 @@
     "@google/genai": "^1.22.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^5.0.133",
-    "devtools-protocol": "^0.0.1464554",
+    "devtools-protocol": "^0.0.1642743",
     "fetch-cookie": "^3.1.0",
     "openai": "^4.104.0",
     "pino": "^9.6.0",
@@ -95,8 +101,8 @@
   },
   "optionalDependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.73",
-    "@ai-sdk/anthropic": "^2.0.34",
-    "@ai-sdk/azure": "^2.0.54",
+    "@ai-sdk/anthropic": "^2.0.81",
+    "@ai-sdk/azure": "^2.0.109",
     "@ai-sdk/cerebras": "^1.0.25",
     "@ai-sdk/deepseek": "^1.0.23",
     "@ai-sdk/google": "^2.0.53",
@@ -117,7 +123,7 @@
     "@types/jsdom": "^27.0.0",
     "@types/node": "^20.11.30",
     "@types/ws": "^8.5.13",
-    "@vitest/coverage-v8": "^4.0.8",
+    "@vitest/coverage-v8": "^4.1.9",
     "adm-zip": "^0.5.16",
     "chalk": "^5.4.1",
     "eslint": "10.0.2",
@@ -128,8 +134,8 @@
     "prettier": "^3.2.5",
     "puppeteer-core": "^24.43.0",
     "tsx": "*",
-    "vite": "^7.3.3",
-    "vitest": "^4.1.6",
+    "vite": "^7.3.5",
+    "vitest": "^4.1.9",
     "zod": "^3.25.76 || ^4.2.0"
   },
   "repository": {

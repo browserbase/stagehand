@@ -452,7 +452,8 @@ export type AgentType =
   | "google"
   | "microsoft"
   | "bedrock"
-  | "vertex";
+  | "vertex"
+  | "azure";
 
 export const AVAILABLE_CUA_MODELS = [
   "openai/gpt-5.4",
@@ -468,6 +469,7 @@ export const AVAILABLE_CUA_MODELS = [
   "anthropic/claude-haiku-4-5-20251001",
   "anthropic/claude-sonnet-4-20250514",
   "anthropic/claude-sonnet-4-5-20250929",
+  "anthropic/claude-fable-5",
   "google/gemini-2.5-computer-use-preview-10-2025",
   "google/gemini-3-flash-preview",
   "google/gemini-3-pro-preview",

@@ -1,69 +1,59 @@
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { V3Evaluator } from "@browserbasehq/stagehand";
-import { ScreenshotCollector } from "../../../utils/ScreenshotCollector.js";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  evaluationResultToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/trustpilot_hr_companies" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
+      const initUrl = "https://trustpilot.com";
       const page = v3.context.pages()[0];
-      await page.goto("https://trustpilot.com");
-
-      // Start collecting screenshots throughout the agent's journey
-      const screenshotCollector = new ScreenshotCollector(v3, {
-        interval: 3000,
-        maxScreenshots: 15,
-      });
-      screenshotCollector.start();
+      await page.goto(initUrl);
 
       const instruction =
         "Use Trustpilot's search function to filter HR & Recruiting located in 'London', then list the review summaries for the first three companies listed above 4.5 stars. Only use http://trustpilot.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.";
-      const agentResult = await agent.execute({
+
+      const taskSpec: TaskSpec = {
+        id: "agent/trustpilot_hr_companies",
         instruction,
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
+        initUrl,
+        precomputedRubric: adHocRubric(
+          `did the agent complete this task successfully? ${instruction}`,
+        ),
+      };
+
+      const { evaluationResult, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "agent-custom",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
+        },
       });
 
-      // Stop and collect all screenshots from the journey
-      const screenshots = await screenshotCollector.stop();
+      const successMode = process.env.EVAL_SUCCESS_MODE;
 
-      logger.log({
-        category: "evaluation",
-        message: `Collected ${screenshots.length} screenshots for evaluation`,
-        level: 1,
-      });
-
-      const evaluator = new V3Evaluator(v3);
-      const { evaluation, reasoning } = await evaluator.ask({
-        question: `did the agent complete this task successfully? ${instruction}`,
-        screenshot: screenshots,
-        agentReasoning: agentResult.message,
-      });
-
-      console.log(`reasoning: ${reasoning}`);
-
-      const success = evaluation === "YES";
-
-      if (!success) {
-        return {
-          _success: false,
-          message: reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
       return {
-        _success: true,
+        _success: evaluationResultToSuccess(evaluationResult, successMode),
+        outcomeSuccess: evaluationResult.outcomeSuccess,
+        processScore: evaluationResult.processScore,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
-        message: errorMessage,
+        error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

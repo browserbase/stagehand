@@ -211,6 +211,17 @@ export function validateZodSchema(schema: StagehandZodSchema, data: unknown) {
 }
 
 /**
+ * Strip a leading `provider/` segment from a model id, e.g.
+ * "anthropic/claude-opus-4-8" -> "claude-opus-4-8". Ids without a
+ * provider prefix pass through unchanged.
+ */
+export function stripModelProvider(modelId: string): string {
+  return modelId.includes("/")
+    ? modelId.slice(modelId.indexOf("/") + 1)
+    : modelId;
+}
+
+/**
  * Detects if the code is running in the Bun runtime environment.
  * @returns {boolean} True if running in Bun, false otherwise.
  */
@@ -734,6 +745,31 @@ export function loadApiKeyFromEnv(
 
   // Don't log - this is expected when llmClient is provided or API key will be set later
   return undefined;
+}
+
+export function hasModelProviderAuth(clientOptions: unknown): boolean {
+  if (!clientOptions || typeof clientOptions !== "object") {
+    return false;
+  }
+
+  const auth = (clientOptions as { auth?: unknown }).auth;
+  return auth !== undefined && auth !== null;
+}
+
+export function getInheritableModelOptions<T extends object>(
+  clientOptions: T | undefined,
+): Partial<T> | undefined {
+  if (!clientOptions) {
+    return undefined;
+  }
+
+  const inheritableOptions = {
+    ...(clientOptions as Record<string, unknown>),
+  };
+  delete inheritableOptions.apiKey;
+  delete inheritableOptions.auth;
+
+  return inheritableOptions as Partial<T>;
 }
 
 export function trimTrailingTextNode(

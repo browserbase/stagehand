@@ -1,47 +1,59 @@
-import { V3Evaluator } from "@browserbasehq/stagehand";
+import type { TaskSpec } from "@browserbasehq/stagehand";
+
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { adHocRubric } from "../../../framework/adHocRubric.js";
+import {
+  runWithVerifier,
+  evaluationResultToSuccess,
+} from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/all_recipes" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
+      const initUrl = "https://www.allrecipes.com/";
       const page = v3.context.pages()[0];
-      await page.goto("https://www.allrecipes.com/");
-      const evaluator = new V3Evaluator(v3);
-      const agentResult = await agent.execute({
-        instruction:
-          "Search for a recipe for Beef Wellington on Allrecipes that has at least 200 reviews and an average rating of 4.5 stars or higher. List the main ingredients required for the dish.",
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
+      await page.goto(initUrl);
+
+      const instruction =
+        "Search for a recipe for Beef Wellington on Allrecipes that has at least 200 reviews and an average rating of 4.5 stars or higher. List the main ingredients required for the dish.";
+
+      const taskSpec: TaskSpec = {
+        id: "agent/all_recipes",
+        instruction,
+        initUrl,
+        precomputedRubric: adHocRubric(
+          "Did the agent find a recipe for Beef Wellington",
+        ),
+      };
+
+      const { evaluationResult, trajectoryDir } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "agent-custom",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
+        },
       });
 
-      const { evaluation, reasoning } = await evaluator.ask({
-        question: "Did the agent find a recipe for Beef Wellington",
-      });
-
-      logger.log(agentResult);
-
-      const success = evaluation === "YES";
-
-      if (!success) {
-        return {
-          _success: false,
-          message: reasoning,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      const successMode = process.env.EVAL_SUCCESS_MODE;
 
       return {
-        _success: true,
+        _success: evaluationResultToSuccess(evaluationResult, successMode),
+        outcomeSuccess: evaluationResult.outcomeSuccess,
+        processScore: evaluationResult.processScore,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } catch (error) {
+      const trajectoryDir = (error as { trajectoryDir?: string }).trajectoryDir;
       return {
         _success: false,
         error,
+        trajectoryDir,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

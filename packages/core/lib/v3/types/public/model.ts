@@ -38,7 +38,12 @@ export interface GoogleServiceAccountAuth {
   universeDomain?: string;
 }
 
-export type ModelAuth = GoogleServiceAccountAuth;
+export interface AzureEntraIdAuth {
+  type: "azureEntraId";
+  token: string;
+}
+
+export type ModelAuth = GoogleServiceAccountAuth | AzureEntraIdAuth;
 
 export interface VertexProviderOptions {
   project: string;
@@ -47,9 +52,17 @@ export interface VertexProviderOptions {
   headers?: Record<string, string>;
 }
 
-export interface ModelProviderOptions {
-  vertex: VertexProviderOptions;
+export interface AzureProviderOptions {
+  resourceName?: string;
+  baseURL?: string;
+  apiVersion?: string;
+  useDeploymentBasedUrls?: boolean;
+  headers?: Record<string, string>;
 }
+
+export type ModelProviderOptions =
+  | { vertex: VertexProviderOptions; azure?: never }
+  | { azure: AzureProviderOptions; vertex?: never };
 
 export type AnthropicJsonSchemaObject = {
   definitions?: {
@@ -115,9 +128,16 @@ export type ModelProvider =
  * - "low": Claude minimizes thinking, skips for simple tasks
  * - "medium": Claude uses moderate thinking, may skip for simple queries (default)
  * - "high": Claude always thinks with deep reasoning
- * - "max": Claude always thinks with no constraints (Opus 4.6 only)
+ * - "xhigh": Deeper reasoning than "high" (Opus 4.7/4.8 and Fable 5 only)
+ * - "max": Claude always thinks with no constraints
  */
-export type ThinkingEffort = "none" | "low" | "medium" | "high" | "max";
+export type ThinkingEffort =
+  | "none"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
 
 export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
   apiKey?: string;

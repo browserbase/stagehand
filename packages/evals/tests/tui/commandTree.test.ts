@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildCommandTree,
   dispatch,
   findChild,
   resolveCommand,
@@ -204,6 +205,15 @@ describe("findChild + walkPath", () => {
   it("returns the deepest valid node for partial paths", () => {
     // "missing" doesn't exist as a child of "config" — bail at config.
     expect(walkPath(tree, ["config", "missing"]).name).toBe("config");
+  });
+});
+
+describe("buildCommandTree", () => {
+  it("exposes verify as a root command", () => {
+    const tree = buildCommandTree();
+    expect(findChild(tree, "verify")?.summary).toBe(
+      "Re-score a saved trajectory",
+    );
   });
 });
 

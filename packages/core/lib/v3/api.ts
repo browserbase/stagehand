@@ -1,5 +1,9 @@
 import makeFetchCookie from "fetch-cookie";
-import { loadApiKeyFromEnv } from "../utils.js";
+import {
+  getInheritableModelOptions,
+  hasModelProviderAuth,
+  loadApiKeyFromEnv,
+} from "../utils.js";
 import { STAGEHAND_VERSION } from "../version.js";
 import {
   StagehandAPIError,
@@ -658,8 +662,9 @@ export class StagehandAPIClient {
         provider && provider === this.modelProvider
           ? this.getDefaultModelConfig()
           : undefined;
-      const apiKey =
-        provider && provider !== this.modelProvider
+      const apiKey = hasModelProviderAuth(inheritedDefault)
+        ? undefined
+        : provider && provider !== this.modelProvider
           ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
           : this.modelApiKey;
       return {
@@ -670,20 +675,31 @@ export class StagehandAPIClient {
     }
 
     const provider = this.getModelProvider(model.modelName);
-    const inheritedDefault =
+    const modelHasCredentials =
+      hasModelProviderAuth(model) ||
+      Boolean((model as { apiKey?: string }).apiKey);
+    const defaultConfig =
       provider && provider === this.modelProvider
         ? this.getDefaultModelConfig()
         : undefined;
-    const apiKey =
-      !model.apiKey && provider && provider !== this.modelProvider
+    const inheritedDefault = modelHasCredentials
+      ? getInheritableModelOptions(defaultConfig)
+      : defaultConfig;
+    const mergedModel = {
+      ...(inheritedDefault ?? {}),
+      ...model,
+    } as PreparedModelConfig;
+    const hasProviderAuth = hasModelProviderAuth(mergedModel);
+    const apiKey = hasProviderAuth
+      ? undefined
+      : !mergedModel.apiKey && provider && provider !== this.modelProvider
         ? (loadApiKeyFromEnv(provider, this.logger) ?? this.modelApiKey)
-        : !model.apiKey
+        : !mergedModel.apiKey
           ? this.modelApiKey
           : undefined;
 
     return {
-      ...inheritedDefault,
-      ...model,
+      ...mergedModel,
       ...(apiKey ? { apiKey } : {}),
     } as PreparedModelConfig;
   }

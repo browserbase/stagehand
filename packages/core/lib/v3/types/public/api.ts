@@ -98,8 +98,23 @@ export const GoogleServiceAccountAuthSchema = z
   .strict()
   .meta({ id: "GoogleServiceAccountAuth" });
 
+export const AzureEntraIdAuthSchema = z
+  .object({
+    type: z.literal("azureEntraId").meta({
+      description: "Use a Microsoft Entra ID bearer token for authentication",
+    }),
+    token: z.string().min(1).meta({
+      description: "Microsoft Entra ID bearer token for Azure OpenAI",
+    }),
+  })
+  .strict()
+  .meta({ id: "AzureEntraIdAuth" });
+
 export const ModelAuthSchema = z
-  .discriminatedUnion("type", [GoogleServiceAccountAuthSchema])
+  .discriminatedUnion("type", [
+    GoogleServiceAccountAuthSchema,
+    AzureEntraIdAuthSchema,
+  ])
   .meta({ id: "ModelAuth" });
 
 export const VertexProviderOptionsSchema = z
@@ -123,13 +138,50 @@ export const VertexProviderOptionsSchema = z
   .strict()
   .meta({ id: "VertexProviderOptions" });
 
-export const ModelProviderOptionsSchema = z
+export const AzureProviderOptionsSchema = z
+  .object({
+    resourceName: z.string().optional().meta({
+      description: "Azure OpenAI resource name",
+      example: "my-azure-openai-resource",
+    }),
+    baseURL: z.string().url().optional().meta({
+      description: "Base URL for the Azure OpenAI provider",
+    }),
+    apiVersion: z.string().optional().meta({
+      description: "Azure OpenAI API version",
+      example: "2024-10-01-preview",
+    }),
+    useDeploymentBasedUrls: z.boolean().optional().meta({
+      description: "Whether to use deployment-based Azure OpenAI URLs",
+    }),
+    headers: z.record(z.string(), z.string()).optional().meta({
+      description:
+        "Custom headers sent with every request to the Azure OpenAI provider",
+    }),
+  })
+  .strict()
+  .meta({ id: "AzureProviderOptions" });
+
+export const VertexModelProviderOptionsSchema = z
   .object({
     vertex: VertexProviderOptionsSchema.meta({
       description: "Vertex AI provider-specific settings",
     }),
   })
   .strict()
+  .meta({ id: "VertexModelProviderOptions" });
+
+export const AzureModelProviderOptionsSchema = z
+  .object({
+    azure: AzureProviderOptionsSchema.meta({
+      description: "Azure OpenAI provider-specific settings",
+    }),
+  })
+  .strict()
+  .meta({ id: "AzureModelProviderOptions" });
+
+export const ModelProviderOptionsSchema = z
+  .union([VertexModelProviderOptionsSchema, AzureModelProviderOptionsSchema])
   .meta({ id: "ModelProviderOptions" });
 
 const ModelConfigBaseSchema = z
@@ -171,18 +223,53 @@ export const VertexModelConfigObjectSchema = ModelConfigBaseSchema.extend({
   provider: z.literal("vertex").meta({
     description: "Vertex AI model provider",
   }),
-  auth: ModelAuthSchema.meta({
+  auth: GoogleServiceAccountAuthSchema.meta({
     description: "Vertex provider authentication configuration",
   }),
-  providerOptions: ModelProviderOptionsSchema.meta({
+  providerOptions: VertexModelProviderOptionsSchema.meta({
     description: "Vertex provider-specific model configuration",
   }),
 })
   .strict()
   .meta({ id: "VertexModelConfigObject" });
 
+const AzureModelConfigBaseSchema = ModelConfigBaseSchema.extend({
+  provider: z.literal("azure").meta({
+    description: "Azure OpenAI model provider",
+  }),
+  providerOptions: AzureModelProviderOptionsSchema.meta({
+    description: "Azure provider-specific model configuration",
+  }),
+}).strict();
+
+export const AzureEntraModelConfigObjectSchema =
+  AzureModelConfigBaseSchema.omit({ apiKey: true })
+    .extend({
+      auth: AzureEntraIdAuthSchema.meta({
+        description: "Azure provider authentication configuration",
+      }),
+    })
+    .strict()
+    .meta({ id: "AzureEntraModelConfigObject" });
+
+export const AzureApiKeyModelConfigObjectSchema =
+  AzureModelConfigBaseSchema.strict().meta({
+    id: "AzureApiKeyModelConfigObject",
+  });
+
+export const AzureModelConfigObjectSchema = z
+  .union([
+    AzureEntraModelConfigObjectSchema,
+    AzureApiKeyModelConfigObjectSchema,
+  ])
+  .meta({ id: "AzureModelConfigObject" });
+
 export const ModelConfigObjectSchema = z
-  .union([VertexModelConfigObjectSchema, GenericModelConfigObjectSchema])
+  .union([
+    VertexModelConfigObjectSchema,
+    AzureModelConfigObjectSchema,
+    GenericModelConfigObjectSchema,
+  ])
   .meta({ id: "ModelConfigObject" });
 
 /** Model configuration */
@@ -1216,14 +1303,31 @@ export type GenericModelConfigObject = z.infer<
 export type VertexModelConfigObject = z.infer<
   typeof VertexModelConfigObjectSchema
 >;
+export type AzureModelConfigObject = z.infer<
+  typeof AzureModelConfigObjectSchema
+>;
+export type AzureEntraModelConfigObject = z.infer<
+  typeof AzureEntraModelConfigObjectSchema
+>;
+export type AzureApiKeyModelConfigObject = z.infer<
+  typeof AzureApiKeyModelConfigObjectSchema
+>;
 export type GoogleServiceAccountCredentials = z.infer<
   typeof GoogleServiceAccountCredentialsSchema
 >;
 export type GoogleServiceAccountAuth = z.infer<
   typeof GoogleServiceAccountAuthSchema
 >;
+export type AzureEntraIdAuth = z.infer<typeof AzureEntraIdAuthSchema>;
 export type ModelAuth = z.infer<typeof ModelAuthSchema>;
 export type VertexProviderOptions = z.infer<typeof VertexProviderOptionsSchema>;
+export type AzureProviderOptions = z.infer<typeof AzureProviderOptionsSchema>;
+export type VertexModelProviderOptions = z.infer<
+  typeof VertexModelProviderOptionsSchema
+>;
+export type AzureModelProviderOptions = z.infer<
+  typeof AzureModelProviderOptionsSchema
+>;
 export type ModelProviderOptions = z.infer<typeof ModelProviderOptionsSchema>;
 export type BrowserConfig = z.infer<typeof BrowserConfigSchema>;
 export type SessionIdParams = z.infer<typeof SessionIdParamsSchema>;

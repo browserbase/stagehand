@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-server-v3",
-  "version": "3.6.4",
+  "version": "3.7.0",
   "description": "Stagehand API server v3",
   "type": "module",
   "private": true,
@@ -49,8 +49,8 @@
     "source-map": "^0.7.4",
     "tsc-alias": "^1.8.10",
     "tsx": "*",
-    "vite": "^7.3.3",
-    "vitest": "^4.1.6"
+    "vite": "^7.3.5",
+    "vitest": "^4.1.9"
   },
   "repository": {
     "type": "git",
