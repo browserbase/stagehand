@@ -221,19 +221,47 @@ await stagehand.init();
 <Tab title="Azure">
 
 <CodeGroup>
-```typescript TypeScript
+```typescript API Key
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
-  model: "azure/gpt-5"
+  model: "azure/gpt-5",
   // API key auto-loads from AZURE_API_KEY - set in your .env
 });
 
 await stagehand.init();
 
 ```
+
+```typescript Microsoft Entra ID
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: {
+    provider: "azure",
+    modelName: "azure/gpt-5",
+    auth: {
+      type: "azureEntraId",
+      token: process.env.AZURE_ENTRA_ID_TOKEN,
+    },
+    providerOptions: {
+      azure: {
+        resourceName: "your-azure-openai-resource",
+        apiVersion: "2024-10-01-preview",
+      },
+    },
+  },
+});
+
+await stagehand.init();
+
+```
 </CodeGroup>
+
+For Microsoft Entra ID authentication, pass the bearer token explicitly in `auth.token`. The `providerOptions.azure.resourceName` identifies the Azure OpenAI resource to call.
+
 [View all supported Azure models →](https://ai.azure.com/catalog)
 </Tab>
 

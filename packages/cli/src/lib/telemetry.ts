@@ -18,7 +18,10 @@ const browserbaseTelemetryProjectToken =
 type TelemetryPrimitive = string | number | boolean | null;
 type TelemetryProperties = Record<string, TelemetryPrimitive>;
 
-type CliTelemetryEvent = "cli.command_invoked" | "cli.command_completed";
+type CliTelemetryEvent =
+  | "cli.command_invoked"
+  | "cli.command_completed"
+  | "cli.command_not_found";
 type CliTelemetryErrorType = "oclif" | "runtime";
 
 interface CliTelemetry {
@@ -131,6 +134,30 @@ export async function captureCommandCompleted(
     state.pendingInvokedCapture ?? Promise.resolve(),
     completionCapture,
   ]);
+}
+
+/**
+ * Captures a `cli.command_not_found` event. Privacy: only the sanitized
+ * attempted command id and the computed suggestion are sent — never raw argv,
+ * which can contain URLs, selectors, or secrets.
+ */
+export async function captureCommandNotFound(
+  cliVersion: string,
+  attemptedCommand: string | null,
+  suggestedCommand: string | null,
+): Promise<void> {
+  await getCliTelemetry(cliVersion)
+    .capture("cli.command_not_found", {
+      attempted_command: attemptedCommand
+        ? resolveCommandPath(attemptedCommand)
+        : null,
+      suggested_command: suggestedCommand
+        ? resolveCommandPath(suggestedCommand)
+        : null,
+    })
+    .catch(() => {
+      // Best-effort telemetry should never affect CLI behavior.
+    });
 }
 
 function createCliTelemetry(options: CreateCliTelemetryOptions): CliTelemetry {
@@ -255,6 +282,7 @@ function commandCompletedProperties(
       failureTelemetry?.requestHadHttpResponse ??
       runTelemetry.requestHadHttpResponse ??
       null,
+    skill_id: runTelemetry.skillId ?? null,
   };
 }
 
