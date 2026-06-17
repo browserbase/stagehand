@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { runCli } from "./helpers/run-cli.js";
 import {
-  maybeAutoUpdateCli,
+  getUpdateNotice,
   refreshUpdateCheckCache,
+  takeUpdateNotice,
 } from "../src/lib/update.js";
 
 const require = createRequire(import.meta.url);
@@ -30,7 +31,7 @@ afterEach(async () => {
 });
 
 describe("CLI auto-update", () => {
-  it("uses a fresh cache to print an update notice without hitting the network", async () => {
+  it("shows the update notice on root help from a fresh cache without hitting the network", async () => {
     const cacheDir = await createTempDir("browse-update-cache-");
     const cachePath = join(cacheDir, "update-check.json");
     await writeUpdateCache(cachePath, {
@@ -38,7 +39,7 @@ describe("CLI auto-update", () => {
       version: "99.0.0",
     });
 
-    const result = await runCli(["status"], {
+    const result = await runCli(["--help"], {
       env: {
         BROWSE_CACHE_DIR: cacheDir,
         BROWSE_DISABLE_UPDATE_CHECK: "0",
@@ -47,17 +48,107 @@ describe("CLI auto-update", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      browserConnected: false,
-      session: "default",
-    });
     expect(result.stderr).toContain(
       `Update available: ${cliVersion} -> 99.0.0.`,
     );
     expect(result.stderr).toContain("Run:\n  npm i -g browse@latest");
   });
 
-  it("compares prerelease identifiers with ASCII ordering", async () => {
+  it("shows the update notice on regular commands, deduped within the notify interval", async () => {
+    const cacheDir = await createTempDir("browse-update-once-");
+    const cachePath = join(cacheDir, "update-check.json");
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      version: "99.0.0",
+    });
+    const env = {
+      BROWSE_CACHE_DIR: cacheDir,
+      BROWSE_DISABLE_UPDATE_CHECK: "0",
+      BROWSE_DAEMON_DIR: cacheDir,
+    };
+
+    const first = await runCli(["status"], { env });
+    expect(first.exitCode).toBe(0);
+    expect(JSON.parse(first.stdout)).toMatchObject({
+      browserConnected: false,
+      session: "default",
+    });
+    expect(first.stderr).toContain(
+      `Update available: ${cliVersion} -> 99.0.0.`,
+    );
+
+    const second = await runCli(["status"], { env });
+    expect(second.exitCode).toBe(0);
+    expect(second.stderr).not.toContain("Update available:");
+  });
+
+  it("reminds again after the notify interval until the user upgrades", async () => {
+    const cacheDir = await createTempDir("browse-update-renotify-");
+    const cachePath = join(cacheDir, "update-check.json");
+    const env = {
+      ...process.env,
+      BROWSE_DISABLE_UPDATE_CHECK: "0",
+      BROWSE_UPDATE_CHECK_FILE: cachePath,
+    };
+
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      version: "99.0.0",
+    });
+    expect(await takeUpdateNotice("1.0.0", env)).toContain("99.0.0");
+    expect(await takeUpdateNotice("1.0.0", env)).toBeNull();
+
+    // 21h-old lastNotifiedAt (past the 20h interval) -> reminds again.
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      lastNotifiedAt: new Date(Date.now() - 21 * 60 * 60 * 1000).toISOString(),
+      version: "99.0.0",
+    });
+    expect(await takeUpdateNotice("1.0.0", env)).toContain("99.0.0");
+    expect(await takeUpdateNotice("1.0.0", env)).toBeNull();
+
+    // Upgraded -> silence even past the interval.
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      lastNotifiedAt: new Date(Date.now() - 21 * 60 * 60 * 1000).toISOString(),
+      version: "99.0.0",
+    });
+    expect(await takeUpdateNotice("99.0.0", env)).toBeNull();
+  });
+
+  it("never repeats the push notice when the cache is unwritable", async () => {
+    const cacheDir = await createTempDir("browse-update-unwritable-");
+    const cachePath = join(cacheDir, "update-check.json", "nested.json");
+
+    const env = {
+      ...process.env,
+      BROWSE_DISABLE_UPDATE_CHECK: "0",
+      BROWSE_UPDATE_CHECK_FILE: cachePath,
+    };
+
+    // A file standing in for the parent directory makes the path unwritable.
+    await writeFile(join(cacheDir, "update-check.json"), "not a directory");
+    expect(await takeUpdateNotice("1.0.0", env)).toBeNull();
+  });
+
+  it("does not repeat the push notice after help already showed it", async () => {
+    const cacheDir = await createTempDir("browse-update-pullmark-");
+    const cachePath = join(cacheDir, "update-check.json");
+    const env = {
+      ...process.env,
+      BROWSE_DISABLE_UPDATE_CHECK: "0",
+      BROWSE_UPDATE_CHECK_FILE: cachePath,
+    };
+
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      version: "99.0.0",
+    });
+    expect(await getUpdateNotice("1.0.0", env)).toContain("99.0.0");
+    expect(await takeUpdateNotice("1.0.0", env)).toBeNull();
+  });
+
+  it("returns no notice for prerelease identifiers with ASCII ordering", async () => {
     const cacheDir = await createTempDir("browse-update-prerelease-");
     const cachePath = join(cacheDir, "update-check.json");
     await writeUpdateCache(cachePath, {
@@ -65,21 +156,13 @@ describe("CLI auto-update", () => {
       version: "1.0.0-beta.B",
     });
 
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
+    const notice = await getUpdateNotice("1.0.0-beta.b", {
+      ...process.env,
+      BROWSE_DISABLE_UPDATE_CHECK: "0",
+      BROWSE_UPDATE_CHECK_FILE: cachePath,
+    });
 
-    try {
-      await maybeAutoUpdateCli("1.0.0-beta.b", {
-        ...process.env,
-        BROWSE_DISABLE_UPDATE_CHECK: "0",
-        BROWSE_UPDATE_CHECK_FILE: cachePath,
-      });
-
-      expect(stderrSpy).not.toHaveBeenCalled();
-    } finally {
-      stderrSpy.mockRestore();
-    }
+    expect(notice).toBeNull();
   });
 
   it("refreshes the update cache from the npm registry", async () => {
@@ -115,7 +198,7 @@ describe("CLI auto-update", () => {
     });
   });
 
-  it("treats stale cache entries as refreshes instead of notifying immediately", async () => {
+  it("does not notify from a stale cache even on root help", async () => {
     const cacheDir = await createTempDir("browse-update-stale-");
     const cachePath = join(cacheDir, "update-check.json");
     await writeUpdateCache(cachePath, {
@@ -123,7 +206,7 @@ describe("CLI auto-update", () => {
       version: "98.0.0",
     });
 
-    const result = await runCli(["status"], {
+    const result = await runCli(["--help"], {
       env: {
         BROWSE_CACHE_DIR: cacheDir,
         BROWSE_DISABLE_UPDATE_CHECK: "0",
@@ -132,10 +215,6 @@ describe("CLI auto-update", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      browserConnected: false,
-      session: "default",
-    });
     expect(result.stderr).not.toContain("Update available:");
   });
 });

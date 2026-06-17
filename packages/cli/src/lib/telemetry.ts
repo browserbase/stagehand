@@ -7,6 +7,7 @@ import type { Command } from "@oclif/core";
 
 import { detectAgent } from "./agent.js";
 import { getRunTelemetry, resetRunTelemetry } from "./run-telemetry.js";
+import { isBrowseSkillInstalled } from "./skill-presence.js";
 import type { CommandFailureTelemetry } from "./errors.js";
 
 const browserbaseTelemetrySource = "cli";
@@ -168,6 +169,9 @@ function createCliTelemetry(options: CreateCliTelemetryOptions): CliTelemetry {
     ? resolveAnonymousInstallId(env, options.sessionId)
     : Promise.resolve("");
   const agentPromise = telemetryEnabled ? detectAgent() : Promise.resolve(null);
+  const skillPresentPromise: Promise<boolean | null> = telemetryEnabled
+    ? isBrowseSkillInstalled().catch(() => null)
+    : Promise.resolve(null);
 
   const baseProperties: TelemetryProperties = {
     source: browserbaseTelemetrySource,
@@ -184,9 +188,10 @@ function createCliTelemetry(options: CreateCliTelemetryOptions): CliTelemetry {
         return;
       }
 
-      const [distinctId, agent] = await Promise.all([
+      const [distinctId, agent, skillPresent] = await Promise.all([
         distinctIdPromise,
         agentPromise,
+        skillPresentPromise,
       ]);
 
       await posthogCapture(transport, {
@@ -197,6 +202,7 @@ function createCliTelemetry(options: CreateCliTelemetryOptions): CliTelemetry {
         properties: {
           ...baseProperties,
           agent,
+          skill_present: skillPresent,
           ...properties,
         },
       });

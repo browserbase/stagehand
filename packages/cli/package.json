@@ -24,6 +24,7 @@
     "bin": "browse",
     "dirname": "browse",
     "commands": "./dist/commands",
+    "helpClass": "./dist/lib/help",
     "hooks": {
       "init": "./dist/hooks/init.js",
       "prerun": "./dist/hooks/prerun.js",
