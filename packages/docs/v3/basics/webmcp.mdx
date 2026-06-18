@@ -78,7 +78,7 @@ console.log(result.output);
 ```
 
 <Tip>
-Pass `frameId` from `listWebMCPTools()` when invoking a tool. If you omit it, Stagehand resolves the frame automatically only when exactly one registered tool has that name.
+Pass `frameId` from `listWebMCPTools()` when invoking a tool. If you omitted, Stagehand resolves the frame automatically, but only if exactly one registered tool has that name.
 </Tip>
 
 ## Handling Results
@@ -126,7 +126,7 @@ console.log(result.status); // "Canceled"
 Both WebMCP methods accept a `timeoutMs` option:
 
 - `listWebMCPTools({ timeoutMs })` waits for the page's tool snapshot. Default: `1000`
-- `invokeWebMCPTool(name, input, { timeoutMs })` waits for the invocation result. Default: `30000`
+- `invokeWebMCPTool(name, input, { timeoutMs })` sets how long `invocation.result` waits for the tool response. Default: `30000`
 
 If the browser does not support WebMCP, Stagehand throws a `StagehandUnsupportedBrowserFeatureError` with instructions for enabling the required Chrome flags.
 
