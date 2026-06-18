@@ -655,6 +655,107 @@ console.log(urlMap[linkId]); // e.g., "https://www.example.com"
 const mainDocumentSnapshot = await page.snapshot({ includeIframes: false });
 ```
 
+## WebMCP
+
+### listWebMCPTools()
+
+List WebMCP tools registered by the current page.
+
+```typescript
+await page.listWebMCPTools(options?: WebMCPListToolsOptions): Promise<WebMCPTool[]>
+```
+
+<ParamField path="options" type="WebMCPListToolsOptions" optional>
+  Optional configuration for collecting the current page's tool snapshot.
+
+  <Expandable title="WebMCPListToolsOptions">
+    <ParamField path="timeoutMs" type="number" optional>
+      Maximum time in milliseconds to wait for the tool snapshot.
+
+      **Default:** `1000`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Returns:** A fresh `Promise<WebMCPTool[]>` snapshot from the browser. Each tool is identified by its `name` and `frameId`.
+
+<Note>
+WebMCP requires Chrome or Chromium newer than version 149, and it must be launched with `--enable-features=WebMCPTesting,DevToolsWebMCPSupport`. Stagehand launches browsers with those flags by default.
+</Note>
+
+### invokeWebMCPTool()
+
+Invoke a WebMCP tool registered by the current page.
+
+```typescript
+await page.invokeWebMCPTool(
+  toolName: string,
+  input: Record<string, unknown>,
+  options?: WebMCPToolInvocationOptions,
+): Promise<WebMCPToolInvocation>
+```
+
+<ParamField path="toolName" type="string" required>
+  Name of the registered WebMCP tool to invoke.
+</ParamField>
+
+<ParamField path="input" type="Record<string, unknown>" required>
+  JSON-serializable input passed to the tool.
+</ParamField>
+
+<ParamField path="options" type="WebMCPToolInvocationOptions" optional>
+  Optional frame targeting and timeout configuration.
+
+  <Expandable title="WebMCPToolInvocationOptions">
+    <ParamField path="frameId" type="string" optional>
+      Frame ID where the tool was registered. Use the `frameId` returned by `listWebMCPTools()`.
+
+      If omitted, Stagehand looks up tools by `toolName`. It throws when no matching tool exists or when multiple frames registered a tool with the same name.
+    </ParamField>
+
+    <ParamField path="timeoutMs" type="number" optional>
+      Maximum time in milliseconds to wait for the invocation result.
+
+      **Default:** `30000`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Returns:** A `Promise<WebMCPToolInvocation>`. The invocation object includes the browser `invocationId`, resolved `toolName`, resolved `frameId`, a `result` promise, and a `cancel()` function.
+
+```typescript
+const tools = await page.listWebMCPTools();
+const calculateSum = tools.find((tool) => tool.name === "calculateSum");
+
+if (!calculateSum) {
+  throw new Error("calculateSum was not registered on this page");
+}
+
+const invocation = await page.invokeWebMCPTool(
+  "calculateSum",
+  { a: 19, b: 23 },
+  { frameId: calculateSum.frameId, timeoutMs: 5_000 },
+);
+
+const result = await invocation.result;
+console.log(result.status); // "Completed"
+console.log(result.output); // { a: 19, b: 23, sum: 42 }
+```
+
+Call `cancel()` to request cancellation for a pending invocation:
+
+```typescript
+const invocation = await page.invokeWebMCPTool(
+  "longRunningTool",
+  {},
+  { frameId: tool.frameId },
+);
+
+await invocation.cancel();
+const result = await invocation.result;
+console.log(result.status); // "Canceled"
+```
+
 ## Viewport
 
 ### setViewportSize()
@@ -1059,6 +1160,32 @@ const mainPageOnly = await page.snapshot({ includeIframes: false });
 ```
 
 </Tab>
+<Tab title="WebMCP">
+
+```typescript
+await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/", {
+  waitUntil: "load",
+});
+
+const tools = await page.listWebMCPTools({ timeoutMs: 5_000 });
+const calculateSum = tools.find((tool) => tool.name === "calculateSum");
+
+if (!calculateSum) {
+  throw new Error("calculateSum was not registered on this page");
+}
+
+const invocation = await page.invokeWebMCPTool(
+  "calculateSum",
+  { a: 19, b: 23 },
+  { frameId: calculateSum.frameId, timeoutMs: 5_000 },
+);
+
+const result = await invocation.result;
+console.log(result.status);
+console.log(result.output);
+```
+
+</Tab>
 </Tabs>
 
 ## Types
@@ -1141,6 +1268,88 @@ type SnapshotResult = {
 - **`xpathMap`** - A mapping from encoded element IDs to their absolute XPath selectors
 - **`urlMap`** - A mapping from encoded element IDs to their associated URLs (for links and other navigable elements)
 
+### WebMCPTool
+
+```typescript
+type WebMCPTool = {
+  name: string;
+  description?: string;
+  inputSchema?: string | Record<string, unknown>;
+  annotations?: Record<string, unknown>;
+  frameId: string;
+};
+```
+
+- **`name`** - Tool name registered by the page
+- **`description`** - Optional description registered by the page
+- **`inputSchema`** - Optional input schema registered by the page
+- **`annotations`** - Optional annotations registered by the page
+- **`frameId`** - Browser frame ID where the tool was registered
+
+### WebMCPToolInvocationStatus
+
+```typescript
+type WebMCPToolInvocationStatus = "Completed" | "Canceled" | "Error";
+```
+
+### WebMCPToolResult
+
+```typescript
+type WebMCPToolResult = {
+  invocationId: string;
+  status: WebMCPToolInvocationStatus;
+  output?: unknown;
+  errorText?: string;
+  exception?: unknown;
+};
+```
+
+- **`invocationId`** - Browser invocation ID for the tool call
+- **`status`** - Final invocation status
+- **`output`** - Optional tool output
+- **`errorText`** - Optional error text returned by the browser
+- **`exception`** - Optional exception returned by the browser
+
+### WebMCPToolInvocation
+
+```typescript
+type WebMCPToolInvocation = {
+  invocationId: string;
+  toolName: string;
+  frameId: string;
+  result: Promise<WebMCPToolResult>;
+  cancel: () => Promise<void>;
+};
+```
+
+- **`invocationId`** - Browser invocation ID for the tool call
+- **`toolName`** - Tool name passed to `invokeWebMCPTool()`
+- **`frameId`** - Frame ID used for the invocation
+- **`result`** - Promise that resolves with the final tool result or rejects on timeout/disposal
+- **`cancel`** - Sends `WebMCP.cancelInvocation` for the pending invocation
+
+### WebMCPListToolsOptions
+
+```typescript
+type WebMCPListToolsOptions = {
+  timeoutMs?: number;
+};
+```
+
+- **`timeoutMs`** - Maximum time in milliseconds to wait for the tool snapshot. Defaults to `1000`
+
+### WebMCPToolInvocationOptions
+
+```typescript
+type WebMCPToolInvocationOptions = {
+  frameId?: string;
+  timeoutMs?: number;
+};
+```
+
+- **`frameId`** - Frame ID where the tool was registered
+- **`timeoutMs`** - Maximum time in milliseconds to wait for the invocation result. Defaults to `30000`
+
 ## Error Handling
 
 Page methods may throw the following errors:
@@ -1149,6 +1358,7 @@ Page methods may throw the following errors:
 - **Evaluation Errors** - JavaScript execution errors in `evaluate()`
 - **Interaction Errors** - Failed clicks or typing operations
 - **Screenshot Errors** - Issues capturing screenshots
+- **WebMCP Errors** - Unsupported browser features, ambiguous tool names across frames, invocation result timeouts, or disposed pending invocations
 
 All errors should be caught and handled appropriately:
 
