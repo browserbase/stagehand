@@ -43,18 +43,6 @@ If you're looking for the Python implementation, you can find it
 <a href="https://github.com/browserbase/stagehand-python"> here</a>
 </p>
 
-<div align="center" style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 0;">
-  <b>Vibe code</b>
-  <span style="font-size: 1.05em;"> Stagehand with </span>
-  <a href="https://director.ai" style="display: flex; align-items: center;">
-    <span>Director</span>
-  </a>
-  <span> </span>
-  <picture>
-    <img alt="Director" src="../../media/director_icon.svg" width="25" />
-  </picture>
-</div>
-
 ## What is Stagehand?
 
 Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
