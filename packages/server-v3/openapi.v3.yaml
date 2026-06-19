@@ -770,7 +770,9 @@ components:
               type: string
             valkeyPort:
               description: "Valkey port (default: 6379)"
-              type: number
+              type: integer
+              minimum: 1
+              maximum: 65535
             valkeyTls:
               description: Enable TLS for the connection
               type: boolean
@@ -782,17 +784,23 @@ components:
               type: string
             cacheTtl:
               description: TTL in seconds for cache entries
-              type: number
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740991
             valkeyKeyPrefix:
               description: 'Key prefix namespace (default: "stagehand")'
               type: string
             valkeyRequestTimeout:
               description: "Request timeout in ms for Valkey operations (default: 5000)"
-              type: number
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 2147483647
             valkeyMaxCacheValueBytes:
-              description: "Max allowed cache value size in bytes (default: 5MB). Writes
-                exceeding this are skipped."
-              type: number
+              description: "Max allowed cache value size in bytes (default: 5MB, max: 512MB).
+                Writes exceeding this are skipped."
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 536870912
           required:
             - valkeyHost
       required:

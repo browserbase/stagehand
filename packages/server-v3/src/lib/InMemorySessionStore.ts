@@ -17,7 +17,10 @@ function parseIntEnv(name: string): number | undefined {
   if (!raw) return undefined;
   const n = parseInt(raw, 10);
   if (Number.isNaN(n)) {
-    throw new Error(`Env var ${name} must be numeric, got: "${raw}"`);
+    // Don't hard-fail the session request on a misconfigured env var; warn and
+    // fall back to the default (undefined) so caching degrades gracefully.
+    console.warn(`Env var ${name} must be numeric, got: "${raw}"; ignoring.`);
+    return undefined;
   }
   return n;
 }
@@ -269,7 +272,7 @@ export class InMemorySessionStore implements SessionStore {
             : undefined;
       options.valkeyPassword = process.env.VALKEY_PASSWORD || undefined;
       options.valkeyUsername = process.env.VALKEY_USERNAME || undefined;
-      options.cacheTtl = parseIntEnv("CACHE_TTL");
+      options.cacheTtl = parseIntEnv("VALKEY_CACHE_TTL");
       options.valkeyKeyPrefix = process.env.VALKEY_KEY_PREFIX || undefined;
       options.valkeyRequestTimeout = parseIntEnv("VALKEY_REQUEST_TIMEOUT");
       options.valkeyMaxCacheValueBytes = parseIntEnv(

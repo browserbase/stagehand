@@ -555,6 +555,9 @@ export const SessionStartRequestSchema = z
         valkeyHost: z.string().meta({ description: "Valkey host address" }),
         valkeyPort: z
           .number()
+          .int()
+          .min(1)
+          .max(65535)
           .optional()
           .meta({ description: "Valkey port (default: 6379)" }),
         valkeyTls: z
@@ -571,20 +574,40 @@ export const SessionStartRequestSchema = z
           .meta({ description: "Authentication username" }),
         cacheTtl: z
           .number()
+          .int()
+          .positive()
           .optional()
           .meta({ description: "TTL in seconds for cache entries" }),
         valkeyKeyPrefix: z
           .string()
           .optional()
           .meta({ description: 'Key prefix namespace (default: "stagehand")' }),
-        valkeyRequestTimeout: z.number().optional().meta({
-          description:
-            "Request timeout in ms for Valkey operations (default: 5000)",
-        }),
-        valkeyMaxCacheValueBytes: z.number().optional().meta({
-          description:
-            "Max allowed cache value size in bytes (default: 5MB). Writes exceeding this are skipped.",
-        }),
+        // 2_147_483_647 = 2^31 - 1, the max delay Node's setTimeout accepts;
+        // iovalkey passes commandTimeout straight to setTimeout, and larger
+        // values wrap to 0 (fire immediately), timing out every command.
+        valkeyRequestTimeout: z
+          .number()
+          .int()
+          .positive()
+          .max(2_147_483_647)
+          .optional()
+          .meta({
+            description:
+              "Request timeout in ms for Valkey operations (default: 5000)",
+          }),
+        // 536_870_912 = 512 MiB, Valkey's default proto-max-bulk-len. Values
+        // larger than this are rejected by the server, so guarding above it is
+        // pointless.
+        valkeyMaxCacheValueBytes: z
+          .number()
+          .int()
+          .positive()
+          .max(536_870_912)
+          .optional()
+          .meta({
+            description:
+              "Max allowed cache value size in bytes (default: 5MB, max: 512MB). Writes exceeding this are skipped.",
+          }),
       })
       .optional()
       .meta({ description: "Valkey cache backend configuration" }),

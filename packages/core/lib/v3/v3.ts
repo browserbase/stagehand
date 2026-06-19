@@ -410,29 +410,13 @@ export class V3 {
       );
     }
 
-    this.cacheStorage = CacheStorage.create(opts.cacheDir, this.logger, {
-      label: "cache directory",
-    });
-    this.actCache = new ActCache({
-      storage: this.cacheStorage,
-      logger: this.logger,
-      getActHandler: () => this.actHandler,
-      getDefaultLlmClient: () => this.resolveLlmClient(),
-      domSettleTimeoutMs: this.domSettleTimeoutMs,
-    });
-    this.agentCache = new AgentCache({
-      storage: this.cacheStorage,
-      logger: this.logger,
-      getActHandler: () => this.actHandler,
-      getContext: () => this.ctx,
-      getDefaultLlmClient: () => this.resolveLlmClient(),
-      getBaseModelName: () => this.modelName,
-      getSystemPrompt: () => opts.systemPrompt,
-      domSettleTimeoutMs: this.domSettleTimeoutMs,
-      act: this.act.bind(this),
-    });
-
     this.opts = opts;
+
+    this.wireCaches(
+      CacheStorage.create(opts.cacheDir, this.logger, {
+        label: "cache directory",
+      }),
+    );
 
     // FlowLogger always gets a per-instance session context and shared event
     // bus. The attached EventStore decides which sinks are active:
@@ -855,6 +839,33 @@ export class V3 {
   }
 
   /**
+   * Point cacheStorage, actCache, and agentCache at the given storage backend.
+   * Used both at construction (file/memory) and during init() when upgrading to
+   * (or falling back from) the Valkey backend.
+   */
+  private wireCaches(storage: CacheStorage): void {
+    this.cacheStorage = storage;
+    this.actCache = new ActCache({
+      storage: this.cacheStorage,
+      logger: this.logger,
+      getActHandler: () => this.actHandler,
+      getDefaultLlmClient: () => this.resolveLlmClient(),
+      domSettleTimeoutMs: this.domSettleTimeoutMs,
+    });
+    this.agentCache = new AgentCache({
+      storage: this.cacheStorage,
+      logger: this.logger,
+      getActHandler: () => this.actHandler,
+      getContext: () => this.ctx,
+      getDefaultLlmClient: () => this.resolveLlmClient(),
+      getBaseModelName: () => this.modelName,
+      getSystemPrompt: () => this.opts.systemPrompt,
+      domSettleTimeoutMs: this.domSettleTimeoutMs,
+      act: this.act.bind(this),
+    });
+  }
+
+  /**
    * Entrypoint: initializes handlers, launches Chrome or Browserbase,
    * and sets up a CDP context.
    */
@@ -904,28 +915,19 @@ export class V3 {
             mapV3OptsToValkeyConfig(this.opts),
             this.logger,
           );
-          // Only replace existing (possibly valid) file-backed storage if
-          // the Valkey connection actually succeeded.
           if (valkeyStorage.enabled) {
-            this.cacheStorage = valkeyStorage;
-            this.actCache = new ActCache({
-              storage: this.cacheStorage,
-              logger: this.logger,
-              getActHandler: () => this.actHandler,
-              getDefaultLlmClient: () => this.resolveLlmClient(),
-              domSettleTimeoutMs: this.domSettleTimeoutMs,
-            });
-            this.agentCache = new AgentCache({
-              storage: this.cacheStorage,
-              logger: this.logger,
-              getActHandler: () => this.actHandler,
-              getContext: () => this.ctx,
-              getDefaultLlmClient: () => this.resolveLlmClient(),
-              getBaseModelName: () => this.modelName,
-              getSystemPrompt: () => this.opts.systemPrompt,
-              domSettleTimeoutMs: this.domSettleTimeoutMs,
-              act: this.act.bind(this),
-            });
+            this.wireCaches(valkeyStorage);
+          } else if (this.cacheStorage.isValkey) {
+            // A prior init() wired a Valkey backend whose client has since been
+            // closed by close(). The reconnect failed, so re-establish the
+            // file/memory fallback instead of leaving the dead Valkey storage
+            // in place (which still reports enabled and would route to a dead
+            // client).
+            this.wireCaches(
+              CacheStorage.create(this.opts.cacheDir, this.logger, {
+                label: "cache directory",
+              }),
+            );
           }
         }
 

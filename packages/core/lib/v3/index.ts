@@ -1,5 +1,5 @@
 import * as PublicApi from "./types/public/index.js";
-import { V3 } from "./v3.js";
+import { V3, mapV3OptsToValkeyConfig } from "./v3.js";
 import { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient.js";
 import {
   AgentProvider,
@@ -147,6 +147,7 @@ const StagehandDefault = {
   ...PublicApi,
   V3,
   Stagehand: V3,
+  mapV3OptsToValkeyConfig,
   AnnotatedScreenshotText,
   LLMClient,
   AgentProvider,

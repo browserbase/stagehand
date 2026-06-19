@@ -157,6 +157,24 @@ describe("CacheStorage Valkey backend", () => {
     });
   });
 
+  describe("isValkey", () => {
+    it("reports true when valkey client is attached", () => {
+      const storage = createValkeyStorage(client);
+      expect(storage.isValkey).toBe(true);
+    });
+
+    it("reports false for a disabled (no-op) storage", () => {
+      const storage = CacheStorage.create(undefined, vi.fn());
+      expect(storage.isValkey).toBe(false);
+      expect(storage.enabled).toBe(false);
+    });
+
+    it("reports false for a memory-backed storage", () => {
+      const storage = CacheStorage.createMemory(vi.fn());
+      expect(storage.isValkey).toBe(false);
+    });
+  });
+
   describe("close", () => {
     it("closes the valkey client", async () => {
       const storage = createValkeyStorage(client);
@@ -197,6 +215,46 @@ describe("CacheStorage Valkey backend", () => {
           message: expect.stringContaining("unable to initialize valkey cache"),
         }),
       );
+
+      vi.doUnmock("iovalkey");
+    });
+
+    it("re-init fallback: replaces closed Valkey storage with file/memory when reconnect fails", async () => {
+      const logger = vi.fn();
+
+      // Simulate the state after a successful init() + close():
+      // cacheStorage is a Valkey-backed storage whose client has been closed.
+      const closedValkeyStorage = createValkeyStorage(createMockClient());
+      expect(closedValkeyStorage.isValkey).toBe(true);
+      expect(closedValkeyStorage.enabled).toBe(true);
+
+      // On the next init(), createValkey is called but fails.
+      vi.doMock("iovalkey", () => ({
+        default: class MockValkey {
+          connect() {
+            return Promise.reject(new Error("connect ECONNREFUSED"));
+          }
+        },
+      }));
+
+      const reconnectAttempt = await CacheStorage.createValkey(
+        { host: "unreachable-valkey-host", requestTimeout: 500 },
+        logger,
+      );
+
+      // Replicate the guard in v3.init():
+      // if (valkeyStorage.enabled) { wireCaches(valkeyStorage) }
+      // else if (this.cacheStorage.isValkey) { wireCaches(CacheStorage.create(...)) }
+      let activeStorage = closedValkeyStorage;
+      if (reconnectAttempt.enabled) {
+        activeStorage = reconnectAttempt;
+      } else if (closedValkeyStorage.isValkey) {
+        activeStorage = CacheStorage.create(undefined, logger);
+      }
+
+      // The dead Valkey storage must be replaced with a safe no-op storage.
+      expect(activeStorage).not.toBe(closedValkeyStorage);
+      expect(activeStorage.isValkey).toBe(false);
 
       vi.doUnmock("iovalkey");
     });

@@ -209,6 +209,11 @@ export class CacheStorage {
     return !!this.dir || !!this.memoryStore || !!this.valkeyClient;
   }
 
+  /** True if this storage is backed by a Valkey client. */
+  get isValkey(): boolean {
+    return !!this.valkeyClient;
+  }
+
   /**
    * Close the underlying Valkey client connection, if any.
    * Safe to call multiple times or when no Valkey client is attached.
