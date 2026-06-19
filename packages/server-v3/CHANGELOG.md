@@ -1,5 +1,14 @@
 # @browserbasehq/stagehand-server-v3
 
+## 3.7.1
+
+### Patch Changes
+
+- [#2217](https://github.com/browserbase/stagehand/pull/2217) [`147e310`](https://github.com/browserbase/stagehand/commit/147e310b12ffa9a5a03d770b0f071495d7a3287d) Thanks [@monadoid](https://github.com/monadoid)! - Add Azure OpenAI Microsoft Entra ID model auth support.
+
+- Updated dependencies [[`147e310`](https://github.com/browserbase/stagehand/commit/147e310b12ffa9a5a03d770b0f071495d7a3287d), [`cf3603d`](https://github.com/browserbase/stagehand/commit/cf3603d1c1f017cd7c195bcbe4300814c694454b), [`8d7d414`](https://github.com/browserbase/stagehand/commit/8d7d414c70676a31ea9322073f514d5b9dd5ecb1), [`fd42e65`](https://github.com/browserbase/stagehand/commit/fd42e65bb84825bdb7341a4953472db1ff774989), [`a64c6b7`](https://github.com/browserbase/stagehand/commit/a64c6b74cfce7341ad4bbb2d39ae22c082f5f61e), [`c49a3fc`](https://github.com/browserbase/stagehand/commit/c49a3fc47ada88322f7e11b7b72085f0147c43e3), [`ed3e566`](https://github.com/browserbase/stagehand/commit/ed3e56636ee35b6eb2b1ad1af2bfb098a97aa39c), [`840aac8`](https://github.com/browserbase/stagehand/commit/840aac8bfcd9b3debcddffea0ca0c3de4670cf2a)]:
+  - @browserbasehq/stagehand@3.6.0
+
 ## 3.7.0
 
 ### Minor Changes
