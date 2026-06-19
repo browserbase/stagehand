@@ -9,7 +9,7 @@ import { V3Banner } from '/snippets/v3-banner.mdx';
 
 ## What is WebMCP?
 
-WebMCP lets a web page expose tools that Stagehand can discover and invoke through Chrome's WebMCP DevTools Protocol support. Use it when the page itself registers structured tools for workflows like search, booking, calculation, or support requests.
+WebMCP lets pages expose typed, first-party tools to Stagehand. Instead of inferring every action from the DOM, agents can use Stagehand to discover available tools and invoke them with structured input.
 
 <Info>
 WebMCP is different from Stagehand agent MCP integrations. Agent MCP integrations connect your agent to external MCP servers. WebMCP tools are registered by the current web page and are invoked through the `page` object.
