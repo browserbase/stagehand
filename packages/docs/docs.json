@@ -46,6 +46,7 @@
                   "v3/basics/act",
                   "v3/basics/extract",
                   "v3/basics/observe",
+                  "v3/basics/webmcp",
                   "v3/basics/evals"
                 ]
               },

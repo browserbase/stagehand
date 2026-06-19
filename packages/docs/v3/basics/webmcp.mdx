@@ -1,0 +1,135 @@
+---
+title: WebMCP
+sidebarTitle: WebMCP
+description: 'List and invoke tools registered by the current web page'
+---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+## What is WebMCP?
+
+WebMCP lets a web page expose tools that Stagehand can discover and invoke through Chrome's WebMCP DevTools Protocol support. Use it when the page itself registers structured tools for workflows like search, booking, calculation, or support requests.
+
+<Info>
+WebMCP is different from Stagehand agent MCP integrations. Agent MCP integrations connect your agent to external MCP servers. WebMCP tools are registered by the current web page and are invoked through the `page` object.
+</Info>
+
+## Browser Support
+
+WebMCP requires Chrome or Chromium newer than version 149, and it must be launched with `--enable-features=WebMCPTesting,DevToolsWebMCPSupport`. Stagehand launches browsers with those flags by default.
+
+## Listing Tools
+
+Use `page.listWebMCPTools()` after navigating to a page that registers WebMCP tools.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+const page = stagehand.context.pages()[0];
+await page.goto(
+  "https://googlechromelabs.github.io/webmcp-tools/demos/react-flightsearch/",
+  { waitUntil: "load" },
+);
+
+const tools = await page.listWebMCPTools();
+console.log(tools);
+
+await stagehand.close();
+```
+
+Each tool includes its `name`, optional `description`, optional `inputSchema`, optional `annotations`, and the `frameId` where it was registered.
+
+<Note>
+`listWebMCPTools()` returns a fresh snapshot from the browser on each call. It does not reuse tools from previous pages or previous calls.
+</Note>
+
+## Invoking Tools
+
+Use `page.invokeWebMCPTool()` with the tool name and a JSON-serializable input object. The method returns an invocation immediately; await `invocation.result` for the tool's final response.
+
+```typescript
+const tools = await page.listWebMCPTools();
+const flightSearch = tools.find((tool) => tool.name === "searchFlights");
+
+if (!flightSearch) {
+  throw new Error("searchFlights was not registered on this page");
+}
+
+const invocation = await page.invokeWebMCPTool(
+  flightSearch.name,
+  {
+    origin: "SFO",
+    destination: "JFK",
+    tripType: "round-trip",
+    outboundDate: "2026-06-10",
+    inboundDate: "2026-06-17",
+    passengers: 1,
+  },
+  { frameId: flightSearch.frameId },
+);
+
+const result = await invocation.result;
+console.log(result.status);
+console.log(result.output);
+```
+
+<Tip>
+Pass `frameId` from `listWebMCPTools()` when invoking a tool. If you omitted, Stagehand resolves the frame automatically, but only if exactly one registered tool has that name.
+</Tip>
+
+## Handling Results
+
+WebMCP invocation results have one of three statuses:
+
+```typescript
+type WebMCPToolInvocationStatus = "Completed" | "Canceled" | "Error";
+```
+
+A completed tool may include `output`. A failed tool may include `errorText` or `exception`.
+
+```typescript
+const invocation = await page.invokeWebMCPTool(
+  "calculateSum",
+  { a: 19, b: 23 },
+  { frameId: tool.frameId, timeoutMs: 5_000 },
+);
+
+const result = await invocation.result;
+
+if (result.status === "Completed") {
+  console.log(result.output);
+} else {
+  console.error(result.errorText ?? result.exception);
+}
+```
+
+To cancel a pending invocation, call `invocation.cancel()`. The invocation result still resolves when the browser sends the cancellation response.
+
+```typescript
+const invocation = await page.invokeWebMCPTool(
+  "longRunningTool",
+  {},
+  { frameId: tool.frameId },
+);
+
+await invocation.cancel();
+const result = await invocation.result;
+console.log(result.status); // "Canceled"
+```
+
+## Timeouts
+
+Both WebMCP methods accept a `timeoutMs` option:
+
+- `listWebMCPTools({ timeoutMs })` waits for the page's tool snapshot. Default: `1000`
+- `invokeWebMCPTool(name, input, { timeoutMs })` sets how long `invocation.result` waits for the tool response. Default: `30000`
+
+If the browser does not support WebMCP, Stagehand throws a `StagehandUnsupportedBrowserFeatureError` with instructions for enabling the required Chrome flags.
+
+## API Reference
+
+See the [Page reference](/v3/references/page#webmcp) for method signatures and type definitions.
