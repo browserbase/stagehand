@@ -27,6 +27,7 @@ export class ObserveHandler {
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly experimental: boolean;
+  private readonly enableContextCompression: boolean;
   private readonly onMetrics?: (
     functionName: V3FunctionName,
     promptTokens: number,
@@ -52,6 +53,7 @@ export class ObserveHandler {
       cachedInputTokens: number,
       inferenceTimeMs: number,
     ) => void,
+    enableContextCompression?: boolean,
   ) {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
@@ -60,6 +62,7 @@ export class ObserveHandler {
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;
+    this.enableContextCompression = enableContextCompression ?? false;
     this.onMetrics = onMetrics;
   }
 
@@ -126,6 +129,7 @@ export class ObserveHandler {
       logInferenceToFile: this.logInferenceToFile,
       supportedActions: Object.values(SupportedUnderstudyAction),
       variables,
+      enableContextCompression: this.enableContextCompression,
     });
 
     const {
