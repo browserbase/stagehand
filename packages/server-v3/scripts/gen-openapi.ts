@@ -158,7 +158,7 @@ async function main() {
 execute browser automation tasks remotely on the Browserbase cloud.
 All endpoints except /sessions/start require an active session ID.
 Responses are streamed using Server-Sent Events (SSE) when the
-\`x-stream-response: true\` header is provided.
+\`streamResponse\` request body field is set to \`true\`.
 
 This SDK is currently ALPHA software and is not production ready!
 Please try it and give us your feedback, stay tuned for upcoming release announcements!`,

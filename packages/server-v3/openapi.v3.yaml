@@ -11,7 +11,7 @@ info:
 
     Responses are streamed using Server-Sent Events (SSE) when the
 
-    `x-stream-response: true` header is provided.
+    `streamResponse` request body field is set to `true`.
 
 
     This SDK is currently ALPHA software and is not production ready!
