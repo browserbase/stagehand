@@ -17,6 +17,47 @@ interface DoneResult {
   output?: Record<string, unknown>;
 }
 
+/**
+ * Recursively drop keys whose value is `undefined` from plain objects (and
+ * recurse into arrays / plain objects), leaving class instances, Dates, typed
+ * arrays, primitives and `null` untouched.
+ *
+ * The AI SDK validates `providerOptions` as `providerMetadataSchema`, whose leaf
+ * values are `jsonValueSchema` (null | string | number | boolean | object |
+ * array) — `undefined` is not allowed. SDK-generated messages (e.g. OpenAI
+ * reasoning / tool parts) can carry nested `undefined` values, so re-submitting
+ * them verbatim makes standardizePrompt reject the whole prompt with
+ * "messages must be a ModelMessage[]". `JSON.stringify` hides these (it omits
+ * undefined), which is why the failure is invisible in logs. Stripping them is
+ * equivalent to a JSON round-trip and makes the prompt valid again.
+ */
+function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => stripUndefinedDeep(v)) as unknown as T;
+  }
+  if (value !== null && typeof value === "object") {
+    const proto = Object.getPrototypeOf(value);
+    if (proto === Object.prototype || proto === null) {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (v !== undefined) out[k] = stripUndefinedDeep(v);
+      }
+      return out as T;
+    }
+  }
+  return value;
+}
+
+/**
+ * Sanitize the accumulated run history before it is re-submitted to a fresh
+ * generateText call. See {@link stripUndefinedDeep}.
+ */
+export function sanitizeMessagesForResubmission(
+  messages: ModelMessage[],
+): ModelMessage[] {
+  return messages.map((message) => stripUndefinedDeep(message));
+}
+
 function buildBaseDoneSchema(factory: typeof z) {
   return factory.object({
     reasoning: factory
@@ -114,7 +155,7 @@ Call the "done" tool with:
   const result = await generateText({
     model,
     system: systemPrompt,
-    messages: [...inputMessages, userPrompt],
+    messages: [...sanitizeMessagesForResubmission(inputMessages), userPrompt],
     tools: { done: doneTool } as ToolSet,
     toolChoice: rejectsForcedToolUse(modelId)
       ? "auto"
@@ -126,7 +167,7 @@ Call the "done" tool with:
     },
   });
 
-  const doneToolCall = result.toolCalls.find((tc) => tc.toolName === "done");
+  const doneToolCall = result.toolCalls?.find((tc) => tc.toolName === "done");
   const outputMessages: ModelMessage[] = [
     userPrompt,
     ...(result.response?.messages || []),
