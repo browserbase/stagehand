@@ -93,6 +93,17 @@ export function buildClaudeCodePrompt(
     .join("\n");
 }
 
+export function buildClaudeCodeSystemPromptAppend(
+  toolInstructions?: string,
+): string {
+  return [
+    "You are being evaluated. Do not edit repository files. Complete the browser task and emit the requested EVAL_RESULT line.",
+    toolInstructions,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 export function parseClaudeCodeResult(raw: string): ParsedClaudeCodeResult {
   const marker = "EVAL_RESULT:";
   const markerIndex = raw.lastIndexOf(marker);
@@ -211,8 +222,9 @@ export async function runClaudeCodeAgent({
         systemPrompt: {
           type: "preset",
           preset: "claude_code",
-          append:
-            "You are being evaluated. Do not edit repository files. Complete the browser task and emit the requested EVAL_RESULT line.",
+          append: buildClaudeCodeSystemPromptAppend(
+            toolAdapter?.promptInstructions,
+          ),
         },
       },
     })) {

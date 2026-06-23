@@ -212,5 +212,13 @@ describe("claude code runner helpers", () => {
       "Bash",
       "mcp__stagehand_browser__run",
     ]);
+    expect(capturedOptions?.systemPrompt).toMatchObject({
+      type: "preset",
+      preset: "claude_code",
+    });
+    expect(
+      (capturedOptions?.systemPrompt as { append?: string } | undefined)
+        ?.append,
+    ).toContain("Use run.");
   });
 });
