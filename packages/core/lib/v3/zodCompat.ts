@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { z as zodV4 } from "zod/v4";
 import type {
   ZodObject as Zod4Object,
   ZodRawShape as Zod4RawShape,
@@ -35,15 +36,18 @@ export function toJsonSchema(schema: StagehandZodSchema): JsonSchemaDocument {
     return zodToJsonSchema(schema);
   }
 
-  // For v4 schemas, use built-in z.toJSONSchema() method
-  const zodWithJsonSchema = z as typeof z & {
-    toJSONSchema?: (schema: Zod4TypeAny) => JsonSchemaDocument;
-  };
+  const converters = [zodV4, z] as Array<
+    typeof z & {
+      toJSONSchema?: (schema: Zod4TypeAny) => JsonSchemaDocument;
+    }
+  >;
 
-  if (zodWithJsonSchema.toJSONSchema) {
-    return zodWithJsonSchema.toJSONSchema(schema as Zod4TypeAny);
+  for (const zodWithJsonSchema of converters) {
+    if (zodWithJsonSchema.toJSONSchema) {
+      return zodWithJsonSchema.toJSONSchema(schema as Zod4TypeAny);
+    }
   }
 
-  // This should never happen with Zod v4.1+
+  // This should never happen with Zod v4.1+ or transitional Zod v3.25+ packages.
   throw new Error("Zod v4 toJSONSchema method not found");
 }
