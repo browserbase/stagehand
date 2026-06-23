@@ -241,6 +241,8 @@ export class GoogleCUAClient extends AgentClient {
 
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let totalReasoningTokens = 0;
+    let totalCachedInputTokens = 0;
     let totalInferenceTime = 0;
 
     try {
@@ -257,6 +259,8 @@ export class GoogleCUAClient extends AgentClient {
         const result = await this.executeStep(logger);
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
+        totalReasoningTokens += result.usage.reasoning_tokens;
+        totalCachedInputTokens += result.usage.cached_input_tokens;
         totalInferenceTime += result.usage.inference_time_ms;
 
         // Add actions to the list
@@ -284,6 +288,8 @@ export class GoogleCUAClient extends AgentClient {
         usage: {
           input_tokens: totalInputTokens,
           output_tokens: totalOutputTokens,
+          reasoning_tokens: totalReasoningTokens,
+          cached_input_tokens: totalCachedInputTokens,
           inference_time_ms: totalInferenceTime,
         },
       };
@@ -304,6 +310,8 @@ export class GoogleCUAClient extends AgentClient {
         usage: {
           input_tokens: totalInputTokens,
           output_tokens: totalOutputTokens,
+          reasoning_tokens: totalReasoningTokens,
+          cached_input_tokens: totalCachedInputTokens,
           inference_time_ms: totalInferenceTime,
         },
       };
@@ -349,6 +357,8 @@ export class GoogleCUAClient extends AgentClient {
     usage: {
       input_tokens: number;
       output_tokens: number;
+      reasoning_tokens: number;
+      cached_input_tokens: number;
       inference_time_ms: number;
     };
   }> {
@@ -657,8 +667,14 @@ export class GoogleCUAClient extends AgentClient {
         message: result.message,
         completed: result.completed,
         usage: {
+          // promptTokenCount is the TOTAL input and already includes the
+          // cached portion; cachedContentTokenCount is the cache-hit subset
+          // (tracked separately for visibility, not additive). thoughtsTokenCount
+          // is Gemini's thinking/reasoning output.
           input_tokens: usageMetadata?.promptTokenCount || 0,
           output_tokens: usageMetadata?.candidatesTokenCount || 0,
+          reasoning_tokens: usageMetadata?.thoughtsTokenCount || 0,
+          cached_input_tokens: usageMetadata?.cachedContentTokenCount || 0,
           inference_time_ms: elapsedMs,
         },
       };
