@@ -126,7 +126,7 @@ Call the "done" tool with:
     },
   });
 
-  const doneToolCall = result.toolCalls.find((tc) => tc.toolName === "done");
+  const doneToolCall = result.toolCalls?.find((tc) => tc.toolName === "done");
   const outputMessages: ModelMessage[] = [
     userPrompt,
     ...(result.response?.messages || []),
