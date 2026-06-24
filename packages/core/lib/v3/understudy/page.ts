@@ -58,6 +58,7 @@ import {
   normalizeScreenshotClip,
   runScreenshotCleanups,
   setTransparentBackground,
+  shouldCaptureBeyondViewport,
   type ScreenshotCleanup,
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
@@ -1513,6 +1514,13 @@ export class Page {
     const frames = collectFramesForScreenshot(this);
     const clip = opts.clip ? normalizeScreenshotClip(opts.clip) : undefined;
     const captureScale = await computeScreenshotScale(this, scaleMode);
+    // Enable captureBeyondViewport when a clip falls outside the current
+    // viewport, otherwise CDP renders the off-screen region blank.
+    const captureBeyondViewport = await shouldCaptureBeyondViewport(
+      this,
+      clip,
+      opts.fullPage,
+    );
     const maskLocators = (opts.mask ?? []).filter(
       (locator): locator is Locator => Boolean(locator),
     );
@@ -1547,6 +1555,7 @@ export class Page {
 
         const buffer = await this.mainFrameWrapper.screenshot({
           fullPage: opts.fullPage,
+          captureBeyondViewport,
           clip,
           type,
           quality: type === "jpeg" ? opts.quality : undefined,

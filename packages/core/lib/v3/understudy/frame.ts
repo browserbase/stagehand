@@ -186,6 +186,7 @@ export class Frame implements FrameManager {
   /** Page.captureScreenshot (frame-scoped session) */
   async screenshot(options?: {
     fullPage?: boolean;
+    captureBeyondViewport?: boolean;
     clip?: { x: number; y: number; width: number; height: number };
     type?: "png" | "jpeg";
     quality?: number;
@@ -197,7 +198,8 @@ export class Frame implements FrameManager {
       {
         format,
         fromSurface: true,
-        captureBeyondViewport: options?.fullPage,
+        captureBeyondViewport:
+          options?.captureBeyondViewport ?? options?.fullPage,
       };
 
     const clampScale = (value: number): number =>

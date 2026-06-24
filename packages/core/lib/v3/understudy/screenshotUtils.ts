@@ -65,6 +65,73 @@ export async function computeScreenshotScale(
   }
 }
 
+export interface ViewportMetrics {
+  scrollX: number;
+  scrollY: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Read the current scroll offset and visual viewport size from the page.
+ * Returns null if it can't be determined (e.g. no execution context yet).
+ */
+export async function getViewportMetrics(
+  page: Page,
+): Promise<ViewportMetrics | null> {
+  try {
+    const frame = page.mainFrame();
+    const metrics = await frame.evaluate(() => ({
+      scrollX: Number(window.scrollX) || 0,
+      scrollY: Number(window.scrollY) || 0,
+      width: Number(window.innerWidth) || 0,
+      height: Number(window.innerHeight) || 0,
+    }));
+    if (!metrics || metrics.width <= 0 || metrics.height <= 0) return null;
+    return metrics;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a clip (in CSS px, page/document coordinates) lies entirely within
+ * the currently scrolled viewport. A small tolerance absorbs sub-pixel rounding.
+ */
+export function clipFitsViewport(
+  clip: ScreenshotClip,
+  viewport: ViewportMetrics,
+): boolean {
+  const EPS = 1;
+  return (
+    clip.x >= viewport.scrollX - EPS &&
+    clip.y >= viewport.scrollY - EPS &&
+    clip.x + clip.width <= viewport.scrollX + viewport.width + EPS &&
+    clip.y + clip.height <= viewport.scrollY + viewport.height + EPS
+  );
+}
+
+/**
+ * Decide whether `Page.captureScreenshot` should render beyond the visual
+ * viewport. CDP renders only the visible viewport unless this is enabled, so a
+ * `clip` whose region lies outside the current viewport (below the fold, or an
+ * element scrolled off-screen) comes back blank. Mirror Playwright: enable it
+ * for `fullPage`, and for any clip that doesn't fit the current viewport. If the
+ * viewport can't be measured, err toward capturing beyond it so off-screen clips
+ * aren't silently blank.
+ */
+export async function shouldCaptureBeyondViewport(
+  page: Page,
+  clip: ScreenshotClip | undefined,
+  fullPage: boolean | undefined,
+): Promise<boolean> {
+  if (fullPage) return true;
+  if (!clip) return false;
+  const viewport = await getViewportMetrics(page);
+  if (!viewport) return true;
+  return !clipFitsViewport(clip, viewport);
+}
+
 export async function setTransparentBackground(
   session: CDPSessionLike,
 ): Promise<ScreenshotCleanup> {
