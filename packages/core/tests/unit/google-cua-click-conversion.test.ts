@@ -70,6 +70,8 @@ describe("GoogleCUAClient gemini-3.x click-family conversion", () => {
 
   it("returns null (no NaN) when click-family coordinates are missing", () => {
     for (const name of [
+      "click", // aliases to click_at — the most common path
+      "click_at",
       "double_click",
       "triple_click",
       "right_click",

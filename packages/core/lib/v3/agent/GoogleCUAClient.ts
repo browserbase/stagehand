@@ -900,10 +900,12 @@ export class GoogleCUAClient extends AgentClient {
         };
 
       case "click_at": {
-        const { x, y } = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
+        // x/y are required; reject a malformed call rather than normalizing
+        // undefined into NaN coordinates. (gemini-3.x `click` aliases here.)
+        if (typeof args.x !== "number" || typeof args.y !== "number") {
+          return null;
+        }
+        const { x, y } = this.normalizeCoordinates(args.x, args.y);
         return {
           type: "click",
           x,
