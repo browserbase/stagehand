@@ -14,6 +14,7 @@ import {
   getSocketPath,
   PRIVATE_FILE_MODE,
 } from "./paths.js";
+import { collectClientCredentials } from "./credentials.js";
 import { isProcessAlive } from "./process.js";
 import { ResponseSchema, type DriverRequest } from "./protocol.js";
 
@@ -74,6 +75,7 @@ export async function openViaDaemon(
 ): Promise<OpenResult> {
   return sendDriverRequest<OpenResult>(session, {
     ...options,
+    credentials: await collectClientCredentials(),
     id: requestId(),
     type: "open",
     url,
@@ -87,6 +89,7 @@ export async function runDriverCommandViaDaemon(
 ): Promise<unknown> {
   return sendDriverRequest(session, {
     command,
+    credentials: await collectClientCredentials(),
     id: requestId(),
     params,
     type: "command",
