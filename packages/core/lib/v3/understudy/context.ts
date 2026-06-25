@@ -17,6 +17,7 @@ import {
   CookieSetError,
   PageNotFoundError,
   StagehandSetExtraHTTPHeadersError,
+  StagehandSetDomainPolicyError,
 } from "../types/public/sdkErrors.js";
 import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 import {
@@ -29,7 +30,10 @@ import {
   Cookie,
   ClearCookieOptions,
   CookieParam,
+  DomainPolicy,
 } from "../types/public/context.js";
+import { normalizeDomainPolicy, shouldBlockUrl } from "./domainPolicy.js";
+import type { NormalizedDomainPolicy } from "./domainPolicy.js";
 
 type TargetId = string;
 type SessionId = string;
@@ -113,6 +117,7 @@ export class V3Context {
   // Timestamp for most recent popup/open signal
   private _lastPopupSignalAt = 0;
   private readonly _targetSessionListeners = new Set<SessionId>();
+  private readonly _domainPolicySessionListeners = new Set<SessionId>();
 
   private readonly _sessionInit = new Set<SessionId>();
   private pagesByTarget = new Map<TargetId, Page>();
@@ -126,6 +131,7 @@ export class V3Context {
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private readonly initScripts: string[] = [];
   private extraHttpHeaders: Record<string, string> | null = null;
+  private domainPolicy: NormalizedDomainPolicy | null = null;
   private _clipboard?: ContextClipboard;
 
   private installTargetSessionListeners(session: CDPSessionLike): void {
@@ -425,6 +431,111 @@ export class V3Context {
     }
   }
 
+  public getDomainPolicy(): DomainPolicy | null {
+    if (!this.domainPolicy) return null;
+    return { blockedDomains: [...this.domainPolicy.blockedDomains] };
+  }
+
+  public async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
+    const nextPolicy = normalizeDomainPolicy(policy);
+    this.domainPolicy = nextPolicy;
+
+    const sessions: CDPSessionLike[] = [];
+    for (const sessionId of this._sessionInit) {
+      const session = this.conn.getSession(sessionId);
+      if (session) sessions.push(session);
+    }
+
+    if (!sessions.length) return;
+
+    const results = await Promise.allSettled(
+      sessions.map(async (session) => {
+        if (!nextPolicy) {
+          await session.send("Fetch.disable");
+          return;
+        }
+
+        this.installDomainPolicyHandler(session);
+        await session.send("Fetch.enable", {
+          patterns: nextPolicy.fetchPatterns,
+        });
+      }),
+    );
+
+    const failures = results
+      .map((result, index) => ({ result, session: sessions[index] }))
+      .filter(
+        (
+          entry,
+        ): entry is {
+          result: PromiseRejectedResult;
+          session: CDPSessionLike;
+        } => entry.result.status === "rejected",
+      )
+      .map((entry) => {
+        const reason = entry.result.reason as Error;
+        const sid = entry.session.id ?? "unknown";
+        const message = reason?.message ?? String(reason);
+        return `session=${sid} error=${message}`;
+      });
+
+    if (failures.length) {
+      throw new StagehandSetDomainPolicyError(failures);
+    }
+  }
+
+  private installDomainPolicyHandler(session: CDPSessionLike): void {
+    const sessionId = session.id;
+    if (!sessionId) return;
+    if (this._domainPolicySessionListeners.has(sessionId)) return;
+    this._domainPolicySessionListeners.add(sessionId);
+
+    session.on<Protocol.Fetch.RequestPausedEvent>(
+      "Fetch.requestPaused",
+      (evt) => {
+        void this.handleDomainPolicyRequestPaused(session, evt);
+      },
+    );
+  }
+
+  private async handleDomainPolicyRequestPaused(
+    session: CDPSessionLike,
+    evt: Protocol.Fetch.RequestPausedEvent,
+  ): Promise<void> {
+    const policy = this.domainPolicy;
+
+    if (!policy || !shouldBlockUrl(evt.request.url, policy)) {
+      await session
+        .send("Fetch.continueRequest", { requestId: evt.requestId })
+        .catch(() => {});
+      return;
+    }
+
+    let hostname = "";
+    try {
+      hostname = new URL(evt.request.url).hostname.toLowerCase();
+    } catch {
+      // ignore malformed URLs for logging
+    }
+
+    v3Logger({
+      category: "network",
+      message: "Blocked request by domain policy",
+      level: 2,
+      auxiliary: {
+        hostname: { value: hostname, type: "string" },
+        ruleType: { value: "blockedDomains", type: "string" },
+      },
+    });
+
+    await session
+      .send("Fetch.failRequest", {
+        requestId: evt.requestId,
+        errorReason: "BlockedByClient",
+      })
+      .catch(() => {});
+  }
+
   public get clipboard(): BrowserClipboard {
     return (this._clipboard ??= new ContextClipboard({
       context: this,
@@ -697,6 +808,18 @@ export class V3Context {
         queuePreResume("Network.setExtraHTTPHeaders", { headers }),
       );
     }
+    const fetchPreResumeOps: Array<{
+      dispatched: Promise<boolean>;
+      response: Promise<boolean>;
+    }> = [];
+    if (this.domainPolicy) {
+      this.installDomainPolicyHandler(session);
+      fetchPreResumeOps.push(
+        queuePreResume("Fetch.enable", {
+          patterns: this.domainPolicy.fetchPatterns,
+        }),
+      );
+    }
     // Send init scripts only after auto-attach has been queued.
     if (this.initScripts.length) {
       for (const source of this.initScripts) {
@@ -728,6 +851,7 @@ export class V3Context {
       await Promise.all([
         ...corePreResumeOps.map((op) => op.dispatched),
         ...headerPreResumeOps.map((op) => op.dispatched),
+        ...fetchPreResumeOps.map((op) => op.dispatched),
         ...initScriptOps.map((op) => op.dispatched),
         piercerPreloadOp.dispatched,
       ])
@@ -741,17 +865,20 @@ export class V3Context {
     const [
       coreResults,
       headerResults,
+      fetchResults,
       initScriptResults,
       piercerPreRegistered,
     ] = await Promise.all([
       Promise.all(corePreResumeOps.map((op) => op.response)),
       Promise.all(headerPreResumeOps.map((op) => op.response)),
+      Promise.all(fetchPreResumeOps.map((op) => op.response)),
       Promise.all(initScriptOps.map((op) => op.response)),
       piercerPreloadOp.response,
     ]);
     // Header propagation is independent of init-script determinism but still
     // part of pre-resume attach setup; awaited above for ordering/lifecycle.
     void headerResults;
+    void fetchResults;
     if (!preResumeDispatched || !resumedDispatched || !resumedOk) {
       // Short-lived child targets can detach before resume is acknowledged.
       // Keep this noisy only for top-level pages where missing attach is fatal.
@@ -933,6 +1060,7 @@ export class V3Context {
     }
 
     this._targetSessionListeners.delete(sessionId);
+    this._domainPolicySessionListeners.delete(sessionId);
     this._sessionInit.delete(sessionId);
     this._piercerInstalled.delete(sessionId);
   }
