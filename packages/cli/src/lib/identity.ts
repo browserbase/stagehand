@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { mkdir, open, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -170,23 +169,25 @@ export function toMetadataValue(v: string, max = 64): string {
 let cachedCliVersion: string | undefined;
 
 /**
- * The CLI version, read once from the package's own `package.json`. This is the
- * same source oclif uses for `config.version`; it is read here so non-command
- * contexts (remote session options, cloud API headers) can stamp the version
- * without an oclif `Config` in hand.
+ * Seed the CLI version from oclif's `Config.version` (the single source of
+ * truth). This is called once at startup from `BrowseCommand.init()` in base.ts
+ * — and because every command (including the background `browse daemon` that
+ * creates Browserbase sessions) extends `BrowseCommand`, the cache is populated
+ * in whichever process builds a session/header. Only truthy values are stored
+ * so a missing version leaves the `"unknown"` fallback intact.
+ */
+export function setCliVersion(version: string): void {
+  if (version) {
+    cachedCliVersion = version;
+  }
+}
+
+/**
+ * The CLI version for non-command contexts (remote session `userMetadata`,
+ * cloud API headers). It is seeded once from `Config.version` in base.ts at
+ * startup via {@link setCliVersion}; this reads back the cached value with no
+ * filesystem access. Falls back to `"unknown"` if it was never seeded.
  */
 export function getCliVersion(): string {
-  if (cachedCliVersion !== undefined) {
-    return cachedCliVersion;
-  }
-  try {
-    const pkg = JSON.parse(
-      readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
-    ) as { version?: unknown };
-    cachedCliVersion =
-      typeof pkg.version === "string" ? pkg.version : "unknown";
-  } catch {
-    cachedCliVersion = "unknown";
-  }
-  return cachedCliVersion;
+  return cachedCliVersion ?? "unknown";
 }

@@ -87,12 +87,16 @@ describe("remoteStagehandOptions — userMetadata", () => {
     installIdFile = join(tmpDir, "telemetry-id");
   });
 
-  it("always includes browse_cli and cli_version", async () => {
+  it("always includes browse_cli and the seeded cli_version", async () => {
     process.env.BROWSERBASE_API_KEY = "bb_test";
     process.env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE = installIdFile;
 
     try {
       // Dynamic import so each test gets a fresh module resolution path
+      const identityModule = await import("../src/lib/identity.js");
+      // Seed the version the way base.ts does from Config.version at startup.
+      identityModule.setCliVersion("1.2.3");
+
       const { remoteStagehandOptions } = await import(
         "../src/lib/driver/remote.js"
       );
@@ -104,8 +108,8 @@ describe("remoteStagehandOptions — userMetadata", () => {
 
       expect(meta).toBeDefined();
       expect(meta.browse_cli).toBe("true");
-      expect(typeof meta.cli_version).toBe("string");
-      expect(meta.cli_version.length).toBeGreaterThan(0);
+      // cli_version reflects the seeded oclif version, never "unknown".
+      expect(meta.cli_version).toBe("1.2.3");
     } finally {
       delete process.env.BROWSERBASE_API_KEY;
       delete process.env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE;
@@ -242,5 +246,46 @@ describe("resolveInstallId — persistence", () => {
     } finally {
       delete process.env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE;
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getCliVersion / setCliVersion — seeded from Config.version, no fs
+// ---------------------------------------------------------------------------
+
+describe("getCliVersion / setCliVersion", () => {
+  beforeEach(() => {
+    // Fresh module per test so the module-level version cache starts unset.
+    vi.resetModules();
+  });
+
+  it("returns 'unknown' when never seeded (no filesystem fallback)", async () => {
+    const { getCliVersion } = await import("../src/lib/identity.js");
+    expect(getCliVersion()).toBe("unknown");
+  });
+
+  it("returns the value seeded via setCliVersion", async () => {
+    const { getCliVersion, setCliVersion } = await import(
+      "../src/lib/identity.js"
+    );
+    setCliVersion("0.9.0");
+    expect(getCliVersion()).toBe("0.9.0");
+  });
+
+  it("ignores an empty seed, leaving the 'unknown' fallback intact", async () => {
+    const { getCliVersion, setCliVersion } = await import(
+      "../src/lib/identity.js"
+    );
+    setCliVersion("");
+    expect(getCliVersion()).toBe("unknown");
+  });
+
+  it("keeps a previously-seeded version when later seeded with empty", async () => {
+    const { getCliVersion, setCliVersion } = await import(
+      "../src/lib/identity.js"
+    );
+    setCliVersion("1.4.2");
+    setCliVersion("");
+    expect(getCliVersion()).toBe("1.4.2");
   });
 });
