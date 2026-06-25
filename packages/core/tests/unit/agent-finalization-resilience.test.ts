@@ -38,7 +38,12 @@ const malformedHistory = [
         text: "",
         providerOptions: { openai: { itemId: "rs_1" } },
       },
-      { type: "tool-call", toolCallId: "c1", toolName: "captureField", input: {} },
+      {
+        type: "tool-call",
+        toolCallId: "c1",
+        toolName: "captureField",
+        input: {},
+      },
     ],
   },
   {
@@ -84,7 +89,9 @@ describe("v3 agent finalization: tool-result re-submission (STG-2335)", () => {
 
     // tool-result value keeps real fields, drops the undefined one.
     const toolResult = (
-      cleaned[2].content as Array<{ output: { value: Record<string, unknown> } }>
+      cleaned[2].content as Array<{
+        output: { value: Record<string, unknown> };
+      }>
     )[0];
     expect(toolResult.output.value).toEqual({ success: true, value: "permit" });
     expect("matchedExpected" in toolResult.output.value).toBe(false);

@@ -50,7 +50,9 @@ describe("sanitizeMessagesForResubmission", () => {
     ] as unknown as ModelMessage[];
 
     sanitizeMessagesForResubmission(messages);
-    const original = (messages[0].content as { providerOptions?: unknown }[])[0];
+    const original = (
+      messages[0].content as { providerOptions?: unknown }[]
+    )[0];
     expect("providerOptions" in original).toBe(true);
   });
 });
