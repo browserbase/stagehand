@@ -5,7 +5,7 @@
  * 3. remoteStagehandOptions — always includes browse_cli + cli_version; includes install_id only when resolved
  */
 
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -168,6 +168,79 @@ describe("remoteStagehandOptions — userMetadata", () => {
       );
     } finally {
       delete process.env.BROWSERBASE_API_KEY;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveInstallId — persistence + convergence (race-safe marker handling)
+// ---------------------------------------------------------------------------
+
+describe("resolveInstallId — persistence", () => {
+  let tmpDir: string;
+  let installIdFile: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "browse-install-id-test-"));
+    cleanupPaths.push(tmpDir);
+    installIdFile = join(tmpDir, "telemetry-id");
+    // Each test needs a fresh module so the module-level install-id cache is
+    // reset; resetModules() forces the next dynamic import to re-evaluate.
+    vi.resetModules();
+  });
+
+  it("takes ownership of an EMPTY marker file: returns a non-empty, persisted id", async () => {
+    process.env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE = installIdFile;
+    // Pre-create an EMPTY marker (simulates a process that created the file via
+    // 'wx' but crashed/raced before writing, or a stale empty marker).
+    await writeFile(installIdFile, "", "utf8");
+
+    try {
+      const { resolveInstallId } = await import("../src/lib/identity.js");
+      const id = await resolveInstallId(process.env);
+
+      // Must return a non-empty id...
+      expect(typeof id).toBe("string");
+      expect(id.length).toBeGreaterThan(0);
+
+      // ...AND that id must now be persisted to the (previously empty) file.
+      const persisted = (await readFile(installIdFile, "utf8")).trim();
+      expect(persisted.length).toBeGreaterThan(0);
+      expect(persisted).toBe(id);
+    } finally {
+      delete process.env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE;
+    }
+  });
+
+  it("returns the existing non-empty id without overwriting it", async () => {
+    process.env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE = installIdFile;
+    await writeFile(installIdFile, "existing-stable-id-abc\n", "utf8");
+
+    try {
+      const { resolveInstallId } = await import("../src/lib/identity.js");
+      const id = await resolveInstallId(process.env);
+
+      expect(id).toBe("existing-stable-id-abc");
+      const persisted = (await readFile(installIdFile, "utf8")).trim();
+      expect(persisted).toBe("existing-stable-id-abc");
+    } finally {
+      delete process.env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE;
+    }
+  });
+
+  it("creates and persists a new id when no marker exists", async () => {
+    process.env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE = installIdFile;
+    // Note: installIdFile does not exist yet (only tmpDir does).
+
+    try {
+      const { resolveInstallId } = await import("../src/lib/identity.js");
+      const id = await resolveInstallId(process.env);
+
+      expect(id.length).toBeGreaterThan(0);
+      const persisted = (await readFile(installIdFile, "utf8")).trim();
+      expect(persisted).toBe(id);
+    } finally {
+      delete process.env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE;
     }
   });
 });

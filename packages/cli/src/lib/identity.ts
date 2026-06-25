@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { mkdir, open, readFile } from "node:fs/promises";
+import { mkdir, open, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -51,50 +51,82 @@ export function peekInstallId(): string | undefined {
   return cachedInstallId;
 }
 
+const INSTALL_ID_MAX_ATTEMPTS = 5;
+
+/**
+ * Resolve (or create) the anonymous install id with a bounded, race-safe loop.
+ *
+ * The contract is: never return an id that wasn't persisted, and converge so
+ * concurrent first-run processes all settle on a single stable id. Resolution
+ * is best-effort and never throws — a hard FS failure (e.g. read-only volume)
+ * falls back to an in-memory id.
+ *
+ * Each attempt:
+ *  1. Read the marker; if it holds a non-empty id, that id won — use it.
+ *  2. Try an exclusive create (`open(path, "wx")`) and write our id; if the
+ *     create succeeds we won the race — persist and return our id.
+ *  3. On EEXIST the file exists but was empty (another process created it and
+ *     hasn't written yet, or a stale empty marker). Back off briefly and loop
+ *     so the next read can pick up the winner's id.
+ *  4. On any non-EEXIST `open` error (e.g. EACCES/EROFS), the FS is unwritable;
+ *     return the in-memory id without throwing.
+ *
+ * If every attempt sees an empty marker (no one ever wrote), we take ownership
+ * after the loop with a truncating `writeFile` so we still return a persisted
+ * id rather than a non-persistent one.
+ */
 async function resolveAnonymousInstallId(
   env: NodeJS.ProcessEnv,
   fallbackId?: string,
 ): Promise<string> {
   const installIdPath = resolveInstallIdPath(env);
-
-  try {
-    const existing = (await readFile(installIdPath, "utf8")).trim();
-    if (existing) {
-      return existing;
-    }
-  } catch {
-    // Fall through and create a new anonymous install ID.
-  }
-
   const installId = fallbackId ?? randomUUID();
 
-  try {
-    await mkdir(dirname(installIdPath), { recursive: true });
-    // Use exclusive-create ('wx') so that only one concurrent first-run process
-    // wins the write. If another process already created the file (EEXIST), read
-    // back whatever it wrote so both processes converge on the same stable id.
-    const fh = await open(installIdPath, "wx");
+  for (let attempt = 0; attempt < INSTALL_ID_MAX_ATTEMPTS; attempt++) {
+    // 1. Prefer an already-persisted, non-empty id.
     try {
-      await fh.writeFile(`${installId}\n`, "utf8");
-    } finally {
-      await fh.close();
-    }
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "EEXIST") {
-      // Another concurrent first-run wrote the file first — use its id.
-      try {
-        const raced = (await readFile(installIdPath, "utf8")).trim();
-        if (raced) {
-          return raced;
-        }
-      } catch {
-        // If the re-read also fails, fall through and return the in-memory id.
+      const existing = (await readFile(installIdPath, "utf8")).trim();
+      if (existing) {
+        return existing;
       }
+    } catch {
+      // No readable file yet — fall through to attempt an exclusive create.
     }
-    // Any other error (e.g. permissions): continue with an in-memory id.
+
+    // 2. Try to win the create race with an exclusive-create write.
+    try {
+      await mkdir(dirname(installIdPath), { recursive: true });
+      const fh = await open(installIdPath, "wx");
+      try {
+        await fh.writeFile(`${installId}\n`, "utf8");
+      } finally {
+        await fh.close();
+      }
+      return installId;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
+        // 4. FS is unwritable (permissions, read-only) — best-effort fallback.
+        return installId;
+      }
+      // 3. File exists but was empty on our read. Another process is about to
+      //    write it; back off and loop so the next read picks up its id.
+      await delay(1 << attempt); // ~1, 2, 4, 8 ms
+    }
   }
 
+  // 5. The marker exists but stayed empty across every attempt (no winner ever
+  //    wrote). Take ownership with a truncating write so we never return a
+  //    non-persisted id.
+  try {
+    await writeFile(installIdPath, `${installId}\n`, "utf8");
+  } catch {
+    // If even this fails, return the in-memory id without throwing.
+  }
   return installId;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function resolveInstallIdPath(env: NodeJS.ProcessEnv): string {
