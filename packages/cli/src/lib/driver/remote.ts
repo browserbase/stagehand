@@ -1,6 +1,10 @@
 import { StatusCodes } from "http-status-codes";
 
-import { getCliVersion, resolveInstallId } from "../identity.js";
+import {
+  getCliVersion,
+  resolveInstallId,
+  toMetadataValue,
+} from "../identity.js";
 import type {
   DriverInitHints,
   RemoteDoctorResult,
@@ -36,11 +40,11 @@ export async function remoteStagehandOptions(): Promise<StagehandConstructorOpti
   // browse_cli + cli_version so the session stays attributable to the CLI.
   const userMetadata: Record<string, string> = {
     browse_cli: "true",
-    cli_version: getCliVersion(),
+    cli_version: toMetadataValue(getCliVersion()),
   };
   const installId = await resolveInstallId(process.env).catch(() => undefined);
   if (installId) {
-    userMetadata.install_id = installId;
+    userMetadata.install_id = toMetadataValue(installId);
   }
 
   return {

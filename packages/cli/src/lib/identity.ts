@@ -105,6 +105,17 @@ export function resolveInstallIdPath(env: NodeJS.ProcessEnv): string {
   return join(baseDir, "browserbase", "cli", "telemetry-id");
 }
 
+/**
+ * Sanitize a value for use in Browserbase `userMetadata`. The session-create
+ * validator only accepts characters matching `[\w\-_,;:.()&$%#@!?~]` and
+ * enforces a total length limit; this function strips everything else and
+ * truncates to `max` characters (default 64) so a semver `+build` suffix or
+ * any other unexpected character cannot cause a 400 on every remote session.
+ */
+export function toMetadataValue(v: string, max = 64): string {
+  return v.replace(/[^\w\-_,;:.()&$%#@!?~]/g, "").slice(0, max);
+}
+
 let cachedCliVersion: string | undefined;
 
 /**
