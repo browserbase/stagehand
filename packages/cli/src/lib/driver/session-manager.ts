@@ -339,7 +339,7 @@ export class DriverSessionManager {
     target: ConnectionTarget,
   ): Promise<ConstructorParameters<typeof Stagehand>[0]> {
     if (target.kind === "remote") {
-      return (await getRemote()).remoteStagehandOptions();
+      return await (await getRemote()).remoteStagehandOptions();
     }
 
     if (target.kind === "managed-local") {

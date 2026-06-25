@@ -1,5 +1,6 @@
 import { StatusCodes } from "http-status-codes";
 
+import { getCliVersion, resolveInstallId } from "../identity.js";
 import type {
   DriverInitHints,
   RemoteDoctorResult,
@@ -22,7 +23,7 @@ export function autoSelectRemoteTarget(): ConnectionTarget | null {
   return process.env.BROWSERBASE_API_KEY ? { kind: "remote" } : null;
 }
 
-export function remoteStagehandOptions(): StagehandConstructorOptions {
+export async function remoteStagehandOptions(): Promise<StagehandConstructorOptions> {
   const apiKey = process.env.BROWSERBASE_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -30,10 +31,22 @@ export function remoteStagehandOptions(): StagehandConstructorOptions {
     );
   }
 
+  // Stamp anonymous attribution onto the session. Resolving the install id is
+  // best-effort and never throws; if it can't be resolved we still send
+  // browse_cli + cli_version so the session stays attributable to the CLI.
+  const userMetadata: Record<string, string> = {
+    browse_cli: "true",
+    cli_version: getCliVersion(),
+  };
+  const installId = await resolveInstallId(process.env).catch(() => undefined);
+  if (installId) {
+    userMetadata.install_id = installId;
+  }
+
   return {
     apiKey,
     browserbaseSessionCreateParams: {
-      userMetadata: { browse_cli: "true" },
+      userMetadata,
     },
     disableAPI: true,
     disablePino: true,
