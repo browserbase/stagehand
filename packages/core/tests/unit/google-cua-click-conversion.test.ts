@@ -86,3 +86,21 @@ describe("GoogleCUAClient gemini-3.x click-family conversion", () => {
     expect(action?.button).toBe("left");
   });
 });
+
+describe("GoogleCUAClient arg-required handler guards", () => {
+  it("rejects navigate without a url, maps it when present", () => {
+    expect(run("navigate", { intent: "go" })).toBeNull();
+    expect(run("navigate", { url: "" })).toBeNull();
+    expect(run("navigate", { url: "https://example.com" })).toEqual({
+      type: "goto",
+      url: "https://example.com",
+    });
+  });
+
+  it("rejects type without text, allows an empty string (clear field)", () => {
+    expect(run("type", { intent: "type" })).toBeNull();
+    expect(run("type_text_at", { intent: "type" })).toBeNull();
+    expect(run("type", { text: "hello" })?.type).toBe("type");
+    expect(run("type", { text: "" })?.type).toBe("type");
+  });
+});

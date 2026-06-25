@@ -743,7 +743,10 @@ export class GoogleCUAClient extends AgentClient {
         });
 
         // Convert function call to action(s)
-        const action = this.convertFunctionCallToAction(part.functionCall);
+        const action = this.convertFunctionCallToAction(
+          part.functionCall,
+          logger,
+        );
         if (action) {
           // Special handling for type actions. gemini-2.5 type_text_at carries
           // coordinates (click the field first); gemini-3.x `type` has none and
@@ -823,6 +826,7 @@ export class GoogleCUAClient extends AgentClient {
    */
   private convertFunctionCallToAction(
     functionCall: FunctionCall,
+    logger?: (message: LogLine) => void,
   ): AgentAction | null {
     const { name: rawName } = functionCall;
     // Default args to an empty object so no-argument predefined functions
@@ -866,6 +870,17 @@ export class GoogleCUAClient extends AgentClient {
       wait: "wait_5_seconds",
     };
     const name = NAME_ALIASES[rawName] ?? rawName;
+
+    // Predefined computer-use tools take precedence over custom tools. If a
+    // custom tool was registered under a reserved (aliased) name, note that the
+    // predefined tool wins rather than silently dropping the custom one.
+    if (rawName in NAME_ALIASES && isCustomTool(functionCall, this.tools)) {
+      logger?.({
+        category: "agent",
+        message: `Custom tool "${rawName}" collides with a predefined Google CUA function; using the predefined tool. Rename the custom tool to avoid the conflict.`,
+        level: 2,
+      });
+    }
 
     switch (name) {
       case "open_web_browser":
@@ -926,6 +941,11 @@ export class GoogleCUAClient extends AgentClient {
       }
 
       case "type_text_at": {
+        // text is required; reject a malformed call rather than typing
+        // "undefined". An empty string is valid (e.g. clear the field).
+        if (typeof args.text !== "string") {
+          return null;
+        }
         // press_enter and clear_before_typing are shared across generations.
         const pressEnter = (args.press_enter as boolean) ?? false;
         const clearBeforeTyping = (args.clear_before_typing as boolean) ?? true;
@@ -1023,9 +1043,14 @@ export class GoogleCUAClient extends AgentClient {
       }
 
       case "navigate":
+        // url is required; reject a malformed call rather than navigating to
+        // "undefined".
+        if (typeof args.url !== "string" || args.url.length === 0) {
+          return null;
+        }
         return {
           type: "goto",
-          url: args.url as string,
+          url: args.url,
         };
 
       case "go_back":
