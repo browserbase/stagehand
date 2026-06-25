@@ -1,5 +1,21 @@
 # browse
 
+## 0.9.0
+
+### Minor Changes
+
+- [#2246](https://github.com/browserbase/stagehand/pull/2246) [`303ab2c`](https://github.com/browserbase/stagehand/commit/303ab2c03c68e239c5e27c6fe9f0fa02b12c4749) Thanks [@shrey150](https://github.com/shrey150)! - `browse screenshot` now writes a file by default instead of printing base64 to stdout. Bare invocations save to `screenshot-<yyyymmdd-hhmmss>.<type>` in the current directory (with a collision counter instead of overwriting) and print `{ "saved": "<path>" }`. A new `--base64` flag preserves the legacy behavior of printing `{ "base64": "..." }` to stdout; it is mutually exclusive with `--path`. `--path` behavior is unchanged.
+
+  Note for scripts that parsed the bare-invocation base64 output: pass `--base64` to keep the old stdout contract.
+
+### Patch Changes
+
+- [#2250](https://github.com/browserbase/stagehand/pull/2250) [`8b83bb7`](https://github.com/browserbase/stagehand/commit/8b83bb7bb51c81b05014fac4a77bc653a90ca98b) Thanks [@shrey150](https://github.com/shrey150)! - Fix `browse skills add` on Windows and bound the unbounded installer stages.
+
+  - Quote the `npx` command and arguments when spawning through cmd.exe (`shell: true` for `.cmd`/`.bat` shims), so the default `C:\Program Files\nodejs\npx.cmd` path and install paths with spaces (e.g. `C:\Users\First Last\...`) no longer split at the space and fail with "'C:\Program' is not recognized".
+  - Kill the `npx skills add` child after a 180s deadline (SIGTERM, then SIGKILL) and fail with a clear message and a distinct `skill_install_timeout` telemetry result code instead of hanging forever.
+  - Bound the catalog and skill-file fetches with a 10s abort timeout, preserving the existing catalog-unavailable fallback semantics when a fetch hangs.
+
 ## 0.8.5
 
 ### Patch Changes
