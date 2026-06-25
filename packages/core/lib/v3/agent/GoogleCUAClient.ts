@@ -241,6 +241,8 @@ export class GoogleCUAClient extends AgentClient {
 
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let totalReasoningTokens = 0;
+    let totalCachedInputTokens = 0;
     let totalInferenceTime = 0;
 
     try {
@@ -257,6 +259,8 @@ export class GoogleCUAClient extends AgentClient {
         const result = await this.executeStep(logger);
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
+        totalReasoningTokens += result.usage.reasoning_tokens;
+        totalCachedInputTokens += result.usage.cached_input_tokens;
         totalInferenceTime += result.usage.inference_time_ms;
 
         // Add actions to the list
@@ -284,6 +288,8 @@ export class GoogleCUAClient extends AgentClient {
         usage: {
           input_tokens: totalInputTokens,
           output_tokens: totalOutputTokens,
+          reasoning_tokens: totalReasoningTokens,
+          cached_input_tokens: totalCachedInputTokens,
           inference_time_ms: totalInferenceTime,
         },
       };
@@ -304,6 +310,8 @@ export class GoogleCUAClient extends AgentClient {
         usage: {
           input_tokens: totalInputTokens,
           output_tokens: totalOutputTokens,
+          reasoning_tokens: totalReasoningTokens,
+          cached_input_tokens: totalCachedInputTokens,
           inference_time_ms: totalInferenceTime,
         },
       };
@@ -349,6 +357,8 @@ export class GoogleCUAClient extends AgentClient {
     usage: {
       input_tokens: number;
       output_tokens: number;
+      reasoning_tokens: number;
+      cached_input_tokens: number;
       inference_time_ms: number;
     };
   }> {
@@ -484,10 +494,15 @@ export class GoogleCUAClient extends AgentClient {
       // Execute actions and collect function responses
       const functionResponses: Part[] = [];
 
-      if (result.actions.length > 0) {
+      // Always process the model's response, even when it produced no
+      // executable action (e.g. a standalone take_screenshot). The model
+      // expects exactly one function response — a fresh screenshot — per
+      // computer-use call; skipping it when there are 0 actions leaves the
+      // model blind and it gives up after one empty turn.
+      {
         let hasError = false;
 
-        // Execute all actions
+        // Execute all actions (a no-op when there are none).
         for (let i = 0; i < result.actions.length; i++) {
           const action = result.actions[i];
 
@@ -504,6 +519,14 @@ export class GoogleCUAClient extends AgentClient {
             logger({
               category: "agent",
               message: "Skipping open_web_browser action",
+              level: 2,
+            });
+          } else if (action.type === "screenshot") {
+            // No interaction to perform — the screenshot captured below is
+            // returned to the model as this call's function response.
+            logger({
+              category: "agent",
+              message: "take_screenshot: capturing current page",
               level: 2,
             });
           } else if (action.type === "custom_tool") {
@@ -644,8 +667,14 @@ export class GoogleCUAClient extends AgentClient {
         message: result.message,
         completed: result.completed,
         usage: {
+          // promptTokenCount is the TOTAL input and already includes the
+          // cached portion; cachedContentTokenCount is the cache-hit subset
+          // (tracked separately for visibility, not additive). thoughtsTokenCount
+          // is Gemini's thinking/reasoning output.
           input_tokens: usageMetadata?.promptTokenCount || 0,
           output_tokens: usageMetadata?.candidatesTokenCount || 0,
+          reasoning_tokens: usageMetadata?.thoughtsTokenCount || 0,
+          cached_input_tokens: usageMetadata?.cachedContentTokenCount || 0,
           inference_time_ms: elapsedMs,
         },
       };
@@ -714,25 +743,29 @@ export class GoogleCUAClient extends AgentClient {
         });
 
         // Convert function call to action(s)
-        const action = this.convertFunctionCallToAction(part.functionCall);
+        const action = this.convertFunctionCallToAction(
+          part.functionCall,
+          logger,
+        );
         if (action) {
-          // Special handling for type_text_at - we need to click first
-          if (
-            part.functionCall.name === "type_text_at" &&
-            action.type === "type"
-          ) {
+          // Special handling for type actions. gemini-2.5 type_text_at carries
+          // coordinates (click the field first); gemini-3.x `type` has none and
+          // types into the element the model already focused.
+          if (action.type === "type") {
             logger({
               category: "agent",
               message: `Adding action: ${JSON.stringify(action)}`,
               level: 2,
             });
-            // First add a click action at the same coordinates
-            actions.push({
-              type: "click",
-              x: action.x,
-              y: action.y,
-              button: "left",
-            });
+            // Click the target first only when coordinates are provided.
+            if (typeof action.x === "number" && typeof action.y === "number") {
+              actions.push({
+                type: "click",
+                x: action.x,
+                y: action.y,
+                button: "left",
+              });
+            }
 
             // If clear_before_typing is true (default), add a select all
             if (action.clearBeforeTyping) {
@@ -793,11 +826,60 @@ export class GoogleCUAClient extends AgentClient {
    */
   private convertFunctionCallToAction(
     functionCall: FunctionCall,
+    logger?: (message: LogLine) => void,
   ): AgentAction | null {
-    const { name, args } = functionCall;
+    const { name: rawName } = functionCall;
+    // Default args to an empty object so no-argument predefined functions
+    // (e.g. take_screenshot, go_back) are not rejected by the guard below.
+    const args = functionCall.args ?? {};
 
-    if (!name || !args) {
+    if (!rawName) {
       return null;
+    }
+
+    // The gemini-3.x computer-use tool renamed several of the predefined
+    // functions that gemini-2.5-computer-use-preview used, and adds a
+    // descriptive `intent` arg to every call. The argument fields are otherwise
+    // unchanged (confirmed for click/navigate). Normalize the 3.x names to the
+    // canonical 2.5 names so a single set of handlers serves both generations;
+    // `intent` is ignored since handlers only read the args they need.
+    // NOTE: click and take_screenshot are confirmed from live gemini-3.5-flash
+    // traffic; the rest are inferred from the same drop-the-qualifier pattern
+    // and are safe aliases (any unmapped name still hits the warning below).
+    // gemini-3.x renamed several predefined functions vs gemini-2.5. Alias the
+    // 3.x names whose behavior maps cleanly onto a 2.5 canonical handler. Click
+    // variants that carry distinct semantics (double/triple/right/middle click,
+    // move) are NOT aliased here — they have dedicated cases below so the click
+    // count and button are preserved. 2.5 never emits any of these names, so
+    // the 2.5 handlers are unaffected.
+    const NAME_ALIASES: Record<string, string> = {
+      click: "click_at",
+      left_click: "click_at",
+      type: "type_text_at",
+      type_text: "type_text_at",
+      hover: "hover_at",
+      scroll: "scroll_at",
+      drag: "drag_and_drop",
+      key: "key_combination",
+      keys: "key_combination",
+      key_press: "key_combination",
+      press_key: "key_combination",
+      press_keys: "key_combination",
+      hotkey: "key_combination",
+      screenshot: "take_screenshot",
+      wait: "wait_5_seconds",
+    };
+    const name = NAME_ALIASES[rawName] ?? rawName;
+
+    // Predefined computer-use tools take precedence over custom tools. If a
+    // custom tool was registered under a reserved (aliased) name, note that the
+    // predefined tool wins rather than silently dropping the custom one.
+    if (rawName in NAME_ALIASES && isCustomTool(functionCall, this.tools)) {
+      logger?.({
+        category: "agent",
+        message: `Custom tool "${rawName}" collides with a predefined Google CUA function; using the predefined tool. Rename the custom tool to avoid the conflict.`,
+        level: 2,
+      });
     }
 
     switch (name) {
@@ -807,11 +889,27 @@ export class GoogleCUAClient extends AgentClient {
           timestamp: Date.now(),
         };
 
+      case "take_screenshot":
+        // No UI interaction. The step loop captures a fresh screenshot and
+        // returns it to the model as this call's function response; marked as a
+        // recognized action (not null) so it isn't dropped, and skipped in the
+        // executor like open_web_browser.
+        return {
+          type: "screenshot",
+          timestamp: Date.now(),
+        };
+
       case "click_at": {
-        const { x, y } = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
+        // x/y are required; reject a malformed call rather than normalizing
+        // undefined/NaN/Infinity into bad coordinates. (gemini-3.x `click`
+        // aliases here.)
+        if (
+          !GoogleCUAClient.isFiniteCoord(args.x) ||
+          !GoogleCUAClient.isFiniteCoord(args.y)
+        ) {
+          return null;
+        }
+        const { x, y } = this.normalizeCoordinates(args.x, args.y);
         return {
           type: "click",
           x,
@@ -820,33 +918,79 @@ export class GoogleCUAClient extends AgentClient {
         };
       }
 
-      case "type_text_at": {
-        const { x, y } = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
-        // Google's type_text_at includes press_enter and clear_before_typing parameters
-        const pressEnter = (args.press_enter as boolean) ?? false;
-        const clearBeforeTyping = (args.clear_before_typing as boolean) ?? true;
-
-        // For type_text_at, we need to click first then type
-        // This matches the behavior expected by Google's CUA
-        // We'll handle this in the executeStep method by converting to two actions
+      // gemini-3.x click family. The executor natively supports double/triple
+      // click and right/middle button, so preserve those semantics rather than
+      // collapsing to a single left click. All require integer coordinates;
+      // drop the call (return null) on a malformed payload so the executor is
+      // never handed NaN.
+      case "double_click":
+      case "triple_click":
+      case "right_click":
+      case "middle_click":
+      case "move": {
+        if (
+          !GoogleCUAClient.isFiniteCoord(args.x) ||
+          !GoogleCUAClient.isFiniteCoord(args.y)
+        ) {
+          return null;
+        }
+        const { x, y } = this.normalizeCoordinates(args.x, args.y);
+        if (name === "move") {
+          return { type: "move", x, y };
+        }
+        if (name === "double_click" || name === "triple_click") {
+          return { type: name, x, y };
+        }
         return {
-          type: "type",
-          text: args.text as string,
+          type: "click",
           x,
           y,
-          pressEnter,
-          clearBeforeTyping,
+          button: name === "right_click" ? "right" : "middle",
         };
       }
 
+      case "type_text_at": {
+        // text is required; reject a malformed call rather than typing
+        // "undefined". An empty string is valid (e.g. clear the field).
+        if (typeof args.text !== "string") {
+          return null;
+        }
+        // press_enter and clear_before_typing are shared across generations.
+        const pressEnter = (args.press_enter as boolean) ?? false;
+        const clearBeforeTyping = (args.clear_before_typing as boolean) ?? true;
+        const base = {
+          type: "type" as const,
+          text: args.text as string,
+          pressEnter,
+          clearBeforeTyping,
+        };
+
+        // gemini-2.5 type_text_at carries x/y (click the field, then type).
+        // gemini-3.x `type` has no coordinates and types into the element the
+        // model already focused with a preceding click. Only attach coords when
+        // present so the executor doesn't click at NaN.
+        if (typeof args.x === "number" && typeof args.y === "number") {
+          const { x, y } = this.normalizeCoordinates(args.x, args.y);
+          return { ...base, x, y };
+        }
+        return base;
+      }
+
       case "key_combination": {
-        const keys = (args.keys as string)
-          .split("+")
-          .map((key: string) => key.trim())
-          .map((key: string) => mapKeyToPlaywright(key));
+        // gemini-2.5 key_combination sends `keys` as a "+"-joined string;
+        // gemini-3.x `hotkey` sends a `keys` array, and `press_key` sends a
+        // single `key`. Accept all three.
+        const raw = args.keys !== undefined ? args.keys : args.key;
+        const parts = Array.isArray(raw)
+          ? (raw as string[])
+          : String(raw ?? "").split("+");
+        const keys = parts
+          .map((key) => String(key).trim())
+          .filter(Boolean)
+          .map((key) => mapKeyToPlaywright(key));
+        if (keys.length === 0) {
+          return null;
+        }
         return {
           type: "keypress",
           keys,
@@ -862,13 +1006,26 @@ export class GoogleCUAClient extends AgentClient {
       }
 
       case "scroll_at": {
-        const { x, y } = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
+        // A coordinate-less (or malformed) `scroll` alias (gemini-3.x) scrolls
+        // the document via PageUp/PageDown.
+        if (
+          !GoogleCUAClient.isFiniteCoord(args.x) ||
+          !GoogleCUAClient.isFiniteCoord(args.y)
+        ) {
+          const dir = ((args.direction as string) || "down").toLowerCase();
+          return {
+            type: "keypress",
+            keys: [dir === "up" ? "PageUp" : "PageDown"],
+          };
+        }
+        const { x, y } = this.normalizeCoordinates(args.x, args.y);
         const direction = ((args.direction as string) || "down").toLowerCase();
-        const magnitude =
-          typeof args.magnitude === "number" ? (args.magnitude as number) : 800;
+        // 2.5 uses `magnitude`; gemini-3.x `scroll` uses `magnitude_in_pixels`.
+        const magnitude = GoogleCUAClient.isFiniteCoord(args.magnitude)
+          ? args.magnitude
+          : GoogleCUAClient.isFiniteCoord(args.magnitude_in_pixels)
+            ? args.magnitude_in_pixels
+            : 800;
 
         let scroll_x = 0;
         let scroll_y = 0;
@@ -895,9 +1052,14 @@ export class GoogleCUAClient extends AgentClient {
       }
 
       case "navigate":
+        // url is required; reject a malformed call rather than navigating to
+        // "undefined".
+        if (typeof args.url !== "string" || args.url.length === 0) {
+          return null;
+        }
         return {
           type: "goto",
-          url: args.url as string,
+          url: args.url,
         };
 
       case "go_back":
@@ -935,14 +1097,22 @@ export class GoogleCUAClient extends AgentClient {
         };
 
       case "drag_and_drop": {
-        const startPoint = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
-        const endPoint = this.normalizeCoordinates(
-          args.destination_x as number,
-          args.destination_y as number,
-        );
+        // 2.5 uses x/y + destination_x/destination_y; gemini-3.x `drag_and_drop`
+        // uses start_x/start_y + end_x/end_y. Accept either.
+        const sx = args.x ?? args.start_x;
+        const sy = args.y ?? args.start_y;
+        const ex = args.destination_x ?? args.end_x;
+        const ey = args.destination_y ?? args.end_y;
+        if (
+          !GoogleCUAClient.isFiniteCoord(sx) ||
+          !GoogleCUAClient.isFiniteCoord(sy) ||
+          !GoogleCUAClient.isFiniteCoord(ex) ||
+          !GoogleCUAClient.isFiniteCoord(ey)
+        ) {
+          return null;
+        }
+        const startPoint = this.normalizeCoordinates(sx, sy);
+        const endPoint = this.normalizeCoordinates(ex, ey);
         return {
           type: "drag",
           path: [
@@ -965,6 +1135,15 @@ export class GoogleCUAClient extends AgentClient {
         console.warn(`Unsupported Google CUA function: ${name}`);
         return null;
     }
+  }
+
+  /**
+   * True only for a usable coordinate/number: rejects undefined, non-numbers,
+   * and the numeric edge cases NaN and Infinity (both `typeof "number"`), so
+   * malformed function calls are dropped instead of normalizing into NaN.
+   */
+  private static isFiniteCoord(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value);
   }
 
   /**

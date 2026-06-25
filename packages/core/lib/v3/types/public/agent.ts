@@ -472,6 +472,7 @@ export const AVAILABLE_CUA_MODELS = [
   "anthropic/claude-fable-5",
   "google/gemini-2.5-computer-use-preview-10-2025",
   "google/gemini-3-flash-preview",
+  "google/gemini-3.5-flash",
   "google/gemini-3-pro-preview",
   "microsoft/fara-7b",
 ] as const;
