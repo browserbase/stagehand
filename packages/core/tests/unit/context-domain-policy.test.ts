@@ -1,0 +1,162 @@
+import { describe, expect, it } from "vitest";
+import { V3Context } from "../../lib/v3/understudy/context.js";
+import { MockCDPSession } from "./helpers/mockCDPSession.js";
+import { StagehandSetDomainPolicyError } from "../../lib/v3/types/public/sdkErrors.js";
+import type { DomainPolicy } from "../../lib/v3/types/public/context.js";
+
+type ContextStub = {
+  _sessionInit: Set<string>;
+  _domainPolicySessionListeners: Set<string>;
+  conn: {
+    getSession: (id: string) => MockCDPSession | undefined;
+  };
+  domainPolicy: unknown;
+};
+
+const makeContext = (sessions: MockCDPSession[]): ContextStub => {
+  const sessionsById = new Map(
+    sessions.map((session) => [session.id, session]),
+  );
+  return Object.assign(Object.create(V3Context.prototype), {
+    _sessionInit: new Set(sessions.map((session) => session.id)),
+    _domainPolicySessionListeners: new Set<string>(),
+    conn: {
+      getSession: (id: string) => sessionsById.get(id),
+    },
+    domainPolicy: null,
+  }) as ContextStub;
+};
+
+const flushAsyncHandlers = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+};
+
+describe("V3Context.setDomainPolicy", () => {
+  const setDomainPolicy = V3Context.prototype.setDomainPolicy as (
+    this: ContextStub,
+    policy: DomainPolicy | null,
+  ) => Promise<void>;
+  const getDomainPolicy = V3Context.prototype.getDomainPolicy as (
+    this: ContextStub,
+  ) => DomainPolicy | null;
+
+  it("sends Fetch.enable with generated patterns to all sessions", async () => {
+    const sessionA = new MockCDPSession({}, "session-a");
+    const sessionB = new MockCDPSession({}, "session-b");
+    const ctx = makeContext([sessionA, sessionB]);
+
+    await setDomainPolicy.call(ctx, {
+      blockedDomains: ["ads.example.com"],
+    });
+
+    for (const session of [sessionA, sessionB]) {
+      expect(session.listenerCount("Fetch.requestPaused")).toBe(1);
+      expect(session.callsFor("Fetch.enable")[0]?.params).toEqual({
+        patterns: [
+          { urlPattern: "http://ads.example.com/*", requestStage: "Request" },
+          {
+            urlPattern: "http://ads.example.com:*/*",
+            requestStage: "Request",
+          },
+          { urlPattern: "https://ads.example.com/*", requestStage: "Request" },
+          {
+            urlPattern: "https://ads.example.com:*/*",
+            requestStage: "Request",
+          },
+        ],
+      });
+    }
+
+    expect(getDomainPolicy.call(ctx)).toEqual({
+      blockedDomains: ["ads.example.com"],
+    });
+  });
+
+  it("sends Fetch.disable when policy is null or empty", async () => {
+    const sessionA = new MockCDPSession({}, "session-a");
+    const sessionB = new MockCDPSession({}, "session-b");
+    const ctx = makeContext([sessionA, sessionB]);
+
+    await setDomainPolicy.call(ctx, {
+      blockedDomains: ["ads.example.com"],
+    });
+    await setDomainPolicy.call(ctx, null);
+    await setDomainPolicy.call(ctx, { blockedDomains: [] });
+
+    for (const session of [sessionA, sessionB]) {
+      expect(session.callsFor("Fetch.disable").length).toBe(2);
+    }
+
+    expect(getDomainPolicy.call(ctx)).toBeNull();
+  });
+
+  it("throws a custom error with session failure details", async () => {
+    const sessionA = new MockCDPSession(
+      {
+        "Fetch.enable": () => {
+          throw new Error("boom");
+        },
+      },
+      "session-a",
+    );
+    const sessionB = new MockCDPSession({}, "session-b");
+    const ctx = makeContext([sessionA, sessionB]);
+
+    const promise = setDomainPolicy.call(ctx, {
+      blockedDomains: ["ads.example.com"],
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(StagehandSetDomainPolicyError);
+
+    try {
+      await promise;
+    } catch (error) {
+      const err = error as StagehandSetDomainPolicyError;
+      expect(err.failures).toHaveLength(1);
+      expect(err.failures[0]).toContain("session=session-a");
+      expect(err.failures[0]).toContain("boom");
+    }
+
+    expect(sessionA.callsFor("Fetch.enable").length).toBe(1);
+    expect(sessionB.callsFor("Fetch.enable").length).toBe(1);
+  });
+
+  it("fails blocked paused requests", async () => {
+    const session = new MockCDPSession({}, "session-a");
+    const ctx = makeContext([session]);
+
+    await setDomainPolicy.call(ctx, {
+      blockedDomains: ["ads.example.com"],
+    });
+
+    session.emit("Fetch.requestPaused", {
+      requestId: "request-1",
+      request: { url: "https://ads.example.com/script.js" },
+    });
+    await flushAsyncHandlers();
+
+    expect(session.callsFor("Fetch.failRequest")[0]?.params).toEqual({
+      requestId: "request-1",
+      errorReason: "BlockedByClient",
+    });
+  });
+
+  it("continues unexpected non-blocked paused requests", async () => {
+    const session = new MockCDPSession({}, "session-a");
+    const ctx = makeContext([session]);
+
+    await setDomainPolicy.call(ctx, {
+      blockedDomains: ["ads.example.com"],
+    });
+
+    session.emit("Fetch.requestPaused", {
+      requestId: "request-1",
+      request: { url: "https://example.com/" },
+    });
+    await flushAsyncHandlers();
+
+    expect(session.callsFor("Fetch.continueRequest")[0]?.params).toEqual({
+      requestId: "request-1",
+    });
+  });
+});
