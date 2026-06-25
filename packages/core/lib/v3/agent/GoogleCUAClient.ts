@@ -901,8 +901,12 @@ export class GoogleCUAClient extends AgentClient {
 
       case "click_at": {
         // x/y are required; reject a malformed call rather than normalizing
-        // undefined into NaN coordinates. (gemini-3.x `click` aliases here.)
-        if (typeof args.x !== "number" || typeof args.y !== "number") {
+        // undefined/NaN/Infinity into bad coordinates. (gemini-3.x `click`
+        // aliases here.)
+        if (
+          !GoogleCUAClient.isFiniteCoord(args.x) ||
+          !GoogleCUAClient.isFiniteCoord(args.y)
+        ) {
           return null;
         }
         const { x, y } = this.normalizeCoordinates(args.x, args.y);
@@ -924,7 +928,10 @@ export class GoogleCUAClient extends AgentClient {
       case "right_click":
       case "middle_click":
       case "move": {
-        if (typeof args.x !== "number" || typeof args.y !== "number") {
+        if (
+          !GoogleCUAClient.isFiniteCoord(args.x) ||
+          !GoogleCUAClient.isFiniteCoord(args.y)
+        ) {
           return null;
         }
         const { x, y } = this.normalizeCoordinates(args.x, args.y);
@@ -999,26 +1006,26 @@ export class GoogleCUAClient extends AgentClient {
       }
 
       case "scroll_at": {
-        // A coordinate-less `scroll` alias (gemini-3.x) scrolls the document.
-        if (typeof args.x !== "number" || typeof args.y !== "number") {
+        // A coordinate-less (or malformed) `scroll` alias (gemini-3.x) scrolls
+        // the document via PageUp/PageDown.
+        if (
+          !GoogleCUAClient.isFiniteCoord(args.x) ||
+          !GoogleCUAClient.isFiniteCoord(args.y)
+        ) {
           const dir = ((args.direction as string) || "down").toLowerCase();
           return {
             type: "keypress",
             keys: [dir === "up" ? "PageUp" : "PageDown"],
           };
         }
-        const { x, y } = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
+        const { x, y } = this.normalizeCoordinates(args.x, args.y);
         const direction = ((args.direction as string) || "down").toLowerCase();
         // 2.5 uses `magnitude`; gemini-3.x `scroll` uses `magnitude_in_pixels`.
-        const magnitude =
-          typeof args.magnitude === "number"
-            ? (args.magnitude as number)
-            : typeof args.magnitude_in_pixels === "number"
-              ? (args.magnitude_in_pixels as number)
-              : 800;
+        const magnitude = GoogleCUAClient.isFiniteCoord(args.magnitude)
+          ? args.magnitude
+          : GoogleCUAClient.isFiniteCoord(args.magnitude_in_pixels)
+            ? args.magnitude_in_pixels
+            : 800;
 
         let scroll_x = 0;
         let scroll_y = 0;
@@ -1092,15 +1099,15 @@ export class GoogleCUAClient extends AgentClient {
       case "drag_and_drop": {
         // 2.5 uses x/y + destination_x/destination_y; gemini-3.x `drag_and_drop`
         // uses start_x/start_y + end_x/end_y. Accept either.
-        const sx = (args.x ?? args.start_x) as number;
-        const sy = (args.y ?? args.start_y) as number;
-        const ex = (args.destination_x ?? args.end_x) as number;
-        const ey = (args.destination_y ?? args.end_y) as number;
+        const sx = args.x ?? args.start_x;
+        const sy = args.y ?? args.start_y;
+        const ex = args.destination_x ?? args.end_x;
+        const ey = args.destination_y ?? args.end_y;
         if (
-          typeof sx !== "number" ||
-          typeof sy !== "number" ||
-          typeof ex !== "number" ||
-          typeof ey !== "number"
+          !GoogleCUAClient.isFiniteCoord(sx) ||
+          !GoogleCUAClient.isFiniteCoord(sy) ||
+          !GoogleCUAClient.isFiniteCoord(ex) ||
+          !GoogleCUAClient.isFiniteCoord(ey)
         ) {
           return null;
         }
@@ -1128,6 +1135,15 @@ export class GoogleCUAClient extends AgentClient {
         console.warn(`Unsupported Google CUA function: ${name}`);
         return null;
     }
+  }
+
+  /**
+   * True only for a usable coordinate/number: rejects undefined, non-numbers,
+   * and the numeric edge cases NaN and Infinity (both `typeof "number"`), so
+   * malformed function calls are dropped instead of normalizing into NaN.
+   */
+  private static isFiniteCoord(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value);
   }
 
   /**

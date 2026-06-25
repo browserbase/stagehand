@@ -82,6 +82,17 @@ describe("GoogleCUAClient gemini-3.x click-family conversion", () => {
     }
   });
 
+  it("returns null when click-family coordinates are NaN or Infinity", () => {
+    for (const name of ["click", "double_click", "right_click", "move"]) {
+      expect(run(name, { x: NaN, y: 10 })).toBeNull();
+      expect(run(name, { x: 10, y: Infinity })).toBeNull();
+    }
+    // drag_and_drop validates all four points
+    expect(
+      run("drag_and_drop", { start_x: NaN, start_y: 1, end_x: 2, end_y: 3 }),
+    ).toBeNull();
+  });
+
   it("still maps the gemini-2.5 click_at handler unchanged", () => {
     const action = run("click_at", { x: 100, y: 200 });
     expect(action?.type).toBe("click");
