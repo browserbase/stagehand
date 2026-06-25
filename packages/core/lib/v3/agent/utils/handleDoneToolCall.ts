@@ -18,18 +18,21 @@ interface DoneResult {
 }
 
 /**
- * Recursively drop keys whose value is `undefined` from plain objects (and
- * recurse into arrays / plain objects), leaving class instances, Dates, typed
- * arrays, primitives and `null` untouched.
+ * Deep-remove `undefined` values from the run history before it is re-submitted
+ * to the forced "done" call.
  *
- * The AI SDK validates `providerOptions` as `providerMetadataSchema`, whose leaf
- * values are `jsonValueSchema` (null | string | number | boolean | object |
- * array) — `undefined` is not allowed. SDK-generated messages (e.g. OpenAI
- * reasoning / tool parts) can carry nested `undefined` values, so re-submitting
- * them verbatim makes standardizePrompt reject the whole prompt with
- * "messages must be a ModelMessage[]". `JSON.stringify` hides these (it omits
- * undefined), which is why the failure is invisible in logs. Stripping them is
- * equivalent to a JSON round-trip and makes the prompt valid again.
+ * The AI SDK validates re-submitted messages against its `ModelMessage` schema,
+ * whose JSON-value schema rejects `undefined` (only null/string/number/boolean/
+ * object/array are allowed). A custom tool that returns an object with an
+ * optional field left `undefined` (e.g. `{ matchedExpected: undefined }`) lands
+ * that `undefined` inside a tool-result `output.value`, and reasoning models can
+ * leave `undefined` in part fields too. Either makes the forced "done" call
+ * throw `Invalid prompt: messages must be a ModelMessage[]` (STG-2335) — a red
+ * error that fires after the run has already completed. Stripping `undefined`
+ * keeps the history valid without dropping any real content.
+ *
+ * Only plain objects and arrays are traversed; class instances (URL, typed
+ * arrays for binary image data, Date, …) are passed through untouched.
  */
 function stripUndefinedDeep<T>(value: T): T {
   if (Array.isArray(value)) {
@@ -48,14 +51,10 @@ function stripUndefinedDeep<T>(value: T): T {
   return value;
 }
 
-/**
- * Sanitize the accumulated run history before it is re-submitted to a fresh
- * generateText call. See {@link stripUndefinedDeep}.
- */
 export function sanitizeMessagesForResubmission(
   messages: ModelMessage[],
 ): ModelMessage[] {
-  return messages.map((message) => stripUndefinedDeep(message));
+  return stripUndefinedDeep(messages);
 }
 
 function buildBaseDoneSchema(factory: typeof z) {
