@@ -842,11 +842,15 @@ export class GoogleCUAClient extends AgentClient {
     // NOTE: click and take_screenshot are confirmed from live gemini-3.5-flash
     // traffic; the rest are inferred from the same drop-the-qualifier pattern
     // and are safe aliases (any unmapped name still hits the warning below).
+    // gemini-3.x renamed several predefined functions vs gemini-2.5. Alias the
+    // 3.x names whose behavior maps cleanly onto a 2.5 canonical handler. Click
+    // variants that carry distinct semantics (double/triple/right/middle click,
+    // move) are NOT aliased here — they have dedicated cases below so the click
+    // count and button are preserved. 2.5 never emits any of these names, so
+    // the 2.5 handlers are unaffected.
     const NAME_ALIASES: Record<string, string> = {
       click: "click_at",
       left_click: "click_at",
-      double_click: "click_at",
-      triple_click: "click_at",
       type: "type_text_at",
       type_text: "type_text_at",
       hover: "hover_at",
@@ -891,6 +895,40 @@ export class GoogleCUAClient extends AgentClient {
           y,
           button: args.button || "left",
         };
+      }
+
+      // gemini-3.x click family. The executor natively supports double/triple
+      // click and right/middle button, so preserve those semantics rather than
+      // collapsing to a single left click.
+      case "double_click":
+      case "triple_click": {
+        const { x, y } = this.normalizeCoordinates(
+          args.x as number,
+          args.y as number,
+        );
+        return { type: name, x, y };
+      }
+
+      case "right_click":
+      case "middle_click": {
+        const { x, y } = this.normalizeCoordinates(
+          args.x as number,
+          args.y as number,
+        );
+        return {
+          type: "click",
+          x,
+          y,
+          button: name === "right_click" ? "right" : "middle",
+        };
+      }
+
+      case "move": {
+        const { x, y } = this.normalizeCoordinates(
+          args.x as number,
+          args.y as number,
+        );
+        return { type: "move", x, y };
       }
 
       case "type_text_at": {
