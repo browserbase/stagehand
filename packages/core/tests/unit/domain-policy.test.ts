@@ -110,5 +110,10 @@ describe("domain policy helpers", () => {
     expect(() =>
       normalizeDomainPolicy({ blockedDomains: ["example"] }),
     ).toThrow(StagehandInvalidArgumentError);
+    expect(() =>
+      normalizeDomainPolicy({
+        blockedDomains: [123] as unknown as string[],
+      }),
+    ).toThrow(StagehandInvalidArgumentError);
   });
 });

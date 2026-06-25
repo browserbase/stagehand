@@ -36,7 +36,13 @@ function validateHostname(hostname: string, original: string): void {
   }
 }
 
-function normalizeBlockedDomainPattern(pattern: string): BlockedDomainRule {
+function normalizeBlockedDomainPattern(pattern: unknown): BlockedDomainRule {
+  if (typeof pattern !== "string") {
+    throw new StagehandInvalidArgumentError(
+      `Blocked domain patterns must be strings`,
+    );
+  }
+
   const original = pattern;
   const normalized = canonicalizeHostname(pattern.trim());
 
