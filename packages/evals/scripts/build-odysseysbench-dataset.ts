@@ -75,19 +75,23 @@ function sortRubricKeys(keys: string[]): string[] {
   });
 }
 
+const POINT_SCALE = 1000;
+
 /**
  * Convert one OdysseysBench rubric entry into a verifier rubric item.
  *
- * `weight` (summing to 1.0 across a task) is scaled to integer points so the
- * scoring model reasons over a natural 0–100 scale; the process score is a
- * ratio, so the exact scale is immaterial. `max(1, …)` keeps every criterion
- * worth at least one point.
+ * `weight` (summing to 1.0 across a task) is scaled to integer points. The
+ * process score is Σ earned / Σ max, so the absolute scale is immaterial — but
+ * rounding is *not* a uniform scaling, so a coarse scale (e.g. ×100) would
+ * distort the relative weighting of small criteria. ×1000 keeps the rounding
+ * error well under 1% even for the smallest published weights. `max(1, …)` is
+ * a defensive floor; with valid weights it never binds.
  */
-function toRubricItem(key: string, r: SourceRubric): RubricItem {
+function toRubricItem(r: SourceRubric): RubricItem {
   return {
     criterion: r.requirement,
     description: `${r.requirement}\n\nHow a grader verifies this: ${r.verification}`,
-    max_points: Math.max(1, Math.round(r.weight * 100)),
+    max_points: Math.max(1, Math.round(r.weight * POINT_SCALE)),
   };
 }
 
@@ -115,11 +119,32 @@ async function main(): Promise<void> {
 
   const lines: string[] = [];
   for (const task of tasks) {
+    // Fail loud on an upstream schema change rather than silently emitting a
+    // row the suite validator would later drop (shrinking the benchmark).
+    if (typeof task.task_id !== "string" || !task.task_id) {
+      throw new Error(
+        `Task is missing a string task_id: ${JSON.stringify(task).slice(0, 200)}`,
+      );
+    }
+    if (typeof task.confirmed_task !== "string" || !task.confirmed_task) {
+      throw new Error(`Task ${task.task_id} is missing confirmed_task`);
+    }
     const rubricKeys = sortRubricKeys(Object.keys(task.rubrics ?? {}));
     if (rubricKeys.length === 0) {
       throw new Error(`Task ${task.task_id} has no rubrics`);
     }
-    const items = rubricKeys.map((k) => toRubricItem(k, task.rubrics[k]));
+    // The published weights are a normalized distribution; a re-fetched snapshot
+    // that breaks that convention would silently mis-weight the rubric.
+    const weightSum = rubricKeys.reduce(
+      (acc, k) => acc + (task.rubrics[k]?.weight ?? 0),
+      0,
+    );
+    if (!Number.isFinite(weightSum) || Math.abs(weightSum - 1) > 0.02) {
+      throw new Error(
+        `Task ${task.task_id} rubric weights sum to ${weightSum}, expected ~1.0`,
+      );
+    }
+    const items = rubricKeys.map((k) => toRubricItem(task.rubrics[k]));
 
     const row: OutputRow = {
       task_id: task.task_id,
@@ -133,6 +158,12 @@ async function main(): Promise<void> {
       precomputed_rubric: { items },
     };
     lines.push(JSON.stringify(row));
+  }
+
+  if (lines.length !== tasks.length) {
+    throw new Error(
+      `Expected ${tasks.length} rows, produced ${lines.length} — a task was dropped`,
+    );
   }
 
   await fs.writeFile(JSONL_PATH, lines.join("\n") + "\n");

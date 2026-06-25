@@ -28,7 +28,7 @@ export default defineBenchTask(
         task_id?: string;
         confirmed_task?: string;
         website?: string;
-        level?: string;
+        level?: "easy" | "medium" | "hard";
         reference_length?: number;
         precomputed_rubric?: unknown;
       };

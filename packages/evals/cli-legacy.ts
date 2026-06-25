@@ -682,6 +682,7 @@ function handleRun(args: string[]): void {
         osworld: "agent/osworld",
         onlineMind2Web: "agent/onlineMind2Web",
         webtailbench: "agent/webtailbench",
+        odysseysbench: "agent/odysseysbench",
       };
 
       evalName = benchmarkMap[benchmarkName];
