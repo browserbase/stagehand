@@ -14,6 +14,10 @@ export type NormalizedDomainPolicy = {
 
 const DOMAIN_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
+function canonicalizeHostname(hostname: string): string {
+  return hostname.toLowerCase().replace(/\.+$/, "");
+}
+
 function validateHostname(hostname: string, original: string): void {
   if (!hostname || hostname.length > 253) {
     throw new StagehandInvalidArgumentError(
@@ -34,7 +38,7 @@ function validateHostname(hostname: string, original: string): void {
 
 function normalizeBlockedDomainPattern(pattern: string): BlockedDomainRule {
   const original = pattern;
-  const normalized = pattern.trim().toLowerCase();
+  const normalized = canonicalizeHostname(pattern.trim());
 
   if (!normalized) {
     throw new StagehandInvalidArgumentError(
@@ -74,22 +78,28 @@ function patternHost(rule: BlockedDomainRule): string {
   return rule.type === "wildcard" ? `*.${rule.hostname}` : rule.hostname;
 }
 
+function fetchPatternHosts(rule: BlockedDomainRule): string[] {
+  const host = patternHost(rule);
+  return [host, `${host}.`];
+}
+
 function toFetchPatterns(
   rules: BlockedDomainRule[],
 ): Protocol.Fetch.RequestPattern[] {
   const patterns: Protocol.Fetch.RequestPattern[] = [];
 
   for (const rule of rules) {
-    const host = patternHost(rule);
-    for (const scheme of ["http", "https"]) {
-      patterns.push({
-        urlPattern: `${scheme}://${host}/*`,
-        requestStage: "Request",
-      });
-      patterns.push({
-        urlPattern: `${scheme}://${host}:*/*`,
-        requestStage: "Request",
-      });
+    for (const host of fetchPatternHosts(rule)) {
+      for (const scheme of ["http", "https"]) {
+        patterns.push({
+          urlPattern: `${scheme}://${host}/*`,
+          requestStage: "Request",
+        });
+        patterns.push({
+          urlPattern: `${scheme}://${host}:*/*`,
+          requestStage: "Request",
+        });
+      }
     }
   }
 
@@ -123,7 +133,7 @@ function hostnameFromHttpUrl(url: string): string | null {
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return null;
     }
-    return parsed.hostname.toLowerCase();
+    return canonicalizeHostname(parsed.hostname);
   } catch {
     return null;
   }

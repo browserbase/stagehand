@@ -16,6 +16,10 @@ describe("domain policy helpers", () => {
       { urlPattern: "http://ads.example.com:*/*", requestStage: "Request" },
       { urlPattern: "https://ads.example.com/*", requestStage: "Request" },
       { urlPattern: "https://ads.example.com:*/*", requestStage: "Request" },
+      { urlPattern: "http://ads.example.com./*", requestStage: "Request" },
+      { urlPattern: "http://ads.example.com.:*/*", requestStage: "Request" },
+      { urlPattern: "https://ads.example.com./*", requestStage: "Request" },
+      { urlPattern: "https://ads.example.com.:*/*", requestStage: "Request" },
     ]);
   });
 
@@ -41,6 +45,22 @@ describe("domain policy helpers", () => {
         urlPattern: "https://*.tracking.example.com:*/*",
         requestStage: "Request",
       },
+      {
+        urlPattern: "http://*.tracking.example.com./*",
+        requestStage: "Request",
+      },
+      {
+        urlPattern: "http://*.tracking.example.com.:*/*",
+        requestStage: "Request",
+      },
+      {
+        urlPattern: "https://*.tracking.example.com./*",
+        requestStage: "Request",
+      },
+      {
+        urlPattern: "https://*.tracking.example.com.:*/*",
+        requestStage: "Request",
+      },
     ]);
   });
 
@@ -54,6 +74,12 @@ describe("domain policy helpers", () => {
     );
     expect(
       shouldBlockUrl("https://a.tracking.example.com/pixel.gif", policy),
+    ).toBe(true);
+    expect(shouldBlockUrl("https://ads.example.com./script.js", policy)).toBe(
+      true,
+    );
+    expect(
+      shouldBlockUrl("https://a.tracking.example.com./pixel.gif", policy),
     ).toBe(true);
     expect(shouldBlockUrl("https://tracking.example.com/", policy)).toBe(false);
     expect(shouldBlockUrl("https://badtracking.example.com/", policy)).toBe(

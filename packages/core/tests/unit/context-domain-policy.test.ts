@@ -63,6 +63,19 @@ describe("V3Context.setDomainPolicy", () => {
             urlPattern: "https://ads.example.com:*/*",
             requestStage: "Request",
           },
+          { urlPattern: "http://ads.example.com./*", requestStage: "Request" },
+          {
+            urlPattern: "http://ads.example.com.:*/*",
+            requestStage: "Request",
+          },
+          {
+            urlPattern: "https://ads.example.com./*",
+            requestStage: "Request",
+          },
+          {
+            urlPattern: "https://ads.example.com.:*/*",
+            requestStage: "Request",
+          },
         ],
       });
     }
