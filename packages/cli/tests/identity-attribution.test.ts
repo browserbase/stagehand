@@ -8,6 +8,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -287,5 +288,45 @@ describe("getCliVersion / setCliVersion", () => {
     setCliVersion("1.4.2");
     setCliVersion("");
     expect(getCliVersion()).toBe("1.4.2");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BrowseCommand.init() — seeds getCliVersion from Config.version at the
+// command lifecycle boundary (the real path used by the foreground command
+// and the background `browse daemon` process that creates sessions).
+// ---------------------------------------------------------------------------
+
+describe("BrowseCommand.init() — version seeding at lifecycle boundary", () => {
+  beforeEach(() => {
+    // Fresh module so getCliVersion starts unseeded ("unknown") before init.
+    vi.resetModules();
+  });
+
+  it("seeds getCliVersion() from this.config.version when init() runs", async () => {
+    const { Config } = await import("@oclif/core");
+    const { BrowseCommand } = await import("../src/base.js");
+    const { getCliVersion } = await import("../src/lib/identity.js");
+
+    // Load the package's real oclif Config (this is the same Config oclif
+    // hands every command; its .version comes from package.json => 0.9.0).
+    // fileURLToPath keeps this correct on Windows (no leading-slash artifact).
+    const config = await Config.load(
+      fileURLToPath(new URL("..", import.meta.url)),
+    );
+
+    // Sanity: unseeded before any command init runs.
+    expect(getCliVersion()).toBe("unknown");
+
+    // A minimal concrete BrowseCommand subclass; run the real init() lifecycle.
+    class TestCommand extends BrowseCommand {
+      async run(): Promise<void> {}
+    }
+    const command = new TestCommand([], config);
+    await command.init();
+
+    // After init(), getCliVersion() reflects Config.version — never "unknown".
+    expect(getCliVersion()).toBe(config.version);
+    expect(getCliVersion()).not.toBe("unknown");
   });
 });
