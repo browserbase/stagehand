@@ -1989,7 +1989,14 @@ export class V3 {
         tools: { value: JSON.stringify(options?.tools ?? {}), type: "object" },
         ...(options?.integrations && {
           integrations: {
-            value: JSON.stringify(options.integrations),
+            // Integrations may contain live MCP `Client` instances (from
+            // connectToMCPServer), which are circular and throw in JSON.stringify.
+            // Log a safe descriptor instead: keep URL strings, summarize clients.
+            value: JSON.stringify(
+              options.integrations.map((integration) =>
+                typeof integration === "string" ? integration : "[mcp client]",
+              ),
+            ),
             type: "object",
           },
         }),
