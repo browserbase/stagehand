@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -70,9 +70,28 @@ async function resolveAnonymousInstallId(
 
   try {
     await mkdir(dirname(installIdPath), { recursive: true });
-    await writeFile(installIdPath, `${installId}\n`, "utf8");
-  } catch {
-    // If persistence fails, continue with an in-memory anonymous ID.
+    // Use exclusive-create ('wx') so that only one concurrent first-run process
+    // wins the write. If another process already created the file (EEXIST), read
+    // back whatever it wrote so both processes converge on the same stable id.
+    const fh = await open(installIdPath, "wx");
+    try {
+      await fh.writeFile(`${installId}\n`, "utf8");
+    } finally {
+      await fh.close();
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+      // Another concurrent first-run wrote the file first — use its id.
+      try {
+        const raced = (await readFile(installIdPath, "utf8")).trim();
+        if (raced) {
+          return raced;
+        }
+      } catch {
+        // If the re-read also fails, fall through and return the in-memory id.
+      }
+    }
+    // Any other error (e.g. permissions): continue with an in-memory id.
   }
 
   return installId;
