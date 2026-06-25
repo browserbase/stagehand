@@ -133,13 +133,40 @@ async function main(): Promise<void> {
     if (rubricKeys.length === 0) {
       throw new Error(`Task ${task.task_id} has no rubrics`);
     }
+    // Validate each rubric entry individually — an aggregate sum check alone
+    // lets a bad weight (e.g. negative, offset by a larger one) or an empty
+    // requirement/verification slip through and produce a mis-weighted or
+    // malformed item. Fail loud on source schema drift instead.
+    for (const k of rubricKeys) {
+      const r = task.rubrics[k];
+      if (typeof r?.requirement !== "string" || !r.requirement.trim()) {
+        throw new Error(
+          `Task ${task.task_id} rubric ${k} has an empty requirement`,
+        );
+      }
+      if (typeof r.verification !== "string" || !r.verification.trim()) {
+        throw new Error(
+          `Task ${task.task_id} rubric ${k} has an empty verification`,
+        );
+      }
+      if (
+        typeof r.weight !== "number" ||
+        !Number.isFinite(r.weight) ||
+        r.weight <= 0 ||
+        r.weight > 1
+      ) {
+        throw new Error(
+          `Task ${task.task_id} rubric ${k} has invalid weight ${r.weight}; expected a number in (0, 1]`,
+        );
+      }
+    }
     // The published weights are a normalized distribution; a re-fetched snapshot
     // that breaks that convention would silently mis-weight the rubric.
     const weightSum = rubricKeys.reduce(
-      (acc, k) => acc + (task.rubrics[k]?.weight ?? 0),
+      (acc, k) => acc + task.rubrics[k].weight,
       0,
     );
-    if (!Number.isFinite(weightSum) || Math.abs(weightSum - 1) > 0.02) {
+    if (Math.abs(weightSum - 1) > 0.02) {
       throw new Error(
         `Task ${task.task_id} rubric weights sum to ${weightSum}, expected ~1.0`,
       );

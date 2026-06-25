@@ -43,6 +43,20 @@ export default defineBenchTask(
         };
       }
 
+      // OdysseysBench ships a published rubric for every task; scoring against a
+      // generated one would silently break benchmark fidelity. Fail the case
+      // rather than fall back to rubric generation when it's absent.
+      const precomputedRubric = normalizeRubric(params.precomputed_rubric);
+      if (!precomputedRubric) {
+        return {
+          _success: false,
+          error: `OdysseysBench task ${params.task_id ?? input.name} is missing a precomputed rubric; refusing to fall back to a generated rubric.`,
+          debugUrl,
+          sessionUrl,
+          logs: logger.getLogs(),
+        };
+      }
+
       const page = v3.context.pages()[0];
       const startUrl = params.website || "https://www.google.com";
       await page.goto(startUrl, { timeoutMs: 120_000 });
@@ -59,7 +73,7 @@ export default defineBenchTask(
         id: params.task_id ?? `odysseysbench/${input.name}`,
         instruction: params.confirmed_task,
         initUrl: startUrl,
-        precomputedRubric: normalizeRubric(params.precomputed_rubric),
+        precomputedRubric,
       };
 
       const { evaluationResult, trajectory, trajectoryDir, rubric } =

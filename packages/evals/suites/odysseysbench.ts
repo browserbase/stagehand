@@ -25,6 +25,13 @@ import {
  *   - EVAL_ODYSSEYSBENCH_IDS — comma-separated task_ids to run exactly, in order
  *     (ignores sampling / limit / level knobs).
  */
+/** Parse an env var to a positive integer; undefined for unset/non-numeric. */
+function parsePositiveIntEnv(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
 export const buildOdysseysBenchTestcases = (
   models: string[] | AgentModelEntry[],
 ): Testcase[] => {
@@ -33,14 +40,16 @@ export const buildOdysseysBenchTestcases = (
 
   const lines = readJsonlFile(odysseysbenchFilePath);
 
-  const maxCases = process.env.EVAL_MAX_K
-    ? Number(process.env.EVAL_MAX_K)
-    : process.env.EVAL_ODYSSEYSBENCH_LIMIT
-      ? Number(process.env.EVAL_ODYSSEYSBENCH_LIMIT)
-      : 25;
-  const sampleCount = process.env.EVAL_ODYSSEYSBENCH_SAMPLE
-    ? Number(process.env.EVAL_ODYSSEYSBENCH_SAMPLE)
-    : undefined;
+  // Ignore unset / non-numeric env values rather than letting Number("foo")
+  // become NaN, which would slip past applySampling's `>= maxCases` cap and
+  // silently fan out the full 200-task dataset.
+  const maxCases =
+    parsePositiveIntEnv(process.env.EVAL_MAX_K) ??
+    parsePositiveIntEnv(process.env.EVAL_ODYSSEYSBENCH_LIMIT) ??
+    25;
+  const sampleCount = parsePositiveIntEnv(
+    process.env.EVAL_ODYSSEYSBENCH_SAMPLE,
+  );
 
   type OdysseysBenchRow = {
     task_id: string;
