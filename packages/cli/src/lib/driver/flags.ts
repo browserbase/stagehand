@@ -8,11 +8,13 @@ export const sessionFlag = Flags.string({
 });
 
 export const headedFlag = Flags.boolean({
-  description: "Show a visible browser window for managed local sessions.",
+  description:
+    "Show a visible browser window for managed local sessions. Managed local sessions default to headed when run interactively with a display; headless otherwise. Use --headless/--headed to force.",
 });
 
 export const headlessFlag = Flags.boolean({
-  description: "Run managed local sessions in headless mode.",
+  description:
+    "Run managed local sessions in headless mode. Managed local sessions default to headed when run interactively with a display; headless otherwise. Use --headless/--headed to force.",
 });
 
 export const localFlag = Flags.boolean({

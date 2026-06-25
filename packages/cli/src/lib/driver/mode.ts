@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
+import { isAgentContext } from "../agent.js";
 import { fail } from "../errors.js";
 import { getRemote } from "./remote-binding.js";
 import { resolveWsTarget } from "./resolve-ws.js";
@@ -23,7 +24,7 @@ interface ResolvedChromeArgs {
   ignoreDefaultArgs?: boolean | string[];
 }
 
-function resolveHeadless(
+export function resolveHeadless(
   flags: Pick<DriverModeFlags, "headed" | "headless">,
 ): boolean {
   if (flags.headed && flags.headless) {
@@ -32,7 +33,33 @@ function resolveHeadless(
 
   if (flags.headed) return false;
   if (flags.headless) return true;
+  // no explicit flag → default headed for an interactive human with a display, else headless
+  return !shouldDefaultHeaded();
+}
+
+/**
+ * Decide whether a managed local session should default to a visible (headed)
+ * window when neither --headed nor --headless was passed.
+ *
+ * The "wow moment" of `browse open` is a human watching a real browser drive
+ * itself, so an interactive human at a terminal with a display gets a headed
+ * window. Agents, CI, piped/non-interactive shells, and machines without a
+ * display server stay headless so automation never spawns a stray window or
+ * breaks where no display exists.
+ */
+export function shouldDefaultHeaded(): boolean {
+  if (isAgentContext()) return false; // agent-driven → headless
+  if (!process.stdout.isTTY) return false; // piped / non-interactive / CI → headless
+  if (process.env.CI) return false; // CI → headless
+  if (!hasDisplay()) return false; // no display server → headless
   return true;
+}
+
+export function hasDisplay(): boolean {
+  if (process.platform === "darwin" || process.platform === "win32")
+    return true;
+  // linux/other: require an X11 or Wayland display server
+  return Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
 }
 
 export function hasChromeArgFlags(flags: DriverModeFlags): boolean {
