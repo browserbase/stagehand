@@ -10,6 +10,7 @@ import {
   type FakeBrowserbaseServer,
 } from "./helpers/fake-browserbase-server.js";
 import { runCli } from "./helpers/run-cli.js";
+import { itPosix } from "./helpers/platform.js";
 
 interface TemplateFixture {
   category: string[];
@@ -241,114 +242,122 @@ describe("templates commands", () => {
     });
   });
 
-  it("clones TypeScript templates with create-browser-app via npx", async () => {
-    const stubDir = await createTempDir("browse-templates-ts-stub-");
-    const logPath = join(stubDir, "commands.log");
-    await writeExecutable(
-      join(stubDir, "npx"),
-      [
-        "#!/bin/sh",
-        'if [ "$1" = "--version" ]; then',
-        "  exit 0",
-        "fi",
-        'printf \'npx %s\\n\' "$*" >> "$BB_STUB_LOG"',
-        'project="$2"',
-        'mkdir -p "$project"',
-        'printf \'{"name":"stub-app","scripts":{"dev":"tsx index.ts"}}\\n\' > "$project/package.json"',
-        "printf 'BROWSERBASE_API_KEY=\\n' > \"$project/.env.example\"",
-      ].join("\n"),
-    );
-
-    await withTemplatesApi(async ({ baseUrl, requests }) => {
-      const cwd = await createTempDir("browse-templates-ts-project-");
-      const dest = join(cwd, "my-scraper");
-      const result = await runCli(
-        ["templates", "clone", "amazon-product-scraping", dest],
-        {
-          env: {
-            BB_STUB_LOG: logPath,
-            BROWSERBASE_TEMPLATES_API: baseUrl,
-            PATH: `${stubDir}:${process.env.PATH ?? ""}`,
-          },
-        },
-      );
-
-      expect(result.exitCode).toBe(0);
-      expect(requests.map((request) => request.path)).toEqual([
-        "/amazon-product-scraping",
-      ]);
-      expect(await readFile(logPath, "utf8")).toContain(
-        "npx create-browser-app@latest my-scraper --template amazon-product-scraping",
-      );
-      expect(result.stdout).toContain(
-        `Scaffolding typescript/amazon-product-scraping into ${dest}...`,
-      );
-      expect(result.stdout).toContain(`Template scaffolded to ${dest}`);
-      expect(result.stdout).toContain(`cd ${dest}`);
-      expect(result.stdout).toContain("npm install");
-      expect(result.stdout).toContain("cp .env.example .env");
-      expect(result.stdout).toContain("npm run dev");
-      expect(await readFile(join(dest, "package.json"), "utf8")).toContain(
-        "stub-app",
-      );
-    });
-  });
-
-  it("clones Python templates with create-browser-app via uvx", async () => {
-    const stubDir = await createTempDir("browse-templates-py-stub-");
-    const logPath = join(stubDir, "commands.log");
-    await writeExecutable(
-      join(stubDir, "uvx"),
-      [
-        "#!/bin/sh",
-        'if [ "$1" = "--version" ]; then',
-        "  exit 0",
-        "fi",
-        'printf \'uvx %s\\n\' "$*" >> "$BB_STUB_LOG"',
-        'project="$2"',
-        'mkdir -p "$project"',
-        'printf \'print("hello")\\n\' > "$project/main.py"',
-        "printf 'BROWSERBASE_API_KEY=\\n' > \"$project/.env.example\"",
-        'printf \'[project]\\nname = "stub-py"\\nversion = "0.1.0"\\n\' > "$project/pyproject.toml"',
-      ].join("\n"),
-    );
-
-    await withTemplatesApi(async ({ baseUrl }) => {
-      const cwd = await createTempDir("browse-templates-py-project-");
-      const dest = join(cwd, "py-scraper");
-      const result = await runCli(
+  itPosix(
+    "clones TypeScript templates with create-browser-app via npx",
+    async () => {
+      const stubDir = await createTempDir("browse-templates-ts-stub-");
+      const logPath = join(stubDir, "commands.log");
+      await writeExecutable(
+        join(stubDir, "npx"),
         [
-          "templates",
-          "clone",
-          "amazon-product-scraping",
-          "--language",
-          "python",
-          dest,
-        ],
-        {
-          env: {
-            BB_STUB_LOG: logPath,
-            BROWSERBASE_TEMPLATES_API: baseUrl,
-            PATH: `${stubDir}:${process.env.PATH ?? ""}`,
+          "#!/bin/sh",
+          'if [ "$1" = "--version" ]; then',
+          "  exit 0",
+          "fi",
+          'printf \'npx %s\\n\' "$*" >> "$BB_STUB_LOG"',
+          'project="$2"',
+          'mkdir -p "$project"',
+          'printf \'{"name":"stub-app","scripts":{"dev":"tsx index.ts"}}\\n\' > "$project/package.json"',
+          "printf 'BROWSERBASE_API_KEY=\\n' > \"$project/.env.example\"",
+        ].join("\n"),
+      );
+
+      await withTemplatesApi(async ({ baseUrl, requests }) => {
+        const cwd = await createTempDir("browse-templates-ts-project-");
+        const dest = join(cwd, "my-scraper");
+        const result = await runCli(
+          ["templates", "clone", "amazon-product-scraping", dest],
+          {
+            env: {
+              BB_STUB_LOG: logPath,
+              BROWSERBASE_TEMPLATES_API: baseUrl,
+              PATH: `${stubDir}:${process.env.PATH ?? ""}`,
+            },
           },
-        },
+        );
+
+        expect(result.exitCode).toBe(0);
+        expect(requests.map((request) => request.path)).toEqual([
+          "/amazon-product-scraping",
+        ]);
+        expect(await readFile(logPath, "utf8")).toContain(
+          "npx create-browser-app@latest my-scraper --template amazon-product-scraping",
+        );
+        expect(result.stdout).toContain(
+          `Scaffolding typescript/amazon-product-scraping into ${dest}...`,
+        );
+        expect(result.stdout).toContain(`Template scaffolded to ${dest}`);
+        expect(result.stdout).toContain(`cd ${dest}`);
+        expect(result.stdout).toContain("npm install");
+        expect(result.stdout).toContain("cp .env.example .env");
+        expect(result.stdout).toContain("npm run dev");
+        expect(await readFile(join(dest, "package.json"), "utf8")).toContain(
+          "stub-app",
+        );
+      });
+    },
+  );
+
+  itPosix(
+    "clones Python templates with create-browser-app via uvx",
+    async () => {
+      const stubDir = await createTempDir("browse-templates-py-stub-");
+      const logPath = join(stubDir, "commands.log");
+      await writeExecutable(
+        join(stubDir, "uvx"),
+        [
+          "#!/bin/sh",
+          'if [ "$1" = "--version" ]; then',
+          "  exit 0",
+          "fi",
+          'printf \'uvx %s\\n\' "$*" >> "$BB_STUB_LOG"',
+          'project="$2"',
+          'mkdir -p "$project"',
+          'printf \'print("hello")\\n\' > "$project/main.py"',
+          "printf 'BROWSERBASE_API_KEY=\\n' > \"$project/.env.example\"",
+          'printf \'[project]\\nname = "stub-py"\\nversion = "0.1.0"\\n\' > "$project/pyproject.toml"',
+        ].join("\n"),
       );
 
-      expect(result.exitCode).toBe(0);
-      expect(await readFile(logPath, "utf8")).toContain(
-        "uvx create-browser-app py-scraper --template amazon-product-scraping",
-      );
-      expect(result.stdout).toContain(
-        `Scaffolding python/amazon-product-scraping into ${dest}...`,
-      );
-      expect(result.stdout).toContain("uv sync");
-      expect(result.stdout).toContain("cp .env.example .env");
-      expect(result.stdout).toContain("python main.py");
-      expect(await readFile(join(dest, "main.py"), "utf8")).toContain("hello");
-    });
-  });
+      await withTemplatesApi(async ({ baseUrl }) => {
+        const cwd = await createTempDir("browse-templates-py-project-");
+        const dest = join(cwd, "py-scraper");
+        const result = await runCli(
+          [
+            "templates",
+            "clone",
+            "amazon-product-scraping",
+            "--language",
+            "python",
+            dest,
+          ],
+          {
+            env: {
+              BB_STUB_LOG: logPath,
+              BROWSERBASE_TEMPLATES_API: baseUrl,
+              PATH: `${stubDir}:${process.env.PATH ?? ""}`,
+            },
+          },
+        );
 
-  it("prints clone results as JSON", async () => {
+        expect(result.exitCode).toBe(0);
+        expect(await readFile(logPath, "utf8")).toContain(
+          "uvx create-browser-app py-scraper --template amazon-product-scraping",
+        );
+        expect(result.stdout).toContain(
+          `Scaffolding python/amazon-product-scraping into ${dest}...`,
+        );
+        expect(result.stdout).toContain("uv sync");
+        expect(result.stdout).toContain("cp .env.example .env");
+        expect(result.stdout).toContain("python main.py");
+        expect(await readFile(join(dest, "main.py"), "utf8")).toContain(
+          "hello",
+        );
+      });
+    },
+  );
+
+  itPosix("prints clone results as JSON", async () => {
     const stubDir = await createTempDir("browse-templates-json-stub-");
     await writeExecutable(
       join(stubDir, "npx"),

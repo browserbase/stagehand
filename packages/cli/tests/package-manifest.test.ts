@@ -4,13 +4,14 @@ import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
+import { itPosix } from "./helpers/platform.js";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("package manifest", () => {
-  it("generates and packages the oclif manifest", async () => {
+  itPosix("generates and packages the oclif manifest", async () => {
     const [manifestJson, packageJson] = await Promise.all([
       readFile(resolve(repoRoot, "oclif.manifest.json"), "utf8"),
       readFile(resolve(repoRoot, "package.json"), "utf8"),
