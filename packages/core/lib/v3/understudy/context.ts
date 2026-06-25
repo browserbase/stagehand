@@ -117,7 +117,10 @@ export class V3Context {
   // Timestamp for most recent popup/open signal
   private _lastPopupSignalAt = 0;
   private readonly _targetSessionListeners = new Set<SessionId>();
-  private readonly _domainPolicySessionListeners = new Set<SessionId>();
+  private readonly _domainPolicySessionListeners = new Map<
+    SessionId,
+    (evt: Protocol.Fetch.RequestPausedEvent) => void
+  >();
 
   private readonly _sessionInit = new Set<SessionId>();
   private pagesByTarget = new Map<TargetId, Page>();
@@ -452,6 +455,7 @@ export class V3Context {
       sessions.map(async (session) => {
         if (!nextPolicy) {
           await session.send("Fetch.disable");
+          this.uninstallDomainPolicyHandler(session);
           return;
         }
 
@@ -488,14 +492,29 @@ export class V3Context {
     const sessionId = session.id;
     if (!sessionId) return;
     if (this._domainPolicySessionListeners.has(sessionId)) return;
-    this._domainPolicySessionListeners.add(sessionId);
 
+    const handler = (evt: Protocol.Fetch.RequestPausedEvent) => {
+      void this.handleDomainPolicyRequestPaused(session, evt);
+    };
+    this._domainPolicySessionListeners.set(sessionId, handler);
     session.on<Protocol.Fetch.RequestPausedEvent>(
       "Fetch.requestPaused",
-      (evt) => {
-        void this.handleDomainPolicyRequestPaused(session, evt);
-      },
+      handler,
     );
+  }
+
+  private uninstallDomainPolicyHandler(session: CDPSessionLike): void {
+    const sessionId = session.id;
+    if (!sessionId) return;
+
+    const handler = this._domainPolicySessionListeners.get(sessionId);
+    if (!handler) return;
+
+    session.off<Protocol.Fetch.RequestPausedEvent>(
+      "Fetch.requestPaused",
+      handler,
+    );
+    this._domainPolicySessionListeners.delete(sessionId);
   }
 
   private async handleDomainPolicyRequestPaused(
@@ -1060,7 +1079,12 @@ export class V3Context {
     }
 
     this._targetSessionListeners.delete(sessionId);
-    this._domainPolicySessionListeners.delete(sessionId);
+    const session = this.conn.getSession(sessionId);
+    if (session) {
+      this.uninstallDomainPolicyHandler(session);
+    } else {
+      this._domainPolicySessionListeners.delete(sessionId);
+    }
     this._sessionInit.delete(sessionId);
     this._piercerInstalled.delete(sessionId);
   }

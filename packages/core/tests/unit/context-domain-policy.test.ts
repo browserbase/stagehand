@@ -6,7 +6,7 @@ import type { DomainPolicy } from "../../lib/v3/types/public/context.js";
 
 type ContextStub = {
   _sessionInit: Set<string>;
-  _domainPolicySessionListeners: Set<string>;
+  _domainPolicySessionListeners: Map<string, unknown>;
   conn: {
     getSession: (id: string) => MockCDPSession | undefined;
   };
@@ -19,7 +19,7 @@ const makeContext = (sessions: MockCDPSession[]): ContextStub => {
   );
   return Object.assign(Object.create(V3Context.prototype), {
     _sessionInit: new Set(sessions.map((session) => session.id)),
-    _domainPolicySessionListeners: new Set<string>(),
+    _domainPolicySessionListeners: new Map<string, unknown>(),
     conn: {
       getSession: (id: string) => sessionsById.get(id),
     },
@@ -85,9 +85,36 @@ describe("V3Context.setDomainPolicy", () => {
 
     for (const session of [sessionA, sessionB]) {
       expect(session.callsFor("Fetch.disable").length).toBe(2);
+      expect(session.listenerCount("Fetch.requestPaused")).toBe(0);
     }
 
     expect(getDomainPolicy.call(ctx)).toBeNull();
+  });
+
+  it("removes only its own requestPaused listener when disabled", async () => {
+    const session = new MockCDPSession({}, "session-a");
+    const ctx = makeContext([session]);
+    const userHandler = () => {};
+    session.on("Fetch.requestPaused", userHandler);
+
+    await setDomainPolicy.call(ctx, {
+      blockedDomains: ["ads.example.com"],
+    });
+
+    expect(session.listenerCount("Fetch.requestPaused")).toBe(2);
+
+    await setDomainPolicy.call(ctx, null);
+
+    expect(session.listenerCount("Fetch.requestPaused")).toBe(1);
+
+    session.emit("Fetch.requestPaused", {
+      requestId: "request-1",
+      request: { url: "https://ads.example.com/script.js" },
+    });
+    await flushAsyncHandlers();
+
+    expect(session.callsFor("Fetch.continueRequest").length).toBe(0);
+    expect(session.callsFor("Fetch.failRequest").length).toBe(0);
   });
 
   it("throws a custom error with session failure details", async () => {
