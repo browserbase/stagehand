@@ -899,36 +899,30 @@ export class GoogleCUAClient extends AgentClient {
 
       // gemini-3.x click family. The executor natively supports double/triple
       // click and right/middle button, so preserve those semantics rather than
-      // collapsing to a single left click.
+      // collapsing to a single left click. All require integer coordinates;
+      // drop the call (return null) on a malformed payload so the executor is
+      // never handed NaN.
       case "double_click":
-      case "triple_click": {
-        const { x, y } = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
-        return { type: name, x, y };
-      }
-
+      case "triple_click":
       case "right_click":
-      case "middle_click": {
-        const { x, y } = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
+      case "middle_click":
+      case "move": {
+        if (typeof args.x !== "number" || typeof args.y !== "number") {
+          return null;
+        }
+        const { x, y } = this.normalizeCoordinates(args.x, args.y);
+        if (name === "move") {
+          return { type: "move", x, y };
+        }
+        if (name === "double_click" || name === "triple_click") {
+          return { type: name, x, y };
+        }
         return {
           type: "click",
           x,
           y,
           button: name === "right_click" ? "right" : "middle",
         };
-      }
-
-      case "move": {
-        const { x, y } = this.normalizeCoordinates(
-          args.x as number,
-          args.y as number,
-        );
-        return { type: "move", x, y };
       }
 
       case "type_text_at": {
