@@ -111,6 +111,25 @@ export async function buildDoctorReport(
     checks.push(await daemonCheck(options.session, status, paths, deps));
   }
 
+  if (status?.browserbaseSessionId) {
+    checks.push({
+      details: {
+        sessionId: status.browserbaseSessionId,
+        ...(status.browserbaseSessionUrl
+          ? { sessionUrl: status.browserbaseSessionUrl }
+          : {}),
+        ...(status.browserbaseDebugUrl
+          ? { liveViewUrl: status.browserbaseDebugUrl }
+          : {}),
+      },
+      message: status.browserbaseSessionUrl
+        ? `session ${status.browserbaseSessionId} — ${status.browserbaseSessionUrl}`
+        : `session ${status.browserbaseSessionId}`,
+      name: "browserbase",
+      status: "ok",
+    });
+  }
+
   const explicitTarget = hasExplicitDriverTarget(options.flags);
   let target: ConnectionTarget | undefined;
   let targetFailed = false;
@@ -398,7 +417,11 @@ function nextStep(
   }
 
   const parts = ["browse open", DEFAULT_URL];
-  if (target.kind === "remote") parts.push("--remote");
+  if (target.kind === "remote") {
+    parts.push("--remote");
+    if (target.verified) parts.push("--verified");
+    if (target.proxies) parts.push("--proxies");
+  }
   if (target.kind === "auto-connect") parts.push("--auto-connect");
   if (target.kind === "cdp") {
     parts.push("--cdp", flags.cdp ?? target.endpoint);
@@ -427,6 +450,13 @@ function formatTarget(target: ConnectionTarget): string {
     return `managed-local, ${target.headless ? "headless" : "headed"}`;
   if (target.kind === "cdp")
     return target.targetId ? `cdp, target ${target.targetId}` : "cdp";
+  if (target.kind === "remote") {
+    const settings = [
+      target.verified ? "verified" : null,
+      target.proxies ? "proxies" : null,
+    ].filter((setting): setting is string => Boolean(setting));
+    return settings.length > 0 ? `remote (${settings.join(", ")})` : "remote";
+  }
   return target.kind;
 }
 

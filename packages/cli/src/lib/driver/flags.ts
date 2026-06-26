@@ -23,6 +23,16 @@ export const remoteFlag = Flags.boolean({
   description: "Use a remote Browserbase browser session.",
 });
 
+export const verifiedFlag = Flags.boolean({
+  description:
+    "Open the remote session as a Verified (advanced-stealth) browser. Requires --remote and a Browserbase Scale plan.",
+});
+
+export const proxiesFlag = Flags.boolean({
+  description:
+    "Route the remote session through Browserbase proxies. Requires --remote.",
+});
+
 export const autoConnectFlag = Flags.boolean({
   description:
     "Auto-discover and attach to a local browser with remote debugging enabled.",

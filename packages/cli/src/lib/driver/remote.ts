@@ -5,13 +5,14 @@ import {
   resolveInstallId,
   toMetadataValue,
 } from "../identity.js";
+import type { DriverModeFlags } from "./mode.js";
 import type {
   DriverInitHints,
   RemoteDoctorResult,
   RemoteInitErrorClassification,
   StagehandConstructorOptions,
 } from "./remote-types.js";
-import type { ConnectionTarget } from "./types.js";
+import type { ConnectionTarget, RemoteConnectionTarget } from "./types.js";
 
 /**
  * Real Browserbase capability. This is the ONLY module that reads
@@ -19,15 +20,23 @@ import type { ConnectionTarget } from "./types.js";
  * local-only artifacts cannot reach Browserbase.
  */
 
-export function resolveExplicitRemoteTarget(): ConnectionTarget {
-  return { kind: "remote" };
+export function resolveExplicitRemoteTarget(
+  flags: DriverModeFlags,
+): ConnectionTarget {
+  return {
+    kind: "remote",
+    ...(flags.verified ? { verified: true } : {}),
+    ...(flags.proxies ? { proxies: true } : {}),
+  };
 }
 
 export function autoSelectRemoteTarget(): ConnectionTarget | null {
   return process.env.BROWSERBASE_API_KEY ? { kind: "remote" } : null;
 }
 
-export async function remoteStagehandOptions(): Promise<StagehandConstructorOptions> {
+export async function remoteStagehandOptions(
+  target?: RemoteConnectionTarget,
+): Promise<StagehandConstructorOptions> {
   const apiKey = process.env.BROWSERBASE_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -51,6 +60,8 @@ export async function remoteStagehandOptions(): Promise<StagehandConstructorOpti
     apiKey,
     browserbaseSessionCreateParams: {
       userMetadata,
+      ...(target?.proxies ? { proxies: true } : {}),
+      ...(target?.verified ? { browserSettings: { verified: true } } : {}),
     },
     disableAPI: true,
     disablePino: true,
