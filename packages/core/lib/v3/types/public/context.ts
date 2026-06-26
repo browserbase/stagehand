@@ -32,3 +32,9 @@ export interface ClearCookieOptions {
   domain?: string | RegExp;
   path?: string | RegExp;
 }
+
+/** Context-wide network domain policy. */
+export interface DomainPolicy {
+  /** Domain-only block patterns, e.g. "example.com" or "*.example.com". */
+  blockedDomains?: string[];
+}
