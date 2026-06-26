@@ -1213,6 +1213,41 @@ describe("cloud API contracts", () => {
     );
   });
 
+  it("sessions create strips caller-supplied install_id to prevent spoofing when resolution fails", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "sess_123" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli(
+          [
+            "cloud",
+            "sessions",
+            "create",
+            "--body",
+            '{"userMetadata":{"install_id":"spoofed-id","env":"test"}}',
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
+          // Point to a non-existent file so install_id resolution fails.
+          { env: { BROWSERBASE_TELEMETRY_INSTALL_ID_FILE: "/tmp/no-such-file-browse-test" } },
+        );
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        const body = requests[0]?.jsonBody as {
+          userMetadata?: Record<string, string>;
+        };
+        // User's non-attribution key survives.
+        expect(body.userMetadata?.env).toBe("test");
+        // Caller cannot spoof install_id when resolution fails — it must not be "spoofed-id".
+        expect(body.userMetadata?.install_id).not.toBe("spoofed-id");
+      },
+    );
+  });
+
   it("sessions update merges an explicit status flag into the request body", async () => {
     await withServer(
       async (_request, response) => {

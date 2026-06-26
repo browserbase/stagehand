@@ -106,10 +106,16 @@ function buildSessionCreateBody(
 async function applyCliAttribution(
   body: Record<string, unknown>,
 ): Promise<void> {
-  const existing =
+  const rawExisting =
     body.userMetadata && typeof body.userMetadata === "object"
       ? (body.userMetadata as Record<string, unknown>)
       : {};
+
+  // Strip any caller-supplied install_id before merging so it cannot be
+  // spoofed when resolution fails (our authoritative value is set below).
+  const existing = Object.fromEntries(
+    Object.entries(rawExisting).filter(([k]) => k !== "install_id"),
+  );
 
   const userMetadata: Record<string, unknown> = {
     ...existing,
