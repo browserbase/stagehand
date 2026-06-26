@@ -302,9 +302,14 @@ describe("V3Context.setDomainPolicy", () => {
     expect(closeTargetCalls).toEqual([{ targetId: "target-a" }]);
     expect(session.listenerCount("Fetch.requestPaused")).toBe(0);
     expect(session.callsFor("Page.getFrameTree").length).toBe(0);
-    expect(ctx.pageCreationFailures.get("target-a")).toBeInstanceOf(
-      StagehandSetDomainPolicyError,
+    const failure = ctx.pageCreationFailures.get("target-a");
+    expect(failure).toBeInstanceOf(StagehandSetDomainPolicyError);
+    const failureMessage = (failure as StagehandSetDomainPolicyError)
+      .failures[0];
+    expect(failureMessage).toContain(
+      "Stagehand cannot guarantee domain policy enforcement",
     );
+    expect(failureMessage).toContain("cdpError=fetch unavailable");
   });
 
   it("newPage throws stored attach failures without waiting for timeout", async () => {

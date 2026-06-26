@@ -824,6 +824,24 @@ export class V3Context {
         .catch(() => false);
       return { dispatched, response };
     };
+    const queueFetchEnablePreResume = (params: object) => {
+      let error: unknown;
+      const dispatched = this.conn
+        .waitForSessionDispatch(sessionId, "Fetch.enable")
+        .then(() => true)
+        .catch((err) => {
+          error = err;
+          return false;
+        });
+      const response = session
+        .send("Fetch.enable", params)
+        .then(() => true)
+        .catch((err) => {
+          error = err;
+          return false;
+        });
+      return { dispatched, response, getError: () => error };
+    };
     const initScriptOps: Array<{
       dispatched: Promise<boolean>;
       response: Promise<boolean>;
@@ -856,11 +874,12 @@ export class V3Context {
     const fetchPreResumeOps: Array<{
       dispatched: Promise<boolean>;
       response: Promise<boolean>;
+      getError: () => unknown;
     }> = [];
     if (this.domainPolicy) {
       this.installDomainPolicyHandler(session);
       fetchPreResumeOps.push(
-        queuePreResume("Fetch.enable", {
+        queueFetchEnablePreResume({
           patterns: this.domainPolicy.fetchPatterns,
         }),
       );
@@ -952,21 +971,35 @@ export class V3Context {
 
     if (fetchPreResumeOps.length > 0 && !fetchResults.every(Boolean)) {
       this.uninstallDomainPolicyHandler(session);
+      const fetchError = fetchPreResumeOps
+        .map((op) => op.getError())
+        .find((error) => error !== undefined);
+      const fetchErrorMessage = fetchError
+        ? fetchError instanceof Error
+          ? fetchError.message
+          : String(fetchError)
+        : "Fetch.enable failed during target attach";
+      const policyFailureMessage =
+        "Fetch.enable failed during target attach; closing target because " +
+        "Stagehand cannot guarantee domain policy enforcement";
       if (this.pendingCreatedTargetUrl.has(info.targetId)) {
         this.pageCreationFailures.set(
           info.targetId,
           new StagehandSetDomainPolicyError([
-            `session=${sessionId} target=${info.targetId} error=Fetch.enable failed during target attach`,
+            `session=${sessionId} target=${info.targetId} error=${policyFailureMessage} cdpError=${fetchErrorMessage}`,
           ]),
         );
       }
       v3Logger({
         category: "ctx",
-        message: "Failed to enable domain policy for target",
-        level: 1,
+        message: "Closing target because domain policy could not be guaranteed",
+        level: 0,
         auxiliary: {
           targetId: { value: String(info.targetId), type: "string" },
           targetType: { value: String(info.type), type: "string" },
+          targetUrl: { value: String(info.url ?? ""), type: "string" },
+          sessionId: { value: sessionId, type: "string" },
+          cdpError: { value: fetchErrorMessage, type: "string" },
         },
       });
       await this.conn
