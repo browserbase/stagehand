@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getDomainPolicyDecision,
   normalizeDomainPolicy,
   shouldBlockUrl,
 } from "../../lib/v3/understudy/domainPolicy.js";
@@ -93,6 +94,70 @@ describe("domain policy helpers", () => {
     );
   });
 
+  it("generates broad HTTP and HTTPS Fetch patterns for allowed domains", () => {
+    const policy = normalizeDomainPolicy({
+      allowedDomains: ["example.com"],
+    });
+
+    expect(policy?.fetchPatterns).toEqual([
+      { urlPattern: "http://*/*", requestStage: "Request" },
+      { urlPattern: "https://*/*", requestStage: "Request" },
+    ]);
+  });
+
+  it("uses broad Fetch patterns when allowed and blocked domains are combined", () => {
+    const policy = normalizeDomainPolicy({
+      allowedDomains: ["example.com"],
+      blockedDomains: ["ads.example.com"],
+    });
+
+    expect(policy?.fetchPatterns).toEqual([
+      { urlPattern: "http://*/*", requestStage: "Request" },
+      { urlPattern: "https://*/*", requestStage: "Request" },
+    ]);
+  });
+
+  it("allows matching exact and wildcard allowed domains", () => {
+    const policy = normalizeDomainPolicy({
+      allowedDomains: ["example.com", "*.example.com"],
+    });
+
+    expect(shouldBlockUrl("https://example.com/", policy)).toBe(false);
+    expect(shouldBlockUrl("https://app.example.com/", policy)).toBe(false);
+    expect(shouldBlockUrl("https://deep.app.example.com/", policy)).toBe(false);
+    expect(shouldBlockUrl("https://other.test/", policy)).toBe(true);
+  });
+
+  it("does not let wildcard allowed domains match the apex domain", () => {
+    const policy = normalizeDomainPolicy({
+      allowedDomains: ["*.example.com"],
+    });
+
+    expect(shouldBlockUrl("https://app.example.com/", policy)).toBe(false);
+    expect(shouldBlockUrl("https://example.com/", policy)).toBe(true);
+  });
+
+  it("lets blocked domains win over allowed domains", () => {
+    const policy = normalizeDomainPolicy({
+      allowedDomains: ["example.com", "*.example.com"],
+      blockedDomains: ["ads.example.com"],
+    });
+
+    expect(getDomainPolicyDecision("https://example.com/", policy)).toEqual({
+      action: "continue",
+    });
+    expect(
+      getDomainPolicyDecision("https://ads.example.com/script.js", policy),
+    ).toEqual({
+      action: "block",
+      reason: "blockedDomains",
+    });
+    expect(getDomainPolicyDecision("https://other.test/", policy)).toEqual({
+      action: "block",
+      reason: "allowedDomains",
+    });
+  });
+
   it("matches domains case-insensitively", () => {
     const policy = normalizeDomainPolicy({
       blockedDomains: ["ADS.EXAMPLE.COM"],
@@ -108,6 +173,7 @@ describe("domain policy helpers", () => {
 
   it("continues malformed and non-HTTP URLs", () => {
     const policy = normalizeDomainPolicy({
+      allowedDomains: ["example.com"],
       blockedDomains: ["ads.example.com"],
     });
 
@@ -131,5 +197,32 @@ describe("domain policy helpers", () => {
         blockedDomains: [123] as unknown as string[],
       }),
     ).toThrow(StagehandInvalidArgumentError);
+  });
+
+  it("rejects invalid allowed domain patterns", () => {
+    expect(() =>
+      normalizeDomainPolicy({ allowedDomains: ["https://example.com"] }),
+    ).toThrow(StagehandInvalidArgumentError);
+    expect(() =>
+      normalizeDomainPolicy({ allowedDomains: ["*example.com"] }),
+    ).toThrow(StagehandInvalidArgumentError);
+    expect(() =>
+      normalizeDomainPolicy({ allowedDomains: ["example"] }),
+    ).toThrow(StagehandInvalidArgumentError);
+    expect(() =>
+      normalizeDomainPolicy({
+        allowedDomains: [123] as unknown as string[],
+      }),
+    ).toThrow(StagehandInvalidArgumentError);
+  });
+
+  it("dedupes normalized allowed and blocked domains", () => {
+    const policy = normalizeDomainPolicy({
+      allowedDomains: ["EXAMPLE.COM", "example.com."],
+      blockedDomains: ["*.ADS.EXAMPLE.COM", "*.ads.example.com."],
+    });
+
+    expect(policy?.allowedDomains).toEqual(["example.com"]);
+    expect(policy?.blockedDomains).toEqual(["*.ads.example.com"]);
   });
 });
