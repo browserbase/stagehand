@@ -23,7 +23,7 @@ export function autoSelectRemoteTarget(): ConnectionTarget | null {
   return null;
 }
 
-export function remoteStagehandOptions(): StagehandConstructorOptions {
+export async function remoteStagehandOptions(): Promise<StagehandConstructorOptions> {
   throw new Error(DISABLED_MESSAGE);
 }
 

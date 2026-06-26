@@ -19,8 +19,8 @@ describe("remote.disabled (local-only capability)", () => {
     expect(() => resolveExplicitRemoteTarget()).toThrow(/disabled/i);
   });
 
-  it("refuses to build remote Stagehand options", () => {
-    expect(() => remoteStagehandOptions()).toThrow(/disabled/i);
+  it("refuses to build remote Stagehand options", async () => {
+    await expect(remoteStagehandOptions()).rejects.toThrow(/disabled/i);
   });
 
   it("reports remote as disabled in doctor without reading any key", () => {

@@ -43,7 +43,7 @@ export interface RemoteCapability {
   /** Auto-select remote when an API key is present; null otherwise. */
   autoSelectRemoteTarget(): ConnectionTarget | null;
   /** Stagehand options for a remote (BROWSERBASE) session. */
-  remoteStagehandOptions(): StagehandConstructorOptions;
+  remoteStagehandOptions(): Promise<StagehandConstructorOptions>;
   /** Map a failed remote `stagehand.init()` to an actionable message + code. */
   classifyRemoteInitError(error: unknown): RemoteInitErrorClassification;
   /** Remediation strings for driver init failures. */
