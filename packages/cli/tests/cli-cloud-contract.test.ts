@@ -1232,7 +1232,12 @@ describe("cloud API contracts", () => {
             baseUrl,
           ],
           // Point to a non-existent file so install_id resolution fails.
-          { env: { BROWSERBASE_TELEMETRY_INSTALL_ID_FILE: "/tmp/no-such-file-browse-test" } },
+          {
+            env: {
+              BROWSERBASE_TELEMETRY_INSTALL_ID_FILE:
+                "/tmp/no-such-file-browse-test",
+            },
+          },
         );
 
         expect(result.exitCode).toBe(0);
