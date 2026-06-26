@@ -52,6 +52,7 @@ import { buildWebVoyagerTestcases } from "./suites/webvoyager.js";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web.js";
 import { endBrowserbaseSession } from "./browserbaseCleanup.js";
 import { buildWebTailBenchTestcases } from "./suites/webtailbench.js";
+import { buildOdysseysBenchTestcases } from "./suites/odysseysbench.js";
 import { getCurrentDirPath } from "./runtimePaths.js";
 
 import dotenv from "dotenv";
@@ -250,6 +251,25 @@ const generateFilteredTestcases = (): Testcase[] => {
     datasetFilter !== "webtailbench"
   ) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webtailbench");
+  }
+
+  // Special handling: fan out OdysseysBench dataset for agent/odysseysbench
+  const isOdysseysBenchTaskIncluded = taskNamesToRun.includes(
+    "agent/odysseysbench",
+  );
+
+  if (
+    isOdysseysBenchTaskIncluded &&
+    (!datasetFilter || datasetFilter === "odysseysbench")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/odysseysbench");
+    allTestcases.push(...buildOdysseysBenchTestcases(currentModels));
+  } else if (
+    isOdysseysBenchTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "odysseysbench"
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/odysseysbench");
   }
 
   // Create a list of all remaining testcases using the determined task names and models

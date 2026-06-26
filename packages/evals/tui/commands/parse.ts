@@ -99,6 +99,7 @@ const SUPPORTED_BENCHMARKS = new Set([
   "webvoyager",
   "onlineMind2Web",
   "webtailbench",
+  "odysseysbench",
 ]);
 
 const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "osworld"]);
