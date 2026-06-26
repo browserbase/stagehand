@@ -30,15 +30,22 @@ async function waitForBlockedRequest(page: InternalPage): Promise<void> {
 
   await new Promise<void>((resolve, reject) => {
     const requestUrls = new Map<string, string>();
+    let settled = false;
     const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error("Timed out waiting for blocked request"));
+      finish(() => reject(new Error("Timed out waiting for blocked request")));
     }, 5000);
 
     const cleanup = () => {
       clearTimeout(timeout);
       page.mainSession.off("Network.requestWillBeSent", onRequest);
       page.mainSession.off("Network.loadingFailed", onLoadingFailed);
+    };
+
+    const finish = (settle: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      settle();
     };
 
     const onRequest = (params: unknown) => {
@@ -52,11 +59,9 @@ async function waitForBlockedRequest(page: InternalPage): Promise<void> {
       if (url !== BLOCKED_URL) return;
       try {
         expect(evt.errorText).toContain("ERR_BLOCKED_BY_CLIENT");
-        cleanup();
-        resolve();
+        finish(resolve);
       } catch (error) {
-        cleanup();
-        reject(error);
+        finish(() => reject(error));
       }
     };
 
@@ -68,7 +73,9 @@ async function waitForBlockedRequest(page: InternalPage): Promise<void> {
         waitUntil: "load",
         timeoutMs: 5000,
       })
-      .catch(() => {});
+      .catch((error) => {
+        finish(() => reject(error));
+      });
   });
 }
 
