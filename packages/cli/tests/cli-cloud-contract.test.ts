@@ -1213,7 +1213,7 @@ describe("cloud API contracts", () => {
     );
   });
 
-  it("sessions create strips caller-supplied install_id to prevent spoofing when resolution fails", async () => {
+  it("sessions create strips caller-supplied install_id to prevent spoofing", async () => {
     await withServer(
       async (_request, response) => {
         jsonResponse(response, 200, { id: "sess_123" });
@@ -1231,7 +1231,10 @@ describe("cloud API contracts", () => {
             "--base-url",
             baseUrl,
           ],
-          // Point to a non-existent file so install_id resolution fails.
+          // Override install-id resolution to a throwaway path with no
+          // pre-existing id: resolveInstallId just creates it and returns a
+          // fresh UUID. The point of this test is that the caller-supplied
+          // install_id is stripped regardless and never survives as the spoof.
           {
             env: {
               BROWSERBASE_TELEMETRY_INSTALL_ID_FILE:
