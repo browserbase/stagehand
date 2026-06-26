@@ -68,8 +68,9 @@ export async function resolveConnectionTarget(
   // API-key (billed) cloud sessions. Require the mode to be stated explicitly.
   const remoteOnlyFlags = remoteOnlyFlagsInUse(flags);
   if (remoteOnlyFlags.length > 0 && !flags.remote) {
+    const verb = remoteOnlyFlags.length === 1 ? "requires" : "require";
     fail(
-      `${remoteOnlyFlags.join(" and ")} require --remote. Try: browse open <url> --remote ${remoteOnlyFlags.join(" ")}`,
+      `${remoteOnlyFlags.join(" and ")} ${verb} --remote. Try: browse open <url> --remote ${remoteOnlyFlags.join(" ")}`,
     );
   }
 

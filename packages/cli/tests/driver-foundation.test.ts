@@ -232,21 +232,22 @@ describe("driver foundation", () => {
 
   it("requires --remote for --verified and --proxies", async () => {
     await expect(resolveConnectionTarget({ verified: true })).rejects.toThrow(
-      "--verified require --remote",
+      "--verified requires --remote",
     );
     await expect(resolveConnectionTarget({ proxies: true })).rejects.toThrow(
-      "--proxies require --remote",
+      "--proxies requires --remote",
     );
+    // plural subject keeps the plural verb
     await expect(
       resolveConnectionTarget({ proxies: true, verified: true }),
     ).rejects.toThrow("--verified and --proxies require --remote");
     // verified/proxies must be explicit about remote even when --cdp/--local is set
     await expect(
       resolveConnectionTarget({ cdp: "9222", verified: true }),
-    ).rejects.toThrow("--verified require --remote");
+    ).rejects.toThrow("--verified requires --remote");
     await expect(
       resolveConnectionTarget({ local: true, proxies: true }),
-    ).rejects.toThrow("--proxies require --remote");
+    ).rejects.toThrow("--proxies requires --remote");
   });
 
   it("does not let --verified/--proxies imply remote from an API key", async () => {
@@ -254,7 +255,7 @@ describe("driver foundation", () => {
     process.env.BROWSERBASE_API_KEY = "test-key";
     try {
       await expect(resolveConnectionTarget({ verified: true })).rejects.toThrow(
-        "--verified require --remote",
+        "--verified requires --remote",
       );
     } finally {
       restoreEnv("BROWSERBASE_API_KEY", previousApiKey);
