@@ -1,5 +1,5 @@
 ---
-"browse": minor
+"browse": patch
 ---
 
 Add `--verified` and `--proxies` to remote driver sessions so `browse open <url> --remote --verified --proxies` opens a Verified and/or proxied Browserbase session in one command — no more create-then-attach with `--cdp`.
