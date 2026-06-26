@@ -1141,6 +1141,78 @@ describe("cloud API contracts", () => {
     );
   });
 
+  it("sessions create tags userMetadata with browse_cli, cli_version, and install_id", async () => {
+    const idDir = await createTempDir("browse-create-install-id-");
+    const installIdFile = join(idDir, "telemetry-id");
+    await writeFile(installIdFile, "create-install-uuid-123\n", "utf8");
+
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "sess_123" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli(
+          [
+            "cloud",
+            "sessions",
+            "create",
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
+          { env: { BROWSERBASE_TELEMETRY_INSTALL_ID_FILE: installIdFile } },
+        );
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        const body = requests[0]?.jsonBody as {
+          userMetadata?: Record<string, string>;
+        };
+        expect(body.userMetadata).toBeDefined();
+        expect(body.userMetadata?.browse_cli).toBe("true");
+        // Seeded from oclif Config.version in BrowseCommand.init(); never "unknown".
+        expect(body.userMetadata?.cli_version).toBeDefined();
+        expect(body.userMetadata?.cli_version).not.toBe("unknown");
+        expect(body.userMetadata?.install_id).toBe("create-install-uuid-123");
+      },
+    );
+  });
+
+  it("sessions create preserves user-supplied metadata but keeps attribution keys authoritative", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "sess_123" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "sessions",
+          "create",
+          // User-supplied metadata: a custom key is kept; an attempt to override
+          // browse_cli must lose to our authoritative attribution value.
+          "--body",
+          '{"userMetadata":{"env":"staging","browse_cli":"false"}}',
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        const body = requests[0]?.jsonBody as {
+          userMetadata?: Record<string, string>;
+        };
+        // User's custom key survives.
+        expect(body.userMetadata?.env).toBe("staging");
+        // Attribution keys are authoritative — caller cannot spoof browse_cli.
+        expect(body.userMetadata?.browse_cli).toBe("true");
+        expect(body.userMetadata?.cli_version).not.toBe("unknown");
+      },
+    );
+  });
+
   it("sessions update merges an explicit status flag into the request body", async () => {
     await withServer(
       async (_request, response) => {

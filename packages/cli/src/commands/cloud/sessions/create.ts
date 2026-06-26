@@ -9,6 +9,11 @@ import {
 } from "../../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { fail } from "../../../lib/errors.js";
+import {
+  getCliVersion,
+  resolveInstallId,
+  toMetadataValue,
+} from "../../../lib/identity.js";
 import { BrowseCommand } from "../../../base.js";
 
 const REGIONS = [
@@ -84,6 +89,43 @@ function buildSessionCreateBody(
   }
 
   return body;
+}
+
+/**
+ * Stamp anonymous CLI attribution onto the session-create `userMetadata` so
+ * every CLI-created cloud session is attributable to the CLI (matching the
+ * driver `open --remote` path). Any user-supplied `userMetadata` (via --body or
+ * --stdin) is preserved; our attribution keys (browse_cli/install_id/
+ * cli_version) are authoritative and override caller values for those keys.
+ *
+ * Resolving the install id is best-effort and never throws; if it can't be
+ * resolved we still send browse_cli + cli_version. Values are run through
+ * toMetadataValue() so the session-create validator never 400s on a stray
+ * character or an over-length value.
+ */
+async function applyCliAttribution(
+  body: Record<string, unknown>,
+): Promise<void> {
+  const existing =
+    body.userMetadata && typeof body.userMetadata === "object"
+      ? (body.userMetadata as Record<string, unknown>)
+      : {};
+
+  const userMetadata: Record<string, unknown> = {
+    ...existing,
+    browse_cli: "true",
+    cli_version: toMetadataValue(getCliVersion()),
+  };
+
+  const installId = await resolveInstallId(process.env).catch(() => undefined);
+  if (installId) {
+    const sanitized = toMetadataValue(installId);
+    if (sanitized) {
+      userMetadata.install_id = sanitized;
+    }
+  }
+
+  body.userMetadata = userMetadata;
 }
 
 export default class SessionsCreate extends BrowseCommand {
@@ -172,6 +214,7 @@ export default class SessionsCreate extends BrowseCommand {
       });
       const flagBody = buildSessionCreateBody(flags);
       const body = deepMerge(jsonBody, flagBody);
+      await applyCliAttribution(body);
       outputJson(await client.sessions.create(body));
     });
   }
