@@ -164,6 +164,8 @@ describe("V3Context.setDomainPolicy", () => {
 
     expect(sessionA.callsFor("Fetch.enable").length).toBe(1);
     expect(sessionB.callsFor("Fetch.enable").length).toBe(1);
+    expect(sessionA.listenerCount("Fetch.requestPaused")).toBe(0);
+    expect(sessionB.listenerCount("Fetch.requestPaused")).toBe(1);
   });
 
   it("fails blocked paused requests", async () => {

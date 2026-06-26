@@ -424,6 +424,7 @@ export class V3Context {
         } => entry.result.status === "rejected",
       )
       .map((entry) => {
+        this.uninstallDomainPolicyHandler(entry.session);
         const reason = entry.result.reason as Error;
         const sid = entry.session.id ?? "unknown";
         const message = reason?.message ?? String(reason);
