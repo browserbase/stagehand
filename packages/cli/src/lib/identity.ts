@@ -11,6 +11,13 @@ import { dirname, join } from "node:path";
  * `userMetadata`, and (c) cloud API request headers so that CLI-driven usage is
  * attributable to a single install without identifying the user.
  *
+ * The marker lives in the standardized Browserbase config dir on every platform
+ * (`(XDG_CONFIG_HOME||~/.config)/browserbase/install-id`, honoring
+ * `BROWSERBASE_CONFIG_DIR`), matching where core and the CLI's own
+ * skills/sessions already live. An earlier build wrote per-OS marker paths; the
+ * id is forward-migrated from those legacy locations on first resolution so an
+ * install keeps its stable id across the path change.
+ *
  * Resolution is best-effort and must never throw: a read/write failure falls
  * back to an in-memory UUID. After the first async resolution, the value is
  * cached so it can be read synchronously via {@link peekInstallId}.
@@ -21,9 +28,9 @@ let inFlightResolution: Promise<string> | undefined;
 
 /**
  * Resolve the anonymous install id, reading (or creating) the marker file.
- * Memoizes the result so repeated calls share one resolution. Behavior matches
- * the original telemetry implementation byte-for-byte: same marker path, a
- * UUID on miss, and swallowed write failures.
+ * Memoizes the result so repeated calls share one resolution. Reads the
+ * canonical marker, forward-migrates an id from a legacy per-OS marker if one
+ * exists, mints a UUID on a true miss, and swallows write failures.
  */
 export async function resolveInstallId(
   env: NodeJS.ProcessEnv,
@@ -81,6 +88,17 @@ async function resolveAnonymousInstallId(
   const installIdPath = resolveInstallIdPath(env);
   const installId = fallbackId ?? randomUUID();
 
+  // Carry an existing id forward from a legacy per-OS marker before minting a
+  // new one, so the path change never resets a stable install id. An explicit
+  // path override short-circuits migration entirely (tests / callers pinning a
+  // specific marker should not silently inherit a legacy id).
+  if (!env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE) {
+    const migrated = await migrateLegacyInstallId(env, installIdPath);
+    if (migrated) {
+      return migrated;
+    }
+  }
+
   for (let attempt = 0; attempt < INSTALL_ID_MAX_ATTEMPTS; attempt++) {
     // 1. Prefer an already-persisted, non-empty id.
     try {
@@ -131,28 +149,106 @@ function delay(ms: number): Promise<void> {
 export function resolveInstallIdPath(env: NodeJS.ProcessEnv): string {
   const overriddenPath = env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE;
   if (overriddenPath) {
+    // An explicit override short-circuits everything, including migration.
     return overriddenPath;
   }
+  return join(resolveConfigDir(env), "install-id");
+}
 
+/**
+ * The shared Browserbase config dir, matching core (`BROWSERBASE_CONFIG_DIR`)
+ * and the CLI's own skills/sessions locations. Honors BROWSERBASE_CONFIG_DIR
+ * when set (already includes the `browserbase` segment, e.g. `~/.config/browserbase`);
+ * otherwise `(XDG_CONFIG_HOME||~/.config)/browserbase` on every platform.
+ */
+function resolveConfigDir(env: NodeJS.ProcessEnv): string {
+  if (env.BROWSERBASE_CONFIG_DIR) {
+    return env.BROWSERBASE_CONFIG_DIR;
+  }
+  const xdg = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
+  return join(xdg, "browserbase");
+}
+
+/**
+ * The OLD per-platform marker locations the install id used to live in, in
+ * priority order. We always include the XDG-style legacy path on every platform
+ * (it makes the migration unit-testable via XDG_CONFIG_HOME), plus the
+ * platform-specific one. Deduped so linux (platform path == xdg path) yields one
+ * entry.
+ */
+function legacyInstallIdPaths(env: NodeJS.ProcessEnv): string[] {
+  const paths: string[] = [];
   if (process.platform === "win32") {
     const baseDir =
       env.APPDATA ?? env.LOCALAPPDATA ?? join(homedir(), "AppData", "Roaming");
-    return join(baseDir, "Browserbase", "cli", "telemetry-id");
-  }
-
-  if (process.platform === "darwin") {
-    return join(
-      homedir(),
-      "Library",
-      "Application Support",
-      "Browserbase",
-      "cli",
-      "telemetry-id",
+    paths.push(join(baseDir, "Browserbase", "cli", "telemetry-id"));
+  } else if (process.platform === "darwin") {
+    paths.push(
+      join(
+        homedir(),
+        "Library",
+        "Application Support",
+        "Browserbase",
+        "cli",
+        "telemetry-id",
+      ),
     );
   }
+  const xdg = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
+  paths.push(join(xdg, "browserbase", "cli", "telemetry-id"));
+  return [...new Set(paths)];
+}
 
-  const baseDir = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
-  return join(baseDir, "browserbase", "cli", "telemetry-id");
+/**
+ * One-time path migration. If the canonical marker already exists, return its
+ * id. Otherwise, if a legacy per-platform marker holds an id, copy that id
+ * forward to the canonical path (best-effort, atomic exclusive-create) and
+ * return it, so the install keeps its stable id across the path change. Returns
+ * `undefined` when no id exists anywhere (truly first run) — the caller's create
+ * loop then mints a fresh id. Never throws. The legacy file is left in place
+ * (harmless, avoids a destructive op).
+ */
+async function migrateLegacyInstallId(
+  env: NodeJS.ProcessEnv,
+  canonicalPath: string,
+): Promise<string | undefined> {
+  try {
+    const existing = (await readFile(canonicalPath, "utf8")).trim();
+    if (existing) {
+      return existing;
+    }
+  } catch {
+    // Canonical marker missing — fall through to the legacy lookup.
+  }
+
+  for (const legacyPath of legacyInstallIdPaths(env)) {
+    if (legacyPath === canonicalPath) {
+      continue;
+    }
+    let legacyId: string;
+    try {
+      legacyId = (await readFile(legacyPath, "utf8")).trim();
+    } catch {
+      continue;
+    }
+    if (!legacyId) {
+      continue;
+    }
+    try {
+      await mkdir(dirname(canonicalPath), { recursive: true });
+      const fh = await open(canonicalPath, "wx");
+      try {
+        await fh.writeFile(`${legacyId}\n`, "utf8");
+      } finally {
+        await fh.close();
+      }
+    } catch {
+      // Race lost or FS unwritable — returning the legacy id still keeps it
+      // stable for this run.
+    }
+    return legacyId;
+  }
+  return undefined;
 }
 
 /**

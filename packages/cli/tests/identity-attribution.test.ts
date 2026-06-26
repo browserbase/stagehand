@@ -5,7 +5,7 @@
  * 3. remoteStagehandOptions — always includes browse_cli + cli_version; includes install_id only when resolved
  */
 
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -247,6 +247,122 @@ describe("resolveInstallId — persistence", () => {
     } finally {
       delete process.env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE;
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveInstallIdPath / migration — standardized config dir + legacy carry-forward
+// ---------------------------------------------------------------------------
+
+describe("resolveInstallIdPath — standardized config dir", () => {
+  beforeEach(() => {
+    // Fresh module so the module-level install-id cache starts clear.
+    vi.resetModules();
+  });
+
+  it("uses <BROWSERBASE_CONFIG_DIR>/install-id when that env is set", async () => {
+    const { resolveInstallIdPath } = await import("../src/lib/identity.js");
+    const configDir = "/tmp/explicit-bb-config";
+    expect(resolveInstallIdPath({ BROWSERBASE_CONFIG_DIR: configDir })).toBe(
+      join(configDir, "install-id"),
+    );
+  });
+
+  it("uses <XDG_CONFIG_HOME>/browserbase/install-id when only XDG is set", async () => {
+    const { resolveInstallIdPath } = await import("../src/lib/identity.js");
+    const xdg = "/tmp/xdg-config-home";
+    expect(resolveInstallIdPath({ XDG_CONFIG_HOME: xdg })).toBe(
+      join(xdg, "browserbase", "install-id"),
+    );
+  });
+
+  it("override (BROWSERBASE_TELEMETRY_INSTALL_ID_FILE) short-circuits the config dir", async () => {
+    const { resolveInstallIdPath } = await import("../src/lib/identity.js");
+    const override = "/tmp/override/some-file";
+    expect(
+      resolveInstallIdPath({
+        BROWSERBASE_TELEMETRY_INSTALL_ID_FILE: override,
+        BROWSERBASE_CONFIG_DIR: "/tmp/ignored",
+        XDG_CONFIG_HOME: "/tmp/also-ignored",
+      }),
+    ).toBe(override);
+  });
+});
+
+describe("resolveInstallId — legacy path migration", () => {
+  let tmpDir: string;
+  let savedHome: string | undefined;
+  let savedUserProfile: string | undefined;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "browse-install-id-migrate-"));
+    cleanupPaths.push(tmpDir);
+    // Isolate homedir() so the platform-specific legacy markers (macOS
+    // ~/Library/..., Windows AppData) resolve INSIDE the temp dir and only
+    // exist when this test seeds them — never the host machine's real marker.
+    savedHome = process.env.HOME;
+    savedUserProfile = process.env.USERPROFILE;
+    process.env.HOME = tmpDir;
+    process.env.USERPROFILE = tmpDir;
+    // Fresh module per test so the module-level cache is reset.
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    if (savedHome === undefined) delete process.env.HOME;
+    else process.env.HOME = savedHome;
+    if (savedUserProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = savedUserProfile;
+  });
+
+  it("forward-migrates the id from the legacy XDG telemetry-id marker", async () => {
+    const knownId = "11111111-2222-3333-4444-555555555555";
+    const legacyDir = join(tmpDir, "browserbase", "cli");
+    await mkdir(legacyDir, { recursive: true });
+    await writeFile(join(legacyDir, "telemetry-id"), `${knownId}\n`, "utf8");
+
+    const { resolveInstallId } = await import("../src/lib/identity.js");
+    const id = await resolveInstallId({ XDG_CONFIG_HOME: tmpDir });
+
+    // The stable id is carried forward, not reset.
+    expect(id).toBe(knownId);
+
+    // ...and it now lives at the canonical install-id path.
+    const canonical = join(tmpDir, "browserbase", "install-id");
+    const persisted = (await readFile(canonical, "utf8")).trim();
+    expect(persisted).toBe(knownId);
+  });
+
+  it("prefers the canonical install-id over a legacy marker (no clobber)", async () => {
+    const canonicalId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    const legacyId = "99999999-8888-7777-6666-555555555555";
+
+    const bbDir = join(tmpDir, "browserbase");
+    const legacyDir = join(bbDir, "cli");
+    await mkdir(legacyDir, { recursive: true });
+    await writeFile(join(bbDir, "install-id"), `${canonicalId}\n`, "utf8");
+    await writeFile(join(legacyDir, "telemetry-id"), `${legacyId}\n`, "utf8");
+
+    const { resolveInstallId } = await import("../src/lib/identity.js");
+    const id = await resolveInstallId({ XDG_CONFIG_HOME: tmpDir });
+
+    expect(id).toBe(canonicalId);
+    // The canonical marker is untouched.
+    const persisted = (
+      await readFile(join(bbDir, "install-id"), "utf8")
+    ).trim();
+    expect(persisted).toBe(canonicalId);
+  });
+
+  it("mints a fresh id at the canonical path on a true first run", async () => {
+    // Neither a canonical nor a legacy marker exists under tmpDir.
+    const { resolveInstallId } = await import("../src/lib/identity.js");
+    const id = await resolveInstallId({ XDG_CONFIG_HOME: tmpDir });
+
+    expect(id.length).toBeGreaterThan(0);
+    const canonical = join(tmpDir, "browserbase", "install-id");
+    const persisted = (await readFile(canonical, "utf8")).trim();
+    expect(persisted).toBe(id);
   });
 });
 
