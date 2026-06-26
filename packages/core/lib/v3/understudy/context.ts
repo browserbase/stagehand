@@ -637,6 +637,7 @@ export class V3Context {
       const failure = this.pageCreationFailures.get(targetId);
       if (failure) {
         this.pageCreationFailures.delete(targetId);
+        this.pendingCreatedTargetUrl.delete(targetId);
         throw failure;
       }
 
@@ -655,6 +656,7 @@ export class V3Context {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
+    this.pendingCreatedTargetUrl.delete(targetId);
     throw new TimeoutError(`newPage: target not attached (${targetId})`, 5000);
   }
 

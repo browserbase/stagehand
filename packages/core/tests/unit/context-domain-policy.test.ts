@@ -293,7 +293,7 @@ describe("V3Context.setDomainPolicy", () => {
           return {};
         }),
       },
-      pendingCreatedTargetUrl: new Map(),
+      pendingCreatedTargetUrl: new Map([["target-a", "about:blank"]]),
       pageCreationFailures: new Map([
         ["target-a", new StagehandSetDomainPolicyError(["session=session-a"])],
       ]),
@@ -307,5 +307,6 @@ describe("V3Context.setDomainPolicy", () => {
     await expect(newPage.call(ctx)).rejects.toBeInstanceOf(
       StagehandSetDomainPolicyError,
     );
+    expect(ctx.pendingCreatedTargetUrl.has("target-a")).toBe(false);
   });
 });
