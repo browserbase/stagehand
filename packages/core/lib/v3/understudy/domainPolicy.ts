@@ -25,22 +25,16 @@ function canonicalizeHostname(hostname: string): string {
   return hostname.toLowerCase().replace(/\.+$/, "");
 }
 
-function policyFieldLabel(kind: "allowedDomains" | "blockedDomains"): string {
-  return kind === "allowedDomains" ? "Allowed" : "Blocked";
-}
-
-function policyRuleLabel(kind: "allowedDomains" | "blockedDomains"): string {
-  return kind === "allowedDomains" ? "allowed" : "blocked";
-}
-
 function validateHostname(
   hostname: string,
   original: string,
   kind: "allowedDomains" | "blockedDomains",
 ): void {
+  const label = kind === "allowedDomains" ? "allowed" : "blocked";
+
   if (!hostname || hostname.length > 253) {
     throw new StagehandInvalidArgumentError(
-      `Invalid ${policyRuleLabel(kind)} domain pattern: "${original}"`,
+      `Invalid ${label} domain pattern: "${original}"`,
     );
   }
 
@@ -50,7 +44,7 @@ function validateHostname(
     labels.some((label) => !DOMAIN_LABEL_RE.test(label))
   ) {
     throw new StagehandInvalidArgumentError(
-      `Invalid ${policyRuleLabel(kind)} domain pattern: "${original}"`,
+      `Invalid ${label} domain pattern: "${original}"`,
     );
   }
 }
@@ -59,9 +53,12 @@ function normalizeDomainPattern(
   pattern: unknown,
   kind: "allowedDomains" | "blockedDomains",
 ): DomainRule {
+  const label = kind === "allowedDomains" ? "allowed" : "blocked";
+  const capitalizedLabel = kind === "allowedDomains" ? "Allowed" : "Blocked";
+
   if (typeof pattern !== "string") {
     throw new StagehandInvalidArgumentError(
-      `${policyFieldLabel(kind)} domain patterns must be strings`,
+      `${capitalizedLabel} domain patterns must be strings`,
     );
   }
 
@@ -70,7 +67,7 @@ function normalizeDomainPattern(
 
   if (!normalized) {
     throw new StagehandInvalidArgumentError(
-      `Invalid ${policyRuleLabel(kind)} domain pattern: "${original}"`,
+      `Invalid ${label} domain pattern: "${original}"`,
     );
   }
 
@@ -82,7 +79,7 @@ function normalizeDomainPattern(
     normalized.includes("#")
   ) {
     throw new StagehandInvalidArgumentError(
-      `${policyFieldLabel(kind)} domain patterns must be domain-only values: "${original}"`,
+      `${capitalizedLabel} domain patterns must be domain-only values: "${original}"`,
     );
   }
 
@@ -171,7 +168,6 @@ export function normalizeDomainPolicy(
     policy.blockedDomains,
     "blockedDomains",
   );
-  if (!allowedDomainRules.length && !blockedDomainRules.length) return null;
 
   return {
     allowedDomains: allowedDomainRules.map(patternHost),
@@ -194,13 +190,6 @@ function hostnameFromHttpUrl(url: string): string | null {
   } catch {
     return null;
   }
-}
-
-export function shouldBlockUrl(
-  url: string,
-  policy: NormalizedDomainPolicy | null,
-): boolean {
-  return getDomainPolicyDecision(url, policy).action === "block";
 }
 
 function matchesDomainRules(hostname: string, rules: DomainRule[]): boolean {

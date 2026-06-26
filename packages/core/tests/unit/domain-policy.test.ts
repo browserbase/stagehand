@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   getDomainPolicyDecision,
   normalizeDomainPolicy,
-  shouldBlockUrl,
 } from "../../lib/v3/understudy/domainPolicy.js";
 import { StagehandInvalidArgumentError } from "../../lib/v3/types/public/sdkErrors.js";
 
@@ -70,28 +69,39 @@ describe("domain policy helpers", () => {
       blockedDomains: ["ads.example.com", "*.tracking.example.com"],
     });
 
-    expect(shouldBlockUrl("https://ads.example.com/script.js", policy)).toBe(
-      true,
-    );
     expect(
-      shouldBlockUrl("https://a.tracking.example.com/pixel.gif", policy),
-    ).toBe(true);
+      getDomainPolicyDecision("https://ads.example.com/script.js", policy),
+    ).toMatchObject({ action: "block" });
     expect(
-      shouldBlockUrl("https://deep.a.tracking.example.com/pixel.gif", policy),
-    ).toBe(true);
-    expect(shouldBlockUrl("https://ads.example.com./script.js", policy)).toBe(
-      true,
-    );
+      getDomainPolicyDecision(
+        "https://a.tracking.example.com/pixel.gif",
+        policy,
+      ),
+    ).toMatchObject({ action: "block" });
     expect(
-      shouldBlockUrl("https://a.tracking.example.com./pixel.gif", policy),
-    ).toBe(true);
-    expect(shouldBlockUrl("https://tracking.example.com/", policy)).toBe(false);
-    expect(shouldBlockUrl("https://badtracking.example.com/", policy)).toBe(
-      false,
-    );
-    expect(shouldBlockUrl("https://ads.example.com.evil.test/", policy)).toBe(
-      false,
-    );
+      getDomainPolicyDecision(
+        "https://deep.a.tracking.example.com/pixel.gif",
+        policy,
+      ),
+    ).toMatchObject({ action: "block" });
+    expect(
+      getDomainPolicyDecision("https://ads.example.com./script.js", policy),
+    ).toMatchObject({ action: "block" });
+    expect(
+      getDomainPolicyDecision(
+        "https://a.tracking.example.com./pixel.gif",
+        policy,
+      ),
+    ).toMatchObject({ action: "block" });
+    expect(
+      getDomainPolicyDecision("https://tracking.example.com/", policy),
+    ).toEqual({ action: "continue" });
+    expect(
+      getDomainPolicyDecision("https://badtracking.example.com/", policy),
+    ).toEqual({ action: "continue" });
+    expect(
+      getDomainPolicyDecision("https://ads.example.com.evil.test/", policy),
+    ).toEqual({ action: "continue" });
   });
 
   it("generates broad HTTP and HTTPS Fetch patterns for allowed domains", () => {
@@ -122,10 +132,23 @@ describe("domain policy helpers", () => {
       allowedDomains: ["example.com", "*.example.com"],
     });
 
-    expect(shouldBlockUrl("https://example.com/", policy)).toBe(false);
-    expect(shouldBlockUrl("https://app.example.com/", policy)).toBe(false);
-    expect(shouldBlockUrl("https://deep.app.example.com/", policy)).toBe(false);
-    expect(shouldBlockUrl("https://other.test/", policy)).toBe(true);
+    expect(getDomainPolicyDecision("https://example.com/", policy)).toEqual({
+      action: "continue",
+    });
+    expect(getDomainPolicyDecision("https://app.example.com/", policy)).toEqual(
+      {
+        action: "continue",
+      },
+    );
+    expect(
+      getDomainPolicyDecision("https://deep.app.example.com/", policy),
+    ).toEqual({
+      action: "continue",
+    });
+    expect(getDomainPolicyDecision("https://other.test/", policy)).toEqual({
+      action: "block",
+      reason: "allowedDomains",
+    });
   });
 
   it("does not let wildcard allowed domains match the apex domain", () => {
@@ -133,8 +156,15 @@ describe("domain policy helpers", () => {
       allowedDomains: ["*.example.com"],
     });
 
-    expect(shouldBlockUrl("https://app.example.com/", policy)).toBe(false);
-    expect(shouldBlockUrl("https://example.com/", policy)).toBe(true);
+    expect(getDomainPolicyDecision("https://app.example.com/", policy)).toEqual(
+      {
+        action: "continue",
+      },
+    );
+    expect(getDomainPolicyDecision("https://example.com/", policy)).toEqual({
+      action: "block",
+      reason: "allowedDomains",
+    });
   });
 
   it("lets blocked domains win over allowed domains", () => {
@@ -163,12 +193,12 @@ describe("domain policy helpers", () => {
       blockedDomains: ["ADS.EXAMPLE.COM"],
     });
 
-    expect(shouldBlockUrl("https://ads.example.com/script.js", policy)).toBe(
-      true,
-    );
-    expect(shouldBlockUrl("https://ADS.EXAMPLE.COM/script.js", policy)).toBe(
-      true,
-    );
+    expect(
+      getDomainPolicyDecision("https://ads.example.com/script.js", policy),
+    ).toMatchObject({ action: "block" });
+    expect(
+      getDomainPolicyDecision("https://ADS.EXAMPLE.COM/script.js", policy),
+    ).toMatchObject({ action: "block" });
   });
 
   it("continues malformed and non-HTTP URLs", () => {
@@ -177,9 +207,17 @@ describe("domain policy helpers", () => {
       blockedDomains: ["ads.example.com"],
     });
 
-    expect(shouldBlockUrl("not a url", policy)).toBe(false);
-    expect(shouldBlockUrl("data:text/plain,hello", policy)).toBe(false);
-    expect(shouldBlockUrl("file:///tmp/example.html", policy)).toBe(false);
+    expect(getDomainPolicyDecision("not a url", policy)).toEqual({
+      action: "continue",
+    });
+    expect(getDomainPolicyDecision("data:text/plain,hello", policy)).toEqual({
+      action: "continue",
+    });
+    expect(getDomainPolicyDecision("file:///tmp/example.html", policy)).toEqual(
+      {
+        action: "continue",
+      },
+    );
   });
 
   it("rejects invalid blocked domain patterns", () => {
