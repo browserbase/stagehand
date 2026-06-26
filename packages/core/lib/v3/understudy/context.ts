@@ -132,6 +132,7 @@ export class V3Context {
   private typeByTarget = new Map<TargetId, TargetType>();
   private _pageOrder: TargetId[] = [];
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
+  private pageCreationFailures = new Map<TargetId, Error>();
   private readonly initScripts: string[] = [];
   private extraHttpHeaders: Record<string, string> | null = null;
   private domainPolicy: NormalizedDomainPolicy | null = null;
@@ -633,6 +634,12 @@ export class V3Context {
 
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
+      const failure = this.pageCreationFailures.get(targetId);
+      if (failure) {
+        this.pageCreationFailures.delete(targetId);
+        throw failure;
+      }
+
       const page = this.pagesByTarget.get(targetId);
       if (page) {
         // we created at about:blank; navigate only after attach so init scripts run
@@ -664,6 +671,7 @@ export class V3Context {
     this.createdAtByTarget.clear();
     this.typeByTarget.clear();
     this.pendingCreatedTargetUrl.clear();
+    this.pageCreationFailures.clear();
   }
 
   /**
@@ -897,7 +905,6 @@ export class V3Context {
     // Header propagation is independent of init-script determinism but still
     // part of pre-resume attach setup; awaited above for ordering/lifecycle.
     void headerResults;
-    void fetchResults;
     if (!preResumeDispatched || !resumedDispatched || !resumedOk) {
       // Short-lived child targets can detach before resume is acknowledged.
       // Keep this noisy only for top-level pages where missing attach is fatal.
@@ -924,6 +931,32 @@ export class V3Context {
       return;
     }
     resumed = true;
+
+    if (fetchPreResumeOps.length > 0 && !fetchResults.every(Boolean)) {
+      this.uninstallDomainPolicyHandler(session);
+      if (this.pendingCreatedTargetUrl.has(info.targetId)) {
+        this.pageCreationFailures.set(
+          info.targetId,
+          new StagehandSetDomainPolicyError([
+            `session=${sessionId} target=${info.targetId} error=Fetch.enable failed during target attach`,
+          ]),
+        );
+      }
+      v3Logger({
+        category: "ctx",
+        message: "Failed to enable domain policy for target",
+        level: 1,
+        auxiliary: {
+          targetId: { value: String(info.targetId), type: "string" },
+          targetType: { value: String(info.type), type: "string" },
+        },
+      });
+      await this.conn
+        .send("Target.closeTarget", { targetId: info.targetId })
+        .catch(() => {});
+      return;
+    }
+
     const scriptsInstalled =
       coreResults.every(Boolean) && initScriptResults.every(Boolean);
 
@@ -1096,6 +1129,7 @@ export class V3Context {
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
 
+    this.pageCreationFailures.delete(targetId);
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);
     this.frameOwnerPage.delete(mainId);

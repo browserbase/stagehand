@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { V3Context } from "../../lib/v3/understudy/context.js";
 import { MockCDPSession } from "./helpers/mockCDPSession.js";
 import { StagehandSetDomainPolicyError } from "../../lib/v3/types/public/sdkErrors.js";
 import type { DomainPolicy } from "../../lib/v3/types/public/context.js";
+import { normalizeDomainPolicy } from "../../lib/v3/understudy/domainPolicy.js";
 
 type ContextStub = {
   _sessionInit: Set<string>;
@@ -32,6 +33,10 @@ const flushAsyncHandlers = async () => {
 };
 
 describe("V3Context.setDomainPolicy", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const setDomainPolicy = V3Context.prototype.setDomainPolicy as (
     this: ContextStub,
     policy: DomainPolicy | null,
@@ -198,5 +203,109 @@ describe("V3Context.setDomainPolicy", () => {
     expect(session.callsFor("Fetch.continueRequest")[0]?.params).toEqual({
       requestId: "request-1",
     });
+  });
+
+  it("closes new targets when Fetch.enable fails with an active policy", async () => {
+    const session = new MockCDPSession(
+      {
+        "Fetch.enable": () => {
+          throw new Error("fetch unavailable");
+        },
+      },
+      "session-a",
+    );
+    const closeTargetCalls: unknown[] = [];
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      _sessionInit: new Set<string>(),
+      _targetSessionListeners: new Set<string>(),
+      _domainPolicySessionListeners: new Map<string, unknown>(),
+      _piercerInstalled: new Set<string>(),
+      domainPolicy: normalizeDomainPolicy({
+        blockedDomains: ["ads.example.com"],
+      }),
+      conn: {
+        getSession: (id: string) => (id === session.id ? session : undefined),
+        waitForSessionDispatch: () => Promise.resolve(),
+        send: async (method: string, params?: unknown) => {
+          if (method === "Target.closeTarget") closeTargetCalls.push(params);
+          return {};
+        },
+      },
+      pagesByTarget: new Map(),
+      mainFrameToTarget: new Map(),
+      sessionOwnerPage: new Map(),
+      frameOwnerPage: new Map(),
+      pendingOopifByMainFrame: new Map(),
+      createdAtByTarget: new Map(),
+      typeByTarget: new Map(),
+      pendingCreatedTargetUrl: new Map([["target-a", "about:blank"]]),
+      pageCreationFailures: new Map(),
+      initScripts: [],
+      extraHttpHeaders: null,
+      localBrowserLaunchOptions: null,
+      apiClient: null,
+      env: "LOCAL",
+    });
+
+    const onAttachedToTarget = V3Context.prototype[
+      "onAttachedToTarget" as keyof V3Context
+    ] as unknown as (
+      this: typeof ctx,
+      info: {
+        targetId: string;
+        type: string;
+        title: string;
+        url: string;
+        attached: boolean;
+        canAccessOpener: boolean;
+      },
+      sessionId: string,
+    ) => Promise<void>;
+
+    await onAttachedToTarget.call(
+      ctx,
+      {
+        targetId: "target-a",
+        type: "page",
+        title: "",
+        url: "about:blank",
+        attached: true,
+        canAccessOpener: false,
+      },
+      session.id,
+    );
+
+    expect(closeTargetCalls).toEqual([{ targetId: "target-a" }]);
+    expect(session.listenerCount("Fetch.requestPaused")).toBe(0);
+    expect(session.callsFor("Page.getFrameTree").length).toBe(0);
+    expect(ctx.pageCreationFailures.get("target-a")).toBeInstanceOf(
+      StagehandSetDomainPolicyError,
+    );
+  });
+
+  it("newPage throws stored attach failures without waiting for timeout", async () => {
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      conn: {
+        send: vi.fn(async (method: string) => {
+          if (method === "Target.createTarget") {
+            return { targetId: "target-a" };
+          }
+          return {};
+        }),
+      },
+      pendingCreatedTargetUrl: new Map(),
+      pageCreationFailures: new Map([
+        ["target-a", new StagehandSetDomainPolicyError(["session=session-a"])],
+      ]),
+      pagesByTarget: new Map(),
+    });
+    const newPage = V3Context.prototype.newPage as (
+      this: typeof ctx,
+      url?: string,
+    ) => Promise<unknown>;
+
+    await expect(newPage.call(ctx)).rejects.toBeInstanceOf(
+      StagehandSetDomainPolicyError,
+    );
   });
 });
