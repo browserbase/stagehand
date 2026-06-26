@@ -75,6 +75,9 @@ describe("domain policy helpers", () => {
     expect(
       shouldBlockUrl("https://a.tracking.example.com/pixel.gif", policy),
     ).toBe(true);
+    expect(
+      shouldBlockUrl("https://deep.a.tracking.example.com/pixel.gif", policy),
+    ).toBe(true);
     expect(shouldBlockUrl("https://ads.example.com./script.js", policy)).toBe(
       true,
     );
@@ -87,6 +90,19 @@ describe("domain policy helpers", () => {
     );
     expect(shouldBlockUrl("https://ads.example.com.evil.test/", policy)).toBe(
       false,
+    );
+  });
+
+  it("matches domains case-insensitively", () => {
+    const policy = normalizeDomainPolicy({
+      blockedDomains: ["ADS.EXAMPLE.COM"],
+    });
+
+    expect(shouldBlockUrl("https://ads.example.com/script.js", policy)).toBe(
+      true,
+    );
+    expect(shouldBlockUrl("https://ADS.EXAMPLE.COM/script.js", policy)).toBe(
+      true,
     );
   });
 

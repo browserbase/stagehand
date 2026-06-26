@@ -109,6 +109,28 @@ describe("V3Context.setDomainPolicy", () => {
     expect(getDomainPolicy.call(ctx)).toBeNull();
   });
 
+  it("keeps its requestPaused listener when Fetch.disable fails", async () => {
+    const session = new MockCDPSession(
+      {
+        "Fetch.disable": () => {
+          throw new Error("disable failed");
+        },
+      },
+      "session-a",
+    );
+    const ctx = makeContext([session]);
+
+    await setDomainPolicy.call(ctx, {
+      blockedDomains: ["ads.example.com"],
+    });
+
+    await expect(setDomainPolicy.call(ctx, null)).rejects.toBeInstanceOf(
+      StagehandSetDomainPolicyError,
+    );
+
+    expect(session.listenerCount("Fetch.requestPaused")).toBe(1);
+  });
+
   it("removes only its own requestPaused listener when disabled", async () => {
     const session = new MockCDPSession({}, "session-a");
     const ctx = makeContext([session]);

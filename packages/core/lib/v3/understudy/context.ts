@@ -455,15 +455,23 @@ export class V3Context {
     const results = await Promise.allSettled(
       sessions.map(async (session) => {
         if (!nextPolicy) {
-          await session.send("Fetch.disable");
-          this.uninstallDomainPolicyHandler(session);
+          try {
+            await session.send("Fetch.disable");
+            this.uninstallDomainPolicyHandler(session);
+          } catch (error) {
+            throw { action: "disable", error };
+          }
           return;
         }
 
         this.installDomainPolicyHandler(session);
-        await session.send("Fetch.enable", {
-          patterns: nextPolicy.fetchPatterns,
-        });
+        try {
+          await session.send("Fetch.enable", {
+            patterns: nextPolicy.fetchPatterns,
+          });
+        } catch (error) {
+          throw { action: "enable", error };
+        }
       }),
     );
 
@@ -478,10 +486,17 @@ export class V3Context {
         } => entry.result.status === "rejected",
       )
       .map((entry) => {
-        this.uninstallDomainPolicyHandler(entry.session);
-        const reason = entry.result.reason as Error;
+        const failure = entry.result.reason as {
+          action?: "enable" | "disable";
+          error?: unknown;
+        };
+        if (failure?.action === "enable") {
+          this.uninstallDomainPolicyHandler(entry.session);
+        }
+        const reason = failure?.error ?? entry.result.reason;
         const sid = entry.session.id ?? "unknown";
-        const message = reason?.message ?? String(reason);
+        const message =
+          reason instanceof Error ? reason.message : String(reason);
         return `session=${sid} error=${message}`;
       });
 
