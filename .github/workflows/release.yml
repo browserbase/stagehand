@@ -65,9 +65,11 @@ jobs:
             done
           done
 
-          # Skip only when ALL pending changesets target ignored packages.
-          # When there are no changesets at all, the action must still run
-          # so it can publish freshly-versioned packages.
+          # Gates the changesets action (Version Packages PR creation) only.
+          # Publishing is handled by the dedicated "Publish to npm" step below,
+          # independent of this flag. Skip the PR step only when every pending
+          # changeset targets an ignored package (e.g. browse), since the action
+          # would produce an empty/no-op PR in that case.
           if [ "$HAS_ANY" = "true" ] && [ "$HAS_ACTIONABLE" = "false" ]; then
             echo "All pending changesets target ignored packages — skipping changesets action."
             echo "should_run=false" >> "$GITHUB_OUTPUT"
@@ -75,84 +77,56 @@ jobs:
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create Release Pull Request or Publish to npm
+      # ---------- Sole publisher ----------
+      # Publish BEFORE the changesets action opens the Version Packages PR (which
+      # switches branches), on the clean pushed commit. `changeset publish` only
+      # publishes packages whose local version is ahead of npm, so this is a
+      # no-op on ordinary pushes and publishes whatever was just versioned --
+      # core (after a Version Packages PR merges) or browse (after a
+      # release/browse PR merges) -- exactly once, with provenance via Trusted
+      # Publishing. It intentionally does not consult the changeset `ignore`
+      # list: `ignore` governs versioning, not publishing, so browse is published
+      # here like any other public package. This replaces the bespoke
+      # pnpm-pack/npm-publish browse steps that used to race this same command.
+      - name: Publish to npm
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          pnpm run release
+          # changeset publish creates local git tags (e.g. browse@x,
+          # @browserbasehq/stagehand@y); push them (the changesets action did this
+          # when it owned publishing). No-op when nothing new was published.
+          git push origin --tags
+
+      - name: Create Release Pull Request
         id: changesets
         uses: changesets/action@63a615b9cd06ba9a3e6d13796c7fbcb080a60a0b # v1.8.0
         if: steps.check_changesets.outputs.should_run == 'true'
-        with:
-          publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish already-versioned packages
-        if: steps.check_changesets.outputs.should_run != 'true'
-        run: pnpm run release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Check if browse publish is needed
-        if: github.ref == 'refs/heads/main'
-        id: browse_cli
-        run: |
-          # Restore working tree — changesets/action may have switched branches
-          git checkout ${{ github.sha }}
-
-          if git diff --quiet ${{ github.sha }}^ ${{ github.sha }} -- packages/cli/package.json; then
-            echo "browse version did not change on this push."
-            echo "should_publish=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          OLD_VERSION=$(git show ${{ github.sha }}^:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
-          NEW_VERSION=$(git show ${{ github.sha }}:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
-          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
-
-          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
-            echo "browse version did not change on this push."
-            echo "should_publish=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "should_publish=true" >> "$GITHUB_OUTPUT"
-
-          if npm view "browse@${NEW_VERSION}" version >/dev/null 2>&1; then
-            echo "browse ${NEW_VERSION} is already published."
-            echo "already_published=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "already_published=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Publish browse to npm
-        if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
-        run: |
-          cd packages/cli
-          PACK_DIR=$(mktemp -d)
-          trap 'rm -rf "$PACK_DIR"' EXIT
-
-          TARBALL=$(pnpm pack --json --pack-destination "$PACK_DIR" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).filename")
-          npm publish "$TARBALL" --provenance --access public --tag latest
-
-      - name: Tag browse release
-        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
-        run: |
-          TAG="browse@${{ steps.browse_cli.outputs.version }}"
-          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
-            echo "Tag ${TAG} already exists."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag "$TAG"
-          git push origin "$TAG"
 
       - name: Publish browse canary
-        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish != 'true'
+        if: github.ref == 'refs/heads/main'
         run: |
-          # Skip if no browse files changed in this push
+          # The changesets action above may have switched branches.
+          git checkout ${{ github.sha }}
+
+          # Skip if no browse files changed in this push.
           if git diff --quiet ${{ github.sha }}^ ${{ github.sha }} -- packages/cli/; then
             echo "No browse changes in this push, skipping canary."
             exit 0
+          fi
+
+          # Skip if browse was released on this push -- the Publish step already
+          # shipped the real version, so no canary is needed.
+          if ! git diff --quiet ${{ github.sha }}^ ${{ github.sha }} -- packages/cli/package.json; then
+            OLD_VERSION=$(git show ${{ github.sha }}^:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+            NEW_VERSION=$(git show ${{ github.sha }}:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+            if [ "$OLD_VERSION" != "$NEW_VERSION" ]; then
+              echo "browse version bumped (${OLD_VERSION} -> ${NEW_VERSION}); release already published, skipping canary."
+              exit 0
+            fi
           fi
 
           cd packages/cli
