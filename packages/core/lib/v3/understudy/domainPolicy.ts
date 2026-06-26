@@ -2,26 +2,45 @@ import type { Protocol } from "devtools-protocol";
 import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
 import type { DomainPolicy } from "../types/public/context.js";
 
-type BlockedDomainRule =
+type DomainRule =
   | { type: "exact"; hostname: string }
   | { type: "wildcard"; hostname: string };
 
 export type NormalizedDomainPolicy = {
+  allowedDomains: string[];
   blockedDomains: string[];
-  blockedDomainRules: BlockedDomainRule[];
+  allowedDomainRules: DomainRule[];
+  blockedDomainRules: DomainRule[];
   fetchPatterns: Protocol.Fetch.RequestPattern[];
 };
 
+export type DomainPolicyDecision =
+  | { action: "continue" }
+  | { action: "block"; reason: "allowedDomains" | "blockedDomains" };
+
 const DOMAIN_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const HTTP_SCHEMES = ["http", "https"] as const;
 
 function canonicalizeHostname(hostname: string): string {
   return hostname.toLowerCase().replace(/\.+$/, "");
 }
 
-function validateHostname(hostname: string, original: string): void {
+function policyFieldLabel(kind: "allowedDomains" | "blockedDomains"): string {
+  return kind === "allowedDomains" ? "Allowed" : "Blocked";
+}
+
+function policyRuleLabel(kind: "allowedDomains" | "blockedDomains"): string {
+  return kind === "allowedDomains" ? "allowed" : "blocked";
+}
+
+function validateHostname(
+  hostname: string,
+  original: string,
+  kind: "allowedDomains" | "blockedDomains",
+): void {
   if (!hostname || hostname.length > 253) {
     throw new StagehandInvalidArgumentError(
-      `Invalid blocked domain pattern: "${original}"`,
+      `Invalid ${policyRuleLabel(kind)} domain pattern: "${original}"`,
     );
   }
 
@@ -31,15 +50,18 @@ function validateHostname(hostname: string, original: string): void {
     labels.some((label) => !DOMAIN_LABEL_RE.test(label))
   ) {
     throw new StagehandInvalidArgumentError(
-      `Invalid blocked domain pattern: "${original}"`,
+      `Invalid ${policyRuleLabel(kind)} domain pattern: "${original}"`,
     );
   }
 }
 
-function normalizeBlockedDomainPattern(pattern: unknown): BlockedDomainRule {
+function normalizeDomainPattern(
+  pattern: unknown,
+  kind: "allowedDomains" | "blockedDomains",
+): DomainRule {
   if (typeof pattern !== "string") {
     throw new StagehandInvalidArgumentError(
-      `Blocked domain patterns must be strings`,
+      `${policyFieldLabel(kind)} domain patterns must be strings`,
     );
   }
 
@@ -48,7 +70,7 @@ function normalizeBlockedDomainPattern(pattern: unknown): BlockedDomainRule {
 
   if (!normalized) {
     throw new StagehandInvalidArgumentError(
-      `Invalid blocked domain pattern: "${original}"`,
+      `Invalid ${policyRuleLabel(kind)} domain pattern: "${original}"`,
     );
   }
 
@@ -60,13 +82,13 @@ function normalizeBlockedDomainPattern(pattern: unknown): BlockedDomainRule {
     normalized.includes("#")
   ) {
     throw new StagehandInvalidArgumentError(
-      `Blocked domain patterns must be domain-only values: "${original}"`,
+      `${policyFieldLabel(kind)} domain patterns must be domain-only values: "${original}"`,
     );
   }
 
   if (normalized.startsWith("*.")) {
     const hostname = normalized.slice(2);
-    validateHostname(hostname, original);
+    validateHostname(hostname, original, kind);
     return { type: "wildcard", hostname };
   }
 
@@ -76,27 +98,42 @@ function normalizeBlockedDomainPattern(pattern: unknown): BlockedDomainRule {
     );
   }
 
-  validateHostname(normalized, original);
+  validateHostname(normalized, original, kind);
   return { type: "exact", hostname: normalized };
 }
 
-function patternHost(rule: BlockedDomainRule): string {
+function normalizeDomainPatterns(
+  patterns: unknown[] | undefined,
+  kind: "allowedDomains" | "blockedDomains",
+): DomainRule[] {
+  if (!patterns?.length) return [];
+
+  const rulesByKey = new Map<string, DomainRule>();
+  for (const pattern of patterns) {
+    const rule = normalizeDomainPattern(pattern, kind);
+    rulesByKey.set(`${rule.type}:${rule.hostname}`, rule);
+  }
+
+  return Array.from(rulesByKey.values());
+}
+
+function patternHost(rule: DomainRule): string {
   return rule.type === "wildcard" ? `*.${rule.hostname}` : rule.hostname;
 }
 
-function fetchPatternHosts(rule: BlockedDomainRule): string[] {
+function fetchPatternHosts(rule: DomainRule): string[] {
   const host = patternHost(rule);
   return [host, `${host}.`];
 }
 
-function toFetchPatterns(
-  rules: BlockedDomainRule[],
+function toBlocklistFetchPatterns(
+  rules: DomainRule[],
 ): Protocol.Fetch.RequestPattern[] {
   const patterns: Protocol.Fetch.RequestPattern[] = [];
 
   for (const rule of rules) {
     for (const host of fetchPatternHosts(rule)) {
-      for (const scheme of ["http", "https"]) {
+      for (const scheme of HTTP_SCHEMES) {
         patterns.push({
           urlPattern: `${scheme}://${host}/*`,
           requestStage: "Request",
@@ -112,24 +149,38 @@ function toFetchPatterns(
   return patterns;
 }
 
+function toAllowlistFetchPatterns(): Protocol.Fetch.RequestPattern[] {
+  return HTTP_SCHEMES.map((scheme) => ({
+    urlPattern: `${scheme}://*/*`,
+    requestStage: "Request",
+  }));
+}
+
 export function normalizeDomainPolicy(
   policy: DomainPolicy | null,
 ): NormalizedDomainPolicy | null {
-  if (!policy?.blockedDomains?.length) return null;
-
-  const rulesByKey = new Map<string, BlockedDomainRule>();
-  for (const domain of policy.blockedDomains) {
-    const rule = normalizeBlockedDomainPattern(domain);
-    rulesByKey.set(`${rule.type}:${rule.hostname}`, rule);
+  if (!policy?.allowedDomains?.length && !policy?.blockedDomains?.length) {
+    return null;
   }
 
-  const blockedDomainRules = Array.from(rulesByKey.values());
-  if (!blockedDomainRules.length) return null;
+  const allowedDomainRules = normalizeDomainPatterns(
+    policy.allowedDomains,
+    "allowedDomains",
+  );
+  const blockedDomainRules = normalizeDomainPatterns(
+    policy.blockedDomains,
+    "blockedDomains",
+  );
+  if (!allowedDomainRules.length && !blockedDomainRules.length) return null;
 
   return {
+    allowedDomains: allowedDomainRules.map(patternHost),
     blockedDomains: blockedDomainRules.map(patternHost),
+    allowedDomainRules,
     blockedDomainRules,
-    fetchPatterns: toFetchPatterns(blockedDomainRules),
+    fetchPatterns: allowedDomainRules.length
+      ? toAllowlistFetchPatterns()
+      : toBlocklistFetchPatterns(blockedDomainRules),
   };
 }
 
@@ -149,15 +200,37 @@ export function shouldBlockUrl(
   url: string,
   policy: NormalizedDomainPolicy | null,
 ): boolean {
-  if (!policy) return false;
+  return getDomainPolicyDecision(url, policy).action === "block";
+}
 
-  const hostname = hostnameFromHttpUrl(url);
-  if (!hostname) return false;
-
-  return policy.blockedDomainRules.some((rule) => {
+function matchesDomainRules(hostname: string, rules: DomainRule[]): boolean {
+  return rules.some((rule) => {
     if (rule.type === "exact") {
       return hostname === rule.hostname;
     }
     return hostname.endsWith(`.${rule.hostname}`);
   });
+}
+
+export function getDomainPolicyDecision(
+  url: string,
+  policy: NormalizedDomainPolicy | null,
+): DomainPolicyDecision {
+  if (!policy) return { action: "continue" };
+
+  const hostname = hostnameFromHttpUrl(url);
+  if (!hostname) return { action: "continue" };
+
+  if (matchesDomainRules(hostname, policy.blockedDomainRules)) {
+    return { action: "block", reason: "blockedDomains" };
+  }
+
+  if (
+    policy.allowedDomainRules.length &&
+    !matchesDomainRules(hostname, policy.allowedDomainRules)
+  ) {
+    return { action: "block", reason: "allowedDomains" };
+  }
+
+  return { action: "continue" };
 }
