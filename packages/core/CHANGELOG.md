@@ -1,5 +1,17 @@
 # @browserbasehq/stagehand
 
+## 3.7.0
+
+### Minor Changes
+
+- [#2274](https://github.com/browserbase/stagehand/pull/2274) [`f31980f`](https://github.com/browserbase/stagehand/commit/f31980f37a8f01cdb7758c91eea9e5f57911af44) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `context.setDomainPolicy({blockedDomains: ["some.domain"]})` which allows users to define a list of domains that will be blocked by stagehand
+
+### Patch Changes
+
+- [#2273](https://github.com/browserbase/stagehand/pull/2273) [`93a23d3`](https://github.com/browserbase/stagehand/commit/93a23d3adf04de91d95b2463f6edfde3d1cb7114) Thanks [@miguelg719](https://github.com/miguelg719)! - Add support for the new `google/gemini-3.5-flash` computer-use tools model
+
+- [#2278](https://github.com/browserbase/stagehand/pull/2278) [`022d68f`](https://github.com/browserbase/stagehand/commit/022d68fc81ffe96e16008c3c751ea005eeb0b929) Thanks [@shrey150](https://github.com/shrey150)! - Fix `TypeError: Converting circular structure to JSON` when creating an agent with MCP `integrations` that include a `Client` instance (e.g. a local/stdio server from `connectToMCPServer`). The agent-creation log serialized the raw `integrations` array, and a live MCP `Client` is circular. It now logs a safe descriptor (URL strings kept, client instances summarized) so `agent({ integrations: [client] })` works.
+
 ## 3.6.0
 
 ### Minor Changes
