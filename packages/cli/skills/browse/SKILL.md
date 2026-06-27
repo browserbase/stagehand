@@ -220,10 +220,11 @@ browse cloud sessions debug <session-id>
 browse cloud sessions logs <session-id>
 browse cloud sessions downloads get <session-id>
 browse cloud sessions uploads create <session-id> ./file.pdf
-browse cloud contexts create
-browse cloud contexts get <context-id>
-browse cloud contexts update <context-id>
-browse cloud contexts delete <context-id>
+browse cloud contexts create --name github
+browse cloud contexts list
+browse cloud contexts get <context-id|name>
+browse cloud contexts update <context-id|name>
+browse cloud contexts delete <context-id|name>
 browse cloud extensions upload ./extension.zip
 browse cloud extensions get <extension-id>
 browse cloud extensions delete <extension-id>
@@ -235,6 +236,16 @@ For remote sessions with context persistence:
 
 ```bash
 browse cloud sessions create --context-id <context-id> --persist
+```
+
+Contexts persist cookies and local storage (logins) across sessions. Name a
+context once with `--name` to save a local alias, then reuse the name anywhere a
+context ID is accepted instead of memorizing the ID:
+
+```bash
+browse cloud contexts create --name github          # saves github -> ctx_...
+browse cloud sessions create --context-id github --persist
+browse cloud contexts list                          # show saved names
 ```
 
 Use `--verified` when the task needs Browserbase Verified browser mode.

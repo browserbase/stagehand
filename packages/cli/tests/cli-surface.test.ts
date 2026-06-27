@@ -15,6 +15,7 @@ const cloudCommandsWithExamples = [
   ["cloud", "sessions", "downloads", "get"],
   ["cloud", "sessions", "uploads", "create"],
   ["cloud", "contexts", "create"],
+  ["cloud", "contexts", "list"],
   ["cloud", "contexts", "get"],
   ["cloud", "contexts", "update"],
   ["cloud", "contexts", "delete"],
