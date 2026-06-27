@@ -165,6 +165,35 @@ describe("named contexts (end to end through the CLI)", () => {
     }
   });
 
+  it("passes an unrecognized raw id through to the API (raw-id compatibility)", async () => {
+    const rawId = "legacy-id-not-a-uuid-9000";
+    const server = await startFakeBrowserbaseServer((request, response) => {
+      jsonResponse(response, 200, { id: rawId });
+    });
+    const env = {
+      BROWSERBASE_CONFIG_DIR: configDir,
+      BROWSERBASE_API_KEY: "test-key",
+      BROWSERBASE_BASE_URL: server.baseUrl,
+    };
+    try {
+      // A saved name exists, but the ref is far from it -> no "did you mean",
+      // so the ref must pass through unchanged rather than being rejected.
+      await runCli(["cloud", "contexts", "create", "--name", "github"], {
+        env,
+      });
+      const got = await runCli(["cloud", "contexts", "get", rawId], { env });
+
+      expect(got.exitCode).toBe(0);
+      expect(
+        server.requests.some(
+          (r) => r.method === "GET" && pathOf(r) === `/v1/contexts/${rawId}`,
+        ),
+      ).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("rejects an invalid context name without calling the API", async () => {
     const server = await startFakeBrowserbaseServer((_request, response) => {
       jsonResponse(response, 200, { id: CONTEXT_ID });
