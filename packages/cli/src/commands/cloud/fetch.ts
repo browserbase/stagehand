@@ -10,6 +10,7 @@ import {
 import { apiCommonFlags, toApiOptions } from "../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../base.js";
 import { fail } from "../../lib/errors.js";
+import { writeOpenNudge } from "../../lib/open-nudge.js";
 
 const fetchFormats = ["raw", "markdown", "json"] as const;
 type FetchFormat = (typeof fetchFormats)[number];
@@ -86,10 +87,11 @@ export default class Fetch extends BrowseCommand {
         statusCode: result.statusCode,
         sizeBytes: Buffer.byteLength(contents, "utf8"),
       });
-      return;
+    } else {
+      outputJson(result);
     }
 
-    outputJson(result);
+    await writeOpenNudge(this.config.cacheDir);
   }
 }
 
