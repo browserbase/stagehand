@@ -1,0 +1,9 @@
+{
+  "name": "browse",
+  "version": "0.8.4",
+  "description": "Drive a local or Browserbase-hosted browser, inspect and interact with pages, manage Browserbase cloud resources and Functions, scaffold templates, and discover Browse.sh skills.",
+  "author": {
+    "name": "Browserbase"
+  },
+  "skills": "./skills/"
+}

@@ -98,6 +98,7 @@
     "manifest": "oclif manifest .",
     "test": "pnpm build && vitest run",
     "test:cli": "vitest run",
+    "sync-plugin-version": "node scripts/sync-plugin-version.js",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
