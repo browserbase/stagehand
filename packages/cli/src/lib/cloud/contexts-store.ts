@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { resolveConfigDir } from "../identity.js";
@@ -21,6 +21,10 @@ const MAX_NAME_LENGTH = 64;
 // dots, dashes, and underscores. Keeps names shell- and filename-friendly and
 // unambiguous against opaque context ids.
 const NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+// Browserbase context ids are UUIDs. A name must not be UUID-shaped, otherwise a
+// saved alias could shadow a real id and break raw-id passthrough in resolution.
+const CONTEXT_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ContextAlias {
   id: string;
@@ -35,14 +39,22 @@ interface ContextsStoreFile {
   contexts: Record<string, ContextAlias>;
 }
 
+export function looksLikeContextId(value: string): boolean {
+  return CONTEXT_ID_PATTERN.test(value);
+}
+
 export function isValidContextName(name: string): boolean {
   return (
-    name.length > 0 && name.length <= MAX_NAME_LENGTH && NAME_PATTERN.test(name)
+    name.length > 0 &&
+    name.length <= MAX_NAME_LENGTH &&
+    NAME_PATTERN.test(name) &&
+    // Disallow id-shaped names so a name can never shadow a raw context id.
+    !looksLikeContextId(name)
   );
 }
 
 export function contextNameRequirement(): string {
-  return `Context names must be 1-${MAX_NAME_LENGTH} characters, start with a letter or number, and contain only letters, numbers, dots, dashes, or underscores.`;
+  return `Context names must be 1-${MAX_NAME_LENGTH} characters, start with a letter or number, contain only letters, numbers, dots, dashes, or underscores, and not look like a context ID.`;
 }
 
 export function contextsStorePath(
@@ -77,12 +89,41 @@ async function readStore(
     }
     return {
       version: STORE_VERSION,
-      contexts: parsed.contexts as Record<string, ContextAlias>,
+      contexts: sanitizeContexts(parsed.contexts),
     };
   } catch {
     // Corrupt file: treat as empty rather than crashing the command.
     return emptyStore();
   }
+}
+
+/**
+ * Keep only well-formed entries so a hand-edited or partially-written
+ * `contexts.json` degrades gracefully (a malformed entry is dropped rather than
+ * trusted as a `ContextAlias` and breaking resolution or cleanup).
+ */
+function sanitizeContexts(raw: unknown): Record<string, ContextAlias> {
+  const result: Record<string, ContextAlias> = {};
+  if (!raw || typeof raw !== "object") {
+    return result;
+  }
+  for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== "object") {
+      continue;
+    }
+    const entry = value as Record<string, unknown>;
+    if (typeof entry.id !== "string" || entry.id.length === 0) {
+      continue;
+    }
+    result[name] = {
+      id: entry.id,
+      createdAt: typeof entry.createdAt === "string" ? entry.createdAt : "",
+      ...(typeof entry.projectId === "string"
+        ? { projectId: entry.projectId }
+        : {}),
+    };
+  }
+  return result;
 }
 
 async function writeStore(
@@ -91,10 +132,18 @@ async function writeStore(
 ): Promise<void> {
   const path = contextsStorePath(env);
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  await writeFile(path, `${JSON.stringify(store, null, 2)}\n`, {
+  // Write to a temp file at 0600 then atomically rename over the target. The
+  // rename means a reader never sees a half-written file, and the final file
+  // always inherits the temp file's 0600 perms even if an older, more permissive
+  // contexts.json already existed (writeFile's `mode` only applies on create).
+  // For this single-user local config, simultaneous writers remain
+  // last-writer-wins; cross-process locking isn't warranted here.
+  const tempPath = `${path}.${process.pid}.tmp`;
+  await writeFile(tempPath, `${JSON.stringify(store, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
   });
+  await rename(tempPath, path);
 }
 
 export async function listContextAliases(
