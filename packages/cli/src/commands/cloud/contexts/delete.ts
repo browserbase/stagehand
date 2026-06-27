@@ -1,10 +1,8 @@
 import { Args } from "@oclif/core";
 
 import { outputJson, requestBrowserbase } from "../../../lib/cloud/api.js";
-import {
-  removeContextAliasesById,
-  resolveContextRef,
-} from "../../../lib/cloud/contexts-store.js";
+import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
+import { removeContextAliasesById } from "../../../lib/cloud/contexts-store.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../../base.js";
 
@@ -27,7 +25,7 @@ export default class ContextsDelete extends BrowseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(ContextsDelete);
-    const id = await resolveContextRef(args.id);
+    const id = await resolveContextRefOrFail(args.id);
     await requestBrowserbase(toApiOptions(flags), `/v1/contexts/${id}`, {
       method: "DELETE",
       headers: {

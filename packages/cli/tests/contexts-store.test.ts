@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  closeContextNameMatches,
   contextsStorePath,
   getContextAlias,
   isValidContextName,
@@ -13,6 +14,7 @@ import {
   removeContextAlias,
   removeContextAliasesById,
   resolveContextRef,
+  resolveContextRefDetailed,
   saveContextAlias,
 } from "../src/lib/cloud/contexts-store.js";
 
@@ -197,5 +199,46 @@ describe("contexts store", () => {
   it("treats a corrupt store file as empty rather than throwing", async () => {
     await writeFile(contextsStorePath(env), "{ not json", "utf8");
     expect(await listContextAliases(env)).toEqual([]);
+  });
+});
+
+describe("resolveContextRefDetailed", () => {
+  it("resolves a saved name to its id with no suggestions", async () => {
+    await saveContextAlias(
+      "github",
+      { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
+    expect(await resolveContextRefDetailed("github", env)).toEqual({
+      id: "ctx_g",
+      suggestions: [],
+    });
+  });
+
+  it("passes an id-shaped (UUID) ref through with no suggestions", async () => {
+    const uuid = "45ed525f-63a5-490d-b4c4-853f50643b90";
+    expect(await resolveContextRefDetailed(uuid, env)).toEqual({
+      id: uuid,
+      suggestions: [],
+    });
+  });
+
+  it("returns id=null and a did-you-mean suggestion for a typo'd name", async () => {
+    await saveContextAlias(
+      "my-login",
+      { id: "ctx_l", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
+    const res = await resolveContextRefDetailed("my-loginn", env);
+    expect(res.id).toBeNull();
+    expect(res.suggestions).toContain("my-login");
+  });
+});
+
+describe("closeContextNameMatches", () => {
+  it("ranks near matches first and ignores far-off names", () => {
+    const names = ["github", "gitlab", "production", "staging"];
+    expect(closeContextNameMatches("gthub", names)).toEqual(["github"]);
+    expect(closeContextNameMatches("zzzzzzzz", names)).toEqual([]);
   });
 });

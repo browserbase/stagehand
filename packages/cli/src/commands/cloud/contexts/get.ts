@@ -5,7 +5,7 @@ import {
   outputJson,
   withBrowserbaseApi,
 } from "../../../lib/cloud/api.js";
-import { resolveContextRef } from "../../../lib/cloud/contexts-store.js";
+import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../../base.js";
 
@@ -28,7 +28,7 @@ export default class ContextsGet extends BrowseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(ContextsGet);
-    const id = await resolveContextRef(args.id);
+    const id = await resolveContextRefOrFail(args.id);
     await withBrowserbaseApi("contexts", async () => {
       const client = createBrowserbaseClient(toApiOptions(flags));
       outputJson(await client.contexts.retrieve(id));
