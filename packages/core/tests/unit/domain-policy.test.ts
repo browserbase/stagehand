@@ -220,6 +220,42 @@ describe("domain policy helpers", () => {
     );
   });
 
+  it("treats null, empty objects, and empty arrays as disabled policies", () => {
+    expect(normalizeDomainPolicy(null)).toBeNull();
+    expect(normalizeDomainPolicy({})).toBeNull();
+    expect(normalizeDomainPolicy({ allowedDomains: [] })).toBeNull();
+    expect(normalizeDomainPolicy({ blockedDomains: [] })).toBeNull();
+    expect(
+      normalizeDomainPolicy({ allowedDomains: [], blockedDomains: [] }),
+    ).toBeNull();
+  });
+
+  it("rejects omitted policy and non-array domain fields", () => {
+    expect(() => normalizeDomainPolicy(undefined)).toThrow(
+      StagehandInvalidArgumentError,
+    );
+    expect(() =>
+      normalizeDomainPolicy({
+        allowedDomains: "example.com" as unknown as string[],
+      }),
+    ).toThrow(StagehandInvalidArgumentError);
+    expect(() =>
+      normalizeDomainPolicy({
+        allowedDomains: new Set(["example.com"]) as unknown as string[],
+      }),
+    ).toThrow(StagehandInvalidArgumentError);
+    expect(() =>
+      normalizeDomainPolicy({
+        blockedDomains: "ads.example.com" as unknown as string[],
+      }),
+    ).toThrow(StagehandInvalidArgumentError);
+    expect(() =>
+      normalizeDomainPolicy({
+        blockedDomains: new Set(["ads.example.com"]) as unknown as string[],
+      }),
+    ).toThrow(StagehandInvalidArgumentError);
+  });
+
   it("rejects invalid blocked domain patterns", () => {
     expect(() =>
       normalizeDomainPolicy({ blockedDomains: ["https://example.com"] }),

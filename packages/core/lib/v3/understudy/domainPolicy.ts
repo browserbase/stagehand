@@ -20,6 +20,7 @@ export type DomainPolicyDecision =
 
 const DOMAIN_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const HTTP_SCHEMES = ["http", "https"] as const;
+type DomainPolicyKey = "allowedDomains" | "blockedDomains";
 
 function canonicalizeHostname(hostname: string): string {
   return hostname.toLowerCase().replace(/\.+$/, "");
@@ -101,7 +102,7 @@ function normalizeDomainPattern(
 
 function normalizeDomainPatterns(
   patterns: unknown[] | undefined,
-  kind: "allowedDomains" | "blockedDomains",
+  kind: DomainPolicyKey,
 ): DomainRule[] {
   if (!patterns?.length) return [];
 
@@ -112,6 +113,34 @@ function normalizeDomainPatterns(
   }
 
   return Array.from(rulesByKey.values());
+}
+
+function getDomainPatterns(
+  policy: DomainPolicy | null | undefined,
+  key: DomainPolicyKey,
+): string[] {
+  if (policy === null) return [];
+
+  // Passing undefined usually means the caller accidentally omitted the policy
+  // argument or passed through an unset variable. Clearing must be explicit.
+  if (policy === undefined) {
+    throw new StagehandInvalidArgumentError(
+      "Domain policy must be an object or null",
+    );
+  }
+
+  const patterns = policy[key];
+  if (patterns === undefined) return [];
+
+  // Empty arrays intentionally clear that side of the policy, but malformed
+  // runtime values should fail fast rather than silently disabling interception.
+  if (!Array.isArray(patterns)) {
+    throw new StagehandInvalidArgumentError(
+      `${key} must be an array of strings`,
+    );
+  }
+
+  return patterns;
 }
 
 function patternHost(rule: DomainRule): string {
@@ -154,18 +183,19 @@ function toAllowlistFetchPatterns(): Protocol.Fetch.RequestPattern[] {
 }
 
 export function normalizeDomainPolicy(
-  policy: DomainPolicy | null,
+  policy: DomainPolicy | null | undefined,
 ): NormalizedDomainPolicy | null {
-  if (!policy?.allowedDomains?.length && !policy?.blockedDomains?.length) {
-    return null;
-  }
+  const allowedDomains = getDomainPatterns(policy, "allowedDomains");
+  const blockedDomains = getDomainPatterns(policy, "blockedDomains");
+
+  if (!allowedDomains.length && !blockedDomains.length) return null;
 
   const allowedDomainRules = normalizeDomainPatterns(
-    policy.allowedDomains,
+    allowedDomains,
     "allowedDomains",
   );
   const blockedDomainRules = normalizeDomainPatterns(
-    policy.blockedDomains,
+    blockedDomains,
     "blockedDomains",
   );
 
