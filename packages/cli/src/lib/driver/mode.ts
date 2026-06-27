@@ -55,6 +55,15 @@ export function shouldDefaultHeaded(): boolean {
   return true;
 }
 
+/**
+ * Best-effort check for whether a GUI can be shown. On Linux we read the X11 /
+ * Wayland display vars, which is the canonical signal. macOS/Windows have no
+ * such env var, so we assume a display is present — this is right for the
+ * overwhelming common case (a dev on a laptop) but can be a false positive for
+ * a human SSH'd into a headless macOS/Windows box with no console session,
+ * where headed Chrome may fail to launch. That case is rare and recoverable
+ * with an explicit `--headless`; if it shows up in telemetry we can revisit.
+ */
 export function hasDisplay(): boolean {
   if (process.platform === "darwin" || process.platform === "win32")
     return true;
