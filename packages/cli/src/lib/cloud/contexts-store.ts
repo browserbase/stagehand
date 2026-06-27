@@ -1,3 +1,4 @@
+import { distance } from "fastest-levenshtein";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
@@ -29,7 +30,6 @@ const CONTEXT_ID_PATTERN =
 export interface ContextAlias {
   id: string;
   createdAt: string;
-  projectId?: string;
 }
 
 export type ContextAliasEntry = ContextAlias & { name: string };
@@ -124,9 +124,6 @@ function sanitizeContexts(raw: unknown): Record<string, ContextAlias> {
     result[name] = {
       id: entry.id,
       createdAt: typeof entry.createdAt === "string" ? entry.createdAt : "",
-      ...(typeof entry.projectId === "string"
-        ? { projectId: entry.projectId }
-        : {}),
     };
   }
   return result;
@@ -227,4 +224,54 @@ export async function resolveContextRef(
 ): Promise<string> {
   const alias = await getContextAlias(ref, env);
   return alias ? alias.id : ref;
+}
+
+export interface ContextRefResolution {
+  /** The resolved context id, or null when `ref` is an unknown name. */
+  id: string | null;
+  /** Saved names closest to `ref`, for a "did you mean?" hint. */
+  suggestions: string[];
+}
+
+/**
+ * Like `resolveContextRef`, but distinguishes "this is an unknown name" from a
+ * real id so callers can show a friendly error instead of letting a typo'd name
+ * hit the API as a bogus id. A ref resolves when it matches a saved name or is
+ * shaped like a context id (UUID); anything else returns `id: null` plus the
+ * closest saved names.
+ */
+export async function resolveContextRefDetailed(
+  ref: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ContextRefResolution> {
+  const store = await readStore(env);
+  const alias = store.contexts[ref];
+  if (alias) {
+    return { id: alias.id, suggestions: [] };
+  }
+  if (looksLikeContextId(ref)) {
+    return { id: ref, suggestions: [] };
+  }
+  return {
+    id: null,
+    suggestions: closeContextNameMatches(ref, Object.keys(store.contexts)),
+  };
+}
+
+/**
+ * Saved names within a small edit distance of `ref`, nearest first, for typo
+ * hints. The threshold scales with name length so short names aren't matched too
+ * loosely.
+ */
+export function closeContextNameMatches(
+  ref: string,
+  names: string[],
+  limit = 3,
+): string[] {
+  return names
+    .map((name) => ({ name, d: distance(ref, name) }))
+    .filter(({ name, d }) => d <= Math.max(2, Math.floor(name.length / 3)))
+    .sort((a, b) => a.d - b.d || a.name.localeCompare(b.name))
+    .slice(0, limit)
+    .map((match) => match.name);
 }

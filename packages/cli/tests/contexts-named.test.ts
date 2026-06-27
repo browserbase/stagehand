@@ -134,6 +134,37 @@ describe("named contexts (end to end through the CLI)", () => {
     }
   });
 
+  it("fails with a did-you-mean hint for a typo'd name, without calling the API", async () => {
+    const server = await startFakeBrowserbaseServer((request, response) => {
+      if (request.method === "POST" && pathOf(request) === "/v1/contexts") {
+        jsonResponse(response, 200, { id: CONTEXT_ID });
+        return;
+      }
+      jsonResponse(response, 200, {});
+    });
+    const env = {
+      BROWSERBASE_CONFIG_DIR: configDir,
+      BROWSERBASE_API_KEY: "test-key",
+      BROWSERBASE_BASE_URL: server.baseUrl,
+    };
+    try {
+      await runCli(["cloud", "contexts", "create", "--name", "github"], {
+        env,
+      });
+
+      const result = await runCli(["cloud", "contexts", "get", "githubb"], {
+        env,
+      });
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain('No saved context named "githubb"');
+      expect(result.stderr).toContain("Did you mean: github");
+      // The typo never reached the API as a bogus id.
+      expect(server.requests.some((r) => r.method === "GET")).toBe(false);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("rejects an invalid context name without calling the API", async () => {
     const server = await startFakeBrowserbaseServer((_request, response) => {
       jsonResponse(response, 200, { id: CONTEXT_ID });

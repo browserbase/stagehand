@@ -7,7 +7,7 @@ import {
   resolveBody,
   withBrowserbaseApi,
 } from "../../../lib/cloud/api.js";
-import { resolveContextRef } from "../../../lib/cloud/contexts-store.js";
+import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { fail } from "../../../lib/errors.js";
 import {
@@ -214,10 +214,10 @@ export default class SessionsCreate extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(SessionsCreate);
-    // Allow --context-id to be a locally-saved name; resolve it to a real id
-    // (unknown values pass through unchanged so raw ids still work).
+    // Allow --context-id to be a locally-saved name; resolve it to a real id.
+    // A context id passes through; an unknown name fails with a helpful message.
     if (flags["context-id"]) {
-      flags["context-id"] = await resolveContextRef(flags["context-id"]);
+      flags["context-id"] = await resolveContextRefOrFail(flags["context-id"]);
     }
     await withBrowserbaseApi("sessions", async () => {
       const client = createBrowserbaseClient(toApiOptions(flags));
