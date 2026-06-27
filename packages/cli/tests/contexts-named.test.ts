@@ -89,9 +89,9 @@ describe("named contexts (end to end through the CLI)", () => {
         env,
       });
       expect(listed.exitCode).toBe(0);
-      expect(JSON.parse(listed.stdout)).toEqual([
-        expect.objectContaining({ name: "github", id: CONTEXT_ID }),
-      ]);
+      expect(JSON.parse(listed.stdout)).toEqual({
+        contexts: [expect.objectContaining({ name: "github", id: CONTEXT_ID })],
+      });
 
       // 3. sessions create --context-id <name> sends the resolved id.
       const session = await runCli(

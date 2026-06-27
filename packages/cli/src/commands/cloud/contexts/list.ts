@@ -14,7 +14,7 @@ import {
 
 export default class ContextsList extends BrowseCommand {
   static override description =
-    "List contexts you have saved locally with a name (Browserbase has no server-side context list, so this reflects names saved on this device).";
+    "List Browserbase contexts you have saved locally with a name.";
   static override examples = [
     "browse cloud contexts list",
     "browse cloud contexts list --json",
@@ -29,7 +29,9 @@ export default class ContextsList extends BrowseCommand {
     const contexts = await listContextAliases();
 
     if (resolveOutputFormat(flags) === "json") {
-      outputJson(contexts);
+      // Wrap in a named key to match `templates list` / `skills list` so the
+      // JSON shape is consistent and machine-readable across list commands.
+      outputJson({ contexts });
       return;
     }
 
