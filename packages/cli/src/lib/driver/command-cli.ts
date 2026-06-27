@@ -22,6 +22,7 @@ import {
   type DriverModeFlags,
 } from "./mode.js";
 import type { ConnectionTarget } from "./types.js";
+import { tryAppendMacroStepIfRecording } from "../macro/recording.js";
 import { outputJson } from "../output.js";
 import { runDriverCommandWithTarget } from "./runtime.js";
 
@@ -70,9 +71,14 @@ export async function runDriverCommandFromFlags(
 ): Promise<void> {
   const session = sessionName(flags.session);
   const target = await resolveTargetForCommand(session, flags);
-  outputJson(
-    await runDriverCommandWithTarget(session, target, command, params),
+  const result = await runDriverCommandWithTarget(
+    session,
+    target,
+    command,
+    params,
   );
+  outputJson(result);
+  await tryAppendMacroStepIfRecording(command, params);
 }
 
 export async function resolveTargetForCommand(
