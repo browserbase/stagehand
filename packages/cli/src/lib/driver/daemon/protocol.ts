@@ -4,6 +4,9 @@ import { DriverCommandNameSchema } from "../commands/types.js";
 
 const RequestBaseSchema = z.object({
   id: z.string().min(1),
+  // Credentials forwarded from the caller's env so a key set after the daemon
+  // started is still honored. See ./credentials.ts.
+  credentials: z.record(z.string(), z.string()).optional(),
 });
 
 export const OpenRequestSchema = RequestBaseSchema.extend({

@@ -7,6 +7,10 @@ import {
 } from "./commands/selectors.js";
 import { executeDriverCommand } from "./commands/registry.js";
 import type { DriverCommandName } from "./commands/types.js";
+import {
+  credentialSignature,
+  type ForwardedCredentials,
+} from "./daemon/credentials.js";
 import { DriverError } from "./errors.js";
 import { discoverLocalCdp } from "./local-cdp-discovery.js";
 import { NetworkCapture } from "./network-capture.js";
@@ -66,6 +70,8 @@ export class DriverSessionManager {
 
   private consecutiveInitFailures = 0;
   private context: DriverContext | null = null;
+  private lastCredentialSignature: string | null = null;
+  private pendingCredentials: ForwardedCredentials | undefined;
   private initFailure: InitFailure | null = null;
   private initPromise: Promise<void> | null = null;
   private refMaps: RefMaps = emptyRefMaps();
@@ -88,6 +94,36 @@ export class DriverSessionManager {
     params?: unknown,
   ): Promise<unknown> {
     return executeDriverCommand(this, command, params);
+  }
+
+  /**
+   * Apply credentials forwarded by the client (e.g. an inline or exported API
+   * key set after the daemon started). Honoring a late key without a manual
+   * restart is the whole point of forwarding.
+   *
+   * The credentials are stashed for the next `init()`, which threads them
+   * straight into the Stagehand constructor — never into `process.env` — so the
+   * key's only home is the live session. A live, already-initialized session
+   * keeps its existing browser (credentials only matter at init), so the
+   * warm-daemon fast path is untouched. When the credentials change *before* a
+   * successful init (the common case: a first key-less `open` failed, then a
+   * key is supplied), clear the cached init failure and backoff so the retry
+   * runs immediately with the new key instead of replaying the stale
+   * missing-key error.
+   */
+  applyForwardedCredentials(
+    credentials: ForwardedCredentials | undefined,
+  ): void {
+    // Keep the caller's latest credentials available to the next init.
+    this.pendingCredentials = credentials;
+
+    const signature = credentialSignature(credentials);
+    if (signature === this.lastCredentialSignature) return;
+    this.lastCredentialSignature = signature;
+
+    if (this.stagehand && this.context) return;
+    this.initFailure = null;
+    this.consecutiveInitFailures = 0;
   }
 
   async activePage(): Promise<DriverPage> {
@@ -339,7 +375,9 @@ export class DriverSessionManager {
     target: ConnectionTarget,
   ): Promise<ConstructorParameters<typeof Stagehand>[0]> {
     if (target.kind === "remote") {
-      return await (await getRemote()).remoteStagehandOptions();
+      return await (
+        await getRemote()
+      ).remoteStagehandOptions(this.pendingCredentials);
     }
 
     if (target.kind === "managed-local") {

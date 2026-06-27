@@ -1,5 +1,6 @@
 import type { Stagehand } from "@browserbasehq/stagehand";
 
+import type { ForwardedCredentials } from "./daemon/credentials.js";
 import type { DriverModeFlags } from "./mode.js";
 import type { ConnectionTarget } from "./types.js";
 
@@ -42,8 +43,20 @@ export interface RemoteCapability {
   resolveExplicitRemoteTarget(flags: DriverModeFlags): ConnectionTarget;
   /** Auto-select remote when an API key is present; null otherwise. */
   autoSelectRemoteTarget(): ConnectionTarget | null;
-  /** Stagehand options for a remote (BROWSERBASE) session. */
-  remoteStagehandOptions(): Promise<StagehandConstructorOptions>;
+  /**
+   * Env var names the client forwards to a running daemon (e.g. the API key)
+   * so a key set after the daemon started is honored. Empty in the local-only
+   * build, which never reaches the cloud.
+   */
+  forwardedCredentialKeys(): readonly string[];
+  /**
+   * Stagehand options for a remote (BROWSERBASE) session. Forwarded
+   * credentials (if any) are threaded into the constructor here so a key set
+   * after the daemon started is honored without touching `process.env`.
+   */
+  remoteStagehandOptions(
+    credentials?: ForwardedCredentials,
+  ): Promise<StagehandConstructorOptions>;
   /** Map a failed remote `stagehand.init()` to an actionable message + code. */
   classifyRemoteInitError(error: unknown): RemoteInitErrorClassification;
   /** Remediation strings for driver init failures. */
