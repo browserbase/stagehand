@@ -942,6 +942,30 @@ The following models work without the `provider/` prefix in the model parameter 
 ## Troubleshooting
 
 <AccordionGroup>
+<Accordion title="Error: modelApiKey is required (custom LLM clients)">
+**Error:** `StagehandAPIError: modelApiKey is required`
+
+This error occurred in earlier versions when using a custom `llmClient` (e.g. AWS Bedrock) with `env: "BROWSERBASE"`. As of `@browserbasehq/stagehand@3.4.0`, `modelApiKey` is optional — custom LLM clients handle their own authentication and no longer require an API key to be passed to Stagehand.
+
+**Solution:** Upgrade to `3.4.0` or later. No other changes are needed — your existing `llmClient` configuration works as-is:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  llmClient: new AISdkClient({
+    model: bedrock("anthropic.claude-3-5-sonnet-20240620-v1:0"),
+  }),
+  // No modelApiKey needed
+});
+```
+
+If you are on an older version and cannot upgrade, pass a dummy value as a temporary workaround:
+
+```typescript
+modelClientOptions: { apiKey: "placeholder" }
+```
+</Accordion>
+
 <Accordion title="Error: API key not found">
 **Error:** `API key not found`
 
