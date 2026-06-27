@@ -135,6 +135,9 @@ describe("contexts store", () => {
           noId: { createdAt: "2026-01-01T00:00:00.000Z" },
           badId: { id: 123 },
           notObject: "nope",
+          // An id-shaped key must be dropped too, so a hand-edited file can't
+          // smuggle in a name that shadows a raw context id.
+          "45ed525f-63a5-490d-b4c4-853f50643b90": { id: "ctx_shadow" },
         },
       }),
       "utf8",
@@ -145,6 +148,10 @@ describe("contexts store", () => {
     ]);
     expect(await getContextAlias("noId", env)).toBeUndefined();
     expect(await resolveContextRef("badId", env)).toBe("badId");
+    // The id-shaped key was dropped, so resolving that UUID passes through.
+    expect(
+      await resolveContextRef("45ed525f-63a5-490d-b4c4-853f50643b90", env),
+    ).toBe("45ed525f-63a5-490d-b4c4-853f50643b90");
   });
 
   it("resolves a saved name to its id and passes unknown refs through", async () => {
