@@ -19,6 +19,10 @@ import { prepareClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
 import { runCodexAgent } from "./codexRunner.js";
 import { prepareCodexToolAdapter } from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { prepareClawBenchRuntime } from "../clawbench/runtime.js";
+import { loadClawBenchModelConfig } from "../clawbench/modelConfig.js";
+import { getClawBenchLanguageModel } from "../clawbench/languageModel.js";
+import type { ClawBenchRunParams } from "../clawbench/types.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
 
@@ -80,6 +84,20 @@ function resolveProvider(modelName: AvailableModel): string | undefined {
   }
 }
 
+function createClawBenchLlmClient(modelName: string): LLMClient {
+  const modelConfig = loadClawBenchModelConfig(modelName);
+
+  return new AISdkClientWrapped({
+    model: getClawBenchLanguageModel(modelConfig),
+    clientOptions: {
+      apiKey: modelConfig.api_key,
+      baseURL: modelConfig.base_url,
+      reasoningEffort: modelConfig.thinking_level,
+      temperature: modelConfig.temperature,
+    },
+  });
+}
+
 export const stagehandHarness: BenchHarness = {
   harness: "stagehand",
   supportedTaskKinds: [
@@ -99,85 +117,128 @@ export const stagehandHarness: BenchHarness = {
     verbose,
   }: BenchHarnessStartInput): Promise<StartedBenchHarness> {
     let v3Result: V3InitResult | undefined;
-    const createAgent = isAgentTask(task);
+    const isClawBenchTask = task.name === "agent/clawbench";
+    const createAgent = isAgentTask(task) && !isClawBenchTask;
     if (row.config.harness !== "stagehand") {
       throw new EvalsError(
         `Harness "${row.config.harness}" is not implemented yet. Use --harness stagehand for the current unified runner.`,
       );
     }
     const config = row.config;
-    const agentMode = config.agentMode ?? input.agentMode;
-    const isCUA = config.isCUA ?? input.isCUA;
-
-    if (config.useApi) {
-      const provider = resolveProvider(input.modelName);
-      const logFn = (line: LogLine) => logger.log(line);
-      const apiKey = loadApiKeyFromEnv(provider, logFn);
-      if (!apiKey) {
-        throw new EvalsError(
-          `USE_API=true but no API key found for provider "${provider}".`,
-        );
-      }
-      const { initV3 } = await import("../initV3.js");
-      v3Result = await initV3({
-        logger,
-        modelName: input.modelName,
-        modelClientOptions: { apiKey },
-        createAgent,
-        agentMode,
-        isCUA,
-        verbose,
-        configOverrides: { env: config.environment },
-      });
-    } else {
-      let llmClient: LLMClient | undefined;
-      if (input.modelName.includes("/")) {
-        const firstSlashIndex = input.modelName.indexOf("/");
-        llmClient = new AISdkClientWrapped({
-          model: getAISDKLanguageModel(
-            input.modelName.substring(0, firstSlashIndex),
-            input.modelName.substring(firstSlashIndex + 1),
-          ),
-        });
-      }
-      const { initV3 } = await import("../initV3.js");
-      v3Result = await initV3({
-        logger,
-        llmClient,
-        modelName: input.modelName,
-        createAgent,
-        agentMode,
-        isCUA,
-        verbose,
-        configOverrides: { env: config.environment },
-      });
+    if (isClawBenchTask && config.environment !== "LOCAL") {
+      throw new EvalsError(
+        "ClawBench native runs currently support LOCAL only. Use --env local.",
+      );
+    }
+    if (isClawBenchTask && config.useApi) {
+      throw new EvalsError(
+        "ClawBench native runs do not support --api; they require local Chrome with the ClawBench recorder extension.",
+      );
     }
 
-    return {
-      ctx: {
-        harness: "stagehand",
-        row,
-        logger,
-        v3: v3Result.v3,
-        agent: v3Result.agent,
-        page: v3Result.v3.context.pages()[0],
-        debugUrl: v3Result.debugUrl ?? "",
-        sessionUrl: v3Result.sessionUrl ?? "",
-      },
-      cleanup: async () => {
-        if (v3Result?.v3) {
-          try {
-            await v3Result.v3.close();
-          } catch (closeError) {
-            console.error(
-              `Warning: Error closing V3 instance for ${input.name}:`,
-              closeError,
-            );
-          }
+    let clawbenchRuntime:
+      | Awaited<ReturnType<typeof prepareClawBenchRuntime>>
+      | undefined;
+
+    try {
+      clawbenchRuntime = isClawBenchTask
+        ? await prepareClawBenchRuntime(
+            input.params as unknown as ClawBenchRunParams,
+          )
+        : undefined;
+      if (clawbenchRuntime && input.params) {
+        (input.params as Record<string, unknown>)._clawbenchRuntime =
+          clawbenchRuntime;
+      }
+      const clawbenchLlmClient = isClawBenchTask
+        ? createClawBenchLlmClient(String(input.modelName))
+        : undefined;
+      const initModelName = input.modelName;
+      const agentMode = config.agentMode ?? input.agentMode;
+      const isCUA = config.isCUA ?? input.isCUA;
+
+      if (config.useApi) {
+        const provider = resolveProvider(input.modelName);
+        const logFn = (line: LogLine) => logger.log(line);
+        const apiKey = loadApiKeyFromEnv(provider, logFn);
+        if (!apiKey) {
+          throw new EvalsError(
+            `USE_API=true but no API key found for provider "${provider}".`,
+          );
         }
-        await endBrowserbaseSession(v3Result?.v3);
-      },
-    };
+        const { initV3 } = await import("../initV3.js");
+        v3Result = await initV3({
+          logger,
+          modelName: initModelName,
+          modelClientOptions: { apiKey },
+          createAgent,
+          agentMode,
+          isCUA,
+          verbose,
+          configOverrides: { env: config.environment },
+        });
+      } else {
+        let llmClient: LLMClient | undefined = clawbenchLlmClient;
+        if (!llmClient && input.modelName.includes("/")) {
+          const firstSlashIndex = input.modelName.indexOf("/");
+          llmClient = new AISdkClientWrapped({
+            model: getAISDKLanguageModel(
+              input.modelName.substring(0, firstSlashIndex),
+              input.modelName.substring(firstSlashIndex + 1),
+            ),
+          });
+        }
+        const { initV3 } = await import("../initV3.js");
+        v3Result = await initV3({
+          logger,
+          llmClient,
+          modelName: initModelName,
+          createAgent,
+          agentMode,
+          isCUA,
+          verbose,
+          configOverrides: {
+            env: config.environment,
+            localBrowserLaunchOptions: clawbenchRuntime?.launchOptions,
+            experimental: Boolean(clawbenchRuntime),
+          },
+        });
+      }
+
+      if (clawbenchRuntime) {
+        await clawbenchRuntime.startCdpInterceptor();
+      }
+
+      return {
+        ctx: {
+          harness: "stagehand",
+          row,
+          logger,
+          v3: v3Result.v3,
+          agent: v3Result.agent,
+          page: v3Result.v3.context.pages()[0],
+          debugUrl: v3Result.debugUrl ?? "",
+          sessionUrl: v3Result.sessionUrl ?? "",
+        },
+        cleanup: async () => {
+          if (v3Result?.v3) {
+            try {
+              await v3Result.v3.close();
+            } catch (closeError) {
+              console.error(
+                `Warning: Error closing V3 instance for ${input.name}:`,
+                closeError,
+              );
+            }
+          }
+          await clawbenchRuntime?.stop();
+          await endBrowserbaseSession(v3Result?.v3);
+        },
+      };
+    } catch (error) {
+      await clawbenchRuntime?.stop();
+      throw error;
+    }
   },
 };
 

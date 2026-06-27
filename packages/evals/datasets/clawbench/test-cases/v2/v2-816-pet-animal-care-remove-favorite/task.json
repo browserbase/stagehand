@@ -1,0 +1,28 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 816,
+    "metaclass": "pet-animal-care",
+    "class": "pet-unfavorite",
+    "description": "Search for adoptable cats near ZIP 90210, open the first result, favorite it, then unfavorite it — verifying the RemoveAnimalFavorite mutation fires.",
+    "sites_involved": [
+      "petfinder.com"
+    ],
+    "platform": "petfinder",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On Petfinder, search for adoptable cats near ZIP code 90210, open the profile of the first result, save it as a favorite, and then immediately remove it from your favorites by clicking the heart icon again.",
+  "eval_schema": {
+    "url_pattern": "psl\\.petfinder\\.com/graphql",
+    "method": "POST",
+    "body": {
+      "operationName": "RemoveAnimalFavorite"
+    }
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

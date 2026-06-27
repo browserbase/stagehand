@@ -1,0 +1,28 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 902,
+    "metaclass": "entertainment",
+    "class": "title-rate",
+    "description": "Navigate to Interstellar (2014) on IMDb, click Rate, select 9 stars, and submit — verifying the UpdateTitleRating mutation fires with rating=9.",
+    "sites_involved": [
+      "imdb.com"
+    ],
+    "platform": "imdb",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On IMDb, open the title page for 'Interstellar' (2014) and give it a rating of 9 out of 10 stars using the Rate button. You will need to be signed in.",
+  "eval_schema": {
+    "url_pattern": "api\\.graphql\\.imdb\\.com",
+    "method": "POST",
+    "body": {
+      "operationName": "UpdateTitleRating"
+    }
+  },
+  "time_limit": 25,
+  "extra_info": []
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1108,
+    "metaclass": "civic-engagement",
+    "class": "petition",
+    "description": "Start a petition on Change.org to install more bike lanes on Market Street in San Francisco",
+    "sites_involved": [
+      "change.org"
+    ],
+    "platform": "change",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Start a petition on Change.org to install more bike lanes on Market Street in San Francisco",
+  "eval_schema": {
+    "url_pattern": "change\\.org/api-proxy/graphql.*op=GenerateAiDraft|change\\.org/api-proxy/graphql.*op=CreatePetition|change\\.org/api-proxy/graphql.*op=SAPCreatePetition",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 284,
+    "metaclass": "office-secretary-tasks",
+    "class": "calendar",
+    "description": "Use When2meet to schedule a 90-minute Strategy Session with 3 attendees",
+    "sites_involved": [
+      "when2meet.com"
+    ],
+    "platform": "when2meet",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Use When2meet to schedule a 90-minute Strategy Session with 3 attendees",
+  "eval_schema": {
+    "url_pattern": "when2meet\\.com/(SaveNewEvent|SaveTimes|api)",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

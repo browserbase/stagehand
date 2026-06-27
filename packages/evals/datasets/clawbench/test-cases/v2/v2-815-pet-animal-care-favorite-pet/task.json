@@ -1,0 +1,28 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 815,
+    "metaclass": "pet-animal-care",
+    "class": "pet-favorite",
+    "description": "Search for adoptable dogs near ZIP 10001, open the first result's profile, and click the heart icon to save it as a favorite (requires login).",
+    "sites_involved": [
+      "petfinder.com"
+    ],
+    "platform": "petfinder",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On Petfinder, search for adoptable dogs near ZIP code 10001, open the profile of the first dog listed, and save it as a favorite by clicking the heart icon. You will need to sign in or create an account to complete this action.",
+  "eval_schema": {
+    "url_pattern": "psl\\.petfinder\\.com/graphql",
+    "method": "POST",
+    "body": {
+      "operationName": "CreateAnimalFavorite"
+    }
+  },
+  "time_limit": 25,
+  "extra_info": []
+}

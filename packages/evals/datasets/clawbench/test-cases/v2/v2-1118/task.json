@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1118,
+    "metaclass": "web_task",
+    "class": "registration",
+    "description": "Register for 2 free tickets to a Latin food festival in Chicago on Eventbrite",
+    "sites_involved": [
+      "https://www.eventbrite.com"
+    ],
+    "platform": "Eventbrite",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Find the 'Sazón Latin Food Festival 2026: Chicago's Taste of Latin American Food' on Eventbrite and register for 2 General Admission tickets.\n\nNote: The event is free and takes place on Sunday, June 14, 2026, 12 PM – 5 PM at KOVAL Store, Chicago, IL. Event URL: https://www.eventbrite.com/e/sazon-latin-food-festival-2026-chicagos-taste-of-latin-american-food-tickets-1980904085444",
+  "eval_schema": {
+    "url_pattern": "eventbrite\\.com/purchase-flow-webapp/api/v\\d+/orders/create",
+    "method": "POST"
+  },
+  "time_limit": 120,
+  "extra_info": []
+}

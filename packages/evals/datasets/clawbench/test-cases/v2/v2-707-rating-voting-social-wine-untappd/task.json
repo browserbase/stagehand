@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 707,
+    "metaclass": "rating-voting",
+    "class": "social-wine",
+    "description": "Check in an IPA on Untappd with the highest star rating, and check out",
+    "sites_involved": [
+      "untappd.com"
+    ],
+    "platform": "untappd",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Check in an IPA on Untappd with the highest star rating, and check out",
+  "eval_schema": {
+    "url_pattern": "^https://untappd\\.com/api/v2/shop/summaries/\\d+",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 904,
+    "metaclass": "entertainment",
+    "class": "list-create",
+    "description": "Go to imdb.com/list/create/, fill in the list name 'My Sci-Fi Favorites', and submit — verifying the ListCreate mutation fires.",
+    "sites_involved": [
+      "imdb.com"
+    ],
+    "platform": "imdb",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On IMDb, navigate to the 'Create a new list' page, enter the name 'My Sci-Fi Favorites', keep the default List Type as 'Titles', set Privacy to 'Private', and click Create.",
+  "eval_schema": {
+    "url_pattern": "api\\.graphql\\.imdb\\.com",
+    "method": "POST",
+    "body": {
+      "operationName": "ListCreate"
+    }
+  },
+  "time_limit": 20,
+  "extra_info": []
+}

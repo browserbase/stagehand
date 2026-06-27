@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 485,
+    "metaclass": "creation-init",
+    "class": "general",
+    "description": "Create a portfolio website project on Webflow",
+    "sites_involved": [
+      "webflow.com"
+    ],
+    "platform": "webflow",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Create a portfolio website project on Webflow",
+  "eval_schema": {
+    "url_pattern": "webflow\\.com/api/workspaces/[^/]+/sites",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

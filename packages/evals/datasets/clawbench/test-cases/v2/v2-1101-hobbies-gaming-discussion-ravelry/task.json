@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1101,
+    "metaclass": "hobbies-gaming",
+    "class": "discussion",
+    "description": "Post a fun discussion topic in 'Sock Knitters' group on Ravelry",
+    "sites_involved": [
+      "ravelry.com"
+    ],
+    "platform": "ravelry",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Post a fun discussion topic in 'Sock Knitters' group on Ravelry",
+  "eval_schema": {
+    "url_pattern": "ravelry\\.com/discuss/[^/]+/topics",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

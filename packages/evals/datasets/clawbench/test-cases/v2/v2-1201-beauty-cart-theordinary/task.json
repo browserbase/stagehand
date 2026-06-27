@@ -1,0 +1,28 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1201,
+    "metaclass": "beauty-personal-care",
+    "class": "cart",
+    "description": "Use the site search to find a retinoid product and add it to cart, testing both the search flow and cart functionality",
+    "sites_involved": [
+      "theordinary.com"
+    ],
+    "platform": "theordinary",
+    "product_urls": [
+      "https://theordinary.com/en-us/granactive-retinoid-2-emulsion-100458.html"
+    ],
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search for 'retinol' on The Ordinary website, then add the Granactive Retinoid 2% Emulsion to the cart",
+  "eval_schema": {
+    "url_pattern": "theordinary\\.com.*Cart-AddProduct",
+    "method": "POST"
+  },
+  "time_limit": 45,
+  "extra_info": []
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 89,
+    "metaclass": "job-search-hr",
+    "class": "cv-autofill",
+    "description": "Use Simplify Jobs to one-click auto-fill the Amazon Applied Scientist application",
+    "sites_involved": [
+      "simplify.jobs"
+    ],
+    "platform": "simplify-jobs",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Use Simplify Jobs to one-click auto-fill the Amazon Applied Scientist application",
+  "eval_schema": {
+    "url_pattern": "api\\.simplify\\.jobs/v2/candidate/me/application",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": [
+    {
+      "path": "extra_info/job_links.json",
+      "description": "Job posting URL(s) to apply to"
+    }
+  ]
+}

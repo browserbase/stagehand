@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 564,
+    "metaclass": "web_task",
+    "class": "registration",
+    "description": "Register for 2 tickets to a free startup pitch night in New York on Eventbrite",
+    "sites_involved": [
+      "https://www.eventbrite.com"
+    ],
+    "platform": "Eventbrite",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search for a free startup pitch night event in New York on Eventbrite and register for 2 tickets.\n\nNote: The event is free. Look for a startup pitch night in New York and register for 2 tickets.",
+  "eval_schema": {
+    "url_pattern": "eventbrite\\.com/purchase-flow-webapp/api/v\\d+/orders/create",
+    "method": "POST"
+  },
+  "time_limit": 120,
+  "extra_info": []
+}

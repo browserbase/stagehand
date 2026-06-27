@@ -1,0 +1,451 @@
+{
+  "identity": {
+    "legal_name": {
+      "first": "Alex",
+      "middle": null,
+      "last": "Green"
+    },
+    "preferred_name": "Alex",
+    "date_of_birth": "1980-May-01",
+    "gender": "Female",
+    "pronouns": "she/her",
+    "nationality": "Canadian",
+    "citizenship": [
+      "Canada"
+    ],
+    "marital_status": "Single",
+    "height_cm": 168,
+    "eye_color": "Brown",
+    "mothers_maiden_name": "Campbell",
+    "security_questions": [
+      {
+        "question": "What was the name of your first pet?",
+        "answer": "Buddy"
+      },
+      {
+        "question": "What street did you grow up on?",
+        "answer": "Spadina Ave"
+      },
+      {
+        "question": "What is your favorite book?",
+        "answer": "Designing Data-Intensive Applications"
+      }
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "proficiency": "Native"
+      },
+      {
+        "language": "French",
+        "proficiency": "Intermediate (B1)"
+      }
+    ]
+  },
+  "contact": {
+    "email": "alex.green.uoft@clawbench.cc"
+  },
+  "address": {
+    "home": {
+      "unit": "1208",
+      "street": "664 Spadina Ave",
+      "city": "Toronto",
+      "province": "Ontario",
+      "postal_code": "M5S 2H7",
+      "country": "Canada",
+      "full": "Unit 1208, 664 Spadina Ave, Toronto, ON M5S 2H7, Canada",
+      "residency_since": "1980-05",
+      "previous_addresses": []
+    },
+    "work": {
+      "street": "200 University Ave, Suite 1700",
+      "city": "Toronto",
+      "province": "Ontario",
+      "postal_code": "M5H 3C6",
+      "country": "Canada"
+    },
+    "mailing_same_as_home": true
+  },
+  "education": [
+    {
+      "degree": "Bachelor of Science",
+      "field": "Computer Science",
+      "university": "University of Toronto",
+      "campus": "St. George",
+      "start_date": "1998-09",
+      "graduation_date": "2002-06",
+      "gpa": "3.6/4.0",
+      "honors": "Dean's List (2001, 2002)",
+      "student_id": "1002345674"
+    },
+    {
+      "degree": "Master of Science",
+      "field": "Computer Science",
+      "university": "University of Toronto",
+      "campus": "St. George",
+      "start_date": "2002-09",
+      "graduation_date": "2004-06",
+      "gpa": "3.8/4.0",
+      "thesis": "Efficient Query Processing in Distributed Database Systems",
+      "student_id": "1002345674"
+    },
+    {
+      "degree": "Doctor of Philosophy",
+      "field": "Computer Science",
+      "university": "University of Toronto",
+      "campus": "St. George",
+      "start_date": "2004-09",
+      "graduation_date": "2010-06",
+      "dissertation": "Scalable Real-Time Data Pipeline Architectures for High-Throughput Transaction Processing",
+      "gpa": "3.9/4.0",
+      "supervisor": "Prof. Eldon Marchetti",
+      "student_id": "1002345674"
+    }
+  ],
+  "work_experience": [
+    {
+      "title": "Senior Software Engineer",
+      "company": "Pinecrest Technologies Inc.",
+      "industry": "Enterprise SaaS",
+      "location": "Toronto, ON",
+      "start_date": "2019-03",
+      "end_date": null,
+      "is_current": true,
+      "salary": {
+        "amount": 145000,
+        "currency": "CAD",
+        "period": "annual"
+      },
+      "responsibilities": [
+        "Lead backend team of 5 engineers building distributed data pipelines for enterprise SaaS platform",
+        "Design and implement RESTful APIs serving 2M+ daily requests with sub-100ms p99 latency",
+        "Mentor junior developers and conduct code reviews, improving team velocity by 30%"
+      ],
+      "supervisor": {
+        "name": "Jordan Peters",
+        "title": "VP Engineering",
+        "email": "jordan.peters@pinecresttech.com"
+      }
+    },
+    {
+      "title": "Software Engineer",
+      "company": "Crestridge Digital Corp.",
+      "industry": "FinTech",
+      "location": "Toronto, ON",
+      "start_date": "2012-06",
+      "end_date": "2019-02",
+      "is_current": false,
+      "responsibilities": [
+        "Developed real-time transaction processing systems handling $50M+ daily volume in FinTech",
+        "Built automated testing frameworks reducing QA cycle by 40%",
+        "Collaborated with product team on mobile banking features serving 500K+ users"
+      ],
+      "reason_for_leaving": "Career growth opportunity"
+    },
+    {
+      "title": "Software Developer",
+      "company": "Cedarbrook Solutions Ltd.",
+      "industry": "IT Consulting",
+      "location": "Toronto, ON",
+      "start_date": "2002-09",
+      "end_date": "2012-05",
+      "is_current": false,
+      "note": "Part-time (20 hrs/week) during MSc (2002-2004) and PhD (2004-2010); transitioned to full-time after PhD completion in 2010",
+      "responsibilities": [
+        "Full-stack web development for enterprise clients across multiple industries",
+        "Database administration and performance optimization for high-traffic applications",
+        "Part-time during graduate studies (2002–2010); full-time from 2010"
+      ],
+      "reason_for_leaving": "Seeking specialization in FinTech"
+    }
+  ],
+  "skills": {
+    "technical": [
+      "Python",
+      "Java",
+      "TypeScript",
+      "Go",
+      "PostgreSQL",
+      "Redis",
+      "AWS",
+      "Docker",
+      "Kubernetes",
+      "Terraform",
+      "CI/CD",
+      "REST API Design",
+      "GraphQL",
+      "React",
+      "Node.js"
+    ],
+    "certifications": [
+      {
+        "name": "AWS Solutions Architect – Associate",
+        "issuer": "Amazon Web Services",
+        "date": "2024-08",
+        "expiry": "2027-08",
+        "id": "4GHKL8N2PQRS7T9V"
+      },
+      {
+        "name": "Certified Kubernetes Administrator – CKA",
+        "issuer": "CNCF",
+        "date": "2025-03",
+        "expiry": "2027-03",
+        "id": "LF-k8s7g4m2n1"
+      }
+    ],
+    "soft_skills": [
+      "Team Leadership",
+      "Technical Mentoring",
+      "Cross-functional Collaboration",
+      "Agile/Scrum"
+    ]
+  },
+  "government_ids": {
+    "sin": "472-345-678",
+    "passport": {
+      "number": "JK456789",
+      "country": "Canada",
+      "issue_date": "2021-05-15",
+      "expiry_date": "2031-05-14",
+      "place_of_birth": {
+        "city": "Toronto",
+        "province": "Ontario",
+        "country": "Canada"
+      },
+      "place_of_birth_full": "Toronto, Ontario, Canada"
+    },
+    "drivers_license": {
+      "number": "G4567-89018-05501",
+      "province": "Ontario",
+      "class": "G",
+      "issue_date": "2025-10-01",
+      "expiry_date": "2030-10-01"
+    },
+    "health_card": {
+      "province": "Ontario",
+      "number": "6789-012-345",
+      "version_code": "JG",
+      "expiry_date": "2027-01-01"
+    }
+  },
+  "financial": {
+    "bank_accounts": [
+      {
+        "institution": "TD Canada Trust",
+        "institution_number": "004",
+        "transit_number": "10202",
+        "account_number": "6781234",
+        "type": "Chequing",
+        "is_primary": true
+      },
+      {
+        "institution": "TD Canada Trust",
+        "institution_number": "004",
+        "transit_number": "10202",
+        "account_number": "6785678",
+        "type": "Savings",
+        "is_primary": false
+      }
+    ],
+    "credit_cards": [
+      {
+        "issuer": "TD",
+        "type": "TD Aeroplan Visa Infinite",
+        "number": "4519873424604532",
+        "number_formatted": "4519 8734 2460 4532",
+        "expiry": "2028-09",
+        "expiry_formatted": "09/28",
+        "cvv": "847",
+        "cardholder_name": "ALEX GREEN",
+        "billing_address_same_as_home": true
+      },
+      {
+        "issuer": "CIBC",
+        "type": "CIBC Aventura Visa",
+        "number": "4732001596738901",
+        "number_formatted": "4732 0015 9673 8901",
+        "expiry": "2027-04",
+        "expiry_formatted": "04/27",
+        "cvv": "263",
+        "cardholder_name": "ALEX GREEN",
+        "billing_address_same_as_home": true
+      }
+    ],
+    "annual_income_cad": 145000,
+    "tax_filing_status": "Single",
+    "rrsp_contribution_room": 42000,
+    "tfsa_contribution_room": 64000,
+    "investment_accounts": [
+      {
+        "platform": "Wealthsimple",
+        "account_type": "TFSA",
+        "balance_approx": 45000
+      },
+      {
+        "platform": "Wealthsimple",
+        "account_type": "Personal (Non-registered)",
+        "balance_approx": 22000
+      },
+      {
+        "platform": "Questrade",
+        "account_type": "RRSP",
+        "balance_approx": 120000
+      }
+    ],
+    "investment_profile": {
+      "knowledge_level": "Advanced",
+      "investment_objectives": "Long-term growth",
+      "risk_tolerance": "Medium-High",
+      "time_horizon": "10+ years",
+      "employment_status": "Employed",
+      "years_investing": 15
+    },
+    "net_worth_range": "500K-1M",
+    "liquid_assets_range": "100K-250K"
+  },
+  "insurance": {
+    "health": {
+      "provider": "OHIP (Ontario Health Insurance Plan)",
+      "number": "6789-012-345",
+      "supplementary": {
+        "provider": "Sun Life (via employer)",
+        "group_number": "502341",
+        "member_id": "12345-A",
+        "coverage": [
+          "Dental",
+          "Vision",
+          "Prescription",
+          "Paramedical"
+        ]
+      }
+    },
+    "auto": {
+      "provider": "Aviva Canada",
+      "policy_number": "W20247890",
+      "coverage_type": "Comprehensive",
+      "deductible": 500,
+      "expiry": "2026-07-01"
+    },
+    "home_tenant": {
+      "provider": "Square One Insurance",
+      "policy_number": "SQ1-T-2025-34567",
+      "type": "Tenant",
+      "monthly_premium": 45,
+      "expiry": "2027-04-01"
+    }
+  },
+  "vehicle": {
+    "make": "Honda",
+    "model": "Civic",
+    "year": 2021,
+    "color": "Lunar Silver Metallic",
+    "vin": "2HGFC2F6XMH012345",
+    "plate": "CQXW 234",
+    "province": "Ontario",
+    "fuel_type": "Gasoline",
+    "odometer_km": 38000
+  },
+  "pet": {
+    "name": "Maple",
+    "species": "Dog",
+    "breed": "Golden Retriever",
+    "age_years": 4,
+    "weight_lbs": 65,
+    "sex": "Female (spayed)",
+    "microchip_id": "985121012345678",
+    "vaccinations_up_to_date": true,
+    "date_of_birth": "2022-03-15",
+    "vet": {
+      "name": "Harbord Veterinary Hospital",
+      "address": "599 Harbord St, Toronto, ON"
+    },
+    "dietary_notes": "Grain-free kibble, sensitive stomach"
+  },
+  "medical": {
+    "blood_type": "A+",
+    "allergies": [
+      "Penicillin",
+      "Shellfish"
+    ],
+    "current_medications": [
+      {
+        "name": "Levothyroxine",
+        "dosage": "50mcg",
+        "frequency": "daily",
+        "prescriber": "Dr. Linnea Vanderholt",
+        "rx_number": "RX-2024-08-33741",
+        "din": "02550717"
+      }
+    ],
+    "family_doctor": {
+      "name": "Dr. Linnea Vanderholt",
+      "clinic": "Harbord Health Centre"
+    },
+    "pharmacy": {
+      "name": "Shoppers Drug Mart",
+      "address": "360A Bloor St W, Toronto, ON"
+    },
+    "emergency_contact": {
+      "name": "Emily Green",
+      "relationship": "Sister"
+    }
+  },
+  "preferences": {
+    "dietary": {
+      "restrictions": [
+        "Shellfish allergy"
+      ],
+      "preferences": [
+        "Low sodium",
+        "Mediterranean-style"
+      ],
+      "favorite_cuisines": [
+        "Japanese",
+        "Italian",
+        "Thai"
+      ]
+    },
+    "travel": {
+      "seat_preference": "Window",
+      "meal_preference": "Regular (no shellfish)",
+      "hotel_preferences": [
+        "Non-smoking",
+        "High floor",
+        "Quiet room"
+      ],
+      "loyalty_programs": [
+        {
+          "program": "Aeroplan",
+          "number": "284567890"
+        },
+        {
+          "program": "Marriott Bonvoy",
+          "number": "847293156"
+        },
+        {
+          "program": "Airbnb",
+          "account_linked_to_google": true
+        }
+      ],
+      "passport_country": "Canada",
+      "known_traveller_number": "981234567",
+      "nexus_card": "981234567"
+    },
+    "communication": {
+      "preferred_language": "English",
+      "timezone": "America/Toronto",
+      "preferred_contact_method": "Email",
+      "notification_preferences": "Email + push, no phone calls"
+    },
+    "shopping": {
+      "clothing_size": {
+        "top": "M",
+        "bottom": "8",
+        "shoe": "US 8.5"
+      },
+      "shipping_preference": "Standard (free) when available",
+      "amazon_prime": true
+    }
+  },
+  "professional_summary": "Senior Software Engineer with 23+ years of experience in full-stack development, distributed systems, and cloud infrastructure. PhD in Computer Science from the University of Toronto. Currently leading a backend team at Pinecrest Technologies Inc., building enterprise data pipeline solutions. Previously built real-time transaction processing systems in FinTech. AWS and Kubernetes certified."
+}

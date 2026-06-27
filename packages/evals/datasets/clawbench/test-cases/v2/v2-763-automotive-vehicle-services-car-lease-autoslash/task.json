@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 763,
+    "metaclass": "automotive-vehicle-services",
+    "class": "car-lease",
+    "description": "Search AutoSlash for the cheapest economy car rental at Miami airport for a 3-day period, and complete the price-tracking registration so it auto-rebooks if prices drop",
+    "sites_involved": [
+      "autoslash.com"
+    ],
+    "platform": "autoslash",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search AutoSlash for the cheapest economy car rental at Miami airport for a 3-day period, and complete the price-tracking registration so it auto-rebooks if prices drop",
+  "eval_schema": {
+    "url_pattern": "www\\.autoslash\\.com/quote/contact-info/[0-9a-f-]+",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

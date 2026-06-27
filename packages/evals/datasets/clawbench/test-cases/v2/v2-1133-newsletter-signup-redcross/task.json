@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1133,
+    "metaclass": "charity",
+    "class": "newsletter",
+    "description": "Sign up for Red Cross training & safety email newsletter",
+    "sites_involved": [
+      "redcross.org"
+    ],
+    "platform": "redcross",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Sign up for the Red Cross training newsletter using the email signup form on their training website",
+  "eval_schema": {
+    "url_pattern": "redcross\\.org\\/on\\/demandware\\.store\\/Sites-RedCross-Site\\/default\\/ExactTargetEmailSignUp",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

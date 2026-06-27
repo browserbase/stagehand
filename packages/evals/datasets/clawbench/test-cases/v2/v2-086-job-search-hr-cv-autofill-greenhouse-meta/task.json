@@ -1,0 +1,30 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 86,
+    "metaclass": "job-search-hr",
+    "class": "cv-autofill",
+    "description": "Extract information from resume.pdf and fill out the Meta Senior Software Engineer application on Greenhouse",
+    "sites_involved": [
+      "greenhouse.com"
+    ],
+    "platform": "greenhouse-meta",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Register on GreeHouse, Extract information from resume.pdf and fill out the Meta Senior Software Engineer application on Greenhouse",
+  "eval_schema": {
+    "url_pattern": "boards-api\\.greenhouse\\.io/v1/boards/.+/jobs/\\d+|job-boards\\.greenhouse\\.io/.+/jobs/\\d+",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": [
+    {
+      "path": "extra_info/job_links.json",
+      "description": "Job posting URL(s) to apply to"
+    }
+  ]
+}

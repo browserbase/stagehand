@@ -1,0 +1,30 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 469,
+    "metaclass": "rating-voting",
+    "class": "general",
+    "description": "Write a 4-star review for a tour on TripAdvisor",
+    "sites_involved": [
+      "tripadvisor.com"
+    ],
+    "platform": "tripadvisor",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Write a 4-star review for a tour on TripAdvisor",
+  "eval_schema": {
+    "url_pattern": "tripadvisor\\.com/data/graphql/ids",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": [
+    {
+      "path": "extra_info/review_content.json",
+      "description": "Review content for submission"
+    }
+  ]
+}

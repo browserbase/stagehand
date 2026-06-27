@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 774,
+    "metaclass": "nonprofit-charity",
+    "class": "nonprofit-job-apply",
+    "description": "On Charity Village, create an account and apply for a full-time volunteer coordinator position in the Youth sector in Calgary, upload a resume and fill in a cover letter",
+    "sites_involved": [
+      "charityvillage.com"
+    ],
+    "platform": "charity-village",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On Charity Village, create an account and apply for a full-time volunteer coordinator position in the Youth sector in Calgary, upload a resume and fill in a cover letter",
+  "eval_schema": {
+    "url_pattern": "www\\.charityvillage\\.com/api/auth/callback/sign-in",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

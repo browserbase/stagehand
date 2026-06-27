@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 598,
+    "metaclass": "academia-research",
+    "class": "legal-docs",
+    "description": "On FormSwift, search for a \"Power of Attorney\" template, fill in the principal's name, agent's name, and scope of authority, then download the completed document",
+    "sites_involved": [
+      "formswift.com"
+    ],
+    "platform": "formswift",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On FormSwift, search for a \"Power of Attorney\" template, fill in the principal's name, agent's name, and scope of authority, then download the completed document",
+  "eval_schema": {
+    "url_pattern": "api\\.formswift\\.com/static/document/save/",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

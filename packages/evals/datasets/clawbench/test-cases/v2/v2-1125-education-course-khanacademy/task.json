@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1125,
+    "metaclass": "education",
+    "class": "course",
+    "description": "Navigate through AP US History to the WWI military and diplomacy practice exercise and submit an answer",
+    "sites_involved": [
+      "khanacademy.org"
+    ],
+    "platform": "khanacademy",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On Khan Academy, navigate to the AP US History course, go to the 'World War I: military and diplomacy' lesson, and answer the first question of the practice exercise",
+  "eval_schema": {
+    "url_pattern": "khanacademy\\.org/api/internal/graphql/attemptProblem",
+    "method": "POST"
+  },
+  "time_limit": 60,
+  "extra_info": []
+}
