@@ -35,8 +35,15 @@ export default class ContextsDelete extends BrowseCommand {
       },
     });
     // Keep the local name map consistent: drop any aliases pointing at the
-    // now-deleted context (whether the user passed a name or a raw id).
-    const removed = await removeContextAliasesById(id);
+    // now-deleted context (whether the user passed a name or a raw id). The
+    // remote delete already succeeded, so a local cleanup failure must not turn
+    // the command into a false negative — best-effort, never throws.
+    let removed: string[];
+    try {
+      removed = await removeContextAliasesById(id);
+    } catch {
+      removed = [];
+    }
     outputJson({
       ok: true,
       id,

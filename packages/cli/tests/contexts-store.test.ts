@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -9,6 +9,7 @@ import {
   getContextAlias,
   isValidContextName,
   listContextAliases,
+  looksLikeContextId,
   removeContextAlias,
   removeContextAliasesById,
   resolveContextRef,
@@ -49,6 +50,13 @@ describe("isValidContextName", () => {
     ]) {
       expect(isValidContextName(name)).toBe(false);
     }
+  });
+
+  it("rejects id-shaped (UUID) names so a name can't shadow a raw context id", () => {
+    const uuid = "45ed525f-63a5-490d-b4c4-853f50643b90";
+    expect(looksLikeContextId(uuid)).toBe(true);
+    expect(isValidContextName(uuid)).toBe(false);
+    expect(looksLikeContextId("github")).toBe(false);
   });
 });
 
@@ -92,6 +100,51 @@ describe("contexts store", () => {
       version: 1,
       contexts: { github: { id: "ctx_g" } },
     });
+
+    // Unix only: Windows doesn't model POSIX permission bits.
+    if (process.platform !== "win32") {
+      const s = await stat(path);
+      expect(s.mode & 0o777).toBe(0o600);
+    }
+  });
+
+  it("hardens perms even when a pre-existing file was world-readable", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const path = contextsStorePath(env);
+    await writeFile(path, "{}", { mode: 0o644 });
+    expect((await stat(path)).mode & 0o777).toBe(0o644);
+
+    await saveContextAlias(
+      "github",
+      { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
+    // Atomic temp+rename replaces the old file with a fresh 0600 one.
+    expect((await stat(path)).mode & 0o777).toBe(0o600);
+  });
+
+  it("drops malformed entries on read instead of trusting them", async () => {
+    await writeFile(
+      contextsStorePath(env),
+      JSON.stringify({
+        version: 1,
+        contexts: {
+          good: { id: "ctx_good", createdAt: "2026-01-01T00:00:00.000Z" },
+          noId: { createdAt: "2026-01-01T00:00:00.000Z" },
+          badId: { id: 123 },
+          notObject: "nope",
+        },
+      }),
+      "utf8",
+    );
+
+    expect((await listContextAliases(env)).map((c) => c.name)).toEqual([
+      "good",
+    ]);
+    expect(await getContextAlias("noId", env)).toBeUndefined();
+    expect(await resolveContextRef("badId", env)).toBe("badId");
   });
 
   it("resolves a saved name to its id and passes unknown refs through", async () => {
