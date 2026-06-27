@@ -165,6 +165,67 @@ describe("named contexts (end to end through the CLI)", () => {
     }
   });
 
+  it("names an existing context with `add`, resolves it, and --force repoints", async () => {
+    const existingId = "00000000-0000-4000-8000-0000000000aa";
+    const newId = "00000000-0000-4000-8000-0000000000bb";
+    const server = await startFakeBrowserbaseServer((request, response) => {
+      jsonResponse(response, 200, { id: pathOf(request).split("/").pop() });
+    });
+    const env = {
+      BROWSERBASE_CONFIG_DIR: configDir,
+      BROWSERBASE_API_KEY: "test-key",
+      BROWSERBASE_BASE_URL: server.baseUrl,
+    };
+    const storePath = join(configDir, "contexts.json");
+    try {
+      // add saves the name locally (no API call) ...
+      const added = await runCli(
+        ["cloud", "contexts", "add", "team-login", existingId],
+        { env },
+      );
+      expect(added.exitCode).toBe(0);
+      expect(JSON.parse(added.stdout)).toEqual({
+        name: "team-login",
+        id: existingId,
+      });
+      expect(server.requests.length).toBe(0);
+      expect(JSON.parse(await readFile(storePath, "utf8"))).toMatchObject({
+        contexts: { "team-login": { id: existingId } },
+      });
+
+      // ... and the name resolves everywhere.
+      const got = await runCli(["cloud", "contexts", "get", "team-login"], {
+        env,
+      });
+      expect(got.exitCode).toBe(0);
+      expect(
+        server.requests.some(
+          (r) =>
+            r.method === "GET" && pathOf(r) === `/v1/contexts/${existingId}`,
+        ),
+      ).toBe(true);
+
+      // Duplicate without --force is rejected; --force repoints the name.
+      const dup = await runCli(
+        ["cloud", "contexts", "add", "team-login", newId],
+        { env },
+      );
+      expect(dup.exitCode).not.toBe(0);
+      expect(dup.stderr).toContain("already exists locally");
+
+      const forced = await runCli(
+        ["cloud", "contexts", "add", "team-login", newId, "--force"],
+        { env },
+      );
+      expect(forced.exitCode).toBe(0);
+      expect(
+        JSON.parse(await readFile(storePath, "utf8")).contexts,
+      ).toMatchObject({ "team-login": { id: newId } });
+    } finally {
+      await server.close();
+    }
+  });
+
   it("passes an unrecognized raw id through to the API (raw-id compatibility)", async () => {
     const rawId = "legacy-id-not-a-uuid-9000";
     const server = await startFakeBrowserbaseServer((request, response) => {
