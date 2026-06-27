@@ -80,7 +80,10 @@ export class ActCache {
       value: entry,
       error,
       path,
-    } = await this.storage.readJson<CachedActEntry>(`${context.cacheKey}.json`);
+    } = await this.storage.readJson<CachedActEntry>(
+      `${context.cacheKey}.json`,
+      "act",
+    );
     if (error && path) {
       this.logger({
         category: "cache",
@@ -161,6 +164,7 @@ export class ActCache {
     const { error, path } = await this.storage.writeJson(
       `${context.cacheKey}.json`,
       entry,
+      "act",
     );
     if (error && path) {
       this.logger({
@@ -334,6 +338,7 @@ export class ActCache {
         ...entry,
         variableKeys: context.variableKeys,
       },
+      "act",
     );
 
     if (error && path) {

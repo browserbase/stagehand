@@ -12,6 +12,19 @@ import type {
 const DEFAULT_MAX_CAPACITY = 100;
 const DEFAULT_TTL_MS = 0; // 0 = infinite (no TTL-based eviction)
 
+function parseIntEnv(name: string): number | undefined {
+  const raw = process.env[name];
+  if (!raw) return undefined;
+  const n = parseInt(raw, 10);
+  if (Number.isNaN(n)) {
+    // Don't hard-fail the session request on a misconfigured env var; warn and
+    // fall back to the default (undefined) so caching degrades gracefully.
+    console.warn(`Env var ${name} must be numeric, got: "${raw}"; ignoring.`);
+    return undefined;
+  }
+  return n;
+}
+
 /**
  * Internal node for LRU linked list
  */
@@ -245,6 +258,27 @@ export class InMemorySessionStore implements SessionStore {
         }
       },
     };
+
+    if (params.valkeyCache) {
+      Object.assign(options, params.valkeyCache);
+    } else if (process.env.VALKEY_HOST) {
+      options.valkeyHost = process.env.VALKEY_HOST;
+      options.valkeyPort = parseIntEnv("VALKEY_PORT");
+      options.valkeyTls =
+        process.env.VALKEY_TLS === "true"
+          ? true
+          : process.env.VALKEY_TLS === "false"
+            ? false
+            : undefined;
+      options.valkeyPassword = process.env.VALKEY_PASSWORD || undefined;
+      options.valkeyUsername = process.env.VALKEY_USERNAME || undefined;
+      options.cacheTtl = parseIntEnv("VALKEY_CACHE_TTL");
+      options.valkeyKeyPrefix = process.env.VALKEY_KEY_PREFIX || undefined;
+      options.valkeyRequestTimeout = parseIntEnv("VALKEY_REQUEST_TIMEOUT");
+      options.valkeyMaxCacheValueBytes = parseIntEnv(
+        "VALKEY_MAX_CACHE_VALUE_BYTES",
+      );
+    }
 
     if (isBrowserbase) {
       options.apiKey = params.browserbaseApiKey;

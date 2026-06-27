@@ -19,7 +19,7 @@ import { extractModelName } from "../modelUtils.js";
 import { StagehandLogger, LoggerOptions } from "../logger.js";
 import { ActCache } from "./cache/ActCache.js";
 import { AgentCache } from "./cache/AgentCache.js";
-import { CacheStorage } from "./cache/CacheStorage.js";
+import { CacheStorage, ValkeyCacheOptions } from "./cache/CacheStorage.js";
 import { ActHandler } from "./handlers/actHandler.js";
 import { ExtractHandler } from "./handlers/extractHandler.js";
 import { ObserveHandler } from "./handlers/observeHandler.js";
@@ -97,6 +97,25 @@ import { EventEmitterWithWildcardSupport } from "./flowlogger/EventEmitter.js";
 import { EventStore } from "./flowlogger/EventStore.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
+
+/**
+ * Centralized mapper: V3Options flat fields -> ValkeyCacheOptions.
+ * Keeps field-name translation in one place so adding/renaming fields
+ * only requires a change here.
+ */
+export function mapV3OptsToValkeyConfig(opts: V3Options): ValkeyCacheOptions {
+  return {
+    host: opts.valkeyHost!,
+    port: opts.valkeyPort,
+    useTls: opts.valkeyTls,
+    password: opts.valkeyPassword,
+    username: opts.valkeyUsername,
+    cacheTtl: opts.cacheTtl,
+    keyPrefix: opts.valkeyKeyPrefix,
+    requestTimeout: opts.valkeyRequestTimeout,
+    maxCacheValueBytes: opts.valkeyMaxCacheValueBytes,
+  };
+}
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -391,29 +410,13 @@ export class V3 {
       );
     }
 
-    this.cacheStorage = CacheStorage.create(opts.cacheDir, this.logger, {
-      label: "cache directory",
-    });
-    this.actCache = new ActCache({
-      storage: this.cacheStorage,
-      logger: this.logger,
-      getActHandler: () => this.actHandler,
-      getDefaultLlmClient: () => this.resolveLlmClient(),
-      domSettleTimeoutMs: this.domSettleTimeoutMs,
-    });
-    this.agentCache = new AgentCache({
-      storage: this.cacheStorage,
-      logger: this.logger,
-      getActHandler: () => this.actHandler,
-      getContext: () => this.ctx,
-      getDefaultLlmClient: () => this.resolveLlmClient(),
-      getBaseModelName: () => this.modelName,
-      getSystemPrompt: () => opts.systemPrompt,
-      domSettleTimeoutMs: this.domSettleTimeoutMs,
-      act: this.act.bind(this),
-    });
-
     this.opts = opts;
+
+    this.wireCaches(
+      CacheStorage.create(opts.cacheDir, this.logger, {
+        label: "cache directory",
+      }),
+    );
 
     // FlowLogger always gets a per-instance session context and shared event
     // bus. The attached EventStore decides which sinks are active:
@@ -836,6 +839,33 @@ export class V3 {
   }
 
   /**
+   * Point cacheStorage, actCache, and agentCache at the given storage backend.
+   * Used both at construction (file/memory) and during init() when upgrading to
+   * (or falling back from) the Valkey backend.
+   */
+  private wireCaches(storage: CacheStorage): void {
+    this.cacheStorage = storage;
+    this.actCache = new ActCache({
+      storage: this.cacheStorage,
+      logger: this.logger,
+      getActHandler: () => this.actHandler,
+      getDefaultLlmClient: () => this.resolveLlmClient(),
+      domSettleTimeoutMs: this.domSettleTimeoutMs,
+    });
+    this.agentCache = new AgentCache({
+      storage: this.cacheStorage,
+      logger: this.logger,
+      getActHandler: () => this.actHandler,
+      getContext: () => this.ctx,
+      getDefaultLlmClient: () => this.resolveLlmClient(),
+      getBaseModelName: () => this.modelName,
+      getSystemPrompt: () => this.opts.systemPrompt,
+      domSettleTimeoutMs: this.domSettleTimeoutMs,
+      act: this.act.bind(this),
+    });
+  }
+
+  /**
    * Entrypoint: initializes handlers, launches Chrome or Browserbase,
    * and sets up a CDP context.
    */
@@ -868,6 +898,39 @@ export class V3 {
             ),
           this.domSettleTimeoutMs,
         );
+
+        // Upgrade to Valkey cache if configured (async connection).
+        // Placed after actHandler creation so the closure getActHandler: () => this.actHandler
+        // is guaranteed to resolve to an initialized handler at cache replay time.
+        if (this.opts.valkeyHost) {
+          if (this.opts.cacheDir) {
+            this.logger({
+              category: "cache",
+              message:
+                "both valkeyHost and cacheDir are set; valkeyHost takes precedence",
+              level: 2,
+            });
+          }
+          const valkeyStorage = await CacheStorage.createValkey(
+            mapV3OptsToValkeyConfig(this.opts),
+            this.logger,
+          );
+          if (valkeyStorage.enabled) {
+            this.wireCaches(valkeyStorage);
+          } else if (this.cacheStorage.isValkey) {
+            // A prior init() wired a Valkey backend whose client has since been
+            // closed by close(). The reconnect failed, so re-establish the
+            // file/memory fallback instead of leaving the dead Valkey storage
+            // in place (which still reports enabled and would route to a dead
+            // client).
+            this.wireCaches(
+              CacheStorage.create(this.opts.cacheDir, this.logger, {
+                label: "cache directory",
+              }),
+            );
+          }
+        }
+
         this.extractHandler = new ExtractHandler(
           this.llmClient,
           this.modelName,
@@ -1613,6 +1676,13 @@ export class V3 {
       }
     } finally {
       this.stopShutdownSupervisor();
+
+      // Close Valkey connection if present
+      try {
+        await this.cacheStorage.close();
+      } catch {
+        // ignore
+      }
 
       // Reset internal state
       this.state = { kind: "UNINITIALIZED" };

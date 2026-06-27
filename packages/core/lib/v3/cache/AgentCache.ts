@@ -185,6 +185,12 @@ export class AgentCache {
       path,
     } = await this.storage.readJson<CachedAgentEntry>(
       `agent-${context.cacheKey}.json`,
+      // NOTE: The `category` parameter provides act/agent namespace isolation only for
+      // the Valkey backend (via key prefix). File and in-memory backends ignore it and
+      // store entries at `agent-${cacheKey}.json` — collisions don't occur in practice
+      // because act and agent hash different payloads, producing distinct SHA-256 keys,
+      // but the `agent-` prefix provides an additional layer of separation on disk.
+      "agent",
     );
     if (error && path) {
       this.logger({
@@ -365,6 +371,7 @@ export class AgentCache {
     const { error, path } = await this.storage.writeJson(
       `agent-${context.cacheKey}.json`,
       entry,
+      "agent",
     );
     if (error && path) {
       this.logger({
@@ -415,6 +422,7 @@ export class AgentCache {
     const { error, path } = await this.storage.writeJson(
       `agent-${payload.cacheKey}.json`,
       entry,
+      "agent",
     );
     if (error && path) {
       this.logger({
@@ -880,6 +888,7 @@ export class AgentCache {
     const { error, path } = await this.storage.writeJson(
       `agent-${context.cacheKey}.json`,
       updatedEntry,
+      "agent",
     );
     if (error && path) {
       this.logger({
