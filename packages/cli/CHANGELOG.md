@@ -1,5 +1,11 @@
 # browse
 
+## 0.9.1
+
+### Patch Changes
+
+- [#2277](https://github.com/browserbase/stagehand/pull/2277) [`263e4d4`](https://github.com/browserbase/stagehand/commit/263e4d437dbdb722b9801488dd8cb40b8d78106e) Thanks [@shrey150](https://github.com/shrey150)! - Attribute CLI-driven Browserbase usage to an anonymous install. Remote browser sessions now stamp `install_id` and `cli_version` (alongside `browse_cli`) onto `userMetadata`, and cloud Search/Fetch requests send `x-bb-client` and `x-bb-install-id` headers. The install id reuses the existing anonymous telemetry marker; resolution is best-effort and never blocks or fails a command.
+
 ## 0.9.0
 
 ### Minor Changes
