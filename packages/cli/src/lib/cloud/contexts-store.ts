@@ -64,7 +64,12 @@ export function contextsStorePath(
 }
 
 function emptyStore(): ContextsStoreFile {
-  return { version: STORE_VERSION, contexts: {} };
+  // Null-prototype map so a ref like "toString" or "constructor" can never read
+  // an inherited Object.prototype member as if it were a saved alias.
+  return {
+    version: STORE_VERSION,
+    contexts: Object.create(null) as Record<string, ContextAlias>,
+  };
 }
 
 async function readStore(
@@ -103,7 +108,8 @@ async function readStore(
  * trusted as a `ContextAlias` and breaking resolution or cleanup).
  */
 function sanitizeContexts(raw: unknown): Record<string, ContextAlias> {
-  const result: Record<string, ContextAlias> = {};
+  // Null-prototype so prototype keys can't be read back as aliases (see emptyStore).
+  const result: Record<string, ContextAlias> = Object.create(null);
   if (!raw || typeof raw !== "object") {
     return result;
   }

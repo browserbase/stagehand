@@ -233,6 +233,36 @@ describe("resolveContextRefDetailed", () => {
     expect(res.id).toBeNull();
     expect(res.suggestions).toContain("my-login");
   });
+
+  it("returns id=null/no suggestions for an unknown ref so callers can pass it through", async () => {
+    await saveContextAlias(
+      "github",
+      { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
+    // Far from any saved name -> no suggestions -> caller passes it through.
+    expect(await resolveContextRefDetailed("zzz-zzz-zzz", env)).toEqual({
+      id: null,
+      suggestions: [],
+    });
+  });
+
+  it("never reads prototype keys as saved aliases", async () => {
+    await saveContextAlias(
+      "github",
+      { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
+    for (const proto of [
+      "toString",
+      "constructor",
+      "__proto__",
+      "hasOwnProperty",
+    ]) {
+      expect(await getContextAlias(proto, env)).toBeUndefined();
+      expect((await resolveContextRefDetailed(proto, env)).id).toBeNull();
+    }
+  });
 });
 
 describe("closeContextNameMatches", () => {
