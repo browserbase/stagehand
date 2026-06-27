@@ -108,6 +108,12 @@ function sanitizeContexts(raw: unknown): Record<string, ContextAlias> {
     return result;
   }
   for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    // Validate the key too: a hand-edited file could carry an id-shaped or
+    // otherwise invalid name that would shadow a raw id, so hold disk entries to
+    // the same rule as `create --name`.
+    if (!isValidContextName(name)) {
+      continue;
+    }
     if (!value || typeof value !== "object") {
       continue;
     }
