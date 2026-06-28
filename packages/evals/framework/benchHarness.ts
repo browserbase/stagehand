@@ -109,7 +109,24 @@ export const stagehandHarness: BenchHarness = {
     const agentMode = config.agentMode ?? input.agentMode;
     const isCUA = config.isCUA ?? input.isCUA;
 
-    if (config.useApi) {
+    if (process.env.EVAL_SDK === "v4") {
+      // Proof-of-concept: route the task through the v4 SDK instead of v3.
+      // Scoped to the categories the v4 bench facade implements.
+      const cats = new Set([task.primaryCategory, ...task.categories]);
+      const supported =
+        cats.has("extract") || cats.has("act") || cats.has("observe");
+      if (!supported) {
+        throw new EvalsError(
+          `EVAL_SDK=v4 currently supports only the 'extract', 'act', and 'observe' categories (got '${task.primaryCategory}'). This is a proof-of-concept.`,
+        );
+      }
+      const { initV4Bench } = await import("./v4BenchSdk.js");
+      v3Result = await initV4Bench({
+        logger,
+        modelName: input.modelName,
+        environment: config.environment,
+      });
+    } else if (config.useApi) {
       const provider = resolveProvider(input.modelName);
       const logFn = (line: LogLine) => logger.log(line);
       const apiKey = loadApiKeyFromEnv(provider, logFn);

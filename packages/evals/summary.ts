@@ -44,6 +44,32 @@ export const generateSummary = async (
       : resolveCategories(result.input.name);
   };
 
+  // Normalize a failed task's error/message to a string so the exact failure is
+  // captured in the JSON (the TUI only shows a truncated cell). Capped to keep
+  // the summary bounded while still useful for debugging.
+  const resolveError = (result: SummaryResult): string | undefined => {
+    const raw = result.output.error ?? result.output.message;
+    if (raw == null) return undefined;
+    let text: string;
+    if (typeof raw === "string") {
+      text = raw;
+    } else if (raw instanceof Error) {
+      text = raw.stack ?? raw.message;
+    } else if (
+      typeof raw === "object" &&
+      typeof (raw as { message?: unknown }).message === "string"
+    ) {
+      text = (raw as { message: string }).message;
+    } else {
+      try {
+        text = JSON.stringify(raw);
+      } catch {
+        text = String(raw);
+      }
+    }
+    return text.length > 2000 ? `${text.slice(0, 2000)}…` : text;
+  };
+
   const passed = results
     .filter((r) => r.output._success)
     .map((r) => ({
@@ -58,6 +84,7 @@ export const generateSummary = async (
       eval: r.input.name,
       model: r.input.modelName,
       categories: resolveResultCategories(r),
+      error: resolveError(r),
     }));
 
   const categorySuccessCounts: Record<

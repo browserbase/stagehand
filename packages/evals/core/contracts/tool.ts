@@ -18,6 +18,7 @@ import type {
 
 export type ToolSurface =
   | "understudy_code"
+  | "stagehand_v4_code"
   | "playwright_code"
   | "cdp_code"
   | "playwright_mcp"
@@ -167,6 +168,7 @@ export interface CoreTool {
   surface: "code" | "mcp" | "cli";
   family:
     | "understudy"
+    | "stagehand_v4"
     | "playwright"
     | "cdp"
     | "stagehand_cli"

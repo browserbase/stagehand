@@ -41,6 +41,9 @@ export function resolveDefaultCoreStartupProfile(
       return environment === "BROWSERBASE"
         ? "tool_create_browserbase"
         : "tool_launch_local";
+    case "stagehand_v4_code":
+      // v4 launches its own Chrome + extension; the runner does not provide CDP.
+      return "tool_launch_local";
     case "understudy_code":
     case "playwright_code":
     case "cdp_code":

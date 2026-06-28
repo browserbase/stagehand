@@ -107,7 +107,7 @@ export interface Testcase
 
 export interface SummaryResult {
   input: EvalInput;
-  output: { _success: boolean };
+  output: { _success: boolean; error?: unknown; message?: string };
   name: string;
   score: number;
   categories?: string[];

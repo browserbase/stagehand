@@ -86,6 +86,60 @@ A live run paints an in-place progress table, then prints a final summary with a
 
 ![Live bench run](./assets/readme/run.gif)
 
+## Running CORE evals against Stagehand v4
+
+The CORE tier can run against the **v4** JS SDK (`stagehand-v4`) via the
+`stagehand_v4_code` tool surface — a drop-in adapter that implements the same
+tool contracts as `understudy_code`, so all 18 CORE tasks run unchanged.
+
+v4 ships TypeScript source only and depends on its own workspace packages, so it
+can't be imported directly by the built CLI. A one-time build step esbuild-bundles
+it into `core/tools/vendor/stagehand-v4.js`:
+
+```bash
+# Requires a stagehand-v4 checkout at ../stagehand-v4 (with deps installed),
+# or set STAGEHAND_V4_DIR=/path/to/stagehand-v4
+pnpm --filter @browserbasehq/stagehand-evals run build:v4   # builds the shim, then rebuilds the CLI
+
+evals run core --tool stagehand_v4_code
+```
+
+`build:v4shim` rebuilds only the bundle; `build:v4` also rebuilds the CLI so it
+picks up the new bundle. Rerun it whenever the v4 SDK changes. Until it runs, the
+`stagehand_v4_code` surface throws a clear "shim not built" error (the committed
+`stagehand-v4.js` is a placeholder so the normal evals build works without the v4
+repo present).
+
+### Bench `extract`, `act`, and `observe` against v4
+
+Bench tasks in the `extract`, `act`, and `observe` categories can also run against
+v4, via a `V3`-shaped facade (`framework/v4BenchSdk.ts`) gated by `EVAL_SDK=v4`:
+
+```bash
+EVAL_SDK=v4 evals run extract -m anthropic/claude-sonnet-4-6 -c 1 -t 3
+EVAL_SDK=v4 evals run act     -m anthropic/claude-sonnet-4-6 -c 1 -t 3
+EVAL_SDK=v4 evals run observe -m anthropic/claude-sonnet-4-6 -c 1 -t 3
+```
+
+Or run CORE + extract + act + observe on both v4 and v3 and get an apples-to-apples report
+in `ctrf/v4-findings.md`:
+
+```bash
+pnpm --filter @browserbasehq/stagehand-evals run eval:v4
+```
+
+Notes:
+
+- Local only for now (`tool_launch_local`) — v4 launches its own Chrome +
+  extension; `--env browserbase` isn't wired up yet.
+- CORE adapter polyfills `title` / `waitForSelector` / locator
+  `count`/`isVisible`/`textContent`/`inputValue` via `page.evaluate` (v4 has no
+  dedicated methods).
+- The bench facade is single-model and covers `extract` + `act` + `observe`
+  only; other categories error under `EVAL_SDK=v4`. It does not yet implement
+  `page.frameLocator()` / `page.frames()`, so the few iframe-based tasks fail with
+  a clear "not supported" message.
+
 ## Adding a bench task
 
 ```bash
