@@ -156,18 +156,20 @@ export class DriverSessionManager {
    */
   private browserbaseIdentity(): BrowserbaseIdentity {
     if (this.target.kind !== "remote" || !this.stagehand) return {};
-    const stagehand = this.stagehand;
-    return {
-      ...(stagehand.browserbaseSessionID
-        ? { browserbaseSessionId: stagehand.browserbaseSessionID }
-        : {}),
-      ...(stagehand.browserbaseSessionURL
-        ? { browserbaseSessionUrl: stagehand.browserbaseSessionURL }
-        : {}),
-      ...(stagehand.browserbaseDebugURL
-        ? { browserbaseDebugUrl: stagehand.browserbaseDebugURL }
-        : {}),
-    };
+    const { browserbaseSessionID, browserbaseSessionURL, browserbaseDebugURL } =
+      this.stagehand;
+
+    const identity: BrowserbaseIdentity = {};
+    if (browserbaseSessionID) {
+      identity.browserbaseSessionId = browserbaseSessionID;
+    }
+    if (browserbaseSessionURL) {
+      identity.browserbaseSessionUrl = browserbaseSessionURL;
+    }
+    if (browserbaseDebugURL) {
+      identity.browserbaseDebugUrl = browserbaseDebugURL;
+    }
+    return identity;
   }
 
   async close(): Promise<void> {

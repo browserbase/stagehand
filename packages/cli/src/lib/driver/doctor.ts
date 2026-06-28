@@ -112,19 +112,26 @@ export async function buildDoctorReport(
   }
 
   if (status?.browserbaseSessionId) {
+    const { browserbaseSessionId, browserbaseSessionUrl, browserbaseDebugUrl } =
+      status;
+
+    const details: Record<string, unknown> = {
+      sessionId: browserbaseSessionId,
+    };
+    if (browserbaseSessionUrl) {
+      details.sessionUrl = browserbaseSessionUrl;
+    }
+    if (browserbaseDebugUrl) {
+      details.liveViewUrl = browserbaseDebugUrl;
+    }
+
+    const message = browserbaseSessionUrl
+      ? `session ${browserbaseSessionId} — ${browserbaseSessionUrl}`
+      : `session ${browserbaseSessionId}`;
+
     checks.push({
-      details: {
-        sessionId: status.browserbaseSessionId,
-        ...(status.browserbaseSessionUrl
-          ? { sessionUrl: status.browserbaseSessionUrl }
-          : {}),
-        ...(status.browserbaseDebugUrl
-          ? { liveViewUrl: status.browserbaseDebugUrl }
-          : {}),
-      },
-      message: status.browserbaseSessionUrl
-        ? `session ${status.browserbaseSessionId} — ${status.browserbaseSessionUrl}`
-        : `session ${status.browserbaseSessionId}`,
+      details,
+      message,
       name: "browserbase",
       status: "ok",
     });
