@@ -14,8 +14,10 @@ export interface DriverModeFlags {
   "ignore-default-chrome-arg"?: string[];
   local?: boolean;
   "no-default-chrome-args"?: boolean;
+  proxies?: boolean;
   remote?: boolean;
   "target-id"?: string;
+  verified?: boolean;
 }
 
 interface ResolvedChromeArgs {
@@ -48,10 +50,29 @@ function chromeArgFlagsInUse(flags: DriverModeFlags): string[] {
   return names;
 }
 
+export function remoteOnlyFlagsInUse(flags: DriverModeFlags): string[] {
+  const names: string[] = [];
+  if (flags.verified) names.push("--verified");
+  if (flags.proxies) names.push("--proxies");
+  return names;
+}
+
 export async function resolveConnectionTarget(
   flags: DriverModeFlags,
 ): Promise<ConnectionTarget> {
   const chromeArgFlags = chromeArgFlagsInUse(flags);
+
+  // --verified / --proxies configure a Browserbase session at creation time, so
+  // they only mean something for an explicit --remote session. We deliberately
+  // do NOT let them imply --remote: that would silently switch the user to
+  // API-key (billed) cloud sessions. Require the mode to be stated explicitly.
+  const remoteOnlyFlags = remoteOnlyFlagsInUse(flags);
+  if (remoteOnlyFlags.length > 0 && !flags.remote) {
+    const verb = remoteOnlyFlags.length === 1 ? "requires" : "require";
+    fail(
+      `${remoteOnlyFlags.join(" and ")} ${verb} --remote. Try: browse open <url> --remote ${remoteOnlyFlags.join(" ")}`,
+    );
+  }
 
   if (flags.cdp) {
     failOnConflictingFlags("--cdp", [
@@ -175,6 +196,15 @@ export function targetsCompatible(
     );
   if (left.kind === "cdp" && right.kind === "cdp") {
     return left.endpoint === right.endpoint && left.targetId === right.targetId;
+  }
+  if (left.kind === "remote" && right.kind === "remote") {
+    // verified/proxies are baked in at session creation, so a re-open that asks
+    // for different settings can't reuse the running session — make them sticky
+    // like headless, forcing an explicit stop-and-reopen.
+    return (
+      Boolean(left.verified) === Boolean(right.verified) &&
+      Boolean(left.proxies) === Boolean(right.proxies)
+    );
   }
   return true;
 }
