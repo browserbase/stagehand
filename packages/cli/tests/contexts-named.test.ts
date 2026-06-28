@@ -213,11 +213,16 @@ describe("named contexts (end to end through the CLI)", () => {
       expect(dup.exitCode).not.toBe(0);
       expect(dup.stderr).toContain("already exists locally");
 
+      // Padded id + --force: repoints and stores the trimmed id.
       const forced = await runCli(
-        ["cloud", "contexts", "add", "team-login", newId, "--force"],
+        ["cloud", "contexts", "add", "team-login", `  ${newId}  `, "--force"],
         { env },
       );
       expect(forced.exitCode).toBe(0);
+      expect(JSON.parse(forced.stdout)).toEqual({
+        name: "team-login",
+        id: newId,
+      });
       expect(
         JSON.parse(await readFile(storePath, "utf8")).contexts,
       ).toMatchObject({ "team-login": { id: newId } });

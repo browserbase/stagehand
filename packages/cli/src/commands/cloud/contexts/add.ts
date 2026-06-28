@@ -38,7 +38,10 @@ export default class ContextsAdd extends BrowseCommand {
     if (!isValidContextName(args.name)) {
       fail(`Invalid context name "${args.name}". ${contextNameRequirement()}`);
     }
-    if (args.id.trim().length === 0) {
+    // Normalize before storing so whitespace-padded input isn't saved and later
+    // resolved as a bogus context id.
+    const id = args.id.trim();
+    if (id.length === 0) {
       fail("Context ID cannot be empty.");
     }
     if (!flags.force && (await getContextAlias(args.name))) {
@@ -49,9 +52,9 @@ export default class ContextsAdd extends BrowseCommand {
     }
 
     await saveContextAlias(args.name, {
-      id: args.id,
+      id,
       createdAt: new Date().toISOString(),
     });
-    outputJson({ name: args.name, id: args.id });
+    outputJson({ name: args.name, id });
   }
 }
