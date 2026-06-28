@@ -21,6 +21,8 @@ interface LruNode {
   stagehand: V3 | null;
   loggerRef: { current?: (message: LogLine) => void };
   expiry: number;
+  /** Number of in-flight requests using this session's V3 instance. */
+  inUse: number;
   prev: LruNode | null;
   next: LruNode | null;
 }
@@ -91,7 +93,8 @@ export class InMemorySessionStore implements SessionStore {
     const expiredIds: string[] = [];
 
     for (const [sessionId, node] of this.items.entries()) {
-      if (this.ttlMs > 0 && node.expiry <= now) {
+      // Never expire a session that is actively serving a request.
+      if (this.ttlMs > 0 && node.expiry <= now && node.inUse === 0) {
         expiredIds.push(sessionId);
       }
     }
@@ -129,13 +132,18 @@ export class InMemorySessionStore implements SessionStore {
   }
 
   /**
-   * Evict the least recently used session
+   * Evict the least recently used session that is not actively serving a
+   * request. If every cached session is in use, skip eviction rather than
+   * tear down a live request's browser context.
    */
   private async evictLru(): Promise<void> {
-    const lruNode = this.first;
-    if (!lruNode) return;
+    let node = this.first;
+    while (node && node.inUse > 0) {
+      node = node.next;
+    }
+    if (!node) return;
 
-    await this.deleteSession(lruNode.sessionId);
+    await this.deleteSession(node.sessionId);
   }
 
   async startSession(params: CreateSessionParams): Promise<SessionStartResult> {
@@ -160,8 +168,8 @@ export class InMemorySessionStore implements SessionStore {
     const node = this.items.get(sessionId);
     if (!node) return false;
 
-    // Check if expired
-    if (this.ttlMs > 0 && node.expiry <= Date.now()) {
+    // Check if expired, but don't expire a session that is actively serving a request
+    if (this.ttlMs > 0 && node.expiry <= Date.now() && node.inUse === 0) {
       await this.deleteSession(sessionId);
       return false;
     }
@@ -180,7 +188,7 @@ export class InMemorySessionStore implements SessionStore {
     }
 
     // Check if expired
-    if (this.ttlMs > 0 && node.expiry <= Date.now()) {
+    if (this.ttlMs > 0 && node.expiry <= Date.now() && node.inUse === 0) {
       await this.deleteSession(sessionId);
       throw new Error(`Session expired: ${sessionId}`);
     }
@@ -195,6 +203,7 @@ export class InMemorySessionStore implements SessionStore {
 
     // If V3 instance exists, return it
     if (node.stagehand) {
+      node.inUse += 1;
       return node.stagehand;
     }
 
@@ -212,7 +221,21 @@ export class InMemorySessionStore implements SessionStore {
       throw error;
     }
     node.stagehand = stagehand;
+    node.inUse += 1;
     return stagehand;
+  }
+
+  async releaseSession(sessionId: string): Promise<void> {
+    const node = this.items.get(sessionId);
+    if (!node) return;
+
+    if (node.inUse > 0) {
+      node.inUse -= 1;
+    }
+
+    if (this.ttlMs > 0) {
+      node.expiry = Date.now() + this.ttlMs;
+    }
   }
 
   /**
@@ -286,6 +309,7 @@ export class InMemorySessionStore implements SessionStore {
       stagehand: null, // Lazy initialization
       loggerRef: {},
       expiry: this.ttlMs > 0 ? Date.now() + this.ttlMs : Infinity,
+      inUse: 0,
       prev: this.last,
       next: null,
     };

@@ -138,12 +138,31 @@ export interface SessionStore {
    * - On cache miss: loading config, creating V3, caching it
    * - Updating the logger reference for streaming
    *
+   * Acquire/release contract: this call PINS the session. Implementations MUST
+   * NOT evict or TTL-expire a session between a getOrCreateStagehand and its
+   * matching releaseSession — otherwise a long-running request (e.g. an
+   * agentExecute that spends tens of seconds in agent "think time" with no CDP
+   * traffic) can have its browser context torn out mid-flight. Always use this
+   * via the withSession() wrapper, which guarantees the matching release.
+   *
    * @param sessionId - The session identifier
    * @param ctx - Request-time context containing values from headers
    * @returns The V3 instance ready for use
    * @throws Error if session not found
    */
   getOrCreateStagehand(sessionId: string, ctx: RequestContext): Promise<V3>;
+
+  /**
+   * Release a session previously pinned by getOrCreateStagehand.
+   *
+   * Decrements the in-use count so the session becomes eligible for eviction/
+   * TTL again once no requests hold it. MUST clamp at zero (a release without a
+   * matching acquire is a no-op, never a negative count). Prefer calling this
+   * via withSession() rather than directly.
+   *
+   * @param sessionId - The session identifier
+   */
+  releaseSession(sessionId: string): void | Promise<void>;
 
   /**
    * Create a new session with the given parameters.
