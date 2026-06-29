@@ -458,10 +458,49 @@ class V4BenchPage {
     ]);
   }
 
-  frames(): never {
-    throw new Error(
-      "page.frames() is not supported by the v4 bench facade yet.",
+  /**
+   * v3 `page.frames()` → [mainFrame, ...iframes in DOM order]. We can't count
+   * frames synchronously, so return index-addressable handles (main = 0, the
+   * i-th iframe = i); resolution happens lazily at `.evaluate()` (same-origin).
+   */
+  frames(): V4BenchFrame[] {
+    return Array.from(
+      { length: 8 },
+      (_unused, i) => new V4BenchFrame(this.sdk, this.page, i),
     );
+  }
+}
+
+/**
+ * A Playwright-Frame-shaped handle for same-origin frames. `index` 0 is the main
+ * frame; `index` N (>0) is the (N-1)-th `<iframe>` in the top document. For sub
+ * frames, `evaluate(fn)` runs `fn` with `window`/`document` shadowed by the
+ * iframe's `contentWindow`/`contentDocument` (cross-origin frames throw/return null).
+ */
+class V4BenchFrame {
+  constructor(
+    private readonly sdk: V4BenchStagehand,
+    private readonly page: V4Page,
+    private readonly index: number,
+  ) {}
+
+  async evaluate<R = unknown, Arg = unknown>(
+    fn: string | ((arg: Arg) => R | Promise<R>),
+    arg?: Arg,
+  ): Promise<R> {
+    if (this.index === 0)
+      return this.sdk.evaluateOn<R, Arg>(this.page, fn, arg);
+    const body = toExpression(fn as string | ((a: unknown) => unknown), arg);
+    // Use globalThis.document for the lookup BEFORE shadowing `document` below —
+    // referencing the bare `document` here would hit the const's temporal dead zone.
+    const expr = `(function () {
+      const __f = globalThis.document.querySelectorAll("iframe")[${this.index - 1}];
+      if (!__f || !__f.contentWindow) return null;
+      const window = __f.contentWindow;
+      const document = __f.contentDocument;
+      return ${body};
+    })()`;
+    return this.sdk.evaluateOn<R>(this.page, expr);
   }
 }
 
@@ -528,6 +567,18 @@ class V4BenchLocator {
       (el) => {
         const e = el as { innerText?: unknown } | null;
         return e && typeof e.innerText === "string" ? e.innerText : "";
+      },
+    );
+  }
+
+  async innerHtml(): Promise<string> {
+    return this.sdk.evalForElementOn(
+      this.page,
+      this.loc,
+      this.frameChain,
+      (el) => {
+        const e = el as { innerHTML?: unknown } | null;
+        return e && typeof e.innerHTML === "string" ? e.innerHTML : "";
       },
     );
   }
