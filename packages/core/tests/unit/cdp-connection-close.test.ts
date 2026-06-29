@@ -1,6 +1,10 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { WebSocketServer, type WebSocket as ServerWebSocket } from "ws";
 import { CdpConnection } from "../../lib/v3/understudy/cdp.js";
+
+type ConnectionInternals = {
+  eventHandlers: Map<string, Set<unknown>>;
+};
 
 /**
  * Races a promise against a timeout. Returns "resolved" if the promise
@@ -40,11 +44,22 @@ async function createPair(): Promise<{
   return { conn, serverSocket, wss };
 }
 
+async function sendCdpEvent(
+  serverSocket: ServerWebSocket,
+  message: Record<string, unknown>,
+): Promise<void> {
+  serverSocket.send(JSON.stringify(message));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 describe("CdpConnection", () => {
   let wss: WebSocketServer | null = null;
 
   afterEach(async () => {
     if (wss) {
+      for (const client of wss.clients) {
+        client.terminate();
+      }
       await new Promise<void>((resolve) => wss!.close(() => resolve()));
       wss = null;
     }
@@ -96,6 +111,131 @@ describe("CdpConnection", () => {
       );
 
       expect(result).toBe("rejected");
+    });
+  });
+
+  describe("session event listener cleanup", () => {
+    it("removes session-scoped event handlers when a target detaches", async () => {
+      const pair = await createPair();
+      wss = pair.wss;
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.attachedToTarget",
+        params: {
+          sessionId: "session-a",
+          targetInfo: {
+            targetId: "target-a",
+            type: "page",
+            title: "",
+            url: "about:blank",
+            attached: true,
+            canAccessOpener: false,
+          },
+        },
+      });
+
+      const session = pair.conn.getSession("session-a");
+      expect(session).toBeDefined();
+
+      session!.on("Fetch.requestPaused", () => {});
+      session!.on("Network.requestWillBeSent", () => {});
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.attachedToTarget",
+        params: {
+          sessionId: "session-b",
+          targetInfo: {
+            targetId: "target-b",
+            type: "iframe",
+            title: "",
+            url: "about:blank",
+            attached: true,
+            canAccessOpener: false,
+          },
+        },
+      });
+
+      const otherSession = pair.conn.getSession("session-b");
+      expect(otherSession).toBeDefined();
+      otherSession!.on("Fetch.requestPaused", () => {});
+
+      const rootHandler = vi.fn();
+      pair.conn.on("Target.targetCreated", rootHandler);
+
+      const eventHandlers = (pair.conn as unknown as ConnectionInternals)
+        .eventHandlers;
+      expect(eventHandlers.has("session-a:Fetch.requestPaused")).toBe(true);
+      expect(eventHandlers.has("session-a:Network.requestWillBeSent")).toBe(
+        true,
+      );
+      expect(eventHandlers.has("session-b:Fetch.requestPaused")).toBe(true);
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.detachedFromTarget",
+        params: {
+          sessionId: "session-a",
+          targetId: "target-a",
+        },
+      });
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.targetCreated",
+        params: {
+          targetInfo: {
+            targetId: "target-b",
+            type: "page",
+            title: "",
+            url: "about:blank",
+            attached: false,
+            canAccessOpener: false,
+          },
+        },
+      });
+
+      expect(eventHandlers.has("session-a:Fetch.requestPaused")).toBe(false);
+      expect(eventHandlers.has("session-a:Network.requestWillBeSent")).toBe(
+        false,
+      );
+      expect(eventHandlers.has("session-b:Fetch.requestPaused")).toBe(true);
+      expect(eventHandlers.has("Target.targetCreated")).toBe(true);
+      expect(rootHandler).toHaveBeenCalledOnce();
+    });
+
+    it("removes session-scoped event handlers when a target is destroyed", async () => {
+      const pair = await createPair();
+      wss = pair.wss;
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.attachedToTarget",
+        params: {
+          sessionId: "session-a",
+          targetInfo: {
+            targetId: "target-a",
+            type: "page",
+            title: "",
+            url: "about:blank",
+            attached: true,
+            canAccessOpener: false,
+          },
+        },
+      });
+
+      const session = pair.conn.getSession("session-a");
+      expect(session).toBeDefined();
+      session!.on("Fetch.requestPaused", () => {});
+
+      const eventHandlers = (pair.conn as unknown as ConnectionInternals)
+        .eventHandlers;
+      expect(eventHandlers.has("session-a:Fetch.requestPaused")).toBe(true);
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.targetDestroyed",
+        params: {
+          targetId: "target-a",
+        },
+      });
+
+      expect(eventHandlers.has("session-a:Fetch.requestPaused")).toBe(false);
     });
   });
 });
