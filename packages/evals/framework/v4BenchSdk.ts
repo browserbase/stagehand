@@ -1,11 +1,11 @@
 /**
- * Proof-of-concept: run bench `extract` tasks against the Stagehand **v4** SDK,
- * single model. Provides a minimal `V3`-shaped facade exposing only the surface
- * extract tasks + the bench harness actually touch
- * (`context.pages()[0].goto`, `extract(instruction, schema, { selector })`,
- * `close()`), backed by the vendored v4 client.
+ * Run bench `extract` / `act` / `observe` tasks against the Stagehand **v4** SDK,
+ * single model, via a `V3`-shaped facade. Exposes the surface bench tasks touch —
+ * `context.pages()/awaitActivePage()`, per-page `goto`/`url`/`evaluate`/`locator`
+ * (incl. same-origin `frameLocator`), and `v3.act`/`extract`/`observe` (with an
+ * optional `{ page }` target) — backed by the vendored v4 client.
  *
- * Enabled via `EVAL_SDK=v4` in benchHarness; scoped to the extract category.
+ * Enabled via `EVAL_SDK=v4` in benchHarness (extract/act/observe categories).
  * Reuses the v4 bundle + browser-extension wiring built for the
  * `stagehand_v4_code` CORE tool (vendor/stagehand-v4.js + the dist/cli zip).
  */
@@ -60,8 +60,21 @@ const PROVIDER_KEY_OPTION: Record<string, string> = {
   google: "gemini_api_key",
 };
 
+type Loc = { css?: string; xpath?: string };
 interface ExtractOpts {
   selector?: string;
+  page?: V4BenchPage;
+}
+
+function pageIdOf(page: V4Page): string {
+  return String(page.targetId ?? page.tabId ?? page.page_idx ?? "");
+}
+
+// v4's browser.pages() includes junk tabs (a default about:blank, chrome://newtab,
+// chrome-error://, devtools://). Only real content tabs count as task pages.
+const CONTENT_URL = /^(https?|file|data):/i;
+function isContentTab(page: V4Page): boolean {
+  return CONTENT_URL.test(page.url ?? "");
 }
 
 /** Serialize a page function (+ optional arg) into an expression v4 can eval. */
@@ -75,7 +88,7 @@ function toExpression(
 }
 
 /** Parse a Playwright-style selector into a v4 locator shape. */
-function parseSelector(selector: string): { css?: string; xpath?: string } {
+function parseSelector(selector: string): Loc {
   if (selector.startsWith("xpath=")) return { xpath: selector.slice(6) };
   if (selector.startsWith("/") || selector.startsWith("(")) {
     return { xpath: selector };
@@ -83,20 +96,40 @@ function parseSelector(selector: string): { css?: string; xpath?: string } {
   return { css: selector };
 }
 
-/** Expression resolving the single element a locator points at (CSS or XPath). */
-function elementExpression(loc: { css?: string; xpath?: string }): string {
+/** Expression resolving an element within a JS `document` expression. */
+function resolveIn(docExpr: string, loc: Loc): string {
   if (loc.xpath) {
-    return `document.evaluate(${JSON.stringify(loc.xpath)}, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue`;
+    return `(() => { const __d = ${docExpr}; return __d ? __d.evaluate(${JSON.stringify(
+      loc.xpath,
+    )}, __d, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue : null; })()`;
   }
-  return `document.querySelector(${JSON.stringify(loc.css ?? "")})`;
+  return `(${docExpr})?.querySelector(${JSON.stringify(loc.css ?? "")}) ?? null`;
 }
 
-/** Minimal V3-shaped facade over a v4 page, for bench extract tasks. */
+/**
+ * Expression for the inner `document` of a same-origin frame chain. Returns
+ * `null` if any frame is missing or cross-origin (contentDocument is then null),
+ * so frame reads degrade to null rather than throwing.
+ */
+function frameDocExpr(chain: Loc[]): string {
+  let doc = "document";
+  for (const frame of chain) {
+    const frameEl = resolveIn(doc, frame);
+    doc = `((${frameEl})?.contentDocument ?? null)`;
+  }
+  return doc;
+}
+
+/** Minimal V3-shaped facade over the v4 SDK, for bench tasks. */
 class V4BenchStagehand {
-  private current: V4Page;
+  private readonly handles = new Map<string, V4BenchPage>();
+  private activeId: string;
   readonly browserbaseSessionID: string | undefined = undefined;
   readonly browserbaseSessionURL: string | undefined = undefined;
-  readonly context: { pages: () => V4BenchPage[] };
+  readonly context: {
+    pages: () => V4BenchPage[];
+    awaitActivePage: () => Promise<V4BenchPage>;
+  };
 
   constructor(
     private readonly client: V4StagehandClient,
@@ -105,16 +138,50 @@ class V4BenchStagehand {
     private readonly apiKey: string | undefined,
     private readonly logger: EvalLogger,
   ) {
-    this.current = page;
-    const pageFacade = new V4BenchPage(this);
-    this.context = { pages: () => [pageFacade] };
+    this.activeId = pageIdOf(page);
+    this.handles.set(this.activeId, new V4BenchPage(this, page));
+    this.context = {
+      pages: () => [...this.handles.values()],
+      awaitActivePage: async () => {
+        await this.refreshPages();
+        return this.activeHandle();
+      },
+    };
   }
 
-  /**
-   * Retry an RPC op on v4's transient connection errors. The "CDP websocket
-   * closed" failures originate browser-side in the extension's CDP layer, so a
-   * fresh command often re-attaches.
-   */
+  private get browser(): V4Browser {
+    return this.client.browser;
+  }
+
+  private activeHandle(): V4BenchPage {
+    return this.handles.get(this.activeId) ?? [...this.handles.values()][0];
+  }
+
+  /** Reconcile cached page handles + the active tab with the browser's tabs. */
+  private async refreshPages(): Promise<void> {
+    const pages = await this.browser.pages();
+    const seen = new Set<string>();
+    for (const p of pages) {
+      const id = pageIdOf(p);
+      // Keep tabs we already track (our working tab starts as about:blank);
+      // otherwise only add real content tabs, skipping browser/extension junk.
+      if (!this.handles.has(id) && !isContentTab(p)) continue;
+      seen.add(id);
+      const existing = this.handles.get(id);
+      if (existing) existing._setPage(p);
+      else this.handles.set(id, new V4BenchPage(this, p));
+    }
+    for (const id of [...this.handles.keys()]) {
+      if (!seen.has(id)) this.handles.delete(id);
+    }
+    const active = await this.browser.activePage();
+    if (active) {
+      const id = pageIdOf(active);
+      if (this.handles.has(id)) this.activeId = id;
+    }
+  }
+
+  /** Retry an RPC op on v4's transient connection errors. */
   private async withRetry<T>(
     op: () => Promise<T>,
     label: string,
@@ -148,30 +215,102 @@ class V4BenchStagehand {
     };
   }
 
-  /** @internal navigate the active tab (goto returns a fresh Page handle). */
-  async navigate(url: string, waitUntil?: string): Promise<void> {
+  // ── per-page primitives (operate on an explicit v4 Page) ──────────────────
+
+  /** @internal navigate a tab; goto returns a fresh Page handle. */
+  async gotoOn(page: V4Page, url: string, waitUntil?: string): Promise<V4Page> {
     const next = await this.withRetry(
-      () => this.current.goto({ url, ...(waitUntil ? { waitUntil } : {}) }),
+      () => page.goto({ url, ...(waitUntil ? { waitUntil } : {}) }),
       "goto",
     );
-    if (next) this.current = next;
+    await this.refreshPages();
+    return next ?? page;
   }
 
+  /** @internal evaluate a page function/expression on a tab. */
+  async evaluateOn<R = unknown, Arg = unknown>(
+    page: V4Page,
+    fn: string | ((arg: Arg) => R | Promise<R>),
+    arg?: Arg,
+  ): Promise<R> {
+    const expression = toExpression(
+      fn as string | ((a: unknown) => unknown),
+      arg,
+    );
+    const { value } = await this.withRetry(
+      () =>
+        page.evaluate({ expression, awaitPromise: true, returnByValue: true }),
+      "evaluate",
+    );
+    return value as R;
+  }
+
+  /** @internal evaluate over the element a locator resolves to (frame-aware). */
+  async evalForElementOn<R>(
+    page: V4Page,
+    loc: Loc,
+    frameChain: Loc[],
+    fn: (el: Element | null) => R,
+  ): Promise<R> {
+    const docExpr = frameChain.length ? frameDocExpr(frameChain) : "document";
+    const expression = `(${fn.toString()})(${resolveIn(docExpr, loc)})`;
+    const { value } = await this.withRetry(
+      () =>
+        page.evaluate({ expression, awaitPromise: true, returnByValue: true }),
+      "evaluate",
+    );
+    return value as R;
+  }
+
+  /** @internal click the element a locator resolves to. */
+  async locatorClickOn(
+    page: V4Page,
+    loc: Loc,
+    frameChain: Loc[],
+  ): Promise<void> {
+    if (frameChain.length) {
+      // v4 page.click doesn't scope to a frame; click via the DOM (same-origin).
+      // Duck-type click() — cross-realm `instanceof HTMLElement` is unreliable.
+      await this.evalForElementOn(page, loc, frameChain, (el): void => {
+        const e = el as { click?: () => void } | null;
+        if (e && typeof e.click === "function") e.click();
+      });
+      return;
+    }
+    await this.withRetry(() => page.click(loc), "click");
+  }
+
+  /** @internal resolve a locator to a v4 Locator (carries backendNodeId, etc.). */
+  async locateOn(page: V4Page, loc: Loc) {
+    return this.withRetry(() => page.locate(loc), "locate");
+  }
+
+  // ── v3-shaped top-level methods (default to the active tab) ────────────────
+
   /**
-   * v3 `act` overloads: act(instruction) | act(observeResult) | act(instruction, opts).
-   * Bench act tasks overwhelmingly pass a plain instruction string.
+   * v3 `act`: act(instruction) | act(observeCandidate) | act(instruction, { page }).
    */
   async act(
     instructionOrAction: string | Record<string, unknown>,
-    opts?: { maxSteps?: number },
+    opts?: { page?: V4BenchPage; maxSteps?: number },
   ): Promise<unknown> {
+    // Default to the *fresh* active tab (not the cached handle): when an act
+    // opens a new tab the chain must follow the focus, e.g. multi-tab flows.
+    let target: V4Page;
+    if (opts?.page) {
+      target = opts.page.v4page;
+    } else {
+      const active = await this.browser.activePage();
+      target =
+        active && isContentTab(active) ? active : this.activeHandle().v4page;
+    }
     const params =
       typeof instructionOrAction === "string"
         ? { instruction: instructionOrAction }
         : { action: instructionOrAction };
     const result = await this.withRetry(
       () =>
-        this.current.act({
+        target.act({
           ...params,
           options: {
             ...this.llmOptions,
@@ -180,22 +319,21 @@ class V4BenchStagehand {
         }),
       "act",
     );
-    // act may navigate/mutate the tab; refresh so url()/evaluate see the result.
-    const active = await this.client.browser.activePage();
-    if (active) this.current = active;
+    // act may open/navigate tabs; reconcile handles + active tab.
+    await this.refreshPages();
     return result;
   }
 
   /**
-   * v3 `observe` returns an array of candidates each exposing `.selector` (an
-   * xpath). v4 returns an array of `{ locator: { xpath, css, ... }, method,
-   * arguments, ... }`, so surface `.selector` from the nested locator while
-   * preserving the full candidate (so `act(candidate)` round-trips into v4).
+   * v3 `observe` returns an array of candidates each exposing `.selector`. v4
+   * returns `{ locator: { xpath, css, ... }, method, arguments, ... }`, so
+   * surface `.selector` while preserving the candidate for `act(candidate)`.
    */
   async observe(instruction?: string): Promise<unknown> {
+    const target = this.activeHandle().v4page;
     const res = await this.withRetry(
       () =>
-        this.current.observe({
+        target.observe({
           ...(instruction ? { instruction } : {}),
           options: this.llmOptions,
         }),
@@ -207,28 +345,36 @@ class V4BenchStagehand {
         ? []
         : [res as Record<string, unknown>];
     return candidates.map((candidate) => {
-      const loc =
-        (candidate.locator as { xpath?: string; css?: string } | undefined) ??
-        {};
+      const loc = (candidate.locator as Loc | undefined) ?? ({} as Loc);
       return { ...candidate, selector: loc.xpath ?? loc.css ?? "" };
     });
   }
 
   /**
-   * v3 `extract` overloads handled here:
-   *   extract(instruction)                      -> { extraction: string }
-   *   extract(instruction, zodSchema, opts?)    -> parsed object
+   * v3 `extract` overloads:
+   *   extract(instruction)                   -> { extraction: string }
+   *   extract(instruction, zodSchema, opts)  -> parsed object
+   *   extract({ page })                      -> { pageText: string }  (all text)
    */
   async extract(
-    instruction: string,
-    schemaOrOpts?: ZodType | ExtractOpts,
-    maybeOpts?: ExtractOpts,
+    arg1: string | ExtractOpts,
+    arg2?: ZodType | ExtractOpts,
+    arg3?: ExtractOpts,
   ): Promise<unknown> {
-    const isZod =
-      schemaOrOpts != null &&
-      typeof (schemaOrOpts as ZodType).parse === "function";
-    const zodSchema = isZod ? (schemaOrOpts as ZodType) : undefined;
-    const opts = (isZod ? maybeOpts : (schemaOrOpts as ExtractOpts)) ?? {};
+    // Page-text overload: extract({ page }) with no instruction.
+    if (typeof arg1 !== "string") {
+      const target = (arg1?.page ?? this.activeHandle()).v4page;
+      const pageText = await this.evaluateOn<string>(
+        target,
+        () => document.body?.innerText ?? "",
+      );
+      return { pageText };
+    }
+
+    const isZod = arg2 != null && typeof (arg2 as ZodType).parse === "function";
+    const zodSchema = isZod ? (arg2 as ZodType) : undefined;
+    const opts = (isZod ? arg3 : (arg2 as ExtractOpts)) ?? {};
+    const target = (opts.page ?? this.activeHandle()).v4page;
 
     // No-schema v3 extract resolves to { extraction: string }; ask v4 for that
     // exact shape so the task's `const { extraction } = ...` keeps working.
@@ -242,8 +388,8 @@ class V4BenchStagehand {
 
     const raw = await this.withRetry(
       () =>
-        this.current.extract({
-          instruction,
+        target.extract({
+          instruction: arg1,
           schema: jsonSchema,
           ...(opts.selector ? { locator: { xpath: opts.selector } } : {}),
           options: this.llmOptions,
@@ -255,9 +401,6 @@ class V4BenchStagehand {
 
     const parsed = zodSchema.safeParse(raw);
     if (parsed.success) return parsed.data;
-
-    // Surface the mismatch but hand back the raw object so the task can still
-    // make its own comparison (a shape delta is a finding, not a crash).
     this.logger.log({
       message: `v4 extract result did not match schema: ${parsed.error.message}; raw=${JSON.stringify(
         raw,
@@ -265,60 +408,6 @@ class V4BenchStagehand {
       level: 0,
     });
     return raw;
-  }
-
-  /** @internal current URL of the active tab (sync; refreshed after nav/act). */
-  currentUrl(): string {
-    return this.current.url ?? "";
-  }
-
-  /** @internal evaluate a page function/expression on the active tab. */
-  async evaluate<R = unknown, Arg = unknown>(
-    fn: string | ((arg: Arg) => R | Promise<R>),
-    arg?: Arg,
-  ): Promise<R> {
-    const expression = toExpression(
-      fn as string | ((a: unknown) => unknown),
-      arg,
-    );
-    const { value } = await this.withRetry(
-      () =>
-        this.current.evaluate({
-          expression,
-          awaitPromise: true,
-          returnByValue: true,
-        }),
-      "evaluate",
-    );
-    return value as R;
-  }
-
-  /** @internal evaluate a function over the element a locator resolves to. */
-  async evalForElement<R>(
-    loc: { css?: string; xpath?: string },
-    fn: (el: Element | null) => R,
-  ): Promise<R> {
-    const expression = `(${fn.toString()})(${elementExpression(loc)})`;
-    const { value } = await this.withRetry(
-      () =>
-        this.current.evaluate({
-          expression,
-          awaitPromise: true,
-          returnByValue: true,
-        }),
-      "evaluate",
-    );
-    return value as R;
-  }
-
-  /** @internal click the element a locator resolves to. */
-  async locatorClick(loc: { css?: string; xpath?: string }): Promise<void> {
-    await this.withRetry(() => this.current.click(loc), "click");
-  }
-
-  /** @internal resolve a locator to a v4 Locator (carries backendNodeId, etc.). */
-  async locate(loc: { css?: string; xpath?: string }) {
-    return this.withRetry(() => this.current.locate(loc), "locate");
   }
 
   async close(): Promise<void> {
@@ -331,93 +420,158 @@ class V4BenchStagehand {
 }
 
 class V4BenchPage {
-  constructor(private readonly sdk: V4BenchStagehand) {}
+  constructor(
+    private readonly sdk: V4BenchStagehand,
+    private page: V4Page,
+  ) {}
+
+  /** @internal */ _setPage(page: V4Page): void {
+    this.page = page;
+  }
+  get v4page(): V4Page {
+    return this.page;
+  }
 
   async goto(url: string, opts?: { waitUntil?: string }): Promise<void> {
-    await this.sdk.navigate(url, opts?.waitUntil);
+    this.page = await this.sdk.gotoOn(this.page, url, opts?.waitUntil);
   }
 
   url(): string {
-    return this.sdk.currentUrl();
+    return this.page.url ?? "";
   }
 
   async evaluate<R = unknown, Arg = unknown>(
     fn: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
   ): Promise<R> {
-    return this.sdk.evaluate<R, Arg>(fn, arg);
+    return this.sdk.evaluateOn<R, Arg>(this.page, fn, arg);
   }
 
   locator(selector: string): V4BenchLocator {
-    return new V4BenchLocator(this.sdk, parseSelector(selector));
+    return new V4BenchLocator(this.sdk, this.page, parseSelector(selector), []);
   }
 
-  frameLocator(): never {
-    throw new Error(
-      "page.frameLocator() is not supported by the v4 bench facade yet (iframe tasks).",
-    );
+  /** Same-origin iframe support (cross-origin/OOPIF frames resolve to null). */
+  frameLocator(selector: string): V4BenchFrameLocator {
+    return new V4BenchFrameLocator(this.sdk, this.page, [
+      parseSelector(selector),
+    ]);
   }
 
   frames(): never {
     throw new Error(
-      "page.frames() is not supported by the v4 bench facade yet (iframe tasks).",
+      "page.frames() is not supported by the v4 bench facade yet.",
     );
   }
 }
 
-/** Minimal Playwright-Locator-shaped handle over a v4 element, for act tasks. */
+/** A frame-scoped locator factory (supports nesting via `.frameLocator`). */
+class V4BenchFrameLocator {
+  constructor(
+    private readonly sdk: V4BenchStagehand,
+    private readonly page: V4Page,
+    private readonly chain: Loc[],
+  ) {}
+
+  frameLocator(selector: string): V4BenchFrameLocator {
+    return new V4BenchFrameLocator(this.sdk, this.page, [
+      ...this.chain,
+      parseSelector(selector),
+    ]);
+  }
+
+  locator(selector: string): V4BenchLocator {
+    return new V4BenchLocator(
+      this.sdk,
+      this.page,
+      parseSelector(selector),
+      this.chain,
+    );
+  }
+}
+
+/** Minimal Playwright-Locator-shaped handle over a v4 element. */
 class V4BenchLocator {
   constructor(
     private readonly sdk: V4BenchStagehand,
-    private readonly loc: { css?: string; xpath?: string },
+    private readonly page: V4Page,
+    private readonly loc: Loc,
+    private readonly frameChain: Loc[],
   ) {}
 
-  /** v3 `locator(...).first()` — we already resolve the first match, so identity. */
   first(): V4BenchLocator {
     return this;
   }
 
   async click(): Promise<void> {
-    await this.sdk.locatorClick(this.loc);
+    await this.sdk.locatorClickOn(this.page, this.loc, this.frameChain);
   }
 
   async textContent(): Promise<string | null> {
-    return this.sdk.evalForElement(this.loc, (el) => el?.textContent ?? null);
+    return this.sdk.evalForElementOn(
+      this.page,
+      this.loc,
+      this.frameChain,
+      (el) => el?.textContent ?? null,
+    );
   }
 
+  // NOTE: these read fns run in the page and may target elements inside an
+  // iframe, whose realm differs from the top window — so `instanceof
+  // HTMLInputElement` is false there. Duck-type via property access instead.
+
   async innerText(): Promise<string> {
-    return this.sdk.evalForElement(this.loc, (el) =>
-      el instanceof HTMLElement ? el.innerText : "",
+    return this.sdk.evalForElementOn(
+      this.page,
+      this.loc,
+      this.frameChain,
+      (el) => {
+        const e = el as { innerText?: unknown } | null;
+        return e && typeof e.innerText === "string" ? e.innerText : "";
+      },
+    );
+  }
+
+  async inputValue(): Promise<string> {
+    return this.sdk.evalForElementOn(
+      this.page,
+      this.loc,
+      this.frameChain,
+      (el) => {
+        const e = el as { value?: unknown } | null;
+        return e && typeof e.value === "string" ? e.value : "";
+      },
+    );
+  }
+
+  async isVisible(): Promise<boolean> {
+    return this.sdk.evalForElementOn(
+      this.page,
+      this.loc,
+      this.frameChain,
+      (el) => {
+        const e = el as { getClientRects?: () => { length: number } } | null;
+        return !!(e && e.getClientRects && e.getClientRects().length > 0);
+      },
+    );
+  }
+
+  async isChecked(): Promise<boolean> {
+    return this.sdk.evalForElementOn(
+      this.page,
+      this.loc,
+      this.frameChain,
+      (el) => {
+        const e = el as { checked?: unknown } | null;
+        return !!(e && e.checked);
+      },
     );
   }
 
   /** CDP backend node id — used by observe tasks to compare element identity. */
   async backendNodeId(): Promise<number | undefined> {
-    const resolved = await this.sdk.locate(this.loc);
+    const resolved = await this.sdk.locateOn(this.page, this.loc);
     return resolved.backendNodeId;
-  }
-
-  async inputValue(): Promise<string> {
-    return this.sdk.evalForElement(this.loc, (el) =>
-      el instanceof HTMLInputElement ||
-      el instanceof HTMLTextAreaElement ||
-      el instanceof HTMLSelectElement
-        ? el.value
-        : "",
-    );
-  }
-
-  async isVisible(): Promise<boolean> {
-    return this.sdk.evalForElement(
-      this.loc,
-      (el) => el != null && (el as HTMLElement).getClientRects().length > 0,
-    );
-  }
-
-  async isChecked(): Promise<boolean> {
-    return this.sdk.evalForElement(this.loc, (el) =>
-      el instanceof HTMLInputElement ? el.checked : false,
-    );
   }
 }
 

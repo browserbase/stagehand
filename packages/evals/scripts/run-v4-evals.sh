@@ -123,9 +123,18 @@ out += `| bench observe | ${fmt(rate(suites.observe_v4))} | ${fmt(rate(suites.ob
 const diff = (title, v4k, v3k) => {
   let s = `### ${title} — tasks failing on v4\n\n`;
   if (!suites[v4k]) return s + `_no v4 summary captured (run errored before writing eval-summary.json)_\n\n`;
+  // Zero results means the run crashed/aborted (no eval-summary), NOT that
+  // everything passed — distinguish so "n/a" suites aren't reported as ✅.
+  const r4 = rate(suites[v4k]);
+  if (!r4 || r4.t === 0) {
+    return (
+      s +
+      `_no results — the v4 ${title} run produced 0 evals (it errored/crashed before completing). Treat as "did not run", not "passed."_\n\n`
+    );
+  }
   const v4 = byTask(suites[v4k]), v3 = byTask(suites[v3k]);
   const failing = [...v4.entries()].filter(([, e]) => e.pass < e.total).sort((a, b) => a[0].localeCompare(b[0]));
-  if (!failing.length) return s + `All v4 tasks passed. ✅\n\n`;
+  if (!failing.length) return s + `All ${r4.t} v4 runs passed. ✅\n\n`;
   s += `| Task | v4 | v3 | v4 failure (truncated; full text in ctrf/v4/${v4k}.json) |\n|---|---|---|---|\n`;
   for (const [name, e] of failing) { const v = v3.get(name); s += `| ${name} | ${e.pass}/${e.total} | ${v ? `${v.pass}/${v.total}` : "n/a"} | ${cell(e.error)} |\n`; }
   return s + "\n";

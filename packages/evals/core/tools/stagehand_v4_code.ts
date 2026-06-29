@@ -104,6 +104,22 @@ function pageIdOf(page: V4Page): string {
   return String(page.targetId ?? page.tabId ?? page.page_idx ?? "");
 }
 
+// v4's browser.pages() can include browser/extension junk tabs (chrome://newtab,
+// chrome-error://, devtools://, chrome-extension://). Drop those from tab counts.
+// Note: about:blank is kept — the tool's working tab starts there before goto.
+const JUNK_TAB_URL = /^(chrome|chrome-error|chrome-extension|devtools):/i;
+function isJunkTab(page: V4Page): boolean {
+  return JUNK_TAB_URL.test(page.url ?? "");
+}
+
+// A real, navigated content tab. Used (alongside session-tracked handles) to
+// count tabs — a tab's URL is transient right after open (about:blank →
+// chrome://newtab → content), so URL alone can't decide whether to count it.
+const CONTENT_TAB_URL = /^(https?|file|data):/i;
+function isContentTab(page: V4Page): boolean {
+  return CONTENT_TAB_URL.test(page.url ?? "");
+}
+
 /** Serialize a page function (+ optional arg) into an expression v4 can eval. */
 function toExpression(
   pageFunctionOrExpression: string | ((arg: unknown) => unknown),
@@ -543,12 +559,21 @@ class V4Session implements CoreSession {
 
   async listPages(): Promise<CorePageHandle[]> {
     const pages = await this.browser.pages();
-    return pages.map((page) => this.wrap(page));
+    // Count a tab if the session already tracks it (e.g. one we just opened via
+    // newPage, even while it's still chrome://newtab) or it's a content tab.
+    // Excludes the browser's default about:blank/chrome junk tabs.
+    return pages
+      .filter((page) => this.handles.has(pageIdOf(page)) || isContentTab(page))
+      .map((page) => this.wrap(page));
   }
 
   async activePage(): Promise<CorePageHandle> {
     const active = await this.browser.activePage();
-    const page = active ?? (await this.browser.pages())[0];
+    const pages = await this.browser.pages();
+    const page =
+      active && !isJunkTab(active)
+        ? active
+        : (pages.find((p) => !isJunkTab(p)) ?? active ?? pages[0]);
     if (!page) {
       throw new Error("No active page available");
     }
