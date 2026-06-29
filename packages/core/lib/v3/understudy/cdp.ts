@@ -208,6 +208,15 @@ export class CdpConnection implements CDPSessionLike {
     }
   }
 
+  private clearSessionEventHandlers(sessionId: string): void {
+    const prefix = `${sessionId}:`;
+    for (const key of Array.from(this.eventHandlers.keys())) {
+      if (key.startsWith(prefix)) {
+        this.eventHandlers.delete(key);
+      }
+    }
+  }
+
   getSession(sessionId: string): CdpSession | undefined {
     return this.sessions.get(sessionId);
   }
@@ -353,6 +362,7 @@ export class CdpConnection implements CDPSessionLike {
             );
           }
         }
+        this.clearSessionEventHandlers(p.sessionId);
         this.sessions.delete(p.sessionId);
         this.sessionToTarget.delete(p.sessionId);
         this.latestCdpCallEvent.delete(p.sessionId);
@@ -361,6 +371,7 @@ export class CdpConnection implements CDPSessionLike {
         // Remove any session mapping for this target
         for (const [sessionId, targetId] of this.sessionToTarget.entries()) {
           if (targetId === p.targetId) {
+            this.clearSessionEventHandlers(sessionId);
             this.sessionToTarget.delete(sessionId);
             this.latestCdpCallEvent.delete(sessionId);
             break;
