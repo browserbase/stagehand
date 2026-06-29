@@ -161,6 +161,31 @@ describe("withSession", () => {
     }
   });
 
+  it("surfaces a release failure instead of swallowing it", async () => {
+    const store = initializeSessionStore();
+    const originalConsoleError = console.error;
+    let errorLogs = 0;
+    console.error = () => {
+      errorLogs += 1;
+    };
+    try {
+      await store.createSession("A", PARAMS);
+      injectFakeStagehand(store as InMemorySessionStore, "A");
+      store.releaseSession = () => {
+        throw new Error("release boom");
+      };
+
+      // The handler result is still returned; the release failure is recorded,
+      // not thrown (a throw from finally would clobber the result).
+      const result = await withSession("A", {}, async () => "ok");
+      assert.equal(result, "ok");
+      assert.equal(errorLogs, 1, "release failure should be recorded");
+    } finally {
+      console.error = originalConsoleError;
+      await destroySessionStore();
+    }
+  });
+
   it("releases the pin when fn throws", async () => {
     const store = initializeSessionStore();
     try {

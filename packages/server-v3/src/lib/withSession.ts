@@ -41,8 +41,14 @@ export async function withSession<T>(
   } finally {
     try {
       await sessionStore.releaseSession(sessionId);
-    } catch {
-      // best-effort release
+    } catch (err) {
+      // A failed release leaves the session pinned (inUse not decremented),
+      // which leaks capacity. Don't rethrow (that would clobber the handler's
+      // result/error in a finally) — record it so the leak is detectable.
+      console.error(
+        `Failed to release session ${sessionId}; it may remain pinned:`,
+        err,
+      );
     }
   }
 }
