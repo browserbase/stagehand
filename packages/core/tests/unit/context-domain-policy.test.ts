@@ -32,6 +32,11 @@ const flushAsyncHandlers = async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
 };
 
+const ALLOWLIST_FETCH_PATTERNS = [
+  { urlPattern: "http://*/*", requestStage: "Request" },
+  { urlPattern: "https://*/*", requestStage: "Request" },
+];
+
 describe("V3Context.setDomainPolicy", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -100,13 +105,49 @@ describe("V3Context.setDomainPolicy", () => {
     });
     await setDomainPolicy.call(ctx, null);
     await setDomainPolicy.call(ctx, { blockedDomains: [] });
+    await setDomainPolicy.call(ctx, { allowedDomains: [] });
 
     for (const session of [sessionA, sessionB]) {
-      expect(session.callsFor("Fetch.disable").length).toBe(2);
+      expect(session.callsFor("Fetch.disable").length).toBe(3);
       expect(session.listenerCount("Fetch.requestPaused")).toBe(0);
     }
 
     expect(getDomainPolicy.call(ctx)).toBeNull();
+  });
+
+  it("sends broad Fetch patterns when allowed domains are set", async () => {
+    const session = new MockCDPSession({}, "session-a");
+    const ctx = makeContext([session]);
+
+    await setDomainPolicy.call(ctx, {
+      allowedDomains: ["example.com", "*.example.com"],
+    });
+
+    expect(session.listenerCount("Fetch.requestPaused")).toBe(1);
+    expect(session.callsFor("Fetch.enable")[0]?.params).toEqual({
+      patterns: ALLOWLIST_FETCH_PATTERNS,
+    });
+    expect(getDomainPolicy.call(ctx)).toEqual({
+      allowedDomains: ["example.com", "*.example.com"],
+    });
+  });
+
+  it("sends broad Fetch patterns when allowed and blocked domains are set", async () => {
+    const session = new MockCDPSession({}, "session-a");
+    const ctx = makeContext([session]);
+
+    await setDomainPolicy.call(ctx, {
+      allowedDomains: ["example.com"],
+      blockedDomains: ["ads.example.com"],
+    });
+
+    expect(session.callsFor("Fetch.enable")[0]?.params).toEqual({
+      patterns: ALLOWLIST_FETCH_PATTERNS,
+    });
+    expect(getDomainPolicy.call(ctx)).toEqual({
+      allowedDomains: ["example.com"],
+      blockedDomains: ["ads.example.com"],
+    });
   });
 
   it("keeps its requestPaused listener when Fetch.disable fails", async () => {
@@ -226,6 +267,67 @@ describe("V3Context.setDomainPolicy", () => {
 
     expect(session.callsFor("Fetch.continueRequest")[0]?.params).toEqual({
       requestId: "request-1",
+    });
+  });
+
+  it("continues allowed paused requests", async () => {
+    const session = new MockCDPSession({}, "session-a");
+    const ctx = makeContext([session]);
+
+    await setDomainPolicy.call(ctx, {
+      allowedDomains: ["example.com", "*.example.com"],
+    });
+
+    session.emit("Fetch.requestPaused", {
+      requestId: "request-1",
+      request: { url: "https://app.example.com/" },
+    });
+    await flushAsyncHandlers();
+
+    expect(session.callsFor("Fetch.continueRequest")[0]?.params).toEqual({
+      requestId: "request-1",
+    });
+    expect(session.callsFor("Fetch.failRequest").length).toBe(0);
+  });
+
+  it("fails disallowed paused requests", async () => {
+    const session = new MockCDPSession({}, "session-a");
+    const ctx = makeContext([session]);
+
+    await setDomainPolicy.call(ctx, {
+      allowedDomains: ["example.com"],
+    });
+
+    session.emit("Fetch.requestPaused", {
+      requestId: "request-1",
+      request: { url: "https://other.test/" },
+    });
+    await flushAsyncHandlers();
+
+    expect(session.callsFor("Fetch.failRequest")[0]?.params).toEqual({
+      requestId: "request-1",
+      errorReason: "BlockedByClient",
+    });
+  });
+
+  it("fails blocked requests even when they are also allowed", async () => {
+    const session = new MockCDPSession({}, "session-a");
+    const ctx = makeContext([session]);
+
+    await setDomainPolicy.call(ctx, {
+      allowedDomains: ["example.com", "*.example.com"],
+      blockedDomains: ["ads.example.com"],
+    });
+
+    session.emit("Fetch.requestPaused", {
+      requestId: "request-1",
+      request: { url: "https://ads.example.com/script.js" },
+    });
+    await flushAsyncHandlers();
+
+    expect(session.callsFor("Fetch.failRequest")[0]?.params).toEqual({
+      requestId: "request-1",
+      errorReason: "BlockedByClient",
     });
   });
 

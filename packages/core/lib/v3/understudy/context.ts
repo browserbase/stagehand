@@ -32,7 +32,10 @@ import {
   CookieParam,
   DomainPolicy,
 } from "../types/public/context.js";
-import { normalizeDomainPolicy, shouldBlockUrl } from "./domainPolicy.js";
+import {
+  getDomainPolicyDecision,
+  normalizeDomainPolicy,
+} from "./domainPolicy.js";
 import type { NormalizedDomainPolicy } from "./domainPolicy.js";
 
 type TargetId = string;
@@ -437,7 +440,14 @@ export class V3Context {
 
   public getDomainPolicy(): DomainPolicy | null {
     if (!this.domainPolicy) return null;
-    return { blockedDomains: [...this.domainPolicy.blockedDomains] };
+    return {
+      ...(this.domainPolicy.allowedDomains.length
+        ? { allowedDomains: [...this.domainPolicy.allowedDomains] }
+        : {}),
+      ...(this.domainPolicy.blockedDomains.length
+        ? { blockedDomains: [...this.domainPolicy.blockedDomains] }
+        : {}),
+    };
   }
 
   public async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
@@ -538,9 +548,12 @@ export class V3Context {
     session: CDPSessionLike,
     evt: Protocol.Fetch.RequestPausedEvent,
   ): Promise<void> {
-    const policy = this.domainPolicy;
+    const decision = getDomainPolicyDecision(
+      evt.request.url,
+      this.domainPolicy,
+    );
 
-    if (!policy || !shouldBlockUrl(evt.request.url, policy)) {
+    if (decision.action === "continue") {
       await session
         .send("Fetch.continueRequest", { requestId: evt.requestId })
         .catch(() => {});
@@ -560,7 +573,7 @@ export class V3Context {
       level: 2,
       auxiliary: {
         hostname: { value: hostname, type: "string" },
-        ruleType: { value: "blockedDomains", type: "string" },
+        ruleType: { value: decision.reason, type: "string" },
       },
     });
 
