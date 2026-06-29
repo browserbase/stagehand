@@ -12,8 +12,9 @@
 #
 # Env overrides:
 #   STAGEHAND_V4_DIR          v4 checkout (default: <repo>/../stagehand-v4)
-#   EVAL_MODEL                model for the bench extract suite
+#   EVAL_MODEL                model for the bench suites
 #                             (default: anthropic/claude-sonnet-4-6)
+#   EVAL_TRIALS               bench trials per task (default: 3; CORE is always 1)
 #   STAGEHAND_V4_SDK_ENTRY    forwarded to build:v4shim if the v4 layout moved
 #   STAGEHAND_V4_EXTENSION_ZIP forwarded to build:v4shim
 #
@@ -24,6 +25,7 @@ EVALS="$REPO/packages/evals"
 EVALS_CLI="$EVALS/dist/cli/cli.js"
 export STAGEHAND_V4_DIR="${STAGEHAND_V4_DIR:-$REPO/../stagehand-v4}"
 MODEL="${EVAL_MODEL:-anthropic/claude-sonnet-4-6}"
+TRIALS="${EVAL_TRIALS:-3}"   # bench trials per task (CORE is deterministic → always 1)
 OUTDIR="$EVALS/ctrf/v4"
 REPORT="$EVALS/ctrf/v4-findings.md"
 SUMMARY="$REPO/eval-summary.json"   # written (and overwritten) per run by framework/summary.ts
@@ -43,7 +45,7 @@ if git -C "$STAGEHAND_V4_DIR" rev-parse --git-dir >/dev/null 2>&1; then
 else
   export V4_SHA="unknown" V4_BRANCH="?" V4_DIRTY=""
 fi
-export MODEL
+export MODEL TRIALS
 export STAMP="$(date -u +%Y-%m-%dT%H:%MZ)"
 
 # ── 1. rebuild the shim from the freshly-pulled v4 (must succeed) ─────────────
@@ -74,12 +76,12 @@ run_suite() {
 
 run_suite core_v4    ""   run core --tool stagehand_v4_code -c 1 -t 1
 run_suite core_v3    ""   run core --tool understudy_code   -c 1 -t 1
-run_suite extract_v4 v4   run extract -m "$MODEL" -c 1 -t 3
-run_suite extract_v3 ""   run extract -m "$MODEL" -c 1 -t 3
-run_suite act_v4     v4   run act -m "$MODEL" -c 1 -t 3
-run_suite act_v3     ""   run act -m "$MODEL" -c 1 -t 3
-run_suite observe_v4 v4   run observe -m "$MODEL" -c 1 -t 3
-run_suite observe_v3 ""   run observe -m "$MODEL" -c 1 -t 3
+run_suite extract_v4 v4   run extract -m "$MODEL" -c 1 -t "$TRIALS"
+run_suite extract_v3 ""   run extract -m "$MODEL" -c 1 -t "$TRIALS"
+run_suite act_v4     v4   run act -m "$MODEL" -c 1 -t "$TRIALS"
+run_suite act_v3     ""   run act -m "$MODEL" -c 1 -t "$TRIALS"
+run_suite observe_v4 v4   run observe -m "$MODEL" -c 1 -t "$TRIALS"
+run_suite observe_v3 ""   run observe -m "$MODEL" -c 1 -t "$TRIALS"
 
 # ── 3. generate the findings report ──────────────────────────────────────────
 node --input-type=module - "$OUTDIR" "$REPORT" <<'NODE'
@@ -112,7 +114,7 @@ const cell = (x) => x ? String(x).replace(/\s+/g, " ").replace(/\|/g, "\\|").sli
 let out = `# v4 eval findings — ${E.STAMP || ""}\n\n`;
 out += `- v3 evals: \`${E.V3_SHA || "?"}\`\n`;
 out += `- v4 SDK: \`${E.V4_SHA || "?"}\` (${E.V4_BRANCH || "?"}${E.V4_DIRTY || ""})\n`;
-out += `- model: \`${E.MODEL || "?"}\` · config: core \`-c 1 -t 1\`, extract \`-c 1 -t 3\`\n\n`;
+out += `- model: \`${E.MODEL || "?"}\` · config: core \`-c 1 -t 1\`, bench \`-c 1 -t ${E.TRIALS || "3"}\`\n\n`;
 
 out += `## Summary (v4 vs v3)\n\n| Suite | v4 | v3 |\n|---|---|---|\n`;
 out += `| CORE | ${fmt(rate(suites.core_v4))} | ${fmt(rate(suites.core_v3))} |\n`;
