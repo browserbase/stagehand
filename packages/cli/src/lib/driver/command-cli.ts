@@ -10,10 +10,12 @@ import {
   ignoreDefaultChromeArgFlag,
   localFlag,
   noDefaultChromeArgsFlag,
+  proxiesFlag,
   remoteFlag,
   sessionFlag,
   sessionName,
   targetIdFlag,
+  verifiedFlag,
 } from "./flags.js";
 import { getDriverStatus } from "./daemon/client.js";
 import {
@@ -34,9 +36,11 @@ export const driverCommandFlags = {
   "ignore-default-chrome-arg": ignoreDefaultChromeArgFlag,
   local: localFlag,
   "no-default-chrome-args": noDefaultChromeArgsFlag,
+  proxies: proxiesFlag,
   remote: remoteFlag,
   session: sessionFlag,
   "target-id": targetIdFlag,
+  verified: verifiedFlag,
 };
 
 export const waitUntilFlag = Flags.string({
@@ -102,7 +106,9 @@ export function hasExplicitDriverTarget(flags: DriverFlags): boolean {
       hasChromeArgFlags(flags) ||
       flags["target-id"] ||
       flags.headed ||
-      flags.headless,
+      flags.headless ||
+      flags.verified ||
+      flags.proxies,
   );
 }
 
@@ -115,6 +121,8 @@ function hasModeOnlyFlag(flags: DriverFlags): boolean {
       !flags["target-id"] &&
       !flags.headed &&
       !flags.headless &&
+      !flags.verified &&
+      !flags.proxies &&
       flags.local !== flags.remote,
   );
 }

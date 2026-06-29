@@ -1,7 +1,7 @@
 import type { Stagehand } from "@browserbasehq/stagehand";
 
 import type { DriverModeFlags } from "./mode.js";
-import type { ConnectionTarget } from "./types.js";
+import type { ConnectionTarget, RemoteConnectionTarget } from "./types.js";
 
 export type StagehandConstructorOptions = ConstructorParameters<
   typeof Stagehand
@@ -43,7 +43,9 @@ export interface RemoteCapability {
   /** Auto-select remote when an API key is present; null otherwise. */
   autoSelectRemoteTarget(): ConnectionTarget | null;
   /** Stagehand options for a remote (BROWSERBASE) session. */
-  remoteStagehandOptions(): Promise<StagehandConstructorOptions>;
+  remoteStagehandOptions(
+    target?: RemoteConnectionTarget,
+  ): Promise<StagehandConstructorOptions>;
   /** Map a failed remote `stagehand.init()` to an actionable message + code. */
   classifyRemoteInitError(error: unknown): RemoteInitErrorClassification;
   /** Remediation strings for driver init failures. */

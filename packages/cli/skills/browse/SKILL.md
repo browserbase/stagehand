@@ -57,12 +57,15 @@ Browser driver commands auto-start the browse daemon when needed. Choose the bro
 browse open https://example.com --local
 browse open https://example.com --local --headed
 browse open https://example.com --remote
+browse open https://example.com --remote --verified --proxies
 browse open https://example.com --auto-connect
 browse open https://example.com --cdp 9222
 browse open https://example.com --cdp ws://127.0.0.1:9222/devtools/browser/<id>
 ```
 
 Use local mode for development, localhost, trusted sites, and fast iteration. Use `--auto-connect` only when the user explicitly wants to attach to an already-running debuggable Chrome session with existing cookies or login state; use `--local` when no debuggable Chrome is available. Use remote mode when Browserbase credentials are available and the site needs hosted browser infrastructure, Verified browser mode, CAPTCHA solving, proxies, or session persistence.
+
+For a Verified and/or proxied remote session, add `--verified` and/or `--proxies` to `--remote` — a single command that keeps the Browserbase session identity, so `browse status` and `browse doctor` report the session ID and live-view URL. `--verified` requires a Browserbase Scale plan. These flags only apply to `--remote` and are sticky for the session's lifetime, like `--headed`. Reach for `browse cloud sessions create` + `--cdp` only when you need session options `open` doesn't expose (region, keep-alive, contexts).
 
 Choose headed/headless and local/remote mode when starting a session. A running session keeps its mode: passing a conflicting flag such as `--headed` to an already-running headless session fails until you run `browse stop --session <name>` or target a different session.
 
@@ -237,7 +240,7 @@ For remote sessions with context persistence:
 browse cloud sessions create --context-id <context-id> --persist
 ```
 
-Use `--verified` when the task needs Browserbase Verified browser mode.
+Use `--verified` when the task needs Browserbase Verified browser mode. To drive a Verified/proxied session directly, prefer `browse open <url> --remote --verified --proxies` over create-then-attach — it keeps the session identity so `browse status`/`browse doctor` can report it. Use `browse cloud sessions create` for session options the driver flags don't cover (region, keep-alive, contexts, full `--stdin` body).
 
 Use `browse cloud fetch` when the user needs a simple HTTP fetch without browser interaction. It returns markdown-formatted page content by default; pass `--format raw` for the original response body or `--format json --schema <schema>` for structured extraction. Use `browse cloud search` when the user asks for web search results.
 
