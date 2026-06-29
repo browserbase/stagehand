@@ -215,6 +215,77 @@ describe("driver foundation", () => {
     }
   });
 
+  it("resolves --remote with --verified and --proxies", async () => {
+    await expect(resolveConnectionTarget({ remote: true })).resolves.toEqual({
+      kind: "remote",
+    });
+    await expect(
+      resolveConnectionTarget({ remote: true, verified: true }),
+    ).resolves.toEqual({ kind: "remote", verified: true });
+    await expect(
+      resolveConnectionTarget({ proxies: true, remote: true }),
+    ).resolves.toEqual({ kind: "remote", proxies: true });
+    await expect(
+      resolveConnectionTarget({ proxies: true, remote: true, verified: true }),
+    ).resolves.toEqual({ kind: "remote", proxies: true, verified: true });
+  });
+
+  it("requires --remote for --verified and --proxies", async () => {
+    await expect(resolveConnectionTarget({ verified: true })).rejects.toThrow(
+      "--verified requires --remote",
+    );
+    await expect(resolveConnectionTarget({ proxies: true })).rejects.toThrow(
+      "--proxies requires --remote",
+    );
+    // plural subject keeps the plural verb
+    await expect(
+      resolveConnectionTarget({ proxies: true, verified: true }),
+    ).rejects.toThrow("--verified and --proxies require --remote");
+    // verified/proxies must be explicit about remote even when --cdp/--local is set
+    await expect(
+      resolveConnectionTarget({ cdp: "9222", verified: true }),
+    ).rejects.toThrow("--verified requires --remote");
+    await expect(
+      resolveConnectionTarget({ local: true, proxies: true }),
+    ).rejects.toThrow("--proxies requires --remote");
+  });
+
+  it("does not let --verified/--proxies imply remote from an API key", async () => {
+    const previousApiKey = process.env.BROWSERBASE_API_KEY;
+    process.env.BROWSERBASE_API_KEY = "test-key";
+    try {
+      await expect(resolveConnectionTarget({ verified: true })).rejects.toThrow(
+        "--verified requires --remote",
+      );
+    } finally {
+      restoreEnv("BROWSERBASE_API_KEY", previousApiKey);
+    }
+  });
+
+  it("makes remote verified/proxies sticky for session reuse", () => {
+    expect(targetsCompatible({ kind: "remote" }, { kind: "remote" })).toBe(
+      true,
+    );
+    expect(
+      targetsCompatible(
+        { kind: "remote", verified: true, proxies: true },
+        { kind: "remote", verified: true, proxies: true },
+      ),
+    ).toBe(true);
+    expect(
+      targetsCompatible({ kind: "remote" }, { kind: "remote", verified: true }),
+    ).toBe(false);
+    expect(
+      targetsCompatible({ kind: "remote", proxies: true }, { kind: "remote" }),
+    ).toBe(false);
+    expect(
+      targetsCompatible(
+        { kind: "remote", verified: true },
+        { kind: "remote", verified: true, proxies: true },
+      ),
+    ).toBe(false);
+  });
+
   it("only reuses daemon sessions for matching launch targets", () => {
     expect(
       targetsCompatible(

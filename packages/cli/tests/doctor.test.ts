@@ -316,6 +316,75 @@ describe("doctor report builder", () => {
       restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
     }
   });
+
+  it("surfaces the live Browserbase session identity and settings", async () => {
+    const report = await buildDoctorReport(
+      { flags: {}, session: "default" },
+      {
+        env: { BROWSERBASE_API_KEY: "test-key" },
+        getDriverStatus: async () => ({
+          browserbaseDebugUrl: "https://www.browserbase.com/live/sess-123",
+          browserbaseSessionId: "sess-123",
+          browserbaseSessionUrl:
+            "https://www.browserbase.com/sessions/sess-123",
+          browserConnected: true,
+          initialized: true,
+          mode: "remote",
+          pages: [],
+          pid: process.pid,
+          session: "default",
+          target: { kind: "remote", proxies: true, verified: true },
+        }),
+        readPackageVersion: async () => "0.0.0-test",
+      },
+    );
+
+    expect(report.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          details: expect.objectContaining({
+            liveViewUrl: "https://www.browserbase.com/live/sess-123",
+            sessionId: "sess-123",
+          }),
+          message:
+            "session sess-123 — https://www.browserbase.com/sessions/sess-123",
+          name: "browserbase",
+          status: "ok",
+        }),
+        expect.objectContaining({
+          message: "reusing remote (verified, proxies)",
+          name: "target",
+        }),
+      ]),
+    );
+  });
+
+  it("includes --verified/--proxies in the suggested remote open command", async () => {
+    const report = await buildDoctorReport(
+      {
+        flags: { proxies: true, remote: true, verified: true },
+        session: "default",
+      },
+      {
+        env: { BROWSERBASE_API_KEY: "test-key" },
+        getDriverStatus: async () => null,
+        readPackageVersion: async () => "0.0.0-test",
+      },
+    );
+
+    expect(report.verdict).toBe("ok");
+    expect(report.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: "remote (verified, proxies)",
+          name: "target",
+        }),
+      ]),
+    );
+    expect(report.next).toBe(
+      "browse open https://example.com --remote --verified --proxies",
+    );
+  });
 });
 
 async function tempDaemonDir(): Promise<string> {
