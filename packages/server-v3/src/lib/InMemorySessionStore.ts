@@ -201,9 +201,11 @@ export class InMemorySessionStore implements SessionStore {
       node.loggerRef.current = ctx.logger;
     }
 
+    // Pin before any await so the node can't be evicted or TTL-expired during a lazy init()
+    node.inUse += 1;
+
     // If V3 instance exists, return it
     if (node.stagehand) {
-      node.inUse += 1;
       return node.stagehand;
     }
 
@@ -213,6 +215,9 @@ export class InMemorySessionStore implements SessionStore {
     try {
       await stagehand.init();
     } catch (error) {
+      // Undo the pin taken above; the node stays (stagehand still null) so a
+      // later request can retry init.
+      node.inUse -= 1;
       try {
         await stagehand.close();
       } catch {
@@ -221,7 +226,6 @@ export class InMemorySessionStore implements SessionStore {
       throw error;
     }
     node.stagehand = stagehand;
-    node.inUse += 1;
     return stagehand;
   }
 
@@ -229,9 +233,11 @@ export class InMemorySessionStore implements SessionStore {
     const node = this.items.get(sessionId);
     if (!node) return;
 
-    if (node.inUse > 0) {
-      node.inUse -= 1;
-    }
+    // Ignore unmatched/double releases: never go negative, and don't refresh
+    // the TTL of an already-idle session
+    if (node.inUse === 0) return;
+
+    node.inUse -= 1;
 
     if (this.ttlMs > 0) {
       node.expiry = Date.now() + this.ttlMs;

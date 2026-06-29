@@ -238,7 +238,6 @@ const startRouteHandler: RouteHandler = withErrorHandling(
         finalCdpUrl = await withSession(
           session.sessionId,
           { modelApiKey: localBrowserModelApiKey },
-          request,
           (stagehand) => Promise.resolve(stagehand.connectURL()),
         );
       } catch (err) {

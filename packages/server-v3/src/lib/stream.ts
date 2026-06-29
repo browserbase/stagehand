@@ -184,20 +184,15 @@ export async function createStreamingResponse<TV3>({
   let result: Awaited<ReturnType<typeof handler>> | null = null;
   let handlerError: Error | null = null;
 
-  // withSession pins the session for the duration of the handler so it can't be
-  // evicted or TTL-expired mid-request, and guarantees release (incl. on abort).
-  // Acquire failures (session not found/expired) surface here too and are
-  // rendered as an error response below, same as handler failures.
+  // withSession pins the session for the whole handler so it can't be evicted
+  // or TTL-expired mid-request, and releases once the handler settles. Acquire
+  // failures (session not found/expired) surface here too and are rendered as
+  // an error response below, same as handler failures.
   try {
-    result = await withSession(
-      sessionId,
-      requestContext,
-      request,
-      (stagehand) => {
-        sendData("connected", "system", { status: "connected" });
-        return handler({ stagehand, data: parsedData });
-      },
-    );
+    result = await withSession(sessionId, requestContext, (stagehand) => {
+      sendData("connected", "system", { status: "connected" });
+      return handler({ stagehand, data: parsedData });
+    });
   } catch (err) {
     handlerError = err instanceof Error ? err : new Error("Unknown error");
     request.log.error(

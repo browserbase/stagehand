@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import { describe, it } from "node:test";
 
-import type { FastifyRequest } from "fastify";
 import type { V3 } from "@browserbasehq/stagehand";
 
 import { InMemorySessionStore } from "../../src/lib/InMemorySessionStore.js";
@@ -101,6 +99,18 @@ describe("session pinning", () => {
     assert.equal(await store.hasSession("A"), false); // now evicted
   });
 
+  it("ignores an unmatched release without refreshing TTL", async () => {
+    const store = new InMemorySessionStore({ maxCapacity: 100, ttlMs: 1000 });
+    await store.createSession("A", PARAMS);
+    node(store, "A").expiry = 12345; // sentinel
+
+    // No matching acquire: a stray release must be a complete no-op.
+    await store.releaseSession("A");
+
+    assert.equal(node(store, "A").inUse, 0);
+    assert.equal(node(store, "A").expiry, 12345, "TTL must not be refreshed");
+  });
+
   it("explicit endSession closes a session even while in use", async () => {
     const store = new InMemorySessionStore();
     await store.createSession("A", PARAMS);
@@ -114,7 +124,7 @@ describe("session pinning", () => {
 });
 
 describe("withSession", () => {
-  it("releases exactly once when the request aborts before the handler finishes", async () => {
+  it("keeps the session pinned until fn settles, then releases exactly once", async () => {
     const store = initializeSessionStore();
     try {
       await store.createSession("A", PARAMS);
@@ -127,31 +137,43 @@ describe("withSession", () => {
         return origRelease(id);
       };
 
-      const raw = new EventEmitter();
-      const request = { raw } as unknown as FastifyRequest;
-
       let finishHandler: () => void = () => {};
       const handlerDone = new Promise<void>((resolve) => {
         finishHandler = resolve;
       });
 
-      const p = withSession("A", {}, request, async () => {
+      const p = withSession("A", {}, async () => {
         await handlerDone; // still running...
         return "ok";
       });
 
-      // Let withSession finish acquiring and register its "close" listener
-      // (it suspends at the async acquire before attaching the handler).
+      // While fn is in flight the session must stay pinned and unreleased.
       await new Promise((resolve) => setTimeout(resolve, 0));
-
-      raw.emit("close"); // client aborts mid-handler
-      assert.equal(releaseCount, 1, "abort should release the pin immediately");
-      assert.equal(node(store as InMemorySessionStore, "A").inUse, 0);
+      assert.equal(releaseCount, 0, "must not release while fn is running");
+      assert.equal(node(store as InMemorySessionStore, "A").inUse, 1);
 
       finishHandler();
       assert.equal(await p, "ok");
-      // The finally path must not double-release.
-      assert.equal(releaseCount, 1);
+      assert.equal(releaseCount, 1, "releases exactly once after fn settles");
+      assert.equal(node(store as InMemorySessionStore, "A").inUse, 0);
+    } finally {
+      await destroySessionStore();
+    }
+  });
+
+  it("releases the pin when fn throws", async () => {
+    const store = initializeSessionStore();
+    try {
+      await store.createSession("A", PARAMS);
+      injectFakeStagehand(store as InMemorySessionStore, "A");
+
+      await assert.rejects(
+        withSession("A", {}, async () => {
+          throw new Error("boom");
+        }),
+        /boom/,
+      );
+      assert.equal(node(store as InMemorySessionStore, "A").inUse, 0);
     } finally {
       await destroySessionStore();
     }
