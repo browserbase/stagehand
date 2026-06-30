@@ -141,6 +141,11 @@ export class V3Context {
   private _pageOrder: TargetId[] = [];
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private pageCreationFailures = new Map<TargetId, Error>();
+  // Popup close attempts can race targetCreated, targetInfoChanged, and attached.
+  // In-flight promises let attach wait for a close result before deciding whether
+  // to skip normal setup. Successful closes stay deduped for the context lifetime
+  // because Chrome can emit late targetInfoChanged events after targetDestroyed.
+  // Failed closes are not retained so attach can continue and future events may retry.
   private domainPolicyClosingTargets = new Set<TargetId>();
   private domainPolicyClosePromises = new Map<TargetId, Promise<boolean>>();
   private readonly initScripts: string[] = [];

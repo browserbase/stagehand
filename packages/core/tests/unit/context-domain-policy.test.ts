@@ -440,7 +440,7 @@ describe("V3Context.setDomainPolicy", () => {
     expect(closeTargetCalls).toEqual([{ targetId: "popup-target" }]);
   });
 
-  it("does not retry a blocked popup close after target cleanup", async () => {
+  it("retains successful popup close dedupe for late target events", async () => {
     const closeTargetCalls: unknown[] = [];
     const ctx = Object.assign(Object.create(V3Context.prototype), {
       domainPolicy: normalizeDomainPolicy({

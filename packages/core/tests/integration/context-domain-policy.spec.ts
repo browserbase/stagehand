@@ -28,7 +28,6 @@ type InternalPage = {
     options?: { waitUntil?: "load" | "domcontentloaded"; timeoutMs?: number },
   ) => Promise<unknown>;
   locator: (selector: string) => { click: () => Promise<void> };
-  waitForTimeout: (timeoutMs: number) => Promise<void>;
   url: () => string;
 };
 
@@ -147,6 +146,56 @@ function expectNotBlockedByClient(outcome: RequestOutcome | undefined): void {
   if (outcome?.type === "failed") {
     expect(outcome.errorText).not.toContain("ERR_BLOCKED_BY_CLIENT");
   }
+}
+
+async function waitForTargetUrlDestroyed(
+  conn: V3["context"]["conn"],
+  expectedUrl: string,
+  timeoutMs = 5_000,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    let targetId: string | null = null;
+    let settled = false;
+    const timeout = setTimeout(() => {
+      finish(() =>
+        reject(
+          new Error(
+            `Timed out waiting for target URL to close: ${expectedUrl}`,
+          ),
+        ),
+      );
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      conn.off("Target.targetInfoChanged", onTargetInfoChanged);
+      conn.off("Target.targetDestroyed", onTargetDestroyed);
+    };
+
+    const finish = (settle: () => void): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      settle();
+    };
+
+    const onTargetInfoChanged = (params: unknown) => {
+      const evt = params as Protocol.Target.TargetInfoChangedEvent;
+      if (evt.targetInfo.url === expectedUrl) {
+        targetId = evt.targetInfo.targetId;
+      }
+    };
+
+    const onTargetDestroyed = (params: unknown) => {
+      const evt = params as Protocol.Target.TargetDestroyedEvent;
+      if (targetId && evt.targetId === targetId) {
+        finish(resolve);
+      }
+    };
+
+    conn.on("Target.targetInfoChanged", onTargetInfoChanged);
+    conn.on("Target.targetDestroyed", onTargetDestroyed);
+  });
 }
 
 test.describe("context.setDomainPolicy", () => {
@@ -288,8 +337,14 @@ test.describe("context.setDomainPolicy", () => {
       timeoutMs: 10_000,
     });
 
+    const popupClosed = waitForTargetUrlDestroyed(ctx.conn, POPUP_BLOCKED_URL);
     await page.locator("#open-popup").click();
-    await page.waitForTimeout(1_000);
+    await popupClosed;
+    await expect
+      .poll(() => ctx.pages().map((candidate) => candidate.url()), {
+        timeout: 5_000,
+      })
+      .not.toContain(POPUP_BLOCKED_URL);
 
     expect(ctx.pages().map((candidate) => candidate.url())).not.toContain(
       POPUP_BLOCKED_URL,
