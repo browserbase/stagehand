@@ -331,6 +331,394 @@ describe("V3Context.setDomainPolicy", () => {
     });
   });
 
+  it("closes blocked popups even when the opener is not tracked locally", async () => {
+    const closeTargetCalls: unknown[] = [];
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      domainPolicy: normalizeDomainPolicy({
+        blockedDomains: ["ads.example.com"],
+      }),
+      domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
+      conn: {
+        send: async (method: string, params?: unknown) => {
+          if (method === "Target.closeTarget") closeTargetCalls.push(params);
+          return {};
+        },
+      },
+    });
+    const closePopupIfBlockedByDomainPolicy = V3Context.prototype[
+      "closePopupIfBlockedByDomainPolicy" as keyof V3Context
+    ] as unknown as (
+      this: typeof ctx,
+      info: {
+        targetId: string;
+        type: string;
+        title: string;
+        url: string;
+        attached: boolean;
+        openerId?: string;
+        canAccessOpener: boolean;
+      },
+      source: "targetInfoChanged",
+    ) => Promise<boolean>;
+
+    await expect(
+      closePopupIfBlockedByDomainPolicy.call(
+        ctx,
+        {
+          targetId: "popup-target",
+          type: "page",
+          title: "",
+          url: "https://ads.example.com/",
+          attached: false,
+          openerId: "other-target",
+          canAccessOpener: true,
+        },
+        "targetInfoChanged",
+      ),
+    ).resolves.toBe(true);
+
+    expect(closeTargetCalls).toEqual([{ targetId: "popup-target" }]);
+  });
+
+  it("does not attempt to close the same blocked popup twice", async () => {
+    const closeTargetCalls: unknown[] = [];
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      domainPolicy: normalizeDomainPolicy({
+        blockedDomains: ["ads.example.com"],
+      }),
+      domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
+      pagesByTarget: new Map(),
+      conn: {
+        send: async (method: string, params?: unknown) => {
+          if (method === "Target.closeTarget") closeTargetCalls.push(params);
+          return {};
+        },
+      },
+    });
+    const closePopupIfBlockedByDomainPolicy = V3Context.prototype[
+      "closePopupIfBlockedByDomainPolicy" as keyof V3Context
+    ] as unknown as (
+      this: typeof ctx,
+      info: {
+        targetId: string;
+        type: string;
+        title: string;
+        url: string;
+        attached: boolean;
+        openerId?: string;
+        canAccessOpener: boolean;
+      },
+      source: "targetInfoChanged",
+    ) => Promise<boolean>;
+    const targetInfo = {
+      targetId: "popup-target",
+      type: "page",
+      title: "",
+      url: "https://ads.example.com/",
+      attached: false,
+      openerId: "other-target",
+      canAccessOpener: true,
+    };
+
+    await expect(
+      closePopupIfBlockedByDomainPolicy.call(
+        ctx,
+        targetInfo,
+        "targetInfoChanged",
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      closePopupIfBlockedByDomainPolicy.call(
+        ctx,
+        targetInfo,
+        "targetInfoChanged",
+      ),
+    ).resolves.toBe(true);
+
+    expect(closeTargetCalls).toEqual([{ targetId: "popup-target" }]);
+  });
+
+  it("retains successful popup close dedupe for late target events", async () => {
+    const closeTargetCalls: unknown[] = [];
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      domainPolicy: normalizeDomainPolicy({
+        blockedDomains: ["ads.example.com"],
+      }),
+      domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
+      pagesByTarget: new Map(),
+      conn: {
+        send: async (method: string, params?: unknown) => {
+          if (method === "Target.closeTarget") closeTargetCalls.push(params);
+          return {};
+        },
+      },
+    });
+    const closePopupIfBlockedByDomainPolicy = V3Context.prototype[
+      "closePopupIfBlockedByDomainPolicy" as keyof V3Context
+    ] as unknown as (
+      this: typeof ctx,
+      info: {
+        targetId: string;
+        type: string;
+        title: string;
+        url: string;
+        attached: boolean;
+        openerId?: string;
+        canAccessOpener: boolean;
+      },
+      source: "targetInfoChanged",
+    ) => Promise<boolean>;
+    const cleanupByTarget = V3Context.prototype[
+      "cleanupByTarget" as keyof V3Context
+    ] as unknown as (this: typeof ctx, targetId: string) => void;
+    const targetInfo = {
+      targetId: "popup-target",
+      type: "page",
+      title: "",
+      url: "https://ads.example.com/",
+      attached: false,
+      openerId: "other-target",
+      canAccessOpener: true,
+    };
+
+    await expect(
+      closePopupIfBlockedByDomainPolicy.call(
+        ctx,
+        targetInfo,
+        "targetInfoChanged",
+      ),
+    ).resolves.toBe(true);
+    cleanupByTarget.call(ctx, "popup-target");
+    await expect(
+      closePopupIfBlockedByDomainPolicy.call(
+        ctx,
+        targetInfo,
+        "targetInfoChanged",
+      ),
+    ).resolves.toBe(true);
+
+    expect(closeTargetCalls).toEqual([{ targetId: "popup-target" }]);
+  });
+
+  it("does not close non-popup targets through the popup fallback", async () => {
+    const closeTargetCalls: unknown[] = [];
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      domainPolicy: normalizeDomainPolicy({
+        blockedDomains: ["ads.example.com"],
+      }),
+      domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
+      conn: {
+        send: async (method: string, params?: unknown) => {
+          if (method === "Target.closeTarget") closeTargetCalls.push(params);
+          return {};
+        },
+      },
+    });
+    const closePopupIfBlockedByDomainPolicy = V3Context.prototype[
+      "closePopupIfBlockedByDomainPolicy" as keyof V3Context
+    ] as unknown as (
+      this: typeof ctx,
+      info: {
+        targetId: string;
+        type: string;
+        title: string;
+        url: string;
+        attached: boolean;
+        canAccessOpener: boolean;
+      },
+      source: "targetInfoChanged",
+    ) => Promise<boolean>;
+
+    await expect(
+      closePopupIfBlockedByDomainPolicy.call(
+        ctx,
+        {
+          targetId: "page-target",
+          type: "page",
+          title: "",
+          url: "https://ads.example.com/",
+          attached: false,
+          canAccessOpener: false,
+        },
+        "targetInfoChanged",
+      ),
+    ).resolves.toBe(false);
+
+    expect(closeTargetCalls).toEqual([]);
+  });
+
+  it("does not skip attached handling when an in-flight popup close fails", async () => {
+    let rejectClose!: (error: Error) => void;
+    let resolveCloseStarted!: () => void;
+    const closeStarted = new Promise<void>((resolve) => {
+      resolveCloseStarted = resolve;
+    });
+    const closePromise = new Promise<never>((_, reject) => {
+      rejectClose = reject;
+    });
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      domainPolicy: normalizeDomainPolicy({
+        blockedDomains: ["ads.example.com"],
+      }),
+      domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
+      conn: {
+        send: async (method: string) => {
+          if (method === "Target.closeTarget") {
+            resolveCloseStarted();
+            return await closePromise;
+          }
+          return {};
+        },
+      },
+    });
+    const closePopupIfBlockedByDomainPolicy = V3Context.prototype[
+      "closePopupIfBlockedByDomainPolicy" as keyof V3Context
+    ] as unknown as (
+      this: typeof ctx,
+      info: {
+        targetId: string;
+        type: string;
+        title: string;
+        url: string;
+        attached: boolean;
+        openerId?: string;
+        canAccessOpener: boolean;
+      },
+      source: "targetCreated" | "attached",
+    ) => Promise<boolean>;
+    const targetInfo = {
+      targetId: "popup-target",
+      type: "page",
+      title: "",
+      url: "https://ads.example.com/",
+      attached: false,
+      openerId: "opener-target",
+      canAccessOpener: true,
+    };
+
+    const targetCreatedClose = closePopupIfBlockedByDomainPolicy.call(
+      ctx,
+      targetInfo,
+      "targetCreated",
+    );
+    await closeStarted;
+
+    const attachedClose = closePopupIfBlockedByDomainPolicy.call(
+      ctx,
+      targetInfo,
+      "attached",
+    );
+
+    rejectClose(new Error("close failed"));
+
+    await expect(targetCreatedClose).resolves.toBe(false);
+    await expect(attachedClose).resolves.toBe(false);
+  });
+
+  it("returns false when closing a blocked popup fails", async () => {
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      domainPolicy: normalizeDomainPolicy({
+        blockedDomains: ["ads.example.com"],
+      }),
+      domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
+      conn: {
+        send: async (method: string) => {
+          if (method === "Target.closeTarget") {
+            throw new Error("close failed");
+          }
+          return {};
+        },
+      },
+    });
+    const closePopupIfBlockedByDomainPolicy = V3Context.prototype[
+      "closePopupIfBlockedByDomainPolicy" as keyof V3Context
+    ] as unknown as (
+      this: typeof ctx,
+      info: {
+        targetId: string;
+        type: string;
+        title: string;
+        url: string;
+        attached: boolean;
+        openerId?: string;
+        canAccessOpener: boolean;
+      },
+      source: "targetInfoChanged",
+    ) => Promise<boolean>;
+
+    await expect(
+      closePopupIfBlockedByDomainPolicy.call(
+        ctx,
+        {
+          targetId: "popup-target",
+          type: "page",
+          title: "",
+          url: "https://ads.example.com/",
+          attached: false,
+          openerId: "opener-target",
+          canAccessOpener: true,
+        },
+        "targetInfoChanged",
+      ),
+    ).resolves.toBe(false);
+  });
+
+  it("treats already-closed popup targets as successful policy closes", async () => {
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      domainPolicy: normalizeDomainPolicy({
+        blockedDomains: ["ads.example.com"],
+      }),
+      domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
+      conn: {
+        send: async (method: string) => {
+          if (method === "Target.closeTarget") {
+            throw new Error("-32602 No target with given id found");
+          }
+          return {};
+        },
+      },
+    });
+    const closePopupIfBlockedByDomainPolicy = V3Context.prototype[
+      "closePopupIfBlockedByDomainPolicy" as keyof V3Context
+    ] as unknown as (
+      this: typeof ctx,
+      info: {
+        targetId: string;
+        type: string;
+        title: string;
+        url: string;
+        attached: boolean;
+        openerId?: string;
+        canAccessOpener: boolean;
+      },
+      source: "targetInfoChanged",
+    ) => Promise<boolean>;
+
+    await expect(
+      closePopupIfBlockedByDomainPolicy.call(
+        ctx,
+        {
+          targetId: "popup-target",
+          type: "page",
+          title: "",
+          url: "https://ads.example.com/",
+          attached: false,
+          openerId: "opener-target",
+          canAccessOpener: true,
+        },
+        "targetInfoChanged",
+      ),
+    ).resolves.toBe(true);
+    expect(ctx.domainPolicyClosingTargets.has("popup-target")).toBe(true);
+  });
+
   it("closes new targets when Fetch.enable fails with an active policy", async () => {
     const session = new MockCDPSession(
       {
