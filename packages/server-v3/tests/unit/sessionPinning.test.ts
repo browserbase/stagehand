@@ -116,16 +116,20 @@ describe("session pinning", () => {
     await store.createSession("A", PARAMS);
     await store.createSession("B", PARAMS);
     await store.createSession("C", PARAMS);
-    injectFakeStagehand(store, "A");
-    injectFakeStagehand(store, "B");
-    injectFakeStagehand(store, "C");
+    const a = injectFakeStagehand(store, "A");
+    const b = injectFakeStagehand(store, "B");
+    const c = injectFakeStagehand(store, "C");
 
     store.updateCacheConfig({ maxCapacity: 1 });
     await new Promise((resolve) => setTimeout(resolve, 20)); // let evictions run
 
-    // A and B (the two LRU) must both be evicted — not the same node twice.
+    // A and B (the two LRU) must both be evicted and closed — not the same
+    // node twice — while the most-recent C survives.
     assert.equal(store.size, 1);
     assert.equal(await store.hasSession("C"), true);
+    assert.equal(a.wasClosed(), true);
+    assert.equal(b.wasClosed(), true);
+    assert.equal(c.wasClosed(), false);
   });
 
   it("explicit endSession closes a session even while in use", async () => {
