@@ -168,6 +168,7 @@ async function waitForTargetUrlDestroyed(
 
     const cleanup = () => {
       clearTimeout(timeout);
+      conn.off("Target.targetCreated", onTargetCreated);
       conn.off("Target.targetInfoChanged", onTargetInfoChanged);
       conn.off("Target.targetDestroyed", onTargetDestroyed);
     };
@@ -179,11 +180,20 @@ async function waitForTargetUrlDestroyed(
       settle();
     };
 
+    const rememberTarget = (targetInfo: Protocol.Target.TargetInfo) => {
+      if (targetInfo.url === expectedUrl) {
+        targetId = targetInfo.targetId;
+      }
+    };
+
+    const onTargetCreated = (params: unknown) => {
+      const evt = params as Protocol.Target.TargetCreatedEvent;
+      rememberTarget(evt.targetInfo);
+    };
+
     const onTargetInfoChanged = (params: unknown) => {
       const evt = params as Protocol.Target.TargetInfoChangedEvent;
-      if (evt.targetInfo.url === expectedUrl) {
-        targetId = evt.targetInfo.targetId;
-      }
+      rememberTarget(evt.targetInfo);
     };
 
     const onTargetDestroyed = (params: unknown) => {
@@ -193,6 +203,7 @@ async function waitForTargetUrlDestroyed(
       }
     };
 
+    conn.on("Target.targetCreated", onTargetCreated);
     conn.on("Target.targetInfoChanged", onTargetInfoChanged);
     conn.on("Target.targetDestroyed", onTargetDestroyed);
   });
