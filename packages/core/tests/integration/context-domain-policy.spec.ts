@@ -8,6 +8,10 @@ import { closeV3 } from "./testUtils.js";
 
 const BLOCKED_HOST = "example.com";
 const BLOCKED_URL = `https://${BLOCKED_HOST}/stagehand-domain-policy.png`;
+const POPUP_FIXTURE_URL =
+  "https://browserbase.github.io/stagehand-eval-sites/sites/external-popup-button/";
+const POPUP_BLOCKED_HOST = "news.ycombinator.com";
+const POPUP_BLOCKED_URL = `https://${POPUP_BLOCKED_HOST}/`;
 const ALLOWED_HOST = "127.0.0.1";
 const DISALLOWED_HOST = "127.0.0.2";
 let localServer: Server | null = null;
@@ -23,6 +27,8 @@ type InternalPage = {
     url: string,
     options?: { waitUntil?: "load" | "domcontentloaded"; timeoutMs?: number },
   ) => Promise<unknown>;
+  locator: (selector: string) => { click: () => Promise<void> };
+  url: () => string;
 };
 
 function pageWithBlockedImage(): string {
@@ -140,6 +146,67 @@ function expectNotBlockedByClient(outcome: RequestOutcome | undefined): void {
   if (outcome?.type === "failed") {
     expect(outcome.errorText).not.toContain("ERR_BLOCKED_BY_CLIENT");
   }
+}
+
+async function waitForTargetUrlDestroyed(
+  conn: V3["context"]["conn"],
+  expectedUrl: string,
+  timeoutMs = 5_000,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    let targetId: string | null = null;
+    let settled = false;
+    const timeout = setTimeout(() => {
+      finish(() =>
+        reject(
+          new Error(
+            `Timed out waiting for target URL to close: ${expectedUrl}`,
+          ),
+        ),
+      );
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      conn.off("Target.targetCreated", onTargetCreated);
+      conn.off("Target.targetInfoChanged", onTargetInfoChanged);
+      conn.off("Target.targetDestroyed", onTargetDestroyed);
+    };
+
+    const finish = (settle: () => void): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      settle();
+    };
+
+    const rememberTarget = (targetInfo: Protocol.Target.TargetInfo) => {
+      if (targetInfo.url === expectedUrl) {
+        targetId = targetInfo.targetId;
+      }
+    };
+
+    const onTargetCreated = (params: unknown) => {
+      const evt = params as Protocol.Target.TargetCreatedEvent;
+      rememberTarget(evt.targetInfo);
+    };
+
+    const onTargetInfoChanged = (params: unknown) => {
+      const evt = params as Protocol.Target.TargetInfoChangedEvent;
+      rememberTarget(evt.targetInfo);
+    };
+
+    const onTargetDestroyed = (params: unknown) => {
+      const evt = params as Protocol.Target.TargetDestroyedEvent;
+      if (targetId && evt.targetId === targetId) {
+        finish(resolve);
+      }
+    };
+
+    conn.on("Target.targetCreated", onTargetCreated);
+    conn.on("Target.targetInfoChanged", onTargetInfoChanged);
+    conn.on("Target.targetDestroyed", onTargetDestroyed);
+  });
 }
 
 test.describe("context.setDomainPolicy", () => {
@@ -266,5 +333,33 @@ test.describe("context.setDomainPolicy", () => {
     );
 
     expectBlockedByClient(outcomes.get(disallowedUrl));
+  });
+
+  test("closes window.open popups that reach blocked domains before interception", async () => {
+    const ctx = v3.context;
+    const page = (await ctx.awaitActivePage()) as unknown as InternalPage;
+
+    await ctx.setDomainPolicy({
+      blockedDomains: [POPUP_BLOCKED_HOST],
+    });
+
+    await page.goto(POPUP_FIXTURE_URL, {
+      waitUntil: "load",
+      timeoutMs: 10_000,
+    });
+
+    const popupClosed = waitForTargetUrlDestroyed(ctx.conn, POPUP_BLOCKED_URL);
+    await page.locator("#open-popup").click();
+    await popupClosed;
+    await expect
+      .poll(() => ctx.pages().map((candidate) => candidate.url()), {
+        timeout: 5_000,
+      })
+      .not.toContain(POPUP_BLOCKED_URL);
+
+    expect(ctx.pages().map((candidate) => candidate.url())).not.toContain(
+      POPUP_BLOCKED_URL,
+    );
+    expect(page.url()).toBe(POPUP_FIXTURE_URL);
   });
 });

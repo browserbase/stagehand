@@ -43,6 +43,11 @@ type SessionId = string;
 
 type TargetType = "page" | "iframe" | string;
 
+function isMissingTargetError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /No target with given id found/i.test(message);
+}
+
 /**
  * Returns true when the target's URL points to a document with a real,
  * pierceable HTML DOM.  We allowlist the small set of schemes that carry
@@ -136,6 +141,13 @@ export class V3Context {
   private _pageOrder: TargetId[] = [];
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private pageCreationFailures = new Map<TargetId, Error>();
+  // Popup close attempts can race targetCreated, targetInfoChanged, and attached.
+  // In-flight promises let attach wait for a close result before deciding whether
+  // to skip normal setup. Successful closes stay deduped for the context lifetime
+  // because Chrome can emit late targetInfoChanged events after targetDestroyed.
+  // Failed closes are not retained so attach can continue and future events may retry.
+  private domainPolicyClosingTargets = new Set<TargetId>();
+  private domainPolicyClosePromises = new Map<TargetId, Promise<boolean>>();
   private readonly initScripts: string[] = [];
   private extraHttpHeaders: Record<string, string> | null = null;
   private domainPolicy: NormalizedDomainPolicy | null = null;
@@ -703,6 +715,8 @@ export class V3Context {
     this.typeByTarget.clear();
     this.pendingCreatedTargetUrl.clear();
     this.pageCreationFailures.clear();
+    this.domainPolicyClosingTargets.clear();
+    this.domainPolicyClosePromises.clear();
   }
 
   /**
@@ -744,7 +758,17 @@ export class V3Context {
         const ti = info;
         if (info.type === "page" && (ti?.openerId || ti?.openerFrameId)) {
           this._notePopupSignal();
+          void this.closePopupIfBlockedByDomainPolicy(info, "targetCreated");
         }
+      },
+    );
+    this.conn.on<Protocol.Target.TargetInfoChangedEvent>(
+      "Target.targetInfoChanged",
+      (evt) => {
+        void this.closePopupIfBlockedByDomainPolicy(
+          evt.targetInfo,
+          "targetInfoChanged",
+        );
       },
     );
 
@@ -779,6 +803,10 @@ export class V3Context {
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
   ): Promise<void> {
+    if (await this.closePopupIfBlockedByDomainPolicy(info, "attached")) {
+      return;
+    }
+
     // Skip non-web targets (workers, chrome extensions, background pages, etc.).
     // They still need to be resumed so we don't leave them paused by
     // waitForDebuggerOnStart, but injecting the piercer into these targets
@@ -1146,6 +1174,84 @@ export class V3Context {
       }
     } finally {
       await resume();
+    }
+  }
+
+  private async closePopupIfBlockedByDomainPolicy(
+    info: Protocol.Target.TargetInfo,
+    source: "targetCreated" | "targetInfoChanged" | "attached",
+  ): Promise<boolean> {
+    if (!this.domainPolicy || !isTopLevelPage(info)) return false;
+    if (!info.openerId && !info.openerFrameId) return false;
+    if (this.domainPolicyClosingTargets.has(info.targetId)) return true;
+
+    const existingClose = this.domainPolicyClosePromises.get(info.targetId);
+    if (existingClose) {
+      return source === "attached" ? await existingClose : true;
+    }
+
+    const decision = getDomainPolicyDecision(info.url ?? "", this.domainPolicy);
+    if (decision.action === "continue") return false;
+
+    v3Logger({
+      category: "network",
+      message:
+        "Popup reached a disallowed domain before it could be intercepted; closing it",
+      level: 2,
+      auxiliary: {
+        targetId: { value: String(info.targetId), type: "string" },
+        targetUrl: { value: String(info.url ?? ""), type: "string" },
+        openerId: { value: String(info.openerId ?? ""), type: "string" },
+        openerFrameId: {
+          value: String(info.openerFrameId ?? ""),
+          type: "string",
+        },
+        ruleType: { value: decision.reason, type: "string" },
+        source: { value: source, type: "string" },
+      },
+    });
+
+    const closePromise = this.closeTargetAfterDomainPolicyViolation(info, {
+      failureMessage:
+        "Failed to close popup after it reached a disallowed domain",
+    }).then((closed) => {
+      this.domainPolicyClosePromises.delete(info.targetId);
+      if (closed) {
+        this.domainPolicyClosingTargets.add(info.targetId);
+      }
+      return closed;
+    });
+    this.domainPolicyClosePromises.set(info.targetId, closePromise);
+    return await closePromise;
+  }
+
+  private async closeTargetAfterDomainPolicyViolation(
+    info: Protocol.Target.TargetInfo,
+    opts: { failureMessage: string },
+  ): Promise<boolean> {
+    try {
+      await this.conn.send("Target.closeTarget", { targetId: info.targetId });
+      return true;
+    } catch (error) {
+      if (isMissingTargetError(error)) {
+        return true;
+      }
+
+      v3Logger({
+        category: "network",
+        message: opts.failureMessage,
+        level: 0,
+        auxiliary: {
+          targetId: { value: String(info.targetId), type: "string" },
+          targetType: { value: String(info.type), type: "string" },
+          targetUrl: { value: String(info.url ?? ""), type: "string" },
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+        },
+      });
+      return false;
     }
   }
 
