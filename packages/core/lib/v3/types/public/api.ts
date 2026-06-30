@@ -51,6 +51,14 @@ export const LocalBrowserLaunchOptionsSchema = z
     connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),
+    recordVideo: z
+      .object({
+        dir: z.string(),
+        size: z
+          .object({ width: z.number(), height: z.number() })
+          .optional(),
+      })
+      .optional(),
   })
   .strict()
   .meta({ id: "LocalBrowserLaunchOptions" });
