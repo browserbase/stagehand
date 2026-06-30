@@ -669,6 +669,56 @@ describe("V3Context.setDomainPolicy", () => {
     ).resolves.toBe(false);
   });
 
+  it("treats already-closed popup targets as successful policy closes", async () => {
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      domainPolicy: normalizeDomainPolicy({
+        blockedDomains: ["ads.example.com"],
+      }),
+      domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
+      conn: {
+        send: async (method: string) => {
+          if (method === "Target.closeTarget") {
+            throw new Error("-32602 No target with given id found");
+          }
+          return {};
+        },
+      },
+    });
+    const closePopupIfBlockedByDomainPolicy = V3Context.prototype[
+      "closePopupIfBlockedByDomainPolicy" as keyof V3Context
+    ] as unknown as (
+      this: typeof ctx,
+      info: {
+        targetId: string;
+        type: string;
+        title: string;
+        url: string;
+        attached: boolean;
+        openerId?: string;
+        canAccessOpener: boolean;
+      },
+      source: "targetInfoChanged",
+    ) => Promise<boolean>;
+
+    await expect(
+      closePopupIfBlockedByDomainPolicy.call(
+        ctx,
+        {
+          targetId: "popup-target",
+          type: "page",
+          title: "",
+          url: "https://ads.example.com/",
+          attached: false,
+          openerId: "opener-target",
+          canAccessOpener: true,
+        },
+        "targetInfoChanged",
+      ),
+    ).resolves.toBe(true);
+    expect(ctx.domainPolicyClosingTargets.has("popup-target")).toBe(true);
+  });
+
   it("closes new targets when Fetch.enable fails with an active policy", async () => {
     const session = new MockCDPSession(
       {

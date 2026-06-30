@@ -43,6 +43,11 @@ type SessionId = string;
 
 type TargetType = "page" | "iframe" | string;
 
+function isMissingTargetError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /No target with given id found/i.test(message);
+}
+
 /**
  * Returns true when the target's URL points to a document with a real,
  * pierceable HTML DOM.  We allowlist the small set of schemes that carry
@@ -1223,6 +1228,10 @@ export class V3Context {
       await this.conn.send("Target.closeTarget", { targetId: info.targetId });
       return true;
     } catch (error) {
+      if (isMissingTargetError(error)) {
+        return true;
+      }
+
       v3Logger({
         category: "network",
         message: opts.failureMessage,
