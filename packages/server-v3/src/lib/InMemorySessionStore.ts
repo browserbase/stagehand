@@ -378,10 +378,18 @@ export class InMemorySessionStore implements SessionStore {
       // as those requests finish — that's expected, not an error.
       if (config.maxCapacity < previousCapacity) {
         const excess = this.items.size - config.maxCapacity;
-        for (let i = 0; i < excess; i++) {
-          // Fire and forget - don't await to match cloud behavior
-          this.evictLru().catch(console.error);
-        }
+        // Evict sequentially: deleteSession removes the node only after awaiting
+        // close, so firing these concurrently would make every call target the
+        // same LRU node. The batch stays fire-and-forget to match cloud behavior.
+        void (async () => {
+          for (let i = 0; i < excess; i++) {
+            try {
+              await this.evictLru();
+            } catch (err) {
+              console.error(err);
+            }
+          }
+        })();
       }
       this.maxCapacity = config.maxCapacity;
     }

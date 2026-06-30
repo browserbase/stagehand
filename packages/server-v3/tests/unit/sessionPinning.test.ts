@@ -111,6 +111,23 @@ describe("session pinning", () => {
     assert.equal(node(store, "A").expiry, 12345, "TTL must not be refreshed");
   });
 
+  it("downsizing capacity evicts all excess entries, not just one", async () => {
+    const store = new InMemorySessionStore({ maxCapacity: 3 });
+    await store.createSession("A", PARAMS);
+    await store.createSession("B", PARAMS);
+    await store.createSession("C", PARAMS);
+    injectFakeStagehand(store, "A");
+    injectFakeStagehand(store, "B");
+    injectFakeStagehand(store, "C");
+
+    store.updateCacheConfig({ maxCapacity: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 20)); // let evictions run
+
+    // A and B (the two LRU) must both be evicted — not the same node twice.
+    assert.equal(store.size, 1);
+    assert.equal(await store.hasSession("C"), true);
+  });
+
   it("explicit endSession closes a session even while in use", async () => {
     const store = new InMemorySessionStore();
     await store.createSession("A", PARAMS);
