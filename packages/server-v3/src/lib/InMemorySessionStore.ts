@@ -372,16 +372,18 @@ export class InMemorySessionStore implements SessionStore {
         throw new Error("Max capacity must be greater than 0");
       }
       const previousCapacity = this.maxCapacity;
-      this.maxCapacity = config.maxCapacity;
 
-      // Evict excess if new capacity is smaller
-      if (this.maxCapacity < previousCapacity) {
-        const excess = this.items.size - this.maxCapacity;
+      // Evict before lowering capacity. Pinned (in-use) sessions can't be
+      // evicted, so the cache may briefly exceed the new capacity and converge
+      // as those requests finish — that's expected, not an error.
+      if (config.maxCapacity < previousCapacity) {
+        const excess = this.items.size - config.maxCapacity;
         for (let i = 0; i < excess; i++) {
           // Fire and forget - don't await to match cloud behavior
           this.evictLru().catch(console.error);
         }
       }
+      this.maxCapacity = config.maxCapacity;
     }
 
     if (config.ttlMs !== undefined) {
