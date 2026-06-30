@@ -147,11 +147,6 @@ jobs:
           git tag "$TAG"
           git push origin "$TAG"
 
-      # --- Publish the browse CLI as a Docker image, pinned to the npm version ---
-      # GHCR (ghcr.io/browserbase/browse) always publishes via the built-in
-      # GITHUB_TOKEN. Docker Hub (browserbase/browse) additionally publishes
-      # when DOCKERHUB_USERNAME + DOCKERHUB_TOKEN secrets are configured, so a
-      # missing secret degrades to GHCR-only instead of failing the release.
       - name: Check Docker Hub credentials
         id: dockerhub
         if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
