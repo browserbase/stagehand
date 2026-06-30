@@ -8,6 +8,10 @@ import { closeV3 } from "./testUtils.js";
 
 const BLOCKED_HOST = "example.com";
 const BLOCKED_URL = `https://${BLOCKED_HOST}/stagehand-domain-policy.png`;
+const POPUP_FIXTURE_URL =
+  "https://browserbase.github.io/stagehand-eval-sites/sites/external-popup-button/";
+const POPUP_BLOCKED_HOST = "news.ycombinator.com";
+const POPUP_BLOCKED_URL = `https://${POPUP_BLOCKED_HOST}/`;
 const ALLOWED_HOST = "127.0.0.1";
 const DISALLOWED_HOST = "127.0.0.2";
 let localServer: Server | null = null;
@@ -23,6 +27,9 @@ type InternalPage = {
     url: string,
     options?: { waitUntil?: "load" | "domcontentloaded"; timeoutMs?: number },
   ) => Promise<unknown>;
+  locator: (selector: string) => { click: () => Promise<void> };
+  waitForTimeout: (timeoutMs: number) => Promise<void>;
+  url: () => string;
 };
 
 function pageWithBlockedImage(): string {
@@ -266,5 +273,27 @@ test.describe("context.setDomainPolicy", () => {
     );
 
     expectBlockedByClient(outcomes.get(disallowedUrl));
+  });
+
+  test("closes window.open popups that reach blocked domains before interception", async () => {
+    const ctx = v3.context;
+    const page = (await ctx.awaitActivePage()) as unknown as InternalPage;
+
+    await ctx.setDomainPolicy({
+      blockedDomains: [POPUP_BLOCKED_HOST],
+    });
+
+    await page.goto(POPUP_FIXTURE_URL, {
+      waitUntil: "load",
+      timeoutMs: 10_000,
+    });
+
+    await page.locator("#open-popup").click();
+    await page.waitForTimeout(1_000);
+
+    expect(ctx.pages().map((candidate) => candidate.url())).not.toContain(
+      POPUP_BLOCKED_URL,
+    );
+    expect(page.url()).toBe(POPUP_FIXTURE_URL);
   });
 });
