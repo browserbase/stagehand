@@ -338,6 +338,7 @@ describe("V3Context.setDomainPolicy", () => {
         blockedDomains: ["ads.example.com"],
       }),
       domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
       conn: {
         send: async (method: string, params?: unknown) => {
           if (method === "Target.closeTarget") closeTargetCalls.push(params);
@@ -387,6 +388,7 @@ describe("V3Context.setDomainPolicy", () => {
         blockedDomains: ["ads.example.com"],
       }),
       domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
       pagesByTarget: new Map(),
       conn: {
         send: async (method: string, params?: unknown) => {
@@ -445,6 +447,7 @@ describe("V3Context.setDomainPolicy", () => {
         blockedDomains: ["ads.example.com"],
       }),
       domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
       pagesByTarget: new Map(),
       conn: {
         send: async (method: string, params?: unknown) => {
@@ -507,6 +510,7 @@ describe("V3Context.setDomainPolicy", () => {
         blockedDomains: ["ads.example.com"],
       }),
       domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
       conn: {
         send: async (method: string, params?: unknown) => {
           if (method === "Target.closeTarget") closeTargetCalls.push(params);
@@ -547,12 +551,82 @@ describe("V3Context.setDomainPolicy", () => {
     expect(closeTargetCalls).toEqual([]);
   });
 
+  it("does not skip attached handling when an in-flight popup close fails", async () => {
+    let rejectClose!: (error: Error) => void;
+    let resolveCloseStarted!: () => void;
+    const closeStarted = new Promise<void>((resolve) => {
+      resolveCloseStarted = resolve;
+    });
+    const closePromise = new Promise<never>((_, reject) => {
+      rejectClose = reject;
+    });
+    const ctx = Object.assign(Object.create(V3Context.prototype), {
+      domainPolicy: normalizeDomainPolicy({
+        blockedDomains: ["ads.example.com"],
+      }),
+      domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
+      conn: {
+        send: async (method: string) => {
+          if (method === "Target.closeTarget") {
+            resolveCloseStarted();
+            return await closePromise;
+          }
+          return {};
+        },
+      },
+    });
+    const closePopupIfBlockedByDomainPolicy = V3Context.prototype[
+      "closePopupIfBlockedByDomainPolicy" as keyof V3Context
+    ] as unknown as (
+      this: typeof ctx,
+      info: {
+        targetId: string;
+        type: string;
+        title: string;
+        url: string;
+        attached: boolean;
+        openerId?: string;
+        canAccessOpener: boolean;
+      },
+      source: "targetCreated" | "attached",
+    ) => Promise<boolean>;
+    const targetInfo = {
+      targetId: "popup-target",
+      type: "page",
+      title: "",
+      url: "https://ads.example.com/",
+      attached: false,
+      openerId: "opener-target",
+      canAccessOpener: true,
+    };
+
+    const targetCreatedClose = closePopupIfBlockedByDomainPolicy.call(
+      ctx,
+      targetInfo,
+      "targetCreated",
+    );
+    await closeStarted;
+
+    const attachedClose = closePopupIfBlockedByDomainPolicy.call(
+      ctx,
+      targetInfo,
+      "attached",
+    );
+
+    rejectClose(new Error("close failed"));
+
+    await expect(targetCreatedClose).resolves.toBe(false);
+    await expect(attachedClose).resolves.toBe(false);
+  });
+
   it("returns false when closing a blocked popup fails", async () => {
     const ctx = Object.assign(Object.create(V3Context.prototype), {
       domainPolicy: normalizeDomainPolicy({
         blockedDomains: ["ads.example.com"],
       }),
       domainPolicyClosingTargets: new Set<string>(),
+      domainPolicyClosePromises: new Map<string, Promise<boolean>>(),
       conn: {
         send: async (method: string) => {
           if (method === "Target.closeTarget") {

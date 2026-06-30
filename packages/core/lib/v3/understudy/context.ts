@@ -137,6 +137,7 @@ export class V3Context {
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private pageCreationFailures = new Map<TargetId, Error>();
   private domainPolicyClosingTargets = new Set<TargetId>();
+  private domainPolicyClosePromises = new Map<TargetId, Promise<boolean>>();
   private readonly initScripts: string[] = [];
   private extraHttpHeaders: Record<string, string> | null = null;
   private domainPolicy: NormalizedDomainPolicy | null = null;
@@ -705,6 +706,7 @@ export class V3Context {
     this.pendingCreatedTargetUrl.clear();
     this.pageCreationFailures.clear();
     this.domainPolicyClosingTargets.clear();
+    this.domainPolicyClosePromises.clear();
   }
 
   /**
@@ -1173,10 +1175,14 @@ export class V3Context {
     if (!info.openerId && !info.openerFrameId) return false;
     if (this.domainPolicyClosingTargets.has(info.targetId)) return true;
 
+    const existingClose = this.domainPolicyClosePromises.get(info.targetId);
+    if (existingClose) {
+      return source === "attached" ? await existingClose : true;
+    }
+
     const decision = getDomainPolicyDecision(info.url ?? "", this.domainPolicy);
     if (decision.action === "continue") return false;
 
-    this.domainPolicyClosingTargets.add(info.targetId);
     v3Logger({
       category: "network",
       message:
@@ -1195,13 +1201,18 @@ export class V3Context {
       },
     });
 
-    const closed = await this.closeTargetAfterDomainPolicyViolation(info, {
+    const closePromise = this.closeTargetAfterDomainPolicyViolation(info, {
       failureMessage:
         "Failed to close popup after it reached a disallowed domain",
+    }).then((closed) => {
+      this.domainPolicyClosePromises.delete(info.targetId);
+      if (closed) {
+        this.domainPolicyClosingTargets.add(info.targetId);
+      }
+      return closed;
     });
-    if (!closed) this.domainPolicyClosingTargets.delete(info.targetId);
-    if (!closed) return false;
-    return true;
+    this.domainPolicyClosePromises.set(info.targetId, closePromise);
+    return await closePromise;
   }
 
   private async closeTargetAfterDomainPolicyViolation(
