@@ -1,6 +1,7 @@
 import type { Command } from "@oclif/core";
 
 import { detectAgent } from "./agent.js";
+import { classifyEnvironment } from "./environment.js";
 import { resolveInstallId } from "./identity.js";
 import { getRunTelemetry, resetRunTelemetry } from "./run-telemetry.js";
 import type { CommandFailureTelemetry } from "./errors.js";
@@ -171,6 +172,7 @@ function createCliTelemetry(options: CreateCliTelemetryOptions): CliTelemetry {
     node_version: process.version,
     platform: process.platform,
     arch: process.arch,
+    ...classifyEnvironment(env),
     $process_person_profile: false,
   };
 
