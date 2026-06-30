@@ -16,6 +16,7 @@ import { discoverLocalCdp } from "./local-cdp-discovery.js";
 import { NetworkCapture } from "./network-capture.js";
 import { getRemote } from "./remote-binding.js";
 import type {
+  BrowserbaseIdentity,
   ConnectionTarget,
   DriverStatus,
   OpenResult,
@@ -169,6 +170,7 @@ export class DriverSessionManager {
     const page = this.activePageIfPresent();
     const pages = await this.pageSummaries();
     return {
+      ...this.browserbaseIdentity(),
       browserConnected: true,
       initialized: true,
       mode: this.target.kind,
@@ -180,6 +182,30 @@ export class DriverSessionManager {
       title: page ? await safeTitle(page) : undefined,
       url: page?.url(),
     };
+  }
+
+  /**
+   * Browserbase session identity (id, dashboard URL, live-view/debug URL) for a
+   * live remote session. Lets `status`/`open`/`doctor` reason about the cloud
+   * session instead of losing it the way a raw `--cdp` attach does. Empty for
+   * non-remote targets or before the driver has initialized.
+   */
+  private browserbaseIdentity(): BrowserbaseIdentity {
+    if (this.target.kind !== "remote" || !this.stagehand) return {};
+    const { browserbaseSessionID, browserbaseSessionURL, browserbaseDebugURL } =
+      this.stagehand;
+
+    const identity: BrowserbaseIdentity = {};
+    if (browserbaseSessionID) {
+      identity.browserbaseSessionId = browserbaseSessionID;
+    }
+    if (browserbaseSessionURL) {
+      identity.browserbaseSessionUrl = browserbaseSessionURL;
+    }
+    if (browserbaseDebugURL) {
+      identity.browserbaseDebugUrl = browserbaseDebugURL;
+    }
+    return identity;
   }
 
   async close(): Promise<void> {
@@ -208,6 +234,7 @@ export class DriverSessionManager {
 
   async openResult(page: DriverPage): Promise<OpenResult> {
     return {
+      ...this.browserbaseIdentity(),
       mode: this.target.kind,
       pages: await this.pageSummaries(),
       selectedTargetId: page.targetId(),
@@ -377,7 +404,7 @@ export class DriverSessionManager {
     if (target.kind === "remote") {
       return await (
         await getRemote()
-      ).remoteStagehandOptions(this.pendingCredentials);
+      ).remoteStagehandOptions(target, this.pendingCredentials);
     }
 
     if (target.kind === "managed-local") {

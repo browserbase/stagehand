@@ -2,7 +2,7 @@ import type { Stagehand } from "@browserbasehq/stagehand";
 
 import type { ForwardedCredentials } from "./daemon/credentials.js";
 import type { DriverModeFlags } from "./mode.js";
-import type { ConnectionTarget } from "./types.js";
+import type { ConnectionTarget, RemoteConnectionTarget } from "./types.js";
 
 export type StagehandConstructorOptions = ConstructorParameters<
   typeof Stagehand
@@ -50,11 +50,13 @@ export interface RemoteCapability {
    */
   forwardedCredentialKeys(): readonly string[];
   /**
-   * Stagehand options for a remote (BROWSERBASE) session. Forwarded
-   * credentials (if any) are threaded into the constructor here so a key set
-   * after the daemon started is honored without touching `process.env`.
+   * Stagehand options for a remote (BROWSERBASE) session. The target carries
+   * the optional verified/proxies flags. Forwarded credentials (if any) are
+   * threaded into the constructor here so a key set after the daemon started is
+   * honored without touching `process.env`.
    */
   remoteStagehandOptions(
+    target?: RemoteConnectionTarget,
     credentials?: ForwardedCredentials,
   ): Promise<StagehandConstructorOptions>;
   /** Map a failed remote `stagehand.init()` to an actionable message + code. */

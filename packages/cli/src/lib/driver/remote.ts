@@ -6,13 +6,14 @@ import {
   toMetadataValue,
 } from "../identity.js";
 import type { ForwardedCredentials } from "./daemon/credentials.js";
+import type { DriverModeFlags } from "./mode.js";
 import type {
   DriverInitHints,
   RemoteDoctorResult,
   RemoteInitErrorClassification,
   StagehandConstructorOptions,
 } from "./remote-types.js";
-import type { ConnectionTarget } from "./types.js";
+import type { ConnectionTarget, RemoteConnectionTarget } from "./types.js";
 
 /**
  * Real Browserbase capability. This is the ONLY module that reads
@@ -20,8 +21,14 @@ import type { ConnectionTarget } from "./types.js";
  * local-only artifacts cannot reach Browserbase.
  */
 
-export function resolveExplicitRemoteTarget(): ConnectionTarget {
-  return { kind: "remote" };
+export function resolveExplicitRemoteTarget(
+  flags: DriverModeFlags,
+): ConnectionTarget {
+  return {
+    kind: "remote",
+    ...(flags.verified ? { verified: true } : {}),
+    ...(flags.proxies ? { proxies: true } : {}),
+  };
 }
 
 export function autoSelectRemoteTarget(): ConnectionTarget | null {
@@ -40,6 +47,7 @@ export function forwardedCredentialKeys(): readonly string[] {
 }
 
 export async function remoteStagehandOptions(
+  target?: RemoteConnectionTarget,
   credentials?: ForwardedCredentials,
 ): Promise<StagehandConstructorOptions> {
   // Prefer the caller's forwarded key; fall back to the daemon's own spawn-time
@@ -70,6 +78,8 @@ export async function remoteStagehandOptions(
     apiKey,
     browserbaseSessionCreateParams: {
       userMetadata,
+      ...(target?.proxies ? { proxies: true } : {}),
+      ...(target?.verified ? { browserSettings: { verified: true } } : {}),
     },
     disableAPI: true,
     disablePino: true,
