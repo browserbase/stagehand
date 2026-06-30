@@ -132,8 +132,8 @@ browse wait selector "#result"
 Page state:
 
 ```bash
-browse snapshot
-browse snapshot --compact
+browse snapshot                            # formatted tree only
+browse snapshot --full                     # also include ref maps (xpathMap, urlMap)
 browse get url
 browse get title
 browse get text body

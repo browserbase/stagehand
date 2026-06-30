@@ -8,19 +8,24 @@ import {
 
 export default class Snapshot extends BrowseCommand {
   static override description =
-    "Print the active page accessibility snapshot and cache refs for element commands.";
+    "Print the active page accessibility snapshot and cache refs for element commands. Lean by default (formatted tree only); pass --full to also include the ref maps (xpathMap, urlMap). The ref maps are always cached for element commands regardless, and can be printed on demand with `browse refs`.";
 
   static override examples = [
     "browse snapshot",
-    "browse snapshot --compact",
+    "browse snapshot --full",
     "browse snapshot --filter submit",
     "browse snapshot --max-depth 4",
   ];
 
   static override flags = {
     ...driverCommandFlags,
+    full: Flags.boolean({
+      description:
+        "Include the ref maps (xpathMap, urlMap) in addition to the formatted tree. Restores the pre-lean default output.",
+    }),
     compact: Flags.boolean({
-      description: "Print only the formatted tree, without ref maps.",
+      description:
+        "Deprecated: snapshots are lean by default, so this flag has no effect. Use --full to include the ref maps.",
     }),
     filter: Flags.string({
       description:
@@ -35,10 +40,20 @@ export default class Snapshot extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(Snapshot);
+    // `--compact` is now the default. Keep accepting it as a no-op alias so
+    // existing callers don't break, but nudge interactive users toward --full.
+    // Warn on stderr only, gated on a TTY, so agents parsing stdout JSON (or
+    // capturing stderr) get no extra noise.
+    if (flags.compact && process.stderr.isTTY) {
+      this.warn(
+        "`--compact` is deprecated: `browse snapshot` is lean by default. Use `--full` to include the ref maps.",
+      );
+    }
     await runDriverCommandFromFlags(
       "snapshot",
       {
-        compact: flags.compact,
+        // Lean (no ref maps) unless --full is requested.
+        compact: !flags.full,
         filter: flags.filter,
         maxDepth: flags["max-depth"],
       },
