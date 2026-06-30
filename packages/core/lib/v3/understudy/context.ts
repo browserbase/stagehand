@@ -136,6 +136,7 @@ export class V3Context {
   private _pageOrder: TargetId[] = [];
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
   private pageCreationFailures = new Map<TargetId, Error>();
+  private domainPolicyClosingTargets = new Set<TargetId>();
   private readonly initScripts: string[] = [];
   private extraHttpHeaders: Record<string, string> | null = null;
   private domainPolicy: NormalizedDomainPolicy | null = null;
@@ -703,6 +704,7 @@ export class V3Context {
     this.typeByTarget.clear();
     this.pendingCreatedTargetUrl.clear();
     this.pageCreationFailures.clear();
+    this.domainPolicyClosingTargets.clear();
   }
 
   /**
@@ -744,7 +746,17 @@ export class V3Context {
         const ti = info;
         if (info.type === "page" && (ti?.openerId || ti?.openerFrameId)) {
           this._notePopupSignal();
+          void this.closePopupIfBlockedByDomainPolicy(info, "targetCreated");
         }
+      },
+    );
+    this.conn.on<Protocol.Target.TargetInfoChangedEvent>(
+      "Target.targetInfoChanged",
+      (evt) => {
+        void this.closePopupIfBlockedByDomainPolicy(
+          evt.targetInfo,
+          "targetInfoChanged",
+        );
       },
     );
 
@@ -779,6 +791,10 @@ export class V3Context {
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
   ): Promise<void> {
+    if (await this.closePopupIfBlockedByDomainPolicy(info, "attached")) {
+      return;
+    }
+
     // Skip non-web targets (workers, chrome extensions, background pages, etc.).
     // They still need to be resumed so we don't leave them paused by
     // waitForDebuggerOnStart, but injecting the piercer into these targets
@@ -1146,6 +1162,71 @@ export class V3Context {
       }
     } finally {
       await resume();
+    }
+  }
+
+  private async closePopupIfBlockedByDomainPolicy(
+    info: Protocol.Target.TargetInfo,
+    source: "targetCreated" | "targetInfoChanged" | "attached",
+  ): Promise<boolean> {
+    if (!this.domainPolicy || !isTopLevelPage(info)) return false;
+    if (!info.openerId && !info.openerFrameId) return false;
+    if (this.domainPolicyClosingTargets.has(info.targetId)) return true;
+
+    const decision = getDomainPolicyDecision(info.url ?? "", this.domainPolicy);
+    if (decision.action === "continue") return false;
+
+    this.domainPolicyClosingTargets.add(info.targetId);
+    v3Logger({
+      category: "network",
+      message:
+        "Popup reached a disallowed domain before it could be intercepted; closing it",
+      level: 2,
+      auxiliary: {
+        targetId: { value: String(info.targetId), type: "string" },
+        targetUrl: { value: String(info.url ?? ""), type: "string" },
+        openerId: { value: String(info.openerId ?? ""), type: "string" },
+        openerFrameId: {
+          value: String(info.openerFrameId ?? ""),
+          type: "string",
+        },
+        ruleType: { value: decision.reason, type: "string" },
+        source: { value: source, type: "string" },
+      },
+    });
+
+    const closed = await this.closeTargetAfterDomainPolicyViolation(info, {
+      failureMessage:
+        "Failed to close popup after it reached a disallowed domain",
+    });
+    if (!closed) this.domainPolicyClosingTargets.delete(info.targetId);
+    if (!closed) return false;
+    return true;
+  }
+
+  private async closeTargetAfterDomainPolicyViolation(
+    info: Protocol.Target.TargetInfo,
+    opts: { failureMessage: string },
+  ): Promise<boolean> {
+    try {
+      await this.conn.send("Target.closeTarget", { targetId: info.targetId });
+      return true;
+    } catch (error) {
+      v3Logger({
+        category: "network",
+        message: opts.failureMessage,
+        level: 0,
+        auxiliary: {
+          targetId: { value: String(info.targetId), type: "string" },
+          targetType: { value: String(info.type), type: "string" },
+          targetUrl: { value: String(info.url ?? ""), type: "string" },
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+        },
+      });
+      return false;
     }
   }
 
