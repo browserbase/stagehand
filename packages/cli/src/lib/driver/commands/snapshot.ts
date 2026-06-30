@@ -5,9 +5,9 @@ import type { DriverCommandHandlers } from "./types.js";
 
 export const snapshotHandlers: DriverCommandHandlers = {
   async snapshot(manager, params) {
-    const { compact, filter, maxDepth } = z
+    const { full, filter, maxDepth } = z
       .object({
-        compact: z.boolean().optional(),
+        full: z.boolean().optional(),
         filter: z.string().optional(),
         maxDepth: z.number().int().nonnegative().optional(),
       })
@@ -20,18 +20,17 @@ export const snapshotHandlers: DriverCommandHandlers = {
     });
 
     const tree = formatSnapshotTree(snapshot.formattedTree, {
-      compact,
       filter,
       maxDepth,
     });
-    if (compact) {
-      return { tree };
+    if (full) {
+      return {
+        tree,
+        urlMap: snapshot.urlMap,
+        xpathMap: snapshot.xpathMap,
+      };
     }
 
-    return {
-      tree,
-      urlMap: snapshot.urlMap,
-      xpathMap: snapshot.xpathMap,
-    };
+    return { tree };
   },
 };

@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { resolveSelector } from "../src/lib/driver/commands/selectors.js";
 import { formatSnapshotTree } from "../src/lib/driver/commands/snapshot-format.js";
+import { snapshotHandlers } from "../src/lib/driver/commands/snapshot.js";
 import { runtimeHandlers } from "../src/lib/driver/commands/runtime.js";
 import { tabHandlers } from "../src/lib/driver/commands/tabs.js";
 import { DRIVER_COMMAND_NAMES } from "../src/lib/driver/commands/types.js";
@@ -333,6 +334,36 @@ describe("driver commands", () => {
         "    - button [0-2]: Submit order",
       ].join("\n"),
     );
+  });
+
+  it("omits ref maps by default and includes them with --full", async () => {
+    const snap = {
+      formattedTree: "[0-1] RootWebArea: Test\n  [0-2] button: Go",
+      urlMap: { "0-2": "https://example.com/go" },
+      xpathMap: { "0-1": "/", "0-2": "/button[1]" },
+    };
+    const setRefMaps = vi.fn();
+    const manager = {
+      activePage: async () => ({ snapshot: async () => snap }),
+      setRefMaps,
+    } as unknown as Parameters<
+      NonNullable<(typeof snapshotHandlers)["snapshot"]>
+    >[0];
+
+    const lean = await snapshotHandlers.snapshot!(manager, {});
+    expect(lean).not.toHaveProperty("xpathMap");
+    expect(lean).not.toHaveProperty("urlMap");
+
+    const full = await snapshotHandlers.snapshot!(manager, { full: true });
+    expect(full).toMatchObject({
+      urlMap: snap.urlMap,
+      xpathMap: snap.xpathMap,
+    });
+
+    expect(setRefMaps).toHaveBeenCalledWith({
+      urlMap: snap.urlMap,
+      xpathMap: snap.xpathMap,
+    });
   });
 
   it("exposes descriptive help for the new driver command surface", async () => {

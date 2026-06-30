@@ -619,9 +619,7 @@ class BrowseCliPageHandle implements CorePageHandle {
   }
 
   async represent(): Promise<PageRepresentation> {
-    // A/B toggle for the lean-vs-full snapshot eval. `browse snapshot` is now
-    // lean by default (formatted tree only, no ref maps); set
-    // BROWSE_SNAPSHOT_FULL=1 to restore the pre-lean full output (tree + maps).
+    // BROWSE_SNAPSHOT_FULL=1 includes the ref maps in the snapshot.
     const full = process.env.BROWSE_SNAPSHOT_FULL === "1";
     const snapshot = await this.runCommandAfterSelecting<{
       tree: string;
@@ -636,8 +634,7 @@ class BrowseCliPageHandle implements CorePageHandle {
       metadata: {
         bytes: Buffer.byteLength(content, "utf8"),
         tokenEstimate: Math.ceil(content.length / 4),
-        // xpathMap is only present with --full; otherwise derive the count from
-        // the formatted tree so this metric stays mode-independent.
+        // Count refs from xpathMap when present, else from the tree.
         refCount: snapshot.xpathMap
           ? Object.keys(snapshot.xpathMap).length
           : (content.match(/\[\d+-\d+\]/g)?.length ?? 0),
