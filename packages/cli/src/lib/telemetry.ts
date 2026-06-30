@@ -172,7 +172,7 @@ function createCliTelemetry(options: CreateCliTelemetryOptions): CliTelemetry {
     node_version: process.version,
     platform: process.platform,
     arch: process.arch,
-    ...classifyEnvironment(env),
+    ...(telemetryEnabled ? classifyEnvironment(env) : {}),
     $process_person_profile: false,
   };
 
