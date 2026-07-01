@@ -372,6 +372,7 @@ export class CdpConnection implements CDPSessionLike {
         for (const [sessionId, targetId] of this.sessionToTarget.entries()) {
           if (targetId === p.targetId) {
             this.clearSessionEventHandlers(sessionId);
+            this.sessions.delete(sessionId);
             this.sessionToTarget.delete(sessionId);
             this.latestCdpCallEvent.delete(sessionId);
             break;
