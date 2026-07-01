@@ -100,6 +100,7 @@ const CATEGORY_OVERRIDES: Record<string, string[]> = {
   "agent/webvoyager": ["external_agent_benchmarks"],
   "agent/onlineMind2Web": ["external_agent_benchmarks"],
   "agent/webtailbench": ["external_agent_benchmarks"],
+  "agent/odysseysbench": ["external_agent_benchmarks"],
 };
 
 /**
@@ -681,6 +682,7 @@ function handleRun(args: string[]): void {
         osworld: "agent/osworld",
         onlineMind2Web: "agent/onlineMind2Web",
         webtailbench: "agent/webtailbench",
+        odysseysbench: "agent/odysseysbench",
       };
 
       evalName = benchmarkMap[benchmarkName];
