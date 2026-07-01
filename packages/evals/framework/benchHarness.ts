@@ -2,11 +2,12 @@ import {
   AgentProvider,
   getAISDKLanguageModel,
   loadApiKeyFromEnv,
+  V3,
   type AgentInstance,
   type AvailableModel,
   type LLMClient,
   type LogLine,
-  type V3,
+  type TaskSpec,
 } from "@browserbasehq/stagehand";
 import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
 import { endBrowserbaseSession } from "../browserbaseCleanup.js";
@@ -14,7 +15,11 @@ import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { V3InitResult } from "../initV3.js";
 import type { EvalInput } from "../types/evals.js";
-import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
+import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import {
+  runClaudeCodeAgent,
+  type ClaudeCodeVerifierConfig,
+} from "./claudeCodeRunner.js";
 import { prepareClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
 import { runCodexAgent } from "./codexRunner.js";
 import { prepareCodexToolAdapter } from "./codexToolAdapter.js";
@@ -181,6 +186,114 @@ export const stagehandHarness: BenchHarness = {
   },
 };
 
+/**
+ * Default judge model for the claude_code rubric verifier — used for both rubric
+ * generation and scoring. google/gemini-2.5-flash is V3Evaluator's own tuned
+ * default and reliably emits the verifier's structured-output schema; smaller
+ * models (e.g. anthropic/claude-haiku-4-5) intermittently fail the fused
+ * judgment call ("response did not match schema"), which the verifier reports as
+ * evidenceInsufficient → spurious outcome=false. Override with
+ * EVAL_CLAUDE_CODE_VERIFIER_MODEL (the judge's provider key is auto-resolved).
+ * Requires GEMINI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY for the default.
+ */
+const CLAUDE_CODE_VERIFIER_JUDGE_MODEL = "google/gemini-2.5-flash";
+
+/**
+ * Whether the rubric verifier should run for claude_code. Default ON so browse
+ * runs get ground-truth scoring; set EVAL_CLAUDE_CODE_VERIFIER to 0/false/off to
+ * fall back to the agent's self-reported EVAL_RESULT line.
+ */
+function isClaudeCodeVerifierEnabled(): boolean {
+  const raw = process.env.EVAL_CLAUDE_CODE_VERIFIER;
+  if (raw === undefined) return true;
+  const normalized = raw.trim().toLowerCase();
+  return !(
+    normalized === "0" ||
+    normalized === "false" ||
+    normalized === "off" ||
+    normalized === "no"
+  );
+}
+
+/**
+ * Build the ClaudeCodeVerifierConfig that wires V3Evaluator's rubric verifier
+ * into the claude_code runner. Returns undefined (→ self-report fallback) when
+ * the verifier is disabled or when constructing the V3 carrier throws — never
+ * crashes the run.
+ *
+ * The V3 instance is used ONLY as the LLM-client carrier for V3Evaluator; per
+ * ClaudeCodeVerifierConfig it does NOT need init(). We mirror `evals verify`
+ * (tui/commands/verify.ts): a browser-free V3 with disableAPI + an Anthropic
+ * model so the verifier's LLMProvider resolves against ANTHROPIC_API_KEY.
+ */
+function buildClaudeCodeVerifierConfig(
+  plan: ExternalHarnessTaskPlan,
+  logger: EvalLogger,
+): ClaudeCodeVerifierConfig | undefined {
+  if (!isClaudeCodeVerifierEnabled()) return undefined;
+
+  try {
+    const judgeModel = (process.env.EVAL_CLAUDE_CODE_VERIFIER_MODEL ||
+      CLAUDE_CODE_VERIFIER_JUDGE_MODEL) as AvailableModel;
+
+    // Resolve the judge provider's key so V3Evaluator sends the RIGHT credential.
+    // Without this it defaults modelClientOptions.apiKey to the Gemini key, which
+    // an Anthropic judge would receive as x-api-key → "invalid x-api-key".
+    const judgeProvider = judgeModel.includes("/")
+      ? judgeModel.slice(0, judgeModel.indexOf("/"))
+      : undefined;
+    const judgeApiKey = judgeProvider
+      ? loadApiKeyFromEnv(judgeProvider, (line: LogLine) => logger.log(line))
+      : undefined;
+    const judgeClientOptions = judgeApiKey
+      ? { apiKey: judgeApiKey }
+      : undefined;
+
+    // Browser-free carrier — no init(). Only v3.logger is read by V3Evaluator.
+    const v3 = new V3({
+      env: "LOCAL",
+      verbose: 0,
+      disableAPI: true,
+      model: judgeClientOptions
+        ? { modelName: judgeModel, ...judgeClientOptions }
+        : judgeModel,
+      logger: (line: LogLine) => logger.log(line),
+    });
+
+    const taskSpec: TaskSpec = {
+      id: plan.taskId ?? `${plan.dataset}/${plan.instruction.slice(0, 40)}`,
+      instruction: plan.instruction,
+      initUrl: plan.startUrl,
+      ...(plan.precomputedRubric && {
+        precomputedRubric: plan.precomputedRubric,
+      }),
+      ...(plan.expectedAnswer && { expectedAnswer: plan.expectedAnswer }),
+    };
+
+    return {
+      v3,
+      taskSpec,
+      dataset: plan.dataset,
+      judgeModel,
+      judgeClientOptions,
+      successMode: process.env.EVAL_SUCCESS_MODE as
+        | "outcome"
+        | "process"
+        | "both"
+        | undefined,
+    };
+  } catch (error) {
+    logger.warn({
+      category: "claude_code",
+      message: `verifier setup skipped (falling back to self-report): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      level: 0,
+    });
+    return undefined;
+  }
+}
+
 export const claudeCodeHarness: BenchHarness = {
   harness: "claude_code",
   supportedTaskKinds: ["agent", "suite"],
@@ -204,6 +317,7 @@ export const claudeCodeHarness: BenchHarness = {
       plan,
       logger,
     });
+    const verifier = buildClaudeCodeVerifierConfig(plan, logger);
     try {
       return await runClaudeCodeAgent({
         plan,
@@ -211,6 +325,7 @@ export const claudeCodeHarness: BenchHarness = {
         logger,
         toolAdapter,
         signal,
+        verifier,
       });
     } finally {
       await toolAdapter.cleanup();
