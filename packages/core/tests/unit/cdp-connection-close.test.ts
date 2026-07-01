@@ -237,5 +237,50 @@ describe("CdpConnection", () => {
 
       expect(eventHandlers.has("session-a:Fetch.requestPaused")).toBe(false);
     });
+
+    it("removes all session-scoped event handlers for a destroyed target", async () => {
+      const pair = await createPair();
+      wss = pair.wss;
+
+      for (const sessionId of ["session-a", "session-b"]) {
+        await sendCdpEvent(pair.serverSocket, {
+          method: "Target.attachedToTarget",
+          params: {
+            sessionId,
+            targetInfo: {
+              targetId: "target-a",
+              type: "page",
+              title: "",
+              url: "about:blank",
+              attached: true,
+              canAccessOpener: false,
+            },
+          },
+        });
+      }
+
+      const sessionA = pair.conn.getSession("session-a");
+      const sessionB = pair.conn.getSession("session-b");
+      expect(sessionA).toBeDefined();
+      expect(sessionB).toBeDefined();
+
+      sessionA!.on("Fetch.requestPaused", () => {});
+      sessionB!.on("Fetch.requestPaused", () => {});
+
+      const eventHandlers = (pair.conn as unknown as ConnectionInternals)
+        .eventHandlers;
+      expect(eventHandlers.has("session-a:Fetch.requestPaused")).toBe(true);
+      expect(eventHandlers.has("session-b:Fetch.requestPaused")).toBe(true);
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.targetDestroyed",
+        params: {
+          targetId: "target-a",
+        },
+      });
+
+      expect(eventHandlers.has("session-a:Fetch.requestPaused")).toBe(false);
+      expect(eventHandlers.has("session-b:Fetch.requestPaused")).toBe(false);
+    });
   });
 });

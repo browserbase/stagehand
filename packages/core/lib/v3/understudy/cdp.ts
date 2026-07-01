@@ -375,7 +375,6 @@ export class CdpConnection implements CDPSessionLike {
             this.sessions.delete(sessionId);
             this.sessionToTarget.delete(sessionId);
             this.latestCdpCallEvent.delete(sessionId);
-            break;
           }
         }
       }
