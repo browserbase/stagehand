@@ -161,7 +161,7 @@ export function resolveInstallIdPath(env: NodeJS.ProcessEnv): string {
  * when set (already includes the `browserbase` segment, e.g. `~/.config/browserbase`);
  * otherwise `(XDG_CONFIG_HOME||~/.config)/browserbase` on every platform.
  */
-function resolveConfigDir(env: NodeJS.ProcessEnv): string {
+export function resolveConfigDir(env: NodeJS.ProcessEnv = process.env): string {
   if (env.BROWSERBASE_CONFIG_DIR) {
     return env.BROWSERBASE_CONFIG_DIR;
   }
