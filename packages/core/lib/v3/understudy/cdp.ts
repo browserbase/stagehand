@@ -217,6 +217,31 @@ export class CdpConnection implements CDPSessionLike {
     }
   }
 
+  private rejectSessionPendingWork(
+    sessionId: string,
+    targetId: string | null,
+  ): void {
+    for (const [id, entry] of this.inflight.entries()) {
+      if (entry.sessionId === sessionId) {
+        entry.reject(
+          new PageNotFoundError(
+            `target closed before CDP response (sessionId=${sessionId}, targetId=${targetId})`,
+          ),
+        );
+        this.inflight.delete(id);
+      }
+    }
+    for (const waiter of Array.from(this.sessionDispatchWaiters)) {
+      if (waiter.sessionId === sessionId) {
+        waiter.reject(
+          new PageNotFoundError(
+            `target closed before CDP send (sessionId=${sessionId}, targetId=${targetId})`,
+          ),
+        );
+      }
+    }
+  }
+
   getSession(sessionId: string): CdpSession | undefined {
     return this.sessions.get(sessionId);
   }
@@ -343,25 +368,7 @@ export class CdpConnection implements CDPSessionLike {
       } else if (msg.method === "Target.detachedFromTarget") {
         const p = (msg as { params: Protocol.Target.DetachedFromTargetEvent })
           .params;
-        for (const [id, entry] of this.inflight.entries()) {
-          if (entry.sessionId === p.sessionId) {
-            entry.reject(
-              new PageNotFoundError(
-                `target closed before CDP response (sessionId=${p.sessionId}, targetId=${p.targetId})`,
-              ),
-            );
-            this.inflight.delete(id);
-          }
-        }
-        for (const waiter of Array.from(this.sessionDispatchWaiters)) {
-          if (waiter.sessionId === p.sessionId) {
-            waiter.reject(
-              new PageNotFoundError(
-                `target closed before CDP send (sessionId=${p.sessionId}, targetId=${p.targetId})`,
-              ),
-            );
-          }
-        }
+        this.rejectSessionPendingWork(p.sessionId, p.targetId ?? null);
         this.clearSessionEventHandlers(p.sessionId);
         this.sessions.delete(p.sessionId);
         this.sessionToTarget.delete(p.sessionId);
@@ -371,6 +378,7 @@ export class CdpConnection implements CDPSessionLike {
         // Remove any session mapping for this target
         for (const [sessionId, targetId] of this.sessionToTarget.entries()) {
           if (targetId === p.targetId) {
+            this.rejectSessionPendingWork(sessionId, p.targetId);
             this.clearSessionEventHandlers(sessionId);
             this.sessions.delete(sessionId);
             this.sessionToTarget.delete(sessionId);

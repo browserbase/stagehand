@@ -48,7 +48,12 @@ async function sendCdpEvent(
   serverSocket: ServerWebSocket,
   message: Record<string, unknown>,
 ): Promise<void> {
-  serverSocket.send(JSON.stringify(message));
+  await new Promise<void>((resolve, reject) => {
+    serverSocket.send(JSON.stringify(message), (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
@@ -285,6 +290,86 @@ describe("CdpConnection", () => {
 
       expect(eventHandlers.has("session-a:Fetch.requestPaused")).toBe(false);
       expect(eventHandlers.has("session-b:Fetch.requestPaused")).toBe(false);
+    });
+
+    it("rejects in-flight session sends when a target is destroyed", async () => {
+      const pair = await createPair();
+      wss = pair.wss;
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.attachedToTarget",
+        params: {
+          sessionId: "session-a",
+          targetInfo: {
+            targetId: "target-a",
+            type: "page",
+            title: "",
+            url: "about:blank",
+            attached: true,
+            canAccessOpener: false,
+          },
+        },
+      });
+
+      const session = pair.conn.getSession("session-a");
+      expect(session).toBeDefined();
+
+      const pending = session!.send("Runtime.evaluate", {
+        expression: "1+1",
+      });
+      const resultPromise = pending
+        .then(() => "resolved")
+        .catch(() => "rejected");
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.targetDestroyed",
+        params: {
+          targetId: "target-a",
+        },
+      });
+
+      const result = await raceTimeout(resultPromise, 3_000);
+
+      expect(result).toBe("rejected");
+    });
+
+    it("rejects session dispatch waiters when a target is destroyed", async () => {
+      const pair = await createPair();
+      wss = pair.wss;
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.attachedToTarget",
+        params: {
+          sessionId: "session-a",
+          targetInfo: {
+            targetId: "target-a",
+            type: "page",
+            title: "",
+            url: "about:blank",
+            attached: true,
+            canAccessOpener: false,
+          },
+        },
+      });
+
+      const pending = pair.conn.waitForSessionDispatch(
+        "session-a",
+        "Fetch.enable",
+      );
+      const resultPromise = pending
+        .then(() => "resolved")
+        .catch(() => "rejected");
+
+      await sendCdpEvent(pair.serverSocket, {
+        method: "Target.targetDestroyed",
+        params: {
+          targetId: "target-a",
+        },
+      });
+
+      const result = await raceTimeout(resultPromise, 3_000);
+
+      expect(result).toBe("rejected");
     });
   });
 });
