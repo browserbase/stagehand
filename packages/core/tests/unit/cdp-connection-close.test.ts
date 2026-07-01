@@ -57,6 +57,29 @@ async function sendCdpEvent(
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+async function waitForSession(
+  conn: CdpConnection,
+  sessionId: string,
+): Promise<ReturnType<CdpConnection["getSession"]>> {
+  const session = await raceTimeout(
+    new Promise<ReturnType<CdpConnection["getSession"]>>((resolve) => {
+      const check = () => {
+        const found = conn.getSession(sessionId);
+        if (found) {
+          resolve(found);
+          return;
+        }
+        setTimeout(check, 0);
+      };
+      check();
+    }),
+    3_000,
+  );
+
+  expect(session).not.toBe("timeout");
+  return session as ReturnType<CdpConnection["getSession"]>;
+}
+
 describe("CdpConnection", () => {
   let wss: WebSocketServer | null = null;
 
@@ -139,8 +162,7 @@ describe("CdpConnection", () => {
         },
       });
 
-      const session = pair.conn.getSession("session-a");
-      expect(session).toBeDefined();
+      const session = await waitForSession(pair.conn, "session-a");
 
       const fetchHandlerA = vi.fn();
       const fetchHandlerB = vi.fn();
@@ -163,8 +185,7 @@ describe("CdpConnection", () => {
         },
       });
 
-      const otherSession = pair.conn.getSession("session-b");
-      expect(otherSession).toBeDefined();
+      const otherSession = await waitForSession(pair.conn, "session-b");
       otherSession!.on("Fetch.requestPaused", () => {});
 
       const rootHandler = vi.fn();
@@ -229,8 +250,7 @@ describe("CdpConnection", () => {
         },
       });
 
-      const session = pair.conn.getSession("session-a");
-      expect(session).toBeDefined();
+      const session = await waitForSession(pair.conn, "session-a");
       session!.on("Fetch.requestPaused", () => {});
 
       const eventHandlers = (pair.conn as unknown as ConnectionInternals)
@@ -268,10 +288,8 @@ describe("CdpConnection", () => {
         });
       }
 
-      const sessionA = pair.conn.getSession("session-a");
-      const sessionB = pair.conn.getSession("session-b");
-      expect(sessionA).toBeDefined();
-      expect(sessionB).toBeDefined();
+      const sessionA = await waitForSession(pair.conn, "session-a");
+      const sessionB = await waitForSession(pair.conn, "session-b");
 
       sessionA!.on("Fetch.requestPaused", () => {});
       sessionB!.on("Fetch.requestPaused", () => {});
@@ -311,8 +329,7 @@ describe("CdpConnection", () => {
         },
       });
 
-      const session = pair.conn.getSession("session-a");
-      expect(session).toBeDefined();
+      const session = await waitForSession(pair.conn, "session-a");
 
       const pending = session!.send("Runtime.evaluate", {
         expression: "1+1",
