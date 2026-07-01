@@ -34,13 +34,4 @@ export const snapshotHandlers: DriverCommandHandlers = {
       xpathMap: snapshot.xpathMap,
     };
   },
-
-  async refs(manager) {
-    const refMaps = manager.getRefMaps();
-    return {
-      count: Object.keys(refMaps.xpathMap).length,
-      urlMap: refMaps.urlMap,
-      xpathMap: refMaps.xpathMap,
-    };
-  },
 };
