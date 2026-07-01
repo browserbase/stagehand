@@ -81,7 +81,7 @@ uv run python examples/local_example.py
 
 ## Streaming logging example
 
-See [`examples/logging_example.py`](https://github.com/browserbase/stagehand-python/blob/main/examples/logging_example.py) for a remote-only flow that streams `StreamEvent`s with `verbose=2`, `stream_response=True`, and `x_stream_response="true"` so you can watch the SDK’s logs as they arrive.
+See [`examples/logging_example.py`](https://github.com/browserbase/stagehand-python/blob/main/examples/logging_example.py) for a remote-only flow that streams `StreamEvent`s with `verbose=2` and `stream_response=True` so you can watch the SDK’s logs as they arrive.
 
 ```bash
 uv run python examples/logging_example.py
@@ -297,10 +297,7 @@ asyncio.run(main())
 
 We provide support for streaming responses using Server-Sent Events (SSE).
 
-To enable SSE streaming, you must:
-
-1. Ask the server to stream by setting `x_stream_response="true"` (header), and
-2. Tell the client to parse an SSE stream by setting `stream_response=True`.
+To enable SSE streaming, set `stream_response=True`. The SDK sends the streaming request and parses the SSE response as `StreamEvent`s.
 
 ```python
 import asyncio
@@ -315,7 +312,6 @@ async def main() -> None:
             id=session.id,
             input="click the first link on the page",
             stream_response=True,
-            x_stream_response="true",
         )
         async for event in stream:
             # event is a StreamEvent (type: "system" | "log")

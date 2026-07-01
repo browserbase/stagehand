@@ -157,8 +157,9 @@ async function main() {
         description: `Stagehand SDK for AI browser automation [ALPHA]. This API allows clients to
 execute browser automation tasks remotely on the Browserbase cloud.
 All endpoints except /sessions/start require an active session ID.
-Responses are streamed using Server-Sent Events (SSE) when the
-\`x-stream-response: true\` header is provided.
+Supported operations stream responses using Server-Sent Events (SSE) when
+\`streamResponse\` is set to \`true\` in the request body, or when the
+\`x-stream-response: true\` header is sent by legacy or no-body clients.
 
 This SDK is currently ALPHA software and is not production ready!
 Please try it and give us your feedback, stay tuned for upcoming release announcements!`,

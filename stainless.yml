@@ -154,6 +154,24 @@ openapi:
         value:
           x-stainless-any: true
 
+    # Override the generated Python API reference example for the dual-mode
+    # act endpoint so docs show the SSE stream shape instead of iterating over
+    # a non-streaming response object.
+    - command: merge
+      reason: Use streaming Python snippet for sessions.act docs
+      args:
+        target: '$.paths["/v1/sessions/{id}/act"].post'
+        value:
+          x-stainless-snippets:
+            python: |
+              stream = client.sessions.act(
+                  id="c4dbf3a9-9a58-4b22-8a1c-9f20f9f9e123",
+                  input="Click the login button",
+                  stream_response=True,
+              )
+              for event in stream:
+                  print(event)
+
 # `resources` define the structure and organization for your API, such as how
 # methods and models are grouped together and accessed. See the [configuration
 # guide] for more information.
