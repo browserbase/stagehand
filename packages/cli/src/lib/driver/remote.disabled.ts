@@ -23,14 +23,14 @@ export function autoSelectRemoteTarget(): ConnectionTarget | null {
   return null;
 }
 
-export function forwardedCredentialKeys(): readonly string[] {
+export function forwardedEnvKeys(): readonly string[] {
   // The local-only build never reaches the cloud, so there is nothing to
   // forward — and no API-key names may appear in this artifact.
   return [];
 }
 
 export async function remoteStagehandOptions(): Promise<StagehandConstructorOptions> {
-  // Accepts the forwarded-credentials arg structurally (fewer params is
+  // Accepts the forwarded-env arg structurally (fewer params is
   // assignable) without naming it, keeping this stub key-name-free.
   throw new Error(DISABLED_MESSAGE);
 }

@@ -8,9 +8,9 @@ import {
 import { executeDriverCommand } from "./commands/registry.js";
 import type { DriverCommandName } from "./commands/types.js";
 import {
-  credentialSignature,
-  type ForwardedCredentials,
-} from "./daemon/credentials.js";
+  forwardedEnvSignature,
+  type ForwardedEnv,
+} from "./daemon/forwarded-env.js";
 import { DriverError } from "./errors.js";
 import { discoverLocalCdp } from "./local-cdp-discovery.js";
 import { NetworkCapture } from "./network-capture.js";
@@ -71,8 +71,8 @@ export class DriverSessionManager {
 
   private consecutiveInitFailures = 0;
   private context: DriverContext | null = null;
-  private lastCredentialSignature: string | null = null;
-  private pendingCredentials: ForwardedCredentials | undefined;
+  private lastForwardedEnvSignature: string | null = null;
+  private pendingEnv: ForwardedEnv | undefined;
   private initFailure: InitFailure | null = null;
   private initPromise: Promise<void> | null = null;
   private refMaps: RefMaps = emptyRefMaps();
@@ -98,29 +98,27 @@ export class DriverSessionManager {
   }
 
   /**
-   * Apply credentials forwarded by the client (e.g. an inline or exported API
+   * Apply env vars forwarded by the client (e.g. an inline or exported API
    * key set after the daemon started). Honoring a late key without a manual
    * restart is the whole point of forwarding.
    *
-   * The credentials are stashed for the next `init()`, which threads them
+   * The forwarded env is stashed for the next `init()`, which threads it
    * straight into the Stagehand constructor — never into `process.env` — so the
    * key's only home is the live session. A live, already-initialized session
-   * keeps its existing browser (credentials only matter at init), so the
-   * warm-daemon fast path is untouched. When the credentials change *before* a
-   * successful init (the common case: a first key-less `open` failed, then a
+   * keeps its existing browser (forwarded env only matters at init), so the
+   * warm-daemon fast path is untouched. When the forwarded env changes *before*
+   * a successful init (the common case: a first key-less `open` failed, then a
    * key is supplied), clear the cached init failure and backoff so the retry
    * runs immediately with the new key instead of replaying the stale
    * missing-key error.
    */
-  applyForwardedCredentials(
-    credentials: ForwardedCredentials | undefined,
-  ): void {
-    // Keep the caller's latest credentials available to the next init.
-    this.pendingCredentials = credentials;
+  applyForwardedEnv(forwardedEnv: ForwardedEnv | undefined): void {
+    // Keep the caller's latest forwarded env available to the next init.
+    this.pendingEnv = forwardedEnv;
 
-    const signature = credentialSignature(credentials);
-    if (signature === this.lastCredentialSignature) return;
-    this.lastCredentialSignature = signature;
+    const signature = forwardedEnvSignature(forwardedEnv);
+    if (signature === this.lastForwardedEnvSignature) return;
+    this.lastForwardedEnvSignature = signature;
 
     if (this.stagehand && this.context) return;
     this.initFailure = null;
@@ -404,7 +402,7 @@ export class DriverSessionManager {
     if (target.kind === "remote") {
       return await (
         await getRemote()
-      ).remoteStagehandOptions(target, this.pendingCredentials);
+      ).remoteStagehandOptions(target, this.pendingEnv);
     }
 
     if (target.kind === "managed-local") {

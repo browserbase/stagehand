@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   autoSelectRemoteTarget,
-  forwardedCredentialKeys,
+  forwardedEnvKeys,
   remoteDoctorCheck,
   remoteStagehandOptions,
   resolveExplicitRemoteTarget,
@@ -30,8 +30,8 @@ describe("remote.disabled (local-only capability)", () => {
     expect(result.message).toMatch(/disabled/i);
   });
 
-  it("forwards no credential keys (local-only never reaches the cloud)", () => {
-    expect(forwardedCredentialKeys()).toEqual([]);
+  it("forwards no env keys (local-only never reaches the cloud)", () => {
+    expect(forwardedEnvKeys()).toEqual([]);
   });
 
   it("contains no BROWSERBASE_API_KEY reference in its source", async () => {
