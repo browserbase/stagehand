@@ -219,7 +219,9 @@ function isClaudeCodeVerifierEnabled(): boolean {
  * Build the ClaudeCodeVerifierConfig that wires V3Evaluator's rubric verifier
  * into the claude_code runner. Returns undefined (→ self-report fallback) when
  * the verifier is disabled or when constructing the V3 carrier throws — never
- * crashes the run.
+ * crashes the run. Exception: an explicit judge override
+ * (EVAL_CLAUDE_CODE_VERIFIER_MODEL) whose provider key can't be resolved throws
+ * a config error rather than silently downgrading to self-report.
  *
  * The V3 instance is used ONLY as the LLM-client carrier for V3Evaluator; per
  * ClaudeCodeVerifierConfig it does NOT need init(). We mirror `evals verify`
@@ -232,23 +234,35 @@ function buildClaudeCodeVerifierConfig(
 ): ClaudeCodeVerifierConfig | undefined {
   if (!isClaudeCodeVerifierEnabled()) return undefined;
 
+  const judgeModelOverride = process.env.EVAL_CLAUDE_CODE_VERIFIER_MODEL;
+  const judgeModel = (judgeModelOverride ||
+    CLAUDE_CODE_VERIFIER_JUDGE_MODEL) as AvailableModel;
+
+  // Resolve the judge provider's key so V3Evaluator sends the RIGHT credential.
+  // Without this it defaults modelClientOptions.apiKey to the Gemini key, which
+  // an Anthropic judge would receive as x-api-key → "invalid x-api-key".
+  const judgeProvider = judgeModel.includes("/")
+    ? judgeModel.slice(0, judgeModel.indexOf("/"))
+    : undefined;
+  const judgeApiKey = judgeProvider
+    ? loadApiKeyFromEnv(judgeProvider, (line: LogLine) => logger.log(line))
+    : undefined;
+  const judgeClientOptions = judgeApiKey ? { apiKey: judgeApiKey } : undefined;
+
+  // Fail fast on a judge OVERRIDE whose key we can't resolve — do this before
+  // the try/catch so it propagates instead of being swallowed into the
+  // self-report fallback. Otherwise V3Evaluator backfills modelClientOptions
+  // with the Gemini key, hands the wrong provider its credential, verify()
+  // throws, and the run silently downgrades to legacy self-report. Surface the
+  // misconfiguration instead. The built-in default (gemini) is exempt: it
+  // degrades gracefully to V3Evaluator's own key resolution.
+  if (judgeModelOverride && judgeProvider && !judgeApiKey) {
+    throw new EvalsError(
+      `EVAL_CLAUDE_CODE_VERIFIER_MODEL="${judgeModel}" was set but no API key resolved for provider "${judgeProvider}". Set that provider's key (e.g. ANTHROPIC_API_KEY / OPENAI_API_KEY) or unset EVAL_CLAUDE_CODE_VERIFIER_MODEL to use the default judge.`,
+    );
+  }
+
   try {
-    const judgeModel = (process.env.EVAL_CLAUDE_CODE_VERIFIER_MODEL ||
-      CLAUDE_CODE_VERIFIER_JUDGE_MODEL) as AvailableModel;
-
-    // Resolve the judge provider's key so V3Evaluator sends the RIGHT credential.
-    // Without this it defaults modelClientOptions.apiKey to the Gemini key, which
-    // an Anthropic judge would receive as x-api-key → "invalid x-api-key".
-    const judgeProvider = judgeModel.includes("/")
-      ? judgeModel.slice(0, judgeModel.indexOf("/"))
-      : undefined;
-    const judgeApiKey = judgeProvider
-      ? loadApiKeyFromEnv(judgeProvider, (line: LogLine) => logger.log(line))
-      : undefined;
-    const judgeClientOptions = judgeApiKey
-      ? { apiKey: judgeApiKey }
-      : undefined;
-
     // Browser-free carrier — no init(). Only v3.logger is read by V3Evaluator.
     const v3 = new V3({
       env: "LOCAL",
@@ -261,7 +275,14 @@ function buildClaudeCodeVerifierConfig(
     });
 
     const taskSpec: TaskSpec = {
-      id: plan.taskId ?? `${plan.dataset}/${plan.instruction.slice(0, 40)}`,
+      // Fallback id feeds the trajectory dir path, so sanitize the
+      // instruction-derived segment — raw instruction text can contain `/`,
+      // `..`, or other path-unsafe characters that would fork the output dir.
+      id:
+        plan.taskId ??
+        `${plan.dataset}/${plan.instruction
+          .slice(0, 40)
+          .replace(/[^A-Za-z0-9_-]/g, "_")}`,
       instruction: plan.instruction,
       initUrl: plan.startUrl,
       ...(plan.precomputedRubric && {
