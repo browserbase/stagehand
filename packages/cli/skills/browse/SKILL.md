@@ -134,7 +134,6 @@ Page state:
 ```bash
 browse snapshot
 browse snapshot --compact
-browse refs
 browse get url
 browse get title
 browse get text body

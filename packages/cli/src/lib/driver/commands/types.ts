@@ -21,7 +21,6 @@ export const DRIVER_COMMAND_NAMES = [
   "network.on",
   "network.path",
   "open",
-  "refs",
   "reload",
   "screenshot",
   "select",

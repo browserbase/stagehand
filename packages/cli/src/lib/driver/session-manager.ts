@@ -226,10 +226,6 @@ export class DriverSessionManager {
     this.refMaps = refMaps;
   }
 
-  getRefMaps(): RefMaps {
-    return this.refMaps;
-  }
-
   async openResult(page: DriverPage): Promise<OpenResult> {
     return {
       ...this.browserbaseIdentity(),
