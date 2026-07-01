@@ -84,7 +84,7 @@ browse back           # Navigate backward
 browse forward        # Navigate forward
 ```
 
-### Snapshot & refs
+### Snapshot
 
 The accessibility snapshot is the recommended way for agents to discover elements. It prints a tree of refs like `@0-12` that the element commands accept directly.
 
@@ -93,7 +93,6 @@ browse snapshot                 # Accessibility snapshot + cached refs
 browse snapshot --compact       # Tree only, no ref maps
 browse snapshot --filter submit # Filter lines by text or /regex/, keeping ancestors
 browse snapshot --max-depth 4   # Trim output deeper than this depth
-browse refs                     # Show refs cached from the last snapshot
 ```
 
 ### Element actions
