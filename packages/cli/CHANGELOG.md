@@ -1,5 +1,19 @@
 # browse
 
+## 0.9.2
+
+### Patch Changes
+
+- [#2282](https://github.com/browserbase/stagehand/pull/2282) [`b8132f6`](https://github.com/browserbase/stagehand/commit/b8132f6a3350ba5682f6ead07d72f86d34286b16) Thanks [@shrey150](https://github.com/shrey150)! - Add `--verified` and `--proxies` to remote driver sessions so `browse open <url> --remote --verified --proxies` opens a Verified and/or proxied Browserbase session in one command — no more create-then-attach with `--cdp`.
+
+  - The flags are valid only with `--remote` (they are never implied, since that would silently switch to billed cloud sessions) and are sticky for the session's lifetime like `--headed`/`--headless`: a re-open requesting different settings fails with the usual stop-and-reopen error.
+  - Because the session is created through the normal remote path (not a raw `--cdp` attach), it keeps its Browserbase identity and the `browse_cli` attribution tag. `browse status` and `browse doctor` now surface the Browserbase session ID, the dashboard URL, the live-view (debug) URL, and the verified/proxies state.
+  - `--verified` requires a Browserbase Scale plan.
+
+- [#2280](https://github.com/browserbase/stagehand/pull/2280) [`39d7638`](https://github.com/browserbase/stagehand/commit/39d7638022b742f9d24776b6dc5d70a992aaeabf) Thanks [@shrey150](https://github.com/shrey150)! - Honor `BROWSERBASE_API_KEY` passed to an already-running driver daemon. Previously, if the first remote command started the daemon without a key, a later `BROWSERBASE_API_KEY=… browse open <url> --remote` (or an exported key in a new shell) kept failing with "Missing BROWSERBASE_API_KEY" because the detached daemon captured `process.env` once at spawn time and never saw the new key. The client now forwards the caller's key over the (localhost, owner-only) driver socket with every command, and the daemon threads it straight into the Stagehand constructor when it creates the session — so an inline or exported key works without a manual `browse stop` and restart. The forwarded key is never written back into the daemon's `process.env`; its only home is the live session. Already-initialized warm sessions are untouched; the forwarded key only takes effect at session init. The local-only (CDP-only) build forwards nothing and remains free of any API-key code path.
+
+- [#2297](https://github.com/browserbase/stagehand/pull/2297) [`c18ab34`](https://github.com/browserbase/stagehand/commit/c18ab345e00451237ebd2bcf3567a76bbf1e52a3) Thanks [@shrey150](https://github.com/shrey150)! - Remove the `browse refs` command. It only re-printed the `xpathMap`/`urlMap` cached from the last `browse snapshot` — which `browse snapshot` already returns — so it was redundant, and it returned stale maps if the page had changed since that snapshot.
+
 ## 0.9.1
 
 ### Patch Changes
