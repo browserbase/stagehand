@@ -58,6 +58,18 @@ export interface CreateSessionParams {
   clientLanguage?: string;
   /** SDK version */
   sdkVersion?: string;
+  /** Valkey cache backend configuration */
+  valkeyCache?: {
+    valkeyHost: string;
+    valkeyPort?: number;
+    valkeyTls?: boolean;
+    valkeyPassword?: string;
+    valkeyUsername?: string;
+    cacheTtl?: number;
+    valkeyKeyPrefix?: string;
+    valkeyRequestTimeout?: number;
+    valkeyMaxCacheValueBytes?: number;
+  };
 }
 
 /**
