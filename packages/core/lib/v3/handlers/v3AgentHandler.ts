@@ -831,13 +831,33 @@ export class V3AgentHandler {
   ): Promise<{ messages: ModelMessage[]; output?: Record<string, unknown> }> {
     if (state.completed) return { messages };
 
-    const doneResult = await handleDoneToolCall({
-      model,
-      inputMessages: messages,
-      instruction,
-      outputSchema,
-      logger,
-    });
+    let doneResult: Awaited<ReturnType<typeof handleDoneToolCall>>;
+    try {
+      doneResult = await handleDoneToolCall({
+        model,
+        inputMessages: messages,
+        instruction,
+        outputSchema,
+        logger,
+      });
+    } catch (error) {
+      // The forced "done" call only summarizes the run, so its failure must not
+      // fail a run whose work already completed (e.g. a provider rejecting the
+      // re-submitted history). Warn and synthesize a completion. We log only the
+      // message, not the cause — the cause embeds the full history (base64
+      // images included) and would bloat the log.
+      logger?.({
+        category: "agent",
+        level: 1,
+        message: `Agent "done" finalization call failed; using run summary instead: ${getErrorMessage(error)}`,
+      });
+      state.completed = true;
+      state.finalMessage =
+        state.finalMessage ||
+        state.collectedReasoning.join(" ").trim() ||
+        "Task execution completed";
+      return { messages };
+    }
 
     state.completed = doneResult.taskComplete;
     state.finalMessage = doneResult.reasoning;

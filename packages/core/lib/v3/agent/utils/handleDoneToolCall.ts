@@ -17,6 +17,46 @@ interface DoneResult {
   output?: Record<string, unknown>;
 }
 
+/**
+ * Deep-remove `undefined` values from the run history before it is re-submitted
+ * to the forced "done" call.
+ *
+ * The AI SDK validates re-submitted messages against its `ModelMessage` schema,
+ * whose JSON-value schema rejects `undefined` (only null/string/number/boolean/
+ * object/array are allowed). A custom tool that returns an object with an
+ * optional field left `undefined` (e.g. `{ matchedExpected: undefined }`) lands
+ * that `undefined` inside a tool-result `output.value`, and reasoning models can
+ * leave `undefined` in part fields too. Either makes the forced "done" call
+ * throw `Invalid prompt: messages must be a ModelMessage[]` (STG-2335) — a red
+ * error that fires after the run has already completed. Stripping `undefined`
+ * keeps the history valid without dropping any real content.
+ *
+ * Only plain objects and arrays are traversed; class instances (URL, typed
+ * arrays for binary image data, Date, …) are passed through untouched.
+ */
+function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => stripUndefinedDeep(v)) as unknown as T;
+  }
+  if (value !== null && typeof value === "object") {
+    const proto = Object.getPrototypeOf(value);
+    if (proto === Object.prototype || proto === null) {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (v !== undefined) out[k] = stripUndefinedDeep(v);
+      }
+      return out as T;
+    }
+  }
+  return value;
+}
+
+export function sanitizeMessagesForResubmission(
+  messages: ModelMessage[],
+): ModelMessage[] {
+  return stripUndefinedDeep(messages);
+}
+
 function buildBaseDoneSchema(factory: typeof z) {
   return factory.object({
     reasoning: factory
@@ -114,7 +154,7 @@ Call the "done" tool with:
   const result = await generateText({
     model,
     system: systemPrompt,
-    messages: [...inputMessages, userPrompt],
+    messages: [...sanitizeMessagesForResubmission(inputMessages), userPrompt],
     tools: { done: doneTool } as ToolSet,
     toolChoice: rejectsForcedToolUse(modelId)
       ? "auto"
@@ -126,7 +166,7 @@ Call the "done" tool with:
     },
   });
 
-  const doneToolCall = result.toolCalls.find((tc) => tc.toolName === "done");
+  const doneToolCall = result.toolCalls?.find((tc) => tc.toolName === "done");
   const outputMessages: ModelMessage[] = [
     userPrompt,
     ...(result.response?.messages || []),
