@@ -452,28 +452,32 @@ export class V3CuaAgentHandler {
       case "keypress": {
         const { keys } = action;
         const keyList = Array.isArray(keys) ? keys : [keys];
-        const stagehandActions: Action[] = [];
-        for (const rawKey of keyList) {
-          const mapped = mapKeyToPlaywright(String(rawKey ?? ""));
+        if (keyList.length > 0) {
+          // CUA "keypress" actions describe a single key *chord* (modifiers held
+          // down for the main key), not a sequence of independent presses.
+          // Pressing each key separately released modifiers before the main key,
+          // so combinations like ["Control", "A"] sent Ctrl on its own and then
+          // typed a literal "a" instead of select-all. Join into one
+          // "+"-delimited combination so page.keyPress holds the modifiers down.
+          // page.keyPress already handles the literal "+" key correctly.
+          const mapped = keyList
+            .map((rawKey) => mapKeyToPlaywright(String(rawKey ?? "")))
+            .join("+");
           await page.keyPress(mapped);
           if (recording) {
-            stagehandActions.push({
-              selector: "xpath=/html",
-              description: `press ${mapped}`,
-              method: "press",
-              arguments: [mapped],
-            });
+            this.recordCuaActStep(
+              action,
+              [
+                {
+                  selector: "xpath=/html",
+                  description: `press ${mapped}`,
+                  method: "press",
+                  arguments: [mapped],
+                },
+              ],
+              `press ${mapped}`,
+            );
           }
-        }
-        if (recording && stagehandActions.length > 0) {
-          this.recordCuaActStep(
-            action,
-            stagehandActions,
-            stagehandActions
-              .map((a) => a.description)
-              .filter(Boolean)
-              .join(", ") || "keypress",
-          );
         }
         return { success: true };
       }
