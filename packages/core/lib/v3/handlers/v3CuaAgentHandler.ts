@@ -13,6 +13,7 @@ import {
 } from "../agent/utils/postStepProbeEvidence.js";
 import { wrapEvidenceCallback } from "../agent/utils/wrapEvidenceCallback.js";
 import { inferToolOutput } from "../agent/utils/toolOutputEvidence.js";
+import { REPLACE_NATIVE_SELECT_SCRIPT } from "../agent/utils/replaceNativeSelect.js";
 import {
   ActionExecutionResult,
   AgentAction,
@@ -87,6 +88,16 @@ export class V3CuaAgentHandler {
     this.agentClient.setScreenshotProvider(async () => {
       this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
+
+      // Replace native <select> dropdowns with an in-page HTML overlay before
+      // capturing the screenshot. A native <select>'s option list is a
+      // browser/OS control, not regular DOM, so the CUA agent's clicks don't
+      // register as selections (it just re-clicks the control and the value
+      // never changes). The overlay re-renders the options as real, clickable
+      // in-page DOM. Idempotent, so it is safe to re-run every step; failures
+      // are swallowed.
+      await page.evaluate(REPLACE_NATIVE_SELECT_SCRIPT).catch(() => {});
+
       const screenshotBuffer = await page.screenshot({ fullPage: false });
 
       await this.emitCuaScreenshot(screenshotBuffer, page.url());
@@ -206,6 +217,15 @@ export class V3CuaAgentHandler {
           }
         }
         throw error;
+      } finally {
+        // Refresh the URL the CUA client reports to the model AFTER the action
+        // (on success OR failure — a throwing action can still have navigated),
+        // so the next tool result's "Current URL:" reflects the post-action
+        // page. The provider-containment refactor kept updateClientUrl() but
+        // dropped this post-action call, leaving the client reporting the
+        // pre-action URL for the rest of the step. updateClientUrl() swallows
+        // its own errors, so it never masks the action.
+        await this.updateClientUrl();
       }
     });
 
