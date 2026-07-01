@@ -2,6 +2,7 @@ import {
   AgentProvider,
   getAISDKLanguageModel,
   loadApiKeyFromEnv,
+  providerEnvVarMap,
   V3,
   type AgentInstance,
   type AvailableModel,
@@ -249,14 +250,22 @@ function buildClaudeCodeVerifierConfig(
     : undefined;
   const judgeClientOptions = judgeApiKey ? { apiKey: judgeApiKey } : undefined;
 
-  // Fail fast on a judge OVERRIDE whose key we can't resolve — do this before
-  // the try/catch so it propagates instead of being swallowed into the
-  // self-report fallback. Otherwise V3Evaluator backfills modelClientOptions
-  // with the Gemini key, hands the wrong provider its credential, verify()
-  // throws, and the run silently downgrades to legacy self-report. Surface the
-  // misconfiguration instead. The built-in default (gemini) is exempt: it
-  // degrades gracefully to V3Evaluator's own key resolution.
-  if (judgeModelOverride && judgeProvider && !judgeApiKey) {
+  // Fail fast on a judge OVERRIDE whose key we can't resolve, so it propagates
+  // instead of being swallowed into the self-report fallback. Otherwise
+  // V3Evaluator backfills modelClientOptions with the Gemini key, hands the
+  // wrong provider its credential, verify() throws, and the run silently
+  // downgrades to legacy self-report. Surface the misconfiguration instead.
+  //
+  // Only providers that genuinely require a key qualify: `loadApiKeyFromEnv`
+  // returns undefined for key-requiring providers (missing key) AND for
+  // API-keyless providers (ollama, bedrock — no entry in providerEnvVarMap) by
+  // design. Mirror that set via providerEnvVarMap so keyless judges proceed
+  // with no explicit apiKey instead of being rejected as misconfigured. The
+  // built-in default (gemini) is also exempt: it degrades gracefully to
+  // V3Evaluator's own key resolution.
+  const judgeProviderRequiresKey =
+    judgeProvider !== undefined && judgeProvider in providerEnvVarMap;
+  if (judgeModelOverride && judgeProviderRequiresKey && !judgeApiKey) {
     throw new EvalsError(
       `EVAL_CLAUDE_CODE_VERIFIER_MODEL="${judgeModel}" was set but no API key resolved for provider "${judgeProvider}". Set that provider's key (e.g. ANTHROPIC_API_KEY / OPENAI_API_KEY) or unset EVAL_CLAUDE_CODE_VERIFIER_MODEL to use the default judge.`,
     );
@@ -338,8 +347,11 @@ export const claudeCodeHarness: BenchHarness = {
       plan,
       logger,
     });
-    const verifier = buildClaudeCodeVerifierConfig(plan, logger);
     try {
+      // Built inside the try so a fail-fast verifier-config error (e.g. an
+      // override judge whose key can't be resolved) still runs the finally that
+      // owns the prepared tool adapter, instead of leaking it.
+      const verifier = buildClaudeCodeVerifierConfig(plan, logger);
       return await runClaudeCodeAgent({
         plan,
         model: input.modelName,
