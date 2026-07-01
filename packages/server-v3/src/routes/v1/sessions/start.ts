@@ -14,6 +14,7 @@ import {
 } from "../../../lib/header.js";
 import { error, success } from "../../../lib/response.js";
 import { getSessionStore } from "../../../lib/sessionStoreManager.js";
+import { withSession } from "../../../lib/withSession.js";
 import { AISDK_PROVIDERS } from "../../../types/model.js";
 
 // Extended schema with custom refinement for local browser validation
@@ -234,11 +235,11 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     let finalCdpUrl = connectUrl ?? session.cdpUrl ?? "";
     if (localBrowserLaunchOptions) {
       try {
-        const stagehand = await sessionStore.getOrCreateStagehand(
+        finalCdpUrl = await withSession(
           session.sessionId,
           { modelApiKey: localBrowserModelApiKey },
+          (stagehand) => Promise.resolve(stagehand.connectURL()),
         );
-        finalCdpUrl = stagehand.connectURL();
       } catch (err) {
         request.log.error(
           {

@@ -15,6 +15,7 @@ import {
 import { error, success } from "./response.js";
 import { getSessionStore } from "./sessionStoreManager.js";
 import type { RequestContext } from "./SessionStore.js";
+import { withSession } from "./withSession.js";
 
 interface StreamingResponseOptions<TV3> {
   sessionId: string;
@@ -180,38 +181,18 @@ export async function createStreamingResponse<TV3>({
       : undefined,
   };
 
-  let stagehand: V3Stagehand;
-  try {
-    stagehand = (await sessionStore.getOrCreateStagehand(
-      sessionId,
-      requestContext,
-    )) as V3Stagehand;
-  } catch (err) {
-    const loadError = err instanceof Error ? err : new Error(String(err));
-
-    sendData("error", "system", { status: "error", error: loadError.message });
-
-    if (shouldStreamResponse) {
-      reply.raw.end();
-      return reply;
-    }
-
-    return error(
-      reply,
-      loadError.message,
-      loadError instanceof AppError
-        ? loadError.statusCode
-        : StatusCodes.INTERNAL_SERVER_ERROR,
-    );
-  }
-
-  sendData("connected", "system", { status: "connected" });
-
   let result: Awaited<ReturnType<typeof handler>> | null = null;
   let handlerError: Error | null = null;
 
+  // withSession pins the session for the whole handler so it can't be evicted
+  // or TTL-expired mid-request, and releases once the handler settles. Acquire
+  // failures (session not found/expired) surface here too and are rendered as
+  // an error response below, same as handler failures.
   try {
-    result = await handler({ stagehand, data: parsedData });
+    result = await withSession(sessionId, requestContext, (stagehand) => {
+      sendData("connected", "system", { status: "connected" });
+      return handler({ stagehand, data: parsedData });
+    });
   } catch (err) {
     handlerError = err instanceof Error ? err : new Error("Unknown error");
     request.log.error(

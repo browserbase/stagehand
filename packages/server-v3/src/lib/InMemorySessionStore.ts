@@ -21,6 +21,8 @@ interface LruNode {
   stagehand: V3 | null;
   loggerRef: { current?: (message: LogLine) => void };
   expiry: number;
+  /** Number of in-flight requests using this session's V3 instance. */
+  inUse: number;
   prev: LruNode | null;
   next: LruNode | null;
 }
@@ -91,7 +93,8 @@ export class InMemorySessionStore implements SessionStore {
     const expiredIds: string[] = [];
 
     for (const [sessionId, node] of this.items.entries()) {
-      if (this.ttlMs > 0 && node.expiry <= now) {
+      // Never expire a session that is actively serving a request.
+      if (this.ttlMs > 0 && node.expiry <= now && node.inUse === 0) {
         expiredIds.push(sessionId);
       }
     }
@@ -129,13 +132,18 @@ export class InMemorySessionStore implements SessionStore {
   }
 
   /**
-   * Evict the least recently used session
+   * Evict the least recently used session that is not actively serving a
+   * request. If every cached session is in use, skip eviction rather than
+   * tear down a live request's browser context.
    */
   private async evictLru(): Promise<void> {
-    const lruNode = this.first;
-    if (!lruNode) return;
+    let node = this.first;
+    while (node && node.inUse > 0) {
+      node = node.next;
+    }
+    if (!node) return;
 
-    await this.deleteSession(lruNode.sessionId);
+    await this.deleteSession(node.sessionId);
   }
 
   async startSession(params: CreateSessionParams): Promise<SessionStartResult> {
@@ -160,8 +168,8 @@ export class InMemorySessionStore implements SessionStore {
     const node = this.items.get(sessionId);
     if (!node) return false;
 
-    // Check if expired
-    if (this.ttlMs > 0 && node.expiry <= Date.now()) {
+    // Check if expired, but don't expire a session that is actively serving a request
+    if (this.ttlMs > 0 && node.expiry <= Date.now() && node.inUse === 0) {
       await this.deleteSession(sessionId);
       return false;
     }
@@ -180,7 +188,7 @@ export class InMemorySessionStore implements SessionStore {
     }
 
     // Check if expired
-    if (this.ttlMs > 0 && node.expiry <= Date.now()) {
+    if (this.ttlMs > 0 && node.expiry <= Date.now() && node.inUse === 0) {
       await this.deleteSession(sessionId);
       throw new Error(`Session expired: ${sessionId}`);
     }
@@ -193,6 +201,9 @@ export class InMemorySessionStore implements SessionStore {
       node.loggerRef.current = ctx.logger;
     }
 
+    // Pin before any await so the node can't be evicted or TTL-expired during a lazy init()
+    node.inUse += 1;
+
     // If V3 instance exists, return it
     if (node.stagehand) {
       return node.stagehand;
@@ -204,6 +215,9 @@ export class InMemorySessionStore implements SessionStore {
     try {
       await stagehand.init();
     } catch (error) {
+      // Undo the pin taken above; the node stays (stagehand still null) so a
+      // later request can retry init.
+      node.inUse -= 1;
       try {
         await stagehand.close();
       } catch {
@@ -213,6 +227,21 @@ export class InMemorySessionStore implements SessionStore {
     }
     node.stagehand = stagehand;
     return stagehand;
+  }
+
+  async releaseSession(sessionId: string): Promise<void> {
+    const node = this.items.get(sessionId);
+    if (!node) return;
+
+    // Ignore unmatched/double releases: never go negative, and don't refresh
+    // the TTL of an already-idle session
+    if (node.inUse === 0) return;
+
+    node.inUse -= 1;
+
+    if (this.ttlMs > 0) {
+      node.expiry = Date.now() + this.ttlMs;
+    }
   }
 
   /**
@@ -286,6 +315,7 @@ export class InMemorySessionStore implements SessionStore {
       stagehand: null, // Lazy initialization
       loggerRef: {},
       expiry: this.ttlMs > 0 ? Date.now() + this.ttlMs : Infinity,
+      inUse: 0,
       prev: this.last,
       next: null,
     };
@@ -342,16 +372,26 @@ export class InMemorySessionStore implements SessionStore {
         throw new Error("Max capacity must be greater than 0");
       }
       const previousCapacity = this.maxCapacity;
-      this.maxCapacity = config.maxCapacity;
 
-      // Evict excess if new capacity is smaller
-      if (this.maxCapacity < previousCapacity) {
-        const excess = this.items.size - this.maxCapacity;
-        for (let i = 0; i < excess; i++) {
-          // Fire and forget - don't await to match cloud behavior
-          this.evictLru().catch(console.error);
-        }
+      // Evict before lowering capacity. Pinned (in-use) sessions can't be
+      // evicted, so the cache may briefly exceed the new capacity and converge
+      // as those requests finish — that's expected, not an error.
+      if (config.maxCapacity < previousCapacity) {
+        const excess = this.items.size - config.maxCapacity;
+        // Evict sequentially: deleteSession removes the node only after awaiting
+        // close, so firing these concurrently would make every call target the
+        // same LRU node. The batch stays fire-and-forget to match cloud behavior.
+        void (async () => {
+          for (let i = 0; i < excess; i++) {
+            try {
+              await this.evictLru();
+            } catch (err) {
+              console.error(err);
+            }
+          }
+        })();
       }
+      this.maxCapacity = config.maxCapacity;
     }
 
     if (config.ttlMs !== undefined) {
