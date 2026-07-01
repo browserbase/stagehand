@@ -353,17 +353,18 @@ describe("driver commands", () => {
     const lean = await snapshotHandlers.snapshot!(manager, {});
     expect(lean).not.toHaveProperty("xpathMap");
     expect(lean).not.toHaveProperty("urlMap");
+    expect(setRefMaps).toHaveBeenCalledTimes(1);
+    expect(setRefMaps).toHaveBeenLastCalledWith({
+      urlMap: snap.urlMap,
+      xpathMap: snap.xpathMap,
+    });
 
     const full = await snapshotHandlers.snapshot!(manager, { full: true });
     expect(full).toMatchObject({
       urlMap: snap.urlMap,
       xpathMap: snap.xpathMap,
     });
-
-    expect(setRefMaps).toHaveBeenCalledWith({
-      urlMap: snap.urlMap,
-      xpathMap: snap.xpathMap,
-    });
+    expect(setRefMaps).toHaveBeenCalledTimes(2);
   });
 
   it("exposes descriptive help for the new driver command surface", async () => {
