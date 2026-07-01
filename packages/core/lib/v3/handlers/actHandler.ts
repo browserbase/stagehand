@@ -303,6 +303,12 @@ export class ActHandler {
 
     try {
       ensureTimeRemaining?.();
+      logPlaywrightAction({
+        selector: action.selector,
+        description: action.description || `action (${method})`,
+        method,
+        arguments: placeholderArgs,
+      });
       await performUnderstudyMethod(
         page,
         page.mainFrame(),
@@ -395,6 +401,12 @@ export class ActHandler {
           }
 
           ensureTimeRemaining?.();
+          logPlaywrightAction({
+            selector: newSelector,
+            description: action.description || `action (${method})`,
+            method,
+            arguments: placeholderArgs,
+          });
           await performUnderstudyMethod(
             page,
             page.mainFrame(),
@@ -440,6 +452,23 @@ export class ActHandler {
       };
     }
   }
+}
+
+function logPlaywrightAction(action: Action): void {
+  v3Logger({
+    category: "action",
+    message: "executing playwright action",
+    level: 1,
+    auxiliary: {
+      selector: { value: action.selector, type: "string" },
+      description: { value: action.description, type: "string" },
+      method: { value: action.method ?? "", type: "string" },
+      arguments: {
+        value: JSON.stringify(action.arguments ?? []),
+        type: "object",
+      },
+    },
+  });
 }
 
 function normalizeActInferenceElement(
