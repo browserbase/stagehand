@@ -147,19 +147,6 @@ jobs:
           git tag "$TAG"
           git push origin "$TAG"
 
-      - name: Check Docker Hub credentials
-        id: dockerhub
-        if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
-        env:
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: |
-          if [ -n "$DOCKERHUB_TOKEN" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::DOCKERHUB_TOKEN not set — pushing browse image to GHCR only. Set DOCKERHUB_USERNAME + DOCKERHUB_TOKEN to also publish browserbase/browse on Docker Hub."
-          fi
-
       - name: Set up QEMU
         if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
@@ -176,30 +163,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log in to Docker Hub
-        if: steps.dockerhub.outputs.enabled == 'true'
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Compute browse image tags
-        id: image_tags
-        if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
-        run: |
-          V="${{ steps.browse_cli.outputs.version }}"
-          {
-            echo "tags<<EOF"
-            echo "ghcr.io/browserbase/browse:${V}"
-            echo "ghcr.io/browserbase/browse:latest"
-            if [ "${{ steps.dockerhub.outputs.enabled }}" = "true" ]; then
-              echo "browserbase/browse:${V}"
-              echo "browserbase/browse:latest"
-            fi
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build and push browse image
+      - name: Build and push browse image to GHCR
         if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
@@ -210,7 +174,9 @@ jobs:
           provenance: false
           build-args: |
             BROWSE_VERSION=${{ steps.browse_cli.outputs.version }}
-          tags: ${{ steps.image_tags.outputs.tags }}
+          tags: |
+            ghcr.io/browserbase/browse:${{ steps.browse_cli.outputs.version }}
+            ghcr.io/browserbase/browse:latest
 
       - name: Publish browse canary
         if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish != 'true'
