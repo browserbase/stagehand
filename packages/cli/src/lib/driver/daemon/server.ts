@@ -132,6 +132,7 @@ async function handleLine(
 
   try {
     if (request.type === "open") {
+      manager.applyForwardedEnv(request.forwardedEnv);
       await writeResponse(socket, {
         data: await manager.execute("open", {
           timeoutMs: request.timeoutMs,
@@ -145,6 +146,7 @@ async function handleLine(
     }
 
     if (request.type === "command") {
+      manager.applyForwardedEnv(request.forwardedEnv);
       await writeResponse(socket, {
         data: await manager.execute(request.command, request.params),
         id: request.id,
