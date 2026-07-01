@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1107,
+    "metaclass": "hobbies-gaming",
+    "class": "forum",
+    "description": "Post a question in the 'Ticket to Ride' forum on BoardGameGeek asking about the best strategy for long routes",
+    "sites_involved": [
+      "boardgamegeek.com"
+    ],
+    "platform": "boardgamegeek",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Post a question in the 'Ticket to Ride' forum on BoardGameGeek asking about the best strategy for long routes",
+  "eval_schema": {
+    "url_pattern": "geekdo\\.com/api/thread",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

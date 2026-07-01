@@ -1,0 +1,28 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 905,
+    "metaclass": "entertainment",
+    "class": "list-item-add",
+    "description": "Navigate to Pulp Fiction (1994) on IMDb, open the 'Add to list' panel via the watchlist dropdown, select an existing custom list — verifying the AddConstToList mutation fires.",
+    "sites_involved": [
+      "imdb.com"
+    ],
+    "platform": "imdb",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On IMDb, open the title page for 'Pulp Fiction' (1994), click the dropdown chevron next to the Watchlist button, and add it to an existing custom list of yours.\n\nNote: The user must already have at least one custom list created. If not, create one first.",
+  "eval_schema": {
+    "url_pattern": "api\\.graphql\\.imdb\\.com",
+    "method": "POST",
+    "body": {
+      "operationName": "AddConstToList"
+    }
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1010,
+    "metaclass": "rating-voting",
+    "class": "rating",
+    "description": "Rate a Vegan Chocolate Chip Cookies Recipe on MyRecipes with 4 stars and add a helpful tip",
+    "sites_involved": [
+      "myrecipes.com"
+    ],
+    "platform": "myrecipes",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Rate a Vegan Chocolate Chip Cookies Recipe on MyRecipes with 4 stars and add a helpful tip",
+  "eval_schema": {
+    "url_pattern": "myrecipes\\.com/api/v\\d+/review/save",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

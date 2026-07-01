@@ -1,0 +1,28 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1202,
+    "metaclass": "beauty-personal-care",
+    "class": "cart",
+    "description": "Navigate to a product page, change the quantity to 2, and add to cart — tests the quantity selector interaction before adding to cart",
+    "sites_involved": [
+      "theordinary.com"
+    ],
+    "platform": "theordinary",
+    "product_urls": [
+      "https://theordinary.com/en-us/multi-peptide-ha-serum-100444.html"
+    ],
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Add 2 units of The Ordinary Multi-Peptide + HA Serum to the cart on The Ordinary website",
+  "eval_schema": {
+    "url_pattern": "theordinary\\.com.*Cart-AddProduct",
+    "method": "POST"
+  },
+  "time_limit": 45,
+  "extra_info": []
+}

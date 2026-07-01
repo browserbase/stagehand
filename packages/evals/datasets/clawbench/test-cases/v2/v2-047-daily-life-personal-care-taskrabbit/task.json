@@ -1,0 +1,30 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 47,
+    "metaclass": "daily-life",
+    "class": "personal-care",
+    "description": "Find a moving helper on TaskRabbit, next Saturday 9am-1pm, 1 bedroom apartment",
+    "sites_involved": [
+      "taskrabbit.com"
+    ],
+    "platform": "taskrabbit",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Find a moving helper on TaskRabbit, next Saturday 9am-1pm, 1 bedroom apartment",
+  "eval_schema": {
+    "url_pattern": "taskrabbit\\.(com|ca)/(api/v\\d+/jobs|book/\\d+/confirm)",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": [
+    {
+      "path": "extra_info/address_info.json",
+      "description": "Address information (references alex_green_personal_info.json)"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1122,
+    "metaclass": "education",
+    "class": "course",
+    "description": "Navigate to the Algebra 1 linear equations unit on Khan Academy and submit an answer to the first practice exercise question",
+    "sites_involved": [
+      "khanacademy.org"
+    ],
+    "platform": "khanacademy",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Navigate to the 'Algebra 1' course on Khan Academy, go to the 'Linear equations & graphs' unit, and answer the first question of the 'Solutions to 2-variable equations' practice exercise",
+  "eval_schema": {
+    "url_pattern": "khanacademy\\.org/api/internal/graphql/attemptProblem",
+    "method": "POST"
+  },
+  "time_limit": 60,
+  "extra_info": []
+}

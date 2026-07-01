@@ -1,0 +1,85 @@
+{
+  "title": "User Research Survey: Developer Productivity",
+  "questions": [
+    {
+      "id": 1,
+      "type": "multiple_choice",
+      "text": "What is your primary programming language?",
+      "options": [
+        "Python",
+        "JavaScript/TypeScript",
+        "Go",
+        "Java",
+        "Rust",
+        "Other"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "rating",
+      "text": "How satisfied are you with your current IDE?",
+      "scale": "1-5"
+    },
+    {
+      "id": 3,
+      "type": "short_text",
+      "text": "What is the biggest bottleneck in your daily workflow?"
+    },
+    {
+      "id": 4,
+      "type": "multiple_choice",
+      "text": "How many hours per week do you spend on code reviews?",
+      "options": [
+        "0-2",
+        "3-5",
+        "6-10",
+        "10+"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "yes_no",
+      "text": "Do you use AI-assisted coding tools?"
+    },
+    {
+      "id": 6,
+      "type": "long_text",
+      "text": "Describe your ideal development environment."
+    },
+    {
+      "id": 7,
+      "type": "multiple_choice",
+      "text": "What deployment method do you use most?",
+      "options": [
+        "Docker/K8s",
+        "Serverless",
+        "VMs",
+        "PaaS",
+        "Other"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "rating",
+      "text": "How would you rate your team's CI/CD pipeline?",
+      "scale": "1-5"
+    },
+    {
+      "id": 9,
+      "type": "short_text",
+      "text": "What tool do you wish existed?"
+    },
+    {
+      "id": 10,
+      "type": "multiple_choice",
+      "text": "How do you prefer to learn new technologies?",
+      "options": [
+        "Documentation",
+        "Video tutorials",
+        "Hands-on projects",
+        "Courses",
+        "Peer learning"
+      ]
+    }
+  ]
+}

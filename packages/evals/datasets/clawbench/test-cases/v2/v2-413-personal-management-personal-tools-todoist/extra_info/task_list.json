@@ -1,0 +1,52 @@
+{
+  "tasks": [
+    {
+      "name": "Define Q3 OKRs",
+      "assignee": "Alex Green",
+      "due_date": "2026-04-07",
+      "priority": "high"
+    },
+    {
+      "name": "Review architecture RFC",
+      "assignee": "Jordan Peters",
+      "due_date": "2026-04-10",
+      "priority": "high"
+    },
+    {
+      "name": "Set up CI/CD pipeline",
+      "assignee": "Alex Green",
+      "due_date": "2026-04-14",
+      "priority": "medium"
+    },
+    {
+      "name": "Write integration tests",
+      "assignee": "Alex Green",
+      "due_date": "2026-04-18",
+      "priority": "medium"
+    },
+    {
+      "name": "Prepare sprint demo",
+      "assignee": "Jordan Peters",
+      "due_date": "2026-04-21",
+      "priority": "low"
+    },
+    {
+      "name": "Update documentation",
+      "assignee": "Alex Green",
+      "due_date": "2026-04-25",
+      "priority": "low"
+    },
+    {
+      "name": "Security audit review",
+      "assignee": "Alex Green",
+      "due_date": "2026-04-28",
+      "priority": "high"
+    },
+    {
+      "name": "Performance benchmarking",
+      "assignee": "Alex Green",
+      "due_date": "2026-04-30",
+      "priority": "medium"
+    }
+  ]
+}

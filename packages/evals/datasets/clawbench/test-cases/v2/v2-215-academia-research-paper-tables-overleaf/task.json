@@ -1,0 +1,30 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 215,
+    "metaclass": "academia-research",
+    "class": "paper-tables",
+    "description": "On Overleaf, create a new project and write a LaTeX booktabs table with 5 models x 4 metrics + Average + Delta row. The project must compile without errors and display the formatted table.",
+    "sites_involved": [
+      "overleaf.com"
+    ],
+    "platform": "overleaf",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "On Overleaf, create a new project and write a LaTeX booktabs table with 5 models x 4 metrics + Average + Delta row. The project must compile without errors and display the formatted table.",
+  "eval_schema": {
+    "url_pattern": "overleaf\\.com/project/[a-f0-9]+/compile",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": [
+    {
+      "path": "extra_info/raw_results.json",
+      "description": "Raw benchmark results: 5 models × 4 metrics"
+    }
+  ]
+}

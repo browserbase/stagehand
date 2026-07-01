@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1145,
+    "metaclass": "jobs",
+    "class": "posting",
+    "description": "Go to We Work Remotely (https://weworkremotely.com/remote-jobs/new) and post a remote job listing for a 'Senior UI/UX Designer' position in the 'Design' category. Fill in all required fields across all steps and place the order.",
+    "sites_involved": [
+      "weworkremotely.com"
+    ],
+    "platform": "weworkremotely",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Go to We Work Remotely (https://weworkremotely.com/remote-jobs/new) and post a remote job listing for a 'Senior UI/UX Designer' position in the 'Design' category. Fill in all required fields across all steps and place the order.",
+  "eval_schema": {
+    "url_pattern": "weworkremotely\\.com/listings",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}
