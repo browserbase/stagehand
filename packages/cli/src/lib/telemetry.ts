@@ -279,6 +279,8 @@ function commandCompletedProperties(
       runTelemetry.requestHadHttpResponse ??
       null,
     skill_id: runTelemetry.skillId ?? null,
+    session_mode: runTelemetry.sessionMode ?? null,
+    headless: runTelemetry.headless ?? null,
   };
 }
 
