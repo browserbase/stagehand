@@ -137,7 +137,10 @@ describe("CdpConnection", () => {
       const session = pair.conn.getSession("session-a");
       expect(session).toBeDefined();
 
-      session!.on("Fetch.requestPaused", () => {});
+      const fetchHandlerA = vi.fn();
+      const fetchHandlerB = vi.fn();
+      session!.on("Fetch.requestPaused", fetchHandlerA);
+      session!.on("Fetch.requestPaused", fetchHandlerB);
       session!.on("Network.requestWillBeSent", () => {});
 
       await sendCdpEvent(pair.serverSocket, {
@@ -165,6 +168,7 @@ describe("CdpConnection", () => {
       const eventHandlers = (pair.conn as unknown as ConnectionInternals)
         .eventHandlers;
       expect(eventHandlers.has("session-a:Fetch.requestPaused")).toBe(true);
+      expect(eventHandlers.get("session-a:Fetch.requestPaused")?.size).toBe(2);
       expect(eventHandlers.has("session-a:Network.requestWillBeSent")).toBe(
         true,
       );
