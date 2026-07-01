@@ -23,6 +23,10 @@ import {
   getDriverStatus,
   openViaDaemon,
 } from "../src/lib/driver/daemon/client.js";
+import {
+  collectForwardedEnv,
+  forwardedEnvSignature,
+} from "../src/lib/driver/daemon/forwarded-env.js";
 import { runDriverDaemon } from "../src/lib/driver/daemon/server.js";
 import { resolveWsTarget } from "../src/lib/driver/resolve-ws.js";
 import { DriverSessionManager } from "../src/lib/driver/session-manager.js";
@@ -932,6 +936,101 @@ describe("driver foundation", () => {
     await expect(manager.open("https://example.com")).rejects.toThrow(
       "Target missing-target was not found in the attached browser.",
     );
+  });
+
+  it("collects forwardable env vars from the caller's env", async () => {
+    // Only the API key is forwarded; the project is inferred from the key.
+    await expect(
+      collectForwardedEnv({
+        BROWSERBASE_API_KEY: "client-key",
+        BROWSERBASE_PROJECT_ID: "client-project",
+        UNRELATED: "ignored",
+      }),
+    ).resolves.toEqual({
+      BROWSERBASE_API_KEY: "client-key",
+    });
+    await expect(collectForwardedEnv({})).resolves.toBeUndefined();
+    await expect(
+      collectForwardedEnv({ BROWSERBASE_API_KEY: "" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("produces a stable, secret-free forwarded-env signature", () => {
+    const sig = forwardedEnvSignature({ BROWSERBASE_API_KEY: "forwarded-key" });
+    // A non-empty hash that does not leak the raw key value.
+    expect(sig).toMatch(/^[a-f0-9]{64}$/);
+    expect(sig).not.toContain("forwarded-key");
+    // Stable for the same input, distinct for a different key.
+    expect(
+      forwardedEnvSignature({ BROWSERBASE_API_KEY: "forwarded-key" }),
+    ).toBe(sig);
+    expect(
+      forwardedEnvSignature({ BROWSERBASE_API_KEY: "other-key" }),
+    ).not.toBe(sig);
+    // Empty / absent sets collapse to "".
+    expect(forwardedEnvSignature(undefined)).toBe("");
+    expect(forwardedEnvSignature({})).toBe("");
+    expect(forwardedEnvSignature({ BROWSERBASE_API_KEY: "" })).toBe("");
+  });
+
+  it("retries init with a forwarded key after a key-less failure", async () => {
+    const manager = new DriverSessionManager("forwarded-key-retry", {
+      kind: "remote",
+    });
+
+    // Simulate the repro: the first key-less init failed and cached a backoff.
+    Object.assign(manager, {
+      consecutiveInitFailures: 1,
+      initFailure: {
+        error: new Error("Missing key"),
+        retryAt: Date.now() + 60_000,
+      },
+    });
+
+    // A new key forwarded before init clears the cached failure so the retry
+    // runs immediately instead of replaying the stale error.
+    manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "late-key" });
+    expect(
+      (manager as unknown as { initFailure: unknown }).initFailure,
+    ).toBeNull();
+    expect(
+      (manager as unknown as { consecutiveInitFailures: number })
+        .consecutiveInitFailures,
+    ).toBe(0);
+    // The key is stashed for the next init (threaded into the constructor),
+    // never written back into process.env.
+    expect((manager as unknown as { pendingEnv: unknown }).pendingEnv).toEqual({
+      BROWSERBASE_API_KEY: "late-key",
+    });
+    expect(process.env.BROWSERBASE_API_KEY).not.toBe("late-key");
+    expect(
+      (manager as unknown as { lastForwardedEnvSignature: string })
+        .lastForwardedEnvSignature,
+    ).toBe(forwardedEnvSignature({ BROWSERBASE_API_KEY: "late-key" }));
+
+    // Re-applying the same forwarded env is a no-op (idempotent).
+    Object.assign(manager, {
+      initFailure: { error: new Error("x"), retryAt: Date.now() + 60_000 },
+    });
+    manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "late-key" });
+    expect(
+      (manager as unknown as { initFailure: unknown }).initFailure,
+    ).not.toBeNull();
+  });
+
+  it("does not disturb an already-initialized session when forwarded env changes", () => {
+    const manager = new DriverSessionManager("warm-session", {
+      kind: "remote",
+    });
+    Object.assign(manager, { stagehand: {}, context: {} });
+
+    manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "new-key" });
+
+    // The warm session is preserved: forwarded env only matters at init.
+    expect(
+      (manager as unknown as { stagehand: unknown }).stagehand,
+    ).not.toBeNull();
+    expect((manager as unknown as { context: unknown }).context).not.toBeNull();
   });
 });
 

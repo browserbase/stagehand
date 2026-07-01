@@ -5,6 +5,7 @@ import {
   resolveInstallId,
   toMetadataValue,
 } from "../identity.js";
+import type { ForwardedEnv } from "./daemon/forwarded-env.js";
 import type { DriverModeFlags } from "./mode.js";
 import type {
   DriverInitHints,
@@ -34,10 +35,27 @@ export function autoSelectRemoteTarget(): ConnectionTarget | null {
   return process.env.BROWSERBASE_API_KEY ? { kind: "remote" } : null;
 }
 
+/**
+ * Env vars the client forwards to a running daemon. Only the API key needs
+ * forwarding: the Browserbase backend infers the project from the key, so a
+ * project id is not required for session creation. (A multi-project key that
+ * wants to pin a non-default project via BROWSERBASE_PROJECT_ID is a rare edge
+ * case; that still resolves from the daemon's own env, not the forwarded set.)
+ */
+export function forwardedEnvKeys(): readonly string[] {
+  return ["BROWSERBASE_API_KEY"];
+}
+
 export async function remoteStagehandOptions(
   target?: RemoteConnectionTarget,
+  forwardedEnv?: ForwardedEnv,
 ): Promise<StagehandConstructorOptions> {
-  const apiKey = process.env.BROWSERBASE_API_KEY;
+  // Prefer the caller's forwarded key; fall back to the daemon's own spawn-time
+  // env (e.g. a daemon that was started with a key). Threading the value here
+  // avoids writing the key back into the daemon's `process.env`. The project id
+  // is left to Stagehand to resolve (constructor opt → env → inferred from key).
+  const apiKey =
+    forwardedEnv?.BROWSERBASE_API_KEY ?? process.env.BROWSERBASE_API_KEY;
   if (!apiKey) {
     throw new Error(
       "Missing BROWSERBASE_API_KEY for remote mode. Pass --local to run a managed local browser (no key needed), or set BROWSERBASE_API_KEY for cloud sessions.",
