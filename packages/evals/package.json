@@ -18,8 +18,9 @@
     "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
     "evals:old": "tsx cli-legacy.ts",
     "report:core": "tsx scripts/render-braintrust-core-report.ts",
-    "lint": "pnpm -w --dir ../.. exec prettier --check packages/evals && pnpm -w --dir ../.. exec oxlint packages/evals && pnpm run typecheck",
-    "format": "prettier --write ."
+    "format": "oxfmt",
+    "format:check": "pnpm -w --dir ../.. exec oxfmt --check packages/evals",
+    "lint": "pnpm run format:check && pnpm -w --dir ../.. exec oxlint packages/evals && pnpm run typecheck"
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",

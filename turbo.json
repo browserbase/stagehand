@@ -11,8 +11,8 @@
     "tsconfig.base.json",
     ".oxlintrc.json",
     "packages/cli/.oxlintrc.json",
-    ".prettierrc",
-    ".prettierignore"
+    ".oxfmtrc.json",
+    "packages/cli/.oxfmtrc.json"
   ],
   "tasks": {
     "build": {

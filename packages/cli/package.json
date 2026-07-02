@@ -92,8 +92,8 @@
     "cli": "pnpm build && node bin/run.js",
     "oxlint": "oxlint .",
     "oxlint:fix": "oxlint --fix .",
-    "format": "prettier --write .",
-    "format:check": "prettier . --check --cache",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "lint": "pnpm format:check && pnpm oxlint && pnpm check",
     "manifest": "oclif manifest .",
     "test": "pnpm build && vitest run",
@@ -124,7 +124,6 @@
     "@types/ws": "^8.18.1",
     "globals": "^17.6.0",
     "oclif": "^4.23.1",
-    "prettier": "3.5.3",
     "typescript": "^5.8.3",
     "vitest": "^4.1.9"
   }
