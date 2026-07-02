@@ -60,7 +60,10 @@ class FakeCuaClient {
   public contextNotes: string[] = [];
   public preStepHook?: () => Promise<void>;
   public actionHandler?: (action: Record<string, unknown>) => Promise<void>;
-  public screenshotProvider?: () => Promise<string>;
+  public screenshotProvider?: () => Promise<{
+    base64: string;
+    mediaType: "image/png" | "image/jpeg";
+  }>;
   public executeImpl = vi.fn(async (options: unknown) => {
     void options;
     return {
@@ -73,9 +76,16 @@ class FakeCuaClient {
   public captureScreenshot = vi.fn(async () => null);
   public setViewport = vi.fn();
   public setCurrentUrl = vi.fn();
-  public setScreenshotProvider = vi.fn((provider: () => Promise<string>) => {
-    this.screenshotProvider = provider;
-  });
+  public setScreenshotProvider = vi.fn(
+    (
+      provider: () => Promise<{
+        base64: string;
+        mediaType: "image/png" | "image/jpeg";
+      }>,
+    ) => {
+      this.screenshotProvider = provider;
+    },
+  );
   public setSafetyConfirmationHandler = vi.fn();
 
   setActionHandler(
@@ -513,9 +523,10 @@ describe("v3 cua handler screenshot behavior", () => {
     });
 
     fakeCuaClient.executeImpl = vi.fn(async () => {
-      await expect(fakeCuaClient.screenshotProvider?.()).resolves.toBe(
-        screenshotBase64,
-      );
+      await expect(fakeCuaClient.screenshotProvider?.()).resolves.toEqual({
+        base64: screenshotBase64,
+        mediaType: "image/png",
+      });
       return {
         success: true,
         message: "ok",
