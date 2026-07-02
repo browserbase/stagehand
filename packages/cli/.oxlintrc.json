@@ -25,6 +25,10 @@
       {
         "selector": "CallExpression[callee.object.name='globalThis'][callee.property.name='Function']",
         "message": "Dynamic function construction via globalThis.Function is prohibited."
+      },
+      {
+        "selector": "NewExpression[callee.object.name='globalThis'][callee.property.name='Function']",
+        "message": "Dynamic function construction via globalThis.Function is prohibited."
       }
     ]
   },
