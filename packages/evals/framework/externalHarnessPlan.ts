@@ -1,3 +1,4 @@
+import { normalizeRubric, type Rubric } from "@browserbasehq/stagehand";
 import { EvalsError } from "../errors.js";
 import type { EvalInput } from "../types/evals.js";
 
@@ -6,6 +7,14 @@ export interface ExternalHarnessTaskPlan {
   taskId?: string;
   startUrl: string;
   instruction: string;
+  /**
+   * Precomputed rubric carried by the dataset row (`precomputed_rubric`), if
+   * present. Threaded into the verifier's TaskSpec so it doesn't regenerate.
+   * Undefined when the row ships no rubric — the verifier generates one.
+   */
+  precomputedRubric?: Rubric;
+  /** Reference answer carried by the dataset row (`expectedAnswer`), if present. */
+  expectedAnswer?: string;
 }
 
 function readString(
@@ -14,6 +23,21 @@ function readString(
 ): string | undefined {
   const value = params[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Rubric + reference answer a dataset row may ship. Rows without a
+ * `precomputed_rubric` leave `precomputedRubric` undefined so the verifier
+ * generates (and caches) one from the instruction.
+ */
+function readVerifierFields(params: Record<string, unknown>): {
+  precomputedRubric?: Rubric;
+  expectedAnswer?: string;
+} {
+  return {
+    precomputedRubric: normalizeRubric(params.precomputed_rubric) ?? undefined,
+    expectedAnswer: readString(params, "expectedAnswer"),
+  };
 }
 
 export function buildExternalHarnessTaskPlan(
@@ -34,6 +58,7 @@ export function buildExternalHarnessTaskPlan(
       taskId: readString(params, "id"),
       startUrl,
       instruction,
+      ...readVerifierFields(params),
     };
   }
 
@@ -50,6 +75,7 @@ export function buildExternalHarnessTaskPlan(
       taskId: readString(params, "task_id"),
       startUrl,
       instruction,
+      ...readVerifierFields(params),
     };
   }
 
@@ -65,6 +91,7 @@ export function buildExternalHarnessTaskPlan(
       taskId: readString(params, "id"),
       startUrl: readString(params, "web") ?? "https://www.google.com",
       instruction,
+      ...readVerifierFields(params),
     };
   }
 

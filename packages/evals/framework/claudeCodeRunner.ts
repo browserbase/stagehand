@@ -1,4 +1,9 @@
-import type { AvailableModel, TaskSpec, V3 } from "@browserbasehq/stagehand";
+import type {
+  AvailableModel,
+  ClientOptions,
+  TaskSpec,
+  V3,
+} from "@browserbasehq/stagehand";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { TaskResult } from "./types.js";
@@ -30,6 +35,20 @@ export interface ClaudeCodeVerifierConfig {
   taskSpec: TaskSpec;
   /** Dataset name for rubric cache partitioning (used when no precomputedRubric). */
   dataset: string;
+  /**
+   * Judge model for V3Evaluator (scoring + rubric generation). When omitted the
+   * evaluator falls back to its own default (google/gemini-2.5-flash). Pass an
+   * Anthropic model here to score against ANTHROPIC_API_KEY.
+   */
+  judgeModel?: AvailableModel;
+  /**
+   * Client options (API key) for the judge model. Required alongside judgeModel
+   * when the judge's provider differs from the evaluator's own default —
+   * otherwise V3Evaluator defaults modelClientOptions.apiKey to the Gemini key,
+   * which is sent as the wrong provider's credential (e.g. an Anthropic judge
+   * receives the Gemini key and fails with "invalid x-api-key").
+   */
+  judgeClientOptions?: ClientOptions;
   /** Override --success mode. Defaults to EVAL_SUCCESS_MODE env or "outcome". */
   successMode?: "outcome" | "process" | "both";
   /** Override trajectory persistence root. */
@@ -289,7 +308,13 @@ export async function runClaudeCodeAgent({
 
     const { V3Evaluator } = await import("@browserbasehq/stagehand");
     const { RubricCache } = await import("./rubricCache.js");
-    const evaluator = new V3Evaluator(verifier.v3, { backend: "verifier" });
+    const evaluator = new V3Evaluator(verifier.v3, {
+      backend: "verifier",
+      ...(verifier.judgeModel && { modelName: verifier.judgeModel }),
+      ...(verifier.judgeClientOptions && {
+        modelClientOptions: verifier.judgeClientOptions,
+      }),
+    });
 
     // Hydrate rubric — use precomputed if present, otherwise cache-or-generate.
     let rubric = verifier.taskSpec.precomputedRubric;
