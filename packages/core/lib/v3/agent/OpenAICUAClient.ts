@@ -969,7 +969,7 @@ export class OpenAICUAClient extends AgentClient {
 
     throw new AgentScreenshotProviderError(
       "`screenshotProvider` has not been set. " +
-        "Please call `setScreenshotProvider()` with a valid function that returns a base64-encoded image",
+        "Please call `setScreenshotProvider()` with a valid function that returns a base64-encoded image and media type",
     );
   }
 
