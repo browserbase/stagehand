@@ -200,6 +200,46 @@ export const stagehandHarness: BenchHarness = {
 const CLAUDE_CODE_VERIFIER_JUDGE_MODEL = "google/gemini-2.5-flash";
 
 /**
+ * The Vercel AI Gateway provider (`gateway/...`) authenticates against
+ * AI_GATEWAY_API_KEY, but `gateway` is NOT in the SDK's providerEnvVarMap, so
+ * loadApiKeyFromEnv treats it like a keyless provider and returns undefined.
+ * A `gateway/` judge override would therefore silently skip its credential and
+ * downgrade the verifier. Resolve it explicitly here so a gateway judge sends
+ * the right key and still fail-fasts when the key is missing.
+ */
+const GATEWAY_JUDGE_PROVIDER = "gateway";
+const GATEWAY_JUDGE_API_KEY_ENV = "AI_GATEWAY_API_KEY";
+
+/**
+ * Resolve the API key for a judge provider. Mirrors loadApiKeyFromEnv for
+ * providers in providerEnvVarMap, but also handles `gateway` (which the SDK map
+ * omits) via AI_GATEWAY_API_KEY so a gateway judge isn't mistaken for keyless.
+ */
+function resolveJudgeApiKey(
+  provider: string | undefined,
+  logger: EvalLogger,
+): string | undefined {
+  if (!provider) return undefined;
+  if (provider === GATEWAY_JUDGE_PROVIDER) {
+    const key = process.env[GATEWAY_JUDGE_API_KEY_ENV];
+    return typeof key === "string" && key.length > 0 ? key : undefined;
+  }
+  return loadApiKeyFromEnv(provider, (line: LogLine) => logger.log(line));
+}
+
+/**
+ * Whether a judge provider genuinely requires an API key (so a missing key is a
+ * misconfiguration, not a keyless provider). True for anything in the SDK's
+ * providerEnvVarMap plus `gateway` (which the map omits but which needs
+ * AI_GATEWAY_API_KEY). Genuinely-keyless providers (ollama/bedrock) and the
+ * built-in default stay exempt.
+ */
+function judgeProviderRequiresKey(provider: string | undefined): boolean {
+  if (provider === undefined) return false;
+  return provider === GATEWAY_JUDGE_PROVIDER || provider in providerEnvVarMap;
+}
+
+/**
  * Whether the rubric verifier should run for claude_code. Default ON so browse
  * runs get ground-truth scoring; set EVAL_CLAUDE_CODE_VERIFIER to 0/false/off to
  * fall back to the agent's self-reported EVAL_RESULT line.
@@ -229,7 +269,7 @@ function isClaudeCodeVerifierEnabled(): boolean {
  * (tui/commands/verify.ts): a browser-free V3 with disableAPI + an Anthropic
  * model so the verifier's LLMProvider resolves against ANTHROPIC_API_KEY.
  */
-function buildClaudeCodeVerifierConfig(
+export function buildClaudeCodeVerifierConfig(
   plan: ExternalHarnessTaskPlan,
   logger: EvalLogger,
 ): ClaudeCodeVerifierConfig | undefined {
@@ -245,9 +285,9 @@ function buildClaudeCodeVerifierConfig(
   const judgeProvider = judgeModel.includes("/")
     ? judgeModel.slice(0, judgeModel.indexOf("/"))
     : undefined;
-  const judgeApiKey = judgeProvider
-    ? loadApiKeyFromEnv(judgeProvider, (line: LogLine) => logger.log(line))
-    : undefined;
+  // resolveJudgeApiKey mirrors loadApiKeyFromEnv but also maps `gateway` →
+  // AI_GATEWAY_API_KEY (the SDK's providerEnvVarMap omits gateway).
+  const judgeApiKey = resolveJudgeApiKey(judgeProvider, logger);
   const judgeClientOptions = judgeApiKey ? { apiKey: judgeApiKey } : undefined;
 
   // Fail fast on a judge OVERRIDE whose key we can't resolve, so it propagates
@@ -256,18 +296,19 @@ function buildClaudeCodeVerifierConfig(
   // wrong provider its credential, verify() throws, and the run silently
   // downgrades to legacy self-report. Surface the misconfiguration instead.
   //
-  // Only providers that genuinely require a key qualify: `loadApiKeyFromEnv`
-  // returns undefined for key-requiring providers (missing key) AND for
-  // API-keyless providers (ollama, bedrock — no entry in providerEnvVarMap) by
-  // design. Mirror that set via providerEnvVarMap so keyless judges proceed
-  // with no explicit apiKey instead of being rejected as misconfigured. The
-  // built-in default (gemini) is also exempt: it degrades gracefully to
-  // V3Evaluator's own key resolution.
-  const judgeProviderRequiresKey =
-    judgeProvider !== undefined && judgeProvider in providerEnvVarMap;
-  if (judgeModelOverride && judgeProviderRequiresKey && !judgeApiKey) {
+  // Only providers that genuinely require a key qualify (see
+  // judgeProviderRequiresKey): anything in the SDK's providerEnvVarMap plus
+  // `gateway` (which needs AI_GATEWAY_API_KEY but the map omits). Genuinely
+  // API-keyless providers (ollama, bedrock) and the built-in default (gemini)
+  // stay exempt: keyless judges proceed with no explicit apiKey, and the
+  // default degrades gracefully to V3Evaluator's own key resolution.
+  if (
+    judgeModelOverride &&
+    judgeProviderRequiresKey(judgeProvider) &&
+    !judgeApiKey
+  ) {
     throw new EvalsError(
-      `EVAL_CLAUDE_CODE_VERIFIER_MODEL="${judgeModel}" was set but no API key resolved for provider "${judgeProvider}". Set that provider's key (e.g. ANTHROPIC_API_KEY / OPENAI_API_KEY) or unset EVAL_CLAUDE_CODE_VERIFIER_MODEL to use the default judge.`,
+      `EVAL_CLAUDE_CODE_VERIFIER_MODEL="${judgeModel}" was set but no API key resolved for provider "${judgeProvider}". Set that provider's key (e.g. ANTHROPIC_API_KEY / OPENAI_API_KEY / AI_GATEWAY_API_KEY) or unset EVAL_CLAUDE_CODE_VERIFIER_MODEL to use the default judge.`,
     );
   }
 
