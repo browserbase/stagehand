@@ -554,9 +554,16 @@ export class AnthropicCUAClient extends AgentClient {
         ];
       }
 
-      // Add system parameter if provided
+      // Add system parameter if provided, with cache control so the
+      // tools + system prefix is cached across agent steps
       if (this.userProvidedInstructions) {
-        requestParams.system = this.userProvidedInstructions;
+        requestParams.system = [
+          {
+            type: "text",
+            text: this.userProvidedInstructions,
+            cache_control: { type: "ephemeral" },
+          },
+        ];
       }
 
       // Add thinking parameter if available
