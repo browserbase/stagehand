@@ -678,23 +678,43 @@ describe("cloud API contracts", () => {
       responseBody: { id: "ctx_123" },
     },
     {
-      args: ["cloud", "contexts", "get", "ctx_123"],
+      // Pass a context id (UUID) so resolution hits the id-passthrough path
+      // regardless of any locally-saved names.
+      args: [
+        "cloud",
+        "contexts",
+        "get",
+        "00000000-0000-4000-8000-000000000000",
+      ],
       expectedMethod: "GET",
-      expectedPath: "/v1/contexts/ctx_123",
+      expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
       expectedBody: undefined,
-      responseBody: { id: "ctx_123" },
+      responseBody: { id: "00000000-0000-4000-8000-000000000000" },
     },
     {
-      args: ["cloud", "contexts", "update", "ctx_123"],
+      args: [
+        "cloud",
+        "contexts",
+        "update",
+        "00000000-0000-4000-8000-000000000000",
+      ],
       expectedMethod: "PUT",
-      expectedPath: "/v1/contexts/ctx_123",
+      expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
       expectedBody: undefined,
-      responseBody: { id: "ctx_123", uploadUrl: "https://example.com/upload" },
+      responseBody: {
+        id: "00000000-0000-4000-8000-000000000000",
+        uploadUrl: "https://example.com/upload",
+      },
     },
     {
-      args: ["cloud", "contexts", "delete", "ctx_123"],
+      args: [
+        "cloud",
+        "contexts",
+        "delete",
+        "00000000-0000-4000-8000-000000000000",
+      ],
       expectedMethod: "DELETE",
-      expectedPath: "/v1/contexts/ctx_123",
+      expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
       expectedBody: undefined,
       responseBody: null,
     },
