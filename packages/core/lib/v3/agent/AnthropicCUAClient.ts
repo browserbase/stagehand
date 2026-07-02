@@ -8,6 +8,7 @@ import {
   AnthropicToolResult,
   AgentExecutionOptions,
   ToolUseItem,
+  ScreenshotProviderResult,
 } from "../types/public/agent.js";
 import { LogLine } from "../types/public/logs.js";
 import { ClientOptions, ThinkingEffort } from "../types/public/model.js";
@@ -46,7 +47,7 @@ export class AnthropicCUAClient extends AgentClient {
   public lastMessageId?: string;
   private currentViewport = { width: 1288, height: 711 };
   private currentUrl?: string;
-  private screenshotProvider?: () => Promise<string>;
+  private screenshotProvider?: () => Promise<ScreenshotProviderResult>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
   private thinkingBudget: number | null = null;
   private thinkingEffort: ThinkingEffort | null = null;
@@ -106,7 +107,9 @@ export class AnthropicCUAClient extends AgentClient {
     this.currentUrl = url;
   }
 
-  setScreenshotProvider(provider: () => Promise<string>): void {
+  setScreenshotProvider(
+    provider: () => Promise<ScreenshotProviderResult>,
+  ): void {
     this.screenshotProvider = provider;
   }
 
@@ -664,7 +667,7 @@ export class AnthropicCUAClient extends AgentClient {
           const screenshot = await this.captureScreenshot();
           logger({
             category: "agent",
-            message: `Screenshot captured, length: ${screenshot.length}`,
+            message: `Screenshot captured, length: ${screenshot.base64.length}`,
             level: 2,
           });
 
@@ -674,8 +677,8 @@ export class AnthropicCUAClient extends AgentClient {
               type: "image",
               source: {
                 type: "base64",
-                media_type: "image/png",
-                data: screenshot.replace(/^data:image\/png;base64,/, ""),
+                media_type: screenshot.mediaType,
+                data: screenshot.base64,
               },
             },
           ];
@@ -785,8 +788,8 @@ export class AnthropicCUAClient extends AgentClient {
                   type: "image",
                   source: {
                     type: "base64",
-                    media_type: "image/png",
-                    data: screenshot.replace(/^data:image\/png;base64,/, ""),
+                    media_type: screenshot.mediaType,
+                    data: screenshot.base64,
                   },
                 },
                 {
@@ -1039,17 +1042,16 @@ export class AnthropicCUAClient extends AgentClient {
   async captureScreenshot(options?: {
     base64Image?: string;
     currentUrl?: string;
-  }): Promise<string> {
+  }): Promise<ScreenshotProviderResult> {
     // Use provided options if available
     if (options?.base64Image) {
-      return `data:image/png;base64,${options.base64Image}`;
+      return { base64: options.base64Image, mediaType: "image/png" };
     }
 
     // Use the screenshot provider if available
     if (this.screenshotProvider) {
       try {
-        const base64Image = await this.screenshotProvider();
-        return `data:image/png;base64,${base64Image}`;
+        return await this.screenshotProvider();
       } catch (error) {
         console.error("Error capturing screenshot:", error);
         throw error;

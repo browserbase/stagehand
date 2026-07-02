@@ -35,7 +35,10 @@ describe("AnthropicCUAClient triple_click handling", () => {
       },
     );
     client.setViewport(1280, 720);
-    client.setScreenshotProvider(async () => "fake-base64-screenshot");
+    client.setScreenshotProvider(async () => ({
+      base64: "fake-base64-screenshot",
+      mediaType: "image/png",
+    }));
 
     executedActions = [];
     client.setActionHandler(async (action) => {

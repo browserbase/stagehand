@@ -16,6 +16,7 @@ import {
   AgentExecutionOptions,
   SafetyCheck,
   SafetyConfirmationHandler,
+  ScreenshotProviderResult,
 } from "../types/public/agent.js";
 import { ClientOptions } from "../types/public/model.js";
 import { AgentClient } from "./AgentClient.js";
@@ -49,7 +50,7 @@ export class GoogleCUAClient extends AgentClient {
   private client: GoogleGenAI;
   private currentViewport = { width: 1288, height: 711 };
   private currentUrl?: string;
-  private screenshotProvider?: () => Promise<string>;
+  private screenshotProvider?: () => Promise<ScreenshotProviderResult>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
   private history: Content[] = [];
   private environment: "ENVIRONMENT_BROWSER" | "ENVIRONMENT_DESKTOP" =
@@ -129,7 +130,9 @@ export class GoogleCUAClient extends AgentClient {
     this.currentUrl = url;
   }
 
-  setScreenshotProvider(provider: () => Promise<string>): void {
+  setScreenshotProvider(
+    provider: () => Promise<ScreenshotProviderResult>,
+  ): void {
     this.screenshotProvider = provider;
   }
 
@@ -599,10 +602,7 @@ export class GoogleCUAClient extends AgentClient {
               });
 
               const screenshot = await this.captureScreenshot();
-              const base64Data = screenshot.replace(
-                /^data:image\/png;base64,/,
-                "",
-              );
+              const base64Data = screenshot.base64;
 
               // Create one function response for each computer use function call
               // Following Python SDK pattern: FunctionResponse with parts containing inline_data
@@ -629,7 +629,7 @@ export class GoogleCUAClient extends AgentClient {
                     parts: [
                       {
                         inlineData: {
-                          mimeType: "image/png",
+                          mimeType: screenshot.mediaType,
                           data: base64Data,
                         },
                       },
@@ -1161,7 +1161,7 @@ export class GoogleCUAClient extends AgentClient {
   async captureScreenshot(options?: {
     base64Image?: string;
     currentUrl?: string;
-  }): Promise<string> {
+  }): Promise<ScreenshotProviderResult> {
     // Update current URL if provided
     if (options?.currentUrl) {
       this.currentUrl = options.currentUrl;
@@ -1169,14 +1169,13 @@ export class GoogleCUAClient extends AgentClient {
 
     // Use provided options if available
     if (options?.base64Image) {
-      return `data:image/png;base64,${options.base64Image}`;
+      return { base64: options.base64Image, mediaType: "image/png" };
     }
 
     // Use the screenshot provider if available
     if (this.screenshotProvider) {
       try {
-        const base64Image = await this.screenshotProvider();
-        return `data:image/png;base64,${base64Image}`;
+        return await this.screenshotProvider();
       } catch (error) {
         console.error("Error capturing screenshot:", error);
         throw error;
