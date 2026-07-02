@@ -84,8 +84,8 @@ importers:
   packages/cli:
     dependencies:
       '@browserbasehq/sdk':
-        specifier: ^2.12.0
-        version: 2.12.0
+        specifier: ^2.14.0
+        version: 2.14.1
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../core
@@ -178,8 +178,8 @@ importers:
         specifier: 0.39.0
         version: 0.39.0
       '@browserbasehq/sdk':
-        specifier: ^2.10.0
-        version: 2.10.0
+        specifier: ^2.14.0
+        version: 2.14.1
       '@google/genai':
         specifier: ^1.22.0
         version: 1.24.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.2.1))(bufferutil@4.0.9)
@@ -388,8 +388,8 @@ importers:
   packages/server-v3:
     dependencies:
       '@browserbasehq/sdk':
-        specifier: ^2.10.0
-        version: 2.10.0
+        specifier: ^2.14.0
+        version: 2.14.1
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../core
@@ -885,11 +885,8 @@ packages:
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
     hasBin: true
 
-  '@browserbasehq/sdk@2.10.0':
-    resolution: {integrity: sha512-pOL4yW8P8AI2+N5y6zEP6XXKqIXtYyKunr1JXppqQDOyKLxxvZEDqQCHJXWUzqgx3R1tGWpn7m9AjXN7MeYInA==}
-
-  '@browserbasehq/sdk@2.12.0':
-    resolution: {integrity: sha512-bwgVjjYc4O54Cvkc5POfZUv0Gl92n1nNfAPueRLQVFsDoPRTw0FS8wKo9/bQCQuyzAg9+RQUDqvUC241ogLRTQ==}
+  '@browserbasehq/sdk@2.14.1':
+    resolution: {integrity: sha512-Ahmzb5+82ePgSGwouKEoAhiGy8mJ3RbCl+uigfGfVc60zseYIftcMiDPXSmrTQr1NHaATRx4cJlynP8ZUweXtg==}
 
   '@canvas/image-data@1.1.0':
     resolution: {integrity: sha512-QdObRRjRbcXGmM1tmJ+MrHcaz1MftF2+W7YI+MsphnsCrmtyfS0d5qJbk0MeSbUeyM/jCb0hmnkXPsy026L7dA==}
@@ -8158,19 +8155,7 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
 
-  '@browserbasehq/sdk@2.10.0':
-    dependencies:
-      '@types/node': 18.19.130
-      '@types/node-fetch': 2.6.13
-      abort-controller: 3.0.0
-      agentkeepalive: 4.6.0
-      form-data-encoder: 1.7.2
-      formdata-node: 4.4.1
-      node-fetch: 2.7.0
-    transitivePeerDependencies:
-      - encoding
-
-  '@browserbasehq/sdk@2.12.0':
+  '@browserbasehq/sdk@2.14.1':
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
