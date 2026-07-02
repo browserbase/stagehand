@@ -468,7 +468,8 @@ jobs:
   build-server-sea:
     name: Build SEA binary (tests, v3)
     uses: ./.github/workflows/stagehand-server-v3-sea-build.yml
-    needs: [run-build]
+    needs: [run-build, determine-changes]
+    if: needs.determine-changes.outputs.server == 'true'
     with:
       matrix: |
         [
