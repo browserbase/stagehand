@@ -66,9 +66,7 @@ interface ToolResultBlock {
   isError: boolean;
 }
 
-export class ClaudeCodeTrajectoryAdapter
-  implements TrajectoryAdapter<ClaudeCodeRunResult>
-{
+export class ClaudeCodeTrajectoryAdapter implements TrajectoryAdapter<ClaudeCodeRunResult> {
   fromHarnessResult(
     result: ClaudeCodeRunResult,
     taskSpec: TaskSpec,

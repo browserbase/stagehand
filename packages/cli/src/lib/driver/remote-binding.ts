@@ -23,9 +23,8 @@ export async function getRemote(): Promise<RemoteCapability> {
     if (code !== "ERR_MODULE_NOT_FOUND" && code !== "MODULE_NOT_FOUND") {
       throw error;
     }
-    cached = (await import(
-      "./remote.disabled.js"
-    )) as unknown as RemoteCapability;
+    cached =
+      (await import("./remote.disabled.js")) as unknown as RemoteCapability;
   }
 
   return cached;

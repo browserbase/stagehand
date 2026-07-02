@@ -76,9 +76,8 @@ const args = process.argv.slice(2);
     shuttingDown = true;
     const code = signal === "SIGINT" ? 130 : 143;
     try {
-      const { cleanupActiveRunResources } = await import(
-        "./framework/runner.js"
-      );
+      const { cleanupActiveRunResources } =
+        await import("./framework/runner.js");
       await cleanupActiveRunResources();
     } catch {
       // ignore
@@ -140,9 +139,8 @@ const args = process.argv.slice(2);
       return;
     }
 
-    const { buildCommandTree, dispatch, tokenizeArgv } = await import(
-      "./tui/commandTree.js"
-    );
+    const { buildCommandTree, dispatch, tokenizeArgv } =
+      await import("./tui/commandTree.js");
 
     let registry: TaskRegistry | null = null;
     const getRegistry = async (): Promise<TaskRegistry> => {

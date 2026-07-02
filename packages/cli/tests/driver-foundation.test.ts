@@ -716,9 +716,8 @@ describe("driver foundation", () => {
     }));
 
     try {
-      const { DriverSessionManager: MockedDriverSessionManager } = await import(
-        "../src/lib/driver/session-manager.js"
-      );
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
       const manager = new MockedDriverSessionManager("init-failure", {
         headless: true,
         kind: "managed-local",
@@ -755,9 +754,8 @@ describe("driver foundation", () => {
     }));
 
     try {
-      const { DriverSessionManager: MockedDriverSessionManager } = await import(
-        "../src/lib/driver/session-manager.js"
-      );
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
       const manager = new MockedDriverSessionManager("chrome-args", {
         chromeArgs: ["--no-focus-on-navigate"],
         headless: false,
@@ -797,9 +795,8 @@ describe("driver foundation", () => {
     }));
 
     try {
-      const { DriverSessionManager: MockedDriverSessionManager } = await import(
-        "../src/lib/driver/session-manager.js"
-      );
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
       const manager = new MockedDriverSessionManager("ignore-default-args", {
         headless: true,
         ignoreDefaultArgs: ["--enable-automation"],

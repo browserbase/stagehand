@@ -40,9 +40,8 @@ describe("runner-provided Browserbase target", () => {
       debuggerUrl: "https://debug.browserbase.test/session-123",
     });
 
-    const { launchRunnerProvidedBrowserbaseChrome } = await import(
-      "../../core/targets/browserbase.js"
-    );
+    const { launchRunnerProvidedBrowserbaseChrome } =
+      await import("../../core/targets/browserbase.js");
 
     const target = await launchRunnerProvidedBrowserbaseChrome();
 
@@ -81,9 +80,8 @@ describe("runner-provided Browserbase target", () => {
       connectUrl: "wss://connect.browserbase.test/devtools/browser/session-456",
     });
 
-    const { launchRunnerProvidedBrowserbaseChrome } = await import(
-      "../../core/targets/browserbase.js"
-    );
+    const { launchRunnerProvidedBrowserbaseChrome } =
+      await import("../../core/targets/browserbase.js");
 
     const target = await launchRunnerProvidedBrowserbaseChrome();
 
