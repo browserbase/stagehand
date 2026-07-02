@@ -87,11 +87,17 @@ export class V3CuaAgentHandler {
     this.agentClient.setScreenshotProvider(async () => {
       this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
-      const screenshotBuffer = await page.screenshot({ fullPage: false });
+      const screenshotBuffer = await page.screenshot({
+        fullPage: false,
+        type: "png",
+      });
 
       await this.emitCuaScreenshot(screenshotBuffer, page.url());
 
-      return screenshotBuffer.toString("base64"); // base64 png
+      return {
+        base64: screenshotBuffer.toString("base64"),
+        mediaType: "image/png",
+      };
     });
 
     // Provide action executor
