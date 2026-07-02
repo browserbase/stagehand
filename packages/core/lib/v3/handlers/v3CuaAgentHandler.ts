@@ -738,7 +738,10 @@ export class V3CuaAgentHandler {
     });
     try {
       const page = await this.v3.context.awaitActivePage();
-      const screenshotBuffer = await page.screenshot({ fullPage: false });
+      const screenshotBuffer = await page.screenshot({
+        fullPage: false,
+        type: "png",
+      });
 
       const currentUrl = page.url();
 
@@ -747,6 +750,7 @@ export class V3CuaAgentHandler {
 
       return await this.agentClient.captureScreenshot({
         base64Image: screenshotBuffer.toString("base64"),
+        mediaType: "image/png",
         currentUrl,
       });
     } catch (e) {

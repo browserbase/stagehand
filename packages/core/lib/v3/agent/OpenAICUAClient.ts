@@ -946,11 +946,15 @@ export class OpenAICUAClient extends AgentClient {
 
   async captureScreenshot(options?: {
     base64Image?: string;
+    mediaType?: "image/png" | "image/jpeg";
     currentUrl?: string;
   }): Promise<ScreenshotProviderResult> {
     // Use provided options if available
     if (options?.base64Image) {
-      return { base64: options.base64Image, mediaType: "image/png" };
+      return {
+        base64: options.base64Image,
+        mediaType: options.mediaType ?? "image/png",
+      };
     }
 
     // Use the screenshot provider if available

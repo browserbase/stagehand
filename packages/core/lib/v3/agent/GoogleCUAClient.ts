@@ -1160,6 +1160,7 @@ export class GoogleCUAClient extends AgentClient {
 
   async captureScreenshot(options?: {
     base64Image?: string;
+    mediaType?: "image/png" | "image/jpeg";
     currentUrl?: string;
   }): Promise<ScreenshotProviderResult> {
     // Update current URL if provided
@@ -1169,7 +1170,10 @@ export class GoogleCUAClient extends AgentClient {
 
     // Use provided options if available
     if (options?.base64Image) {
-      return { base64: options.base64Image, mediaType: "image/png" };
+      return {
+        base64: options.base64Image,
+        mediaType: options.mediaType ?? "image/png",
+      };
     }
 
     // Use the screenshot provider if available
