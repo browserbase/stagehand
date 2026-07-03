@@ -1,5 +1,11 @@
 # browse
 
+## 0.9.3
+
+### Patch Changes
+
+- [#2310](https://github.com/browserbase/stagehand/pull/2310) [`77a8e92`](https://github.com/browserbase/stagehand/commit/77a8e926ac525264e41a3686808270efd3b4fd9f) Thanks [@shrey150](https://github.com/shrey150)! - browse is now also distributed as a Docker image: `ghcr.io/browserbase/browse` (multi-arch `linux/amd64,linux/arm64`, pinned to each release). Lets code sandboxes consume the CLI by image reference without a Dockerfile.
+
 ## 0.9.2
 
 ### Patch Changes
