@@ -1,6 +1,6 @@
 {
   "name": "browse",
-  "version": "0.9.1",
+  "version": "0.9.3",
   "description": "Unified Browserbase CLI for browser automation and cloud APIs.",
   "type": "module",
   "private": false,
@@ -101,7 +101,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@browserbasehq/sdk": "^2.12.0",
+    "@browserbasehq/sdk": "^2.14.0",
     "@browserbasehq/stagehand": "workspace:*",
     "@oclif/core": "^4.11.0",
     "@vercel/detect-agent": "^1.2.3",
