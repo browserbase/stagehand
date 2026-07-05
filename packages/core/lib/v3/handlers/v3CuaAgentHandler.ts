@@ -3,6 +3,7 @@ import { V3 } from "../v3.js";
 import { ToolSet } from "ai";
 import { AgentClient } from "../agent/AgentClient.js";
 import { AgentProvider } from "../agent/AgentProvider.js";
+import { AnthropicCUAClient } from "../agent/AnthropicCUAClient.js";
 import { GoogleCUAClient } from "../agent/GoogleCUAClient.js";
 import { OpenAICUAClient } from "../agent/OpenAICUAClient.js";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping.js";
@@ -93,6 +94,26 @@ export class V3CuaAgentHandler {
 
       return screenshotBuffer.toString("base64"); // base64 png
     });
+
+    // Provide zoomed screenshot provider for Anthropic CUA zoom tool
+    // This captures a specific region of the screen at full resolution using CDP's clip parameter
+    if (this.agentClient instanceof AnthropicCUAClient) {
+      this.agentClient.setZoomedScreenshotProvider(async (region: number[]) => {
+        this.ensureNotClosed();
+        const page = await this.v3.context.awaitActivePage();
+        const [x1, y1, x2, y2] = region;
+        const screenshotBuffer = await page.screenshot({
+          fullPage: false,
+          clip: {
+            x: x1,
+            y: y1,
+            width: x2 - x1,
+            height: y2 - y1,
+          },
+        });
+        return screenshotBuffer.toString("base64");
+      });
+    }
 
     // Provide action executor
     this.agentClient.setActionHandler(async (action) => {
@@ -572,6 +593,11 @@ export class V3CuaAgentHandler {
       case "screenshot": {
         // No-op - the CUA client captures a screenshot itself after each
         // computer_call (or batch of actions) for the next request.
+        return { success: true };
+      }
+      case "zoom": {
+        // No-op here - the zoomed screenshot is captured by the AnthropicCUAClient's
+        // takeAction() method via captureZoomedScreenshot(), not via the action handler.
         return { success: true };
       }
       case "goto": {
