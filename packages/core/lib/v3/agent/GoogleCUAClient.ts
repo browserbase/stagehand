@@ -34,8 +34,11 @@ import {
 } from "./utils/googleCustomToolHandler.js";
 import { ToolSet } from "ai";
 import {
+  getCuaRunStartTools,
   logAgentRunStart,
   runCuaStepWithInferenceLogging,
+  sanitizeForInferenceLog,
+  type CuaStepInferenceContext,
 } from "./utils/agentInferenceLogger.js";
 import {
   FlowLogger,
@@ -237,7 +240,9 @@ export class GoogleCUAClient extends AgentClient {
       logAgentRunStart({
         instruction,
         modelId: this.modelName,
-        tools: ["computer_use"],
+        tools: getCuaRunStartTools(
+          this.tools ? Object.keys(this.tools) : undefined,
+        ),
         agentType: "cua",
       });
     }
@@ -274,8 +279,7 @@ export class GoogleCUAClient extends AgentClient {
           logInferenceToFile,
           stepIndex,
           modelId: this.modelName,
-          callPayload: { history: this.history },
-          executeStep: () => this.executeStep(logger),
+          executeStep: (ctx) => this.executeStep(logger, ctx),
         });
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
@@ -370,7 +374,10 @@ export class GoogleCUAClient extends AgentClient {
   /**
    * Execute a single step of the agent
    */
-  async executeStep(logger: (message: LogLine) => void): Promise<{
+  async executeStep(
+    logger: (message: LogLine) => void,
+    inferenceCtx?: CuaStepInferenceContext,
+  ): Promise<{
     actions: AgentAction[];
     message: string;
     completed: boolean;
@@ -391,6 +398,14 @@ export class GoogleCUAClient extends AgentClient {
         2,
       );
       const compressedHistory = compressedResult.items;
+
+      inferenceCtx?.logCall(
+        sanitizeForInferenceLog({
+          model: this.modelName,
+          contents: compressedHistory,
+          config: this.generateContentConfig,
+        }),
+      );
 
       // Use the SDK's generateContent method with retry logic (matching Python's get_model_response)
       const maxRetries = 5;

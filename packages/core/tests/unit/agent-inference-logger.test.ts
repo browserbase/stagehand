@@ -15,8 +15,10 @@ vi.mock("../../lib/inferenceLogUtils.js", () => ({
 
 import {
   completeAgentStepInference,
+  completeAgentStepInferenceWithoutCall,
   failAgentStepInference,
   finalizePendingAgentSteps,
+  getCuaRunStartTools,
   logAgentRunStart,
   logAgentStepCall,
   logAgentStepSummary,
@@ -102,6 +104,15 @@ describe("agentInferenceLogger", () => {
     );
   });
 
+  it("builds CUA run-start tool lists with custom tools", () => {
+    expect(getCuaRunStartTools()).toEqual(["computer_use"]);
+    expect(getCuaRunStartTools(["search", "extract"])).toEqual([
+      "computer_use",
+      "search",
+      "extract",
+    ]);
+  });
+
   it("appends agent step summaries with token usage", () => {
     logAgentStepSummary({
       stepIndex: 2,
@@ -126,6 +137,29 @@ describe("agentInferenceLogger", () => {
         LLM_output_file: "response.txt",
         prompt_tokens: 10,
         completion_tokens: 5,
+      }),
+    );
+  });
+
+  it("completes step inference without a call file when call write failed", () => {
+    writeTimestampedTxtFile.mockReturnValueOnce({
+      fileName: "response.txt",
+      timestamp: "20250705_120007",
+    });
+
+    completeAgentStepInferenceWithoutCall({
+      stepIndex: 6,
+      responsePayload: { finishReason: "tool-calls" },
+      usage: { prompt_tokens: 1, completion_tokens: 1, inference_time_ms: 10 },
+    });
+
+    expect(appendSummary).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agent_inference_type: "agent_step",
+        step: 6,
+        LLM_input_file: "(call file unavailable)",
+        LLM_output_file: "response.txt",
       }),
     );
   });

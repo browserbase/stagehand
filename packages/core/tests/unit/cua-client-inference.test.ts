@@ -102,14 +102,11 @@ const clientCases: CuaClientCase[] = [
         { apiKey: "test-key" },
       ),
     mockExecuteStep: (client) => {
-      vi.spyOn(
+      mockCuaExecuteStep(
         client as unknown as {
-          executeStep: (
-            logger: (message: { message: string }) => void,
-          ) => Promise<CuaStepResult>;
+          executeStep: (...args: unknown[]) => Promise<CuaStepResult>;
         },
-        "executeStep",
-      ).mockResolvedValueOnce(completedStep);
+      );
     },
   },
   {
@@ -185,3 +182,85 @@ describe.each(clientCases)(
     });
   },
 );
+
+describe("GoogleCUAClient executeStep inference payload", () => {
+  beforeEach(() => {
+    writeTimestampedTxtFile.mockClear();
+    appendSummary.mockClear();
+    writeTimestampedTxtFile.mockReturnValue({
+      fileName: "call.txt",
+      timestamp: "20250705_120000",
+    });
+  });
+
+  it("logs post-compression API payload via logCall", async () => {
+    const client = new GoogleCUAClient(
+      "google",
+      "gemini-2.5-computer-use-preview-10-2025",
+      undefined,
+      { apiKey: "test-key" },
+    );
+
+    const history = [
+      {
+        role: "user" as const,
+        parts: [
+          {
+            inlineData: { mimeType: "image/png", data: "old-screenshot" },
+          },
+        ],
+      },
+      {
+        role: "user" as const,
+        parts: [
+          {
+            inlineData: { mimeType: "image/png", data: "mid-screenshot" },
+          },
+        ],
+      },
+      {
+        role: "user" as const,
+        parts: [
+          {
+            inlineData: { mimeType: "image/png", data: "new-screenshot" },
+          },
+        ],
+      },
+    ];
+    (client as unknown as { history: typeof history }).history = history;
+
+    const loggedPayloads: unknown[] = [];
+    const logger = vi.fn();
+
+    vi.spyOn(
+      (
+        client as unknown as {
+          client: {
+            models: { generateContent: (...args: unknown[]) => unknown };
+          };
+        }
+      ).client.models,
+      "generateContent",
+    ).mockResolvedValue({
+      candidates: [
+        {
+          content: { parts: [{ text: "done" }] },
+          finishReason: "STOP",
+        },
+      ],
+      usageMetadata: {
+        promptTokenCount: 1,
+        candidatesTokenCount: 1,
+      },
+    } as never);
+
+    await client.executeStep(logger, {
+      logCall: (payload) => {
+        loggedPayloads.push(payload);
+      },
+    });
+
+    expect(loggedPayloads).toHaveLength(1);
+    expect(JSON.stringify(loggedPayloads[0])).toContain("screenshot taken");
+  });
+});

@@ -31,6 +31,7 @@ import {
 } from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 import {
+  getCuaRunStartTools,
   logAgentRunStart,
   runCuaStepWithInferenceLogging,
   sanitizeForInferenceLog,
@@ -154,7 +155,9 @@ export class OpenAICUAClient extends AgentClient {
       logAgentRunStart({
         instruction,
         modelId: this.modelName,
-        tools: ["computer_use"],
+        tools: getCuaRunStartTools(
+          this.tools ? Object.keys(this.tools) : undefined,
+        ),
         agentType: "cua",
       });
     }

@@ -33,6 +33,7 @@ import {
 import { stripModelProvider } from "../../utils.js";
 import { v7 as uuidv7 } from "uuid";
 import {
+  getCuaRunStartTools,
   logAgentRunStart,
   runCuaStepWithInferenceLogging,
   sanitizeForInferenceLog,
@@ -138,7 +139,9 @@ export class AnthropicCUAClient extends AgentClient {
       logAgentRunStart({
         instruction,
         modelId: this.modelName,
-        tools: ["computer_use", ...(this.tools ? Object.keys(this.tools) : [])],
+        tools: getCuaRunStartTools(
+          this.tools ? Object.keys(this.tools) : undefined,
+        ),
         agentType: "cua",
       });
     }

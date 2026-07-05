@@ -18,6 +18,7 @@ import {
 } from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
 import {
+  getCuaRunStartTools,
   logAgentRunStart,
   runCuaStepWithInferenceLogging,
   sanitizeForInferenceLog,
@@ -894,7 +895,7 @@ For each function call, return a json object with function name and arguments wi
       logAgentRunStart({
         instruction,
         modelId: this.modelName,
-        tools: ["computer_use"],
+        tools: getCuaRunStartTools(),
         agentType: "cua",
       });
     }

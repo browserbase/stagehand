@@ -61,13 +61,14 @@ import {
   logAgentRunStart,
   logAgentStepCall,
   completeAgentStepInference,
+  completeAgentStepInferenceWithoutCall,
   mapAiSdkStepUsage,
   finalizePendingAgentSteps,
   type AgentStepCallRecord,
 } from "../agent/utils/agentInferenceLogger.js";
 
 interface AgentStepInferenceState {
-  stepIndex: number;
+  currentStepIndex: number | null;
   pendingCalls: Map<number, AgentStepCallRecord>;
   systemPrompt: string;
   toolNames: string[];
@@ -323,9 +324,10 @@ export class V3AgentHandler {
           : stepInference?.toolNames;
 
       if (this.logInferenceToFile && stepInference) {
-        stepInference.stepIndex += 1;
+        const stepIndex = stepNumberForLog;
+        stepInference.currentStepIndex = stepIndex;
         const call = logAgentStepCall({
-          stepIndex: stepInference.stepIndex,
+          stepIndex,
           payload: {
             systemPrompt: systemForLog,
             messages: messagesForLog,
@@ -335,7 +337,13 @@ export class V3AgentHandler {
           },
         });
         if (call) {
-          stepInference.pendingCalls.set(stepInference.stepIndex, call);
+          stepInference.pendingCalls.set(stepIndex, call);
+        } else {
+          this.logger({
+            category: "agent",
+            message: `Failed to write agent step inference call file for step ${stepIndex}`,
+            level: 1,
+          });
         }
       }
 
@@ -433,25 +441,37 @@ export class V3AgentHandler {
       }
 
       if (this.logInferenceToFile && stepInference) {
-        const stepIndex = stepInference.stepIndex;
-        const pending = stepInference.pendingCalls.get(stepIndex);
-        if (pending) {
-          completeAgentStepInference({
-            stepIndex,
-            call: pending,
-            responsePayload: {
-              finishReason: event.finishReason,
-              text: event.text,
-              toolCalls: event.toolCalls,
-              toolResults: event.toolResults,
-              usage: event.usage,
-            },
-            usage: mapAiSdkStepUsage(
-              event.usage,
-              Math.max(0, Date.now() - pending.startedAtMs),
-            ),
-          });
-          stepInference.pendingCalls.delete(stepIndex);
+        const stepIndex = stepInference.currentStepIndex;
+        stepInference.currentStepIndex = null;
+        if (stepIndex !== null) {
+          const pending = stepInference.pendingCalls.get(stepIndex);
+          const responsePayload = {
+            finishReason: event.finishReason,
+            text: event.text,
+            toolCalls: event.toolCalls,
+            toolResults: event.toolResults,
+            usage: event.usage,
+          };
+          const usage = mapAiSdkStepUsage(
+            event.usage,
+            pending ? Math.max(0, Date.now() - pending.startedAtMs) : undefined,
+          );
+
+          if (pending) {
+            completeAgentStepInference({
+              stepIndex,
+              call: pending,
+              responsePayload,
+              usage,
+            });
+            stepInference.pendingCalls.delete(stepIndex);
+          } else {
+            completeAgentStepInferenceWithoutCall({
+              stepIndex,
+              responsePayload,
+              usage,
+            });
+          }
         }
       }
 
@@ -535,7 +555,7 @@ export class V3AgentHandler {
       );
 
       const stepInferenceState: AgentStepInferenceState = {
-        stepIndex: 0,
+        currentStepIndex: null,
         pendingCalls: new Map(),
         systemPrompt,
         toolNames: Object.keys(allTools),
@@ -728,7 +748,7 @@ export class V3AgentHandler {
     );
 
     const stepInference: AgentStepInferenceState = {
-      stepIndex: 0,
+      currentStepIndex: null,
       pendingCalls: new Map(),
       systemPrompt,
       toolNames: Object.keys(allTools),

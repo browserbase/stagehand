@@ -128,11 +128,12 @@ function tryWriteAgentFile(
   payload: unknown,
 ): { fileName: string; timestamp: string } | null {
   try {
-    return writeTimestampedTxtFile(
+    const written = writeTimestampedTxtFile(
       AGENT_SUMMARY_DIR,
       prefix,
       sanitizeForInferenceLog(payload),
     );
+    return written ?? null;
   } catch {
     return null;
   }
@@ -144,6 +145,10 @@ function tryAppendSummary(entry: Record<string, unknown>): void {
   } catch {
     // Inference logging must never fail the agent run.
   }
+}
+
+export function getCuaRunStartTools(extraToolNames?: string[]): string[] {
+  return ["computer_use", ...(extraToolNames ?? [])];
 }
 
 export function logAgentRunStart(opts: {
@@ -219,6 +224,32 @@ export function logAgentStepSummary(opts: {
     reasoning_tokens: opts.usage?.reasoning_tokens ?? 0,
     cached_input_tokens: opts.usage?.cached_input_tokens ?? 0,
     inference_time_ms: opts.usage?.inference_time_ms ?? 0,
+  });
+}
+
+/**
+ * Records a step response when the call file could not be written.
+ * Keeps per-step summaries aligned with AI SDK step numbers.
+ */
+export function completeAgentStepInferenceWithoutCall(opts: {
+  stepIndex: number;
+  responsePayload: unknown;
+  usage?: AgentInferenceUsage;
+  agentInferenceType?: string;
+}): void {
+  const response = logAgentStepResponse({
+    stepIndex: opts.stepIndex,
+    payload: opts.responsePayload,
+  });
+  if (!response) return;
+
+  logAgentStepSummary({
+    stepIndex: opts.stepIndex,
+    callFile: "(call file unavailable)",
+    responseFile: response.fileName,
+    timestamp: response.timestamp,
+    usage: opts.usage,
+    agentInferenceType: opts.agentInferenceType,
   });
 }
 

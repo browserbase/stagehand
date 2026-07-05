@@ -170,6 +170,9 @@ Call the "done" tool with:
     toolChoice: rejectsForcedToolUse(modelId) ? "auto" : "done",
   });
 
+  // Models whose always-on thinking rejects forced tool use go straight to
+  // "auto" — the prompt already instructs calling "done", and the
+  // no-tool-call case below handles a plain-text answer.
   const doneStart = Date.now();
   const result = await generateText({
     model,

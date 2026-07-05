@@ -332,6 +332,85 @@ describe("V3AgentHandler inference logging", () => {
     );
   });
 
+  it("finalizes pending step inference when a stream errors", async () => {
+    const model = {
+      modelId: "openai/gpt-5-mini",
+      provider: "openai",
+      specificationVersion: "v2",
+    } as unknown as LanguageModelV2;
+
+    const streamText = vi.fn((options: AgentLlmOptions) => {
+      void (async () => {
+        await options.prepareStep?.({
+          messages: [{ role: "user", content: "finish" }],
+          stepNumber: 1,
+        });
+        options.onError?.({ error: new Error("provider timeout") });
+      })();
+
+      return {
+        textStream: (async function* () {})(),
+      };
+    });
+
+    const client = {
+      getLanguageModel: vi.fn(() => model),
+      generateText: vi.fn(),
+      streamText,
+    } as unknown as LLMClient;
+
+    const handler = createInferenceHandler(client, logger);
+
+    const streamResult = await handler.stream({
+      instruction: "finish",
+      maxSteps: 1,
+      excludeTools: ["search"],
+    });
+
+    await expect(streamResult.result).rejects.toThrow("provider timeout");
+    expect(appendSummary).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agent_inference_type: "agent_step",
+        status: "failed",
+        error: "provider timeout",
+      }),
+    );
+  });
+
+  it("records step responses when call file write fails", async () => {
+    (writeTimestampedTxtFile as ReturnType<typeof vi.fn>).mockImplementation(
+      (_directory: string, prefix: string) => {
+        if (prefix.includes("_call")) {
+          return null;
+        }
+        return {
+          fileName: "response.txt",
+          timestamp: "20250705_120008",
+        };
+      },
+    );
+
+    const { client } = createLlmClient();
+    const handler = createInferenceHandler(client, logger);
+
+    await handler.execute({
+      instruction: "finish",
+      maxSteps: 1,
+      excludeTools: ["search"],
+    });
+
+    expect(appendSummary).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agent_inference_type: "agent_step",
+        step: 1,
+        LLM_input_file: "(call file unavailable)",
+        LLM_output_file: "response.txt",
+      }),
+    );
+  });
+
   it("finalizes pending step inference when a stream aborts", async () => {
     const model = {
       modelId: "openai/gpt-5-mini",
