@@ -21,7 +21,6 @@ import {
   getCuaRunStartTools,
   logAgentRunStart,
   runCuaStepWithInferenceLogging,
-  sanitizeForInferenceLog,
   type CuaStepInferenceContext,
 } from "./utils/agentInferenceLogger.js";
 
@@ -722,12 +721,10 @@ For each function call, return a json object with function name and arguments wi
     };
     history = [systemMessage, ...history];
 
-    inferenceCtx?.logCall(
-      sanitizeForInferenceLog({
-        messages: history,
-        temperature: this.temperature,
-      }),
-    );
+    inferenceCtx?.logCall({
+      messages: history,
+      temperature: this.temperature,
+    });
 
     // Make API call
     logger({

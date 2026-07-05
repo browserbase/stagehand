@@ -34,7 +34,6 @@ import {
   getCuaRunStartTools,
   logAgentRunStart,
   runCuaStepWithInferenceLogging,
-  sanitizeForInferenceLog,
   type CuaStepInferenceContext,
 } from "./utils/agentInferenceLogger.js";
 
@@ -587,7 +586,7 @@ export class OpenAICUAClient extends AgentClient {
         prompt: extractLlmCuaPromptSummary(inputItems),
       });
 
-      logCall?.(sanitizeForInferenceLog(requestParams));
+      logCall?.(requestParams);
 
       const startTime = Date.now();
       // Create the response using the OpenAI Responses API

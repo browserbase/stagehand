@@ -438,7 +438,7 @@ Creates timestamped files for each LLM call:
 
 `agent()` writes per-step files for DOM/hybrid and CUA agents. Screenshot payloads in agent logs are sanitized (replaced with size markers) to keep files manageable. When agent tools invoke `act()` or `extract()` internally, those calls may also produce files under `act_summary/` or `extract_summary/`.
 
-**Note:** Local file logging applies to in-process agent runs. Remote API agent execution (`env: "BROWSERBASE"` without `experimental: true`) runs inference server-side and does not create local `inference_summary` files.
+**Note:** Local file logging applies to in-process runs. On Browserbase, inference files are written when `disableAPI: true` or `experimental: true` (local execution). The default hosted API path (`env: "BROWSERBASE"` with `disableAPI: false` and `experimental: false`) runs inference server-side and does not create local `inference_summary` files.
 
 **File Types:**
 

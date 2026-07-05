@@ -36,7 +36,6 @@ import {
   getCuaRunStartTools,
   logAgentRunStart,
   runCuaStepWithInferenceLogging,
-  sanitizeForInferenceLog,
   type CuaStepInferenceContext,
 } from "./utils/agentInferenceLogger.js";
 
@@ -620,7 +619,7 @@ export class AnthropicCUAClient extends AgentClient {
         prompt: extractLlmCuaPromptSummary(messages),
       });
 
-      logCall?.(sanitizeForInferenceLog(requestParams));
+      logCall?.(requestParams);
 
       const startTime = Date.now();
       // Create the message using the Anthropic Messages API

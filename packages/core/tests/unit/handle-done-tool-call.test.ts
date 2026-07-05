@@ -27,8 +27,8 @@ import { handleDoneToolCall } from "../../lib/v3/agent/utils/handleDoneToolCall.
 
 describe("handleDoneToolCall inference logging", () => {
   beforeEach(() => {
-    writeTimestampedTxtFile.mockClear();
-    appendSummary.mockClear();
+    writeTimestampedTxtFile.mockReset();
+    appendSummary.mockReset();
     generateText.mockReset();
     writeTimestampedTxtFile
       .mockReturnValueOnce({

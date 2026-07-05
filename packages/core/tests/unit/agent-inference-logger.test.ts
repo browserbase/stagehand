@@ -29,8 +29,8 @@ import {
 
 describe("agentInferenceLogger", () => {
   beforeEach(() => {
-    writeTimestampedTxtFile.mockClear();
-    appendSummary.mockClear();
+    writeTimestampedTxtFile.mockReset();
+    appendSummary.mockReset();
     writeTimestampedTxtFile.mockReturnValue({
       fileName: "20250705_120000_agent_step_1_call.txt",
       timestamp: "20250705_120000",
@@ -418,6 +418,43 @@ describe("agentInferenceLogger", () => {
         step: 7,
         LLM_input_file: "(call file unavailable)",
         LLM_output_file: "response.txt",
+      }),
+    );
+  });
+
+  it("records failed CUA steps with failed status when call file write fails", async () => {
+    (writeTimestampedTxtFile as ReturnType<typeof vi.fn>).mockImplementation(
+      (_directory: string, prefix: string) => {
+        if (prefix.includes("_call")) {
+          return null;
+        }
+        return {
+          fileName: "response.txt",
+          timestamp: "20250705_120010",
+        };
+      },
+    );
+
+    await expect(
+      runCuaStepWithInferenceLogging({
+        logInferenceToFile: true,
+        stepIndex: 8,
+        modelId: "openai/computer-use-preview",
+        executeStep: async (ctx) => {
+          ctx?.logCall({ requestParams: { model: "test" } });
+          throw new Error("provider timeout");
+        },
+      }),
+    ).rejects.toThrow("provider timeout");
+
+    expect(appendSummary).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agent_inference_type: "agent_cua_step",
+        step: 8,
+        status: "failed",
+        error: "provider timeout",
+        LLM_input_file: "(call file unavailable)",
       }),
     );
   });

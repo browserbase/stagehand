@@ -12,7 +12,6 @@ import type { StagehandZodSchema } from "../../zodCompat.js";
 import {
   logAgentDoneInference,
   mapAiSdkStepUsage,
-  sanitizeForInferenceLog,
 } from "./agentInferenceLogger.js";
 
 interface DoneResult {
@@ -163,10 +162,7 @@ Call the "done" tool with:
 
   const buildCallPayload = () => ({
     system: systemPrompt,
-    messages: sanitizeForInferenceLog([
-      ...sanitizeMessagesForResubmission(inputMessages),
-      userPrompt,
-    ]),
+    messages: [...sanitizeMessagesForResubmission(inputMessages), userPrompt],
     toolChoice: rejectsForcedToolUse(modelId) ? "auto" : "done",
   });
 

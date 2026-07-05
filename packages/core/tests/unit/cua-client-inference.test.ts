@@ -146,8 +146,8 @@ describe.each(clientCases)(
   "CUA client inference logging ($name)",
   ({ createClient, mockExecuteStep }) => {
     beforeEach(() => {
-      writeTimestampedTxtFile.mockClear();
-      appendSummary.mockClear();
+      writeTimestampedTxtFile.mockReset();
+      appendSummary.mockReset();
       writeTimestampedTxtFile.mockReturnValue({
         fileName: "call.txt",
         timestamp: "20250705_120000",
@@ -185,8 +185,8 @@ describe.each(clientCases)(
 
 describe("GoogleCUAClient executeStep inference payload", () => {
   beforeEach(() => {
-    writeTimestampedTxtFile.mockClear();
-    appendSummary.mockClear();
+    writeTimestampedTxtFile.mockReset();
+    appendSummary.mockReset();
     writeTimestampedTxtFile.mockReturnValue({
       fileName: "call.txt",
       timestamp: "20250705_120000",

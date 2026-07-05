@@ -37,7 +37,6 @@ import {
   getCuaRunStartTools,
   logAgentRunStart,
   runCuaStepWithInferenceLogging,
-  sanitizeForInferenceLog,
   type CuaStepInferenceContext,
 } from "./utils/agentInferenceLogger.js";
 import {
@@ -399,13 +398,11 @@ export class GoogleCUAClient extends AgentClient {
       );
       const compressedHistory = compressedResult.items;
 
-      inferenceCtx?.logCall(
-        sanitizeForInferenceLog({
-          model: this.modelName,
-          contents: compressedHistory,
-          config: this.generateContentConfig,
-        }),
-      );
+      inferenceCtx?.logCall({
+        model: this.modelName,
+        contents: compressedHistory,
+        config: this.generateContentConfig,
+      });
 
       // Use the SDK's generateContent method with retry logic (matching Python's get_model_response)
       const maxRetries = 5;

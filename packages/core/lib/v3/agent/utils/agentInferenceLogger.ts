@@ -249,6 +249,8 @@ export function completeAgentStepInferenceWithoutCall(opts: {
   responsePayload: unknown;
   usage?: AgentInferenceUsage;
   agentInferenceType?: string;
+  status?: "completed" | "failed";
+  error?: string;
 }): void {
   const response = logAgentStepResponse({
     stepIndex: opts.stepIndex,
@@ -263,6 +265,8 @@ export function completeAgentStepInferenceWithoutCall(opts: {
     timestamp: response.timestamp,
     usage: opts.usage,
     agentInferenceType: opts.agentInferenceType,
+    status: opts.status,
+    error: opts.error,
   });
 }
 
@@ -509,13 +513,16 @@ export async function runCuaStepWithInferenceLogging<
         agentInferenceType: "agent_cua_step",
       });
     } else if (opts.logInferenceToFile) {
+      const message = error instanceof Error ? error.message : String(error);
       completeAgentStepInferenceWithoutCall({
         stepIndex: opts.stepIndex,
         responsePayload: {
           status: "failed",
-          error: error instanceof Error ? error.message : String(error),
+          error: message,
         },
         agentInferenceType: "agent_cua_step",
+        status: "failed",
+        error: message,
       });
     }
     throw error;

@@ -222,8 +222,8 @@ describe("V3AgentHandler inference logging", () => {
 
   beforeEach(() => {
     logger = vi.fn();
-    writeTimestampedTxtFile.mockClear();
-    appendSummary.mockClear();
+    writeTimestampedTxtFile.mockReset();
+    appendSummary.mockReset();
     writeTimestampedTxtFile.mockReturnValue({
       fileName: "call.txt",
       timestamp: "20250705_120000",
