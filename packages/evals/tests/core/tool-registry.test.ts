@@ -5,6 +5,7 @@ describe("core tool registry", () => {
   it("lists extended tool surfaces", () => {
     expect(listCoreTools()).toEqual(
       expect.arrayContaining([
+        "modcdp_code",
         "playwright_mcp",
         "chrome_devtools_mcp",
         "browse_cli",
@@ -13,6 +14,7 @@ describe("core tool registry", () => {
   });
 
   it("constructs MCP and CLI tools", () => {
+    expect(getCoreTool("modcdp_code").id).toBe("modcdp_code");
     expect(getCoreTool("playwright_mcp").id).toBe("playwright_mcp");
     expect(getCoreTool("chrome_devtools_mcp").id).toBe("chrome_devtools_mcp");
     expect(getCoreTool("browse_cli").id).toBe("browse_cli");

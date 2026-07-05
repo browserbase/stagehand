@@ -52,11 +52,18 @@ describe("claude code tool adapter resolution", () => {
     expect(resolveClaudeCodeStartupProfile("cdp_code", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
     );
+    expect(resolveClaudeCodeToolSurface("modcdp_code")).toBe("modcdp_code");
+    expect(resolveClaudeCodeStartupProfile("modcdp_code", "LOCAL")).toBe(
+      "runner_provided_local_cdp",
+    );
+    expect(resolveClaudeCodeStartupProfile("modcdp_code", "BROWSERBASE")).toBe(
+      "runner_provided_browserbase_cdp",
+    );
   });
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool browse_cli, playwright_code, or cdp_code/,
+      /supports --tool browse_cli, playwright_code, cdp_code, or modcdp_code/,
     );
   });
 
