@@ -35,6 +35,14 @@ describe("agentInferenceLogger", () => {
     });
   });
 
+  it("sanitizes short data:image URLs", () => {
+    const shortUrl = "data:image/png;base64,AA==";
+    const sanitized = sanitizeForInferenceLog({ image: shortUrl }) as {
+      image: string;
+    };
+    expect(sanitized.image).toContain("[image omitted");
+  });
+
   it("sanitizes base64 image payloads", () => {
     const payload = {
       screenshot: "data:image/png;base64," + "A".repeat(400),
@@ -241,8 +249,54 @@ describe("agentInferenceLogger", () => {
       completion_tokens: 5,
       reasoning_tokens: 3,
       cached_input_tokens: 2,
-      inference_time_ms: 0,
+      inference_time_ms: undefined,
     });
+  });
+
+  it("omits inference_time_ms when CUA usage does not include timing", () => {
+    expect(mapCuaStepUsage({ input_tokens: 1, output_tokens: 2 })).toEqual({
+      prompt_tokens: 1,
+      completion_tokens: 2,
+      reasoning_tokens: 0,
+      cached_input_tokens: 0,
+      inference_time_ms: undefined,
+    });
+  });
+
+  it("defers CUA call logging until executeStep invokes logCall", async () => {
+    writeTimestampedTxtFile
+      .mockReturnValueOnce({
+        fileName: "call.txt",
+        timestamp: "20250705_120006",
+      })
+      .mockReturnValueOnce({
+        fileName: "response.txt",
+        timestamp: "20250705_120006",
+      });
+
+    const result = await runCuaStepWithInferenceLogging({
+      logInferenceToFile: true,
+      stepIndex: 2,
+      modelId: "openai/computer-use-preview",
+      executeStep: async (ctx) => {
+        ctx?.logCall({ requestParams: { model: "test" } });
+        return {
+          actions: [{ type: "click" }],
+          message: "clicked",
+          completed: false,
+          usage: { input_tokens: 2, output_tokens: 1, inference_time_ms: 5 },
+        };
+      },
+    });
+
+    expect(result.message).toBe("clicked");
+    expect(writeTimestampedTxtFile).toHaveBeenCalledWith(
+      "agent_summary",
+      "agent_step_2_call",
+      expect.objectContaining({
+        request: { requestParams: { model: "test" } },
+      }),
+    );
   });
 
   it("runs CUA steps with inference logging via shared helper", async () => {
@@ -279,7 +333,7 @@ describe("agentInferenceLogger", () => {
     );
   });
 
-  it("does not append summary when response file write fails", () => {
+  it("does not append summary when response file write fails", async () => {
     writeTimestampedTxtFile
       .mockReturnValueOnce({
         fileName: "call.txt",

@@ -33,6 +33,8 @@ import { v7 as uuidv7 } from "uuid";
 import {
   logAgentRunStart,
   runCuaStepWithInferenceLogging,
+  sanitizeForInferenceLog,
+  type CuaStepInferenceContext,
 } from "./utils/agentInferenceLogger.js";
 
 /**
@@ -188,9 +190,8 @@ export class OpenAICUAClient extends AgentClient {
           logInferenceToFile,
           stepIndex,
           modelId: this.modelName,
-          callPayload: { inputItems, previousResponseId },
-          executeStep: () =>
-            this.executeStep(inputItems, previousResponseId, logger),
+          executeStep: (ctx) =>
+            this.executeStep(inputItems, previousResponseId, logger, ctx),
         });
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
@@ -273,6 +274,7 @@ export class OpenAICUAClient extends AgentClient {
     inputItems: OpenAIRequestInputItem[],
     previousResponseId: string | undefined,
     logger: (message: LogLine) => void,
+    inferenceCtx?: CuaStepInferenceContext,
   ): Promise<{
     actions: AgentAction[];
     message: string;
@@ -287,7 +289,11 @@ export class OpenAICUAClient extends AgentClient {
   }> {
     try {
       // Get response from the model
-      const result = await this.getAction(inputItems, previousResponseId);
+      const result = await this.getAction(
+        inputItems,
+        previousResponseId,
+        inferenceCtx?.logCall,
+      );
       const output = result.output;
       const responseId = result.responseId;
       const usage = {
@@ -502,6 +508,7 @@ export class OpenAICUAClient extends AgentClient {
   async getAction(
     inputItems: OpenAIRequestInputItem[],
     previousResponseId?: string,
+    logCall?: (payload: unknown) => void,
   ): Promise<{
     output: ResponseItem[];
     responseId: string;
@@ -576,6 +583,8 @@ export class OpenAICUAClient extends AgentClient {
         model: this.modelName,
         prompt: extractLlmCuaPromptSummary(inputItems),
       });
+
+      logCall?.(sanitizeForInferenceLog(requestParams));
 
       const startTime = Date.now();
       // Create the response using the OpenAI Responses API

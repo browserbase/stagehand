@@ -303,7 +303,9 @@ export class V3AgentHandler {
         }
       }
 
-      const resolved = userCallback ? await userCallback(options) : options;
+      const resolved = userCallback
+        ? ((await userCallback(options)) ?? options)
+        : options;
 
       const messagesForLog =
         "messages" in resolved && resolved.messages
@@ -311,16 +313,24 @@ export class V3AgentHandler {
           : options.messages;
       const stepNumberForLog =
         "stepNumber" in resolved ? resolved.stepNumber : options.stepNumber;
+      const systemForLog =
+        "system" in resolved && resolved.system !== undefined
+          ? resolved.system
+          : stepInference?.systemPrompt;
+      const toolsForLog =
+        "activeTools" in resolved && resolved.activeTools
+          ? resolved.activeTools
+          : stepInference?.toolNames;
 
       if (this.logInferenceToFile && stepInference) {
         stepInference.stepIndex += 1;
         const call = logAgentStepCall({
           stepIndex: stepInference.stepIndex,
           payload: {
-            systemPrompt: stepInference.systemPrompt,
+            systemPrompt: systemForLog,
             messages: messagesForLog,
             stepNumber: stepNumberForLog,
-            tools: stepInference.toolNames,
+            tools: toolsForLog,
             providerOptions: stepInference.providerOptions,
           },
         });

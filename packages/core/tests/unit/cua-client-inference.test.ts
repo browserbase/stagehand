@@ -55,6 +55,25 @@ const completedStep: CuaStepResult = {
   usage: { input_tokens: 1, output_tokens: 1, inference_time_ms: 1 },
 };
 
+function mockCuaExecuteStep(client: {
+  executeStep: (...args: unknown[]) => Promise<CuaStepResult>;
+}): void {
+  vi.spyOn(client, "executeStep").mockImplementation(async (...args) => {
+    const maybeCtx = args[args.length - 1];
+    if (
+      maybeCtx &&
+      typeof maybeCtx === "object" &&
+      "logCall" in maybeCtx &&
+      typeof (maybeCtx as { logCall: unknown }).logCall === "function"
+    ) {
+      (maybeCtx as { logCall: (payload: unknown) => void }).logCall({
+        mocked: true,
+      });
+    }
+    return completedStep;
+  });
+}
+
 const clientCases: CuaClientCase[] = [
   {
     name: "AnthropicCUAClient",
@@ -66,15 +85,11 @@ const clientCases: CuaClientCase[] = [
         { apiKey: "test-key" },
       ),
     mockExecuteStep: (client) => {
-      vi.spyOn(
+      mockCuaExecuteStep(
         client as unknown as {
-          executeStep: (
-            inputItems: unknown[],
-            logger: (message: { message: string }) => void,
-          ) => Promise<CuaStepResult>;
+          executeStep: (...args: unknown[]) => Promise<CuaStepResult>;
         },
-        "executeStep",
-      ).mockResolvedValueOnce(completedStep);
+      );
     },
   },
   {
@@ -104,15 +119,11 @@ const clientCases: CuaClientCase[] = [
         apiKey: "test-key",
       }),
     mockExecuteStep: (client) => {
-      vi.spyOn(
+      mockCuaExecuteStep(
         client as unknown as {
-          executeStep: (
-            logger: (message: { message: string }) => void,
-            isFirstRound: boolean,
-          ) => Promise<CuaStepResult>;
+          executeStep: (...args: unknown[]) => Promise<CuaStepResult>;
         },
-        "executeStep",
-      ).mockResolvedValueOnce(completedStep);
+      );
     },
   },
   {
@@ -125,16 +136,11 @@ const clientCases: CuaClientCase[] = [
         { apiKey: "test-key" },
       ),
     mockExecuteStep: (client) => {
-      vi.spyOn(
+      mockCuaExecuteStep(
         client as unknown as {
-          executeStep: (
-            inputItems: unknown[],
-            previousResponseId: string | undefined,
-            logger: (message: { message: string }) => void,
-          ) => Promise<CuaStepResult>;
+          executeStep: (...args: unknown[]) => Promise<CuaStepResult>;
         },
-        "executeStep",
-      ).mockResolvedValueOnce(completedStep);
+      );
     },
   },
 ];

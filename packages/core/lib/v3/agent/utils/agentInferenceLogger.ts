@@ -40,8 +40,8 @@ function isImageKey(key: string): boolean {
 }
 
 function isLikelyBase64Image(value: string): boolean {
-  if (value.length < 1024) return false;
   if (value.startsWith("data:image/")) return true;
+  if (value.length < 1024) return false;
   if (!/^[A-Za-z0-9+/=\s]+$/.test(value.slice(0, 512))) return false;
   return value.length >= 4096;
 }
@@ -363,9 +363,13 @@ export function mapCuaStepUsage(usage?: {
     completion_tokens: usage?.output_tokens ?? 0,
     reasoning_tokens: usage?.reasoning_tokens ?? 0,
     cached_input_tokens: usage?.cached_input_tokens ?? 0,
-    inference_time_ms: usage?.inference_time_ms ?? 0,
+    inference_time_ms: usage?.inference_time_ms,
   };
 }
+
+export type CuaStepInferenceContext = {
+  logCall: (payload: unknown) => void;
+};
 
 export interface CuaStepInferenceResult {
   actions: unknown[];
@@ -390,22 +394,31 @@ export async function runCuaStepWithInferenceLogging<
   logInferenceToFile: boolean;
   stepIndex: number;
   modelId: string;
-  callPayload: unknown;
-  executeStep: () => Promise<T>;
+  callPayload?: unknown;
+  executeStep: (ctx?: CuaStepInferenceContext) => Promise<T>;
   mapResponse?: (result: T) => Record<string, unknown>;
 }): Promise<T> {
-  const pendingCall = opts.logInferenceToFile
-    ? logAgentStepCall({
-        stepIndex: opts.stepIndex,
-        payload: {
-          modelId: opts.modelId,
-          request: opts.callPayload,
-        },
-      })
-    : null;
+  let pendingCall: AgentStepCallRecord | null = null;
+
+  const logCall = (payload: unknown) => {
+    if (!opts.logInferenceToFile || pendingCall) return;
+    pendingCall = logAgentStepCall({
+      stepIndex: opts.stepIndex,
+      payload: {
+        modelId: opts.modelId,
+        request: payload,
+      },
+    });
+  };
+
+  if (opts.logInferenceToFile && opts.callPayload !== undefined) {
+    logCall(opts.callPayload);
+  }
+
+  const ctx = opts.logInferenceToFile ? { logCall } : undefined;
 
   try {
-    const result = await opts.executeStep();
+    const result = await opts.executeStep(ctx);
 
     if (pendingCall) {
       const response = opts.mapResponse

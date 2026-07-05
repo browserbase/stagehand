@@ -161,17 +161,14 @@ Call the "done" tool with:
   const modelId = typeof model === "string" ? model : model.modelId;
   const fallbacks = anthropicFallbacksOptions(modelId);
 
-  // Models whose always-on thinking rejects forced tool use go straight to
-  // "auto" — the prompt already instructs calling "done", and the
-  // no-tool-call case below handles a plain-text answer.
-  const callPayload = {
+  const buildCallPayload = () => ({
     system: systemPrompt,
     messages: sanitizeForInferenceLog([
       ...sanitizeMessagesForResubmission(inputMessages),
       userPrompt,
     ]),
     toolChoice: rejectsForcedToolUse(modelId) ? "auto" : "done",
-  };
+  });
 
   const doneStart = Date.now();
   const result = await generateText({
@@ -200,7 +197,7 @@ Call the "done" tool with:
   if (!doneToolCall) {
     if (logInferenceToFile) {
       logAgentDoneInference({
-        callPayload,
+        callPayload: buildCallPayload(),
         responsePayload: {
           text: result.text,
           taskComplete: false,
@@ -231,7 +228,7 @@ Call the "done" tool with:
 
   if (logInferenceToFile) {
     logAgentDoneInference({
-      callPayload,
+      callPayload: buildCallPayload(),
       responsePayload: {
         reasoning: input.reasoning,
         taskComplete: input.taskComplete,

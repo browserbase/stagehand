@@ -41,6 +41,32 @@ describe("handleDoneToolCall inference logging", () => {
       });
   });
 
+  it("does not write inference files when logInferenceToFile is disabled", async () => {
+    generateText.mockResolvedValueOnce({
+      toolCalls: [
+        {
+          toolName: "done",
+          input: {
+            reasoning: "Clicked sign in",
+            taskComplete: true,
+          },
+        },
+      ],
+      response: { messages: [] },
+      usage: { inputTokens: 10, outputTokens: 5 },
+    });
+
+    await handleDoneToolCall({
+      model: { modelId: "openai/gpt-4.1-mini" } as never,
+      inputMessages: [{ role: "user", content: "history" }],
+      instruction: "Sign in",
+      logger: vi.fn(),
+      logInferenceToFile: false,
+    });
+
+    expect(writeTimestampedTxtFile).not.toHaveBeenCalled();
+  });
+
   it("writes agent_done files when logInferenceToFile is enabled", async () => {
     generateText.mockResolvedValueOnce({
       toolCalls: [

@@ -20,6 +20,8 @@ import { v7 as uuidv7 } from "uuid";
 import {
   logAgentRunStart,
   runCuaStepWithInferenceLogging,
+  sanitizeForInferenceLog,
+  type CuaStepInferenceContext,
 } from "./utils/agentInferenceLogger.js";
 
 /**
@@ -641,8 +643,10 @@ For each function call, return a json object with function name and arguments wi
   private async executeStep(
     logger: (message: LogLine) => void,
     isFirstRound: boolean = false,
+    inferenceCtx?: CuaStepInferenceContext,
   ): Promise<{
     actions: AgentAction[];
+    message: string;
     completed: boolean;
     usage: {
       input_tokens: number;
@@ -716,6 +720,13 @@ For each function call, return a json object with function name and arguments wi
       content: this.generateSystemPrompt(),
     };
     history = [systemMessage, ...history];
+
+    inferenceCtx?.logCall(
+      sanitizeForInferenceLog({
+        messages: history,
+        temperature: this.temperature,
+      }),
+    );
 
     // Make API call
     logger({
@@ -859,6 +870,7 @@ For each function call, return a json object with function name and arguments wi
 
     return {
       actions,
+      message: thoughts,
       completed,
       usage: {
         input_tokens: usage.prompt_tokens,
@@ -923,20 +935,12 @@ For each function call, return a json object with function name and arguments wi
           logInferenceToFile,
           stepIndex,
           modelId: this.modelName,
-          callPayload: {
-            conversationHistory: this.conversationHistory,
-            isFirstRound,
-          },
-          executeStep: () => this.executeStep(logger, isFirstRound),
-          mapResponse: (stepResult) => {
-            const lastAction =
-              stepResult.actions[stepResult.actions.length - 1];
-            return {
-              actions: stepResult.actions,
-              message: (lastAction as { reasoning?: string })?.reasoning ?? "",
-              completed: stepResult.completed,
-            };
-          },
+          executeStep: (ctx) => this.executeStep(logger, isFirstRound, ctx),
+          mapResponse: (stepResult) => ({
+            actions: stepResult.actions,
+            message: stepResult.message ?? "",
+            completed: stepResult.completed,
+          }),
         });
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
@@ -951,9 +955,8 @@ For each function call, return a json object with function name and arguments wi
         currentStep++;
 
         // Record message for this step
-        const lastAction = result.actions[result.actions.length - 1];
-        if (lastAction?.reasoning) {
-          messageList.push(lastAction.reasoning);
+        if (result.message) {
+          messageList.push(result.message);
         }
       }
 

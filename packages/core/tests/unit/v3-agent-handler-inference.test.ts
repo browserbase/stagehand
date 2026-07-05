@@ -283,6 +283,55 @@ describe("V3AgentHandler inference logging", () => {
     );
   });
 
+  it("handles prepareStep returning undefined without crashing", async () => {
+    const { client } = createLlmClient();
+    const handler = createInferenceHandler(client, logger);
+
+    await handler.execute({
+      instruction: "finish",
+      maxSteps: 1,
+      excludeTools: ["search"],
+      callbacks: {
+        prepareStep: async () => undefined as never,
+      },
+    });
+
+    expect(appendSummary).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agent_inference_type: "agent_step",
+        step: 1,
+      }),
+    );
+  });
+
+  it("logs per-step system and activeTools overrides from prepareStep", async () => {
+    const { client } = createLlmClient();
+    const handler = createInferenceHandler(client, logger);
+
+    await handler.execute({
+      instruction: "finish",
+      maxSteps: 1,
+      excludeTools: ["search"],
+      callbacks: {
+        prepareStep: async (step) => ({
+          ...step,
+          system: "step-specific system",
+          activeTools: ["done"],
+        }),
+      },
+    });
+
+    expect(writeTimestampedTxtFile).toHaveBeenCalledWith(
+      "agent_summary",
+      "agent_step_1_call",
+      expect.objectContaining({
+        systemPrompt: "step-specific system",
+        tools: ["done"],
+      }),
+    );
+  });
+
   it("finalizes pending step inference when a stream aborts", async () => {
     const model = {
       modelId: "openai/gpt-5-mini",
