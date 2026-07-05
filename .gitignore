@@ -15,8 +15,6 @@ packages/core/lib/dom/build/
 packages/core/lib/v3/dom/build/
 packages/evals/public
 *.tgz
-.agents/**
-skills-lock.json
 evals/playground.ts
 tmp/
 eval-summary.json

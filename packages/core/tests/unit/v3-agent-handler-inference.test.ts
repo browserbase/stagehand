@@ -460,4 +460,128 @@ describe("V3AgentHandler inference logging", () => {
       }),
     );
   });
+
+  it("finalizes pending step inference when execute fails", async () => {
+    const model = {
+      modelId: "openai/gpt-5-mini",
+      provider: "openai",
+      specificationVersion: "v2",
+    } as unknown as LanguageModelV2;
+
+    const generateText = vi.fn(async (options: AgentLlmOptions) => {
+      await options.prepareStep?.({
+        messages: [{ role: "user", content: "finish" }],
+        stepNumber: 1,
+      });
+      throw new Error("provider timeout");
+    });
+
+    const client = {
+      getLanguageModel: vi.fn(() => model),
+      generateText,
+      streamText: vi.fn(),
+    } as unknown as LLMClient;
+
+    const handler = createInferenceHandler(client, logger);
+
+    const result = await handler.execute({
+      instruction: "finish",
+      maxSteps: 1,
+      excludeTools: ["search"],
+    });
+
+    expect(result.success).toBe(false);
+    expect(appendSummary).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agent_inference_type: "agent_step",
+        status: "failed",
+        error: "provider timeout",
+      }),
+    );
+  });
+
+  it("does not record a completed step after stream abort finalizes it", async () => {
+    const model = {
+      modelId: "openai/gpt-5-mini",
+      provider: "openai",
+      specificationVersion: "v2",
+    } as unknown as LanguageModelV2;
+
+    const streamText = vi.fn((options: AgentLlmOptions) => {
+      void (async () => {
+        await options.prepareStep?.({
+          messages: [{ role: "user", content: "finish" }],
+          stepNumber: 1,
+        });
+        options.onAbort?.({});
+        await options.onStepFinish?.(createDoneStep());
+      })();
+
+      return {
+        textStream: (async function* () {})(),
+      };
+    });
+
+    const client = {
+      getLanguageModel: vi.fn(() => model),
+      generateText: vi.fn(),
+      streamText,
+    } as unknown as LLMClient;
+
+    const handler = createInferenceHandler(client, logger);
+
+    const streamResult = await handler.stream({
+      instruction: "finish",
+      maxSteps: 1,
+      excludeTools: ["search"],
+    });
+
+    await expect(streamResult.result).rejects.toThrow("Stream was aborted");
+    expect(appendSummary).toHaveBeenCalledTimes(1);
+    expect(appendSummary).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agent_inference_type: "agent_step",
+        status: "failed",
+      }),
+    );
+  });
+
+  it("sanitizes image payloads in prepareStep inference logs", async () => {
+    const { client } = createLlmClient();
+    const handler = createInferenceHandler(client, logger);
+    const imageData = "A".repeat(2000);
+
+    await handler.execute({
+      instruction: "finish",
+      maxSteps: 1,
+      excludeTools: ["search"],
+      callbacks: {
+        prepareStep: async (step) => ({
+          ...step,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "see this" },
+                {
+                  type: "image",
+                  image: imageData,
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    });
+
+    const stepCall = (
+      writeTimestampedTxtFile as ReturnType<typeof vi.fn>
+    ).mock.calls.find(
+      (call: [string, string, unknown]) => call[1] === "agent_step_1_call",
+    );
+    expect(stepCall).toBeDefined();
+    expect(JSON.stringify(stepCall?.[2])).toContain("[image omitted");
+  });
 });

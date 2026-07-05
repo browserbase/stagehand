@@ -85,6 +85,20 @@ describe("agentInferenceLogger", () => {
     expect(sanitized.data).toBe(hash);
   });
 
+  it("sanitizes medium-sized Gemini inlineData.data payloads", () => {
+    const inlineData = {
+      inlineData: {
+        mimeType: "image/png",
+        data: "A".repeat(2000),
+      },
+    };
+    const sanitized = sanitizeForInferenceLog(inlineData) as {
+      inlineData: { mimeType: string; data: string };
+    };
+    expect(sanitized.inlineData.mimeType).toBe("image/png");
+    expect(sanitized.inlineData.data).toContain("[image omitted");
+  });
+
   it("writes run start files under agent_summary", () => {
     logAgentRunStart({
       instruction: "click login",
@@ -255,14 +269,16 @@ describe("agentInferenceLogger", () => {
     });
 
     const pending = new Map();
+    const finalizedSteps = new Set<number>();
     const call1 = logAgentStepCall({ stepIndex: 1, payload: {} });
     const call2 = logAgentStepCall({ stepIndex: 2, payload: {} });
     pending.set(1, call1);
     pending.set(2, call2);
 
-    finalizePendingAgentSteps(pending, "aborted");
+    finalizePendingAgentSteps(pending, "aborted", "agent_step", finalizedSteps);
 
     expect(pending.size).toBe(0);
+    expect(finalizedSteps).toEqual(new Set([1, 2]));
     expect(appendSummary).toHaveBeenCalledTimes(2);
     expect(appendSummary).toHaveBeenCalledWith(
       "agent",
@@ -363,6 +379,45 @@ describe("agentInferenceLogger", () => {
       expect.objectContaining({
         agent_inference_type: "agent_cua_step",
         step: 1,
+      }),
+    );
+  });
+
+  it("records CUA step responses when call file write fails", async () => {
+    (writeTimestampedTxtFile as ReturnType<typeof vi.fn>).mockImplementation(
+      (_directory: string, prefix: string) => {
+        if (prefix.includes("_call")) {
+          return null;
+        }
+        return {
+          fileName: "response.txt",
+          timestamp: "20250705_120009",
+        };
+      },
+    );
+
+    await runCuaStepWithInferenceLogging({
+      logInferenceToFile: true,
+      stepIndex: 7,
+      modelId: "openai/computer-use-preview",
+      executeStep: async (ctx) => {
+        ctx?.logCall({ requestParams: { model: "test" } });
+        return {
+          actions: [{ type: "click" }],
+          message: "clicked",
+          completed: false,
+          usage: { input_tokens: 2, output_tokens: 1, inference_time_ms: 5 },
+        };
+      },
+    });
+
+    expect(appendSummary).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agent_inference_type: "agent_cua_step",
+        step: 7,
+        LLM_input_file: "(call file unavailable)",
+        LLM_output_file: "response.txt",
       }),
     );
   });

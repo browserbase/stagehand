@@ -34,11 +34,24 @@ function isImageKey(key: string): boolean {
     normalized.includes("screenshot") ||
     normalized === "base64" ||
     normalized === "inline_data" ||
+    normalized === "inlinedata" ||
     normalized === "imagedata" ||
     normalized === "image_url"
   );
 }
 
+function looksLikeBase64Payload(value: string): boolean {
+  if (value.startsWith("data:image/")) return true;
+  if (value.length < 256) return false;
+  return /^[A-Za-z0-9+/=\s]+$/.test(value.slice(0, 512));
+}
+
+/** Redact base64 image blobs in provider `data` fields (e.g. Gemini inlineData.data). */
+function isLikelyBase64ImageData(value: string): boolean {
+  return looksLikeBase64Payload(value);
+}
+
+/** Redact large base64 blobs in unkeyed / generic string fields. */
 function isLikelyBase64Image(value: string): boolean {
   if (value.startsWith("data:image/")) return true;
   if (value.length < 1024) return false;
@@ -52,7 +65,7 @@ function omitImagePayload(value: string): string {
 
 function shouldOmitString(value: string, key: string): boolean {
   if (isImageKey(key)) return true;
-  if (key.toLowerCase() === "data" && isLikelyBase64Image(value)) return true;
+  if (key.toLowerCase() === "data") return isLikelyBase64ImageData(value);
   return isLikelyBase64Image(value);
 }
 
@@ -316,6 +329,7 @@ export function finalizePendingAgentSteps(
   pendingCalls: Map<number, AgentStepCallRecord>,
   reason: string,
   agentInferenceType = "agent_step",
+  finalizedSteps?: Set<number>,
 ): void {
   for (const [stepIndex, call] of pendingCalls.entries()) {
     failAgentStepInference({
@@ -324,6 +338,7 @@ export function finalizePendingAgentSteps(
       error: reason,
       agentInferenceType,
     });
+    finalizedSteps?.add(stepIndex);
   }
   pendingCalls.clear();
 }
@@ -451,7 +466,7 @@ export async function runCuaStepWithInferenceLogging<
   try {
     const result = await opts.executeStep(ctx);
 
-    if (pendingCall) {
+    if (opts.logInferenceToFile) {
       const response = opts.mapResponse
         ? opts.mapResponse(result)
         : {
@@ -460,17 +475,28 @@ export async function runCuaStepWithInferenceLogging<
             completed: result.completed,
             ...(result.responseId ? { responseId: result.responseId } : {}),
           };
+      const responsePayload = {
+        modelId: opts.modelId,
+        response,
+      };
+      const usage = mapCuaStepUsage(result.usage);
 
-      completeAgentStepInference({
-        stepIndex: opts.stepIndex,
-        call: pendingCall,
-        responsePayload: {
-          modelId: opts.modelId,
-          response,
-        },
-        usage: mapCuaStepUsage(result.usage),
-        agentInferenceType: "agent_cua_step",
-      });
+      if (pendingCall) {
+        completeAgentStepInference({
+          stepIndex: opts.stepIndex,
+          call: pendingCall,
+          responsePayload,
+          usage,
+          agentInferenceType: "agent_cua_step",
+        });
+      } else {
+        completeAgentStepInferenceWithoutCall({
+          stepIndex: opts.stepIndex,
+          responsePayload,
+          usage,
+          agentInferenceType: "agent_cua_step",
+        });
+      }
     }
 
     return result;
@@ -480,6 +506,15 @@ export async function runCuaStepWithInferenceLogging<
         stepIndex: opts.stepIndex,
         call: pendingCall,
         error,
+        agentInferenceType: "agent_cua_step",
+      });
+    } else if (opts.logInferenceToFile) {
+      completeAgentStepInferenceWithoutCall({
+        stepIndex: opts.stepIndex,
+        responsePayload: {
+          status: "failed",
+          error: error instanceof Error ? error.message : String(error),
+        },
         agentInferenceType: "agent_cua_step",
       });
     }

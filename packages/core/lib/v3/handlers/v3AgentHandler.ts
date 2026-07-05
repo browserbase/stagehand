@@ -70,9 +70,26 @@ import {
 interface AgentStepInferenceState {
   currentStepIndex: number | null;
   pendingCalls: Map<number, AgentStepCallRecord>;
+  finalizedSteps: Set<number>;
   systemPrompt: string;
   toolNames: string[];
   providerOptions: Record<string, unknown>;
+}
+
+function interruptStepInference(
+  stepInference: AgentStepInferenceState,
+  reason: string,
+): void {
+  finalizePendingAgentSteps(
+    stepInference.pendingCalls,
+    reason,
+    "agent_step",
+    stepInference.finalizedSteps,
+  );
+  if (stepInference.currentStepIndex !== null) {
+    stepInference.finalizedSteps.add(stepInference.currentStepIndex);
+    stepInference.currentStepIndex = null;
+  }
 }
 
 function getErrorMessage(error: unknown): string {
@@ -443,7 +460,10 @@ export class V3AgentHandler {
       if (this.logInferenceToFile && stepInference) {
         const stepIndex = stepInference.currentStepIndex;
         stepInference.currentStepIndex = null;
-        if (stepIndex !== null) {
+        if (
+          stepIndex !== null &&
+          !stepInference.finalizedSteps.has(stepIndex)
+        ) {
           const pending = stepInference.pendingCalls.get(stepIndex);
           const responsePayload = {
             finishReason: event.finishReason,
@@ -472,6 +492,7 @@ export class V3AgentHandler {
               usage,
             });
           }
+          stepInference.finalizedSteps.add(stepIndex);
         }
       }
 
@@ -557,6 +578,7 @@ export class V3AgentHandler {
       const stepInferenceState: AgentStepInferenceState = {
         currentStepIndex: null,
         pendingCalls: new Map(),
+        finalizedSteps: new Set(),
         systemPrompt,
         toolNames: Object.keys(allTools),
         providerOptions: buildAgentProviderOptions(
@@ -635,10 +657,7 @@ export class V3AgentHandler {
       );
     } catch (error) {
       if (this.logInferenceToFile && stepInference) {
-        finalizePendingAgentSteps(
-          stepInference.pendingCalls,
-          getErrorMessage(error),
-        );
+        interruptStepInference(stepInference, getErrorMessage(error));
       }
 
       // Re-throw validation errors that should propagate to the caller
@@ -732,7 +751,7 @@ export class V3AgentHandler {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       if (this.logInferenceToFile) {
-        finalizePendingAgentSteps(stepInference.pendingCalls, errorMessage);
+        interruptStepInference(stepInference, errorMessage);
       }
       this.logger({
         category: "agent",
@@ -750,6 +769,7 @@ export class V3AgentHandler {
     const stepInference: AgentStepInferenceState = {
       currentStepIndex: null,
       pendingCalls: new Map(),
+      finalizedSteps: new Set(),
       systemPrompt,
       toolNames: Object.keys(allTools),
       providerOptions: buildAgentProviderOptions(
@@ -850,7 +870,7 @@ export class V3AgentHandler {
             ? String(options.signal.reason)
             : "Stream was aborted";
           if (this.logInferenceToFile) {
-            finalizePendingAgentSteps(stepInference.pendingCalls, reason);
+            interruptStepInference(stepInference, reason);
           }
           rejectResult(new AgentAbortError(reason));
         },
