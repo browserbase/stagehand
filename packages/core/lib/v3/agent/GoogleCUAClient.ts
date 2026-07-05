@@ -34,6 +34,10 @@ import {
 } from "./utils/googleCustomToolHandler.js";
 import { ToolSet } from "ai";
 import {
+  logAgentRunStart,
+  runCuaStepWithInferenceLogging,
+} from "./utils/agentInferenceLogger.js";
+import {
   FlowLogger,
   extractLlmCuaPromptSummary,
   extractLlmCuaResponseSummary,
@@ -225,9 +229,18 @@ export class GoogleCUAClient extends AgentClient {
    * @implements AgentClient.execute
    */
   async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
-    const { options, logger } = executionOptions;
+    const { options, logger, logInferenceToFile = false } = executionOptions;
     const { instruction } = options;
     const maxSteps = options.maxSteps || 10;
+
+    if (logInferenceToFile) {
+      logAgentRunStart({
+        instruction,
+        modelId: this.modelName,
+        tools: ["computer_use"],
+        agentType: "cua",
+      });
+    }
 
     let currentStep = 0;
     let completed = false;
@@ -256,7 +269,14 @@ export class GoogleCUAClient extends AgentClient {
           level: 1,
         });
 
-        const result = await this.executeStep(logger);
+        const stepIndex = currentStep + 1;
+        const result = await runCuaStepWithInferenceLogging({
+          logInferenceToFile,
+          stepIndex,
+          modelId: this.modelName,
+          callPayload: { history: this.history },
+          executeStep: () => this.executeStep(logger),
+        });
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
         totalReasoningTokens += result.usage.reasoning_tokens;

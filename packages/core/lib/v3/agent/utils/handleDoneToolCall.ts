@@ -9,6 +9,11 @@ import {
 import { StagehandZodObject } from "../../zodCompat.js";
 import { getZFactory } from "../../../utils.js";
 import type { StagehandZodSchema } from "../../zodCompat.js";
+import {
+  logAgentDoneInference,
+  mapAiSdkStepUsage,
+  sanitizeForInferenceLog,
+} from "./agentInferenceLogger.js";
 
 interface DoneResult {
   reasoning: string;
@@ -79,8 +84,16 @@ export async function handleDoneToolCall(options: {
   instruction: string;
   outputSchema?: StagehandZodObject;
   logger: (message: LogLine) => void;
+  logInferenceToFile?: boolean;
 }): Promise<DoneResult> {
-  const { model, inputMessages, instruction, outputSchema, logger } = options;
+  const {
+    model,
+    inputMessages,
+    instruction,
+    outputSchema,
+    logger,
+    logInferenceToFile = false,
+  } = options;
 
   logger({
     category: "agent",
@@ -151,6 +164,16 @@ Call the "done" tool with:
   // Models whose always-on thinking rejects forced tool use go straight to
   // "auto" — the prompt already instructs calling "done", and the
   // no-tool-call case below handles a plain-text answer.
+  const callPayload = {
+    system: systemPrompt,
+    messages: sanitizeForInferenceLog([
+      ...sanitizeMessagesForResubmission(inputMessages),
+      userPrompt,
+    ]),
+    toolChoice: rejectsForcedToolUse(modelId) ? "auto" : "done",
+  };
+
+  const doneStart = Date.now();
   const result = await generateText({
     model,
     system: systemPrompt,
@@ -166,6 +189,8 @@ Call the "done" tool with:
     },
   });
 
+  const doneInferenceTimeMs = Date.now() - doneStart;
+
   const doneToolCall = result.toolCalls?.find((tc) => tc.toolName === "done");
   const outputMessages: ModelMessage[] = [
     userPrompt,
@@ -173,6 +198,19 @@ Call the "done" tool with:
   ];
 
   if (!doneToolCall) {
+    if (logInferenceToFile) {
+      logAgentDoneInference({
+        callPayload,
+        responsePayload: {
+          text: result.text,
+          taskComplete: false,
+        },
+        usage: {
+          ...mapAiSdkStepUsage(result.usage),
+          inference_time_ms: doneInferenceTimeMs,
+        },
+      });
+    }
     return {
       reasoning: result.text || "Task execution completed",
       taskComplete: false,
@@ -190,6 +228,21 @@ Call the "done" tool with:
     message: `Task completed`,
     level: 1,
   });
+
+  if (logInferenceToFile) {
+    logAgentDoneInference({
+      callPayload,
+      responsePayload: {
+        reasoning: input.reasoning,
+        taskComplete: input.taskComplete,
+        output: input.output,
+      },
+      usage: {
+        ...mapAiSdkStepUsage(result.usage),
+        inference_time_ms: doneInferenceTimeMs,
+      },
+    });
+  }
 
   return {
     reasoning: input.reasoning,

@@ -32,6 +32,10 @@ import {
 } from "../llm/anthropicOptions.js";
 import { stripModelProvider } from "../../utils.js";
 import { v7 as uuidv7 } from "uuid";
+import {
+  logAgentRunStart,
+  runCuaStepWithInferenceLogging,
+} from "./utils/agentInferenceLogger.js";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -124,9 +128,18 @@ export class AnthropicCUAClient extends AgentClient {
    * @implements AgentClient.execute
    */
   async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
-    const { options, logger } = executionOptions;
+    const { options, logger, logInferenceToFile = false } = executionOptions;
     const { instruction } = options;
     const maxSteps = options.maxSteps || 10;
+
+    if (logInferenceToFile) {
+      logAgentRunStart({
+        instruction,
+        modelId: this.modelName,
+        tools: ["computer_use"],
+        agentType: "cua",
+      });
+    }
 
     let currentStep = 0;
     let completed = false;
@@ -159,7 +172,14 @@ export class AnthropicCUAClient extends AgentClient {
           level: 1,
         });
 
-        const result = await this.executeStep(inputItems, logger);
+        const stepIndex = currentStep + 1;
+        const result = await runCuaStepWithInferenceLogging({
+          logInferenceToFile,
+          stepIndex,
+          modelId: this.modelName,
+          callPayload: { inputItems },
+          executeStep: () => this.executeStep(inputItems, logger),
+        });
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
         totalInferenceTime += result.usage.inference_time_ms;

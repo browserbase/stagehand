@@ -57,6 +57,22 @@ import {
   CAPTCHA_SOLVED_MSG,
   CAPTCHA_ERRORED_MSG,
 } from "../agent/utils/captchaSolver.js";
+import {
+  logAgentRunStart,
+  logAgentStepCall,
+  completeAgentStepInference,
+  mapAiSdkStepUsage,
+  finalizePendingAgentSteps,
+  type AgentStepCallRecord,
+} from "../agent/utils/agentInferenceLogger.js";
+
+interface AgentStepInferenceState {
+  stepIndex: number;
+  pendingCalls: Map<number, AgentStepCallRecord>;
+  systemPrompt: string;
+  toolNames: string[];
+  providerOptions: Record<string, unknown>;
+}
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -127,6 +143,7 @@ export class V3AgentHandler {
   private mode: AgentToolMode;
   private captchaAutoSolveEnabled: boolean;
   private thinkingEffort?: string;
+  private readonly logInferenceToFile: boolean;
 
   constructor(
     v3: V3,
@@ -138,6 +155,7 @@ export class V3AgentHandler {
     mode?: AgentToolMode,
     captchaAutoSolveEnabled?: boolean,
     thinkingEffort?: string,
+    logInferenceToFile?: boolean,
   ) {
     this.v3 = v3;
     this.logger = logger;
@@ -148,6 +166,7 @@ export class V3AgentHandler {
     this.mode = mode ?? "dom";
     this.captchaAutoSolveEnabled = captchaAutoSolveEnabled ?? false;
     this.thinkingEffort = thinkingEffort;
+    this.logInferenceToFile = logInferenceToFile ?? false;
   }
 
   private async prepareAgent(
@@ -243,6 +262,7 @@ export class V3AgentHandler {
   private createPrepareStep(
     userCallback?: PrepareStepFunction<ToolSet>,
     captchaSolver?: CaptchaSolver,
+    stepInference?: AgentStepInferenceState,
   ): PrepareStepFunction<ToolSet> {
     return async (options) => {
       processMessages(options.messages);
@@ -282,16 +302,41 @@ export class V3AgentHandler {
           });
         }
       }
-      if (userCallback) {
-        return userCallback(options);
+
+      const resolved = userCallback ? await userCallback(options) : options;
+
+      const messagesForLog =
+        "messages" in resolved && resolved.messages
+          ? resolved.messages
+          : options.messages;
+      const stepNumberForLog =
+        "stepNumber" in resolved ? resolved.stepNumber : options.stepNumber;
+
+      if (this.logInferenceToFile && stepInference) {
+        stepInference.stepIndex += 1;
+        const call = logAgentStepCall({
+          stepIndex: stepInference.stepIndex,
+          payload: {
+            systemPrompt: stepInference.systemPrompt,
+            messages: messagesForLog,
+            stepNumber: stepNumberForLog,
+            tools: stepInference.toolNames,
+            providerOptions: stepInference.providerOptions,
+          },
+        });
+        if (call) {
+          stepInference.pendingCalls.set(stepInference.stepIndex, call);
+        }
       }
-      return options;
+
+      return resolved;
     };
   }
 
   private createStepHandler(
     state: AgentState,
     { userCallback, evidenceCallback, onFinalAnswer }: StepHandlerOptions,
+    stepInference?: AgentStepInferenceState,
   ) {
     return async (event: StepResult<ToolSet>) => {
       this.logger({
@@ -377,6 +422,29 @@ export class V3AgentHandler {
         onFinalAnswer?.(lastFinalAnswer);
       }
 
+      if (this.logInferenceToFile && stepInference) {
+        const stepIndex = stepInference.stepIndex;
+        const pending = stepInference.pendingCalls.get(stepIndex);
+        if (pending) {
+          completeAgentStepInference({
+            stepIndex,
+            call: pending,
+            responsePayload: {
+              finishReason: event.finishReason,
+              text: event.text,
+              toolCalls: event.toolCalls,
+              toolResults: event.toolResults,
+              usage: event.usage,
+            },
+            usage: mapAiSdkStepUsage(
+              event.usage,
+              Math.max(0, Date.now() - pending.startedAtMs),
+            ),
+          });
+          stepInference.pendingCalls.delete(stepIndex);
+        }
+      }
+
       if (userCallback) {
         await userCallback(event);
       }
@@ -406,6 +474,7 @@ export class V3AgentHandler {
 
     let messages: ModelMessage[] = [];
     let captchaSolver: CaptchaSolver | undefined;
+    let stepInference: AgentStepInferenceState | undefined;
 
     try {
       const {
@@ -455,6 +524,28 @@ export class V3AgentHandler {
         this.logger,
       );
 
+      const stepInferenceState: AgentStepInferenceState = {
+        stepIndex: 0,
+        pendingCalls: new Map(),
+        systemPrompt,
+        toolNames: Object.keys(allTools),
+        providerOptions: buildAgentProviderOptions(
+          wrappedModel.modelId,
+          this.thinkingEffort,
+        ),
+      };
+      stepInference = stepInferenceState;
+
+      if (this.logInferenceToFile) {
+        logAgentRunStart({
+          instruction: preparedOptions.instruction,
+          mode: this.mode,
+          modelId: wrappedModel.modelId,
+          tools: Object.keys(allTools),
+          agentType: "dom",
+        });
+      }
+
       const result = await this.llmClient.generateText({
         model: wrappedModel,
         messages: prependSystemMessage(systemPrompt, messages),
@@ -465,14 +556,19 @@ export class V3AgentHandler {
         prepareStep: this.createPrepareStep(
           callbacks?.prepareStep,
           captchaSolver,
+          stepInferenceState,
         ),
-        onStepFinish: this.createStepHandler(state, {
-          userCallback: callbacks?.onStepFinish,
-          evidenceCallback,
-          onFinalAnswer: (answer) => {
-            finalAnswerFromDoneTool = answer;
+        onStepFinish: this.createStepHandler(
+          state,
+          {
+            userCallback: callbacks?.onStepFinish,
+            evidenceCallback,
+            onFinalAnswer: (answer) => {
+              finalAnswerFromDoneTool = answer;
+            },
           },
-        }),
+          stepInferenceState,
+        ),
         abortSignal: preparedOptions.signal,
         providerOptions: buildAgentProviderOptions(
           wrappedModel.modelId,
@@ -508,6 +604,13 @@ export class V3AgentHandler {
         output,
       );
     } catch (error) {
+      if (this.logInferenceToFile && stepInference) {
+        finalizePendingAgentSteps(
+          stepInference.pendingCalls,
+          getErrorMessage(error),
+        );
+      }
+
       // Re-throw validation errors that should propagate to the caller
       if (
         error instanceof StreamingCallbacksInNonStreamingModeError ||
@@ -598,6 +701,9 @@ export class V3AgentHandler {
     const handleError = (error: unknown) => {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
+      if (this.logInferenceToFile) {
+        finalizePendingAgentSteps(stepInference.pendingCalls, errorMessage);
+      }
       this.logger({
         category: "agent",
         message: `Error during streaming: ${errorMessage}`,
@@ -611,6 +717,27 @@ export class V3AgentHandler {
       this.logger,
     );
 
+    const stepInference: AgentStepInferenceState = {
+      stepIndex: 0,
+      pendingCalls: new Map(),
+      systemPrompt,
+      toolNames: Object.keys(allTools),
+      providerOptions: buildAgentProviderOptions(
+        wrappedModel.modelId,
+        this.thinkingEffort,
+      ),
+    };
+
+    if (this.logInferenceToFile) {
+      logAgentRunStart({
+        instruction: options.instruction,
+        mode: this.mode,
+        modelId: wrappedModel.modelId,
+        tools: Object.keys(allTools),
+        agentType: "dom",
+      });
+    }
+
     let streamResult: ReturnType<typeof this.llmClient.streamText>;
     try {
       streamResult = this.llmClient.streamText({
@@ -622,14 +749,19 @@ export class V3AgentHandler {
         prepareStep: this.createPrepareStep(
           callbacks?.prepareStep,
           captchaSolver,
+          stepInference,
         ),
-        onStepFinish: this.createStepHandler(state, {
-          userCallback: callbacks?.onStepFinish,
-          evidenceCallback,
-          onFinalAnswer: (answer) => {
-            finalAnswerFromDoneTool = answer;
+        onStepFinish: this.createStepHandler(
+          state,
+          {
+            userCallback: callbacks?.onStepFinish,
+            evidenceCallback,
+            onFinalAnswer: (answer) => {
+              finalAnswerFromDoneTool = answer;
+            },
           },
-        }),
+          stepInference,
+        ),
         onError: (event) => {
           captchaSolver?.dispose();
           if (callbacks?.onError) {
@@ -684,10 +816,12 @@ export class V3AgentHandler {
           if (callbacks?.onAbort) {
             callbacks.onAbort(event);
           }
-          // Reject the result promise with AgentAbortError when stream is aborted
           const reason = options.signal?.reason
             ? String(options.signal.reason)
             : "Stream was aborted";
+          if (this.logInferenceToFile) {
+            finalizePendingAgentSteps(stepInference.pendingCalls, reason);
+          }
           rejectResult(new AgentAbortError(reason));
         },
         abortSignal: options.signal,
@@ -838,7 +972,8 @@ export class V3AgentHandler {
         inputMessages: messages,
         instruction,
         outputSchema,
-        logger,
+        logger: logger ?? this.logger,
+        logInferenceToFile: this.logInferenceToFile,
       });
     } catch (error) {
       // The forced "done" call only summarizes the run, so its failure must not

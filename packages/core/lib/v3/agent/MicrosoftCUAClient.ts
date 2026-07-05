@@ -17,6 +17,10 @@ import {
   extractLlmCuaResponseSummary,
 } from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
+import {
+  logAgentRunStart,
+  runCuaStepWithInferenceLogging,
+} from "./utils/agentInferenceLogger.js";
 
 /**
  * Message types for FARA agent
@@ -870,9 +874,18 @@ For each function call, return a json object with function name and arguments wi
    * @implements AgentClient.execute
    */
   async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
-    const { options, logger } = executionOptions;
+    const { options, logger, logInferenceToFile = false } = executionOptions;
     const { instruction } = options;
     const maxSteps = options.maxSteps || 10;
+
+    if (logInferenceToFile) {
+      logAgentRunStart({
+        instruction,
+        modelId: this.modelName,
+        tools: ["computer_use"],
+        agentType: "cua",
+      });
+    }
 
     let currentStep = 0;
     let completed = false;
@@ -904,8 +917,27 @@ For each function call, return a json object with function name and arguments wi
           level: 1,
         });
 
+        const stepIndex = currentStep + 1;
         const isFirstRound = currentStep === 0;
-        const result = await this.executeStep(logger, isFirstRound);
+        const result = await runCuaStepWithInferenceLogging({
+          logInferenceToFile,
+          stepIndex,
+          modelId: this.modelName,
+          callPayload: {
+            conversationHistory: this.conversationHistory,
+            isFirstRound,
+          },
+          executeStep: () => this.executeStep(logger, isFirstRound),
+          mapResponse: (stepResult) => {
+            const lastAction =
+              stepResult.actions[stepResult.actions.length - 1];
+            return {
+              actions: stepResult.actions,
+              message: (lastAction as { reasoning?: string })?.reasoning ?? "",
+              completed: stepResult.completed,
+            };
+          },
+        });
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
         totalInferenceTime += result.usage.inference_time_ms;

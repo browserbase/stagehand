@@ -427,7 +427,18 @@ Creates timestamped files for each LLM call:
 └── observe_summary/
     ├── observe_summary.json
     └── ...
+├── agent_summary/
+    ├── agent_summary.json
+    ├── 20250127_123600_agent_run_start.txt
+    ├── 20250127_123601_agent_step_1_call.txt
+    ├── 20250127_123601_agent_step_1_response.txt
+    ├── 20250127_123605_agent_done_call.txt
+    └── 20250127_123605_agent_done_response.txt
 ```
+
+`agent()` writes per-step files for DOM/hybrid and CUA agents. Screenshot payloads in agent logs are sanitized (replaced with size markers) to keep files manageable. When agent tools invoke `act()` or `extract()` internally, those calls may also produce files under `act_summary/` or `extract_summary/`.
+
+**Note:** Local file logging applies to in-process agent runs. Remote API agent execution (`env: "BROWSERBASE"` without `experimental: true`) runs inference server-side and does not create local `inference_summary` files.
 
 **File Types:**
 
@@ -490,6 +501,90 @@ Aggregates all calls with metrics:
       "prompt_tokens": 2890,
       "completion_tokens": 38,
       "inference_time_ms": 823
+    }
+  ]
+}
+```
+</Accordion>
+
+<Accordion title="Agent Step Call File (DOM/hybrid)">
+Per-step LLM request after captcha injection and any `prepareStep` callback:
+
+```json
+{
+  "modelCall": "agent",
+  "step": 1,
+  "systemPrompt": "You are a web automation assistant...",
+  "messages": [{ "role": "user", "content": "Click sign in" }],
+  "stepNumber": 1,
+  "tools": ["act", "extract", "done"],
+  "providerOptions": { "openai": { "store": false } }
+}
+```
+</Accordion>
+
+<Accordion title="Agent CUA Step Call File">
+Per-step CUA provider request (screenshots sanitized):
+
+```json
+{
+  "modelCall": "agent",
+  "step": 1,
+  "modelId": "openai/computer-use-preview",
+  "request": {
+    "inputItems": [{ "type": "input_image", "image_url": "[image omitted, 42.0kb]" }]
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Agent Done Call File">
+Forced final `done` tool call when the agent loop ends without calling `done`:
+
+```json
+{
+  "modelCall": "agent_done",
+  "system": "You are a web automation assistant that was tasked with completing a task...",
+  "messages": [{ "role": "user", "content": "Provide your final assessment." }],
+  "toolChoice": "done"
+}
+```
+</Accordion>
+
+<Accordion title="Agent Summary File">
+Aggregates agent steps with metrics. Failed or aborted steps include `status: "failed"` and an `error` field:
+
+```json
+{
+  "agent_summary": [
+    {
+      "agent_inference_type": "agent_step",
+      "step": 1,
+      "timestamp": "20250127_123601",
+      "LLM_input_file": "20250127_123601_agent_step_1_call.txt",
+      "LLM_output_file": "20250127_123601_agent_step_1_response.txt",
+      "status": "completed",
+      "prompt_tokens": 1200,
+      "completion_tokens": 80,
+      "reasoning_tokens": 0,
+      "cached_input_tokens": 0,
+      "inference_time_ms": 2100
+    },
+    {
+      "agent_inference_type": "agent_cua_step",
+      "step": 2,
+      "status": "failed",
+      "error": "Provider rate limit exceeded"
+    },
+    {
+      "agent_inference_type": "agent_done",
+      "timestamp": "20250127_123605",
+      "LLM_input_file": "20250127_123605_agent_done_call.txt",
+      "LLM_output_file": "20250127_123605_agent_done_response.txt",
+      "status": "completed",
+      "prompt_tokens": 800,
+      "completion_tokens": 40,
+      "inference_time_ms": 950
     }
   ]
 }

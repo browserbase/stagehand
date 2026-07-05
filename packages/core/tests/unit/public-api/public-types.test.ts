@@ -306,6 +306,7 @@ describe("Stagehand public API types", () => {
       options: T;
       logger: (message: Stagehand.LogLine) => void;
       retries?: number;
+      logInferenceToFile?: boolean;
     };
 
     it("matches expected type shape", () => {
