@@ -5,7 +5,9 @@ import {
   writeTrajectoryDir,
 } from "@browserbasehq/stagehand";
 import {
+  reserveTrajectoryDir,
   resolveTrajectoryDir,
+  resolveTrajectoryRoot,
   writeTrajectoryMetadata,
 } from "../trajectoryGroup.js";
 import type {
@@ -52,18 +54,33 @@ export async function persistAdapterTrajectory(
   opts: PersistAdapterTrajectoryOptions,
 ): Promise<PersistAdapterTrajectoryResult> {
   const runId = opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
-  const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
-  const directory = resolveTrajectoryDir(root, opts.taskSpec.id, runId);
+  // Same env-aware resolution as TrajectoryRecorder, so EVAL_TRAJECTORY_ROOT
+  // cannot split recorder- and adapter-persisted trajectories across roots.
+  const root = opts.outputRoot ?? resolveTrajectoryRoot();
   const persisted = shouldPersistTrajectory(opts.persist);
 
   if (!persisted) {
-    return { directory, persisted: false };
+    // Report the would-be path without reserving (nothing is written).
+    return {
+      directory: resolveTrajectoryDir(root, opts.taskSpec.id, runId),
+      persisted: false,
+    };
   }
+
+  // Reserve atomically so a re-run or a concurrent same-timestamp run lands
+  // beside the previous trajectory rather than overwriting it.
+  const { directory, attempt } = await reserveTrajectoryDir(
+    root,
+    opts.taskSpec.id,
+    runId,
+  );
 
   await writeTrajectoryDir(directory, opts.trajectory);
   await writeTrajectoryMetadata(directory, {
     task: opts.taskSpec.id,
     runId,
+    runDir: path.basename(directory),
+    attempt,
     status: opts.trajectory.status,
   });
 

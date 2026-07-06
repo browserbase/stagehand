@@ -69,8 +69,48 @@ export function resolveTrajectoryDir(
   root: string,
   taskId: string,
   runId: string,
+  group: string = resolveTrajectoryGroup(),
 ): string {
-  return path.join(root, resolveTrajectoryGroup(), taskId, runId);
+  return path.join(root, group, taskId, runId);
+}
+
+/**
+ * Atomically reserve a trajectory dir, never overwriting a previous run.
+ *
+ * Starts from `<root>/<group>/<task.id>/<runId>` and creates the leaf with a
+ * NON-recursive mkdir, which fails with EEXIST if the dir already exists. On
+ * collision it retries with `<runId>-2`, `<runId>-3`, … until it wins one,
+ * returning the reserved dir and its attempt number (1 for the un-suffixed
+ * dir). The atomic create is the concurrency-safe part: two trials of the same
+ * task that compute the same timestamp `runId` can't both win the same dir, so
+ * neither silently clobbers the other — and a re-run reusing a fixed `runId`
+ * lands beside the previous run instead of on top of it.
+ */
+export async function reserveTrajectoryDir(
+  root: string,
+  taskId: string,
+  runId: string,
+  group?: string,
+): Promise<{ directory: string; attempt: number }> {
+  const base = resolveTrajectoryDir(root, taskId, runId, group);
+  // The leaf is created non-recursively below, so its parent must exist first.
+  await fs.mkdir(path.dirname(base), { recursive: true });
+  // Bounded to avoid spinning forever on a pathological filesystem; far higher
+  // than any real trial count for a single (group, task).
+  const MAX_ATTEMPTS = 10_000;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const candidate = attempt === 1 ? base : `${base}-${attempt}`;
+    try {
+      await fs.mkdir(candidate);
+      return { directory: candidate, attempt };
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      // Dir is taken by a previous/concurrent run — try the next suffix.
+    }
+  }
+  throw new Error(
+    `reserveTrajectoryDir: exhausted ${MAX_ATTEMPTS} attempts for ${base}`,
+  );
 }
 
 /**

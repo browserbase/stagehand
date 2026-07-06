@@ -1,7 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  reserveTrajectoryDir,
   resolveTrajectoryDir,
+  resolveTrajectoryGroup,
+  resolveTrajectoryRoot,
   writeTrajectoryMetadata,
 } from "./trajectoryGroup.js";
 import {
@@ -59,7 +62,17 @@ const ZERO_USAGE: TrajectoryUsage = {
 export class TrajectoryRecorder {
   private readonly taskSpec: TaskSpec;
   private readonly runId: string;
-  private readonly outputDir: string;
+  private readonly outputRoot: string;
+  // Captured at construction: the runner restamps EVAL_TRAJECTORY_GROUP per
+  // experiment, so a recorder must write under the group it was created for
+  // even if it finishes after the env moves on.
+  private readonly group: string;
+  // The on-disk reservation, made once (idempotently) by ensureReserved().
+  private reserved?: { directory: string; attempt: number };
+  // Reassigned by ensureReserved(): the constructor computes the un-reserved
+  // path for the `directory` getter; the reservation replaces it with the dir
+  // actually created on disk (which may carry a -2/-3 collision suffix).
+  private outputDir: string;
   private readonly persistEnabled: boolean;
 
   // Steps are appended in arrival order on each step_finished event.
@@ -147,8 +160,18 @@ export class TrajectoryRecorder {
   constructor(opts: TrajectoryRecorderOptions) {
     this.taskSpec = opts.taskSpec;
     this.runId = opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
-    const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
-    this.outputDir = resolveTrajectoryDir(root, opts.taskSpec.id, this.runId);
+    // Same resolution as the entrypoint's experiment-link write, so the
+    // EVAL_TRAJECTORY_ROOT override can't split them across two roots.
+    this.outputRoot = opts.outputRoot ?? resolveTrajectoryRoot();
+    this.group = resolveTrajectoryGroup();
+    // Best-effort path for the `directory` getter before anything persists;
+    // ensureReserved() replaces it with the dir actually created on disk.
+    this.outputDir = resolveTrajectoryDir(
+      this.outputRoot,
+      opts.taskSpec.id,
+      this.runId,
+      this.group,
+    );
     this.persistEnabled = shouldPersistTrajectory(opts.persist);
   }
 
@@ -187,10 +210,13 @@ export class TrajectoryRecorder {
     };
 
     if (this.persistEnabled) {
-      await writeTrajectoryDir(this.outputDir, trajectory);
-      await writeTrajectoryMetadata(this.outputDir, {
+      const { directory, attempt } = await this.ensureReserved();
+      await writeTrajectoryDir(directory, trajectory);
+      await writeTrajectoryMetadata(directory, {
         task: this.taskSpec.id,
         runId: this.runId,
+        runDir: path.basename(directory),
+        attempt,
         status: opts.status,
       });
     }
@@ -222,13 +248,38 @@ export class TrajectoryRecorder {
    * Persist evaluator result next to the trajectory. No-op when trajectory
    * persistence is disabled.
    */
+  /**
+   * Reserve this recorder's on-disk directory exactly once. Reservation
+   * happens at first persistence (not construction) so collision resolution
+   * sees dirs concurrent recorders have actually created; the cached result
+   * keeps finish() idempotent and makes finish()/persistResult() order-free.
+   */
+  private async ensureReserved(): Promise<{
+    directory: string;
+    attempt: number;
+  }> {
+    if (!this.reserved) {
+      this.reserved = await reserveTrajectoryDir(
+        this.outputRoot,
+        this.taskSpec.id,
+        this.runId,
+        this.group,
+      );
+      this.outputDir = this.reserved.directory;
+    }
+    return this.reserved;
+  }
+
   async persistResult(
     result: EvaluationResult,
     filename = "result.json",
   ): Promise<void> {
     if (!this.persistEnabled) return;
 
-    const scoresDir = path.join(this.outputDir, "scores");
+    // Route through the shared reservation so scores land in the same dir as
+    // the trajectory regardless of finish()/persistResult() call order.
+    const { directory } = await this.ensureReserved();
+    const scoresDir = path.join(directory, "scores");
     await fs.mkdir(scoresDir, { recursive: true });
     await fs.writeFile(
       path.join(scoresDir, filename),

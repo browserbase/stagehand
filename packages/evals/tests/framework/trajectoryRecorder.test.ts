@@ -247,5 +247,125 @@ describe("TrajectoryRecorder", () => {
       outcomeSuccess: true,
       explanation: "The task was completed.",
     });
+
+    const metadata = JSON.parse(
+      await fs.readFile(path.join(taskDir, "metadata.json"), "utf8"),
+    );
+    expect(metadata.attempt).toBe(1);
+  });
+
+  it("does not overwrite a previous run that reused the same runId", async () => {
+    const outputRoot = await makeTempDir();
+    process.env.EVAL_TRAJECTORY_GROUP = "test-group";
+
+    const persistOne = async (marker: string) => {
+      const recorder = new TrajectoryRecorder({
+        taskSpec: makeTaskSpec(),
+        outputRoot,
+        runId: "run-1",
+        persist: true,
+      });
+      recordSimpleStep(recorder, Buffer.from(marker));
+      await recorder.finish({ status: "complete" });
+      return recorder.directory;
+    };
+
+    const firstDir = await persistOne("first");
+    const secondDir = await persistOne("second");
+
+    // The collision is resolved by suffixing, so neither run is clobbered.
+    expect(firstDir).not.toBe(secondDir);
+    expect(path.basename(firstDir)).toBe("run-1");
+    expect(path.basename(secondDir)).toBe("run-1-2");
+
+    const taskDir = path.join(outputRoot, "test-group", "recorder-task");
+    const runDirs = (await fs.readdir(taskDir)).sort();
+    expect(runDirs).toEqual(["run-1", "run-1-2"]);
+
+    // Each run kept its own screenshot bytes.
+    await expect(
+      fs.readFile(path.join(firstDir, "screenshots", "agent", "1.png")),
+    ).resolves.toEqual(Buffer.from("first"));
+    await expect(
+      fs.readFile(path.join(secondDir, "screenshots", "agent", "1.png")),
+    ).resolves.toEqual(Buffer.from("second"));
+
+    const secondMeta = JSON.parse(
+      await fs.readFile(path.join(secondDir, "metadata.json"), "utf8"),
+    );
+    expect(secondMeta.attempt).toBe(2);
+    expect(secondMeta.runDir).toBe("run-1-2");
+  });
+
+  it("finish() is idempotent: a second call reuses the same reservation", async () => {
+    const outputRoot = await makeTempDir();
+    process.env.EVAL_TRAJECTORY_GROUP = "test-group";
+    const recorder = new TrajectoryRecorder({
+      taskSpec: makeTaskSpec(),
+      outputRoot,
+      runId: "run-1",
+      persist: true,
+    });
+    recordSimpleStep(recorder, Buffer.from("only"));
+
+    await recorder.finish({ status: "complete" });
+    const firstDir = recorder.directory;
+    await recorder.finish({ status: "complete" });
+
+    expect(recorder.directory).toBe(firstDir);
+    const taskDir = path.join(outputRoot, "test-group", "recorder-task");
+    await expect(fs.readdir(taskDir)).resolves.toEqual(["run-1"]);
+  });
+
+  it("two concurrent recorders with the same runId reserve distinct dirs", async () => {
+    const outputRoot = await makeTempDir();
+    process.env.EVAL_TRAJECTORY_GROUP = "test-group";
+    const make = () => {
+      const recorder = new TrajectoryRecorder({
+        taskSpec: makeTaskSpec(),
+        outputRoot,
+        runId: "run-1",
+        persist: true,
+      });
+      recordSimpleStep(recorder, Buffer.from("shot"));
+      return recorder;
+    };
+    const [a, b] = [make(), make()];
+
+    await Promise.all([
+      a.finish({ status: "complete" }),
+      b.finish({ status: "complete" }),
+    ]);
+
+    expect(a.directory).not.toBe(b.directory);
+    const taskDir = path.join(outputRoot, "test-group", "recorder-task");
+    await expect(fs.readdir(taskDir).then((d) => d.sort())).resolves.toEqual([
+      "run-1",
+      "run-1-2",
+    ]);
+  });
+
+  it("writes under the group captured at construction, not the current env", async () => {
+    const outputRoot = await makeTempDir();
+    process.env.EVAL_TRAJECTORY_GROUP = "experiment-a";
+    const recorder = new TrajectoryRecorder({
+      taskSpec: makeTaskSpec(),
+      outputRoot,
+      runId: "run-1",
+      persist: true,
+    });
+    recordSimpleStep(recorder, Buffer.from("shot"));
+
+    // The runner restamps the group between experiments; a recorder that
+    // finishes late must still write under the group it was created for.
+    process.env.EVAL_TRAJECTORY_GROUP = "experiment-b";
+    await recorder.finish({ status: "complete" });
+
+    expect(recorder.directory).toContain(
+      path.join("experiment-a", "recorder-task"),
+    );
+    await expect(
+      fs.readdir(path.join(outputRoot, "experiment-a", "recorder-task")),
+    ).resolves.toEqual(["run-1"]);
   });
 });
