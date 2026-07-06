@@ -169,6 +169,12 @@ type ModelPricing = {
 };
 
 const MODEL_PRICING_USD_PER_1M_TOKENS = new Map<string, ModelPricing>([
+  // Standard (non-introductory) Sonnet 5 pricing. NOTE: introductory pricing
+  // ($2 / $0.20 cached / $10 per 1M) applies through 2026-08-31, so costs
+  // published before then are overstated ~1.5x; standard rates are used
+  // deliberately to keep the dashboard stable across the cutover.
+  ["anthropic/claude-sonnet-5", { input: 3, cachedInput: 0.3, output: 15 }],
+  ["claude-sonnet-5", { input: 3, cachedInput: 0.3, output: 15 }],
   ["anthropic/claude-opus-4-7", { input: 5, cachedInput: 0.5, output: 25 }],
   ["claude-opus-4-7", { input: 5, cachedInput: 0.5, output: 25 }],
   ["anthropic/claude-opus-4-6", { input: 5, cachedInput: 0.5, output: 25 }],
