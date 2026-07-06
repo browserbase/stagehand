@@ -60,7 +60,14 @@ export async function a11yForFrame(
       const be = desc.node?.backendNodeId;
       if (typeof be !== "number") return nodes;
       const target = nodes.find((n) => n.backendDOMNodeId === be);
-      if (!target) return nodes;
+      if (!target) {
+        scopeApplied = true;
+        scopedRootBackendNodeId = be;
+        if (isEncodedFileInput(opts.encode(be), opts)) {
+          return [];
+        }
+        return nodes;
+      }
       scopeApplied = true;
       scopedRootBackendNodeId = be;
       const keep = new Set<string>([target.nodeId]);

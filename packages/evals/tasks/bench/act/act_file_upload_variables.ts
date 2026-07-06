@@ -91,8 +91,11 @@ export default defineBenchTask(
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
-      await fs.unlink(fixturePath).catch(() => {});
+      try {
+        await v3.close();
+      } finally {
+        await fs.unlink(fixturePath).catch(() => {});
+      }
     }
   },
 );

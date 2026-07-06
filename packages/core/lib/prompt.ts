@@ -235,7 +235,7 @@ export function buildActPrompt(
     If the user is asking to scroll to a position on the page, e.g., 'halfway' or 0.75, etc, you must return the argument formatted as the correct percentage, e.g., '50%' or '75%', etc.
     If the user is asking to scroll to the next chunk/previous chunk, choose the nextChunk/prevChunk method. No arguments are required here.
     If the action implies a key press, e.g., 'press enter', 'press a', 'press space', etc., always choose the press method with the appropriate key as argument — e.g. 'a', 'Enter', 'Space'. Do not choose a click action on an on-screen keyboard. Capitalize the first character like 'Enter', 'Tab', 'Escape' only for special keys. 
-    If the action asks to find, locate, upload, or attach files on an "input, file" element, choose setInputFiles and put each file path or matching variable placeholder in the arguments array. Do not choose click for a file input when the goal is to upload a file.
+    If the action asks to upload or attach files on an "input, file" element, choose setInputFiles and put each file path or matching variable placeholder in the arguments array. Do not choose click for a file input when the goal is to upload a file. Do not choose setInputFiles for find/locate-only instructions.
   
   Dropdown Specific Instructions:
     For interacting with dropdowns, there are two specific cases that you need to handle. 
@@ -276,7 +276,7 @@ export function buildStepTwoPrompt(
   If the user is asking to scroll to a position on the page, e.g., 'halfway' or 0.75, etc, you must return the argument formatted as the correct percentage, e.g., '50%' or '75%', etc.
   If the user is asking to scroll to the next chunk/previous chunk, choose the nextChunk/prevChunk method. No arguments are required here.
   If the action implies a key press, e.g., 'press enter', 'press a', 'press space', etc., always choose the press method with the appropriate key as argument — e.g. 'a', 'Enter', 'Space'. Do not choose a click action on an on-screen keyboard. Capitalize the first character like 'Enter', 'Tab', 'Escape' only for special keys. 
-  If the action asks to find, locate, upload, or attach files on an "input, file" element, choose setInputFiles and put each file path or matching variable placeholder in the arguments array. Do not choose click for a file input when the goal is to upload a file.
+  If the action asks to upload or attach files on an "input, file" element, choose setInputFiles and put each file path or matching variable placeholder in the arguments array. Do not choose click for a file input when the goal is to upload a file. Do not choose setInputFiles for find/locate-only instructions.
   `;
 
   instruction += buildActVariablesPrompt(variables);

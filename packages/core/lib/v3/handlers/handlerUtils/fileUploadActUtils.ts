@@ -8,12 +8,15 @@ import {
   substituteVariables,
 } from "../../agent/utils/variables.js";
 
-const FILE_UPLOAD_VERB_RE = /\b(?:upload|attach)\b/i;
+const FILE_UPLOAD_VERB_RE = /\b(?:upload|attach|select|choose|pick)\b/i;
 const FILE_INPUT_TARGET_RE = /\b(?:field|input|picker|dropzone|drop zone)\b/i;
 const VARIABLE_TOKEN_RE = /%([\w.]+)%/g;
 const UNRESOLVED_VARIABLE_RE = /%[^%]+%/;
 const RELATIVE_PATH_WITH_EXTENSION_RE =
-  /(?:^|[/\\])[^/\\]+\.[a-zA-Z0-9]{1,10}$/;
+  /(?:^|[/\\])[^/\\@]+\.[a-z][a-z0-9]{1,9}$/i;
+const BARE_FILENAME_WITH_EXTENSION_RE = /^[^/\\@]+\.[a-z][a-z0-9]{1,9}$/i;
+const COMMON_FILE_EXTENSION_RE =
+  /\.(?:pdf|docx?|xlsx?|pptx?|txt|csv|json|xml|html?|png|jpe?g|gif|webp|svg|zip|tar|gz|mp[34]|wav|mov|avi|heic|pages|key|numbers)$/i;
 
 function fileUploadActDisambiguationError(
   candidateCount: number,
@@ -86,9 +89,19 @@ export function looksLikeFilePath(
   const trimmed = value.trim();
   if (!trimmed) return false;
   if (/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)) return false;
+  if (trimmed.includes("@")) return false;
   if (path.isAbsolute(trimmed)) return true;
-  if (RELATIVE_PATH_WITH_EXTENSION_RE.test(trimmed)) return true;
-  return isExistingLocalFile(trimmed, opts.baseDir);
+  if (isExistingLocalFile(trimmed, opts.baseDir)) return true;
+  if (/[/\\]/.test(trimmed) && RELATIVE_PATH_WITH_EXTENSION_RE.test(trimmed)) {
+    return true;
+  }
+  if (
+    BARE_FILENAME_WITH_EXTENSION_RE.test(trimmed) &&
+    COMMON_FILE_EXTENSION_RE.test(trimmed)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function isExistingLocalFile(value: string, baseDir = process.cwd()): boolean {

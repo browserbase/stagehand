@@ -30,6 +30,19 @@ describe("shouldResolveFileUploadLocally", () => {
     ).toBe(true);
   });
 
+  it("detects select/choose phrasing with file variables", () => {
+    expect(
+      shouldResolveFileUploadLocally("select %resume% in the resume field", {
+        resume: "/tmp/resume.pdf",
+      }),
+    ).toBe(true);
+    expect(
+      shouldResolveFileUploadLocally("choose %resume% for the resume field", {
+        resume: "/tmp/resume.pdf",
+      }),
+    ).toBe(true);
+  });
+
   it("detects upload instructions when variables are named in the instruction", () => {
     expect(
       shouldResolveFileUploadLocally("upload resume to the resume field", {
@@ -304,6 +317,9 @@ describe("file upload helpers", () => {
     expect(looksLikeFilePath("https://example.com/resume.pdf")).toBe(false);
     expect(looksLikeFilePath("2024/01/15")).toBe(false);
     expect(looksLikeFilePath("secret123")).toBe(false);
+    expect(looksLikeFilePath("user@example.com")).toBe(false);
+    expect(looksLikeFilePath("example.com")).toBe(false);
+    expect(looksLikeFilePath("v1.2.3")).toBe(false);
   });
 
   it("recognizes extensionless relative paths that exist on disk", () => {

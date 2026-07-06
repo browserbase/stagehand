@@ -128,6 +128,39 @@ describe("a11yForFrame", () => {
     resolveSpy.mockRestore();
   });
 
+  it("scopes omitted file inputs to the resolved focus selector target", async () => {
+    const session = new MockCDPSession({
+      ...baseHandlers,
+      "Accessibility.getFullAXTree": async () => ({ nodes: baseAxNodes() }),
+      "DOM.describeNode": async () => ({
+        node: { backendNodeId: 42 },
+      }),
+    });
+
+    const resolveSpy = vi
+      .spyOn(focusSelectors, "resolveObjectIdForCss")
+      .mockResolvedValue("object-42");
+
+    const opts: A11yOptions = {
+      focusSelector: "#resumeUpload",
+      experimental: false,
+      tagNameMap: { "enc-42": "input, file", "enc-101": "a" },
+      xpathMap: {
+        "enc-42": "/html[1]/body[1]/input[1]",
+        "enc-101": "/html[1]/body[1]/a[1]",
+      },
+      scrollableMap: {},
+      encode: (backend) => `enc-${backend}`,
+    };
+
+    const result = await a11yForFrame(session, "frame-1", opts);
+
+    expect(result.scopeApplied).toBe(true);
+    expect(result.outline).toContain("input, file");
+    expect(result.outline).not.toContain("Docs");
+    resolveSpy.mockRestore();
+  });
+
   it("falls back to full tree when resolveObjectId throws", async () => {
     const session = new MockCDPSession({
       ...baseHandlers,

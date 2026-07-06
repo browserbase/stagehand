@@ -1272,6 +1272,7 @@ describe("No-timeout success paths", () => {
       ["/tmp/resume.pdf"],
       5_000,
     );
+    expect(result.success).toBe(true);
     expect(result.actions[0]?.arguments).toEqual(["%resume%"]);
   });
 
@@ -1287,7 +1288,7 @@ describe("No-timeout success paths", () => {
       mainFrame: vi.fn().mockReturnValue({}),
     } as unknown as Page;
 
-    await handler.takeDeterministicAction(
+    const result = await handler.takeDeterministicAction(
       {
         selector: "xpath=/html/body/input",
         description: "resume file input",
@@ -1301,6 +1302,7 @@ describe("No-timeout success paths", () => {
       { resume: "/tmp/resume.pdf" },
     );
 
+    expect(result.success).toBe(true);
     expect(performUnderstudyMethodMock).toHaveBeenCalledWith(
       fakePage,
       expect.anything(),
@@ -1323,7 +1325,7 @@ describe("No-timeout success paths", () => {
       mainFrame: vi.fn().mockReturnValue({}),
     } as unknown as Page;
 
-    await handler.takeDeterministicAction(
+    const result = await handler.takeDeterministicAction(
       {
         selector: "xpath=/html/body/input",
         description: "file upload input",
@@ -1337,6 +1339,7 @@ describe("No-timeout success paths", () => {
       { resume: "/tmp/resume.pdf" },
     );
 
+    expect(result.success).toBe(true);
     expect(performUnderstudyMethodMock).toHaveBeenCalledWith(
       fakePage,
       expect.anything(),
