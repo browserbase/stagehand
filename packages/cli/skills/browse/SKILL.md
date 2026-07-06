@@ -99,6 +99,10 @@ Prefer `browse snapshot` over screenshots for most browser work. It is structure
 
 Refs are refreshed on every snapshot. After clicks, form submits, navigation, or UI re-renders, take a new snapshot before using another ref.
 
+### Navigation httpStatus
+
+`browse open` (and `reload`/`back`/`forward`) reports the top-level document's `httpStatus` when the navigation returned one. Use it to tell a real `200` page apart from a loaded `4xx`/`5xx` error page — a page that renders but is a dead URL or a blocked response. A normal `200` page is unchanged, and a navigation with no captured response omits the field.
+
 ## Parallel Browser Work
 
 Use a different `--session` value for each independent browser task. Sessions isolate tabs, cookies, refs, and daemon state; parallel tasks that omit `--session` share the `default` session and overwrite each other's active page.
