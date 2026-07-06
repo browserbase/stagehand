@@ -458,6 +458,7 @@ export class V3AgentHandler {
       const result = await this.llmClient.generateText({
         model: wrappedModel,
         messages: prependSystemMessage(systemPrompt, messages),
+        allowSystemInMessages: true,
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
         toolChoice: "auto",
@@ -616,6 +617,7 @@ export class V3AgentHandler {
       streamResult = this.llmClient.streamText({
         model: wrappedModel,
         messages: prependSystemMessage(systemPrompt, messages),
+        allowSystemInMessages: true,
         tools: allTools,
         stopWhen: (result) => this.handleStop(result, maxSteps),
         toolChoice: "auto",

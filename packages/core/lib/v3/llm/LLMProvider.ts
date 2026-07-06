@@ -1,4 +1,7 @@
-import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
+import type {
+  LanguageModelV2,
+  LanguageModelV2Middleware,
+} from "@ai-sdk/provider";
 import {
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
@@ -156,7 +159,7 @@ export function getAISDKLanguageModel(
   subModelName: string,
   clientOptions?: ClientOptions,
   middleware?: LanguageModelV2Middleware,
-) {
+): LanguageModelV2 {
   const aiSdkClientOptions = toAISDKClientOptions(subProvider, clientOptions);
   const hasValidOptions =
     aiSdkClientOptions &&
