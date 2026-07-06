@@ -27,6 +27,16 @@ import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page.js";
 
+/**
+ * Result of a screenshot provider: the base64-encoded image bytes plus an
+ * explicit media type. Declaring the media type at the capture boundary lets
+ * every CUA client pass it through instead of hardcoding or inferring it.
+ */
+export interface ScreenshotProviderResult {
+  base64: string;
+  mediaType: "image/png" | "image/jpeg";
+}
+
 // =============================================================================
 // Variable Types
 // =============================================================================

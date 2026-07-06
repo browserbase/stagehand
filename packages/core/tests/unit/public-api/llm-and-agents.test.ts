@@ -171,7 +171,9 @@ describe("LLM and Agents public API types", () => {
         ) => Promise<unknown>;
         setViewport: (width: number, height: number) => void;
         setCurrentUrl: (url: string) => void;
-        setScreenshotProvider: (provider: () => Promise<string>) => void;
+        setScreenshotProvider: (
+          provider: () => Promise<Stagehand.ScreenshotProviderResult>,
+        ) => void;
         setActionHandler: (
           handler: (action: Stagehand.AgentAction) => Promise<void>,
         ) => void;
