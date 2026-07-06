@@ -7,7 +7,10 @@ function createClient() {
     apiKey: "test-key",
     baseURL: "https://example.com",
   });
-  client.setScreenshotProvider(async () => "mock-base64-screenshot");
+  client.setScreenshotProvider(async () => ({
+    base64: "mock-base64-screenshot",
+    mediaType: "image/png",
+  }));
   return client;
 }
 
