@@ -42,27 +42,48 @@ export interface RunWithVerifierResult {
   trajectoryDir: string;
 }
 
-export async function runWithVerifier(
-  opts: RunWithVerifierOptions,
-): Promise<RunWithVerifierResult> {
-  const { v3, agent, taskSpec, dataset, agentOptions, runId, trajectoryRoot } =
-    opts;
-  const evaluator = new V3Evaluator(v3, { backend: "verifier" });
+/** Where a task's resolved rubric came from. */
+export type RubricSource = "precomputed" | "cached" | "generated";
 
-  // ── Resolve rubric ──────────────────────────────────────────────────────
-  const { rubric: resolvedRubric } = await tracedSpan(
+/** The slice of V3Evaluator that rubric resolution needs. */
+export interface RubricGenerator {
+  generateRubric(taskSpec: TaskSpec): Promise<Rubric>;
+}
+
+export interface ResolveRubricTracedOptions {
+  taskSpec: TaskSpec;
+  dataset: string;
+  /** Override the rubric cache root (tests). */
+  cacheRoot?: string;
+}
+
+/**
+ * Resolve a task's rubric — precomputed, cached, or freshly generated — inside
+ * a `verifier.rubric` span. Single definition shared by the stagehand and
+ * external-harness (claude_code/codex) paths so the logged `source` always
+ * reflects what actually happened: a cache miss that generates is reported as
+ * "generated", never "cached".
+ */
+export async function resolveRubricTraced(
+  evaluator: RubricGenerator,
+  { taskSpec, dataset, cacheRoot }: ResolveRubricTracedOptions,
+): Promise<{ rubric: Rubric; source: RubricSource }> {
+  return tracedSpan(
     async (span) => {
       let rubric: Rubric;
-      let source: "precomputed" | "cached" | "generated";
+      let source: RubricSource;
 
-      if (taskSpec.precomputedRubric) {
-        rubric = normalizeRubric(taskSpec.precomputedRubric)!;
+      const precomputed = normalizeRubric(taskSpec.precomputedRubric);
+      if (precomputed) {
+        rubric = precomputed;
         source = "precomputed";
       } else if (process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1") {
         rubric = await evaluator.generateRubric(taskSpec);
         source = "generated";
       } else {
-        const cache = new RubricCache({ dataset });
+        const cache = new RubricCache(
+          cacheRoot ? { dataset, cacheRoot } : { dataset },
+        );
         const cached = await cache.read(taskSpec);
         if (cached) {
           rubric = cached;
@@ -102,6 +123,68 @@ export async function runWithVerifier(
       },
     },
   );
+}
+
+/** The slice of V3Evaluator that traced verification needs. */
+export interface TrajectoryVerifier {
+  verify(trajectory: Trajectory): Promise<EvaluationResult>;
+}
+
+/**
+ * Run V3Evaluator.verify() inside a `verifier.verify` span with the standard
+ * scores + evaluation metadata. Single definition shared by the stagehand and
+ * external-harness (claude_code/codex) paths.
+ */
+export async function verifyTraced(
+  evaluator: TrajectoryVerifier,
+  trajectory: Trajectory,
+  meta: { taskId: string; dataset: string },
+): Promise<EvaluationResult> {
+  return tracedSpan(
+    async (span) => {
+      const v = await evaluator.verify(trajectory);
+      const rawSteps = asRecord(v.rawSteps);
+      span.log({
+        output: v,
+        scores: {
+          outcome: v.outcomeSuccess ? 1 : 0,
+          process: v.processScore,
+        },
+        metadata: {
+          taskId: meta.taskId,
+          dataset: meta.dataset,
+          stepCount: trajectory.steps.length,
+          criterionCount: v.perCriterion?.length ?? 0,
+          findingCount: v.findings?.length ?? 0,
+          evidenceInsufficientCount: v.evidenceInsufficient?.length ?? 0,
+          firstFailStep: v.firstPointOfFailure?.stepIndex,
+          firstFailCode: v.firstPointOfFailure?.errorCode,
+          isAmbiguous: v.taskValidity?.isAmbiguous,
+          isInvalid: v.taskValidity?.isInvalid,
+          ambiguityReason: v.taskValidity?.ambiguityReason,
+          invalidReason: v.taskValidity?.invalidReason,
+          primaryIntent: rawSteps?.primaryIntent,
+          reasoning: rawSteps?.reasoning,
+        },
+      });
+      return v;
+    },
+    { name: "verifier.verify", type: "eval" },
+  );
+}
+
+export async function runWithVerifier(
+  opts: RunWithVerifierOptions,
+): Promise<RunWithVerifierResult> {
+  const { v3, agent, taskSpec, dataset, agentOptions, runId, trajectoryRoot } =
+    opts;
+  const evaluator = new V3Evaluator(v3, { backend: "verifier" });
+
+  // ── Resolve rubric ──────────────────────────────────────────────────────
+  const { rubric: resolvedRubric } = await resolveRubricTraced(evaluator, {
+    taskSpec,
+    dataset,
+  });
 
   // Hand a fully-hydrated TaskSpec to the verifier so it doesn't regenerate.
   const hydratedTaskSpec: TaskSpec = {
@@ -161,37 +244,10 @@ export async function runWithVerifier(
   });
 
   // ── Verify ──────────────────────────────────────────────────────────────
-  const evaluationResult = await tracedSpan(
-    async (span) => {
-      const v = await evaluator.verify(trajectory);
-      const rawSteps = asRecord(v.rawSteps);
-      span.log({
-        output: v,
-        scores: {
-          outcome: v.outcomeSuccess ? 1 : 0,
-          process: v.processScore,
-        },
-        metadata: {
-          taskId: taskSpec.id,
-          dataset,
-          stepCount: trajectory.steps.length,
-          criterionCount: v.perCriterion?.length ?? 0,
-          findingCount: v.findings?.length ?? 0,
-          evidenceInsufficientCount: v.evidenceInsufficient?.length ?? 0,
-          firstFailStep: v.firstPointOfFailure?.stepIndex,
-          firstFailCode: v.firstPointOfFailure?.errorCode,
-          isAmbiguous: v.taskValidity?.isAmbiguous,
-          isInvalid: v.taskValidity?.isInvalid,
-          ambiguityReason: v.taskValidity?.ambiguityReason,
-          invalidReason: v.taskValidity?.invalidReason,
-          primaryIntent: rawSteps?.primaryIntent,
-          reasoning: rawSteps?.reasoning,
-        },
-      });
-      return v;
-    },
-    { name: "verifier.verify", type: "eval" },
-  );
+  const evaluationResult = await verifyTraced(evaluator, trajectory, {
+    taskId: taskSpec.id,
+    dataset,
+  });
   await recorder.persistResult(evaluationResult);
 
   return {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Parallel cross-verify: 8 verifier processes in flight at once across
-# outcome-only plus the rubric approaches.
+# Parallel cross-verify: PARALLEL verifier processes in flight at once across
+# outcome-only plus the rubric approaches. PARALLEL=1 gives a serial run.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -42,7 +42,6 @@ run_one() {
   fi
 }
 export -f run_one
-export PARALLEL
 
 # Build (dir, approach) job list and feed to xargs -P.
 JOBS=()

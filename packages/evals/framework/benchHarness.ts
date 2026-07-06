@@ -3,6 +3,7 @@ import {
   V3,
   getAISDKLanguageModel,
   loadApiKeyFromEnv,
+  normalizeRubric,
   type AgentInstance,
   type AvailableModel,
   type LLMClient,
@@ -73,11 +74,14 @@ function isAgentTask(task: DiscoveredTask): boolean {
  * Build a verifier-carrier V3 instance. Used only as the LLM-client carrier
  * for V3Evaluator.verify() — never `init()`-ed, never drives a browser.
  * The instance's logger is what V3Evaluator uses to construct its LLMProvider.
+ *
+ * The model is deliberately left at V3's default: the harness model can be a
+ * runner-only alias (e.g. "codex/default") that V3's provider map rejects at
+ * construction, and V3Evaluator selects its own verifier model regardless.
  */
-function buildVerifierCarrierV3(input: EvalInput, logger: EvalLogger): V3 {
+function buildVerifierCarrierV3(logger: EvalLogger): V3 {
   return new V3({
     env: "LOCAL",
-    model: input.modelName,
     logger: logger.log.bind(logger),
     disablePino: true,
     disableAPI: true,
@@ -90,10 +94,16 @@ function buildExternalHarnessTaskSpec(
   plan: ReturnType<typeof buildExternalHarnessTaskPlan>,
   input: EvalInput,
 ): TaskSpec {
+  // Datasets that ship curated rubrics (WebTailBench) carry them in
+  // params.precomputed_rubric — thread them through so external-harness runs
+  // grade against the same rubric as the stagehand harness instead of
+  // LLM-generating a divergent one.
+  const precomputedRubric = normalizeRubric(input.params?.precomputed_rubric);
   return {
     id: plan.taskId ?? input.name,
     instruction: plan.instruction,
     initUrl: plan.startUrl,
+    ...(precomputedRubric && { precomputedRubric }),
   };
 }
 
@@ -236,6 +246,9 @@ export const claudeCodeHarness: BenchHarness = {
         `Expected claude_code harness config, received "${row.config.harness}".`,
       );
     }
+    // Build the carrier before the tool adapter: a construction throw here
+    // must not leak an adapter whose cleanup only runs in the finally below.
+    const carrierV3 = buildVerifierCarrierV3(logger);
     const toolAdapter = await prepareClaudeCodeToolAdapter({
       toolSurface: row.config.toolSurface,
       startupProfile: row.config.startupProfile,
@@ -243,7 +256,6 @@ export const claudeCodeHarness: BenchHarness = {
       plan,
       logger,
     });
-    const carrierV3 = buildVerifierCarrierV3(input, logger);
     try {
       return await runClaudeCodeAgent({
         plan,
@@ -285,6 +297,9 @@ export const codexHarness: BenchHarness = {
         `Expected codex harness config, received "${row.config.harness}".`,
       );
     }
+    // Build the carrier before the tool adapter: a construction throw here
+    // must not leak an adapter whose cleanup only runs in the finally below.
+    const carrierV3 = buildVerifierCarrierV3(logger);
     const toolAdapter = await prepareCodexToolAdapter({
       toolSurface: row.config.toolSurface,
       startupProfile: row.config.startupProfile,
@@ -292,7 +307,6 @@ export const codexHarness: BenchHarness = {
       plan,
       logger,
     });
-    const carrierV3 = buildVerifierCarrierV3(input, logger);
     try {
       return await runCodexAgent({
         plan,

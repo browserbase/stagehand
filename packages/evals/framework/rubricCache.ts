@@ -17,7 +17,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 
-import type { Rubric, TaskSpec, V3Evaluator } from "@browserbasehq/stagehand";
+import type { Rubric, TaskSpec } from "@browserbasehq/stagehand";
 
 export interface RubricCacheOptions {
   /**
@@ -55,22 +55,6 @@ export class RubricCache {
       opts.cacheRoot ??
       path.join(process.cwd(), "packages/evals/.rubric-cache");
     this.cacheDir = path.join(root, opts.dataset);
-  }
-
-  /**
-   * Get or generate a rubric for the task. If a fresh cache entry exists
-   * (same instruction hash), returns it. Otherwise runs Step 0a and persists.
-   */
-  async getOrGenerate(
-    taskSpec: TaskSpec,
-    evaluator: V3Evaluator,
-  ): Promise<Rubric> {
-    const cached = await this.read(taskSpec);
-    if (cached) return cached;
-
-    const rubric = await evaluator.generateRubric(taskSpec);
-    await this.write(taskSpec, rubric);
-    return rubric;
   }
 
   /** Read a cached rubric. Returns undefined on miss or cache-key drift. */

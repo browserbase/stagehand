@@ -20,14 +20,21 @@ export function loadBraintrust(): Promise<typeof import("braintrust")> {
   return braintrustPromise;
 }
 
-export type TracedFn<T> = (span: Span) => Promise<T>;
+/**
+ * The only Span surface traced callbacks may use. Deliberately narrower than
+ * Braintrust's `Span` so the no-key fallback below can satisfy it without
+ * lying about unimplemented methods.
+ */
+export type SpanLike = Pick<Span, "log">;
+
+export type TracedFn<T> = (span: SpanLike) => Promise<T>;
 
 /** Same shape as Braintrust's StartSpanArgs but `name` is required. */
 export type TracedSpanOptions = StartSpanArgs & { name: string };
 
-const NOOP_SPAN = {
+const NOOP_SPAN: SpanLike = {
   log: () => {},
-} as unknown as Span;
+};
 
 export async function tracedSpan<T>(
   fn: TracedFn<T>,

@@ -6,8 +6,11 @@ import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import { codexAdapter } from "./harnesses/codexAdapter.js";
 import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
-import { evaluationResultToSuccess } from "./verifierAdapter.js";
-import { tracedSpan } from "./braintrust.js";
+import {
+  evaluationResultToSuccess,
+  resolveRubricTraced,
+  verifyTraced,
+} from "./verifierAdapter.js";
 
 type MetricValue = { count: number; value: number };
 type CodexEvent = Record<string, unknown>;
@@ -262,89 +265,23 @@ export async function runCodexAgent({
     );
 
     const { V3Evaluator } = await import("@browserbasehq/stagehand");
-    const { RubricCache } = await import("./rubricCache.js");
     const evaluator = new V3Evaluator(verifier.v3, { backend: "verifier" });
 
-    const { rubric, source: rubricSource } = await tracedSpan(
-      async (span) => {
-        let resolved: typeof verifier.taskSpec.precomputedRubric;
-        let source: "precomputed" | "cached" | "generated";
-        if (verifier.taskSpec.precomputedRubric) {
-          resolved = verifier.taskSpec.precomputedRubric;
-          source = "precomputed";
-        } else if (process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1") {
-          resolved = await evaluator.generateRubric(verifier.taskSpec);
-          source = "generated";
-        } else {
-          const cache = new RubricCache({ dataset: verifier.dataset });
-          resolved = await cache.getOrGenerate(verifier.taskSpec, evaluator);
-          source = "cached";
-        }
-        span.log({
-          output: { source, rubric: resolved },
-          metadata: {
-            taskId: verifier.taskSpec.id,
-            dataset: verifier.dataset,
-            source,
-            criterionCount: resolved.items.length,
-          },
-        });
-        return { rubric: resolved, source };
-      },
-      {
-        name: "verifier.rubric",
-        type: "eval",
-        event: {
-          input: {
-            taskId: verifier.taskSpec.id,
-            dataset: verifier.dataset,
-            hasPrecomputedRubric: Boolean(verifier.taskSpec.precomputedRubric),
-            cacheDisabled: process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1",
-          },
-        },
-      },
-    );
-    void rubricSource;
+    // Hydrate rubric — use precomputed if present, otherwise cache-or-generate.
+    const { rubric } = await resolveRubricTraced(evaluator, {
+      taskSpec: verifier.taskSpec,
+      dataset: verifier.dataset,
+    });
     const hydratedSpec: TaskSpec = {
       ...verifier.taskSpec,
       precomputedRubric: rubric,
     };
     const hydratedTrajectory = { ...trajectory, task: hydratedSpec };
 
-    const evaluationResult = await tracedSpan(
-      async (span) => {
-        const v = await evaluator.verify(hydratedTrajectory);
-        const rawSteps =
-          v.rawSteps && typeof v.rawSteps === "object"
-            ? (v.rawSteps as Record<string, unknown>)
-            : undefined;
-        span.log({
-          output: v,
-          scores: {
-            outcome: v.outcomeSuccess ? 1 : 0,
-            process: v.processScore,
-          },
-          metadata: {
-            taskId: hydratedSpec.id,
-            dataset: verifier.dataset,
-            stepCount: hydratedTrajectory.steps.length,
-            criterionCount: v.perCriterion?.length ?? 0,
-            findingCount: v.findings?.length ?? 0,
-            evidenceInsufficientCount: v.evidenceInsufficient?.length ?? 0,
-            firstFailStep: v.firstPointOfFailure?.stepIndex,
-            firstFailCode: v.firstPointOfFailure?.errorCode,
-            isAmbiguous: v.taskValidity?.isAmbiguous,
-            isInvalid: v.taskValidity?.isInvalid,
-            ambiguityReason: v.taskValidity?.ambiguityReason,
-            invalidReason: v.taskValidity?.invalidReason,
-            primaryIntent: rawSteps?.primaryIntent,
-            reasoning: rawSteps?.reasoning,
-          },
-        });
-        return v;
-      },
-      { name: "verifier.verify", type: "eval" },
-    );
+    const evaluationResult = await verifyTraced(evaluator, hydratedTrajectory, {
+      taskId: hydratedSpec.id,
+      dataset: verifier.dataset,
+    });
     const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
     const verifiedSuccess = evaluationResultToSuccess(
       evaluationResult,
@@ -385,7 +322,10 @@ export async function runCodexAgent({
         error: { value: stringifyError(verifyError), type: "string" },
       },
     });
-    return baseResult;
+    // Surface the failure on the result — `_success` falls back to the
+    // agent's self-report, and downstream consumers must be able to tell
+    // this run apart from one the verifier actually graded.
+    return { ...baseResult, verifierError: stringifyError(verifyError) };
   }
 }
 
