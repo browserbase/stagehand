@@ -24,10 +24,6 @@ const mockModel = {
   },
 } as unknown as LanguageModelV2;
 
-// Mirrors PermitFlow's custom tool: an optional field (`matchedExpected`) is
-// left `undefined` in the tool result, so the re-submitted tool-result carries
-// an `undefined` inside output.value. Also includes a valid reasoning part
-// (text: "") to confirm sanitization leaves real content intact.
 const malformedHistory = [
   { role: "user", content: "do the task" },
   {
