@@ -290,15 +290,20 @@ function formatProcessScore(score: number | undefined): string {
   return typeof score === "number" ? score.toFixed(2) : "n/a";
 }
 
+/** Always non-empty, so a set `verifierError` is reliably truthy downstream. */
 function stringifyVerifierError(value: unknown): string {
-  if (!value) return "";
-  if (value instanceof Error) return value.message;
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
+  if (value instanceof Error) return value.message || value.name || "Error";
+  if (typeof value === "string") return value || "unknown verifier error";
+  if (value != null) {
+    try {
+      const json = JSON.stringify(value);
+      if (json) return json;
+    } catch {
+      // not serializable — fall through to String()
+    }
     return String(value);
   }
+  return "unknown verifier error";
 }
 
 export async function runWithVerifier(

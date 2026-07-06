@@ -17,9 +17,15 @@ import type { EvalLogger } from "../logger.js";
 import type { V3InitResult } from "../initV3.js";
 import type { EvalInput } from "../types/evals.js";
 import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
-import { prepareClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
+import {
+  prepareClaudeCodeToolAdapter,
+  type PreparedClaudeCodeToolAdapter,
+} from "./claudeCodeToolAdapter.js";
 import { runCodexAgent } from "./codexRunner.js";
-import { prepareCodexToolAdapter } from "./codexToolAdapter.js";
+import {
+  prepareCodexToolAdapter,
+  type PreparedCodexToolAdapter,
+} from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
@@ -236,17 +242,19 @@ export const claudeCodeHarness: BenchHarness = {
         `Expected claude_code harness config, received "${row.config.harness}".`,
       );
     }
-    // Build the carrier before the tool adapter: a construction throw here
-    // must not leak an adapter whose cleanup only runs in the finally below.
+    // Everything past carrier construction runs inside one try/finally so a
+    // failure at any point — adapter preparation included — cleans up both
+    // the adapter and the carrier.
     const carrierV3 = buildVerifierCarrierV3(logger);
-    const toolAdapter = await prepareClaudeCodeToolAdapter({
-      toolSurface: row.config.toolSurface,
-      startupProfile: row.config.startupProfile,
-      environment: row.config.environment,
-      plan,
-      logger,
-    });
+    let toolAdapter: PreparedClaudeCodeToolAdapter | undefined;
     try {
+      toolAdapter = await prepareClaudeCodeToolAdapter({
+        toolSurface: row.config.toolSurface,
+        startupProfile: row.config.startupProfile,
+        environment: row.config.environment,
+        plan,
+        logger,
+      });
       return await runClaudeCodeAgent({
         plan,
         model: input.modelName,
@@ -260,7 +268,7 @@ export const claudeCodeHarness: BenchHarness = {
         },
       });
     } finally {
-      await toolAdapter.cleanup();
+      await toolAdapter?.cleanup();
       // Deregister the never-init()-ed carrier (instance registry, event
       // store, logger binding) so long matrix runs don't accumulate one
       // V3 object graph per task.
@@ -290,17 +298,19 @@ export const codexHarness: BenchHarness = {
         `Expected codex harness config, received "${row.config.harness}".`,
       );
     }
-    // Build the carrier before the tool adapter: a construction throw here
-    // must not leak an adapter whose cleanup only runs in the finally below.
+    // Everything past carrier construction runs inside one try/finally so a
+    // failure at any point — adapter preparation included — cleans up both
+    // the adapter and the carrier.
     const carrierV3 = buildVerifierCarrierV3(logger);
-    const toolAdapter = await prepareCodexToolAdapter({
-      toolSurface: row.config.toolSurface,
-      startupProfile: row.config.startupProfile,
-      environment: row.config.environment,
-      plan,
-      logger,
-    });
+    let toolAdapter: PreparedCodexToolAdapter | undefined;
     try {
+      toolAdapter = await prepareCodexToolAdapter({
+        toolSurface: row.config.toolSurface,
+        startupProfile: row.config.startupProfile,
+        environment: row.config.environment,
+        plan,
+        logger,
+      });
       return await runCodexAgent({
         plan,
         model: input.modelName,
@@ -314,7 +324,7 @@ export const codexHarness: BenchHarness = {
         },
       });
     } finally {
-      await toolAdapter.cleanup();
+      await toolAdapter?.cleanup();
       // Deregister the never-init()-ed carrier (instance registry, event
       // store, logger binding) so long matrix runs don't accumulate one
       // V3 object graph per task.
