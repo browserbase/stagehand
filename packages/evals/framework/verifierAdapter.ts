@@ -11,9 +11,12 @@ import {
   type V3,
 } from "@browserbasehq/stagehand";
 
+import type { EvalLogger } from "../logger.js";
 import { tracedSpan } from "./braintrust.js";
+import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
 import { RubricCache } from "./rubricCache.js";
 import { TrajectoryRecorder } from "./trajectoryRecorder.js";
+import type { TaskResult } from "./types.js";
 
 export interface RunWithVerifierOptions {
   v3: V3;
@@ -45,11 +48,6 @@ export interface RunWithVerifierResult {
 /** Where a task's resolved rubric came from. */
 export type RubricSource = "precomputed" | "cached" | "generated";
 
-/** The slice of V3Evaluator that rubric resolution needs. */
-export interface RubricGenerator {
-  generateRubric(taskSpec: TaskSpec): Promise<Rubric>;
-}
-
 export interface ResolveRubricTracedOptions {
   taskSpec: TaskSpec;
   dataset: string;
@@ -65,7 +63,7 @@ export interface ResolveRubricTracedOptions {
  * "generated", never "cached".
  */
 export async function resolveRubricTraced(
-  evaluator: RubricGenerator,
+  evaluator: Pick<V3Evaluator, "generateRubric">,
   { taskSpec, dataset, cacheRoot }: ResolveRubricTracedOptions,
 ): Promise<{ rubric: Rubric; source: RubricSource }> {
   return tracedSpan(
@@ -125,18 +123,13 @@ export async function resolveRubricTraced(
   );
 }
 
-/** The slice of V3Evaluator that traced verification needs. */
-export interface TrajectoryVerifier {
-  verify(trajectory: Trajectory): Promise<EvaluationResult>;
-}
-
 /**
  * Run V3Evaluator.verify() inside a `verifier.verify` span with the standard
  * scores + evaluation metadata. Single definition shared by the stagehand and
  * external-harness (claude_code/codex) paths.
  */
 export async function verifyTraced(
-  evaluator: TrajectoryVerifier,
+  evaluator: Pick<V3Evaluator, "verify">,
   trajectory: Trajectory,
   meta: { taskId: string; dataset: string },
 ): Promise<EvaluationResult> {
@@ -171,6 +164,141 @@ export async function verifyTraced(
     },
     { name: "verifier.verify", type: "eval" },
   );
+}
+
+/**
+ * Verifier wiring for an external-harness runner (claude_code / codex). The
+ * runner's only job is turning its event stream into a Trajectory; everything
+ * else — evaluator construction, rubric hydration, verification, persistence,
+ * and folding the verdict into the TaskResult — is harness-agnostic and lives
+ * in {@link gradeExternalTrajectory}.
+ */
+export interface ExternalHarnessVerifierConfig {
+  /**
+   * V3 instance used solely as the LLM-client carrier for V3Evaluator. The
+   * instance does NOT need to have `init()` been called — V3Evaluator.verify()
+   * uses only `v3.logger` to construct its LLMProvider.
+   */
+  v3: V3;
+  /** TaskSpec to verify against. id + instruction + optional rubric/initUrl. */
+  taskSpec: TaskSpec;
+  /** Dataset name for rubric cache partitioning (used when no precomputedRubric). */
+  dataset: string;
+  /** Override --success mode. Defaults to EVAL_SUCCESS_MODE env or "outcome". */
+  successMode?: EvalSuccessMode;
+  /** Override trajectory persistence root. */
+  trajectoryRoot?: string;
+  /** Override the run id (defaults to ISO timestamp). */
+  runId?: string;
+}
+
+export interface GradeExternalTrajectoryOptions {
+  /** Builds the harness-specific Trajectory; runs inside the guarded block. */
+  buildTrajectory: () => Trajectory;
+  verifier: ExternalHarnessVerifierConfig;
+  /** The agent's self-reported result to fold the verdict into. */
+  baseResult: TaskResult;
+  /** Error message for a run the verifier grades as unsuccessful. */
+  errorMessage: string;
+  /** Logger category ("claude_code" | "codex"). */
+  category: string;
+  logger: EvalLogger;
+}
+
+/**
+ * Grade an external-harness run with the rubric verifier and fold the verdict
+ * into the TaskResult. Never throws: on any failure in the verifier path the
+ * self-reported result is returned with `verifierError` set, so downstream
+ * consumers can tell an ungraded run apart from a graded one.
+ */
+export async function gradeExternalTrajectory({
+  buildTrajectory,
+  verifier,
+  baseResult,
+  errorMessage,
+  category,
+  logger,
+}: GradeExternalTrajectoryOptions): Promise<TaskResult> {
+  try {
+    const trajectory = buildTrajectory();
+    const evaluator = new V3Evaluator(verifier.v3, { backend: "verifier" });
+
+    // Hydrate rubric — use precomputed if present, otherwise cache-or-generate.
+    const { rubric } = await resolveRubricTraced(evaluator, {
+      taskSpec: verifier.taskSpec,
+      dataset: verifier.dataset,
+    });
+    const hydratedSpec: TaskSpec = {
+      ...verifier.taskSpec,
+      precomputedRubric: rubric,
+    };
+    const hydratedTrajectory = { ...trajectory, task: hydratedSpec };
+
+    const evaluationResult = await verifyTraced(evaluator, hydratedTrajectory, {
+      taskId: hydratedSpec.id,
+      dataset: verifier.dataset,
+    });
+    const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
+    const verifiedSuccess = evaluationResultToSuccess(
+      evaluationResult,
+      successMode,
+    );
+
+    const { directory: trajectoryDir } = await persistAdapterTrajectory({
+      trajectory: hydratedTrajectory,
+      taskSpec: hydratedSpec,
+      evaluationResult,
+      outputRoot: verifier.trajectoryRoot,
+      runId: verifier.runId,
+    });
+
+    logger.log({
+      category,
+      message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} steps=${hydratedTrajectory.steps.length}`,
+      level: 1,
+    });
+
+    return {
+      ...baseResult,
+      _success: verifiedSuccess,
+      error: verifiedSuccess ? undefined : (baseResult.error ?? errorMessage),
+      outcomeSuccess: evaluationResult.outcomeSuccess,
+      processScore: evaluationResult.processScore,
+      evidenceInsufficient: evaluationResult.evidenceInsufficient,
+      criterionCount: rubric.items.length,
+      stepCount: hydratedTrajectory.steps.length,
+      trajectoryDir,
+    };
+  } catch (verifyError) {
+    const message = stringifyVerifierError(verifyError);
+    logger.warn({
+      category,
+      message: `verifier integration failed: ${message}`,
+      level: 0,
+      auxiliary: {
+        error: { value: message, type: "string" },
+      },
+    });
+    // Surface the failure on the result — `_success` falls back to the
+    // agent's self-report, and downstream consumers must be able to tell
+    // this run apart from one the verifier actually graded.
+    return { ...baseResult, verifierError: message };
+  }
+}
+
+function formatProcessScore(score: number | undefined): string {
+  return typeof score === "number" ? score.toFixed(2) : "n/a";
+}
+
+function stringifyVerifierError(value: unknown): string {
+  if (!value) return "";
+  if (value instanceof Error) return value.message;
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 export async function runWithVerifier(

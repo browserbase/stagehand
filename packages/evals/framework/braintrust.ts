@@ -25,12 +25,12 @@ export function loadBraintrust(): Promise<typeof import("braintrust")> {
  * Braintrust's `Span` so the no-key fallback below can satisfy it without
  * lying about unimplemented methods.
  */
-export type SpanLike = Pick<Span, "log">;
+type SpanLike = Pick<Span, "log">;
 
-export type TracedFn<T> = (span: SpanLike) => Promise<T>;
+type TracedFn<T> = (span: SpanLike) => Promise<T>;
 
 /** Same shape as Braintrust's StartSpanArgs but `name` is required. */
-export type TracedSpanOptions = StartSpanArgs & { name: string };
+type TracedSpanOptions = StartSpanArgs & { name: string };
 
 const NOOP_SPAN: SpanLike = {
   log: () => {},

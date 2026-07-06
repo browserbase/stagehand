@@ -107,16 +107,6 @@ function buildExternalHarnessTaskSpec(
   };
 }
 
-function resolveExternalHarnessSuccessMode():
-  | "outcome"
-  | "process"
-  | "both"
-  | undefined {
-  const raw = process.env.EVAL_SUCCESS_MODE?.toLowerCase();
-  if (raw === "outcome" || raw === "process" || raw === "both") return raw;
-  return undefined;
-}
-
 function resolveProvider(modelName: AvailableModel): string | undefined {
   if (modelName.includes("/")) {
     return modelName.split("/")[0];
@@ -267,11 +257,14 @@ export const claudeCodeHarness: BenchHarness = {
           v3: carrierV3,
           taskSpec: buildExternalHarnessTaskSpec(plan, input),
           dataset: plan.dataset,
-          successMode: resolveExternalHarnessSuccessMode(),
         },
       });
     } finally {
       await toolAdapter.cleanup();
+      // Deregister the never-init()-ed carrier (instance registry, event
+      // store, logger binding) so long matrix runs don't accumulate one
+      // V3 object graph per task.
+      await carrierV3.close().catch(() => {});
     }
   },
   async start(): Promise<StartedBenchHarness> {
@@ -318,11 +311,14 @@ export const codexHarness: BenchHarness = {
           v3: carrierV3,
           taskSpec: buildExternalHarnessTaskSpec(plan, input),
           dataset: plan.dataset,
-          successMode: resolveExternalHarnessSuccessMode(),
         },
       });
     } finally {
       await toolAdapter.cleanup();
+      // Deregister the never-init()-ed carrier (instance registry, event
+      // store, logger binding) so long matrix runs don't accumulate one
+      // V3 object graph per task.
+      await carrierV3.close().catch(() => {});
     }
   },
   async start(): Promise<StartedBenchHarness> {
