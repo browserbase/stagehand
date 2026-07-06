@@ -22,13 +22,15 @@ export default defineBenchTask(
       const periodDate = new Date();
       periodDate.setDate(1);
       periodDate.setMonth(periodDate.getMonth() - 1);
+      // Include the year: in January the previous month is December of the
+      // PRIOR year, and a year-less "Dec 1" reads as ~11 months in the future.
       const periodLabel = periodDate.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
+        year: "numeric",
       });
 
-      const instruction =
-        `Search for the ovulation calculator and enter ${periodLabel} as the first date of the period and calculate the date of ovulation and pregnancy test day. use https://www.webmd.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.`;
+      const instruction = `Search for the ovulation calculator and enter ${periodLabel} as the first date of the period and calculate the date of ovulation and pregnancy test day. use https://www.webmd.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.`;
 
       const taskSpec: TaskSpec = {
         id: "agent/webmd_ovulation_calculator",
