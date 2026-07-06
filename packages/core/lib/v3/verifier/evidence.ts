@@ -295,6 +295,14 @@ export async function collectCanonicalEvidence(
     pending.push({ kind: "image", shot });
   }
 
+  // Per-blob ceiling on canonical evidence text captured from a step (aria
+  // tree, tool output, agent text). Full a11y trees are often 30-85k chars and
+  // the datum a criterion needs frequently sits deep in the tree, so a fixed 4k
+  // cut silently drops it downstream -> verifier false-negatives. The
+  // production caller resolves this from VerifierConfig's truncation section
+  // (VERIFIER_CANONICAL_EVIDENCE_CHARS, lifted by the truncation master
+  // switch); direct callers get the historical 4k default.
+  const canonicalEvidenceChars = opts.canonicalEvidenceChars ?? 4000;
   const seenText = new Set<string>();
   const addTextEvidence = (
     stepIdx: number,
@@ -304,11 +312,14 @@ export async function collectCanonicalEvidence(
     // Runtime guard, not just the type: trajectory JSON loaded from disk is
     // unvalidated, so a malformed non-string field must not crash collection.
     if (typeof text !== "string" || text.length === 0) return;
-    const trimmed = text.length > 4000 ? text.slice(0, 4000) : text;
+    const trimmed =
+      text.length > canonicalEvidenceChars
+        ? text.slice(0, canonicalEvidenceChars)
+        : text;
     const normalized = trimmed.replace(/\s+/g, " ").trim();
     if (normalized.length === 0) return;
     // Dedupe on the full normalized text — a length+prefix key would collapse
-    // distinct snippets that share a prefix. The 4k cap bounds key size.
+    // distinct snippets that share a prefix. The per-blob cap bounds key size.
     if (seenText.has(normalized)) return;
     seenText.add(normalized);
     pending.push({

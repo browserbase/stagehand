@@ -96,6 +96,8 @@ When task validity is requested, you must populate \`task_validity\` with the bo
    - Critical error → penalize per severity
    - Mix of nitpicks + a critical error → score based on the critical error
 
+9. **Required-field precedence — visual marker over aria on conflict.** When screenshots show a form field, the visual required indicator (asterisk, "required" text) takes precedence over a conflicting "required" attribute in the aria tree — shared form components often duplicate that attribute onto optional fields. When only aria evidence is available for a field, treat its required attribute as a weak signal rather than ignoring it.
+
 **Outcome Judgment:**
 
 \`output_success\` is your independent binary verdict on whether the agent completed the task. It is informed by the per-criterion scores but is not a function of them — a task can have high process score and still fail (right approach, wrong final answer) or have lower process score and still succeed (the answer is right, intermediate steps were inelegant).

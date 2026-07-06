@@ -141,4 +141,38 @@ describe("collectCanonicalEvidence", () => {
     expect(texts).toContain(textA);
     expect(texts).toContain(textB);
   });
+
+  it("caps each text blob at 4000 chars by default", async () => {
+    const long = "a".repeat(9000);
+    const trajectory = makeTrajectory([
+      step({ toolOutput: { ok: true, result: long } }),
+    ]);
+
+    const { evidence } = await collectCanonicalEvidence(trajectory);
+    const texts = evidence.filter(isTextEvidence).map((e) => e.content);
+
+    expect(texts).toHaveLength(1);
+    expect(texts[0].length).toBe(4000);
+  });
+
+  it("honors canonicalEvidenceChars, including values below the default", async () => {
+    const long = "b".repeat(9000);
+    const trajectory = makeTrajectory([
+      step({ toolOutput: { ok: true, result: long } }),
+    ]);
+
+    const capped = await collectCanonicalEvidence(trajectory, {
+      canonicalEvidenceChars: 100,
+    });
+    expect(
+      capped.evidence.filter(isTextEvidence).map((e) => e.content)[0].length,
+    ).toBe(100);
+
+    const lifted = await collectCanonicalEvidence(trajectory, {
+      canonicalEvidenceChars: Number.MAX_SAFE_INTEGER,
+    });
+    expect(
+      lifted.evidence.filter(isTextEvidence).map((e) => e.content)[0].length,
+    ).toBe(9000);
+  });
 });

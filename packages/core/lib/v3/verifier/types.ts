@@ -216,6 +216,12 @@ export interface EvidenceLoadOptions {
   mseThreshold?: number;
   /** Scale factor applied before relevance scoring (default 0.7). */
   imageResize?: number;
+  /**
+   * Per-blob ceiling on canonical evidence text (aria tree, tool output,
+   * agent text) in characters (default 4000). Resolved from VerifierConfig's
+   * truncation section by the production caller.
+   */
+  canonicalEvidenceChars?: number;
 }
 
 /** Score for a single rubric criterion after evidence analysis + rescoring. */
@@ -423,6 +429,8 @@ export interface VerifierConfig {
     buildEvidenceText: number;
     buildEvidenceAria: number;
     actionHistoryReasoning: number;
+    /** Per-blob cap on canonical evidence text collected from a step. */
+    canonicalEvidenceChars: number;
   };
 }
 

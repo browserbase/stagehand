@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { RubricVerifier } from "../../lib/v3/verifier/rubricVerifier.js";
+import {
+  RubricVerifier,
+  resolveVerifierConfig,
+} from "../../lib/v3/verifier/rubricVerifier.js";
 import type { LLMClient } from "../../lib/v3/llm/LLMClient.js";
 import type { TaskSpec, Trajectory } from "../../lib/v3/verifier/types.js";
 
@@ -237,3 +240,26 @@ function makeTrajectory(task: TaskSpec, screenshot: Buffer): Trajectory {
     },
   };
 }
+
+describe("resolveVerifierConfig canonicalEvidenceChars", () => {
+  it("defaults to 4000 and honors any positive env value", () => {
+    expect(resolveVerifierConfig({}).truncation.canonicalEvidenceChars).toBe(
+      4000,
+    );
+    expect(
+      resolveVerifierConfig({ VERIFIER_CANONICAL_EVIDENCE_CHARS: "2000" })
+        .truncation.canonicalEvidenceChars,
+    ).toBe(2000);
+  });
+
+  it("is lifted by the truncation master switch and programmatic override", () => {
+    expect(
+      resolveVerifierConfig({ VERIFIER_DISABLE_TRUNCATION: "1" }).truncation
+        .canonicalEvidenceChars,
+    ).toBe(Number.MAX_SAFE_INTEGER);
+    expect(
+      resolveVerifierConfig({}, { truncation: { disabled: true } } as never)
+        .truncation.canonicalEvidenceChars,
+    ).toBe(Number.MAX_SAFE_INTEGER);
+  });
+});

@@ -321,6 +321,14 @@ export function resolveVerifierConfig(
           140,
           truncDisabled,
         ),
+      canonicalEvidenceChars:
+        overrides.truncation?.canonicalEvidenceChars ??
+        readChars(
+          env,
+          "VERIFIER_CANONICAL_EVIDENCE_CHARS",
+          4000,
+          truncDisabled,
+        ),
     },
   };
 }
@@ -534,7 +542,9 @@ export class RubricVerifier implements Verifier {
 
     // Empty-evidence trajectories fall back gracefully — the chosen approach
     // degrades to an action-history-only judgment downstream.
-    const { evidence, loaded } = await collectCanonicalEvidence(trajectory);
+    const { evidence, loaded } = await collectCanonicalEvidence(trajectory, {
+      canonicalEvidenceChars: config.truncation.canonicalEvidenceChars,
+    });
 
     const relevanceScores = await this.scoreRelevanceBatched({
       taskSpec,
