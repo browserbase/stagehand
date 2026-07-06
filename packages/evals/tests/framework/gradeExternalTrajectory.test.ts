@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  EvaluationResult,
   Rubric,
   TaskSpec,
   Trajectory,
