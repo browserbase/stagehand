@@ -26,7 +26,7 @@ import {
 } from "./handlerUtils/actHandlerUtils.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 import { resolveVariableValue } from "../agent/utils/variables.js";
-import { resolveSetInputFilesArguments } from "./handlerUtils/fileUploadActUtils.js";
+import { resolveSetInputFilesArguments } from "./handlerUtils/actFileUploadRouting.js";
 
 type ActInferenceElement = {
   elementId?: string;

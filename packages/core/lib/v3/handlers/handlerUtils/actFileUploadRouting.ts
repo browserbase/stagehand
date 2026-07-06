@@ -13,8 +13,8 @@ const FILE_INPUT_TARGET_RE = /\b(?:field|input|picker|dropzone|drop zone)\b/i;
 const VARIABLE_TOKEN_RE = /%([\w.]+)%/g;
 const UNRESOLVED_VARIABLE_RE = /%[^%]+%/;
 const RELATIVE_PATH_WITH_EXTENSION_RE =
-  /(?:^|[/\\])[^/\\@]+\.[a-z][a-z0-9]{1,9}$/i;
-const BARE_FILENAME_WITH_EXTENSION_RE = /^[^/\\@]+\.[a-z][a-z0-9]{1,9}$/i;
+  /(?:^|[/\\])[^/\\]+\.[a-z][a-z0-9]{1,9}$/i;
+const BARE_FILENAME_WITH_EXTENSION_RE = /^[^/\\]+\.[a-z][a-z0-9]{1,9}$/i;
 const COMMON_FILE_EXTENSION_RE =
   /\.(?:pdf|docx?|xlsx?|pptx?|txt|csv|json|xml|html?|png|jpe?g|gif|webp|svg|zip|tar|gz|mp[34]|wav|mov|avi|heic|pages|key|numbers)$/i;
 
@@ -89,7 +89,7 @@ export function looksLikeFilePath(
   const trimmed = value.trim();
   if (!trimmed) return false;
   if (/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)) return false;
-  if (trimmed.includes("@")) return false;
+  if (looksLikeEmail(trimmed)) return false;
   if (path.isAbsolute(trimmed)) return true;
   if (isExistingLocalFile(trimmed, opts.baseDir)) return true;
   if (/[/\\]/.test(trimmed) && RELATIVE_PATH_WITH_EXTENSION_RE.test(trimmed)) {
@@ -102,6 +102,13 @@ export function looksLikeFilePath(
     return true;
   }
   return false;
+}
+
+/** Reject email-shaped values without treating filenames like resume@2024.pdf as emails. */
+function looksLikeEmail(value: string): boolean {
+  if (!/^[^\s@/\\]+@[^\s@/\\]+\.[^\s@/\\]+$/i.test(value)) return false;
+  if (COMMON_FILE_EXTENSION_RE.test(value)) return false;
+  return true;
 }
 
 function isExistingLocalFile(value: string, baseDir = process.cwd()): boolean {

@@ -11,7 +11,7 @@ import {
   resolveSetInputFilesArguments,
   selectFileUploadAction,
   shouldResolveFileUploadLocally,
-} from "../../lib/v3/handlers/handlerUtils/fileUploadActUtils.js";
+} from "../../lib/v3/handlers/handlerUtils/actFileUploadRouting.js";
 
 describe("shouldResolveFileUploadLocally", () => {
   it("detects attach instructions with file variables", () => {
@@ -59,6 +59,14 @@ describe("shouldResolveFileUploadLocally", () => {
     expect(
       shouldResolveFileUploadLocally("upload %resume% to the resume field", {
         resume: filePath,
+      }),
+    ).toBe(true);
+  });
+
+  it("detects upload instructions with @ in the file path", () => {
+    expect(
+      shouldResolveFileUploadLocally("upload %resume% to the resume field", {
+        resume: "/tmp/resume@2024.pdf",
       }),
     ).toBe(true);
   });
@@ -318,6 +326,9 @@ describe("file upload helpers", () => {
     expect(looksLikeFilePath("2024/01/15")).toBe(false);
     expect(looksLikeFilePath("secret123")).toBe(false);
     expect(looksLikeFilePath("user@example.com")).toBe(false);
+    expect(looksLikeFilePath("/tmp/resume@2024.pdf")).toBe(true);
+    expect(looksLikeFilePath("resume@2024.pdf")).toBe(true);
+    expect(looksLikeFilePath("fixtures/resume@2024.pdf")).toBe(true);
     expect(looksLikeFilePath("example.com")).toBe(false);
     expect(looksLikeFilePath("v1.2.3")).toBe(false);
   });

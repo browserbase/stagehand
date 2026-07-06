@@ -99,7 +99,7 @@ import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
 import {
   selectFileUploadAction,
   shouldResolveFileUploadLocally,
-} from "./handlers/handlerUtils/fileUploadActUtils.js";
+} from "./handlers/handlerUtils/actFileUploadRouting.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
@@ -1358,17 +1358,16 @@ export class V3 {
           throw new StagehandInvalidArgumentError(
             'act(): the instruction requests a file upload, but observe() did not return a "setInputFiles" action. Ensure the instruction names the file input and supplies each local path through variables.',
           );
-        } else {
-          actResult = await this.actHandler.takeDeterministicAction(
-            uploadAction,
-            page,
-            this.domSettleTimeoutMs,
-            this.resolveLlmClient(options?.model),
-            ensureTimeRemaining,
-            options?.variables,
-            input,
-          );
         }
+        actResult = await this.actHandler.takeDeterministicAction(
+          uploadAction,
+          page,
+          this.domSettleTimeoutMs,
+          this.resolveLlmClient(options?.model),
+          ensureTimeRemaining,
+          options?.variables,
+          input,
+        );
       } else if (this.apiClient) {
         const frameId = page.mainFrameId();
         actResult = await this.apiClient.act({ input, options, frameId });

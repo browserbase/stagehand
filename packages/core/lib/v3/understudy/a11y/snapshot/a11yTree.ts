@@ -121,6 +121,13 @@ export async function a11yForFrame(
   return { outline: simplified.trimEnd(), urlMap, scopeApplied };
 }
 
+function isEncodedFileInput(encodedId: string, opts: A11yOptions): boolean {
+  const tag = String(opts.tagNameMap[encodedId] ?? "").toLowerCase();
+  if (tag === "input, file") return true;
+  const inputType = opts.inputTypeMap?.[encodedId];
+  return tag === "input" && String(inputType ?? "").toLowerCase() === "file";
+}
+
 export function decorateRoles(
   nodes: Protocol.Accessibility.AXNode[],
   opts: A11yOptions,
@@ -154,8 +161,8 @@ export function decorateRoles(
 
     // File inputs typically get role "button" from Chrome's AX tree;
     // override so they appear as "input, file" in the outline.
-    if (tag === "input, file") {
-      role = tag;
+    if (encodedId && isEncodedFileInput(encodedId, opts)) {
+      role = "input, file";
     }
 
     return {
@@ -245,13 +252,6 @@ export async function buildHierarchicalTree(
 
     return { ...node, role: newRole, children: prunedStatic };
   }
-}
-
-function isEncodedFileInput(encodedId: string, opts: A11yOptions): boolean {
-  const tag = String(opts.tagNameMap[encodedId] ?? "").toLowerCase();
-  if (tag === "input, file") return true;
-  const inputType = opts.inputTypeMap?.[encodedId];
-  return tag === "input" && String(inputType ?? "").toLowerCase() === "file";
 }
 
 function isFileInputNode(node: A11yNode, opts: A11yOptions): boolean {
