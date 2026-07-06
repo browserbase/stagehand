@@ -26,6 +26,7 @@ import {
 } from "./handlerUtils/actHandlerUtils.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 import { resolveVariableValue } from "../agent/utils/variables.js";
+import { resolveSetInputFilesArguments } from "./handlerUtils/fileUploadActUtils.js";
 
 type ActInferenceElement = {
   elementId?: string;
@@ -192,6 +193,7 @@ export class ActHandler {
       llmClient,
       ensureTimeRemaining,
       variables,
+      instruction,
     );
 
     // If not two-step, return the first action result
@@ -249,6 +251,7 @@ export class ActHandler {
       llmClient,
       ensureTimeRemaining,
       variables,
+      instruction,
     );
 
     // Combine results
@@ -272,6 +275,7 @@ export class ActHandler {
     llmClientOverride?: LLMClient,
     ensureTimeRemaining?: () => void,
     variables?: Variables,
+    instruction?: string,
   ): Promise<ActResult> {
     ensureTimeRemaining?.();
     const settleTimeout = domSettleTimeoutMs ?? this.defaultDomSettleTimeoutMs;
@@ -299,7 +303,9 @@ export class ActHandler {
       ? [...action.arguments]
       : [];
     const resolvedArgs =
-      substituteVariablesInArguments(action.arguments, variables) ?? [];
+      method === "setInputFiles"
+        ? resolveSetInputFilesArguments(action, variables, instruction)
+        : (substituteVariablesInArguments(action.arguments, variables) ?? []);
 
     try {
       ensureTimeRemaining?.();
@@ -364,7 +370,7 @@ export class ActHandler {
           const instruction = buildActPrompt(
             actCommand,
             Object.values(SupportedUnderstudyAction),
-            {},
+            variables,
           );
 
           ensureTimeRemaining?.();

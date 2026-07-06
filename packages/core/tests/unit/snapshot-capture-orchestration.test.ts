@@ -347,6 +347,7 @@ describe("captureHybridSnapshot", () => {
       .spyOn(domTree, "domMapsForSession")
       .mockResolvedValue({
         tagNameMap: { "0-100": "#document" },
+        inputTypeMap: {},
         xpathMap: { "0-100": "/" },
         scrollableMap: {},
       });
@@ -384,6 +385,7 @@ describe("captureHybridSnapshot", () => {
       .spyOn(domTree, "domMapsForSession")
       .mockResolvedValue({
         tagNameMap: { "0-100": "#document" },
+        inputTypeMap: {},
         xpathMap: { "0-100": "/" },
         scrollableMap: {},
       });

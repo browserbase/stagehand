@@ -1237,6 +1237,115 @@ describe("No-timeout success paths", () => {
 
     expect(result.success).toBe(true);
   });
+
+  it("substitutes file variables before executing setInputFiles", async () => {
+    const { performUnderstudyMethod } = await import(
+      "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
+    );
+    const performUnderstudyMethodMock = vi.mocked(performUnderstudyMethod);
+    performUnderstudyMethodMock.mockResolvedValue(undefined);
+
+    const handler = buildActHandler();
+    const fakePage = {
+      mainFrame: vi.fn().mockReturnValue({}),
+    } as unknown as Page;
+
+    const result = await handler.takeDeterministicAction(
+      {
+        selector: "xpath=/html/body/input",
+        description: "resume file input",
+        method: "setInputFiles",
+        arguments: ["%resume%"],
+      },
+      fakePage,
+      5_000,
+      undefined,
+      undefined,
+      { resume: "/tmp/resume.pdf" },
+    );
+
+    expect(performUnderstudyMethodMock).toHaveBeenCalledWith(
+      fakePage,
+      expect.anything(),
+      "setInputFiles",
+      "xpath=/html/body/input",
+      ["/tmp/resume.pdf"],
+      5_000,
+    );
+    expect(result.actions[0]?.arguments).toEqual(["%resume%"]);
+  });
+
+  it("infers file variables for setInputFiles when observe returns empty arguments", async () => {
+    const { performUnderstudyMethod } = await import(
+      "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
+    );
+    const performUnderstudyMethodMock = vi.mocked(performUnderstudyMethod);
+    performUnderstudyMethodMock.mockResolvedValue(undefined);
+
+    const handler = buildActHandler();
+    const fakePage = {
+      mainFrame: vi.fn().mockReturnValue({}),
+    } as unknown as Page;
+
+    await handler.takeDeterministicAction(
+      {
+        selector: "xpath=/html/body/input",
+        description: "resume file input",
+        method: "setInputFiles",
+        arguments: [],
+      },
+      fakePage,
+      5_000,
+      undefined,
+      undefined,
+      { resume: "/tmp/resume.pdf" },
+    );
+
+    expect(performUnderstudyMethodMock).toHaveBeenCalledWith(
+      fakePage,
+      expect.anything(),
+      "setInputFiles",
+      "xpath=/html/body/input",
+      ["/tmp/resume.pdf"],
+      5_000,
+    );
+  });
+
+  it("infers the only file variable for observe-to-act uploads with generic descriptions", async () => {
+    const { performUnderstudyMethod } = await import(
+      "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js"
+    );
+    const performUnderstudyMethodMock = vi.mocked(performUnderstudyMethod);
+    performUnderstudyMethodMock.mockResolvedValue(undefined);
+
+    const handler = buildActHandler();
+    const fakePage = {
+      mainFrame: vi.fn().mockReturnValue({}),
+    } as unknown as Page;
+
+    await handler.takeDeterministicAction(
+      {
+        selector: "xpath=/html/body/input",
+        description: "file upload input",
+        method: "setInputFiles",
+        arguments: [],
+      },
+      fakePage,
+      5_000,
+      undefined,
+      undefined,
+      { resume: "/tmp/resume.pdf" },
+    );
+
+    expect(performUnderstudyMethodMock).toHaveBeenCalledWith(
+      fakePage,
+      expect.anything(),
+      "setInputFiles",
+      "xpath=/html/body/input",
+      ["/tmp/resume.pdf"],
+      5_000,
+    );
+  });
 });
 
 interface BuildActHandlerOptions {

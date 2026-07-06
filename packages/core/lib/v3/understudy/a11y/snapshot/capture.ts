@@ -217,13 +217,14 @@ export async function tryScopedSnapshot(
     const sameSessionAsParent =
       !!parentId &&
       ownerSession(page, parentId) === ownerSession(page, targetFrameId);
-    const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
-      owningSess,
-      targetFrameId,
-      pierce,
-      (fid, be) => `${page.getOrdinal(fid)}-${be}`,
-      sameSessionAsParent,
-    );
+    const { tagNameMap, inputTypeMap, xpathMap, scrollableMap } =
+      await domMapsForSession(
+        owningSess,
+        targetFrameId,
+        pierce,
+        (fid, be) => `${page.getOrdinal(fid)}-${be}`,
+        sameSessionAsParent,
+      );
 
     const { outline, urlMap, scopeApplied } = await a11yForFrame(
       owningSess,
@@ -236,10 +237,13 @@ export async function tryScopedSnapshot(
           exclusionIntervalsByFrame,
         ),
         tagNameMap,
+        inputTypeMap,
+        xpathMap,
         experimental: options?.experimental ?? false,
         scrollableMap,
         encode: (backendNodeId) =>
           `${page.getOrdinal(targetFrameId)}-${backendNodeId}`,
+        decode: parseEncodedBackendNodeId,
       },
     );
 
@@ -371,6 +375,7 @@ export async function collectPerFrameMaps(
     );
 
     const tagNameMap: Record<string, string> = {};
+    const inputTypeMap: Record<string, string> = {};
     const xpathMap: Record<string, string> = {};
     const scrollableMap: Record<string, boolean> = {};
     const isIgnoredBackendNode = makeIsIgnoredBackendNode(
@@ -392,6 +397,8 @@ export async function collectPerFrameMaps(
       xpathMap[key] = rel;
       const tag = idx.tagByBe.get(be);
       if (tag) tagNameMap[key] = tag;
+      const inputType = idx.inputTypeByBe?.get(be);
+      if (inputType) inputTypeMap[key] = inputType;
       if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
     }
 
@@ -399,12 +406,21 @@ export async function collectPerFrameMaps(
       isIgnoredBackendNode,
       experimental: options?.experimental ?? false,
       tagNameMap,
+      inputTypeMap,
+      xpathMap,
       scrollableMap,
       encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
+      decode: parseEncodedBackendNodeId,
     });
 
     perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
+    perFrameMaps.set(frameId, {
+      tagNameMap,
+      inputTypeMap,
+      xpathMap,
+      scrollableMap,
+      urlMap,
+    });
   }
 
   return { perFrameMaps, perFrameOutlines };

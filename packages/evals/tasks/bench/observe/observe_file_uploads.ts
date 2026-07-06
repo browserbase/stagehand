@@ -31,7 +31,9 @@ export default defineBenchTask(
       const actualBackendNodeId = await page
         .locator(observations[0].selector)
         .backendNodeId();
-      const foundMatch = expectedBackendNodeId === actualBackendNodeId;
+      const foundMatch =
+        expectedBackendNodeId === actualBackendNodeId &&
+        observations[0].method === "setInputFiles";
 
       return {
         _success: foundMatch,

@@ -363,6 +363,7 @@ describe("tryScopedSnapshot", () => {
       .spyOn(domTree, "domMapsForSession")
       .mockResolvedValue({
         tagNameMap: { "1-10": "div" },
+        inputTypeMap: {},
         xpathMap: { "1-10": "/div[1]" },
         scrollableMap: {},
       });
@@ -398,6 +399,7 @@ describe("tryScopedSnapshot", () => {
     const session = new MockCDPSession({});
     vi.spyOn(domTree, "domMapsForSession").mockResolvedValue({
       tagNameMap: { "1-10": "div" },
+      inputTypeMap: {},
       xpathMap: { "1-10": "/div[1]" },
       scrollableMap: {},
     });
@@ -437,6 +439,7 @@ describe("tryScopedSnapshot", () => {
     const session = new MockCDPSession({});
     vi.spyOn(domTree, "domMapsForSession").mockResolvedValue({
       tagNameMap: { "1-10": "div" },
+      inputTypeMap: {},
       xpathMap: { "1-10": "/div[1]" },
       scrollableMap: {},
     });
@@ -488,6 +491,7 @@ describe("tryScopedSnapshot", () => {
     const session = new MockCDPSession({});
     vi.spyOn(domTree, "domMapsForSession").mockResolvedValue({
       tagNameMap: { "1-10": "div", "1-11": "div" },
+      inputTypeMap: {},
       xpathMap: { "1-10": "/div[1]", "1-11": "/div[2]" },
       scrollableMap: {},
     });

@@ -45,7 +45,8 @@ describe("SupportedUnderstudyAction enum Zod compatibility", () => {
     expect(enumValues).toContain("hover");
     expect(enumValues).toContain("doubleClick");
     expect(enumValues).toContain("dragAndDrop");
-    expect(enumValues.length).toBe(11);
+    expect(enumValues).toContain("setInputFiles");
+    expect(enumValues.length).toBe(12);
   });
 
   it("Zod v3 z.enum() with Object.values(SupportedUnderstudyAction) works correctly", () => {

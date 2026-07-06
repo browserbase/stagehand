@@ -56,6 +56,8 @@ export type SessionDomIndex = {
   rootBackend: number;
   absByBe: Map<number, string>;
   tagByBe: Map<number, string>;
+  /** backendNodeId -> lowercased input type value for <input> nodes. */
+  inputTypeByBe?: Map<number, string>;
   scrollByBe: Map<number, boolean>;
   docRootOf: Map<number, number>;
   contentDocRootByIframe: Map<number, number>;
@@ -65,6 +67,8 @@ export type SessionDomIndex = {
 
 export type FrameDomMaps = {
   tagNameMap: Record<string, string>;
+  /** EncodedId -> lowercased input type value for <input> nodes. */
+  inputTypeMap?: Record<string, string>;
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   urlMap: Record<string, string>;
@@ -116,8 +120,11 @@ export type A11yOptions = {
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
   experimental: boolean;
   tagNameMap: Record<string, string>;
+  inputTypeMap?: Record<string, string>;
+  xpathMap?: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   encode: (backendNodeId: number) => string;
+  decode?: (encodedId: string) => number | undefined;
 };
 
 export type AccessibilityTreeResult = {
