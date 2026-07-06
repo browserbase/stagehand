@@ -8,7 +8,7 @@ import {
 
 export default class Snapshot extends BrowseCommand {
   static override description =
-    "Print the active page accessibility snapshot and cache refs for element commands. Pass --full to also include the ref maps (xpathMap, urlMap), or run `browse refs` to print them.";
+    "Print the active page accessibility snapshot and cache refs for element commands. Pass --full to also include the ref maps (xpathMap, urlMap).";
 
   static override examples = [
     "browse snapshot",
