@@ -33,7 +33,7 @@ npm install -g browse
 npm install -g browse
 
 browse open https://example.com
-browse snapshot --compact
+browse snapshot
 browse click @0-12
 browse fill @0-8 "hello"
 browse get title
@@ -89,8 +89,8 @@ browse forward        # Navigate forward
 The accessibility snapshot is the recommended way for agents to discover elements. It prints a tree of refs like `@0-12` that the element commands accept directly.
 
 ```bash
-browse snapshot                 # Accessibility snapshot + cached refs
-browse snapshot --compact       # Tree only, no ref maps
+browse snapshot                 # Accessibility tree + cached refs (lean by default)
+browse snapshot --full          # Also include the ref maps (xpathMap, urlMap)
 browse snapshot --filter submit # Filter lines by text or /regex/, keeping ancestors
 browse snapshot --max-depth 4   # Trim output deeper than this depth
 ```
