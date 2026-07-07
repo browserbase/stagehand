@@ -8,19 +8,23 @@ import {
 
 export default class Snapshot extends BrowseCommand {
   static override description =
-    "Print the active page accessibility snapshot and cache refs for element commands.";
+    "Print the active page accessibility snapshot and cache refs for element commands. Pass --full to also include the ref maps (xpathMap, urlMap).";
 
   static override examples = [
     "browse snapshot",
-    "browse snapshot --compact",
+    "browse snapshot --full",
     "browse snapshot --filter submit",
     "browse snapshot --max-depth 4",
   ];
 
   static override flags = {
     ...driverCommandFlags,
+    full: Flags.boolean({
+      description: "Also include the ref maps (xpathMap, urlMap).",
+    }),
     compact: Flags.boolean({
-      description: "Print only the formatted tree, without ref maps.",
+      description:
+        "Deprecated and has no effect; use --full to include the ref maps.",
     }),
     filter: Flags.string({
       description:
@@ -35,10 +39,15 @@ export default class Snapshot extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(Snapshot);
+    if (flags.compact && process.stderr.isTTY) {
+      this.warn(
+        "`--compact` is deprecated and has no effect; use `--full` to include the ref maps.",
+      );
+    }
     await runDriverCommandFromFlags(
       "snapshot",
       {
-        compact: flags.compact,
+        full: flags.full,
         filter: flags.filter,
         maxDepth: flags["max-depth"],
       },
