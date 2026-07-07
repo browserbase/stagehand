@@ -89,6 +89,17 @@ describe("Stagehand constructor with model 'auto'", () => {
         }),
     ).toThrow(StagehandInvalidArgumentError);
   });
+
+  it("throws when a custom llmClient bypasses the API", () => {
+    expect(
+      () =>
+        new Stagehand({
+          env: "BROWSERBASE",
+          model: "auto",
+          llmClient: {} as never,
+        }),
+    ).toThrow(StagehandInvalidArgumentError);
+  });
 });
 
 describe("per-call model 'auto' local resolution", () => {

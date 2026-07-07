@@ -357,17 +357,22 @@ export class V3 {
     const baseClientOptions: ClientOptions = clientOptions
       ? ({ ...clientOptions } as ClientOptions)
       : ({} as ClientOptions);
-    if (opts.llmClient) {
-      this.llmClient = opts.llmClient;
-      this.modelClientOptions = baseClientOptions;
-      this.disableAPI = true;
-    } else if (isAutoModel(this.modelName)) {
-      if (opts.env !== "BROWSERBASE" || this.disableAPI || this.experimental) {
+    if (isAutoModel(this.modelName)) {
+      if (
+        opts.llmClient ||
+        opts.env !== "BROWSERBASE" ||
+        this.disableAPI ||
+        this.experimental
+      ) {
         throw new StagehandInvalidArgumentError(AUTO_MODEL_API_ONLY_MESSAGE);
       }
       // "auto" delegates model selection to the Stagehand API, so no local
       // LLM client is created and no provider API key is required.
       this.modelClientOptions = baseClientOptions;
+    } else if (opts.llmClient) {
+      this.llmClient = opts.llmClient;
+      this.modelClientOptions = baseClientOptions;
+      this.disableAPI = true;
     } else {
       // Ensure API key is set unless provider-native auth was configured.
       let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
