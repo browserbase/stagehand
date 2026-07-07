@@ -39,7 +39,12 @@ afterEach(async () => {
   while (cleanupPaths.length > 0) {
     const path = cleanupPaths.pop();
     if (path) {
-      await rm(path, { recursive: true, force: true });
+      await rm(path, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      });
     }
   }
 });
