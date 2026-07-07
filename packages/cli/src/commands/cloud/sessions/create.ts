@@ -9,6 +9,7 @@ import {
 } from "../../../lib/cloud/api.js";
 import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
+import { detectAgent } from "../../../lib/agent.js";
 import { fail } from "../../../lib/errors.js";
 import {
   getCliVersion,
@@ -97,12 +98,18 @@ function buildSessionCreateBody(
  * every CLI-created cloud session is attributable to the CLI (matching the
  * driver `open --remote` path). Any user-supplied `userMetadata` (via --body or
  * --stdin) is preserved; our attribution keys (browse_cli/install_id/
- * cli_version) are authoritative and override caller values for those keys.
+ * cli_version/agent) are authoritative and override caller values for those
+ * keys.
  *
- * Resolving the install id is best-effort and never throws; if it can't be
- * resolved we still send browse_cli + cli_version. Values are run through
- * toMetadataValue() so the session-create validator never 400s on a stray
- * character or an over-length value.
+ * When the CLI is running under a detectable coding agent (e.g. claude-code,
+ * cursor, codex), the `agent` key is stamped too so cloud sessions can be
+ * attributed to the agent in Snowflake — mirroring the `agent` property already
+ * sent to PostHog telemetry. It is only set when detectAgent() returns a value.
+ *
+ * Resolving the install id and agent is best-effort and never throws; if they
+ * can't be resolved we still send browse_cli + cli_version. Values are run
+ * through toMetadataValue() so the session-create validator never 400s on a
+ * stray character or an over-length value.
  */
 async function applyCliAttribution(
   body: Record<string, unknown>,
@@ -129,6 +136,14 @@ async function applyCliAttribution(
     const sanitized = toMetadataValue(installId);
     if (sanitized) {
       userMetadata.install_id = sanitized;
+    }
+  }
+
+  const agent = await detectAgent().catch(() => null);
+  if (agent) {
+    const sanitized = toMetadataValue(agent);
+    if (sanitized) {
+      userMetadata.agent = sanitized;
     }
   }
 

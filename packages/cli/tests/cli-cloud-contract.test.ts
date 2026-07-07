@@ -1276,6 +1276,94 @@ describe("cloud API contracts", () => {
     );
   });
 
+  it("sessions create stamps the detected coding agent onto userMetadata", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "sess_123" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli(
+          [
+            "cloud",
+            "sessions",
+            "create",
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
+          // HERMES_SESSION_PLATFORM forces detectAgent() to a deterministic
+          // value regardless of the host env the test runs under.
+          { env: { HERMES_SESSION_PLATFORM: "telegram" } },
+        );
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        const body = requests[0]?.jsonBody as {
+          userMetadata?: Record<string, string>;
+        };
+        expect(body.userMetadata?.agent).toBe("hermes");
+      },
+    );
+  });
+
+  it("sessions create omits the agent key when no coding agent is detected", async () => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, { id: "sess_123" });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli(
+          [
+            "cloud",
+            "sessions",
+            "create",
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
+          // Clear every known agent-detection env var (spawn drops keys set to
+          // undefined) so detectAgent() resolves to null even when the test host
+          // itself runs under an agent.
+          {
+            env: {
+              AI_AGENT: undefined,
+              ANTIGRAVITY_AGENT: undefined,
+              AUGMENT_AGENT: undefined,
+              CLAUDECODE: undefined,
+              CLAUDE_CODE: undefined,
+              CLAUDE_CODE_IS_COWORK: undefined,
+              CODEX_CI: undefined,
+              CODEX_SANDBOX: undefined,
+              CODEX_THREAD_ID: undefined,
+              COPILOT_ALLOW_ALL: undefined,
+              COPILOT_GITHUB_TOKEN: undefined,
+              COPILOT_MODEL: undefined,
+              CURSOR_AGENT: undefined,
+              CURSOR_EXTENSION_HOST_ROLE: undefined,
+              CURSOR_TRACE_ID: undefined,
+              GEMINI_CLI: undefined,
+              HERMES_SESSION_PLATFORM: undefined,
+              OPENCLAW_SHELL: undefined,
+              OPENCODE_CLIENT: undefined,
+              REPL_ID: undefined,
+            },
+          },
+        );
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        const body = requests[0]?.jsonBody as {
+          userMetadata?: Record<string, string>;
+        };
+        // Attribution keys still present; agent is only stamped when detected.
+        expect(body.userMetadata?.browse_cli).toBe("true");
+        expect(body.userMetadata?.agent).toBeUndefined();
+      },
+    );
+  });
+
   it("sessions update merges an explicit status flag into the request body", async () => {
     await withServer(
       async (_request, response) => {
