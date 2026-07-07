@@ -326,18 +326,27 @@ export async function prepareBrowseCliHarnessAdapter(
     PATH: `${cwd}${path.delimiter}${process.env.PATH ?? ""}`,
   } as Record<string, string>;
 
+  const modeFlag = input.environment === "BROWSERBASE" ? "--remote" : "--local";
   await fsp.writeFile(
     wrapperPath,
     [
       "#!/usr/bin/env bash",
       "set -euo pipefail",
-      `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(BROWSE_CLI_ENTRYPOINT)} --json --session ${JSON.stringify(session)} "$@"`,
+      // The mode flag (--local/--remote) selects the environment when the daemon
+      // is first started and must be explicit so a set BROWSERBASE_API_KEY does
+      // not silently auto-select remote. It is only accepted by the driver
+      // commands, so skip it for the few subcommands that reject it (stop,
+      // status). The session name is safe on every command.
+      "cmd=${1:-}",
+      "mode=()",
+      'if [[ "$cmd" != "stop" && "$cmd" != "status" ]]; then',
+      `  mode=(${JSON.stringify(modeFlag)})`,
+      "fi",
+      `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(BROWSE_CLI_ENTRYPOINT)} "$@" "\${mode[@]+\${mode[@]}}" --session ${JSON.stringify(session)}`,
       "",
     ].join("\n"),
     { mode: 0o755 },
   );
-
-  await runBrowseSetup(wrapperPath, input.environment, input.logger, env, cwd);
 
   return {
     toolSurface: "browse_cli",
@@ -1068,22 +1077,6 @@ function buildCdpCodePromptInstructions(plan: ExternalHarnessTaskPlan): string {
     "Do not edit repository files.",
     "Return useful JSON-serializable values from run snippets so you can inspect progress.",
   ].join("\n");
-}
-
-async function runBrowseSetup(
-  wrapperPath: string,
-  environment: "LOCAL" | "BROWSERBASE",
-  logger: EvalLogger,
-  env: Record<string, string>,
-  cwd: string,
-): Promise<void> {
-  await runBrowseCommand(
-    wrapperPath,
-    ["env", environment === "BROWSERBASE" ? "remote" : "local"],
-    logger,
-    env,
-    cwd,
-  );
 }
 
 function buildBrowseCliPromptInstructions(

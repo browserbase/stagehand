@@ -106,18 +106,30 @@ type BrowseCliPagesResult = {
   }>;
 };
 
+// The mode flag selects the environment when the daemon is first started and
+// must be explicit so a set BROWSERBASE_API_KEY does not silently auto-select
+// remote. It is only accepted by the driver commands, so it is skipped for the
+// subcommands that reject it. The session name is safe on every command.
+const BROWSE_MODELESS_COMMANDS = new Set(["stop", "status"]);
+
 class BrowseCliRuntime {
-  constructor(private readonly session: string) {}
+  constructor(
+    private readonly session: string,
+    private readonly modeFlag: "--local" | "--remote",
+  ) {}
 
   async runJson<T>(args: string[]): Promise<T> {
+    const modeArgs = BROWSE_MODELESS_COMMANDS.has(args[0])
+      ? []
+      : [this.modeFlag];
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
       [
         resolveBrowseCliEntrypoint(),
-        "--json",
+        ...args,
+        ...modeArgs,
         "--session",
         this.session,
-        ...args,
       ],
       {
         cwd: getRepoRootDir(),
@@ -650,8 +662,11 @@ class BrowseCliSession implements CoreSession {
   private activePageId: string | null = null;
   private closed = false;
 
-  constructor(private readonly sessionName: string) {
-    this.runtime = new BrowseCliRuntime(sessionName);
+  constructor(
+    private readonly sessionName: string,
+    modeFlag: "--local" | "--remote",
+  ) {
+    this.runtime = new BrowseCliRuntime(sessionName, modeFlag);
   }
 
   private wrap(page: { targetId: string; url: string }): BrowseCliPageHandle {
@@ -828,11 +843,10 @@ export class BrowseCliTool implements CoreTool {
       );
     }
 
-    const session = new BrowseCliSession(createSessionName());
-    await session.runtime.runJson([
-      "env",
-      input.environment === "BROWSERBASE" ? "remote" : "local",
-    ]);
+    const session = new BrowseCliSession(
+      createSessionName(),
+      input.environment === "BROWSERBASE" ? "--remote" : "--local",
+    );
 
     return {
       session,
