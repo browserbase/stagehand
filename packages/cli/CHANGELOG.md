@@ -1,5 +1,11 @@
 # browse
 
+## 0.9.4
+
+### Patch Changes
+
+- [#2296](https://github.com/browserbase/stagehand/pull/2296) [`2f5e085`](https://github.com/browserbase/stagehand/commit/2f5e085a38aa6d8d52eb33017c64385a75e192cf) Thanks [@shrey150](https://github.com/shrey150)! - `browse snapshot` now prints the accessibility tree only by default, omitting the `xpathMap`/`urlMap` ref maps. Pass `--full` to include them. Ref-based element commands are unaffected.
+
 ## 0.9.3
 
 ### Patch Changes
