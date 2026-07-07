@@ -1,12 +1,14 @@
-import type { AvailableModel, TaskSpec, V3 } from "@browserbasehq/stagehand";
+import type { AvailableModel } from "@browserbasehq/stagehand";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { PreparedClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
 import { claudeCodeAdapter } from "./harnesses/claudeCodeAdapter.js";
-import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
-import { evaluationResultToSuccess } from "./verifierAdapter.js";
+import {
+  gradeExternalTrajectory,
+  type ExternalHarnessVerifierConfig,
+} from "./verifierAdapter.js";
 
 type ClaudeSdkMessage = Record<string, unknown>;
 type ClaudeQuery = AsyncIterable<ClaudeSdkMessage>;
@@ -18,25 +20,6 @@ export type ClaudeAgentSdk = {
     options?: Record<string, unknown>;
   }) => ClaudeQuery;
 };
-
-export interface ClaudeCodeVerifierConfig {
-  /**
-   * V3 instance used solely as the LLM-client carrier for V3Evaluator. The
-   * instance does NOT need to have `init()` been called — V3Evaluator.verify()
-   * uses only `v3.logger` to construct its LLMProvider.
-   */
-  v3: V3;
-  /** TaskSpec to verify against. id + instruction + optional rubric/initUrl. */
-  taskSpec: TaskSpec;
-  /** Dataset name for rubric cache partitioning (used when no precomputedRubric). */
-  dataset: string;
-  /** Override --success mode. Defaults to EVAL_SUCCESS_MODE env or "outcome". */
-  successMode?: "outcome" | "process" | "both";
-  /** Override trajectory persistence root. */
-  trajectoryRoot?: string;
-  /** Override the run id (defaults to ISO timestamp). */
-  runId?: string;
-}
 
 export interface ClaudeCodeRunnerInput {
   plan: ExternalHarnessTaskPlan;
@@ -54,7 +37,7 @@ export interface ClaudeCodeRunnerInput {
    * When omitted, the runner falls back to parsing the legacy EVAL_RESULT
    * line — preserves current behavior for callers that haven't migrated.
    */
-  verifier?: ClaudeCodeVerifierConfig;
+  verifier?: ExternalHarnessVerifierConfig;
 }
 
 export interface ParsedClaudeCodeResult {
@@ -271,89 +254,29 @@ export async function runClaudeCodeAgent({
     return baseResult;
   }
 
-  // Build a Trajectory from the SDK message stream and run the rubric verifier.
-  try {
-    const trajectory = claudeCodeAdapter.fromHarnessResult(
-      {
-        messages,
-        finalAnswer: parsed.finalAnswer ?? resultText,
-        status: status === "completed" ? "complete" : "error",
-        usage: {
-          input_tokens: tokenUsage.inputTokens,
-          output_tokens: tokenUsage.outputTokens,
-          cached_input_tokens: tokenUsage.cacheReadInputTokens,
+  // Build a Trajectory from the SDK message stream and grade it with the
+  // rubric verifier; any failure in that path folds into `verifierError`.
+  return gradeExternalTrajectory({
+    buildTrajectory: () =>
+      claudeCodeAdapter.fromHarnessResult(
+        {
+          messages,
+          finalAnswer: parsed.finalAnswer ?? resultText,
+          status: status === "completed" ? "complete" : "error",
+          usage: {
+            input_tokens: tokenUsage.inputTokens,
+            output_tokens: tokenUsage.outputTokens,
+            cached_input_tokens: tokenUsage.cacheReadInputTokens,
+          },
         },
-      },
-      verifier.taskSpec,
-    );
-
-    const { V3Evaluator } = await import("@browserbasehq/stagehand");
-    const { RubricCache } = await import("./rubricCache.js");
-    const evaluator = new V3Evaluator(verifier.v3, { backend: "verifier" });
-
-    // Hydrate rubric — use precomputed if present, otherwise cache-or-generate.
-    let rubric = verifier.taskSpec.precomputedRubric;
-    if (!rubric) {
-      if (process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1") {
-        rubric = await evaluator.generateRubric(verifier.taskSpec);
-      } else {
-        const cache = new RubricCache({ dataset: verifier.dataset });
-        rubric = await cache.getOrGenerate(verifier.taskSpec, evaluator);
-      }
-    }
-    const hydratedSpec: TaskSpec = {
-      ...verifier.taskSpec,
-      precomputedRubric: rubric,
-    };
-    const hydratedTrajectory = { ...trajectory, task: hydratedSpec };
-
-    const evaluationResult = await evaluator.verify(hydratedTrajectory);
-    const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
-    const verifiedSuccess = evaluationResultToSuccess(
-      evaluationResult,
-      successMode,
-    );
-
-    const { directory: trajectoryDir } = await persistAdapterTrajectory({
-      trajectory: hydratedTrajectory,
-      taskSpec: hydratedSpec,
-      evaluationResult,
-      outputRoot: verifier.trajectoryRoot,
-      runId: verifier.runId,
-    });
-
-    logger.log({
-      category: "claude_code",
-      message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} steps=${hydratedTrajectory.steps.length}`,
-      level: 1,
-    });
-
-    return {
-      ...baseResult,
-      _success: verifiedSuccess,
-      error: verifiedSuccess ? undefined : (baseResult.error ?? errorMessage),
-      outcomeSuccess: evaluationResult.outcomeSuccess,
-      processScore: evaluationResult.processScore,
-      evidenceInsufficient: evaluationResult.evidenceInsufficient,
-      criterionCount: rubric.items.length,
-      stepCount: hydratedTrajectory.steps.length,
-      trajectoryDir,
-    };
-  } catch (verifyError) {
-    logger.warn({
-      category: "claude_code",
-      message: `verifier integration failed: ${stringifyError(verifyError)}`,
-      level: 0,
-      auxiliary: {
-        error: { value: stringifyError(verifyError), type: "string" },
-      },
-    });
-    return baseResult;
-  }
-}
-
-function formatProcessScore(score: number | undefined): string {
-  return typeof score === "number" ? score.toFixed(2) : "n/a";
+        verifier.taskSpec,
+      ),
+    verifier,
+    baseResult,
+    errorMessage,
+    category: "claude_code",
+    logger,
+  });
 }
 
 function buildClaudeCodeMetrics(
