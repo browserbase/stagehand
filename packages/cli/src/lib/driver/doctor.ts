@@ -418,9 +418,7 @@ function nextStep(
 ): string | undefined {
   if (verdict !== "ok" || !target) return undefined;
   if (status && !hasExplicitDriverTarget(flags)) {
-    return session === "default"
-      ? "browse status"
-      : `browse status --session ${session}`;
+    return `browse status --session ${session}`;
   }
 
   const parts = ["browse open", DEFAULT_URL];
@@ -438,7 +436,7 @@ function nextStep(
     parts.push("--local");
     if (!target.headless) parts.push("--headed");
   }
-  if (session !== "default") parts.push("--session", session);
+  parts.push("--session", session);
   if (
     checks.some(
       (check) =>

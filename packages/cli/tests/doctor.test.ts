@@ -36,9 +36,12 @@ describe("doctor command", () => {
 
   it("emits JSON and exits 0 for the default local preflight", async () => {
     const daemonDir = await tempDaemonDir();
-    const result = await runCli(["doctor", "--json"], {
-      env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
-    });
+    const result = await runCli(
+      ["doctor", "--session", "local-preflight", "--json"],
+      {
+        env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
+      },
+    );
 
     expect(result.exitCode).toBe(0);
     const report = JSON.parse(result.stdout) as {
@@ -57,9 +60,12 @@ describe("doctor command", () => {
 
   it("fails human output for remote mode without an API key", async () => {
     const daemonDir = await tempDaemonDir();
-    const result = await runCli(["doctor", "--remote"], {
-      env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
-    });
+    const result = await runCli(
+      ["doctor", "--session", "remote-no-key", "--remote"],
+      {
+        env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
+      },
+    );
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toContain(
@@ -70,9 +76,12 @@ describe("doctor command", () => {
 
   it("keeps --json exit 0 even when the verdict fails", async () => {
     const daemonDir = await tempDaemonDir();
-    const result = await runCli(["doctor", "--remote", "--json"], {
-      env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
-    });
+    const result = await runCli(
+      ["doctor", "--session", "remote-fail-json", "--remote", "--json"],
+      {
+        env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
+      },
+    );
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
@@ -85,9 +94,12 @@ describe("doctor command", () => {
 
   it("passes remote mode when the API key is present", async () => {
     const daemonDir = await tempDaemonDir();
-    const result = await runCli(["doctor", "--remote", "--json"], {
-      env: { BROWSERBASE_API_KEY: "test-key", BROWSE_DAEMON_DIR: daemonDir },
-    });
+    const result = await runCli(
+      ["doctor", "--session", "remote-with-key", "--remote", "--json"],
+      {
+        env: { BROWSERBASE_API_KEY: "test-key", BROWSE_DAEMON_DIR: daemonDir },
+      },
+    );
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
@@ -100,9 +112,19 @@ describe("doctor command", () => {
 
   it("reports conflicting mode flags as a failed target check", async () => {
     const daemonDir = await tempDaemonDir();
-    const result = await runCli(["doctor", "--local", "--remote", "--json"], {
-      env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
-    });
+    const result = await runCli(
+      [
+        "doctor",
+        "--session",
+        "conflicting-modes",
+        "--local",
+        "--remote",
+        "--json",
+      ],
+      {
+        env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
+      },
+    );
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
@@ -136,7 +158,14 @@ describe("doctor command", () => {
     try {
       const port = await listen(server);
       const result = await runCli(
-        ["doctor", "--cdp", `http://127.0.0.1:${port}`, "--json"],
+        [
+          "doctor",
+          "--session",
+          "explicit-cdp",
+          "--cdp",
+          `http://127.0.0.1:${port}`,
+          "--json",
+        ],
         {
           env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
         },
@@ -260,7 +289,10 @@ describe("doctor command", () => {
 });
 
 describe("doctor report builder", () => {
-  it("keeps the default session out of status suggestions", async () => {
+  it("always includes --session in status suggestions (no magic default)", async () => {
+    // "default" is just an ordinary session name now -- there's no more
+    // special-casing that omits --session when a session happens to be
+    // called "default".
     const report = await buildDoctorReport(
       {
         flags: {},
@@ -281,7 +313,7 @@ describe("doctor report builder", () => {
       },
     );
 
-    expect(report.next).toBe("browse status");
+    expect(report.next).toBe("browse status --session default");
   });
 
   it("checks auto-connect discovery through injectable dependencies", async () => {
@@ -382,7 +414,7 @@ describe("doctor report builder", () => {
       ]),
     );
     expect(report.next).toBe(
-      "browse open https://example.com --remote --verified --proxies",
+      "browse open https://example.com --remote --verified --proxies --session default",
     );
   });
 });

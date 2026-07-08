@@ -30,7 +30,7 @@ describe("CLI telemetry", () => {
       const installIdFile = await tempInstallIdFile(
         "browse-telemetry-success-",
       );
-      const result = await runCli(["status"], {
+      const result = await runCli(["status", "--session", "telemetry-probe"], {
         env: telemetryEnv(telemetryServer, installIdFile),
       });
 
@@ -97,7 +97,7 @@ describe("CLI telemetry", () => {
       const installIdFile = await tempInstallIdFile(
         `browse-telemetry-agent-${agent}-`,
       );
-      const result = await runCli(["status"], {
+      const result = await runCli(["status", "--session", "telemetry-probe"], {
         env: {
           ...telemetryEnv(telemetryServer, installIdFile),
           ...env,
@@ -321,7 +321,7 @@ describe("CLI telemetry", () => {
       const installIdFile = await tempInstallIdFile(
         "browse-telemetry-disabled-",
       );
-      const result = await runCli(["status"], {
+      const result = await runCli(["status", "--session", "telemetry-probe"], {
         env: {
           ...telemetryEnv(telemetryServer, installIdFile),
           ...env,
@@ -342,8 +342,14 @@ describe("CLI telemetry", () => {
     try {
       const installIdFile = await tempInstallIdFile("browse-telemetry-stable-");
       const env = telemetryEnv(telemetryServer, installIdFile);
-      const firstResult = await runCli(["status"], { env });
-      const secondResult = await runCli(["status"], { env });
+      const firstResult = await runCli(
+        ["status", "--session", "telemetry-probe"],
+        { env },
+      );
+      const secondResult = await runCli(
+        ["status", "--session", "telemetry-probe"],
+        { env },
+      );
 
       expect(firstResult.exitCode).toBe(0);
       expect(secondResult.exitCode).toBe(0);
@@ -376,7 +382,7 @@ describe("CLI telemetry", () => {
         "browse-telemetry-timeout-",
       );
       const startedAt = Date.now();
-      const result = await runCli(["status"], {
+      const result = await runCli(["status", "--session", "telemetry-probe"], {
         env: {
           ...telemetryEnv(telemetryServer, installIdFile),
           BROWSERBASE_TELEMETRY_TIMEOUT_MS: "50",

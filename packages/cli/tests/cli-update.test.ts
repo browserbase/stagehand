@@ -46,11 +46,13 @@ describe("CLI auto-update", () => {
       },
     });
 
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      browserConnected: false,
-      session: "default",
-    });
+    // Bare `status` with nothing running and no --session now resolves
+    // against running sessions and errors instead of falling back to a
+    // shared "default" session.
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "No running browser session. Start one with browse open <url>.",
+    );
     expect(result.stderr).toContain(
       `Update available: ${cliVersion} -> 99.0.0.`,
     );
@@ -131,11 +133,13 @@ describe("CLI auto-update", () => {
       },
     });
 
-    expect(result.exitCode).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      browserConnected: false,
-      session: "default",
-    });
+    // Bare `status` with nothing running and no --session now errors with
+    // no_running_session instead of falling back to a shared "default"
+    // session; the update-check behavior under test is unaffected.
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "No running browser session. Start one with browse open <url>.",
+    );
     expect(result.stderr).not.toContain("Update available:");
   });
 });

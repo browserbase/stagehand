@@ -12,10 +12,11 @@ import {
   noDefaultChromeArgsFlag,
   proxiesFlag,
   remoteFlag,
+  resolveSession,
   sessionFlag,
-  sessionName,
   targetIdFlag,
   verifiedFlag,
+  type SessionRole,
 } from "./flags.js";
 import { getDriverStatus } from "./daemon/client.js";
 import {
@@ -23,7 +24,7 @@ import {
   resolveConnectionTarget,
   type DriverModeFlags,
 } from "./mode.js";
-import type { ConnectionTarget } from "./types.js";
+import type { ConnectionTarget, DriverStatus } from "./types.js";
 import { outputJson } from "../output.js";
 import { runDriverCommandWithTarget } from "./runtime.js";
 
@@ -72,20 +73,43 @@ export async function runDriverCommandFromFlags(
   params: unknown,
   flags: DriverFlags,
 ): Promise<void> {
-  const session = sessionName(flags.session);
-  const target = await resolveTargetForCommand(session, flags);
-  outputJson(
-    await runDriverCommandWithTarget(session, target, command, params),
+  // `open` with no explicit session always mints a fresh one (never attaches
+  // implicitly — that would let a second agent clobber the first). Every
+  // other driver command resolves against the currently running session(s).
+  const role: SessionRole = command === "open" ? "open" : "attach";
+  const resolved = await resolveSession(flags.session, role);
+  const target = await resolveTargetForCommand(
+    resolved.session,
+    flags,
+    resolved.status,
+  );
+  const result = await runDriverCommandWithTarget(
+    resolved.session,
+    target,
+    command,
+    params,
+  );
+  if (resolved.generated) {
+    notifyGeneratedSession(resolved.session);
+  }
+  outputJson(result);
+}
+
+function notifyGeneratedSession(session: string): void {
+  process.stderr.write(
+    `Started new session "${session}". Use --session ${session} (or BROWSE_SESSION) to address this browser in follow-up commands; commands without --session find it automatically while it is the only running session.\n`,
   );
 }
 
 export async function resolveTargetForCommand(
   session: string,
   flags: DriverFlags,
+  knownStatus?: DriverStatus | null,
 ) {
   const hasExplicitTarget = hasExplicitDriverTarget(flags);
   if (!hasExplicitTarget || hasModeOnlyFlag(flags)) {
-    const status = await getDriverStatus(session);
+    const status =
+      knownStatus !== undefined ? knownStatus : await getDriverStatus(session);
     if (
       status?.target &&
       (!hasExplicitTarget || targetMatchesRequestedMode(status.target, flags))

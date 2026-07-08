@@ -6,7 +6,7 @@ import {
   type DriverFlags,
 } from "../lib/driver/command-cli.js";
 import { buildDoctorReport, renderDoctorReport } from "../lib/driver/doctor.js";
-import { sessionName } from "../lib/driver/flags.js";
+import { resolveSession } from "../lib/driver/flags.js";
 import { outputJson } from "../lib/output.js";
 
 export default class Doctor extends BrowseCommand {
@@ -30,10 +30,10 @@ export default class Doctor extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(Doctor);
-    const session = sessionName(flags.session);
+    const resolved = await resolveSession(flags.session, "attach");
     const report = await buildDoctorReport({
       flags: flags as DriverFlags,
-      session,
+      session: resolved.session,
     });
 
     if (flags.json) {

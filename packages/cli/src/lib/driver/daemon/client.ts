@@ -13,6 +13,7 @@ import {
   getPidPath,
   getSocketPath,
   PRIVATE_FILE_MODE,
+  runtimeDir,
 } from "./paths.js";
 import { collectForwardedEnv } from "./forwarded-env.js";
 import { isProcessAlive } from "./process.js";
@@ -100,6 +101,44 @@ export async function getDriverStatus(
   session: string,
 ): Promise<DriverStatus | null> {
   return tryDriverStatus(session);
+}
+
+export interface RunningSession {
+  session: string;
+  status: DriverStatus;
+}
+
+/**
+ * List every currently-live driver session, for commands run without an
+ * explicit `--session` to resolve against.
+ *
+ * Keys off `.pid` files rather than `.sock` files: on win32 the daemon socket
+ * is a named pipe that lives outside the runtime dir, so `.pid` is the one
+ * artifact that reliably exists per-session on every platform. Each candidate
+ * is probed with a real status request via `tryDriverStatus`, which both
+ * drops dead daemons and self-heals their stale files as a side effect.
+ */
+export async function listRunningSessions(): Promise<RunningSession[]> {
+  let entries: string[];
+  try {
+    entries = await fs.readdir(runtimeDir());
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+
+  const candidates = entries
+    .filter((entry) => entry.endsWith(".pid"))
+    .map((entry) => entry.slice(0, -".pid".length));
+
+  const probed = await Promise.all(
+    candidates.map(async (session) => {
+      const status = await tryDriverStatus(session);
+      return status ? { session, status } : null;
+    }),
+  );
+
+  return probed.filter((entry): entry is RunningSession => entry !== null);
 }
 
 export async function stopDriverDaemon(

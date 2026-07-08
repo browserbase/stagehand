@@ -1,7 +1,7 @@
 import { Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import { sessionFlag, sessionName } from "../lib/driver/flags.js";
+import { resolveSession, sessionFlag } from "../lib/driver/flags.js";
 import { stopDriverDaemon } from "../lib/driver/daemon/client.js";
 import { outputJson } from "../lib/output.js";
 
@@ -24,8 +24,8 @@ export default class Stop extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(Stop);
-    const session = sessionName(flags.session);
-    const result = await stopDriverDaemon(session, flags.force);
-    outputJson({ ...result, session });
+    const resolved = await resolveSession(flags.session, "attach");
+    const result = await stopDriverDaemon(resolved.session, flags.force);
+    outputJson({ ...result, session: resolved.session });
   }
 }

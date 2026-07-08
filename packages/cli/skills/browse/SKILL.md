@@ -69,11 +69,11 @@ For a Verified and/or proxied remote session, add `--verified` and/or `--proxies
 
 Choose headed/headless and local/remote mode when starting a session. A running session keeps its mode: passing a conflicting flag such as `--headed` to an already-running headless session fails until you run `browse stop --session <name>` or target a different session.
 
-Use named sessions for any non-trivial work, especially when multiple agents or parallel tasks may run at once. Every browser command accepts `--session <name>` (or `-s <name>`); the `BROWSE_SESSION` env var sets the default, and commands without either share the `default` session.
+`browse open` automatically creates an isolated, uniquely named session — the name is printed in the `open` output (and to stderr as a human-readable notice). Follow-up commands with no `--session` find that session automatically as long as it is the only one running. When several sessions are running, commands ask you to pass `--session <name>` — copy the name from your `open` output (or from the error's list of running sessions). Use explicit `--session <name>` (or `-s <name>`; `BROWSE_SESSION` sets it per subagent/env) when coordinating parallel tasks deliberately.
 
 ```bash
-browse open https://example.com --session research --local
-browse snapshot --session research
+browse open https://example.com --local
+browse snapshot
 ```
 
 Remote browser and cloud API commands require:
@@ -101,7 +101,7 @@ Refs are refreshed on every snapshot. After clicks, form submits, navigation, or
 
 ## Parallel Browser Work
 
-Use a different `--session` value for each independent browser task. Sessions isolate tabs, cookies, refs, and daemon state; parallel tasks that omit `--session` share the `default` session and overwrite each other's active page.
+Parallel tasks are isolated automatically: each `browse open` creates its own uniquely named session, so independent tasks never share tabs, cookies, refs, or daemon state. To address a specific one of several running sessions, use the name from its `open` output, or assign names explicitly with `--session` when you want predictable, memorable names for coordinating parallel tasks.
 
 ```bash
 browse open https://example.com/search-a --session search-a --local
@@ -346,7 +346,7 @@ JSON output includes every match with full descriptions and ignores `--limit`; `
 3. Re-run `browse snapshot` after navigation or DOM-changing actions because refs can change.
 4. Prefer refs from snapshots for clicks and uploads; use selectors or XPath when refs are unavailable.
 5. Use `--local` for localhost and repeatable development; use `--remote` for protected sites or Browserbase-specific behavior.
-6. Use a distinct `--session <name>` for each parallel or long-running task; commands without the flag share the `default` session.
+6. `browse open` auto-generates a unique session per task, and sessionless commands find it automatically while it's the only one running; use a distinct explicit `--session <name>` when you need predictable names for parallel or long-running tasks.
 7. Use `--auto-connect` only when attaching to an existing debuggable local Chrome session is intended.
 8. Use `browse doctor` when session startup, browser discovery, CDP attach, or Browserbase auth looks wrong.
 9. Never retry a failing command unchanged. If the same command fails twice with the same error, stop — run `browse doctor --json`, then change approach (fix the key, switch `--local`/`--remote`, or `browse stop --force` and start fresh). Repeating an identical failing command will keep failing.
@@ -362,6 +362,8 @@ JSON output includes every match with full descriptions and ignores `--limit`; `
 - Same command fails twice with the same error: stop retrying — never retry a failing command unchanged. Init failures are cached for several seconds, so instant retries return identical errors. Run `browse doctor --json`, then change approach: fix the key, switch `--local`/`--remote`, or `browse stop --force` and start fresh.
 - Remote command fails: verify `BROWSERBASE_API_KEY` and inspect `browse cloud projects list`.
 - Session setup is unclear: run `browse doctor` or `browse doctor --json`.
+- "No running browser session" on a sessionless command: nothing is open yet — run `browse open <url>` first.
+- "ambiguous session" error (multiple sessions running): pass `--session <name>` using one of the names listed in the error, or the name from your own `open` output.
 - Protected site blocks local mode: retry with `--remote`.
 - `browse skills find` returns nothing: broaden the query — bare domain, then site name, then a task keyword or synonym.
 - `browse skills add` fails on `npx`: install Node.js from https://nodejs.org, then rerun.

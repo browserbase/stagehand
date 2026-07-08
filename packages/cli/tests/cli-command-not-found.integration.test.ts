@@ -107,7 +107,7 @@ describe("command_not_found hook (built CLI)", () => {
   });
 
   it("does not affect valid commands", async () => {
-    const result = await runCli(["status"]);
+    const result = await runCli(["status", "--session", "not-found-probe"]);
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).not.toContain("is not a browse command");
