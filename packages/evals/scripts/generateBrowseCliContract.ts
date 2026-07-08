@@ -1,7 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { getRepoRootDir } from "../runtimePaths.js";
+import { getRepoRootDir, isMainModule } from "../runtimePaths.js";
+
+// Windows path.join produces backslashes; normalize to forward slashes for
+// anything that ends up in a log line or error message (fs calls themselves
+// work fine with either separator, so this is purely for display).
+function toDisplayPath(value: string): string {
+  return value.replaceAll("\\", "/");
+}
 
 interface OclifManifestFlag {
   type?: "boolean" | "option";
@@ -93,7 +100,7 @@ function main(): void {
   const manifestPath = defaultManifestPath();
   if (!fs.existsSync(manifestPath)) {
     throw new Error(
-      `browse CLI manifest not found at ${manifestPath}. Run pnpm --dir packages/cli build first.`,
+      `browse CLI manifest not found at ${toDisplayPath(manifestPath)}. Run pnpm --dir packages/cli build first.`,
     );
   }
 
@@ -107,9 +114,9 @@ function main(): void {
     "browseCliContract.generated.ts",
   );
   fs.writeFileSync(outputPath, renderContractModule(contract));
-  console.log(`Wrote ${outputPath}`);
+  console.log(`Wrote ${toDisplayPath(outputPath)}`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule()) {
   main();
 }
