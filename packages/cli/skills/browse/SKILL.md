@@ -104,16 +104,16 @@ Refs are refreshed on every snapshot. After clicks, form submits, navigation, or
 Give each independent browser task a unique `--session` value. Sessions isolate tabs, cookies, refs, and daemon state; parallel tasks that omit `--session` share the `default` session and overwrite each other's active page — and parallel tasks that happen to pick the same name collide the same way, so uniqueness matters as much as naming. When spawning subagents that browse, assign each one its own session name (or set `BROWSE_SESSION` per subagent) instead of letting them choose.
 
 ```bash
-browse open https://example.com/search-a --session search-a --local
-browse open https://example.com/search-b --session search-b --local
-browse snapshot --session search-a
-browse snapshot --session search-b
+browse open https://example.com/search-a --session search-a-9fk --local
+browse open https://example.com/search-b --session search-b-2qh --local
+browse snapshot --session search-a-9fk
+browse snapshot --session search-b-2qh
 ```
 
 When a task is complete, stop only that task's session:
 
 ```bash
-browse stop --session search-a
+browse stop --session search-a-9fk
 ```
 
 ## Core Browser Commands
