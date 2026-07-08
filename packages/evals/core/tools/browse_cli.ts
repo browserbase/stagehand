@@ -871,10 +871,6 @@ export class BrowseCliTool implements CoreTool {
       );
     }
 
-    // The `env` subcommand this used to bootstrap the daemon with no longer
-    // exists (removed in browse CLI v0.9.1). The mode is now selected via
-    // --local/--remote on every driver-starting command instead, so the
-    // daemon starts lazily on the first real command below.
     const session = new BrowseCliSession(
       createSessionName(),
       input.environment === "BROWSERBASE" ? "--remote" : "--local",
