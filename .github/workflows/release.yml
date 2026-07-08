@@ -147,6 +147,48 @@ jobs:
           git tag "$TAG"
           git push origin "$TAG"
 
+      # PROPOSAL — not yet functional, needs BROWSE_PLUGIN_SYNC_TOKEN (see
+      # scripts/sync-browse-plugin-skill.sh for the diff+copy logic, unit-tested
+      # separately). Gated on the exact same should_publish/already_published
+      # condition as the npm publish above, so this only fires on a genuine new
+      # browse release — never on a bare SKILL.md edit that hasn't shipped yet.
+      - name: Checkout browse-plugin
+        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: browserbase/browse-plugin
+          token: ${{ secrets.BROWSE_PLUGIN_SYNC_TOKEN }}
+          path: browse-plugin
+
+      - name: Sync browse skill to browse-plugin
+        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        id: skill_sync
+        env:
+          STAGEHAND_DIR: ${{ github.workspace }}
+          BROWSE_PLUGIN_DIR: ${{ github.workspace }}/browse-plugin
+        run: |
+          CHANGED=$(scripts/sync-browse-plugin-skill.sh | tee /dev/stderr | cut -d= -f2)
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+
+      - name: Open browse-plugin sync PR
+        if: steps.skill_sync.outputs.changed == 'true'
+        working-directory: browse-plugin
+        env:
+          GH_TOKEN: ${{ secrets.BROWSE_PLUGIN_SYNC_TOKEN }}
+          BROWSE_VERSION: ${{ steps.browse_cli.outputs.version }}
+        run: |
+          BRANCH="sync-browse-skill-${BROWSE_VERSION}"
+          git checkout -b "$BRANCH"
+          git config user.name "browserbase-bot"
+          git config user.email "bot@browserbase.com"
+          git add skills/browse/SKILL.md
+          git commit -m "sync: update browse skill for browse@${BROWSE_VERSION}"
+          git push origin "$BRANCH"
+          gh pr create --repo browserbase/browse-plugin \
+            --title "sync: update browse skill (browse@${BROWSE_VERSION})" \
+            --body "Automated sync of \`skills/browse/SKILL.md\` after publishing [browse@${BROWSE_VERSION}](https://www.npmjs.com/package/browse/v/${BROWSE_VERSION}). Review the diff before merging — nothing here auto-merges." \
+            --base main --head "$BRANCH"
+
       - name: Set up QEMU
         if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
