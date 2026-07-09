@@ -5,6 +5,7 @@ import {
   getBenchHarness,
   vercelAiSdkHarness,
 } from "../../framework/benchHarness.js";
+import { isExecutableBenchHarness } from "../../framework/benchTypes.js";
 
 describe("bench harness registry", () => {
   it("registers claude_code as a concrete executable harness", () => {
@@ -28,6 +29,7 @@ describe("bench harness registry", () => {
   it("registers vercel_ai_sdk as a concrete executable harness", async () => {
     const harness = getBenchHarness("vercel_ai_sdk");
 
+    expect(isExecutableBenchHarness("vercel_ai_sdk")).toBe(true);
     expect(harness).toBe(vercelAiSdkHarness);
     expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
     expect(harness.supportsApi).toBe(false);
