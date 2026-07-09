@@ -164,6 +164,108 @@ describe("cursor_sdk runner", () => {
     expect(metrics.cursor_total_tokens.value).toBe(240);
   });
 
+  it("propagates a failing browse command's isError through the recorded trajectory", async () => {
+    const adapter = await makeAdapter();
+    // Overwrite the stub `browse` binary to fail, so runBareBrowseCommand
+    // returns ok:false.
+    await fsp.writeFile(
+      adapter.browseBinPath,
+      '#!/usr/bin/env bash\necho "boom" >&2\nexit 1\n',
+      { mode: 0o755 },
+    );
+
+    let capturedToolResult: unknown;
+    const sdk: CursorSdk = {
+      Agent: {
+        create: async (options) => {
+          return {
+            send: async () => {
+              const local = options.local as {
+                customTools: Record<
+                  string,
+                  {
+                    execute: (args: Record<string, unknown>) => Promise<{
+                      content: Array<{ type: string; text: string }>;
+                      isError: boolean;
+                    }>;
+                  }
+                >;
+              };
+              capturedToolResult = await local.customTools.browse.execute({
+                args: "open https://example.com",
+              });
+              const { isError, content } = capturedToolResult as {
+                isError: boolean;
+                content: Array<{ type: string; text: string }>;
+              };
+              return {
+                // Mirrors what the real SDK does with a custom tool's
+                // isError/content: a terminal tool_call event whose status
+                // reflects isError, carrying the same content as `result`.
+                stream: async function* () {
+                  yield {
+                    type: "tool_call",
+                    call_id: "c1",
+                    name: "browse",
+                    status: isError ? "error" : "completed",
+                    args: { args: "open https://example.com" },
+                    result: content[0]?.text ?? "",
+                  };
+                },
+                wait: async () => ({
+                  status: "finished",
+                  result:
+                    'EVAL_RESULT: {"success":false,"summary":"browse command failed"}',
+                }),
+              };
+            },
+            close: () => {},
+          };
+        },
+      },
+    };
+
+    await runCursorSdkAgent({
+      plan,
+      model: "cursor/composer-2.5" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      sdk,
+    });
+
+    // The custom tool itself must report isError:true — not just a bare
+    // output string the SDK has no way to read as a failure.
+    expect(capturedToolResult).toMatchObject({ isError: true });
+    const toolContent = (
+      capturedToolResult as { content: Array<{ text: string }> }
+    ).content[0].text;
+    expect(toolContent).toContain("boom");
+
+    // And once that isError flows through a terminal tool_call event (as the
+    // real SDK does), the trajectory adapter must land it as ok:false.
+    const trajectory = cursorAdapter.fromHarnessResult(
+      {
+        messages: [
+          {
+            type: "tool_call",
+            call_id: "c1",
+            name: "browse",
+            status: "error",
+            args: { args: "open https://example.com" },
+            result: toolContent,
+          },
+        ],
+        status: "error",
+      },
+      {
+        id: "wtb-1",
+        instruction: "Find the checkout button",
+        initUrl: "https://example.com",
+      },
+    );
+    expect(trajectory.steps[0].toolOutput?.ok).toBe(false);
+  });
+
   it("returns a failed task result instead of throwing on SDK errors", async () => {
     const adapter = await makeAdapter();
     const sdk: CursorSdk = {

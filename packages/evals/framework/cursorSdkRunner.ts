@@ -28,6 +28,7 @@ import {
   BROWSE_TOOL_DESCRIPTION,
   BROWSE_TOOL_NAME,
   buildBareLoopUserPrompt,
+  readToolOutputLimit,
   stringifyLoopError,
   stripProviderPrefix,
 } from "./bareLoopRunner.js";
@@ -40,6 +41,17 @@ import {
 
 type MetricValue = { count: number; value: number };
 type CursorSdkMessage = Record<string, unknown>;
+
+/**
+ * Shape of `@cursor/sdk`'s `SDKCustomToolResult` (see options.d.ts) that we
+ * actually use: text content plus the `isError` flag. Returning the bare
+ * output string (as before) gives the SDK no way to know the browse command
+ * failed, so every call reads back as "completed" regardless of `ok`.
+ */
+type BrowseCustomToolResult = {
+  content: [{ type: "text"; text: string }];
+  isError: boolean;
+};
 
 const HARNESS = "cursor_sdk";
 export const DEFAULT_CURSOR_MODEL = "composer-2.5";
@@ -146,12 +158,23 @@ export async function runCursorSdkAgent(
               },
               required: ["args"],
             },
-            execute: async (args: Record<string, unknown>) => {
-              const { output } = await runBareBrowseCommand(
+            execute: async (
+              args: Record<string, unknown>,
+            ): Promise<BrowseCustomToolResult> => {
+              const { ok, output } = await runBareBrowseCommand(
                 input.toolAdapter,
                 String(args.args ?? ""),
               );
-              return output;
+              // Same 20k clip the bare-loop recorder applies (bareLoopRunner's
+              // readToolOutputLimit) — Cursor bypasses createBareLoopToolRecorder
+              // entirely (it's a full harness, not a bare loop), so this is
+              // applied directly here to keep tool-output sizes comparable
+              // across all external harnesses.
+              const clipped = clip(output, readToolOutputLimit());
+              return {
+                content: [{ type: "text", text: clipped }],
+                isError: !ok,
+              };
             },
           },
         },
