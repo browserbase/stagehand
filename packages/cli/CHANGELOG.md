@@ -1,5 +1,11 @@
 # browse
 
+## 0.9.5
+
+### Patch Changes
+
+- [#2335](https://github.com/browserbase/stagehand/pull/2335) [`19f9f5a`](https://github.com/browserbase/stagehand/commit/19f9f5a2631573b9952e4df7fbd2c8765c5fac5b) Thanks [@shrey150](https://github.com/shrey150)! - Add `browse skills show` to print the bundled skill and point agents to it from `--help`.
+
 ## 0.9.4
 
 ### Patch Changes
