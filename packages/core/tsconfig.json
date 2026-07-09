@@ -5,6 +5,7 @@
     "rootDir": ".",
     "outDir": "./dist/esm",
     "allowJs": true,
+    "lib": ["ES2022", "ES2024.String", "DOM", "DOM.Iterable"],
     "paths": {
       "@browserbasehq/stagehand": ["packages/core/lib/v3/index.ts"],
       "@browserbasehq/stagehand/*": ["packages/core/lib/*"],

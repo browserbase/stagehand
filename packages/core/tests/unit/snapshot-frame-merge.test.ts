@@ -346,6 +346,43 @@ describe("mergeFramesIntoSnapshot", () => {
     expect(snapshot.combinedTree).toBe("[child] frame2");
   });
 
+  it("repairs malformed surrogate pairs in the combined tree", () => {
+    const context: FrameContext = {
+      rootId: "frame-1",
+      frames: ["frame-1"],
+      parentByFrame: new Map([["frame-1", null]]),
+    };
+
+    const perFrameMaps = new Map<string, FrameDomMaps>([
+      [
+        "frame-1",
+        {
+          tagNameMap: {},
+          scrollableMap: {},
+          urlMap: {},
+          xpathMap: {},
+        },
+      ],
+    ]);
+
+    const snapshot = mergeFramesIntoSnapshot(
+      context,
+      perFrameMaps,
+      [
+        {
+          frameId: "frame-1",
+          outline: `Draw Again. ${String.fromCharCode(0xd83c)}`,
+        },
+      ],
+      new Map([["frame-1", ""]]),
+      new Map(),
+      context.frames,
+    );
+
+    expect(snapshot.combinedTree.isWellFormed()).toBe(true);
+    expect(snapshot.combinedTree).toBe("Draw Again. \uFFFD");
+  });
+
   it("overwrites duplicate iframe host entries when multiple children map to the same parent", () => {
     const context: FrameContext = {
       rootId: "frame-1",

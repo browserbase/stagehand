@@ -278,14 +278,16 @@ export async function tryScopedSnapshot(
 
     const scopedUrlMap: Record<string, string> = { ...urlMap };
 
+    const wellFormedOutline = outline.toWellFormed();
+
     const snapshot: HybridSnapshot = {
-      combinedTree: outline,
+      combinedTree: wellFormedOutline,
       combinedXpathMap: scopedXpathMap,
       combinedUrlMap: scopedUrlMap,
       perFrame: [
         {
           frameId: targetFrameId,
-          outline,
+          outline: wellFormedOutline,
           xpathMap,
           urlMap,
         },
@@ -846,7 +848,7 @@ export function mergeFramesIntoSnapshot(
     perFrameOutlines.find((o) => o.frameId === context.rootId)?.outline ??
     perFrameOutlines[0]?.outline ??
     "";
-  const combinedTree = injectSubtrees(rootOutline, idToTree);
+  const combinedTree = injectSubtrees(rootOutline, idToTree).toWellFormed();
 
   return {
     combinedTree,
