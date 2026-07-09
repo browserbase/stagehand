@@ -34,7 +34,11 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Update npm for Trusted Publishing
-        run: npm install -g npm@latest
+        # Trusted Publishing (OIDC) needs npm >= 11.5.1; npm 12+ requires
+        # node >= 22 and this job runs node 20, so pin the last known-good
+        # 11.x exactly. Unpin (back to npm@latest) when the job moves to
+        # node >= 22.
+        run: npm install -g npm@11.18.0
 
       - name: Run Lint & Build
         run: pnpm exec turbo run lint && pnpm exec turbo run build
