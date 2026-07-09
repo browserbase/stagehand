@@ -13,10 +13,12 @@ import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { DiscoveredTask } from "./types.js";
 import {
   DEFAULT_BENCH_HARNESS,
+  isExternalHarness,
   type BenchHarnessConfig,
   type BenchMatrixRow,
   type BenchTaskKind,
   type Harness,
+  type SkillDeliveryMode,
 } from "./benchTypes.js";
 import {
   getBrowseCliToolMetadata,
@@ -27,6 +29,7 @@ import {
   resolveCodexStartupProfile,
   resolveCodexToolSurface,
 } from "./codexToolAdapter.js";
+import { resolveExternalHarnessStartupProfile } from "./externalHarnessToolAdapter.js";
 import {
   inferDefaultStagehandAgentMode,
   isCuaCapableModel,
@@ -38,6 +41,47 @@ const DEFAULT_CLAUDE_CODE_MODELS: AvailableModel[] = [
 const DEFAULT_CODEX_MODELS: AvailableModel[] = [
   "openai/gpt-5.4-mini" as AvailableModel,
 ];
+// Bare-loop / cursor defaults: same models as the claude_code/codex tier so
+// harness comparisons hold the model constant by default. Overridable per
+// harness via EVAL_<HARNESS>_MODELS or per run via -m.
+const DEFAULT_VERCEL_AI_SDK_MODELS: AvailableModel[] = [
+  "anthropic/claude-sonnet-4-6" as AvailableModel,
+];
+const DEFAULT_ANTHROPIC_SDK_MODELS: AvailableModel[] = [
+  "anthropic/claude-sonnet-4-6" as AvailableModel,
+];
+const DEFAULT_OPENAI_AGENTS_SDK_MODELS: AvailableModel[] = [
+  "openai/gpt-5.4-mini" as AvailableModel,
+];
+const DEFAULT_CURSOR_SDK_MODELS: AvailableModel[] = [
+  "cursor/composer-2.5" as AvailableModel,
+];
+
+const EXTERNAL_HARNESS_MODEL_DEFAULTS: Partial<
+  Record<Harness, { envVar: string; models: AvailableModel[] }>
+> = {
+  claude_code: {
+    envVar: "EVAL_CLAUDE_CODE_MODELS",
+    models: DEFAULT_CLAUDE_CODE_MODELS,
+  },
+  codex: { envVar: "EVAL_CODEX_MODELS", models: DEFAULT_CODEX_MODELS },
+  vercel_ai_sdk: {
+    envVar: "EVAL_VERCEL_AI_SDK_MODELS",
+    models: DEFAULT_VERCEL_AI_SDK_MODELS,
+  },
+  anthropic_sdk: {
+    envVar: "EVAL_ANTHROPIC_SDK_MODELS",
+    models: DEFAULT_ANTHROPIC_SDK_MODELS,
+  },
+  openai_agents_sdk: {
+    envVar: "EVAL_OPENAI_AGENTS_SDK_MODELS",
+    models: DEFAULT_OPENAI_AGENTS_SDK_MODELS,
+  },
+  cursor_sdk: {
+    envVar: "EVAL_CURSOR_SDK_MODELS",
+    models: DEFAULT_CURSOR_SDK_MODELS,
+  },
+};
 
 export interface BenchPlanOptions {
   environment?: "LOCAL" | "BROWSERBASE";
@@ -51,6 +95,7 @@ export interface BenchPlanOptions {
   harness?: Harness;
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;
+  skillMode?: SkillDeliveryMode;
 }
 
 export interface BenchModelResolution {
@@ -202,25 +247,16 @@ function resolveDefaultModelEntries(
   effectiveCategory: string | null,
   isAgentCategory: boolean,
 ): AgentModelEntry[] {
-  if (harness === "claude_code") {
+  const externalDefaults = EXTERNAL_HARNESS_MODEL_DEFAULTS[harness];
+  if (externalDefaults) {
     return readModelListEnv(
-      "EVAL_CLAUDE_CODE_MODELS",
-      DEFAULT_CLAUDE_CODE_MODELS,
+      externalDefaults.envVar,
+      externalDefaults.models,
     ).map((modelName) => ({
       modelName,
       mode: "hybrid",
       cua: false,
     }));
-  }
-
-  if (harness === "codex") {
-    return readModelListEnv("EVAL_CODEX_MODELS", DEFAULT_CODEX_MODELS).map(
-      (modelName) => ({
-        modelName,
-        mode: "hybrid",
-        cua: false,
-      }),
-    );
   }
 
   return isAgentCategory
@@ -300,6 +336,7 @@ export function buildBenchMatrixRow(
   );
   const resolvedAgentMode = agentMode ?? (isCUA ? "cua" : undefined);
   const resolvedIsCUA = resolvedAgentMode ? resolvedAgentMode === "cua" : isCUA;
+  const skillMode = isExternalHarness(harness) ? options.skillMode : undefined;
   const config = buildBenchHarnessConfig({
     harness,
     model: modelName,
@@ -311,6 +348,7 @@ export function buildBenchMatrixRow(
     toolSurface,
     startupProfile,
     dataset: options.datasetFilter,
+    skillMode,
   });
 
   return {
@@ -329,6 +367,7 @@ export function buildBenchMatrixRow(
     params,
     agentMode: resolvedAgentMode,
     isCUA: resolvedIsCUA,
+    skillMode,
     config,
   };
 }
@@ -344,6 +383,7 @@ function buildBenchHarnessConfig(input: {
   toolSurface?: ToolSurface;
   startupProfile?: StartupProfile;
   dataset?: string;
+  skillMode?: SkillDeliveryMode;
 }): BenchHarnessConfig {
   if (input.harness === "stagehand") {
     return {
@@ -369,6 +409,7 @@ function buildBenchHarnessConfig(input: {
     toolSurface: input.toolSurface,
     startupProfile: input.startupProfile,
     dataset: input.dataset,
+    skillMode: input.skillMode,
   };
 }
 
@@ -388,7 +429,7 @@ export function generateBenchTestcases(
   );
   const allTestcases = [...suiteTestcases.testcases];
 
-  if (options.harness === "claude_code" || options.harness === "codex") {
+  if (options.harness && isExternalHarness(options.harness)) {
     if (suiteTestcases.remainingTasks.length > 0) {
       const unsupported = suiteTestcases.remainingTasks
         .map((task) => task.name)
@@ -474,6 +515,15 @@ function resolveBenchRowToolSurface(
   if (harness === "codex") {
     return resolveCodexToolSurface(requested);
   }
+  if (isExternalHarness(harness)) {
+    // Bare-loop + cursor harnesses only speak the browse CLI contract.
+    if (requested && requested !== "browse_cli") {
+      throw new EvalsError(
+        `Harness "${harness}" supports --tool browse_cli for execution right now; received "${requested}".`,
+      );
+    }
+    return "browse_cli";
+  }
   return requested;
 }
 
@@ -496,6 +546,9 @@ function resolveBenchRowStartupProfile(
       environment,
       requested,
     );
+  }
+  if (isExternalHarness(harness)) {
+    return resolveExternalHarnessStartupProfile(environment, requested);
   }
   return requested;
 }
@@ -603,11 +656,11 @@ function withBenchMetadata(
 }
 
 function buildToolMetadata(row: BenchMatrixRow): Partial<Testcase["metadata"]> {
-  if (
-    (row.harness === "claude_code" || row.harness === "codex") &&
-    row.toolSurface === "browse_cli"
-  ) {
-    return getBrowseCliToolMetadata();
+  if (isExternalHarness(row.harness) && row.toolSurface === "browse_cli") {
+    return {
+      ...getBrowseCliToolMetadata(),
+      ...(row.skillMode && { skillMode: row.skillMode }),
+    };
   }
   return {};
 }

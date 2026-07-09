@@ -74,6 +74,7 @@ export interface Testcase
       browseCliVersion?: string;
       browseCliEntrypoint?: string;
       agentMode?: AgentToolMode;
+      skillMode?: string;
     }
   > {
   input: EvalInput;
@@ -101,6 +102,7 @@ export interface Testcase
     browseCliVersion?: string;
     browseCliEntrypoint?: string;
     agentMode?: AgentToolMode;
+    skillMode?: string;
   };
   expected: unknown;
 }

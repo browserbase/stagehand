@@ -92,7 +92,11 @@ export function printRunHelp(): void {
     "",
     row(
       `${cyan("--harness")} ${dim("<name>")}`,
-      `Bench harness ${gray("(stagehand | claude_code | codex)")}`,
+      `Bench harness ${gray("(stagehand | claude_code | codex | vercel_ai_sdk | anthropic_sdk | openai_agents_sdk | cursor_sdk)")}`,
+    ),
+    row(
+      `${cyan("--skill-mode")} ${dim("<mode>")}`,
+      `Skill delivery for external harnesses ${gray("(none | prompt_show | injected)")}`,
     ),
     row(
       `${cyan("--agent-mode")} ${dim("<mode>")}`,

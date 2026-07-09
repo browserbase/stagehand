@@ -27,8 +27,13 @@ import {
   type PreparedCodexToolAdapter,
 } from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import {
+  prepareExternalHarnessAdapter,
+  type PreparedExternalHarnessAdapter,
+} from "./externalHarnessToolAdapter.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
+import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 type Page = ReturnType<V3["context"]["pages"]>[number];
 
@@ -337,6 +342,94 @@ export const codexHarness: BenchHarness = {
     );
   },
 };
+
+/**
+ * Runner signature shared by the four adapter-provisioned external harnesses
+ * (vercel_ai_sdk / anthropic_sdk / openai_agents_sdk / cursor_sdk). They all
+ * take the same wiring — plan, model, logger, prepared browse adapter,
+ * abort signal, verifier config — differing only in the loop they drive.
+ */
+export type ExternalHarnessRunner = (input: {
+  plan: ReturnType<typeof buildExternalHarnessTaskPlan>;
+  model: AvailableModel;
+  logger: EvalLogger;
+  toolAdapter: PreparedExternalHarnessAdapter;
+  signal?: AbortSignal;
+  verifier?: ExternalHarnessVerifierConfig;
+}) => Promise<TaskResult>;
+
+/**
+ * Build a BenchHarness for a runner that consumes the shared
+ * prepareExternalHarnessAdapter browse provisioning. Mirrors the
+ * claude_code/codex execute-path shape: verifier-carrier V3 + adapter inside
+ * one try/finally so any failure cleans up both. Concrete harnesses
+ * (vercel_ai_sdk / anthropic_sdk / openai_agents_sdk / cursor_sdk) register
+ * through this factory as their runners land.
+ */
+export function buildAdapterBackedHarness(
+  harness: Harness,
+  runner: ExternalHarnessRunner,
+): BenchHarness {
+  return {
+    harness,
+    supportedTaskKinds: ["agent", "suite"],
+    supportsApi: false,
+    async execute({
+      input,
+      row,
+      logger,
+      signal,
+    }: BenchHarnessExecuteInput): Promise<TaskResult> {
+      const plan = buildExternalHarnessTaskPlan(input);
+      if (row.config.harness !== harness) {
+        throw new EvalsError(
+          `Expected ${harness} harness config, received "${row.config.harness}".`,
+        );
+      }
+      const config = row.config;
+      const skillMode =
+        ("skillMode" in config ? config.skillMode : undefined) ?? row.skillMode;
+      // Everything past carrier construction runs inside one try/finally so a
+      // failure at any point — adapter preparation included — cleans up both
+      // the adapter and the carrier.
+      const carrierV3 = buildVerifierCarrierV3(logger);
+      let toolAdapter: PreparedExternalHarnessAdapter | undefined;
+      try {
+        toolAdapter = await prepareExternalHarnessAdapter({
+          environment: config.environment,
+          startupProfile: config.startupProfile,
+          skillMode,
+          plan,
+          logger,
+          logCategory: harness,
+        });
+        return await runner({
+          plan,
+          model: input.modelName,
+          logger,
+          toolAdapter,
+          signal,
+          verifier: {
+            v3: carrierV3,
+            taskSpec: buildExternalHarnessTaskSpec(plan, input),
+            dataset: plan.dataset,
+          },
+        });
+      } finally {
+        await toolAdapter?.cleanup();
+        // Deregister the never-init()-ed carrier (instance registry, event
+        // store, logger binding) so long matrix runs don't accumulate one
+        // V3 object graph per task.
+        await carrierV3.close().catch(() => {});
+      }
+    },
+    async start(): Promise<StartedBenchHarness> {
+      throw new EvalsError(
+        `${harness} harness execution uses the external harness execute path. Use --dry-run to inspect its bench matrix, or run with --harness ${harness}.`,
+      );
+    },
+  };
+}
 
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],

@@ -15,8 +15,11 @@
  */
 import {
   DEFAULT_BENCH_HARNESS,
+  EXTERNAL_HARNESSES,
   parseBenchHarness,
+  parseSkillDeliveryMode,
   type Harness,
+  type SkillDeliveryMode,
 } from "../../framework/benchTypes.js";
 import type { AgentToolMode } from "@browserbasehq/stagehand";
 
@@ -31,6 +34,7 @@ export interface RunFlags {
   tool?: string;
   startup?: string;
   harness?: string;
+  skillMode?: string;
   agentMode?: string;
   agentModes?: AgentToolMode[];
   limit?: number;
@@ -80,6 +84,8 @@ export interface ResolvedRunOptions {
   coreToolSurface?: string;
   coreStartupProfile?: string;
   harness: Harness;
+  /** Skill-delivery arm for external harnesses (none | prompt_show | injected). */
+  skillMode?: SkillDeliveryMode;
   agentMode?: AgentToolMode;
   agentModes?: AgentToolMode[];
   datasetFilter?: string;
@@ -115,6 +121,7 @@ const VALUE_FLAGS = new Set([
   "tool",
   "startup",
   "harness",
+  "skill-mode",
   "agent-mode",
   "agent-modes",
   "filter",
@@ -268,6 +275,9 @@ export function parseRunArgs(tokens: string[]): RunFlags {
           break;
         case "harness":
           flags.harness = value;
+          break;
+        case "skill-mode":
+          flags.skillMode = value;
           break;
         case "agent-mode":
           flags.agentMode = normalizeAgentMode(value);
@@ -437,6 +447,14 @@ export function resolveRunOptions(
 
   const datasetFilter = shorthandDatasetFilter ?? env.EVAL_DATASET ?? undefined;
   const harness = parseBenchHarness(flags.harness ?? DEFAULT_BENCH_HARNESS);
+  const skillMode = flags.skillMode
+    ? parseSkillDeliveryMode(flags.skillMode)
+    : undefined;
+  if (skillMode && harness === "stagehand") {
+    throw new Error(
+      `--skill-mode only applies to external harnesses (${EXTERNAL_HARNESSES.join(", ")}).`,
+    );
+  }
   const agentMode = flags.agentMode
     ? normalizeAgentMode(flags.agentMode)
     : undefined;
@@ -477,6 +495,7 @@ export function resolveRunOptions(
     coreToolSurface: flags.tool ?? core.tool,
     coreStartupProfile: flags.startup ?? core.startup,
     harness,
+    skillMode,
     agentMode,
     agentModes,
     datasetFilter,
