@@ -124,7 +124,7 @@ describe("anthropic_sdk runner", () => {
 
     expect(result._success).toBe(true);
     expect(result.finalAnswer).toBe("checkout");
-    expect(result.anthropic_sdkStatus).toBe("completed");
+    expect(result.anthropicSdkStatus).toBe("completed");
     const metrics = result.metrics as Record<string, { value: number }>;
     expect(metrics.anthropic_sdk_tool_calls.value).toBe(1);
     expect(metrics.anthropic_sdk_input_tokens.value).toBe(130);
@@ -159,10 +159,45 @@ describe("anthropic_sdk runner", () => {
     });
 
     expect(result._success).toBe(false);
-    expect(result.anthropic_sdkStopReason).toContain("step cap reached (2)");
+    expect(result.anthropicSdkStopReason).toContain("step cap reached (2)");
     const metrics = result.metrics as Record<string, { value: number }>;
     expect(metrics.anthropic_sdk_tool_calls.value).toBe(2);
     expect(metrics.anthropic_sdk_max_steps.value).toBe(2);
+  });
+
+  it("wires the caller's AbortSignal through to the SDK's native abort option", async () => {
+    const adapter = await makeAdapter();
+    const controller = new AbortController();
+    const capturedOptions: Array<{ signal?: AbortSignal } | undefined> = [];
+
+    await runAnthropicSdkAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-6" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      signal: controller.signal,
+      client: {
+        messages: {
+          create: async (_params, options) => {
+            capturedOptions.push(options);
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"checkout"}',
+                },
+              ],
+              stop_reason: "end_turn",
+            };
+          },
+        },
+      },
+    });
+
+    expect(capturedOptions).toHaveLength(1);
+    // The SDK cancels the in-flight HTTP request via this signal instead of
+    // us only polling `aborted` between requests.
+    expect(capturedOptions[0]?.signal).toBe(controller.signal);
   });
 
   it("returns a failed task result instead of throwing on SDK errors", async () => {
@@ -182,7 +217,7 @@ describe("anthropic_sdk runner", () => {
     });
 
     expect(result._success).toBe(false);
-    expect(result.anthropic_sdkStatus).toBe("error");
-    expect(result.anthropic_sdkStopReason).toContain("anthropic exploded");
+    expect(result.anthropicSdkStatus).toBe("error");
+    expect(result.anthropicSdkStopReason).toContain("anthropic exploded");
   });
 });

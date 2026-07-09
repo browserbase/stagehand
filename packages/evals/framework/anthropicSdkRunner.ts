@@ -52,7 +52,10 @@ export interface AnthropicMessageResponse {
 
 export interface AnthropicMessagesClient {
   messages: {
-    create(params: Record<string, unknown>): Promise<AnthropicMessageResponse>;
+    create(
+      params: Record<string, unknown>,
+      options?: { signal?: AbortSignal },
+    ): Promise<AnthropicMessageResponse>;
   };
 }
 
@@ -119,13 +122,19 @@ export async function runAnthropicSdkAgent(
         throw new EvalsError("anthropic_sdk run aborted");
       }
       stepsUsed = step + 1;
-      const response = await client.messages.create({
-        model: normalizeAnthropicModel(input.model),
-        max_tokens: DEFAULT_MAX_OUTPUT_TOKENS,
-        system: input.toolAdapter.systemPromptAddendum,
-        messages,
-        tools: [BROWSE_TOOL_DEFINITION],
-      });
+      const response = await client.messages.create(
+        {
+          model: normalizeAnthropicModel(input.model),
+          max_tokens: DEFAULT_MAX_OUTPUT_TOKENS,
+          system: input.toolAdapter.systemPromptAddendum,
+          messages,
+          tools: [BROWSE_TOOL_DEFINITION],
+        },
+        // Native abort wiring: the SDK cancels the in-flight HTTP request
+        // instead of us only checking `aborted` between requests, which left
+        // an already-sent request to run to completion after abort.
+        input.signal ? { signal: input.signal } : undefined,
+      );
 
       usageTotals.input_tokens += response.usage?.input_tokens ?? 0;
       usageTotals.output_tokens += response.usage?.output_tokens ?? 0;
