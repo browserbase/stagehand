@@ -1,0 +1,6 @@
+{
+  "name": "@browserbasehq/stagehand-v4-spike-sdk-ts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module"
+}

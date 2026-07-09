@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "strictNullChecks": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "tests/**/*.ts",
+    "../server/llm/LLMClient.ts",
+    "../server/llm/**/*.test-d.ts",
+    "../server/types/**/*.ts",
+    "../server/understudy/**/*.ts",
+    "../server/version.ts"
+  ],
+  "exclude": ["../modcdp"]
+}

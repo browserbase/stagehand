@@ -1,0 +1,36 @@
+{
+  "name": "@browserbasehq/stagehand-v4-spike-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@ai-sdk/amazon-bedrock": "catalog:",
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/azure": "catalog:",
+    "@ai-sdk/cerebras": "catalog:",
+    "@ai-sdk/deepseek": "catalog:",
+    "@ai-sdk/google": "catalog:",
+    "@ai-sdk/google-vertex": "catalog:",
+    "@ai-sdk/groq": "catalog:",
+    "@ai-sdk/mistral": "catalog:",
+    "@ai-sdk/openai": "catalog:",
+    "@ai-sdk/perplexity": "catalog:",
+    "@ai-sdk/provider": "catalog:",
+    "@ai-sdk/togetherai": "catalog:",
+    "@ai-sdk/xai": "catalog:",
+    "@anthropic-ai/sdk": "catalog:",
+    "@browserbasehq/sdk": "catalog:",
+    "@google/genai": "catalog:",
+    "ai": "catalog:",
+    "chrome-launcher": "catalog:",
+    "devtools-protocol": "catalog:",
+    "ollama-ai-provider-v2": "catalog:",
+    "openai": "catalog:",
+    "uuid": "catalog:",
+    "ws": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/ws": "catalog:"
+  }
+}
