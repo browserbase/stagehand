@@ -2,9 +2,8 @@
  * anthropicSdkRunner — bare-loop harness via the raw Anthropic SDK
  * (`@anthropic-ai/sdk`), a hand-rolled `tool_use` loop.
  *
- * This is the TS twin of the Python `while stop_reason == "tool_use"` loop
- * that dominates real-world Anthropic usage (and of the Modal sandbox
- * template's agent.mjs): call messages.create, execute every tool_use block,
+ * This is the TS twin of the canonical Python `while stop_reason ==
+ * "tool_use"` loop: call messages.create, execute every tool_use block,
  * append tool_results, repeat until the model stops or the step cap binds.
  * No retries, no planning, no memory — deliberately.
  *
@@ -130,9 +129,10 @@ export async function runAnthropicSdkAgent(
           messages,
           tools: [BROWSE_TOOL_DEFINITION],
         },
-        // Native abort wiring: the SDK cancels the in-flight HTTP request
-        // instead of us only checking `aborted` between requests, which left
-        // an already-sent request to run to completion after abort.
+        // Native abort wiring: with the signal passed through, the SDK
+        // cancels the in-flight HTTP request; checking `aborted` only
+        // between iterations would let an already-sent request run to
+        // completion.
         input.signal ? { signal: input.signal } : undefined,
       );
 
