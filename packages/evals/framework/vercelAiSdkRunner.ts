@@ -87,6 +87,7 @@ export async function runVercelAiSdkAgent(
   let stepsUsed = 0;
   let usage: VercelAiSdkGenerateTextResult["totalUsage"];
   let loopError: unknown;
+  let cappedOut = false;
 
   try {
     const ai = await import("ai");
@@ -122,6 +123,13 @@ export async function runVercelAiSdkAgent(
     finalText = result.text ?? "";
     stepsUsed = result.steps?.length ?? 0;
     usage = result.totalUsage;
+    // stopWhen: stepCountIs(maxSteps) ends the loop silently -- generateText
+    // returns normally either way, so a clean stop and a cap-truncated one are
+    // otherwise indistinguishable. finishReason on the last step is "stop"
+    // when the model was actually done, or "tool-calls" when it still wanted
+    // to call a tool but the step cap cut it off first. Mirrors anthropic_sdk's
+    // stopReason shape so all bare-loop harnesses report the cap the same way.
+    cappedOut = stepsUsed >= maxSteps && result.finishReason === "tool-calls";
   } catch (error) {
     loopError = error;
     input.logger.warn({
@@ -136,7 +144,11 @@ export async function runVercelAiSdkAgent(
     toolCalls: recorder.calls,
     finalText,
     status: loopError ? "error" : "complete",
-    stopReason: loopError ? stringifyLoopError(loopError) : undefined,
+    stopReason: loopError
+      ? stringifyLoopError(loopError)
+      : cappedOut
+        ? `step cap reached (${maxSteps})`
+        : undefined,
     usage: {
       input_tokens: usage?.inputTokens ?? 0,
       output_tokens: usage?.outputTokens ?? 0,

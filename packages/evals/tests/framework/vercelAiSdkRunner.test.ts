@@ -89,13 +89,62 @@ describe("vercel_ai_sdk runner", () => {
     );
     expect(result._success).toBe(true);
     expect(result.finalAnswer).toBe("checkout");
-    expect(result.vercel_ai_sdkStatus).toBe("completed");
+    expect(result.vercelAiSdkStatus).toBe("completed");
     const metrics = result.metrics as Record<string, { value: number }>;
     expect(metrics.vercel_ai_sdk_tool_calls.value).toBe(2);
     expect(metrics.vercel_ai_sdk_steps.value).toBe(3);
     expect(metrics.vercel_ai_sdk_max_steps.value).toBe(7);
     expect(metrics.vercel_ai_sdk_input_tokens.value).toBe(120);
     expect(metrics.vercel_ai_sdk_output_tokens.value).toBe(30);
+  });
+
+  it("stops at the step cap and reports it as the stop reason", async () => {
+    const adapter = await makeAdapter();
+    process.env.EVAL_VERCEL_AI_SDK_MAX_STEPS = "2";
+
+    const result = await runVercelAiSdkAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-6" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      generateTextFn: async () => ({
+        // The model was still mid tool-call when stepCountIs(2) cut the loop
+        // off -- generateText returns normally either way, so finishReason is
+        // the only signal that distinguishes this from a clean stop.
+        text: "",
+        steps: [{}, {}],
+        finishReason: "tool-calls",
+        totalUsage: { inputTokens: 10, outputTokens: 5 },
+      }),
+    });
+
+    expect(result._success).toBe(false);
+    expect(result.vercelAiSdkStatus).toBe("completed");
+    expect(result.vercelAiSdkStopReason).toContain("step cap reached (2)");
+    const metrics = result.metrics as Record<string, { value: number }>;
+    expect(metrics.vercel_ai_sdk_steps.value).toBe(2);
+    expect(metrics.vercel_ai_sdk_max_steps.value).toBe(2);
+  });
+
+  it("does not report a step cap on a clean stop even at the max step count", async () => {
+    const adapter = await makeAdapter();
+    process.env.EVAL_VERCEL_AI_SDK_MAX_STEPS = "2";
+
+    const result = await runVercelAiSdkAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-6" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      generateTextFn: async () => ({
+        text: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"checkout"}',
+        steps: [{}, {}],
+        finishReason: "stop",
+        totalUsage: { inputTokens: 10, outputTokens: 5 },
+      }),
+    });
+
+    expect(result._success).toBe(true);
+    expect(result.vercelAiSdkStopReason).toBeUndefined();
   });
 
   it("returns a failed task result instead of throwing on loop errors", async () => {
@@ -111,7 +160,7 @@ describe("vercel_ai_sdk runner", () => {
     });
 
     expect(result._success).toBe(false);
-    expect(result.vercel_ai_sdkStatus).toBe("error");
-    expect(result.vercel_ai_sdkStopReason).toContain("provider exploded");
+    expect(result.vercelAiSdkStatus).toBe("error");
+    expect(result.vercelAiSdkStopReason).toContain("provider exploded");
   });
 });
