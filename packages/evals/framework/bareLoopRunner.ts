@@ -154,14 +154,23 @@ export async function finalizeBareLoopResult(
     (input.finalText || `${input.harness} did not report success`);
 
   const prefix = input.harness;
+  // TaskResult field names are camelCase by convention; the harness ids
+  // themselves (vercel_ai_sdk, openai_agents_sdk, ...) are snake_case, so
+  // camelCase only the two field names built from it. Metrics keys below
+  // intentionally keep the snake_case harness id -- that's the existing
+  // metrics-naming convention across every harness (claude_code, codex, ...).
+  const fieldPrefix = toCamelCase(prefix);
   const baseResult: TaskResult = {
     _success: parsed.success,
     error: !parsed.success ? errorMessage : undefined,
     reasoning: parsed.summary,
     finalAnswer: parsed.finalAnswer,
     rawResult: parsed.raw,
-    [`${prefix}Status`]: input.status === "complete" ? "completed" : "error",
-    ...(input.stopReason && { [`${prefix}StopReason`]: input.stopReason }),
+    [`${fieldPrefix}Status`]:
+      input.status === "complete" ? "completed" : "error",
+    ...(input.stopReason && {
+      [`${fieldPrefix}StopReason`]: input.stopReason,
+    }),
     logs: input.logger.getLogs(),
     metrics: {
       [`${prefix}_steps`]: metricValue(input.stepsUsed),
@@ -203,6 +212,13 @@ export function readToolTimeoutMs(): number {
   if (!raw) return 60_000;
   const parsed = Number(raw);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 60_000;
+}
+
+/** "vercel_ai_sdk" -> "vercelAiSdk". Used only for TaskResult field names. */
+function toCamelCase(value: string): string {
+  return value.replace(/_([a-z0-9])/g, (_match, ch: string) =>
+    ch.toUpperCase(),
+  );
 }
 
 export function stripProviderPrefix(model: string): string {
