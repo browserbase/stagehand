@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  anthropicSdkHarness,
   claudeCodeHarness,
   codexHarness,
   getBenchHarness,
@@ -35,6 +36,18 @@ describe("bench harness registry", () => {
     expect(harness.supportsApi).toBe(false);
     expect(harness.execute).toBeDefined();
     // Like claude_code/codex, this harness runs via the execute path only.
+    await expect(harness.start({} as never)).rejects.toThrow(
+      /external harness execute path/,
+    );
+  });
+
+  it("registers anthropic_sdk as a concrete executable harness", async () => {
+    const harness = getBenchHarness("anthropic_sdk");
+
+    expect(harness).toBe(anthropicSdkHarness);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
     await expect(harness.start({} as never)).rejects.toThrow(
       /external harness execute path/,
     );
