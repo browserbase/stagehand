@@ -9,7 +9,7 @@
  * harness) and prompt the agent to use only that tool. The SDK does not
  * expose an allow-list to hard-disable its native shell tools, so the browse
  * gating here is prompt + custom-tool discipline rather than the Claude Code
- * canUseTool hard gate — recorded as a known limitation in the design doc.
+ * canUseTool hard gate (see packages/evals/README.md#external-harnesses).
  *
  * Auth: CURSOR_API_KEY (the SDK's own default env var). Model ids come from
  * Cursor's catalog (e.g. "composer-2.5" / "cursor/composer-2.5" via -m).
