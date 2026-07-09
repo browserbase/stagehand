@@ -44,9 +44,9 @@ type CursorSdkMessage = Record<string, unknown>;
 
 /**
  * Shape of `@cursor/sdk`'s `SDKCustomToolResult` (see options.d.ts) that we
- * actually use: text content plus the `isError` flag. Returning the bare
- * output string (as before) gives the SDK no way to know the browse command
- * failed, so every call reads back as "completed" regardless of `ok`.
+ * actually use: text content plus the `isError` flag. Returning a bare
+ * output string would give the SDK no way to know the browse command
+ * failed — every call would read back as "completed" regardless of `ok`.
  */
 type BrowseCustomToolResult = {
   content: [{ type: "text"; text: string }];
@@ -109,7 +109,7 @@ export function buildCursorPrompt(
   systemPromptAddendum: string,
 ): string {
   // Cursor's SDK has no separate system-prompt channel for local agents; the
-  // skill-arm text rides at the top of the single prompt instead.
+  // skill-mode text rides at the top of the single prompt instead.
   return [
     systemPromptAddendum,
     `Use ONLY the custom "${BROWSE_TOOL_NAME}" tool for browser work — do not use your shell for browsing, and do not edit repository files.`,
