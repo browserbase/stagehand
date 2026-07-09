@@ -261,5 +261,11 @@ function redactSecrets(text: string): string {
     .replace(
       /([?&](?:key|api_key|apikey|token|access_token|signature|sig|secret)=)[^&\s"']+/gi,
       "$1[redacted]",
+    )
+    .replace(
+      // JSON/object field forms, e.g. "api_key":"..." or apiKey: '...' —
+      // stringified SDK errors often echo request options this way.
+      /(["']?(?:api[_-]?key|access[_-]?token|auth[_-]?token|secret|signature|password|authorization)["']?\s*[:=]\s*["'])[^"']+(["'])/gi,
+      "$1[redacted]$2",
     );
 }

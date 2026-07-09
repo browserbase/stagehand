@@ -73,9 +73,7 @@ export function isExternalHarness(harness: Harness): boolean {
  * codex have their own provisioning and do not consume `skillMode`.
  */
 export const ADAPTER_BACKED_HARNESSES = [
-  "vercel_ai_sdk",
-  "anthropic_sdk",
-  "openai_agents_sdk",
+  ...BARE_LOOP_HARNESSES,
   "cursor_sdk",
 ] as const satisfies readonly Harness[];
 

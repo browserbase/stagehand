@@ -167,6 +167,21 @@ describe("stringifyLoopError", () => {
       "[redacted] broke",
     );
   });
+
+  it("redacts secret-bearing JSON/object fields in stringified errors", () => {
+    expect(
+      stringifyLoopError({
+        message: "request failed",
+        api_key: "supersecretvalue",
+      }),
+    ).toBe('{"message":"request failed","api_key":"[redacted]"}');
+    expect(stringifyLoopError('config was { apiKey: "abc123def456" }')).toBe(
+      'config was { apiKey: "[redacted]" }',
+    );
+    expect(stringifyLoopError('{"authorization":"Basic dXNlcjpwYXNz"}')).toBe(
+      '{"authorization":"[redacted]"}',
+    );
+  });
 });
 
 describe("buildBareLoopUserPrompt", () => {
