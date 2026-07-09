@@ -206,6 +206,9 @@ function findFrameNode(
   return undefined;
 }
 
+/** Re-poll session ownership while waiting so OOPIF adoption can switch owners mid-wait. */
+const SESSION_RECHECK_MS = 200;
+
 /**
  * Block until the child frame's main-world execution context is available.
  * Handles same-process iframes and OOPIF adoption (session may change mid-wait).
@@ -220,9 +223,6 @@ async function ensureChildFrameReady(
   while (Date.now() < deadline) {
     const owner = page.getSessionForFrame(childFrameId);
     await owner.send("Runtime.enable").catch(() => {});
-    await owner
-      .send("Page.setLifecycleEventsEnabled", { enabled: true })
-      .catch(() => {});
 
     const cached = executionContexts.getMainWorld(owner, childFrameId);
     if (cached) return;
@@ -230,16 +230,12 @@ async function ensureChildFrameReady(
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
 
+    const attemptMs = Math.min(remaining, SESSION_RECHECK_MS);
     try {
-      await executionContexts.waitForMainWorld(
-        owner,
-        childFrameId,
-        remaining,
-      );
+      await executionContexts.waitForMainWorld(owner, childFrameId, attemptMs);
       return;
     } catch {
-      // OOPIF adoption may switch sessions; retry with the updated owner.
-      await new Promise((r) => setTimeout(r, 50));
+      // Re-resolve owner on the next iteration; adoption may have moved the frame.
     }
   }
 

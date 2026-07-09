@@ -61,9 +61,6 @@ export class ExecutionContextRegistry {
     if (cached) return cached;
 
     await session.send("Runtime.enable").catch(() => {});
-    await session
-      .send("Page.setLifecycleEventsEnabled", { enabled: true })
-      .catch(() => {});
 
     const after = this.getMainWorld(session, frameId);
     if (after) return after;
@@ -76,7 +73,6 @@ export class ExecutionContextRegistry {
         done = true;
         clearTimeout(timer);
         session.off("Runtime.executionContextCreated", onCreated);
-        session.off("Page.lifecycleEvent", onLifecycle);
         resolve(ctxId);
       };
 
@@ -90,7 +86,6 @@ export class ExecutionContextRegistry {
         done = true;
         clearTimeout(timer);
         session.off("Runtime.executionContextCreated", onCreated);
-        session.off("Page.lifecycleEvent", onLifecycle);
         reject(new Error(`main world not ready for frame ${frameId}`));
       };
 
@@ -107,15 +102,8 @@ export class ExecutionContextRegistry {
         }
       };
 
-      const onLifecycle = (evt: Protocol.Page.LifecycleEventEvent): void => {
-        if (evt.frameId !== frameId) return;
-        const ready = this.getMainWorld(session, frameId);
-        if (ready) finish(ready);
-      };
-
       const timer = setTimeout(fail, timeoutMs);
       session.on("Runtime.executionContextCreated", onCreated);
-      session.on("Page.lifecycleEvent", onLifecycle);
     });
   }
 
