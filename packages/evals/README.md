@@ -71,7 +71,7 @@ Use `Esc` to abort an in-flight run without exiting the REPL.
 | `-c, --concurrency <n>` | Max parallel sessions |
 | `-m, --model <id>` / `-p, --provider <name>` | Override the model/provider matrix |
 | `--api` | Run via the Stagehand API instead of the SDK |
-| `--harness <stagehand\|claude_code\|codex\|vercel_ai_sdk\|anthropic_sdk\|openai_agents_sdk\|cursor_sdk>` | Which agent harness drives the bench task (see `docs/external-harnesses.md`) |
+| `--harness <stagehand\|claude_code\|codex\|vercel_ai_sdk\|anthropic_sdk\|openai_agents_sdk\|cursor_sdk>` | Which agent harness drives the bench task (see [External harnesses](#external-harnesses) below) |
 | `--skill-mode <none\|prompt_show\|injected>` | Skill-delivery arm for external harnesses |
 | `--agent-mode <dom\|hybrid\|cua>` / `--agent-modes <csv>` | Stagehand agent mode (or matrix) |
 | `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets |
@@ -86,6 +86,48 @@ Defaults live in `evals.config.json` and can be edited via `evals config set …
 A live run paints an in-place progress table, then prints a final summary with a per-model breakdown:
 
 ![Live bench run](./assets/readme/run.gif)
+
+## External harnesses
+
+Bench tasks can run under harnesses beyond the Stagehand SDK. `stagehand` is native; `claude_code` and `codex` route through those CLIs; `vercel_ai_sdk`, `anthropic_sdk`, `openai_agents_sdk`, and `cursor_sdk` are external-harness adapters that drive the `browse` CLI as a tool. Select one with `--harness`:
+
+| Harness | `--harness` | Tier | What the harness gives the agent |
+| --- | --- | --- | --- |
+| Raw Anthropic SDK loop | `anthropic_sdk` | Bare | Nothing. Hand-rolled `while stop_reason == "tool_use"` loop. |
+| Vercel AI SDK | `vercel_ai_sdk` | Bare | `generateText` + `stopWhen: stepCountIs(N)`. Loop plumbing only, zero behavior. |
+| OpenAI Agents SDK | `openai_agents_sdk` | Bare-ish | Managed turn loop + tracing, but all behavior comes from dev-written `instructions`. Defaults untouched except `maxTurns`. |
+| Claude Code | `claude_code` | Full | Full agentic scaffolding: skills, retries, planning, permission system. |
+| Codex | `codex` | Full | Full agentic scaffolding. |
+| Cursor SDK | `cursor_sdk` | Full | Ships Cursor's complete loop, planning, and tool behaviors — the same runtime that powers Cursor. |
+
+### Skill-delivery modes
+
+Orthogonal to harness choice, `--skill-mode <none|prompt_show|injected>` controls how the browse skill reaches the agent:
+
+| Mode | What the agent gets |
+| --- | --- |
+| `none` (default for bare loops) | One-line system prompt + `--help` discovery only. |
+| `prompt_show` | Same prompt, plus an instruction to run `browse skills show` first. Requires a browse CLI release that supports `browse skills show`; the adapter warns when the installed CLI lacks it. |
+| `injected` | Skill content pre-loaded. For `claude_code` this is the existing behavior (SKILL.md installed, Skill tool). Bare loops have no Skill-tool primitive, so `injected` embeds the SKILL.md text directly in the system prompt. |
+
+`claude_code`/`codex` keep their existing provisioning untouched; `--skill-mode` currently drives the four external-harness adapters.
+
+### Per-harness overrides
+
+| Harness | Model override env var | Step/turn cap env var | Model id format |
+| --- | --- | --- | --- |
+| `vercel_ai_sdk` | `EVAL_VERCEL_AI_SDK_MODELS` | `EVAL_VERCEL_AI_SDK_MAX_STEPS` | `provider/model`, resolved via stagehand's `getAISDKLanguageModel` |
+| `anthropic_sdk` | `EVAL_ANTHROPIC_SDK_MODELS` | `EVAL_ANTHROPIC_SDK_MAX_STEPS` | Anthropic model id, no provider prefix |
+| `openai_agents_sdk` | `EVAL_OPENAI_AGENTS_SDK_MODELS` | `EVAL_OPENAI_AGENTS_SDK_MAX_TURNS` | OpenAI model id, no provider prefix |
+| `cursor_sdk` | `EVAL_CURSOR_SDK_MODELS` | _(none — Cursor manages its own loop)_ | Cursor catalog id, e.g. `cursor/composer-2.5` |
+
+Bare-loop step cap defaults to 40 (`DEFAULT_BARE_LOOP_MAX_STEPS`) when not overridden.
+
+### Browse provisioning + command gating
+
+All four external-harness adapters share one provisioning path — `prepareBrowseCliHarnessAdapter`, the same contract `codex` delegates to: per-run temp cwd, per-run session name, a `browse` wrapper pinning `--local`/`--remote` + `--session`, built-CLI artifact checks, and `stop --force` cleanup. Command gating reuses `isAllowedBrowseCommand`: one `browse ...` command per tool call, no shell metacharacters (`; & | \` $ < >` rejected) — the bare loops expose exactly one tool (`browse`), never a shell.
+
+Known limitation (`cursor_sdk`): Cursor's SDK doesn't expose an allow-list to hard-disable its native shell/file tools, so browse-only discipline there is prompt + custom-tool based rather than a `canUseTool`-style hard gate. Its native shell still runs inside the per-run temp cwd.
 
 ## Adding a bench task
 
