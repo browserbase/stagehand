@@ -123,6 +123,11 @@ export async function prepareExternalHarnessAdapter(
     plan: input.plan,
     logger: input.logger,
     logCategory: input.logCategory,
+    // Skill delivery for these harnesses is system-prompt-only (see
+    // buildSystemPromptAddendum); leaving SKILL.md on disk would let a
+    // harness with native shell access (cursor_sdk) read it even in the
+    // "none" / "prompt_show" modes.
+    installSkill: false,
   });
 
   const systemPromptAddendum = await buildSystemPromptAddendum(
@@ -233,7 +238,13 @@ export async function runBareBrowseCommand(
         maxBuffer: 10 * 1024 * 1024,
       },
     );
-    return { ok: true, output: (stdout || stderr).trim() };
+    // Keep stderr even on success: CLIs routinely print warnings/progress
+    // there while exiting 0, and the model should see the full tool result.
+    const combined = [stdout, stderr]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join("\n");
+    return { ok: true, output: combined };
   } catch (error) {
     const message = describeExecError(error);
     return { ok: false, output: `ERROR: ${message}` };

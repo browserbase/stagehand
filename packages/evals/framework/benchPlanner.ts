@@ -13,6 +13,8 @@ import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { DiscoveredTask } from "./types.js";
 import {
   DEFAULT_BENCH_HARNESS,
+  DEFAULT_SKILL_DELIVERY_MODE,
+  isAdapterBackedHarness,
   isExternalHarness,
   type BenchHarnessConfig,
   type BenchMatrixRow,
@@ -336,7 +338,13 @@ export function buildBenchMatrixRow(
   );
   const resolvedAgentMode = agentMode ?? (isCUA ? "cua" : undefined);
   const resolvedIsCUA = resolvedAgentMode ? resolvedAgentMode === "cua" : isCUA;
-  const skillMode = isExternalHarness(harness) ? options.skillMode : undefined;
+  // Only the adapter-backed harnesses consume skillMode; recording it on
+  // claude_code/codex rows would label runs with a mode they ignore. For
+  // adapter-backed rows the effective default ("none") is recorded
+  // explicitly so metadata always matches execution.
+  const skillMode = isAdapterBackedHarness(harness)
+    ? (options.skillMode ?? DEFAULT_SKILL_DELIVERY_MODE)
+    : undefined;
   const config = buildBenchHarnessConfig({
     harness,
     model: modelName,

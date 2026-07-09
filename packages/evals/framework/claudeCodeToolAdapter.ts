@@ -53,6 +53,13 @@ export interface BrowseCliHarnessAdapterInput {
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
   logCategory: string;
+  /**
+   * Install SKILL.md at <cwd>/.claude/skills/browser (default true, the
+   * claude_code/codex behavior). Callers that deliver skill content through
+   * the system prompt instead pass false so no skill file is readable from
+   * the per-run cwd.
+   */
+  installSkill?: boolean;
 }
 
 const BROWSE_CLI_ENTRYPOINT = path.join(
@@ -347,12 +354,14 @@ export async function prepareBrowseCliHarnessAdapter(
     path.join(os.tmpdir(), "stagehand-evals-claude-browse-"),
   );
   const wrapperPath = path.join(cwd, "browse");
-  await installBrowseSkill(cwd);
-  input.logger.log({
-    category: input.logCategory,
-    message: `Installed browse skill at ${path.join(cwd, ".claude", "skills", "browse", "SKILL.md")}`,
-    level: 1,
-  });
+  if (input.installSkill !== false) {
+    await installBrowseSkill(cwd);
+    input.logger.log({
+      category: input.logCategory,
+      message: `Installed browse skill at ${path.join(cwd, ".claude", "skills", "browse", "SKILL.md")}`,
+      level: 1,
+    });
+  }
   const env = {
     ...process.env,
     BROWSE_SESSION: session,

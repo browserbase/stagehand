@@ -100,6 +100,8 @@ Bench tasks can run under harnesses beyond the Stagehand SDK. `stagehand` is nat
 | Codex | `codex` | Full | Full agentic scaffolding. |
 | Cursor SDK | `cursor_sdk` | Full | Ships Cursor's complete loop, planning, and tool behaviors — the same runtime that powers Cursor. |
 
+Each adapter harness becomes executable once its runner is registered; a harness without a registered runner is plan/preview-only, and `evals run` rejects live execution for it with a clear error (`--dry-run` / `--preview` still work).
+
 ### Skill-delivery modes
 
 Orthogonal to harness choice, `--skill-mode <none|prompt_show|injected>` controls how the browse skill reaches the agent:

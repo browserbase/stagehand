@@ -68,15 +68,36 @@ export function isExternalHarness(harness: Harness): boolean {
 }
 
 /**
+ * Harnesses provisioned through `prepareExternalHarnessAdapter` (the
+ * browse-only tool surface): the bare loops plus cursor_sdk. claude_code and
+ * codex have their own provisioning and do not consume `skillMode`.
+ */
+export const ADAPTER_BACKED_HARNESSES = [
+  "vercel_ai_sdk",
+  "anthropic_sdk",
+  "openai_agents_sdk",
+  "cursor_sdk",
+] as const satisfies readonly Harness[];
+
+export type AdapterBackedHarness = (typeof ADAPTER_BACKED_HARNESSES)[number];
+
+export function isAdapterBackedHarness(
+  harness: Harness,
+): harness is AdapterBackedHarness {
+  return (ADAPTER_BACKED_HARNESSES as readonly Harness[]).includes(harness);
+}
+
+/**
  * Skill-delivery mode: how (if at all) the browse CLI's SKILL.md is made
- * available to an external-harness run. Orthogonal to `Harness` — any mode
- * can run under any external harness. See
+ * available to an external-harness run. Selectable for any external harness,
+ * but only the adapter-backed harnesses (bare loops + cursor_sdk) consume
+ * it — claude_code/codex keep their own skill provisioning. See
  * packages/evals/README.md#external-harnesses.
  *
  *  - "none": no skill content anywhere. The agent gets the one-line bare
  *    system prompt and must discover the CLI via `--help` on its own.
  *  - "prompt_show": no skill content pre-installed, but the system prompt
- *    instructs the agent to run `browse skills show browser` first. Requires
+ *    instructs the agent to run `browse skills show` first. Requires
  *    a browse CLI release that includes `browse skills show`; on releases
  *    without it the agent cannot discover the skill.
  *  - "injected": the skill content is made available up front (Claude Code's

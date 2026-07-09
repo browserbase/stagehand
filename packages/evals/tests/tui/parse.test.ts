@@ -26,6 +26,51 @@ describe("resolveRunOptions", () => {
     expect(resolved.harness).toBe("claude_code");
   });
 
+  it("parses --skill-mode for external harnesses", () => {
+    for (const mode of ["none", "prompt_show", "injected"] as const) {
+      const flags = parseRunArgs([
+        "b:webvoyager",
+        "--harness",
+        "claude_code",
+        "--skill-mode",
+        mode,
+      ]);
+      const resolved = resolveRunOptions(flags, {}, {});
+      expect(resolved.skillMode).toBe(mode);
+    }
+  });
+
+  it("leaves skillMode undefined when the flag is omitted", () => {
+    const resolved = resolveRunOptions({ harness: "claude_code" }, {}, {});
+    expect(resolved.skillMode).toBeUndefined();
+  });
+
+  it("rejects unknown --skill-mode values", () => {
+    const flags = parseRunArgs([
+      "b:webvoyager",
+      "--harness",
+      "claude_code",
+      "--skill-mode",
+      "bogus",
+    ]);
+    expect(() => resolveRunOptions(flags, {}, {})).toThrow(
+      /Unknown skill mode/,
+    );
+  });
+
+  it("rejects --skill-mode for the stagehand harness", () => {
+    const flags = parseRunArgs([
+      "b:webvoyager",
+      "--harness",
+      "stagehand",
+      "--skill-mode",
+      "none",
+    ]);
+    expect(() => resolveRunOptions(flags, {}, {})).toThrow(
+      /only applies to external harnesses/,
+    );
+  });
+
   it("accepts explicit agent modes", () => {
     for (const agentMode of ["dom", "hybrid", "cua"] as const) {
       const flags = parseRunArgs(["b:webvoyager", "--agent-mode", agentMode]);

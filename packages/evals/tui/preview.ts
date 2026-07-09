@@ -119,6 +119,8 @@ function renderHeader(p: PreviewPayload): void {
     headerBits.push(`${bold("Trials:")} ${opts.trials}`);
   if (opts.harness !== undefined && opts.harness !== null)
     headerBits.push(`${bold("Harness:")} ${opts.harness}`);
+  if (opts.skillMode !== undefined && opts.skillMode !== null)
+    headerBits.push(`${bold("Skill mode:")} ${opts.skillMode}`);
   if (opts.useApi === true) headerBits.push(`${bold("API:")} ${yellow("on")}`);
   if (opts.model) headerBits.push(`${bold("Model override:")} ${opts.model}`);
   if (opts.provider) headerBits.push(`${bold("Provider:")} ${opts.provider}`);

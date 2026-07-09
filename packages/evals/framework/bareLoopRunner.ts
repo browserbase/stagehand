@@ -239,11 +239,27 @@ function clip(value: string, maxLength: number): string {
 
 export function stringifyLoopError(value: unknown): string {
   if (!value) return "";
-  if (value instanceof Error) return value.message;
-  if (typeof value === "string") return value;
+  if (value instanceof Error) return redactSecrets(value.message);
+  if (typeof value === "string") return redactSecrets(value);
   try {
-    return JSON.stringify(value) ?? String(value);
+    return redactSecrets(JSON.stringify(value) ?? String(value));
   } catch {
-    return String(value);
+    return redactSecrets(String(value));
   }
+}
+
+/**
+ * Provider/SDK error messages can echo request details. Scrub the common
+ * secret shapes (API keys, bearer tokens, signed query params) before the
+ * message lands in TaskResult.error / stop reasons.
+ */
+function redactSecrets(text: string): string {
+  return text
+    .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}\b/g, "[redacted]")
+    .replace(/\bbb_(?:live|test)_[A-Za-z0-9_-]{8,}\b/g, "[redacted]")
+    .replace(/\b(bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, "$1[redacted]")
+    .replace(
+      /([?&](?:key|api_key|apikey|token|access_token|signature|sig|secret)=)[^&\s"']+/gi,
+      "$1[redacted]",
+    );
 }

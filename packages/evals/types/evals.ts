@@ -5,6 +5,7 @@ import type { AgentInstance } from "@browserbasehq/stagehand";
 import type { EvalCase } from "braintrust";
 import type { V3 } from "@browserbasehq/stagehand";
 import { EvalLogger } from "../logger.js";
+import type { SkillDeliveryMode } from "../framework/benchTypes.js";
 
 export type StagehandInitResult = {
   v3?: V3;
@@ -74,7 +75,7 @@ export interface Testcase
       browseCliVersion?: string;
       browseCliEntrypoint?: string;
       agentMode?: AgentToolMode;
-      skillMode?: string;
+      skillMode?: SkillDeliveryMode;
     }
   > {
   input: EvalInput;
@@ -102,7 +103,7 @@ export interface Testcase
     browseCliVersion?: string;
     browseCliEntrypoint?: string;
     agentMode?: AgentToolMode;
-    skillMode?: string;
+    skillMode?: SkillDeliveryMode;
   };
   expected: unknown;
 }

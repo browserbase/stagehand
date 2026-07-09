@@ -32,7 +32,12 @@ import {
   type PreparedExternalHarnessAdapter,
 } from "./externalHarnessToolAdapter.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
-import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
+import type {
+  AdapterBackedHarness,
+  BenchMatrixRow,
+  BenchTaskKind,
+  Harness,
+} from "./benchTypes.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 type Page = ReturnType<V3["context"]["pages"]>[number];
@@ -367,7 +372,7 @@ export type ExternalHarnessRunner = (input: {
  * through this factory as their runners land.
  */
 export function buildAdapterBackedHarness(
-  harness: Harness,
+  harness: AdapterBackedHarness,
   runner: ExternalHarnessRunner,
 ): BenchHarness {
   return {
@@ -416,11 +421,14 @@ export function buildAdapterBackedHarness(
           },
         });
       } finally {
-        await toolAdapter?.cleanup();
-        // Deregister the never-init()-ed carrier (instance registry, event
-        // store, logger binding) so long matrix runs don't accumulate one
-        // V3 object graph per task.
-        await carrierV3.close().catch(() => {});
+        try {
+          await toolAdapter?.cleanup();
+        } finally {
+          // Deregister the never-init()-ed carrier (instance registry, event
+          // store, logger binding) even when adapter cleanup throws, so long
+          // matrix runs don't accumulate one V3 object graph per task.
+          await carrierV3.close().catch(() => {});
+        }
       }
     },
     async start(): Promise<StartedBenchHarness> {

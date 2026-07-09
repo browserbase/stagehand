@@ -16,6 +16,7 @@
 import {
   DEFAULT_BENCH_HARNESS,
   EXTERNAL_HARNESSES,
+  isExternalHarness,
   parseBenchHarness,
   parseSkillDeliveryMode,
   type Harness,
@@ -450,7 +451,7 @@ export function resolveRunOptions(
   const skillMode = flags.skillMode
     ? parseSkillDeliveryMode(flags.skillMode)
     : undefined;
-  if (skillMode && harness === "stagehand") {
+  if (skillMode && !isExternalHarness(harness)) {
     throw new Error(
       `--skill-mode only applies to external harnesses (${EXTERNAL_HARNESSES.join(", ")}).`,
     );

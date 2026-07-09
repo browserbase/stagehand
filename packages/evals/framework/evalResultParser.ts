@@ -26,18 +26,27 @@ export function buildEvalResultInstructions(): string {
 }
 
 export function parseEvalResultText(raw: string): ParsedEvalResult {
-  const markerIndex = raw.lastIndexOf(EVAL_RESULT_MARKER);
-  const candidates =
-    markerIndex >= 0
-      ? [
-          raw.slice(markerIndex + EVAL_RESULT_MARKER.length).trim(),
-          raw
-            .slice(markerIndex + EVAL_RESULT_MARKER.length)
-            .trim()
-            .split(/\r?\n/, 1)[0]
-            ?.trim(),
-        ]
-      : [raw.trim()];
+  // Anchor to the last LINE that begins with the marker (the requested output
+  // shape) so a summary/finalAnswer containing the literal "EVAL_RESULT:"
+  // inside the JSON payload cannot hijack which text gets parsed.
+  const lines = raw.split(/\r?\n/);
+  let markerLine = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trimStart().startsWith(EVAL_RESULT_MARKER)) {
+      markerLine = i;
+      break;
+    }
+  }
+  let candidates: Array<string | undefined>;
+  if (markerLine >= 0) {
+    const tail = lines.slice(markerLine).join("\n");
+    const afterMarker = tail
+      .slice(tail.indexOf(EVAL_RESULT_MARKER) + EVAL_RESULT_MARKER.length)
+      .trim();
+    candidates = [afterMarker, afterMarker.split(/\r?\n/, 1)[0]?.trim()];
+  } else {
+    candidates = [raw.trim()];
+  }
 
   for (const candidate of candidates) {
     if (!candidate) continue;
