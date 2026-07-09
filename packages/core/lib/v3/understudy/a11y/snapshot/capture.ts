@@ -36,6 +36,7 @@ type Interval = { start: number; end: number };
 type ExclusionIntervalsByFrame = Map<string, Interval[]>;
 type ChildFrameHost = { childFrameId: string; hostBackendNodeId: number };
 type ChildFramesByParent = Map<string, ChildFrameHost[]>;
+type WellFormedString = string & { toWellFormed(): string };
 
 /**
  * Capture a hybrid DOM + Accessibility snapshot for the provided page.
@@ -278,7 +279,7 @@ export async function tryScopedSnapshot(
 
     const scopedUrlMap: Record<string, string> = { ...urlMap };
 
-    const wellFormedOutline = outline.toWellFormed();
+    const wellFormedOutline = (outline as WellFormedString).toWellFormed();
 
     const snapshot: HybridSnapshot = {
       combinedTree: wellFormedOutline,
@@ -848,7 +849,9 @@ export function mergeFramesIntoSnapshot(
     perFrameOutlines.find((o) => o.frameId === context.rootId)?.outline ??
     perFrameOutlines[0]?.outline ??
     "";
-  const combinedTree = injectSubtrees(rootOutline, idToTree).toWellFormed();
+  const combinedTree = (
+    injectSubtrees(rootOutline, idToTree) as WellFormedString
+  ).toWellFormed();
 
   return {
     combinedTree,

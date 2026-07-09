@@ -18,7 +18,11 @@ test("repairs page text before local SDK model calls", async () => {
     jsonResponses: {
       Observation: (options) => {
         observedPromptText = promptToText(options.prompt);
-        expect(observedPromptText.isWellFormed()).toBe(true);
+        expect(
+          (
+            observedPromptText as string & { isWellFormed(): boolean }
+          ).isWellFormed(),
+        ).toBe(true);
         expect(observedPromptText).toContain("Draw Again. \uFFFD");
         return { elements: [] };
       },

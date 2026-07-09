@@ -379,7 +379,9 @@ describe("mergeFramesIntoSnapshot", () => {
       context.frames,
     );
 
-    expect(snapshot.combinedTree.isWellFormed()).toBe(true);
+    expect(
+      (snapshot.combinedTree as string & { isWellFormed(): boolean }).isWellFormed(),
+    ).toBe(true);
     expect(snapshot.combinedTree).toBe("Draw Again. \uFFFD");
   });
 
