@@ -274,9 +274,23 @@ function buildCursorMetrics(
     | undefined,
   messages: CursorSdkMessage[],
 ): Record<string, MetricValue> {
-  const toolCalls = messages.filter(
-    (message) => message.type === "tool_call" && message.status !== "running",
-  ).length;
+  // Count distinct terminal tool calls: the SDK can emit more than one
+  // terminal event for a call_id, and the trajectory adapter collapses those
+  // duplicates — the metric should agree with the recorded trajectory.
+  const seenCallIds = new Set<string>();
+  let anonymousCalls = 0;
+  for (const message of messages) {
+    if (message.type !== "tool_call") continue;
+    const status = String(message.status ?? "");
+    if (status !== "completed" && status !== "error") continue;
+    const callId = typeof message.call_id === "string" ? message.call_id : "";
+    if (callId) {
+      seenCallIds.add(callId);
+    } else {
+      anonymousCalls += 1;
+    }
+  }
+  const toolCalls = seenCallIds.size + anonymousCalls;
   return {
     cursor_tool_calls: metricValue(toolCalls),
     cursor_input_tokens: metricValue(usage?.inputTokens),

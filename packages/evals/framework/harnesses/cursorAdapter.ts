@@ -10,8 +10,11 @@
  *
  * Mapping:
  *   - Each terminal `tool_call` event (status completed|error) becomes one
- *     normalized tool call. Duplicate events for the same call_id collapse to
- *     the last (terminal) one.
+ *     normalized tool call. Non-terminal events (e.g. "running") are progress
+ *     markers, not results — an interrupted run must not record an in-flight
+ *     call as a step — but the reasoning buffered before them carries over to
+ *     the terminal event. Duplicate terminal events for one call_id collapse
+ *     to the last.
  *   - `assistant` text blocks and `thinking` text buffered since the previous
  *     tool call fold into the next tool call's `reasoning`; trailing text
  *     becomes the finalAnswer fallback.
@@ -43,9 +46,12 @@ export class CursorTrajectoryAdapter
 {
   fromHarnessResult(result: CursorRunResult, taskSpec: TaskSpec): Trajectory {
     const toolCalls: NormalizedToolCall[] = [];
-    // call_id → index into toolCalls, so a completed event replaces its
-    // earlier "running" placeholder instead of duplicating the call.
+    // call_id → index into toolCalls, so duplicate terminal events for the
+    // same call replace their predecessor instead of duplicating the call.
     const callIndexById = new Map<string, number>();
+    // Reasoning buffered when a non-terminal ("running") event arrives, keyed
+    // by call_id so the terminal event still picks it up.
+    const parkedReasoningById = new Map<string, string>();
     let pendingReasoning = "";
     const trailingTextParts: string[] = [];
     let usageTotals = { input_tokens: 0, output_tokens: 0, cached: 0 };
@@ -72,6 +78,17 @@ export class CursorTrajectoryAdapter
         const callId =
           typeof message.call_id === "string" ? message.call_id : "";
         const status = String(message.status ?? "");
+        if (status !== "completed" && status !== "error") {
+          // In-flight event: park the buffered reasoning for the terminal
+          // event and record nothing — an interrupted run must not surface
+          // an unfinished call as a (successful) step.
+          if (callId && pendingReasoning.trim()) {
+            parkedReasoningById.set(callId, pendingReasoning.trim());
+          }
+          pendingReasoning = "";
+          trailingTextParts.length = 0;
+          continue;
+        }
         const call: NormalizedToolCall = {
           name: typeof message.name === "string" ? message.name : "tool",
           args: isRecord(message.args)
@@ -82,11 +99,14 @@ export class CursorTrajectoryAdapter
           ...(status === "error" && {
             error: stringifyResult(message.result) || "tool_call error",
           }),
-          reasoning: pendingReasoning.trim() || undefined,
+          reasoning:
+            (callId ? parkedReasoningById.get(callId) : undefined) ??
+            (pendingReasoning.trim() || undefined),
         };
         const existing = callId ? callIndexById.get(callId) : undefined;
         if (existing !== undefined) {
-          // Preserve the reasoning captured with the first (running) event.
+          // Duplicate terminal event: keep the last, preserving the first
+          // recorded reasoning.
           call.reasoning = toolCalls[existing].reasoning ?? call.reasoning;
           toolCalls[existing] = call;
         } else {

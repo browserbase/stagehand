@@ -108,6 +108,16 @@ describe("cursor_sdk runner", () => {
                     args: { args: "--help" },
                     result: browseOutput,
                   };
+                  // Duplicate terminal event for the same call_id: metrics
+                  // must count it once, matching the trajectory adapter.
+                  yield {
+                    type: "tool_call",
+                    call_id: "c1",
+                    name: "browse",
+                    status: "completed",
+                    args: { args: "--help" },
+                    result: browseOutput,
+                  };
                   yield {
                     type: "usage",
                     usage: {
@@ -366,5 +376,35 @@ describe("cursor trajectory adapter", () => {
     expect(trajectory.usage.input_tokens).toBe(150);
     expect(trajectory.usage.output_tokens).toBe(30);
     expect(trajectory.usage.cached_input_tokens).toBe(5);
+  });
+
+  it("does not record an in-flight (running-only) tool call as a step", () => {
+    const trajectory = cursorAdapter.fromHarnessResult(
+      {
+        messages: [
+          {
+            type: "tool_call",
+            call_id: "c1",
+            name: "browse",
+            status: "completed",
+            args: { args: "--help" },
+            result: "usage: browse ...",
+          },
+          {
+            // Interrupted mid-call: no terminal event ever arrives for c2.
+            type: "tool_call",
+            call_id: "c2",
+            name: "browse",
+            status: "running",
+            args: { args: "open https://example.com" },
+          },
+        ],
+        status: "error",
+      },
+      taskSpec,
+    );
+
+    expect(trajectory.steps).toHaveLength(1);
+    expect(trajectory.steps[0].toolOutput?.ok).toBe(true);
   });
 });
