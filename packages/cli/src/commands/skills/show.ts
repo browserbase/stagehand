@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { BrowseCommand } from "../../base.js";
+import { fail } from "../../lib/errors.js";
 import { bundledCliSkillPath } from "../../lib/skills/install.js";
 
 export default class SkillsShow extends BrowseCommand {
@@ -17,8 +18,10 @@ export default class SkillsShow extends BrowseCommand {
     try {
       contents = readFileSync(skillMdPath, "utf8");
     } catch (error) {
-      this.error(
+      fail(
         `Could not read the bundled browse skill (SKILL.md): ${(error as Error).message}`,
+        1,
+        { resultCode: "skill_show_missing" },
       );
     }
 
