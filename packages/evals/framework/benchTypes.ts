@@ -34,6 +34,7 @@ export const EXECUTABLE_BENCH_HARNESSES = [
   "vercel_ai_sdk",
   "anthropic_sdk",
   "openai_agents_sdk",
+  "cursor_sdk",
 ] as const satisfies readonly Harness[];
 
 /**

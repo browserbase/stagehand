@@ -34,6 +34,7 @@ import {
 import { runVercelAiSdkAgent } from "./vercelAiSdkRunner.js";
 import { runAnthropicSdkAgent } from "./anthropicSdkRunner.js";
 import { runOpenAiAgentsSdkAgent } from "./openaiAgentsSdkRunner.js";
+import { runCursorSdkAgent } from "./cursorSdkRunner.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type {
   AdapterBackedHarness,
@@ -454,6 +455,10 @@ export const openaiAgentsSdkHarness = buildAdapterBackedHarness(
   "openai_agents_sdk",
   runOpenAiAgentsSdkAgent,
 );
+export const cursorSdkHarness = buildAdapterBackedHarness(
+  "cursor_sdk",
+  runCursorSdkAgent,
+);
 
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
@@ -462,6 +467,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["vercel_ai_sdk", vercelAiSdkHarness],
   ["anthropic_sdk", anthropicSdkHarness],
   ["openai_agents_sdk", openaiAgentsSdkHarness],
+  ["cursor_sdk", cursorSdkHarness],
 ]);
 
 export function getBenchHarness(harness: Harness): BenchHarness {
