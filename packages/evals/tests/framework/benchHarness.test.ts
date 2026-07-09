@@ -4,6 +4,7 @@ import {
   claudeCodeHarness,
   codexHarness,
   getBenchHarness,
+  openaiAgentsSdkHarness,
   vercelAiSdkHarness,
 } from "../../framework/benchHarness.js";
 import { isExecutableBenchHarness } from "../../framework/benchTypes.js";
@@ -45,6 +46,18 @@ describe("bench harness registry", () => {
     const harness = getBenchHarness("anthropic_sdk");
 
     expect(harness).toBe(anthropicSdkHarness);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
+    await expect(harness.start({} as never)).rejects.toThrow(
+      /external harness execute path/,
+    );
+  });
+
+  it("registers openai_agents_sdk as a concrete executable harness", async () => {
+    const harness = getBenchHarness("openai_agents_sdk");
+
+    expect(harness).toBe(openaiAgentsSdkHarness);
     expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
     expect(harness.supportsApi).toBe(false);
     expect(harness.execute).toBeDefined();

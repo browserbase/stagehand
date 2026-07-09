@@ -26,6 +26,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.2.141",
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/stagehand": "workspace:*",
+    "@openai/agents": "0.13.0",
     "@openai/codex-sdk": "0.125.0",
     "ai": "^5.0.133",
     "dotenv": "^17.3.1",
