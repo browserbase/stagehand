@@ -281,7 +281,7 @@ function localSkillPath(skillId: ParsedSkillId): string {
   );
 }
 
-function bundledCliSkillPath(): string {
+export function bundledCliSkillPath(): string {
   return join(packageRoot(), "skills", "browse");
 }
 
