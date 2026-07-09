@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { BrowseCommand } from "../../base.js";
@@ -16,7 +16,7 @@ export default class SkillsShow extends BrowseCommand {
 
     let contents: string;
     try {
-      contents = readFileSync(skillMdPath, "utf8");
+      contents = await readFile(skillMdPath, "utf8");
     } catch (error) {
       fail(
         `Could not read the bundled browse skill (SKILL.md): ${(error as Error).message}`,
