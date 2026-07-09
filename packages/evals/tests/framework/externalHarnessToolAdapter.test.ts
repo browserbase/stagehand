@@ -50,7 +50,7 @@ describe("harness classification", () => {
 });
 
 describe("skill delivery mode", () => {
-  it("defaults to none and parses the three arms", () => {
+  it("defaults to none and parses the three modes", () => {
     expect(parseSkillDeliveryMode(undefined)).toBe("none");
     expect(parseSkillDeliveryMode("none")).toBe("none");
     expect(parseSkillDeliveryMode("prompt_show")).toBe("prompt_show");

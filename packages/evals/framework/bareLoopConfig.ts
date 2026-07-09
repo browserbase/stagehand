@@ -1,9 +1,8 @@
 /**
- * Shared bare-loop tuning knobs. The 2026-07-09 3-provider Modal sandbox
- * smoke found 20 steps was cap-binding for webtailbench-style tasks with a
- * single generic browse tool (no batched/high-level actions), so the
- * bare-loop default here is roughly double that. Configurable per harness
- * via its own env var so a slow/expensive model can be capped tighter.
+ * Shared bare-loop tuning knobs. The default step cap keeps bare loops
+ * bounded while leaving headroom for tasks that need many single-command
+ * browse steps. Each harness reads its own env var override, so a slow or
+ * expensive model can be capped tighter without affecting the others.
  */
 export const DEFAULT_BARE_LOOP_MAX_STEPS = 40;
 

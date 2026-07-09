@@ -66,7 +66,7 @@ export interface RunEvalsOptions {
   agentMode?: AgentToolMode;
   agentModes?: AgentToolMode[];
   harness?: Harness;
-  /** Skill-delivery arm for external harnesses (none | prompt_show | injected). */
+  /** Skill-delivery mode for external harnesses (none | prompt_show | injected). */
   skillMode?: SkillDeliveryMode;
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;

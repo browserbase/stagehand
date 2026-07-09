@@ -37,7 +37,7 @@ export const EXECUTABLE_BENCH_HARNESSES = [
  * The "bare loop" harnesses: a single generic tool-calling loop with no
  * agentic scaffolding beyond what the model provider's SDK gives for free.
  * Used to gate bare-loop-only behavior (system-prompt policy, skill-delivery
- * arms, step-cap defaults) without repeating the harness list everywhere.
+ * modes, step-cap defaults) without repeating the harness list everywhere.
  */
 export const BARE_LOOP_HARNESSES = [
   "vercel_ai_sdk",
@@ -69,16 +69,16 @@ export function isExternalHarness(harness: Harness): boolean {
 
 /**
  * Skill-delivery mode: how (if at all) the browse CLI's SKILL.md is made
- * available to an external-harness run. Orthogonal to `Harness` — it's the
- * A/B/C experiment arm crossed with the harness-richness spectrum. See
+ * available to an external-harness run. Orthogonal to `Harness` — any mode
+ * can run under any external harness. See
  * packages/evals/README.md#external-harnesses.
  *
  *  - "none": no skill content anywhere. The agent gets the one-line bare
  *    system prompt and must discover the CLI via `--help` on its own.
  *  - "prompt_show": no skill content pre-installed, but the system prompt
  *    instructs the agent to run `browse skills show browser` first. Requires
- *    a browse CLI release carrying #2335 (unreleased as of this writing) —
- *    callers should treat this arm as not-yet-usable until that ships.
+ *    a browse CLI release that includes `browse skills show`; on releases
+ *    without it the agent cannot discover the skill.
  *  - "injected": the skill content is made available up front (Claude Code's
  *    existing default: SKILL.md installed on disk, loaded via the Skill
  *    tool). Bare loops have no Skill-tool primitive, so for them "injected"
@@ -146,7 +146,7 @@ export interface ExternalHarnessConfig {
   startupProfile?: StartupProfile;
   dataset?: string;
   /**
-   * Skill-delivery arm for this run. Only consulted by the bare-loop /
+   * Skill-delivery mode for this run. Only consulted by the bare-loop /
    * cursor_sdk harnesses (see externalHarnessToolAdapter.ts) — claude_code
    * and codex keep their existing skill-provisioning behavior unchanged.
    */

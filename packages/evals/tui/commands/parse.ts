@@ -84,7 +84,7 @@ export interface ResolvedRunOptions {
   coreToolSurface?: string;
   coreStartupProfile?: string;
   harness: Harness;
-  /** Skill-delivery arm for external harnesses (none | prompt_show | injected). */
+  /** Skill-delivery mode for external harnesses (none | prompt_show | injected). */
   skillMode?: SkillDeliveryMode;
   agentMode?: AgentToolMode;
   agentModes?: AgentToolMode[];

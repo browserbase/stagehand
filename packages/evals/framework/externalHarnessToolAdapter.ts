@@ -9,17 +9,18 @@
  * thin wrapper around `prepareBrowseCliHarnessAdapter` (the same provisioning
  * codex uses) plus the one thing that IS new here: skill-delivery mode.
  *
- * Skill-delivery mode (`SkillDeliveryMode`) is the A/B/C experiment arm
- * (see packages/evals/README.md#external-harnesses). It is orthogonal to
- * which harness is running:
+ * Skill-delivery mode (`SkillDeliveryMode`) controls how (if at all) the
+ * browse CLI's skill documentation reaches the agent (see
+ * packages/evals/README.md#external-harnesses). It is orthogonal to which
+ * harness is running:
  *   - "none": no skill content anywhere, just the bare one-line system
- *     prompt. This is the default — the whole point of the bare-loop tier
- *     is to measure the browse CLI + docs with zero scaffolding compensating
- *     for gaps, so "no skill" is the natural baseline, not "inject it".
+ *     prompt. This is the default — the bare-loop tier measures the browse
+ *     CLI + docs with zero scaffolding compensating for gaps, so "no skill"
+ *     is the natural baseline, not "inject it".
  *   - "prompt_show": the prompt instructs the agent to run
- *     `browse skills show` first. Requires a browse CLI release carrying
- *     PR #2335 (unreleased at the time of writing) — see
- *     assertSkillsShowSupport below.
+ *     `browse skills show` first. Requires a browse CLI release that
+ *     includes `browse skills show` — buildSystemPromptAddendum warns with
+ *     the installed version when the mode is selected.
  *   - "injected": the skill content is embedded directly in the system
  *     prompt. There is no Skill-tool primitive in a bare loop (there's only
  *     the one `browse` tool), so "injected" here means literally pasting
@@ -56,9 +57,9 @@ const BROWSER_SKILL_SOURCE = path.join(
   "SKILL.md",
 );
 
-/** browse CLI release that ships `browse skills show` (PR #2335). Unreleased. */
+/** Shown in the prompt_show warning: not every browse CLI release ships `browse skills show`. */
 const SKILLS_SHOW_MIN_VERSION_HINT =
-  "unreleased (github.com/browserbase/stagehand/pull/2335)";
+  "requires a browse CLI release that includes `browse skills show`";
 
 export interface ExternalHarnessToolAdapterInput {
   environment: "LOCAL" | "BROWSERBASE";
@@ -93,10 +94,10 @@ export function resolveExternalHarnessStartupProfile(
 }
 
 /**
- * The default bare-loop system prompt. Mirrors the one-liner used in the
- * 2026-07-09 3-provider Modal sandbox smoke (agent.mjs) that surfaced 5
- * systematic SKILL.md/template issues bare loops execute literally — this
- * exact wording is the "no scaffolding" instrument, not a paraphrase of it.
+ * The default bare-loop system prompt: the agent gets the browse CLI with no
+ * documentation and must discover commands via `--help`. This exact wording
+ * is the "no scaffolding" baseline the bare-loop results are measured
+ * against — treat edits to it as changes to what the numbers mean.
  */
 export const BARE_LOOP_DEFAULT_SYSTEM_PROMPT = [
   'You drive a real web browser by running the "browse" CLI, one command per tool call (e.g. "open https://example.com" or "get markdown body").',
@@ -157,9 +158,9 @@ async function buildSystemPromptAddendum(
     case "prompt_show":
       logger.warn({
         category: logCategory,
-        message: `skillMode=prompt_show relies on "browse skills show" (${SKILLS_SHOW_MIN_VERSION_HINT}). Installed browse CLI version: ${
+        message: `skillMode=prompt_show ${SKILLS_SHOW_MIN_VERSION_HINT}. Installed browse CLI version: ${
           metadata.browseCliVersion ?? "unknown"
-        }. This arm will fail to discover the skill on any release that predates it.`,
+        }. On releases without it, the agent cannot discover the skill.`,
         level: 0,
       });
       return `${BARE_LOOP_DEFAULT_SYSTEM_PROMPT}\n${PROMPT_SHOW_SYSTEM_PROMPT_ADDENDUM}`;

@@ -8,11 +8,12 @@
  * finalization, and verifier grading — lives here so the per-provider files
  * stay small enough to read in one sitting.
  *
- * System-prompt policy: the system prompt is EXACTLY the skill-arm text the
+ * System-prompt policy: the system prompt is EXACTLY the skill-mode text the
  * tool adapter resolved (bare one-liner / prompt_show variant / injected
- * skill). No extra scaffolding is added — the bareness IS the instrument.
- * Task specifics (start URL, instruction, EVAL_RESULT format) go in the user
- * prompt, mirroring how a developer would wire a one-off script.
+ * skill) — no extra scaffolding is added, so results measure the CLI and its
+ * docs rather than harness smarts. Task specifics (start URL, instruction,
+ * EVAL_RESULT format) go in the user prompt, mirroring how a developer would
+ * wire a one-off script.
  */
 import { performance } from "node:perf_hooks";
 import type { Trajectory } from "@browserbasehq/stagehand";
@@ -63,11 +64,10 @@ export interface BareLoopToolRecorder {
 }
 
 /**
- * Cap on the tool output returned to the model per call. Mirrors the sandbox
- * template's 20000-char slice: without it, a few large `snapshot` /
- * `get markdown` outputs across a 40-step loop overflow the context window.
- * The recorded trajectory keeps the same clipped text — the verifier should
- * ground on what the model actually saw.
+ * Cap on the tool output returned to the model per call: without a cap, a
+ * few large `snapshot` / `get markdown` outputs across a long loop overflow
+ * the context window. The recorded trajectory keeps the same clipped text —
+ * the verifier should ground on what the model actually saw.
  */
 export function readToolOutputLimit(): number {
   const raw = process.env.EVAL_BARE_LOOP_TOOL_OUTPUT_LIMIT;

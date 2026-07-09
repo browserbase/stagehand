@@ -6,15 +6,8 @@
  * times. This self-report only backstops the non-verifier path
  * (`gradeExternalTrajectory` overrides `_success` whenever a verifier runs).
  *
- * TODO(follow-up): claudeCodeRunner.parseClaudeCodeResult and
- * codexRunner.parseCodexResult are two more hand-forked copies of this exact
- * marker+JSON parse (predating this module) that were intentionally left
- * alone here -- they've already drifted slightly from each other (codexRunner
- * falls back to a first-line candidate on the no-marker path; claudeCodeRunner
- * doesn't), and from this one, so folding them in isn't a same-behavior
- * mechanical change. Worth a dedicated follow-up PR to verify the divergence
- * is unintentional before consolidating all three onto parseEvalResultText.
- * Flagged in #2337's PR body.
+ * TODO(STG-2516): consolidate claudeCodeRunner.parseClaudeCodeResult and
+ * codexRunner.parseCodexResult onto this module.
  */
 export interface ParsedEvalResult {
   success: boolean;

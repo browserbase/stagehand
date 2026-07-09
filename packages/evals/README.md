@@ -72,7 +72,7 @@ Use `Esc` to abort an in-flight run without exiting the REPL.
 | `-m, --model <id>` / `-p, --provider <name>` | Override the model/provider matrix |
 | `--api` | Run via the Stagehand API instead of the SDK |
 | `--harness <stagehand\|claude_code\|codex\|vercel_ai_sdk\|anthropic_sdk\|openai_agents_sdk\|cursor_sdk>` | Which agent harness drives the bench task (see [External harnesses](#external-harnesses) below) |
-| `--skill-mode <none\|prompt_show\|injected>` | Skill-delivery arm for external harnesses |
+| `--skill-mode <none\|prompt_show\|injected>` | Skill-delivery mode for external harnesses |
 | `--agent-mode <dom\|hybrid\|cua>` / `--agent-modes <csv>` | Stagehand agent mode (or matrix) |
 | `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets |
 | `--preview` | Print the resolved plan and exit — no browser, no LLM calls |
