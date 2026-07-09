@@ -264,8 +264,11 @@ function redactSecrets(text: string): string {
     )
     .replace(
       // JSON/object field forms, e.g. "api_key":"..." or apiKey: '...' —
-      // stringified SDK errors often echo request options this way.
-      /(["']?(?:api[_-]?key|access[_-]?token|auth[_-]?token|secret|signature|password|authorization)["']?\s*[:=]\s*["'])[^"']+(["'])/gi,
-      "$1[redacted]$2",
+      // stringified SDK errors often echo request options this way. The
+      // value is matched through to its own opening quote (escapes allowed)
+      // so a secret containing the other quote character or an escaped
+      // quote is redacted in full, not up to the first foreign quote.
+      /(["']?(?:api[_-]?key|access[_-]?token|auth[_-]?token|secret|signature|password|authorization)["']?\s*[:=]\s*)(["'])(?:\\.|(?!\2)[^\\])*\2/gi,
+      "$1$2[redacted]$2",
     );
 }

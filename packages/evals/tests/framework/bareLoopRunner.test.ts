@@ -168,6 +168,21 @@ describe("stringifyLoopError", () => {
     );
   });
 
+  it("fully redacts quoted values containing the other quote or escaped quotes", () => {
+    // Value contains the other quote character — must not stop mid-value.
+    expect(stringifyLoopError('{"password":"ab\'cd"}')).toBe(
+      '{"password":"[redacted]"}',
+    );
+    // Value contains an escaped same-quote.
+    expect(stringifyLoopError('{"secret":"ab\\"cd"}')).toBe(
+      '{"secret":"[redacted]"}',
+    );
+    // Single-quoted value containing a double quote.
+    expect(stringifyLoopError("config: { apiKey: 'abc\"def' }")).toBe(
+      "config: { apiKey: '[redacted]' }",
+    );
+  });
+
   it("redacts secret-bearing JSON/object fields in stringified errors", () => {
     expect(
       stringifyLoopError({
