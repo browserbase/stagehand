@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   getBrowseCliAllowedTools,
   getBrowseCliToolMetadata,
+  insertAfterFrontmatter,
   isAllowedBrowseCommand,
   installBrowseSkill,
   resolveClaudeCodeStartupProfile,
@@ -15,6 +16,7 @@ import {
   resolveCodexStartupProfile,
   resolveCodexToolSurface,
 } from "../../framework/codexToolAdapter.js";
+import { getRepoRootDir } from "../../runtimePaths.js";
 import type { CdpEventMessage } from "../../core/tools/cdp_code.js";
 
 describe("claude code tool adapter resolution", () => {
@@ -128,6 +130,114 @@ describe("claude code tool adapter resolution", () => {
       expect(addendumIndex).toBeGreaterThan(-1);
       expect(cloudSectionIndex).toBeGreaterThan(-1);
       expect(addendumIndex).toBeLessThan(cloudSectionIndex);
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("inserts after LF frontmatter", () => {
+    const markdown = "---\nname: browse\n---\n# Body\ntext\n";
+    const result = insertAfterFrontmatter(markdown, "ADDENDUM");
+    expect(result).toBe("---\nname: browse\n---\nADDENDUM\n# Body\ntext\n");
+  });
+
+  it("inserts after CRLF frontmatter", () => {
+    const markdown = "---\r\nname: browse\r\n---\r\n# Body\r\ntext\r\n";
+    const result = insertAfterFrontmatter(markdown, "ADDENDUM");
+    expect(result).toBe(
+      "---\r\nname: browse\r\n---\r\nADDENDUM\n# Body\r\ntext\r\n",
+    );
+  });
+
+  it("inserts after BOM-prefixed frontmatter", () => {
+    const bom = "﻿";
+    const markdown = `${bom}---\nname: browse\n---\n# Body\ntext\n`;
+    const result = insertAfterFrontmatter(markdown, "ADDENDUM");
+    // The BOM is part of the original source bytes preceding the body, so
+    // it stays put ahead of the addendum rather than being dropped or
+    // relocated by gray-matter's internal (content-only) BOM stripping.
+    expect(result).toBe(
+      `${bom}---\nname: browse\n---\nADDENDUM\n# Body\ntext\n`,
+    );
+    expect(result.startsWith(bom)).toBe(true);
+  });
+
+  it("inserts after frontmatter containing a `---` line inside a YAML multiline string", () => {
+    const markdown = [
+      "---",
+      "name: browse",
+      "description: >",
+      "  first line",
+      "  ---",
+      "  still frontmatter",
+      "---",
+      "# Body",
+      "text",
+      "",
+    ].join("\n");
+    const result = insertAfterFrontmatter(markdown, "ADDENDUM");
+    const expectedFrontmatter = [
+      "---",
+      "name: browse",
+      "description: >",
+      "  first line",
+      "  ---",
+      "  still frontmatter",
+      "---",
+      "",
+    ].join("\n");
+    expect(result).toBe(`${expectedFrontmatter}ADDENDUM\n# Body\ntext\n`);
+    // The embedded `---` must not be mistaken for the closing delimiter.
+    expect(result.indexOf("ADDENDUM")).toBeGreaterThan(
+      result.indexOf("still frontmatter"),
+    );
+  });
+
+  it("falls back to prepending when there is no frontmatter", () => {
+    const markdown = "# Just a body\nno frontmatter here\n";
+    const result = insertAfterFrontmatter(markdown, "ADDENDUM");
+    expect(result).toBe("ADDENDUM\n# Just a body\nno frontmatter here\n");
+  });
+
+  it("falls back to prepending when frontmatter is unterminated and invalid YAML", () => {
+    // No closing `---` and not parseable as YAML (an implicit multiline key)
+    // -- gray-matter throws here; we must not propagate that during install.
+    const markdown = "---\nname: x\nunterminated body text\n";
+    const result = insertAfterFrontmatter(markdown, "ADDENDUM");
+    expect(result).toBe(`ADDENDUM\n${markdown}`);
+  });
+
+  it("keeps the installed skill's frontmatter byte-identical to the source SKILL.md", async () => {
+    const sourcePath = path.join(
+      getRepoRootDir(),
+      "packages",
+      "cli",
+      "skills",
+      "browse",
+      "SKILL.md",
+    );
+    const source = await fsp.readFile(sourcePath, "utf8");
+    const sourceFrontmatterMatch = source.match(/^[\s\S]*?\n---\n/);
+    expect(sourceFrontmatterMatch).not.toBeNull();
+    const sourceFrontmatter = sourceFrontmatterMatch![0];
+
+    const cwd = await fsp.mkdtemp(
+      path.join(os.tmpdir(), "stagehand-evals-skill-fidelity-test-"),
+    );
+    try {
+      await installBrowseSkill(cwd);
+      const installed = await fsp.readFile(
+        path.join(cwd, ".claude", "skills", "browse", "SKILL.md"),
+        "utf8",
+      );
+      // Regression guard: this must be a raw-bytes reassembly, not a
+      // matter.stringify() round-trip -- a js-yaml re-serialization would
+      // reformat the folded `description: >` block and other YAML
+      // formatting choices in the shipped skill.
+      expect(installed.slice(0, sourceFrontmatter.length)).toBe(
+        sourceFrontmatter,
+      );
+      expect(installed.startsWith(sourceFrontmatter)).toBe(true);
     } finally {
       await fsp.rm(cwd, { recursive: true, force: true });
     }

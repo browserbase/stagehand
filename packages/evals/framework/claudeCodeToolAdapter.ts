@@ -2,6 +2,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import matter from "gray-matter";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { z } from "zod/v4";
 import { EvalsError } from "../errors.js";
@@ -1138,11 +1139,48 @@ export async function installBrowseSkill(cwd: string): Promise<void> {
 // frontmatter parsing is unaffected) and before the rest of the body, so the
 // eval-harness rules are the first thing the model reads rather than a
 // caveat appended after conflicting examples.
-function insertAfterFrontmatter(markdown: string, addition: string): string {
-  const frontmatterMatch = markdown.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n/);
-  if (!frontmatterMatch) return `${addition}\n${markdown}`;
-  const frontmatter = frontmatterMatch[0];
-  const body = markdown.slice(frontmatter.length);
+//
+// Frontmatter *boundary detection* is delegated to gray-matter rather than a
+// hand-rolled regex: the regex here already needed a CRLF patch and still
+// fails silently on BOM-prefixed files or a `---` line embedded inside a
+// YAML multiline string, corrupting the installed skill by prepending the
+// addendum before the frontmatter instead of after it.
+//
+// We deliberately do NOT use `matter.stringify()` to rebuild the file: it
+// re-serializes the parsed data through js-yaml, which can reformat the
+// frontmatter (e.g. collapsing/re-wrapping a folded `description: >` block)
+// and would silently rewrite the shipped skill on every install. Instead we
+// only use gray-matter to find the frontmatter/body boundary, then
+// reassemble from the ORIGINAL raw string so the frontmatter block that
+// ships is byte-identical to the frontmatter block in the source file.
+export function insertAfterFrontmatter(
+  markdown: string,
+  addition: string,
+): string {
+  let parsed: matter.GrayMatterFile<string>;
+  try {
+    parsed = matter(markdown);
+  } catch {
+    // Unterminated/invalid YAML frontmatter -- fall back to the same
+    // no-frontmatter behavior below instead of throwing during skill
+    // install.
+    return `${addition}\n${markdown}`;
+  }
+
+  // gray-matter never rebuilds the body string -- `parsed.content` is
+  // always a raw suffix of `markdown` (it locates the frontmatter block and
+  // slices it off). That makes `markdown.length - parsed.content.length`
+  // the exact length, in the original source bytes, of everything before
+  // the body: any leading BOM, the delimiters, and the source's own line
+  // endings -- all preserved as-is. We don't rely on `parsed.matter` for
+  // this, since it strips delimiters and can normalize newlines. When there
+  // is no frontmatter, gray-matter returns `content` unchanged, so this
+  // offset is 0.
+  const frontmatterLength = markdown.length - parsed.content.length;
+  if (frontmatterLength <= 0) return `${addition}\n${markdown}`;
+
+  const frontmatter = markdown.slice(0, frontmatterLength);
+  const body = parsed.content;
   return `${frontmatter}${addition}\n${body}`;
 }
 
