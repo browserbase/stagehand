@@ -71,14 +71,46 @@ const BROWSE_CLI_PACKAGE_JSON = path.join(
   "cli",
   "package.json",
 );
-const BROWSER_SKILL_SOURCE = path.join(
+const BROWSE_SKILL_SOURCE = path.join(
   getRepoRootDir(),
   "packages",
-  "evals",
+  "cli",
   "skills",
-  "browser",
+  "browse",
   "SKILL.md",
 );
+// The CLI skill below is written for interactive use and covers surface
+// (install, Browse.sh discovery, Browserbase cloud/Functions/templates) that
+// does not apply inside the eval harness. This addendum is inserted right
+// after the CLI skill's frontmatter — before the model reads any of the
+// conflicting examples in the body — at install time, so the harness ships
+// one source of truth (the real, maintained browse skill) instead of a
+// second copy that drifts.
+const EVAL_HARNESS_ADDENDUM = `
+## Eval Harness Addendum
+
+This skill is installed by the Stagehand eval harness, which overrides some of
+the guidance below:
+
+- \`browse\` is already installed and pinned by the harness to this eval's
+  session and environment. Never run \`npm install -g browse\` or otherwise
+  install/upgrade it. Never pass \`--local\`, \`--remote\`, or \`--session\` —
+  the harness's wrapper appends the correct environment and session flags to
+  every command automatically.
+- Run exactly one \`browse ...\` command per Bash tool call. Shell operators
+  (\`|\`, \`&&\`, \`;\`, backticks, \`$()\`, and redirection) are rejected by the
+  harness, so chained or piped commands will fail.
+- Ignore the sections below about installing \`browse\`, Browse.sh skill
+  discovery/installation (\`browse skills ...\`), Browserbase cloud/session/
+  context/extension management (\`browse cloud ...\`), Functions
+  (\`browse functions ...\`), and Templates (\`browse templates ...\`) — all out
+  of scope during evals. Do not run those commands even though they are
+  documented below.
+- Do not edit repository files. Do not use network or web tools other than
+  \`browse\`.
+- When finished, report the result in the exact \`EVAL_RESULT\` format
+  requested by the harness prompt.
+`;
 const ALLOW_UNSANDBOXED_LOCAL_ENV = "EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL";
 const RUN_TOOL_SERVER = "stagehand_browser";
 const RUN_TOOL_NAME = `mcp__${RUN_TOOL_SERVER}__run`;
@@ -314,10 +346,10 @@ export async function prepareBrowseCliHarnessAdapter(
     path.join(os.tmpdir(), "stagehand-evals-claude-browse-"),
   );
   const wrapperPath = path.join(cwd, "browse");
-  await installBrowserSkill(cwd);
+  await installBrowseSkill(cwd);
   input.logger.log({
     category: input.logCategory,
-    message: `Installed browser skill at ${path.join(cwd, ".claude", "skills", "browser", "SKILL.md")}`,
+    message: `Installed browse skill at ${path.join(cwd, ".claude", "skills", "browse", "SKILL.md")}`,
     level: 1,
   });
   const env = {
@@ -1085,17 +1117,33 @@ function buildBrowseCliPromptInstructions(
   void plan;
   return [
     "Browser tool surface: browse_cli.",
-    "A project skill named browser is available. Use the Skill tool to load it before using browse.",
+    "A project skill named browse is available. Use the Skill tool to load it before using browse.",
     "Use Bash only to run the browse command. It is already on PATH and pinned to this eval session.",
     "Do not use network/web tools outside browse. Do not edit repository files.",
     "The benchmark start URL is provided above.",
   ].join("\n");
 }
 
-export async function installBrowserSkill(cwd: string): Promise<void> {
-  const targetDir = path.join(cwd, ".claude", "skills", "browser");
+export async function installBrowseSkill(cwd: string): Promise<void> {
+  const targetDir = path.join(cwd, ".claude", "skills", "browse");
   await fsp.mkdir(targetDir, { recursive: true });
-  await fsp.copyFile(BROWSER_SKILL_SOURCE, path.join(targetDir, "SKILL.md"));
+  const cliSkill = await fsp.readFile(BROWSE_SKILL_SOURCE, "utf8");
+  await fsp.writeFile(
+    path.join(targetDir, "SKILL.md"),
+    insertAfterFrontmatter(cliSkill, EVAL_HARNESS_ADDENDUM),
+  );
+}
+
+// Inserts `addition` immediately after the skill's YAML frontmatter (so
+// frontmatter parsing is unaffected) and before the rest of the body, so the
+// eval-harness rules are the first thing the model reads rather than a
+// caveat appended after conflicting examples.
+function insertAfterFrontmatter(markdown: string, addition: string): string {
+  const frontmatterMatch = markdown.match(/^---\n[\s\S]*?\n---\n/);
+  if (!frontmatterMatch) return `${addition}\n${markdown}`;
+  const frontmatter = frontmatterMatch[0];
+  const body = markdown.slice(frontmatter.length);
+  return `${frontmatter}${addition}\n${body}`;
 }
 
 export function isAllowedBrowseCommand(command: string): boolean {

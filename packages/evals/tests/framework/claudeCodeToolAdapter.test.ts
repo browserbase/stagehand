@@ -6,7 +6,7 @@ import {
   getBrowseCliAllowedTools,
   getBrowseCliToolMetadata,
   isAllowedBrowseCommand,
-  installBrowserSkill,
+  installBrowseSkill,
   resolveClaudeCodeStartupProfile,
   resolveClaudeCodeToolSurface,
   waitForCdpEvent,
@@ -105,18 +105,29 @@ describe("claude code tool adapter resolution", () => {
     });
   });
 
-  it("installs the browser skill as a project skill", async () => {
+  it("installs the browse skill as a project skill", async () => {
     const cwd = await fsp.mkdtemp(
       path.join(os.tmpdir(), "stagehand-evals-skill-test-"),
     );
     try {
-      await installBrowserSkill(cwd);
+      await installBrowseSkill(cwd);
       const skill = await fsp.readFile(
-        path.join(cwd, ".claude", "skills", "browser", "SKILL.md"),
+        path.join(cwd, ".claude", "skills", "browse", "SKILL.md"),
         "utf8",
       );
-      expect(skill).toContain("name: browser");
+      // The installed skill is the real CLI skill (single source of truth)...
+      expect(skill).toContain("name: browse");
       expect(skill).toContain("browse CLI");
+      // ...plus the install-time eval-harness addendum, inserted right after
+      // frontmatter so it precedes (and overrides) the CLI skill's
+      // conflicting cloud/functions/templates/skills-install examples.
+      expect(skill).toContain("## Eval Harness Addendum");
+      expect(skill).toContain("EVAL_RESULT");
+      const addendumIndex = skill.indexOf("## Eval Harness Addendum");
+      const cloudSectionIndex = skill.indexOf("## Cloud APIs");
+      expect(addendumIndex).toBeGreaterThan(-1);
+      expect(cloudSectionIndex).toBeGreaterThan(-1);
+      expect(addendumIndex).toBeLessThan(cloudSectionIndex);
     } finally {
       await fsp.rm(cwd, { recursive: true, force: true });
     }
