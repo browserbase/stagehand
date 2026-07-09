@@ -6,7 +6,7 @@ import {
 } from "../dom/build/locatorScripts.generated.js";
 import { v3Logger } from "../logger.js";
 import type { Frame } from "./frame.js";
-import { executionContexts } from "./executionContextRegistry.js";
+import { executionContexts, DEFAULT_MAIN_WORLD_TIMEOUT_MS } from "./executionContextRegistry.js";
 
 export type SelectorQuery =
   | { kind: "css"; value: string }
@@ -133,7 +133,7 @@ export class FrameSelectorResolver {
     const ctxId = await executionContexts.waitForMainWorld(
       session,
       this.frame.frameId,
-      1000,
+      DEFAULT_MAIN_WORLD_TIMEOUT_MS,
     );
 
     const results: ResolvedNode[] = [];
@@ -192,7 +192,7 @@ export class FrameSelectorResolver {
     const ctxId = await executionContexts.waitForMainWorld(
       session,
       this.frame.frameId,
-      1000,
+      DEFAULT_MAIN_WORLD_TIMEOUT_MS,
     );
 
     const results: ResolvedNode[] = [];
@@ -219,7 +219,7 @@ export class FrameSelectorResolver {
     const ctxId = await executionContexts.waitForMainWorld(
       session,
       this.frame.frameId,
-      1000,
+      DEFAULT_MAIN_WORLD_TIMEOUT_MS,
     );
 
     const results: ResolvedNode[] = [];
@@ -254,7 +254,7 @@ export class FrameSelectorResolver {
     const ctxId = await executionContexts.waitForMainWorld(
       session,
       this.frame.frameId,
-      1000,
+      DEFAULT_MAIN_WORLD_TIMEOUT_MS,
     );
 
     const fallbackExpr = this.buildLocatorInvocation("countCssMatchesPierce", [
@@ -270,7 +270,7 @@ export class FrameSelectorResolver {
     const ctxId = await executionContexts.waitForMainWorld(
       session,
       this.frame.frameId,
-      1000,
+      DEFAULT_MAIN_WORLD_TIMEOUT_MS,
     );
 
     const expr = this.buildLocatorInvocation("countTextMatches", [
@@ -331,7 +331,7 @@ export class FrameSelectorResolver {
     const ctxId = await executionContexts.waitForMainWorld(
       session,
       this.frame.frameId,
-      1000,
+      DEFAULT_MAIN_WORLD_TIMEOUT_MS,
     );
 
     const expr = this.buildLocatorInvocation("countXPathMatchesMainWorld", [

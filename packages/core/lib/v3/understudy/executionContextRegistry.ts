@@ -4,6 +4,9 @@ import type { CDPSessionLike } from "./cdp.js";
 type FrameId = Protocol.Page.FrameId;
 type ExecId = Protocol.Runtime.ExecutionContextId;
 
+/** Default wait for a frame's main-world execution context (e.g. slow OOPIF loads). */
+export const DEFAULT_MAIN_WORLD_TIMEOUT_MS = 15_000;
+
 export class ExecutionContextRegistry {
   private readonly byFrame = new WeakMap<
     CDPSessionLike,
@@ -52,17 +55,45 @@ export class ExecutionContextRegistry {
   async waitForMainWorld(
     session: CDPSessionLike,
     frameId: FrameId,
-    timeoutMs: number = 800,
+    timeoutMs: number = DEFAULT_MAIN_WORLD_TIMEOUT_MS,
   ): Promise<ExecId> {
     const cached = this.getMainWorld(session, frameId);
     if (cached) return cached;
 
     await session.send("Runtime.enable").catch(() => {});
+    await session
+      .send("Page.setLifecycleEventsEnabled", { enabled: true })
+      .catch(() => {});
+
     const after = this.getMainWorld(session, frameId);
     if (after) return after;
 
     return await new Promise<ExecId>((resolve, reject) => {
       let done = false;
+
+      const finish = (ctxId: ExecId) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        session.off("Runtime.executionContextCreated", onCreated);
+        session.off("Page.lifecycleEvent", onLifecycle);
+        resolve(ctxId);
+      };
+
+      const fail = () => {
+        if (done) return;
+        const lastChance = this.getMainWorld(session, frameId);
+        if (lastChance) {
+          finish(lastChance);
+          return;
+        }
+        done = true;
+        clearTimeout(timer);
+        session.off("Runtime.executionContextCreated", onCreated);
+        session.off("Page.lifecycleEvent", onLifecycle);
+        reject(new Error(`main world not ready for frame ${frameId}`));
+      };
+
       const onCreated = (
         evt: Protocol.Runtime.ExecutionContextCreatedEvent,
       ): void => {
@@ -72,22 +103,19 @@ export class ExecutionContextRegistry {
         };
         if (aux.isDefault === true && aux.frameId === frameId) {
           this.register(session, frameId, evt.context.id);
-          if (!done) {
-            done = true;
-            clearTimeout(timer);
-            session.off("Runtime.executionContextCreated", onCreated);
-            resolve(evt.context.id);
-          }
+          finish(evt.context.id);
         }
       };
-      const timer = setTimeout(() => {
-        if (!done) {
-          done = true;
-          session.off("Runtime.executionContextCreated", onCreated);
-          reject(new Error(`main world not ready for frame ${frameId}`));
-        }
-      }, timeoutMs);
+
+      const onLifecycle = (evt: Protocol.Page.LifecycleEventEvent): void => {
+        if (evt.frameId !== frameId) return;
+        const ready = this.getMainWorld(session, frameId);
+        if (ready) finish(ready);
+      };
+
+      const timer = setTimeout(fail, timeoutMs);
       session.on("Runtime.executionContextCreated", onCreated);
+      session.on("Page.lifecycleEvent", onLifecycle);
     });
   }
 
