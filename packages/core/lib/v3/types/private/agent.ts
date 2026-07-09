@@ -14,4 +14,5 @@ export const HYBRID_CAPABLE_MODEL_PATTERNS = [
   "claude",
   "gpt-5.4",
   "gpt-5.5",
+  "gpt-5.6",
 ] as const;
