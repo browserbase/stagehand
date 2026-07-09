@@ -122,6 +122,8 @@ describe("openai_agents_sdk runner", () => {
     expect(result.finalAnswer).toBe("checkout");
     const metrics = result.metrics as Record<string, { value: number }>;
     expect(metrics.openai_agents_sdk_tool_calls.value).toBe(1);
+    // Steps count model turns (rawResponses entries), not tool calls.
+    expect(metrics.openai_agents_sdk_steps.value).toBe(2);
     expect(metrics.openai_agents_sdk_input_tokens.value).toBe(140);
     expect(metrics.openai_agents_sdk_output_tokens.value).toBe(35);
   });

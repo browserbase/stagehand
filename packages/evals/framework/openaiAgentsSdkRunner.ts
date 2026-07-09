@@ -107,6 +107,7 @@ export async function runOpenAiAgentsSdkAgent(
   let usage = { input_tokens: 0, output_tokens: 0 };
   let loopError: unknown;
   let cappedOut = false;
+  let modelTurns: number | undefined;
 
   try {
     const browseTool = sdk.tool({
@@ -151,6 +152,7 @@ export async function runOpenAiAgentsSdkAgent(
         ? result.finalOutput
         : (safeJson(result.finalOutput) ?? "");
     usage = sumAgentsUsage(result.rawResponses);
+    modelTurns = result.rawResponses?.length;
   } catch (error) {
     if (isMaxTurnsExceededError(error)) {
       // The SDK throws instead of returning a truncated result, unlike
@@ -184,7 +186,10 @@ export async function runOpenAiAgentsSdkAgent(
         ? `step cap reached (${maxTurns})`
         : undefined,
     usage,
-    stepsUsed: recorder.calls.length,
+    // Steps are model turns when the SDK reports them (rawResponses is one
+    // entry per turn); tool-call count alone undercounts runs that end with
+    // a text-only turn. Fall back to tool calls when no result was returned.
+    stepsUsed: modelTurns ?? recorder.calls.length,
     maxSteps: maxTurns,
     logger: input.logger,
     verifier: input.verifier,
