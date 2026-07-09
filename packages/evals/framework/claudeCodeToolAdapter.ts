@@ -1139,7 +1139,7 @@ export async function installBrowseSkill(cwd: string): Promise<void> {
 // eval-harness rules are the first thing the model reads rather than a
 // caveat appended after conflicting examples.
 function insertAfterFrontmatter(markdown: string, addition: string): string {
-  const frontmatterMatch = markdown.match(/^---\n[\s\S]*?\n---\n/);
+  const frontmatterMatch = markdown.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n/);
   if (!frontmatterMatch) return `${addition}\n${markdown}`;
   const frontmatter = frontmatterMatch[0];
   const body = markdown.slice(frontmatter.length);
