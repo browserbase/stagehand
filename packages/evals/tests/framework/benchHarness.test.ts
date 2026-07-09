@@ -3,6 +3,7 @@ import {
   claudeCodeHarness,
   codexHarness,
   getBenchHarness,
+  vercelAiSdkHarness,
 } from "../../framework/benchHarness.js";
 
 describe("bench harness registry", () => {
@@ -22,5 +23,18 @@ describe("bench harness registry", () => {
     expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
     expect(harness.supportsApi).toBe(false);
     expect(harness.execute).toBeDefined();
+  });
+
+  it("registers vercel_ai_sdk as a concrete executable harness", async () => {
+    const harness = getBenchHarness("vercel_ai_sdk");
+
+    expect(harness).toBe(vercelAiSdkHarness);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
+    // Like claude_code/codex, this harness runs via the execute path only.
+    await expect(harness.start({} as never)).rejects.toThrow(
+      /external harness execute path/,
+    );
   });
 });
