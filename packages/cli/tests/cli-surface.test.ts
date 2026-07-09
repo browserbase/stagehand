@@ -45,6 +45,7 @@ const skillsCommandsWithExamples = [
   ["skills", "find"],
   ["skills", "install"],
   ["skills", "list"],
+  ["skills", "show"],
 ];
 
 describe("CLI surface", () => {
@@ -57,6 +58,27 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("functions");
     expect(result.stdout).toContain("templates");
     expect(result.stdout).toContain("skills");
+  });
+
+  it("leads root help with the agent-facing header", async () => {
+    const helpResult = await runCli(["--help"]);
+    const bareResult = await runCli([]);
+
+    for (const result of [helpResult, bareResult]) {
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("Start here (for AI agents):");
+      expect(result.stdout).toContain("browse skills show");
+      // The header must appear before the auto-generated sections.
+      expect(result.stdout.indexOf("Start here (for AI agents):")).toBeLessThan(
+        result.stdout.indexOf("USAGE"),
+      );
+    }
+  });
+
+  it("does not show the agent-facing header on command help", async () => {
+    const result = await runCli(["open", "--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("Start here (for AI agents):");
   });
 
   it("prints cloud topic help", async () => {
@@ -141,6 +163,7 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("skills find");
     expect(result.stdout).toContain("skills install");
     expect(result.stdout).toContain("skills list");
+    expect(result.stdout).toContain("skills show");
   });
 
   it.each(skillsCommandsWithExamples)(
