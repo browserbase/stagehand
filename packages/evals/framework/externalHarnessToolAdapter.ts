@@ -9,9 +9,9 @@
  * thin wrapper around `prepareBrowseCliHarnessAdapter` (the same provisioning
  * codex uses) plus the one thing that IS new here: skill-delivery mode.
  *
- * Skill-delivery mode (`SkillDeliveryMode`) is the A/B/C experiment arm this
- * PR adds — see packages/evals/docs/external-harnesses.md. It is orthogonal
- * to which harness is running:
+ * Skill-delivery mode (`SkillDeliveryMode`) is the A/B/C experiment arm
+ * (see packages/evals/README.md#external-harnesses). It is orthogonal to
+ * which harness is running:
  *   - "none": no skill content anywhere, just the bare one-line system
  *     prompt. This is the default — the whole point of the bare-loop tier
  *     is to measure the browse CLI + docs with zero scaffolding compensating

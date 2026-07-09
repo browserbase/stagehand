@@ -71,7 +71,7 @@ export function isExternalHarness(harness: Harness): boolean {
  * Skill-delivery mode: how (if at all) the browse CLI's SKILL.md is made
  * available to an external-harness run. Orthogonal to `Harness` — it's the
  * A/B/C experiment arm crossed with the harness-richness spectrum. See
- * packages/evals/docs/external-harnesses.md for the full design rationale.
+ * packages/evals/README.md#external-harnesses.
  *
  *  - "none": no skill content anywhere. The agent gets the one-line bare
  *    system prompt and must discover the CLI via `--help` on its own.

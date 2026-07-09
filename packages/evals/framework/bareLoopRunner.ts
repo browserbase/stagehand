@@ -2,12 +2,11 @@
  * bareLoopRunner — shared core for the three bare-loop harness runners
  * (vercel_ai_sdk, anthropic_sdk, openai_agents_sdk).
  *
- * Design intent (see packages/evals/docs/external-harnesses.md): these loops
- * are reference instruments, not products. Each runner owns only its
- * provider-specific loop mechanics; everything shareable — the user prompt,
- * the browse tool description, tool-call recording, result finalization, and
- * verifier grading — lives here so the per-provider files stay small enough
- * to read in one sitting.
+ * These loops are reference instruments, not products. Each runner owns only
+ * its provider-specific loop mechanics; everything shareable — the user
+ * prompt, the browse tool description, tool-call recording, result
+ * finalization, and verifier grading — lives here so the per-provider files
+ * stay small enough to read in one sitting.
  *
  * System-prompt policy: the system prompt is EXACTLY the skill-arm text the
  * tool adapter resolved (bare one-liner / prompt_show variant / injected
