@@ -35,6 +35,22 @@ import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 const HARNESS = "openai_agents_sdk";
 const MAX_TURNS_ENV = "EVAL_OPENAI_AGENTS_SDK_MAX_TURNS";
+// The real @openai/agents-core throws `MaxTurnsExceededError` with exactly
+// this message shape ("Max turns (${maxTurns}) exceeded" -- see
+// @openai/agents-core/dist/runner/turnPreparation.js) and sets
+// `error.name = "MaxTurnsExceededError"` (AgentsError's constructor does
+// `this.name = new.target.name`). Match on either so a plain mocked Error
+// with the same message (as our unit tests use) is also recognized.
+const MAX_TURNS_EXCEEDED_NAME = "MaxTurnsExceededError";
+const MAX_TURNS_EXCEEDED_MESSAGE = /^Max turns \(\d+\) exceeded$/;
+
+function isMaxTurnsExceededError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === MAX_TURNS_EXCEEDED_NAME ||
+    MAX_TURNS_EXCEEDED_MESSAGE.test(error.message)
+  );
+}
 
 export interface OpenAiAgentsRunResult {
   finalOutput?: unknown;
@@ -90,6 +106,7 @@ export async function runOpenAiAgentsSdkAgent(
   let finalText = "";
   let usage = { input_tokens: 0, output_tokens: 0 };
   let loopError: unknown;
+  let cappedOut = false;
 
   try {
     const browseTool = sdk.tool({
@@ -135,12 +152,25 @@ export async function runOpenAiAgentsSdkAgent(
         : (safeJson(result.finalOutput) ?? "");
     usage = sumAgentsUsage(result.rawResponses);
   } catch (error) {
-    loopError = error;
-    input.logger.warn({
-      category: HARNESS,
-      message: `openai_agents_sdk run stopped before a normal result: ${stringifyLoopError(error)}`,
-      level: 0,
-    });
+    if (isMaxTurnsExceededError(error)) {
+      // The SDK throws instead of returning a truncated result, unlike
+      // vercel_ai_sdk/anthropic_sdk which end their loop and return normally.
+      // Treat it as the same step-cap outcome those two report, not a
+      // harness/SDK failure.
+      cappedOut = true;
+      input.logger.warn({
+        category: HARNESS,
+        message: `openai_agents_sdk hit the max-turns cap (${maxTurns})`,
+        level: 0,
+      });
+    } else {
+      loopError = error;
+      input.logger.warn({
+        category: HARNESS,
+        message: `openai_agents_sdk run stopped before a normal result: ${stringifyLoopError(error)}`,
+        level: 0,
+      });
+    }
   }
 
   return finalizeBareLoopResult({
@@ -148,7 +178,11 @@ export async function runOpenAiAgentsSdkAgent(
     toolCalls: recorder.calls,
     finalText,
     status: loopError ? "error" : "complete",
-    stopReason: loopError ? stringifyLoopError(loopError) : undefined,
+    stopReason: loopError
+      ? stringifyLoopError(loopError)
+      : cappedOut
+        ? `step cap reached (${maxTurns})`
+        : undefined,
     usage,
     stepsUsed: recorder.calls.length,
     maxSteps: maxTurns,

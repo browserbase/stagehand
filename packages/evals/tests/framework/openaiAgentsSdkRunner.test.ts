@@ -132,7 +132,7 @@ describe("openai_agents_sdk runner", () => {
       tool: (options) => ({ options }),
       Agent: class {} as unknown as OpenAiAgentsSdk["Agent"],
       run: async () => {
-        throw new Error("Max turns (40) exceeded");
+        throw new Error("network error talking to the model provider");
       },
     };
 
@@ -145,7 +145,62 @@ describe("openai_agents_sdk runner", () => {
     });
 
     expect(result._success).toBe(false);
-    expect(result.openai_agents_sdkStatus).toBe("error");
-    expect(result.openai_agents_sdkStopReason).toContain("Max turns");
+    expect(result.openaiAgentsSdkStatus).toBe("error");
+    expect(result.openaiAgentsSdkStopReason).toContain("network error");
+  });
+
+  it("stops at the max-turns cap and reports it as the shared step-cap stop reason", async () => {
+    const adapter = await makeAdapter();
+    process.env.EVAL_OPENAI_AGENTS_SDK_MAX_TURNS = "3";
+
+    const sdk: OpenAiAgentsSdk = {
+      tool: (options) => ({ options }),
+      Agent: class {} as unknown as OpenAiAgentsSdk["Agent"],
+      run: async () => {
+        // Real @openai/agents-core throws instead of returning a truncated
+        // result; AgentsError's constructor sets `this.name = new.target.name`,
+        // so a real MaxTurnsExceededError instance has this exact name +
+        // message shape (see turnPreparation.js).
+        const error = new Error("Max turns (3) exceeded");
+        error.name = "MaxTurnsExceededError";
+        throw error;
+      },
+    };
+
+    const result = await runOpenAiAgentsSdkAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      sdk,
+    });
+
+    expect(result._success).toBe(false);
+    expect(result.openaiAgentsSdkStatus).toBe("completed");
+    expect(result.openaiAgentsSdkStopReason).toContain("step cap reached (3)");
+  });
+
+  it("recognizes the max-turns message shape even without the SDK's error name", async () => {
+    const adapter = await makeAdapter();
+    process.env.EVAL_OPENAI_AGENTS_SDK_MAX_TURNS = "5";
+
+    const sdk: OpenAiAgentsSdk = {
+      tool: (options) => ({ options }),
+      Agent: class {} as unknown as OpenAiAgentsSdk["Agent"],
+      run: async () => {
+        throw new Error("Max turns (5) exceeded");
+      },
+    };
+
+    const result = await runOpenAiAgentsSdkAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      sdk,
+    });
+
+    expect(result.openaiAgentsSdkStatus).toBe("completed");
+    expect(result.openaiAgentsSdkStopReason).toContain("step cap reached (5)");
   });
 });
