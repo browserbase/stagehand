@@ -4,10 +4,10 @@
  * Classification: bare-ISH, one notch above the raw provider loops. The SDK
  * runs its own agent loop (turn management, tool dispatch, tracing) but ships
  * no behavioral scaffolding: everything the agent knows comes from the
- * dev-supplied `instructions` string. Per the design doc we keep every SDK
- * default untouched except `maxTurns` (the step cap — the SDK's own default
- * of 10 is far too low for a browse task) — instructions carry only the
- * configured skill-arm prompt.
+ * dev-supplied `instructions` string. We keep every SDK default untouched
+ * except `maxTurns` (the step cap — the SDK's own default of 10 is far too
+ * low for a browse task) — instructions carry only the configured skill-arm
+ * prompt.
  *
  * Tool parameters use a plain JSON schema (not a zod schema) to sidestep the
  * SDK's zod version coupling; packages/evals pins zod v4 while the SDK's
