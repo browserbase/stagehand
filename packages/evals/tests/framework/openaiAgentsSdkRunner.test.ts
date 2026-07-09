@@ -111,7 +111,7 @@ describe("openai_agents_sdk runner", () => {
       sdk,
     });
 
-    // Dev-supplied instructions ARE the skill-arm prompt — nothing else.
+    // Dev-supplied instructions ARE the skill-mode prompt — nothing else.
     expect(capturedAgentConfig?.instructions).toBe(
       BARE_LOOP_DEFAULT_SYSTEM_PROMPT,
     );

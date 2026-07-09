@@ -6,7 +6,7 @@
  * no behavioral scaffolding: everything the agent knows comes from the
  * dev-supplied `instructions` string. We keep every SDK default untouched
  * except `maxTurns` (the step cap — the SDK's own default of 10 is far too
- * low for a browse task) — instructions carry only the configured skill-arm
+ * low for a browse task) — instructions carry only the configured skill-mode
  * prompt.
  *
  * Tool parameters use a plain JSON schema (not a zod schema) to sidestep the
