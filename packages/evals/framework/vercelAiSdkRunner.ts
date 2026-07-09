@@ -3,8 +3,8 @@
  *
  * The loop is `generateText` with `stopWhen: stepCountIs(N)` and a single
  * `browse` tool — the AI SDK's own multi-step tool loop IS the harness, with
- * zero additional scaffolding. This mirrors the JS-default bare loop found in
- * the wild (and the Modal sandbox template used in the 2026-07-09 smoke).
+ * zero additional scaffolding, mirroring the default way a JS developer
+ * wires a tool loop with this SDK.
  *
  * Testability: pass `generateTextFn` to drive the loop with a mock. The mock
  * receives the fully-built options (system, prompt, tools, stopWhen) and can
