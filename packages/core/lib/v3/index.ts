@@ -1,5 +1,5 @@
 import * as PublicApi from "./types/public/index.js";
-import { V3 } from "./v3.js";
+import { V3, mapV3OptsToValkeyConfig } from "./v3.js";
 import { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient.js";
 import {
   AgentProvider,
@@ -37,6 +37,7 @@ import {
 
 export { V3 } from "./v3.js";
 export { V3 as Stagehand } from "./v3.js";
+export { mapV3OptsToValkeyConfig } from "./v3.js";
 
 export * from "./types/public/index.js";
 export { AnnotatedScreenshotText, LLMClient } from "./llm/LLMClient.js";
@@ -119,6 +120,7 @@ export { getAISDKLanguageModel } from "./llm/LLMProvider.js";
 export { __internalCreateInMemoryAgentCacheHandle } from "./cache/serverAgentCache.js";
 export { maybeRunShutdownSupervisorFromArgv as __internalMaybeRunShutdownSupervisorFromArgv } from "./shutdown/supervisor.js";
 export type { ServerAgentCacheHandle } from "./cache/serverAgentCache.js";
+export type { ValkeyCacheOptions } from "./cache/CacheStorage.js";
 
 export type {
   ChatMessage,
@@ -145,6 +147,7 @@ const StagehandDefault = {
   ...PublicApi,
   V3,
   Stagehand: V3,
+  mapV3OptsToValkeyConfig,
   AnnotatedScreenshotText,
   LLMClient,
   AgentProvider,

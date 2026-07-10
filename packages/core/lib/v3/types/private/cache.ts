@@ -73,6 +73,12 @@ export type WriteJsonResult = {
   error?: unknown;
 };
 
+/**
+ * Discriminator for the Valkey key namespace.
+ * Passed explicitly to readJson/writeJson to avoid fragile filename parsing.
+ */
+export type CacheCategory = "act" | "agent";
+
 export interface CachedActEntry {
   version: 1;
   instruction: string;

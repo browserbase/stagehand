@@ -220,6 +220,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
       clientLanguage,
       sdkVersion,
       experimental,
+      valkeyCache: body.valkeyCache,
       localBrowserLaunchOptions:
         browserType === "local" && (browser?.launchOptions || browser?.cdpUrl)
           ? {

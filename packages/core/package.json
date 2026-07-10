@@ -113,6 +113,7 @@
     "@ai-sdk/perplexity": "^2.0.13",
     "@ai-sdk/togetherai": "^1.0.23",
     "@ai-sdk/xai": "^2.0.26",
+    "iovalkey": "^0.2.1",
     "bufferutil": "^4.0.9",
     "chrome-launcher": "^1.2.0",
     "ollama-ai-provider-v2": "^1.5.0"
