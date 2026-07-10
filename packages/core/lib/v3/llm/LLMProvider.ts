@@ -160,15 +160,24 @@ export function getAISDKLanguageModel(
   clientOptions?: ClientOptions,
   middleware?: LanguageModelV2Middleware,
 ): LanguageModelV2 {
-  const aiSdkClientOptions = toAISDKClientOptions(subProvider, clientOptions);
+  const { apiMode, ...providerClientOptions } = clientOptions ?? {};
+  const aiSdkClientOptions = toAISDKClientOptions(
+    subProvider,
+    providerClientOptions,
+  );
   const hasValidOptions =
     aiSdkClientOptions &&
     Object.values(aiSdkClientOptions).some(
       (v) => v !== undefined && v !== null,
     );
 
-  let model;
-  if (hasValidOptions) {
+  let model: LanguageModelV2;
+  if (subProvider === "openai" && apiMode === "chat") {
+    const provider = hasValidOptions
+      ? createOpenAI(aiSdkClientOptions)
+      : openai;
+    model = provider.chat(subModelName);
+  } else if (hasValidOptions) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
       throw new UnsupportedAISDKModelProviderError(

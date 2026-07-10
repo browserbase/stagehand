@@ -59,6 +59,29 @@ describe("getAISDKLanguageModel", () => {
       });
       expect(customModel).toBeDefined();
     });
+
+    it("uses the OpenAI Responses API by default", () => {
+      const model = getAISDKLanguageModel("openai", "gpt-4o", {
+        apiKey: "test-key",
+      });
+
+      expect(model.provider).toBe("openai.responses");
+    });
+
+    it("can select OpenAI-compatible Chat Completions", () => {
+      const model = getAISDKLanguageModel(
+        "openai",
+        "databricks-claude-opus-4-6",
+        {
+          apiKey: "test-key",
+          baseURL:
+            "https://example.databricks.com/serving-endpoints/model/invocations",
+          apiMode: "chat",
+        },
+      );
+
+      expect(model.provider).toBe("openai.chat");
+    });
   });
 
   describe("hasValidOptions logic", () => {
@@ -74,6 +97,21 @@ describe("getAISDKLanguageModel", () => {
 });
 
 describe("LLMProvider", () => {
+  it("passes Chat Completions mode through model client options", () => {
+    const provider = new LLMProvider(() => {});
+    const client = provider.getClient(
+      "openai/databricks-claude-opus-4-6",
+      {
+        apiKey: "test-key",
+        baseURL: "https://example.databricks.com/serving-endpoints",
+        apiMode: "chat",
+      },
+      { disableAPI: true },
+    );
+
+    expect(client.getLanguageModel?.().provider).toBe("openai.chat");
+  });
+
   it("allows Vertex models without experimental mode", () => {
     const provider = new LLMProvider(() => {});
 
