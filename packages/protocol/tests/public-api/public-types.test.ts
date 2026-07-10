@@ -59,7 +59,7 @@ type ExpectedExportedTypes = {
 describe("Stagehand public API types", () => {
   describe("PageLocator", () => {
     type ExpectedPageLocator = {
-      page_idx?: number | null;
+      pageIdx?: number | null;
       url?: string | null;
       title?: string | null;
       active?: boolean | null;
@@ -90,7 +90,7 @@ describe("Stagehand public API types", () => {
 
   describe("Locator", () => {
     type ExpectedLocator = {
-      page_idx?: number | null;
+      pageIdx?: number | null;
       url?: string | null;
       title?: string | null;
       active?: boolean | null;
@@ -98,15 +98,14 @@ describe("Stagehand public API types", () => {
       tabId?: number | null;
       frameId?: string | null;
       idx?: number | null;
-      frame_idx?: number | null;
+      frameIdx?: number | null;
       xpath?: string | null;
       css?: string | null;
       text?: string | null;
-      react_element_name?: string | null;
+      reactElementName?: string | null;
       coordinates?: Stagehand.LocatorCoordinates | null;
-      snapshot_id?: string | null;
-      element_id?: string | null;
-      backendNodeId?: number | null;
+      snapshotId?: string | null;
+      elementId?: string | null;
     };
 
     it("matches expected type shape", () => {

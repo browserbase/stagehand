@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:schema": "node --experimental-strip-types scripts/build-json-schema.ts",
+    "build:schema": "node json-rpc/build-json-rpc-schema.ts && vp fmt stagehand.v4.json --write",
     "test": "vp test run --root ../.."
   },
   "dependencies": {
+    "camelcase-keys": "catalog:",
+    "snakecase-keys": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

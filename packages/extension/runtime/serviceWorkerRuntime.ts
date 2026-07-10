@@ -1,26 +1,16 @@
-type StagehandRuntimeRequest = {
-  id?: string;
-  command?: string;
-  params?: unknown;
-};
+import { z } from "zod/v4";
+import {
+  JSONRPCErrorResponseSchema,
+  JSONRPCRequestSchema,
+  JSONRPCResponseSchema,
+  JSONRPCSuccessResponseSchema,
+} from "../../protocol/json-rpc/schemas.js";
+import { encodeWireValue } from "../../protocol/json-rpc/wire-casing.js";
+import { StagehandMethods, StagehandRpcRequestSchema } from "../../protocol/schema-registry.js";
 
-type StagehandRuntimeResponse =
-  | {
-      ok: true;
-      id?: string;
-      command: "ping" | "page.goto" | "page.click";
-      result: unknown;
-    }
-  | {
-      ok: false;
-      id?: string;
-      command?: string;
-      error: {
-        code: string;
-        message: string;
-        details?: unknown;
-      };
-    };
+type StagehandRuntimeResponse = z.output<typeof JSONRPCResponseSchema>;
+type PageGotoParams = z.output<(typeof StagehandMethods)["page.goto"]["paramsSchema"]>;
+type PageGotoResult = z.output<(typeof StagehandMethods)["page.goto"]["resultSchema"]>;
 
 type ChromeTab = {
   id?: number;
@@ -67,21 +57,11 @@ type ChromeApi = {
       ): void;
     };
   };
-  scripting: {
-    executeScript(
-      injection: {
-        target: { tabId: number };
-        func: (locator: unknown) => unknown;
-        args: unknown[];
-      },
-      callback: (results: Array<{ result?: unknown }>) => void,
-    ): void;
-  };
 };
 
 type StagehandRPCGlobal = typeof globalThis & {
   StagehandRPC?: {
-    handle(raw: string | StagehandRuntimeRequest): Promise<StagehandRuntimeResponse>;
+    handle(raw: unknown): Promise<StagehandRuntimeResponse>;
   };
   chrome?: ChromeApi;
 };
@@ -94,45 +74,71 @@ export function installStagehandRPC(scope: StagehandRPCGlobal = runtimeGlobal): 
   };
 }
 
-export async function handleStagehandRPCRequest(
-  raw: string | StagehandRuntimeRequest,
-): Promise<StagehandRuntimeResponse> {
-  const request = parseRuntimeRequest(raw);
+export async function handleStagehandRPCRequest(raw: unknown): Promise<StagehandRuntimeResponse> {
+  let input: unknown;
 
   try {
-    switch (request.command) {
+    input = typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch {
+    return rpcError(null, -32700, "Parse error", "stagehand.parse_error");
+  }
+
+  const envelopeResult = JSONRPCRequestSchema.safeParse(input);
+
+  if (!envelopeResult.success) {
+    return rpcError(
+      requestIdFromInput(input),
+      -32600,
+      "Invalid request",
+      "stagehand.invalid_request",
+    );
+  }
+
+  const envelope = envelopeResult.data;
+
+  if (envelope.id === undefined) {
+    return rpcError(null, -32600, "Invalid request", "stagehand.invalid_request");
+  }
+
+  const requestResult = StagehandRpcRequestSchema.safeParse(input);
+
+  if (!requestResult.success) {
+    return Object.hasOwn(StagehandMethods, envelope.method)
+      ? rpcError(envelope.id, -32602, "Invalid params", "stagehand.invalid_params")
+      : rpcError(envelope.id, -32601, "Method not found", "stagehand.unknown_command");
+  }
+
+  const request = requestResult.data;
+
+  try {
+    switch (request.method) {
       case "ping":
-        return {
-          ok: true,
-          id: request.id,
-          command: "ping",
-          result: { ok: true, runtime: "service_worker" },
-        };
+        return rpcSuccess(
+          request.id,
+          encodeWireValue(
+            StagehandMethods.ping.resultSchema.parse({
+              ok: true,
+              runtime: "service_worker",
+            }),
+          ),
+        );
       case "page.goto":
-        return {
-          ok: true,
-          id: request.id,
-          command: "page.goto",
-          result: await gotoActivePage(request.params),
-        };
-      case "page.click":
-        return {
-          ok: true,
-          id: request.id,
-          command: "page.click",
-          result: await clickActivePage(request.params),
-        };
+        return rpcSuccess(
+          request.id,
+          encodeWireValue(
+            StagehandMethods["page.goto"].resultSchema.parse(await gotoActivePage(request.params)),
+          ),
+        );
       default:
-        return runtimeError(request, {
-          code: "stagehand.unknown_command",
-          message: `Unknown Stagehand command: ${String(request.command)}`,
-        });
+        return rpcError(
+          request.id,
+          -32601,
+          "Method not implemented by the smoke runtime",
+          "stagehand.unknown_command",
+        );
     }
-  } catch (error) {
-    return runtimeError(request, {
-      code: "stagehand.runtime_error",
-      message: error instanceof Error ? error.message : "Stagehand command failed",
-    });
+  } catch {
+    return rpcError(request.id, -32603, "Internal error", "stagehand.internal_error");
   }
 }
 
@@ -144,27 +150,14 @@ runtimeGlobal.chrome?.runtime.onMessage?.addListener((_message, _sender, sendRes
   return false;
 });
 
-function parseRuntimeRequest(raw: string | StagehandRuntimeRequest): StagehandRuntimeRequest {
-  if (typeof raw === "string") {
-    return JSON.parse(raw) as StagehandRuntimeRequest;
-  }
-
-  return raw;
-}
-
-async function gotoActivePage(params: unknown): Promise<{
-  url: string;
-  title: string | null;
-}> {
+async function gotoActivePage(params: PageGotoParams): Promise<PageGotoResult> {
   const chromeApi = getChromeApi();
-  const options = requireRecord(params, "page.goto params");
-  const url = requireString(options.url, "page.goto url");
-  const timeoutMs = optionalPositiveInteger(options.timeout_ms) ?? 10_000;
+  const timeoutMs = params.options?.timeoutMs ?? 10_000;
   const tab = await getActiveTab(chromeApi);
   const tabId = requireTabId(tab);
 
   await callChrome<ChromeTab>((callback) => {
-    chromeApi.tabs.update(tabId, { url }, callback);
+    chromeApi.tabs.update(tabId, { url: params.url }, callback);
   });
   await waitForTabLoad(chromeApi, tabId, timeoutMs);
 
@@ -173,46 +166,9 @@ async function gotoActivePage(params: unknown): Promise<{
   });
 
   return {
-    url: currentTab.url ?? url,
-    title: currentTab.title ?? null,
-  };
-}
-
-async function clickActivePage(params: unknown): Promise<{
-  clicked: true;
-  tag_name?: string | null;
-  text?: string | null;
-}> {
-  const chromeApi = getChromeApi();
-  const options = requireRecord(params, "page.click params");
-  const locator = requireRecord(options.locator, "page.click locator");
-
-  if ("backendNodeId" in locator || "backend_node_id" in locator) {
-    throw new Error("Public locators cannot include backend node ids");
-  }
-
-  const tab = await getActiveTab(chromeApi);
-  const tabId = requireTabId(tab);
-  const results = await callChrome<Array<{ result?: unknown }>>((callback) => {
-    chromeApi.scripting.executeScript(
-      {
-        target: { tabId },
-        func: clickLocatorInPage,
-        args: [locator],
-      },
-      callback,
-    );
-  });
-  const firstResult = results.at(0)?.result;
-
-  if (!isRecord(firstResult) || firstResult.clicked !== true) {
-    throw new Error("Click did not return a successful browser result");
-  }
-
-  return {
-    clicked: true,
-    tag_name: typeof firstResult.tag_name === "string" ? firstResult.tag_name : null,
-    text: typeof firstResult.text === "string" ? firstResult.text : null,
+    pageId: params.pageId,
+    url: currentTab.url ?? params.url,
+    ...(currentTab.title === undefined ? {} : { title: currentTab.title }),
   };
 }
 
@@ -269,59 +225,33 @@ async function waitForTabLoad(
   });
 }
 
-function clickLocatorInPage(locator: unknown): {
-  clicked: true;
-  tag_name: string | null;
-  text: string | null;
-} {
-  const input = locator as {
-    css?: string;
-    text?: string;
-    coordinates?: { x?: number; y?: number };
-  };
-  let element: Element | null = null;
-
-  if (input.css) {
-    element = document.querySelector(input.css);
-  }
-
-  if (!element && input.text) {
-    const candidates = Array.from(document.querySelectorAll("*"));
-    element =
-      candidates.find((candidate) => candidate.textContent?.trim().includes(input.text ?? "")) ??
-      null;
-  }
-
-  if (!element && input.coordinates) {
-    const { x, y } = input.coordinates;
-    if (typeof x === "number" && typeof y === "number") {
-      element = document.elementFromPoint(x, y);
-    }
-  }
-
-  if (!(element instanceof HTMLElement)) {
-    throw new Error("Could not resolve locator to a clickable element");
-  }
-
-  element.click();
-
-  return {
-    clicked: true,
-    tag_name: element.tagName.toLowerCase(),
-    text: element.textContent?.trim() ?? null,
-  };
+function rpcSuccess(
+  id: string | number,
+  result: z.input<typeof JSONRPCSuccessResponseSchema>["result"],
+): StagehandRuntimeResponse {
+  return JSONRPCSuccessResponseSchema.parse({ jsonrpc: "2.0", id, result });
 }
 
-function runtimeError(
-  request: StagehandRuntimeRequest,
-  error: { code: string; message: string; details?: unknown },
+function rpcError(
+  id: string | number | null,
+  code: number,
+  message: string,
+  type: string,
 ): StagehandRuntimeResponse {
-  return {
-    ok: false,
-    id: request.id,
-    command: request.command,
-    error,
-  };
+  return JSONRPCErrorResponseSchema.parse({
+    jsonrpc: "2.0",
+    id,
+    error: {
+      code,
+      message,
+      data: { type },
+    },
+  });
+}
+
+function requestIdFromInput(input: unknown): string | number | null {
+  if (!isRecord(input)) return null;
+  return typeof input.id === "string" || typeof input.id === "number" ? input.id : null;
 }
 
 function callChrome<Result>(
@@ -349,36 +279,8 @@ function getChromeApi(): ChromeApi {
   return runtimeGlobal.chrome;
 }
 
-function requireRecord(value: unknown, label: string): Record<string, unknown> {
-  if (!isRecord(value)) {
-    throw new Error(`${label} must be an object`);
-  }
-
-  return value;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function requireString(value: unknown, label: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${label} must be a non-empty string`);
-  }
-
-  return value;
-}
-
-function optionalPositiveInteger(value: unknown): number | undefined {
-  if (typeof value === "undefined") {
-    return undefined;
-  }
-
-  if (!Number.isInteger(value) || Number(value) <= 0) {
-    throw new Error("timeout_ms must be a positive integer");
-  }
-
-  return Number(value);
 }
 
 function requireTabId(tab: ChromeTab): number {

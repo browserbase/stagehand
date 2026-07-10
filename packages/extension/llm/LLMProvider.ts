@@ -130,7 +130,19 @@ export function toAISDKClientOptions(
     ...(auth?.type === "googleServiceAccount"
       ? {
           googleAuthOptions: {
-            credentials: auth.credentials,
+            credentials: {
+              type: auth.credentials.type,
+              project_id: auth.credentials.projectId,
+              private_key_id: auth.credentials.privateKeyId,
+              private_key: auth.credentials.privateKey,
+              client_email: auth.credentials.clientEmail,
+              client_id: auth.credentials.clientId,
+              auth_uri: auth.credentials.authUri,
+              token_uri: auth.credentials.tokenUri,
+              auth_provider_x509_cert_url: auth.credentials.authProviderX509CertUrl,
+              client_x509_cert_url: auth.credentials.clientX509CertUrl,
+              universe_domain: auth.credentials.universeDomain,
+            },
             ...(auth.scopes ? { scopes: auth.scopes } : {}),
             ...(auth.projectId ? { projectId: auth.projectId } : {}),
             ...(auth.universeDomain ? { universeDomain: auth.universeDomain } : {}),

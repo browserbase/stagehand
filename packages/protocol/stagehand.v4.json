@@ -1,0 +1,5326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stagehand.dev/schema/stagehand.v4.json",
+  "title": "Stagehand V4 Protocol",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "request": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "ping"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "stagehand.init"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "cdp_url": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "model": {
+                      "ref": "#/$defs/ModelConfig"
+                    },
+                    "cdp_headers": {
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "session_id": {
+                      "type": "string"
+                    },
+                    "system_prompt": {
+                      "type": "string"
+                    },
+                    "log_inference_to_file": {
+                      "type": "boolean"
+                    },
+                    "experimental": {
+                      "type": "boolean"
+                    },
+                    "self_heal": {
+                      "type": "boolean"
+                    },
+                    "dom_settle_timeout_ms": {
+                      "type": "integer",
+                      "exclusive_minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["cdp_url"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "stagehand.close"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "stagehand.act"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "input": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "options": {
+                      "ref": "#/$defs/ActOptions"
+                    }
+                  },
+                  "required": ["input"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "stagehand.observe"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "instruction": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "ref": "#/$defs/ObserveOptions"
+                    }
+                  },
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "stagehand.extract"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "instruction": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "ref": "#/$defs/ExtractOptions"
+                    }
+                  },
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "stagehand.metrics"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.pages"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.new_page"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.goto"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "wait_until": {
+                          "type": "string",
+                          "enum": ["load", "domcontentloaded", "networkidle"]
+                        },
+                        "timeout_ms": {
+                          "type": "integer",
+                          "exclusive_minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additional_properties": false
+                    }
+                  },
+                  "required": ["page_id", "url"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.url"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["page_id"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.title"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["page_id"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.close"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["page_id"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.click"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "button": {
+                          "type": "string",
+                          "enum": ["left", "right", "middle"]
+                        },
+                        "click_count": {
+                          "type": "integer",
+                          "exclusive_minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "delay": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "timeout_ms": {
+                          "type": "integer",
+                          "exclusive_minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additional_properties": false
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.fill"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["page_id", "selector", "value"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.is_visible"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.text_content"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            }
+          ],
+          "$defs": {
+            "ModelConfig": {
+              "$ref": "#/$defs/ModelConfigObject"
+            },
+            "VertexModelConfigObject": {
+              "type": "object",
+              "properties": {
+                "model_name": {
+                  "type": "string",
+                  "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                  "example": "openai/gpt-5.4-mini"
+                },
+                "api_key": {
+                  "description": "API key for the model provider",
+                  "example": "sk-some-openai-api-key",
+                  "type": "string"
+                },
+                "base_url": {
+                  "description": "Base URL for the model provider",
+                  "example": "https://api.openai.com/v1",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "headers": {
+                  "description": "Custom headers sent with every request to the model provider",
+                  "type": "object",
+                  "property_names": {
+                    "type": "string"
+                  },
+                  "additional_properties": {
+                    "type": "string"
+                  }
+                },
+                "provider": {
+                  "type": "string",
+                  "const": "vertex",
+                  "description": "Vertex AI model provider"
+                },
+                "auth": {
+                  "description": "Vertex provider authentication configuration",
+                  "ref": "#/$defs/GoogleServiceAccountAuth"
+                },
+                "provider_options": {
+                  "description": "Vertex provider-specific model configuration",
+                  "ref": "#/$defs/VertexModelProviderOptions"
+                }
+              },
+              "required": ["model_name", "provider", "auth", "provider_options"],
+              "additionalProperties": false
+            },
+            "GoogleServiceAccountCredentials": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "service_account"
+                },
+                "project_id": {
+                  "type": "string"
+                },
+                "private_key_id": {
+                  "type": "string"
+                },
+                "private_key": {
+                  "type": "string"
+                },
+                "client_email": {
+                  "type": "string"
+                },
+                "client_id": {
+                  "type": "string"
+                },
+                "auth_uri": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "token_uri": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "auth_provider_x509_cert_url": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "client_x509_cert_url": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "universe_domain": {
+                  "type": "string"
+                }
+              },
+              "required": ["private_key", "client_email"],
+              "additionalProperties": false
+            },
+            "GoogleServiceAccountAuth": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "googleServiceAccount",
+                  "description": "Use inline Google Cloud service account credentials for provider authentication"
+                },
+                "credentials": {
+                  "description": "Google Cloud service account credentials",
+                  "ref": "#/$defs/GoogleServiceAccountCredentials"
+                },
+                "scopes": {
+                  "description": "Google auth scopes for the desired API request",
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                "project_id": {
+                  "description": "Google Cloud project ID used by google-auth-library",
+                  "type": "string"
+                },
+                "universe_domain": {
+                  "description": "Google Cloud universe domain",
+                  "type": "string"
+                }
+              },
+              "required": ["type", "credentials"],
+              "additionalProperties": false
+            },
+            "VertexProviderOptions": {
+              "type": "object",
+              "properties": {
+                "project": {
+                  "type": "string",
+                  "description": "Google Cloud project ID for Vertex AI models",
+                  "example": "my-gcp-project"
+                },
+                "location": {
+                  "type": "string",
+                  "description": "Google Cloud location for Vertex AI models",
+                  "example": "us-central1"
+                },
+                "base_url": {
+                  "description": "Base URL for the Vertex AI provider",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "headers": {
+                  "description": "Custom headers sent with every request to the Vertex AI provider",
+                  "type": "object",
+                  "property_names": {
+                    "type": "string"
+                  },
+                  "additional_properties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["project", "location"],
+              "additionalProperties": false
+            },
+            "VertexModelProviderOptions": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "vertex"
+                },
+                "options": {
+                  "description": "Vertex AI provider-specific settings",
+                  "ref": "#/$defs/VertexProviderOptions"
+                }
+              },
+              "required": ["type", "options"],
+              "additionalProperties": false
+            },
+            "AzureModelConfigObject": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AzureEntraModelConfigObject"
+                },
+                {
+                  "$ref": "#/$defs/AzureApiKeyModelConfigObject"
+                }
+              ]
+            },
+            "AzureEntraModelConfigObject": {
+              "type": "object",
+              "properties": {
+                "model_name": {
+                  "type": "string",
+                  "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                  "example": "openai/gpt-5.4-mini"
+                },
+                "base_url": {
+                  "description": "Base URL for the model provider",
+                  "example": "https://api.openai.com/v1",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "headers": {
+                  "description": "Custom headers sent with every request to the model provider",
+                  "type": "object",
+                  "property_names": {
+                    "type": "string"
+                  },
+                  "additional_properties": {
+                    "type": "string"
+                  }
+                },
+                "provider": {
+                  "type": "string",
+                  "const": "azure",
+                  "description": "Azure OpenAI model provider"
+                },
+                "provider_options": {
+                  "description": "Azure provider-specific model configuration",
+                  "ref": "#/$defs/AzureModelProviderOptions"
+                },
+                "auth": {
+                  "description": "Azure provider authentication configuration",
+                  "ref": "#/$defs/AzureEntraIdAuth"
+                }
+              },
+              "required": ["model_name", "provider", "provider_options", "auth"],
+              "additionalProperties": false
+            },
+            "AzureProviderOptions": {
+              "type": "object",
+              "properties": {
+                "resource_name": {
+                  "description": "Azure OpenAI resource name",
+                  "example": "my-azure-openai-resource",
+                  "type": "string"
+                },
+                "base_url": {
+                  "description": "Base URL for the Azure OpenAI provider",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "api_version": {
+                  "description": "Azure OpenAI API version",
+                  "example": "2024-10-01-preview",
+                  "type": "string"
+                },
+                "use_deployment_based_urls": {
+                  "description": "Whether to use deployment-based Azure OpenAI URLs",
+                  "type": "boolean"
+                },
+                "headers": {
+                  "description": "Custom headers sent with every request to the Azure OpenAI provider",
+                  "type": "object",
+                  "property_names": {
+                    "type": "string"
+                  },
+                  "additional_properties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "AzureModelProviderOptions": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "azure"
+                },
+                "options": {
+                  "description": "Azure OpenAI provider-specific settings",
+                  "ref": "#/$defs/AzureProviderOptions"
+                }
+              },
+              "required": ["type", "options"],
+              "additionalProperties": false
+            },
+            "AzureEntraIdAuth": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "azureEntraId",
+                  "description": "Use a Microsoft Entra ID bearer token for authentication"
+                },
+                "token": {
+                  "type": "string",
+                  "min_length": 1,
+                  "description": "Microsoft Entra ID bearer token for Azure OpenAI"
+                }
+              },
+              "required": ["type", "token"],
+              "additionalProperties": false
+            },
+            "AzureApiKeyModelConfigObject": {
+              "type": "object",
+              "properties": {
+                "model_name": {
+                  "type": "string",
+                  "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                  "example": "openai/gpt-5.4-mini"
+                },
+                "api_key": {
+                  "description": "API key for the model provider",
+                  "example": "sk-some-openai-api-key",
+                  "type": "string"
+                },
+                "base_url": {
+                  "description": "Base URL for the model provider",
+                  "example": "https://api.openai.com/v1",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "headers": {
+                  "description": "Custom headers sent with every request to the model provider",
+                  "type": "object",
+                  "property_names": {
+                    "type": "string"
+                  },
+                  "additional_properties": {
+                    "type": "string"
+                  }
+                },
+                "provider": {
+                  "type": "string",
+                  "const": "azure",
+                  "description": "Azure OpenAI model provider"
+                },
+                "provider_options": {
+                  "description": "Azure provider-specific model configuration",
+                  "ref": "#/$defs/AzureModelProviderOptions"
+                }
+              },
+              "required": ["model_name", "provider", "provider_options"],
+              "additionalProperties": false
+            },
+            "GenericModelConfigObject": {
+              "type": "object",
+              "properties": {
+                "model_name": {
+                  "type": "string",
+                  "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                  "example": "openai/gpt-5.4-mini"
+                },
+                "api_key": {
+                  "description": "API key for the model provider",
+                  "example": "sk-some-openai-api-key",
+                  "type": "string"
+                },
+                "base_url": {
+                  "description": "Base URL for the model provider",
+                  "example": "https://api.openai.com/v1",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "headers": {
+                  "description": "Custom headers sent with every request to the model provider",
+                  "type": "object",
+                  "property_names": {
+                    "type": "string"
+                  },
+                  "additional_properties": {
+                    "type": "string"
+                  }
+                },
+                "provider": {
+                  "description": "AI provider for the model (or provide a baseURL endpoint instead)",
+                  "example": "openai",
+                  "type": "string",
+                  "enum": ["openai", "anthropic", "cerebras", "groq", "google"]
+                }
+              },
+              "required": ["model_name"],
+              "additionalProperties": false
+            },
+            "ModelConfigObject": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/VertexModelConfigObject"
+                },
+                {
+                  "$ref": "#/$defs/AzureModelConfigObject"
+                },
+                {
+                  "$ref": "#/$defs/GenericModelConfigObject"
+                }
+              ]
+            },
+            "ActOptions": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "description": "Model configuration object",
+                  "ref": "#/$defs/ModelConfig"
+                },
+                "variables": {
+                  "description": "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
+                  "example": {
+                    "username": "john_doe",
+                    "password": {
+                      "value": "secret123",
+                      "description": "The login password"
+                    }
+                  },
+                  "ref": "#/$defs/Variables"
+                },
+                "timeout": {
+                  "description": "Timeout in ms for the action",
+                  "example": 30000,
+                  "type": "number"
+                },
+                "locator": {
+                  "description": "Serializable page or element locator for the action target",
+                  "ref": "#/$defs/Locator"
+                },
+                "server_cache": {
+                  "description": "Override the instance-level serverCache setting for this request",
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            },
+            "Variables": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/VariableValue"
+              }
+            },
+            "VariableValue": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/VariablePrimitive"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "ref": "#/$defs/VariablePrimitive"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["value"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "VariablePrimitive": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "Locator": {
+              "type": "object",
+              "properties": {
+                "page_idx": {
+                  "any_of": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "url": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "title": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "active": {
+                  "any_of": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "target_id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "tab_id": {
+                  "any_of": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "frame_id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "idx": {
+                  "any_of": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "frame_idx": {
+                  "any_of": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "xpath": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "css": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "text": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "react_element_name": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "coordinates": {
+                  "any_of": [
+                    {
+                      "ref": "#/$defs/LocatorCoordinates"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "snapshot_id": {
+                  "any_of": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "element_id": {
+                  "any_of": [
+                    {
+                      "type": "string",
+                      "pattern": "^(?:p\\d+:)?\\d+-\\d+$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": {}
+            },
+            "LocatorCoordinates": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "any_of": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "y": {
+                  "any_of": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "top": {
+                  "any_of": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "left": {
+                  "any_of": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "bottom": {
+                  "any_of": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "right": {
+                  "any_of": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "ObserveOptions": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "description": "Model configuration object",
+                  "ref": "#/$defs/ModelConfig"
+                },
+                "variables": {
+                  "description": "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
+                  "example": {
+                    "username": {
+                      "value": "john@example.com",
+                      "description": "The login email"
+                    },
+                    "remember_me": true
+                  },
+                  "ref": "#/$defs/Variables"
+                },
+                "timeout": {
+                  "description": "Timeout in ms for the observation",
+                  "example": 30000,
+                  "type": "number"
+                },
+                "selector": {
+                  "description": "CSS selector to scope observation to a specific element",
+                  "example": "nav",
+                  "type": "string"
+                },
+                "ignore_selectors": {
+                  "description": "Selectors for elements and subtrees that should be excluded from observation",
+                  "example": ["nav", ".cookie-banner", "#sidebar-ads"],
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "locator": {
+                  "description": "Serializable page or element locator for the observation target",
+                  "ref": "#/$defs/Locator"
+                },
+                "server_cache": {
+                  "description": "Override the instance-level serverCache setting for this request",
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            },
+            "ExtractOptions": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "description": "Model configuration object",
+                  "ref": "#/$defs/ModelConfig"
+                },
+                "timeout": {
+                  "description": "Timeout in ms for the extraction",
+                  "example": 30000,
+                  "type": "number"
+                },
+                "selector": {
+                  "description": "CSS selector to scope extraction to a specific element",
+                  "example": "#main-content",
+                  "type": "string"
+                },
+                "ignore_selectors": {
+                  "description": "Selectors for elements and subtrees that should be excluded from extraction",
+                  "example": ["nav", ".cookie-banner", "#sidebar-ads"],
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "screenshot": {
+                  "description": "When true, include a screenshot of the current viewport in the extraction LLM call. Defaults to false.",
+                  "example": false,
+                  "type": "boolean"
+                },
+                "locator": {
+                  "description": "Serializable page or element locator for the extraction target",
+                  "ref": "#/$defs/Locator"
+                },
+                "server_cache": {
+                  "description": "Override the instance-level serverCache setting for this request",
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "notification": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "stagehand.log_event"
+            },
+            "params": {
+              "type": "object",
+              "properties": {
+                "request_id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string"
+                },
+                "event_name": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "timestamp": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "severity_number": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 24
+                },
+                "body": {
+                  "ref": "#/$defs/__schema0"
+                },
+                "severity_text": {
+                  "type": "string"
+                },
+                "attributes": {
+                  "type": "object",
+                  "property_names": {
+                    "type": "string"
+                  },
+                  "additional_properties": {
+                    "ref": "#/$defs/__schema1"
+                  }
+                },
+                "trace_id": {
+                  "type": "string",
+                  "pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+                },
+                "span_id": {
+                  "type": "string",
+                  "pattern": "^(?!0{16}$)[0-9a-f]{16}$"
+                }
+              },
+              "required": [
+                "request_id",
+                "method",
+                "event_name",
+                "timestamp",
+                "severity_number",
+                "body"
+              ],
+              "additional_properties": false
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false,
+          "$defs": {
+            "__schema0": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                }
+              ]
+            },
+            "__schema1": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema1"
+                  }
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema1"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "successResponse": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "result": {
+              "$ref": "#/$defs/__schema0"
+            },
+            "id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              ]
+            }
+          },
+          "required": ["jsonrpc", "result", "id"],
+          "additionalProperties": false,
+          "$defs": {
+            "__schema0": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "errorResponse": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "message": {
+                  "type": "string"
+                },
+                "data": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false
+            },
+            "id": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["jsonrpc", "error", "id"],
+          "additionalProperties": false,
+          "$defs": {
+            "__schema0": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "required": ["request", "notification", "successResponse", "errorResponse"]
+    },
+    "methods": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ping": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "runtime": {
+                  "type": "string",
+                  "const": "service_worker"
+                }
+              },
+              "required": ["ok", "runtime"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "stagehand.init": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "cdp_url": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "model": {
+                  "ref": "#/$defs/ModelConfig"
+                },
+                "cdp_headers": {
+                  "type": "object",
+                  "property_names": {
+                    "type": "string"
+                  },
+                  "additional_properties": {
+                    "type": "string"
+                  }
+                },
+                "session_id": {
+                  "type": "string"
+                },
+                "system_prompt": {
+                  "type": "string"
+                },
+                "log_inference_to_file": {
+                  "type": "boolean"
+                },
+                "experimental": {
+                  "type": "boolean"
+                },
+                "self_heal": {
+                  "type": "boolean"
+                },
+                "dom_settle_timeout_ms": {
+                  "type": "integer",
+                  "exclusive_minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["cdp_url"],
+              "additionalProperties": false,
+              "$defs": {
+                "ModelConfig": {
+                  "$ref": "#/$defs/ModelConfigObject"
+                },
+                "VertexModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "vertex",
+                      "description": "Vertex AI model provider"
+                    },
+                    "auth": {
+                      "description": "Vertex provider authentication configuration",
+                      "ref": "#/$defs/GoogleServiceAccountAuth"
+                    },
+                    "provider_options": {
+                      "description": "Vertex provider-specific model configuration",
+                      "ref": "#/$defs/VertexModelProviderOptions"
+                    }
+                  },
+                  "required": ["model_name", "provider", "auth", "provider_options"],
+                  "additionalProperties": false
+                },
+                "GoogleServiceAccountCredentials": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "service_account"
+                    },
+                    "project_id": {
+                      "type": "string"
+                    },
+                    "private_key_id": {
+                      "type": "string"
+                    },
+                    "private_key": {
+                      "type": "string"
+                    },
+                    "client_email": {
+                      "type": "string"
+                    },
+                    "client_id": {
+                      "type": "string"
+                    },
+                    "auth_uri": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "token_uri": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "auth_provider_x509_cert_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "client_x509_cert_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "universe_domain": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["private_key", "client_email"],
+                  "additionalProperties": false
+                },
+                "GoogleServiceAccountAuth": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "googleServiceAccount",
+                      "description": "Use inline Google Cloud service account credentials for provider authentication"
+                    },
+                    "credentials": {
+                      "description": "Google Cloud service account credentials",
+                      "ref": "#/$defs/GoogleServiceAccountCredentials"
+                    },
+                    "scopes": {
+                      "description": "Google auth scopes for the desired API request",
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ]
+                    },
+                    "project_id": {
+                      "description": "Google Cloud project ID used by google-auth-library",
+                      "type": "string"
+                    },
+                    "universe_domain": {
+                      "description": "Google Cloud universe domain",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "credentials"],
+                  "additionalProperties": false
+                },
+                "VertexProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "project": {
+                      "type": "string",
+                      "description": "Google Cloud project ID for Vertex AI models",
+                      "example": "my-gcp-project"
+                    },
+                    "location": {
+                      "type": "string",
+                      "description": "Google Cloud location for Vertex AI models",
+                      "example": "us-central1"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the Vertex AI provider",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the Vertex AI provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["project", "location"],
+                  "additionalProperties": false
+                },
+                "VertexModelProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "vertex"
+                    },
+                    "options": {
+                      "description": "Vertex AI provider-specific settings",
+                      "ref": "#/$defs/VertexProviderOptions"
+                    }
+                  },
+                  "required": ["type", "options"],
+                  "additionalProperties": false
+                },
+                "AzureModelConfigObject": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/AzureEntraModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureApiKeyModelConfigObject"
+                    }
+                  ]
+                },
+                "AzureEntraModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "azure",
+                      "description": "Azure OpenAI model provider"
+                    },
+                    "provider_options": {
+                      "description": "Azure provider-specific model configuration",
+                      "ref": "#/$defs/AzureModelProviderOptions"
+                    },
+                    "auth": {
+                      "description": "Azure provider authentication configuration",
+                      "ref": "#/$defs/AzureEntraIdAuth"
+                    }
+                  },
+                  "required": ["model_name", "provider", "provider_options", "auth"],
+                  "additionalProperties": false
+                },
+                "AzureProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "resource_name": {
+                      "description": "Azure OpenAI resource name",
+                      "example": "my-azure-openai-resource",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the Azure OpenAI provider",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "api_version": {
+                      "description": "Azure OpenAI API version",
+                      "example": "2024-10-01-preview",
+                      "type": "string"
+                    },
+                    "use_deployment_based_urls": {
+                      "description": "Whether to use deployment-based Azure OpenAI URLs",
+                      "type": "boolean"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the Azure OpenAI provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "AzureModelProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "azure"
+                    },
+                    "options": {
+                      "description": "Azure OpenAI provider-specific settings",
+                      "ref": "#/$defs/AzureProviderOptions"
+                    }
+                  },
+                  "required": ["type", "options"],
+                  "additionalProperties": false
+                },
+                "AzureEntraIdAuth": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "azureEntraId",
+                      "description": "Use a Microsoft Entra ID bearer token for authentication"
+                    },
+                    "token": {
+                      "type": "string",
+                      "min_length": 1,
+                      "description": "Microsoft Entra ID bearer token for Azure OpenAI"
+                    }
+                  },
+                  "required": ["type", "token"],
+                  "additionalProperties": false
+                },
+                "AzureApiKeyModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "azure",
+                      "description": "Azure OpenAI model provider"
+                    },
+                    "provider_options": {
+                      "description": "Azure provider-specific model configuration",
+                      "ref": "#/$defs/AzureModelProviderOptions"
+                    }
+                  },
+                  "required": ["model_name", "provider", "provider_options"],
+                  "additionalProperties": false
+                },
+                "GenericModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "description": "AI provider for the model (or provide a baseURL endpoint instead)",
+                      "example": "openai",
+                      "type": "string",
+                      "enum": ["openai", "anthropic", "cerebras", "groq", "google"]
+                    }
+                  },
+                  "required": ["model_name"],
+                  "additionalProperties": false
+                },
+                "ModelConfigObject": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/VertexModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/GenericModelConfigObject"
+                    }
+                  ]
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "initialized": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "pages": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "page_id": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["page_id"],
+                    "additional_properties": false
+                  }
+                }
+              },
+              "required": ["initialized", "pages"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "stagehand.close": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "closed": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["closed"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "stagehand.act": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "options": {
+                  "ref": "#/$defs/ActOptions"
+                }
+              },
+              "required": ["input"],
+              "additionalProperties": false,
+              "$defs": {
+                "ActOptions": {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "description": "Model configuration object",
+                      "ref": "#/$defs/ModelConfig"
+                    },
+                    "variables": {
+                      "description": "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
+                      "example": {
+                        "username": "john_doe",
+                        "password": {
+                          "value": "secret123",
+                          "description": "The login password"
+                        }
+                      },
+                      "ref": "#/$defs/Variables"
+                    },
+                    "timeout": {
+                      "description": "Timeout in ms for the action",
+                      "example": 30000,
+                      "type": "number"
+                    },
+                    "locator": {
+                      "description": "Serializable page or element locator for the action target",
+                      "ref": "#/$defs/Locator"
+                    },
+                    "server_cache": {
+                      "description": "Override the instance-level serverCache setting for this request",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "ModelConfig": {
+                  "$ref": "#/$defs/ModelConfigObject"
+                },
+                "VertexModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "vertex",
+                      "description": "Vertex AI model provider"
+                    },
+                    "auth": {
+                      "description": "Vertex provider authentication configuration",
+                      "ref": "#/$defs/GoogleServiceAccountAuth"
+                    },
+                    "provider_options": {
+                      "description": "Vertex provider-specific model configuration",
+                      "ref": "#/$defs/VertexModelProviderOptions"
+                    }
+                  },
+                  "required": ["model_name", "provider", "auth", "provider_options"],
+                  "additionalProperties": false
+                },
+                "GoogleServiceAccountCredentials": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "service_account"
+                    },
+                    "project_id": {
+                      "type": "string"
+                    },
+                    "private_key_id": {
+                      "type": "string"
+                    },
+                    "private_key": {
+                      "type": "string"
+                    },
+                    "client_email": {
+                      "type": "string"
+                    },
+                    "client_id": {
+                      "type": "string"
+                    },
+                    "auth_uri": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "token_uri": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "auth_provider_x509_cert_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "client_x509_cert_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "universe_domain": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["private_key", "client_email"],
+                  "additionalProperties": false
+                },
+                "GoogleServiceAccountAuth": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "googleServiceAccount",
+                      "description": "Use inline Google Cloud service account credentials for provider authentication"
+                    },
+                    "credentials": {
+                      "description": "Google Cloud service account credentials",
+                      "ref": "#/$defs/GoogleServiceAccountCredentials"
+                    },
+                    "scopes": {
+                      "description": "Google auth scopes for the desired API request",
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ]
+                    },
+                    "project_id": {
+                      "description": "Google Cloud project ID used by google-auth-library",
+                      "type": "string"
+                    },
+                    "universe_domain": {
+                      "description": "Google Cloud universe domain",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "credentials"],
+                  "additionalProperties": false
+                },
+                "VertexProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "project": {
+                      "type": "string",
+                      "description": "Google Cloud project ID for Vertex AI models",
+                      "example": "my-gcp-project"
+                    },
+                    "location": {
+                      "type": "string",
+                      "description": "Google Cloud location for Vertex AI models",
+                      "example": "us-central1"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the Vertex AI provider",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the Vertex AI provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["project", "location"],
+                  "additionalProperties": false
+                },
+                "VertexModelProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "vertex"
+                    },
+                    "options": {
+                      "description": "Vertex AI provider-specific settings",
+                      "ref": "#/$defs/VertexProviderOptions"
+                    }
+                  },
+                  "required": ["type", "options"],
+                  "additionalProperties": false
+                },
+                "AzureModelConfigObject": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/AzureEntraModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureApiKeyModelConfigObject"
+                    }
+                  ]
+                },
+                "AzureEntraModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "azure",
+                      "description": "Azure OpenAI model provider"
+                    },
+                    "provider_options": {
+                      "description": "Azure provider-specific model configuration",
+                      "ref": "#/$defs/AzureModelProviderOptions"
+                    },
+                    "auth": {
+                      "description": "Azure provider authentication configuration",
+                      "ref": "#/$defs/AzureEntraIdAuth"
+                    }
+                  },
+                  "required": ["model_name", "provider", "provider_options", "auth"],
+                  "additionalProperties": false
+                },
+                "AzureProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "resource_name": {
+                      "description": "Azure OpenAI resource name",
+                      "example": "my-azure-openai-resource",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the Azure OpenAI provider",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "api_version": {
+                      "description": "Azure OpenAI API version",
+                      "example": "2024-10-01-preview",
+                      "type": "string"
+                    },
+                    "use_deployment_based_urls": {
+                      "description": "Whether to use deployment-based Azure OpenAI URLs",
+                      "type": "boolean"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the Azure OpenAI provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "AzureModelProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "azure"
+                    },
+                    "options": {
+                      "description": "Azure OpenAI provider-specific settings",
+                      "ref": "#/$defs/AzureProviderOptions"
+                    }
+                  },
+                  "required": ["type", "options"],
+                  "additionalProperties": false
+                },
+                "AzureEntraIdAuth": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "azureEntraId",
+                      "description": "Use a Microsoft Entra ID bearer token for authentication"
+                    },
+                    "token": {
+                      "type": "string",
+                      "min_length": 1,
+                      "description": "Microsoft Entra ID bearer token for Azure OpenAI"
+                    }
+                  },
+                  "required": ["type", "token"],
+                  "additionalProperties": false
+                },
+                "AzureApiKeyModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "azure",
+                      "description": "Azure OpenAI model provider"
+                    },
+                    "provider_options": {
+                      "description": "Azure provider-specific model configuration",
+                      "ref": "#/$defs/AzureModelProviderOptions"
+                    }
+                  },
+                  "required": ["model_name", "provider", "provider_options"],
+                  "additionalProperties": false
+                },
+                "GenericModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "description": "AI provider for the model (or provide a baseURL endpoint instead)",
+                      "example": "openai",
+                      "type": "string",
+                      "enum": ["openai", "anthropic", "cerebras", "groq", "google"]
+                    }
+                  },
+                  "required": ["model_name"],
+                  "additionalProperties": false
+                },
+                "ModelConfigObject": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/VertexModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/GenericModelConfigObject"
+                    }
+                  ]
+                },
+                "Variables": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/VariableValue"
+                  }
+                },
+                "VariableValue": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/VariablePrimitive"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "ref": "#/$defs/VariablePrimitive"
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["value"],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "VariablePrimitive": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "Locator": {
+                  "type": "object",
+                  "properties": {
+                    "page_idx": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "title": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "active": {
+                      "any_of": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "target_id": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "tab_id": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "frame_id": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "idx": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "frame_idx": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "xpath": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "css": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "react_element_name": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "coordinates": {
+                      "any_of": [
+                        {
+                          "ref": "#/$defs/LocatorCoordinates"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "snapshot_id": {
+                      "any_of": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "element_id": {
+                      "any_of": [
+                        {
+                          "type": "string",
+                          "pattern": "^(?:p\\d+:)?\\d+-\\d+$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "LocatorCoordinates": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "y": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "top": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "left": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "bottom": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "right": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "result": {
+                  "ref": "#/$defs/ActResultData"
+                },
+                "action_id": {
+                  "description": "Action ID for tracking",
+                  "type": "string"
+                },
+                "cache_status": {
+                  "description": "Server-side cache status for this result",
+                  "type": "string",
+                  "enum": ["HIT", "MISS"]
+                }
+              },
+              "required": ["result"],
+              "additionalProperties": false,
+              "$defs": {
+                "ActResultData": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the action completed successfully",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable result message",
+                      "example": "Successfully clicked the login button"
+                    },
+                    "action_description": {
+                      "type": "string",
+                      "description": "Description of the action that was performed",
+                      "example": "Clicked button with text 'Login'"
+                    },
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "ref": "#/$defs/Action"
+                      },
+                      "description": "List of actions that were executed"
+                    }
+                  },
+                  "required": ["success", "message", "action_description", "actions"],
+                  "additionalProperties": false
+                },
+                "Action": {
+                  "type": "object",
+                  "properties": {
+                    "selector": {
+                      "type": "string",
+                      "description": "CSS selector or XPath for the element",
+                      "example": "[data-testid='submit-button']"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "Human-readable description of the action",
+                      "example": "Click the submit button"
+                    },
+                    "method": {
+                      "description": "The method to execute (click, fill, etc.)",
+                      "example": "click",
+                      "type": "string"
+                    },
+                    "arguments": {
+                      "description": "Arguments to pass to the method",
+                      "example": ["Hello World"],
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["selector", "description"],
+                  "additionalProperties": false,
+                  "description": "Action object returned by observe and used by act"
+                }
+              }
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "stagehand.observe": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "instruction": {
+                  "type": "string"
+                },
+                "options": {
+                  "ref": "#/$defs/ObserveOptions"
+                }
+              },
+              "additionalProperties": false,
+              "$defs": {
+                "ObserveOptions": {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "description": "Model configuration object",
+                      "ref": "#/$defs/ModelConfig"
+                    },
+                    "variables": {
+                      "description": "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
+                      "example": {
+                        "username": {
+                          "value": "john@example.com",
+                          "description": "The login email"
+                        },
+                        "remember_me": true
+                      },
+                      "ref": "#/$defs/Variables"
+                    },
+                    "timeout": {
+                      "description": "Timeout in ms for the observation",
+                      "example": 30000,
+                      "type": "number"
+                    },
+                    "selector": {
+                      "description": "CSS selector to scope observation to a specific element",
+                      "example": "nav",
+                      "type": "string"
+                    },
+                    "ignore_selectors": {
+                      "description": "Selectors for elements and subtrees that should be excluded from observation",
+                      "example": ["nav", ".cookie-banner", "#sidebar-ads"],
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "locator": {
+                      "description": "Serializable page or element locator for the observation target",
+                      "ref": "#/$defs/Locator"
+                    },
+                    "server_cache": {
+                      "description": "Override the instance-level serverCache setting for this request",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "ModelConfig": {
+                  "$ref": "#/$defs/ModelConfigObject"
+                },
+                "VertexModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "vertex",
+                      "description": "Vertex AI model provider"
+                    },
+                    "auth": {
+                      "description": "Vertex provider authentication configuration",
+                      "ref": "#/$defs/GoogleServiceAccountAuth"
+                    },
+                    "provider_options": {
+                      "description": "Vertex provider-specific model configuration",
+                      "ref": "#/$defs/VertexModelProviderOptions"
+                    }
+                  },
+                  "required": ["model_name", "provider", "auth", "provider_options"],
+                  "additionalProperties": false
+                },
+                "GoogleServiceAccountCredentials": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "service_account"
+                    },
+                    "project_id": {
+                      "type": "string"
+                    },
+                    "private_key_id": {
+                      "type": "string"
+                    },
+                    "private_key": {
+                      "type": "string"
+                    },
+                    "client_email": {
+                      "type": "string"
+                    },
+                    "client_id": {
+                      "type": "string"
+                    },
+                    "auth_uri": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "token_uri": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "auth_provider_x509_cert_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "client_x509_cert_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "universe_domain": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["private_key", "client_email"],
+                  "additionalProperties": false
+                },
+                "GoogleServiceAccountAuth": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "googleServiceAccount",
+                      "description": "Use inline Google Cloud service account credentials for provider authentication"
+                    },
+                    "credentials": {
+                      "description": "Google Cloud service account credentials",
+                      "ref": "#/$defs/GoogleServiceAccountCredentials"
+                    },
+                    "scopes": {
+                      "description": "Google auth scopes for the desired API request",
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ]
+                    },
+                    "project_id": {
+                      "description": "Google Cloud project ID used by google-auth-library",
+                      "type": "string"
+                    },
+                    "universe_domain": {
+                      "description": "Google Cloud universe domain",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "credentials"],
+                  "additionalProperties": false
+                },
+                "VertexProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "project": {
+                      "type": "string",
+                      "description": "Google Cloud project ID for Vertex AI models",
+                      "example": "my-gcp-project"
+                    },
+                    "location": {
+                      "type": "string",
+                      "description": "Google Cloud location for Vertex AI models",
+                      "example": "us-central1"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the Vertex AI provider",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the Vertex AI provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["project", "location"],
+                  "additionalProperties": false
+                },
+                "VertexModelProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "vertex"
+                    },
+                    "options": {
+                      "description": "Vertex AI provider-specific settings",
+                      "ref": "#/$defs/VertexProviderOptions"
+                    }
+                  },
+                  "required": ["type", "options"],
+                  "additionalProperties": false
+                },
+                "AzureModelConfigObject": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/AzureEntraModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureApiKeyModelConfigObject"
+                    }
+                  ]
+                },
+                "AzureEntraModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "azure",
+                      "description": "Azure OpenAI model provider"
+                    },
+                    "provider_options": {
+                      "description": "Azure provider-specific model configuration",
+                      "ref": "#/$defs/AzureModelProviderOptions"
+                    },
+                    "auth": {
+                      "description": "Azure provider authentication configuration",
+                      "ref": "#/$defs/AzureEntraIdAuth"
+                    }
+                  },
+                  "required": ["model_name", "provider", "provider_options", "auth"],
+                  "additionalProperties": false
+                },
+                "AzureProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "resource_name": {
+                      "description": "Azure OpenAI resource name",
+                      "example": "my-azure-openai-resource",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the Azure OpenAI provider",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "api_version": {
+                      "description": "Azure OpenAI API version",
+                      "example": "2024-10-01-preview",
+                      "type": "string"
+                    },
+                    "use_deployment_based_urls": {
+                      "description": "Whether to use deployment-based Azure OpenAI URLs",
+                      "type": "boolean"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the Azure OpenAI provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "AzureModelProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "azure"
+                    },
+                    "options": {
+                      "description": "Azure OpenAI provider-specific settings",
+                      "ref": "#/$defs/AzureProviderOptions"
+                    }
+                  },
+                  "required": ["type", "options"],
+                  "additionalProperties": false
+                },
+                "AzureEntraIdAuth": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "azureEntraId",
+                      "description": "Use a Microsoft Entra ID bearer token for authentication"
+                    },
+                    "token": {
+                      "type": "string",
+                      "min_length": 1,
+                      "description": "Microsoft Entra ID bearer token for Azure OpenAI"
+                    }
+                  },
+                  "required": ["type", "token"],
+                  "additionalProperties": false
+                },
+                "AzureApiKeyModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "azure",
+                      "description": "Azure OpenAI model provider"
+                    },
+                    "provider_options": {
+                      "description": "Azure provider-specific model configuration",
+                      "ref": "#/$defs/AzureModelProviderOptions"
+                    }
+                  },
+                  "required": ["model_name", "provider", "provider_options"],
+                  "additionalProperties": false
+                },
+                "GenericModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "description": "AI provider for the model (or provide a baseURL endpoint instead)",
+                      "example": "openai",
+                      "type": "string",
+                      "enum": ["openai", "anthropic", "cerebras", "groq", "google"]
+                    }
+                  },
+                  "required": ["model_name"],
+                  "additionalProperties": false
+                },
+                "ModelConfigObject": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/VertexModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/GenericModelConfigObject"
+                    }
+                  ]
+                },
+                "Variables": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/VariableValue"
+                  }
+                },
+                "VariableValue": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/VariablePrimitive"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "ref": "#/$defs/VariablePrimitive"
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["value"],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "VariablePrimitive": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "Locator": {
+                  "type": "object",
+                  "properties": {
+                    "page_idx": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "title": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "active": {
+                      "any_of": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "target_id": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "tab_id": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "frame_id": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "idx": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "frame_idx": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "xpath": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "css": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "react_element_name": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "coordinates": {
+                      "any_of": [
+                        {
+                          "ref": "#/$defs/LocatorCoordinates"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "snapshot_id": {
+                      "any_of": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "element_id": {
+                      "any_of": [
+                        {
+                          "type": "string",
+                          "pattern": "^(?:p\\d+:)?\\d+-\\d+$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "LocatorCoordinates": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "y": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "top": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "left": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "bottom": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "right": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "array",
+                  "items": {
+                    "ref": "#/$defs/Action"
+                  }
+                },
+                "action_id": {
+                  "description": "Action ID for tracking",
+                  "type": "string"
+                },
+                "cache_status": {
+                  "description": "Server-side cache status for this result",
+                  "type": "string",
+                  "enum": ["HIT", "MISS"]
+                }
+              },
+              "required": ["result"],
+              "additionalProperties": false,
+              "$defs": {
+                "Action": {
+                  "type": "object",
+                  "properties": {
+                    "selector": {
+                      "type": "string",
+                      "description": "CSS selector or XPath for the element",
+                      "example": "[data-testid='submit-button']"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "Human-readable description of the action",
+                      "example": "Click the submit button"
+                    },
+                    "method": {
+                      "description": "The method to execute (click, fill, etc.)",
+                      "example": "click",
+                      "type": "string"
+                    },
+                    "arguments": {
+                      "description": "Arguments to pass to the method",
+                      "example": ["Hello World"],
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["selector", "description"],
+                  "additionalProperties": false,
+                  "description": "Action object returned by observe and used by act"
+                }
+              }
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "stagehand.extract": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "instruction": {
+                  "type": "string"
+                },
+                "options": {
+                  "ref": "#/$defs/ExtractOptions"
+                }
+              },
+              "additionalProperties": false,
+              "$defs": {
+                "ExtractOptions": {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "description": "Model configuration object",
+                      "ref": "#/$defs/ModelConfig"
+                    },
+                    "timeout": {
+                      "description": "Timeout in ms for the extraction",
+                      "example": 30000,
+                      "type": "number"
+                    },
+                    "selector": {
+                      "description": "CSS selector to scope extraction to a specific element",
+                      "example": "#main-content",
+                      "type": "string"
+                    },
+                    "ignore_selectors": {
+                      "description": "Selectors for elements and subtrees that should be excluded from extraction",
+                      "example": ["nav", ".cookie-banner", "#sidebar-ads"],
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "screenshot": {
+                      "description": "When true, include a screenshot of the current viewport in the extraction LLM call. Defaults to false.",
+                      "example": false,
+                      "type": "boolean"
+                    },
+                    "locator": {
+                      "description": "Serializable page or element locator for the extraction target",
+                      "ref": "#/$defs/Locator"
+                    },
+                    "server_cache": {
+                      "description": "Override the instance-level serverCache setting for this request",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "ModelConfig": {
+                  "$ref": "#/$defs/ModelConfigObject"
+                },
+                "VertexModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "vertex",
+                      "description": "Vertex AI model provider"
+                    },
+                    "auth": {
+                      "description": "Vertex provider authentication configuration",
+                      "ref": "#/$defs/GoogleServiceAccountAuth"
+                    },
+                    "provider_options": {
+                      "description": "Vertex provider-specific model configuration",
+                      "ref": "#/$defs/VertexModelProviderOptions"
+                    }
+                  },
+                  "required": ["model_name", "provider", "auth", "provider_options"],
+                  "additionalProperties": false
+                },
+                "GoogleServiceAccountCredentials": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "service_account"
+                    },
+                    "project_id": {
+                      "type": "string"
+                    },
+                    "private_key_id": {
+                      "type": "string"
+                    },
+                    "private_key": {
+                      "type": "string"
+                    },
+                    "client_email": {
+                      "type": "string"
+                    },
+                    "client_id": {
+                      "type": "string"
+                    },
+                    "auth_uri": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "token_uri": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "auth_provider_x509_cert_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "client_x509_cert_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "universe_domain": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["private_key", "client_email"],
+                  "additionalProperties": false
+                },
+                "GoogleServiceAccountAuth": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "googleServiceAccount",
+                      "description": "Use inline Google Cloud service account credentials for provider authentication"
+                    },
+                    "credentials": {
+                      "description": "Google Cloud service account credentials",
+                      "ref": "#/$defs/GoogleServiceAccountCredentials"
+                    },
+                    "scopes": {
+                      "description": "Google auth scopes for the desired API request",
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ]
+                    },
+                    "project_id": {
+                      "description": "Google Cloud project ID used by google-auth-library",
+                      "type": "string"
+                    },
+                    "universe_domain": {
+                      "description": "Google Cloud universe domain",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "credentials"],
+                  "additionalProperties": false
+                },
+                "VertexProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "project": {
+                      "type": "string",
+                      "description": "Google Cloud project ID for Vertex AI models",
+                      "example": "my-gcp-project"
+                    },
+                    "location": {
+                      "type": "string",
+                      "description": "Google Cloud location for Vertex AI models",
+                      "example": "us-central1"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the Vertex AI provider",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the Vertex AI provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["project", "location"],
+                  "additionalProperties": false
+                },
+                "VertexModelProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "vertex"
+                    },
+                    "options": {
+                      "description": "Vertex AI provider-specific settings",
+                      "ref": "#/$defs/VertexProviderOptions"
+                    }
+                  },
+                  "required": ["type", "options"],
+                  "additionalProperties": false
+                },
+                "AzureModelConfigObject": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/AzureEntraModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureApiKeyModelConfigObject"
+                    }
+                  ]
+                },
+                "AzureEntraModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "azure",
+                      "description": "Azure OpenAI model provider"
+                    },
+                    "provider_options": {
+                      "description": "Azure provider-specific model configuration",
+                      "ref": "#/$defs/AzureModelProviderOptions"
+                    },
+                    "auth": {
+                      "description": "Azure provider authentication configuration",
+                      "ref": "#/$defs/AzureEntraIdAuth"
+                    }
+                  },
+                  "required": ["model_name", "provider", "provider_options", "auth"],
+                  "additionalProperties": false
+                },
+                "AzureProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "resource_name": {
+                      "description": "Azure OpenAI resource name",
+                      "example": "my-azure-openai-resource",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the Azure OpenAI provider",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "api_version": {
+                      "description": "Azure OpenAI API version",
+                      "example": "2024-10-01-preview",
+                      "type": "string"
+                    },
+                    "use_deployment_based_urls": {
+                      "description": "Whether to use deployment-based Azure OpenAI URLs",
+                      "type": "boolean"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the Azure OpenAI provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "AzureModelProviderOptions": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "azure"
+                    },
+                    "options": {
+                      "description": "Azure OpenAI provider-specific settings",
+                      "ref": "#/$defs/AzureProviderOptions"
+                    }
+                  },
+                  "required": ["type", "options"],
+                  "additionalProperties": false
+                },
+                "AzureEntraIdAuth": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "azureEntraId",
+                      "description": "Use a Microsoft Entra ID bearer token for authentication"
+                    },
+                    "token": {
+                      "type": "string",
+                      "min_length": 1,
+                      "description": "Microsoft Entra ID bearer token for Azure OpenAI"
+                    }
+                  },
+                  "required": ["type", "token"],
+                  "additionalProperties": false
+                },
+                "AzureApiKeyModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "type": "string",
+                      "const": "azure",
+                      "description": "Azure OpenAI model provider"
+                    },
+                    "provider_options": {
+                      "description": "Azure provider-specific model configuration",
+                      "ref": "#/$defs/AzureModelProviderOptions"
+                    }
+                  },
+                  "required": ["model_name", "provider", "provider_options"],
+                  "additionalProperties": false
+                },
+                "GenericModelConfigObject": {
+                  "type": "object",
+                  "properties": {
+                    "model_name": {
+                      "type": "string",
+                      "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
+                      "example": "openai/gpt-5.4-mini"
+                    },
+                    "api_key": {
+                      "description": "API key for the model provider",
+                      "example": "sk-some-openai-api-key",
+                      "type": "string"
+                    },
+                    "base_url": {
+                      "description": "Base URL for the model provider",
+                      "example": "https://api.openai.com/v1",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "description": "Custom headers sent with every request to the model provider",
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    },
+                    "provider": {
+                      "description": "AI provider for the model (or provide a baseURL endpoint instead)",
+                      "example": "openai",
+                      "type": "string",
+                      "enum": ["openai", "anthropic", "cerebras", "groq", "google"]
+                    }
+                  },
+                  "required": ["model_name"],
+                  "additionalProperties": false
+                },
+                "ModelConfigObject": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/VertexModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/GenericModelConfigObject"
+                    }
+                  ]
+                },
+                "Locator": {
+                  "type": "object",
+                  "properties": {
+                    "page_idx": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "url": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "title": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "active": {
+                      "any_of": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "target_id": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "tab_id": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "frame_id": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "idx": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "frame_idx": {
+                      "any_of": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "xpath": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "css": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "react_element_name": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "coordinates": {
+                      "any_of": [
+                        {
+                          "ref": "#/$defs/LocatorCoordinates"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "snapshot_id": {
+                      "any_of": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "element_id": {
+                      "any_of": [
+                        {
+                          "type": "string",
+                          "pattern": "^(?:p\\d+:)?\\d+-\\d+$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "LocatorCoordinates": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "y": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "top": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "left": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "bottom": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "right": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "result": {
+                  "description": "Extracted data matching the requested schema"
+                },
+                "action_id": {
+                  "description": "Action ID for tracking",
+                  "type": "string"
+                },
+                "cache_status": {
+                  "description": "Server-side cache status for this result",
+                  "type": "string",
+                  "enum": ["HIT", "MISS"]
+                }
+              },
+              "required": ["result"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "stagehand.metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "act_prompt_tokens": {
+                  "type": "number"
+                },
+                "act_completion_tokens": {
+                  "type": "number"
+                },
+                "act_reasoning_tokens": {
+                  "type": "number"
+                },
+                "act_cached_input_tokens": {
+                  "type": "number"
+                },
+                "act_inference_time_ms": {
+                  "type": "number"
+                },
+                "extract_prompt_tokens": {
+                  "type": "number"
+                },
+                "extract_completion_tokens": {
+                  "type": "number"
+                },
+                "extract_reasoning_tokens": {
+                  "type": "number"
+                },
+                "extract_cached_input_tokens": {
+                  "type": "number"
+                },
+                "extract_inference_time_ms": {
+                  "type": "number"
+                },
+                "observe_prompt_tokens": {
+                  "type": "number"
+                },
+                "observe_completion_tokens": {
+                  "type": "number"
+                },
+                "observe_reasoning_tokens": {
+                  "type": "number"
+                },
+                "observe_cached_input_tokens": {
+                  "type": "number"
+                },
+                "observe_inference_time_ms": {
+                  "type": "number"
+                },
+                "total_prompt_tokens": {
+                  "type": "number"
+                },
+                "total_completion_tokens": {
+                  "type": "number"
+                },
+                "total_reasoning_tokens": {
+                  "type": "number"
+                },
+                "total_cached_input_tokens": {
+                  "type": "number"
+                },
+                "total_inference_time_ms": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "act_prompt_tokens",
+                "act_completion_tokens",
+                "act_reasoning_tokens",
+                "act_cached_input_tokens",
+                "act_inference_time_ms",
+                "extract_prompt_tokens",
+                "extract_completion_tokens",
+                "extract_reasoning_tokens",
+                "extract_cached_input_tokens",
+                "extract_inference_time_ms",
+                "observe_prompt_tokens",
+                "observe_completion_tokens",
+                "observe_reasoning_tokens",
+                "observe_cached_input_tokens",
+                "observe_inference_time_ms",
+                "total_prompt_tokens",
+                "total_completion_tokens",
+                "total_reasoning_tokens",
+                "total_cached_input_tokens",
+                "total_inference_time_ms"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.pages": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "page_id": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": ["page_id"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.new_page": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.goto": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "wait_until": {
+                      "type": "string",
+                      "enum": ["load", "domcontentloaded", "networkidle"]
+                    },
+                    "timeout_ms": {
+                      "type": "integer",
+                      "exclusive_minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additional_properties": false
+                }
+              },
+              "required": ["page_id", "url"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.url": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": ["url"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.title": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": ["title"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.close": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "closed": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["closed"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.click": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "button": {
+                      "type": "string",
+                      "enum": ["left", "right", "middle"]
+                    },
+                    "click_count": {
+                      "type": "integer",
+                      "exclusive_minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "delay": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "timeout_ms": {
+                      "type": "integer",
+                      "exclusive_minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additional_properties": false
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "clicked": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["clicked"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.fill": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id", "selector", "value"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "filled": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["filled"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.is_visible": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "visible": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["visible"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.text_content": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "text_content": {
+                  "type": "string"
+                }
+              },
+              "required": ["text_content"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        }
+      },
+      "required": [
+        "ping",
+        "stagehand.init",
+        "stagehand.close",
+        "stagehand.act",
+        "stagehand.observe",
+        "stagehand.extract",
+        "stagehand.metrics",
+        "context.pages",
+        "context.new_page",
+        "page.goto",
+        "page.url",
+        "page.title",
+        "page.close",
+        "locator.click",
+        "locator.fill",
+        "locator.is_visible",
+        "locator.text_content"
+      ]
+    },
+    "notifications": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stagehand.log_event": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "request_id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string"
+                },
+                "event_name": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "timestamp": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "severity_number": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 24
+                },
+                "body": {
+                  "ref": "#/$defs/__schema0"
+                },
+                "severity_text": {
+                  "type": "string"
+                },
+                "attributes": {
+                  "type": "object",
+                  "property_names": {
+                    "type": "string"
+                  },
+                  "additional_properties": {
+                    "ref": "#/$defs/__schema1"
+                  }
+                },
+                "trace_id": {
+                  "type": "string",
+                  "pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+                },
+                "span_id": {
+                  "type": "string",
+                  "pattern": "^(?!0{16}$)[0-9a-f]{16}$"
+                }
+              },
+              "required": [
+                "request_id",
+                "method",
+                "event_name",
+                "timestamp",
+                "severity_number",
+                "body"
+              ],
+              "additionalProperties": false,
+              "$defs": {
+                "__schema0": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema0"
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema0"
+                      }
+                    }
+                  ]
+                },
+                "__schema1": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema1"
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema1"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "required": ["params"]
+        }
+      },
+      "required": ["stagehand.log_event"]
+    }
+  },
+  "required": ["transport", "methods", "notifications"]
+}

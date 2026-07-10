@@ -28,16 +28,16 @@ export type AnthropicClientOptions = z.infer<typeof AnthropicClientOptionsSchema
 
 export interface GoogleServiceAccountCredentials {
   type?: "service_account";
-  project_id?: string;
-  private_key_id?: string;
-  private_key: string;
-  client_email: string;
-  client_id?: string;
-  auth_uri?: string;
-  token_uri?: string;
-  auth_provider_x509_cert_url?: string;
-  client_x509_cert_url?: string;
-  universe_domain?: string;
+  projectId?: string;
+  privateKeyId?: string;
+  privateKey: string;
+  clientEmail: string;
+  clientId?: string;
+  authUri?: string;
+  tokenUri?: string;
+  authProviderX509CertUrl?: string;
+  clientX509CertUrl?: string;
+  universeDomain?: string;
 }
 
 export interface GoogleServiceAccountAuth {

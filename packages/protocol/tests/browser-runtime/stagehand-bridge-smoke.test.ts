@@ -1,10 +1,10 @@
 import { createServer, type Server } from "node:http";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getChromePath, launch, Launcher, type LaunchedChrome } from "chrome-launcher";
-import ts from "typescript";
+import { build } from "vite-plus";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { connectStagehandBridge, type StagehandBridge } from "../../../modcdp/index.js";
 
@@ -13,7 +13,12 @@ type FixtureServer = {
   close(): Promise<void>;
 };
 
-describe.sequential("Stagehand service worker bridge smoke", () => {
+// The production V4 CI installs and verifies a Chrome version with the extension
+// support this provisional smoke test needs. Keep it local until that browser
+// infrastructure replaces this test alongside the bridge.
+const describeBrowserRuntime = process.env.CI ? describe.skip : describe;
+
+describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
   let extensionDir: string | undefined;
   let fixtureServer: FixtureServer | undefined;
   let chrome: LaunchedChrome | undefined;
@@ -58,9 +63,23 @@ describe.sequential("Stagehand service worker bridge smoke", () => {
     await expect(bridge?.send("ping", { extra: true } as never)).rejects.toThrow();
   });
 
+  it("page.goto returns a typed response from the service worker runtime", async () => {
+    await expect(
+      bridge?.send("page.goto", {
+        pageId: "active-page",
+        url: fixtureServer?.url ?? "",
+      }),
+    ).resolves.toStrictEqual({
+      pageId: "active-page",
+      url: fixtureServer?.url,
+      title: "Stagehand Smoke",
+    });
+  });
+
   it("unknown protocol command returns a typed protocol error", async () => {
     await expect(bridge?.send("browser.raw_cdp" as never, {} as never)).rejects.toMatchObject({
-      code: "stagehand.unknown_command",
+      code: -32601,
+      data: { type: "stagehand.unknown_command" },
     });
   });
 
@@ -76,14 +95,22 @@ async function createStagehandSmokeExtension(): Promise<string> {
   const runtimePath = fileURLToPath(
     new URL("../../../server/runtime/serviceWorkerRuntime.ts", import.meta.url),
   );
-  const runtimeSource = await readFile(runtimePath, "utf8");
-  const serviceWorker = ts.transpileModule(runtimeSource, {
-    compilerOptions: {
-      module: ts.ModuleKind.ES2022,
-      target: ts.ScriptTarget.ES2022,
-      removeComments: false,
+
+  await build({
+    configFile: false,
+    logLevel: "silent",
+    build: {
+      emptyOutDir: false,
+      minify: false,
+      outDir: extensionDir,
+      target: "es2022",
+      rolldownOptions: {
+        input: runtimePath,
+        output: {
+          entryFileNames: "stagehand-smoke-worker.js",
+        },
+      },
     },
-    fileName: "service-worker.ts",
   });
 
   await writeFile(
@@ -105,7 +132,6 @@ async function createStagehandSmokeExtension(): Promise<string> {
       2,
     ),
   );
-  await writeFile(path.join(extensionDir, "stagehand-smoke-worker.js"), serviceWorker.outputText);
   await writeFile(
     path.join(extensionDir, "options.html"),
     '<!doctype html><script src="options.js"></script>',
