@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:schema": "node --experimental-strip-types scripts/build-json-schema.ts",
     "test": "vp test run --root ../.."
   },
   "dependencies": {

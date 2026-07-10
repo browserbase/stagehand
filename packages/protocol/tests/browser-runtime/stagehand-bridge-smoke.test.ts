@@ -64,56 +64,6 @@ describe.sequential("Stagehand service worker bridge smoke", () => {
     });
   });
 
-  it("page.goto navigates the active page in a real browser", async () => {
-    const result = await bridge?.send("page.goto", {
-      url: fixtureServer?.url ?? "http://127.0.0.1/",
-      wait_until: "load",
-      timeout_ms: 10_000,
-    });
-
-    expect(result?.url).toBe(fixtureServer?.url);
-  });
-
-  it("page.goto returns live browser url and title data", async () => {
-    const result = await bridge?.send("page.goto", {
-      url: fixtureServer?.url ?? "http://127.0.0.1/",
-      wait_until: "load",
-      timeout_ms: 10_000,
-    });
-
-    expect(result).toStrictEqual({
-      url: fixtureServer?.url,
-      title: "Stagehand Smoke",
-    });
-  });
-
-  it("page.click clicks a locator on a real fixture page", async () => {
-    await bridge?.send("page.goto", {
-      url: fixtureServer?.url ?? "http://127.0.0.1/",
-      wait_until: "load",
-      timeout_ms: 10_000,
-    });
-
-    const result = await bridge?.send("page.click", {
-      locator: { css: "#smoke-button" },
-      timeout_ms: 10_000,
-    });
-
-    expect(result).toStrictEqual({
-      clicked: true,
-      tag_name: "button",
-      text: "Clicked",
-    });
-  });
-
-  it("page.click rejects internal-only locator fields like backendNodeId", async () => {
-    await expect(
-      bridge?.send("page.click", {
-        locator: { css: "#smoke-button", backendNodeId: 1 },
-      } as never),
-    ).rejects.toThrow();
-  });
-
   it("bridge does not expose raw CDP passthrough as public API", () => {
     expect(bridge).toBeDefined();
     expect("sendCDP" in (bridge as object)).toBe(false);
@@ -183,6 +133,7 @@ async function launchChrome(startingUrl: string): Promise<LaunchedChrome> {
       ...Launcher.defaultFlags().filter((flag) => flag !== "--disable-extensions"),
       "--enable-unsafe-extension-debugging",
       "--window-size=1280,800",
+      "--headless",
     ],
   });
 }

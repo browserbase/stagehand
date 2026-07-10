@@ -1,4 +1,5 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -64,16 +65,66 @@ const schemaBackedPublicTypes = {
 } as const;
 
 const publicTypesWithoutSchemas = {
+  ActTimeoutError: "public error class",
   BrowserClipboard: "method-bearing SDK interface",
+  BrowserbaseSessionNotFoundError: "public error class",
+  CaptchaTimeoutError: "public error class",
+  CdpConnectionClosedError: "public error class",
+  ConnectionTimeoutError: "public error class",
   ConsoleListener: "callback type",
+  ConsoleMessage: "runtime console message class/value type",
+  ContentFrameNotFoundError: "public error class",
+  CookieSetError: "public error class",
+  CookieValidationError: "public error class",
+  CreateChatCompletionResponseError: "public error class",
+  ElementNotVisibleError: "public error class",
+  ExperimentalApiConflictError: "public error class",
+  ExperimentalNotConfiguredError: "public error class",
+  ExtractTimeoutError: "public error class",
+  HandlerNotInitializedError: "public error class",
+  InvalidAISDKModelFormatError: "public error class",
+  LLMResponseError: "public error class",
+  MissingLLMConfigurationError: "public error class",
+  ObserveTimeoutError: "public error class",
+  PageNotFoundError: "public error class",
   Response: "runtime response class/value type",
+  ResponseBodyError: "public error class",
+  ResponseParseError: "public error class",
+  StagehandClickError: "public error class",
+  StagehandClosedError: "public error class",
+  StagehandDefaultError: "public error class",
+  StagehandDomProcessError: "public error class",
+  StagehandElementNotFoundError: "public error class",
+  StagehandEnvironmentError: "public error class",
+  StagehandError: "public error class",
+  StagehandEvalError: "public error class",
+  StagehandIframeError: "public error class",
+  StagehandInitError: "public error class",
+  StagehandInvalidArgumentError: "public error class",
+  StagehandLocatorError: "public error class",
+  StagehandMissingArgumentError: "public error class",
+  StagehandNotInitializedError: "public error class",
+  StagehandSetDomainPolicyError: "public error class",
+  StagehandSetExtraHTTPHeadersError: "public error class",
+  StagehandShadowRootMissingError: "public error class",
+  StagehandShadowSegmentEmptyError: "public error class",
+  StagehandShadowSegmentNotFoundError: "public error class",
+  StagehandSnapshotError: "public error class",
+  StagehandUnsupportedBrowserFeatureError: "public error class",
+  TimeoutError: "public error class",
+  UnderstudyCommandException: "public error class",
+  UnsupportedAISDKModelProviderError: "public error class",
+  UnsupportedModelError: "public error class",
+  UnsupportedModelProviderError: "public error class",
+  XPathResolutionError: "public error class",
+  ZodSchemaValidationError: "public error class",
 } as const;
 
 function getPublicTypeExports() {
-  const root = process.cwd();
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
   const configPath = ts.findConfigFile(
     root,
-    ts.sys.fileExists,
+    (fileName) => ts.sys.fileExists(fileName),
     "packages/protocol/tsconfig.test.json",
   );
 
@@ -81,7 +132,7 @@ function getPublicTypeExports() {
     throw new Error("Could not find public API test tsconfig");
   }
 
-  const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
+  const configFile = ts.readConfigFile(configPath, (fileName) => ts.sys.readFile(fileName));
   const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, path.dirname(configPath));
   const entry = path.join(root, "packages/server/types/public/index.ts");
   const program = ts.createProgram([...parsed.fileNames, entry], parsed.options);
