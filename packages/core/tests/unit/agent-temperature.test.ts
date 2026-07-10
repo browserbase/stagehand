@@ -136,10 +136,10 @@ function createV3() {
   } as unknown as V3;
 }
 
-function createLlmClient() {
+function createLlmClient(provider = "openai.responses") {
   const model = {
     modelId: "openai/gpt-5-mini",
-    provider: "openai",
+    provider,
     specificationVersion: "v2",
   } as unknown as LanguageModelV2;
 
@@ -215,6 +215,22 @@ describe("v3 agent temperature options", () => {
     expect(options.providerOptions).toEqual({
       google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
       openai: { store: false },
+    });
+  });
+
+  it("does not send Responses-only options to OpenAI chat providers", async () => {
+    const { client, generateText } = createLlmClient("openai.chat");
+    const handler = new V3AgentHandler(createV3(), logger, client);
+
+    await handler.execute({
+      instruction: "finish",
+      maxSteps: 1,
+      excludeTools: ["search"],
+    });
+
+    const options = generateText.mock.calls[0][0] as AgentLlmOptions;
+    expect(options.providerOptions).toEqual({
+      google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
     });
   });
 });

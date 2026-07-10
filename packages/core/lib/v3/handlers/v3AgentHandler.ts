@@ -22,6 +22,7 @@ import {
   anthropicAdaptiveThinkingOptions,
   anthropicFallbacksOptions,
 } from "../llm/anthropicOptions.js";
+import { openAIStoreProviderOptions } from "../llm/providerOptions.js";
 import {
   AgentExecuteOptions,
   AgentStreamExecuteOptions,
@@ -105,14 +106,18 @@ function prependSystemMessage(
  * Anthropic at all. Fable 5 additionally opts into the API's server-side
  * refusal fallback.
  */
-function buildAgentProviderOptions(modelId: string, thinkingEffort?: string) {
+function buildAgentProviderOptions(
+  modelId: string,
+  provider: string | undefined,
+  thinkingEffort?: string,
+) {
   const anthropic = {
     ...(anthropicAdaptiveThinkingOptions(modelId, thinkingEffort) ?? {}),
     ...(anthropicFallbacksOptions(modelId) ?? {}),
   };
   return {
     google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
-    openai: { store: false },
+    ...openAIStoreProviderOptions(provider),
     ...(Object.keys(anthropic).length > 0 ? { anthropic } : {}),
   };
 }
@@ -477,6 +482,7 @@ export class V3AgentHandler {
         abortSignal: preparedOptions.signal,
         providerOptions: buildAgentProviderOptions(
           wrappedModel.modelId,
+          wrappedModel.provider,
           this.thinkingEffort,
         ),
       });
@@ -695,6 +701,7 @@ export class V3AgentHandler {
         abortSignal: options.signal,
         providerOptions: buildAgentProviderOptions(
           wrappedModel.modelId,
+          wrappedModel.provider,
           this.thinkingEffort,
         ),
       });
