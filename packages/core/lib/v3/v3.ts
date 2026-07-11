@@ -1118,6 +1118,7 @@ export class V3 {
                 // "auto" has no local fallback; end the just-created session
                 // best-effort before surfacing the error.
                 await this.apiClient.end().catch(() => {});
+                this.apiClient = null;
                 throw new StagehandInitError(
                   `model: "${AUTO_MODEL_NAME}" requires the Stagehand API, but it is unavailable for this session (sessionId: ${sessionId}). Specify a concrete model (e.g. "openai/gpt-5") instead.`,
                 );

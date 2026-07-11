@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StagehandAPIClient } from "../../lib/v3/api.js";
 import { V3 as Stagehand } from "../../lib/v3/v3.js";
+import { AgentCache } from "../../lib/v3/cache/AgentCache.js";
+import type { CacheStorage } from "../../lib/v3/cache/CacheStorage.js";
 import { StagehandInvalidArgumentError } from "../../lib/v3/types/public/sdkErrors.js";
 import type { ModelConfiguration } from "../../lib/v3/types/public/model.js";
 
@@ -133,6 +135,36 @@ describe("per-call model 'auto' local resolution", () => {
     expect(privateStagehand.resolveLlmClient("auto")).toBe(
       privateStagehand.llmClient,
     );
+  });
+});
+
+describe("agent cache with model 'auto'", () => {
+  function createAgentCache(baseModelName: string) {
+    return new AgentCache({
+      storage: { enabled: true } as unknown as CacheStorage,
+      logger: vi.fn(),
+      getActHandler: () => null,
+      getContext: () => null,
+      getDefaultLlmClient: () => undefined as never,
+      getBaseModelName: () => baseModelName,
+      getSystemPrompt: () => undefined,
+      domSettleTimeoutMs: undefined,
+      act: vi.fn(),
+    });
+  }
+
+  it("skips local replay for 'auto' sessions (no local client for self-heal)", () => {
+    expect(createAgentCache("auto").shouldAttemptCache("do the thing")).toBe(
+      false,
+    );
+  });
+
+  it("still replays for concrete-model sessions", () => {
+    expect(
+      createAgentCache("openai/gpt-4.1-mini").shouldAttemptCache(
+        "do the thing",
+      ),
+    ).toBe(true);
   });
 });
 
