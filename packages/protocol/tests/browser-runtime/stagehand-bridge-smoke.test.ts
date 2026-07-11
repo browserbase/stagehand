@@ -1,11 +1,7 @@
 import { createServer, type Server } from "node:http";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { getChromePath, launch, Launcher, type LaunchedChrome } from "chrome-launcher";
-import { build } from "vite-plus";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
+import { stagehandExtensionDistDir } from "../../../extension/build.ts";
 import { connectStagehandBridge, type StagehandBridge } from "../../../modcdp/index.js";
 
 type FixtureServer = {
@@ -25,13 +21,13 @@ describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
   let bridge: StagehandBridge | undefined;
 
   beforeAll(async () => {
-    extensionDir = await createStagehandSmokeExtension();
+    extensionDir = stagehandExtensionDistDir;
     fixtureServer = await startFixtureServer();
     chrome = await launchChrome(fixtureServer.url);
     bridge = await connectStagehandBridge({
       cdpUrl: `http://127.0.0.1:${chrome.port}`,
       extensionDir,
-      serviceWorkerUrlIncludes: "stagehand-smoke-worker.js",
+      serviceWorkerUrlIncludes: "service-worker.js",
       discoveryTimeoutMs: 15_000,
       commandTimeoutMs: 15_000,
     });
@@ -41,15 +37,11 @@ describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
     bridge?.close();
     chrome?.kill();
     await fixtureServer?.close();
-
-    if (extensionDir) {
-      await rm(extensionDir, { force: true, recursive: true });
-    }
   });
 
   it("discovers the Stagehand service worker in a real Chromium session", () => {
     expect(bridge?.serviceWorker.url).toContain("chrome-extension://");
-    expect(bridge?.serviceWorker.url).toContain("/stagehand-smoke-worker.js");
+    expect(bridge?.serviceWorker.url).toContain("/service-worker.js");
   });
 
   it("ping returns a typed response from the service worker runtime", async () => {
@@ -89,60 +81,6 @@ describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
     expect("cdp" in (bridge as object)).toBe(false);
   });
 });
-
-async function createStagehandSmokeExtension(): Promise<string> {
-  const extensionDir = await mkdtemp(path.join(tmpdir(), "stagehand-smoke-extension-"));
-  const runtimePath = fileURLToPath(
-    new URL("../../../server/runtime/serviceWorkerRuntime.ts", import.meta.url),
-  );
-
-  await build({
-    configFile: false,
-    logLevel: "silent",
-    build: {
-      emptyOutDir: false,
-      minify: false,
-      outDir: extensionDir,
-      target: "es2022",
-      rolldownOptions: {
-        input: runtimePath,
-        output: {
-          entryFileNames: "stagehand-smoke-worker.js",
-        },
-      },
-    },
-  });
-
-  await writeFile(
-    path.join(extensionDir, "manifest.json"),
-    JSON.stringify(
-      {
-        manifest_version: 3,
-        name: "Stagehand Smoke Runtime",
-        version: "0.0.0",
-        permissions: ["scripting", "tabs"],
-        host_permissions: ["<all_urls>"],
-        background: {
-          service_worker: "stagehand-smoke-worker.js",
-          type: "module",
-        },
-        options_page: "options.html",
-      },
-      null,
-      2,
-    ),
-  );
-  await writeFile(
-    path.join(extensionDir, "options.html"),
-    '<!doctype html><script src="options.js"></script>',
-  );
-  await writeFile(
-    path.join(extensionDir, "options.js"),
-    "chrome.runtime.sendMessage({ type: 'stagehand_smoke_options_wake' }, () => void chrome.runtime.lastError);\n",
-  );
-
-  return extensionDir;
-}
 
 async function launchChrome(startingUrl: string): Promise<LaunchedChrome> {
   const chromePath = getChromePath();

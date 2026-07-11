@@ -4,15 +4,19 @@
     "noImplicitAny": false,
     "strictNullChecks": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node", "chrome"]
   },
   "include": [
     "tests/**/*.ts",
     "../server/llm/LLMClient.ts",
     "../server/llm/**/*.test-d.ts",
+    "../server/runtime/**/*.ts",
     "../server/types/**/*.ts",
     "../server/understudy/**/*.ts",
-    "../server/version.ts"
+    "../server/version.ts",
+    "../extension/build.ts",
+    "../extension/src/**/*.ts",
+    "../extension/tests/**/*.ts"
   ],
   "exclude": ["../modcdp"]
 }

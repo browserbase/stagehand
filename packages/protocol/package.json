@@ -13,6 +13,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/chrome": "catalog:",
     "@types/node": "catalog:",
     "chrome-launcher": "catalog:",
     "typescript": "catalog:",

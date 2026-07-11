@@ -142,7 +142,6 @@ export async function handleStagehandRPCRequest(raw: unknown): Promise<Stagehand
   }
 }
 
-installStagehandRPC();
 runtimeGlobal.chrome?.runtime.onInstalled?.addListener(() => {});
 runtimeGlobal.chrome?.runtime.onStartup?.addListener(() => {});
 runtimeGlobal.chrome?.runtime.onMessage?.addListener((_message, _sender, sendResponse) => {
