@@ -11,14 +11,14 @@ const JsonValueSchema = z.json();
 type JsonValue = z.infer<typeof JsonValueSchema>;
 type ExpectedRequest = {
   jsonrpc: "2.0";
+  id: number;
   method: string;
   params?: JsonValue[] | Record<string, JsonValue>;
-  id?: string | number;
 };
 type ExpectedSuccessResponse = {
   jsonrpc: "2.0";
   result: JsonValue;
-  id: string | number;
+  id: number;
 };
 type ExpectedErrorResponse = {
   jsonrpc: "2.0";
@@ -27,7 +27,7 @@ type ExpectedErrorResponse = {
     message: string;
     data?: JsonValue;
   };
-  id: string | number | null;
+  id: number | null;
 };
 
 expectTypeOf<z.input<typeof JSONRPCRequestSchema>>().toEqualTypeOf<ExpectedRequest>();

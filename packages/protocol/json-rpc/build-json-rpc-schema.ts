@@ -89,8 +89,8 @@ await writeFile(schemaPath, `${JSON.stringify(schema, null, 2)}\n`, "utf8");
 
 function requireParams(schema: unknown): unknown {
   if (!isRecord(schema)) return schema;
-  if (Array.isArray(schema.anyOf)) {
-    return { ...schema, anyOf: schema.anyOf.map(requireParams) };
+  if (Array.isArray(schema.oneOf)) {
+    return { ...schema, oneOf: schema.oneOf.map(requireParams) };
   }
   if (!isRecord(schema.properties) || !("params" in schema.properties)) return schema;
 

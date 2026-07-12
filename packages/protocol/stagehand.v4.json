@@ -11,7 +11,7 @@
       "properties": {
         "request": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "anyOf": [
+          "oneOf": [
             {
               "type": "object",
               "properties": {
@@ -1629,85 +1629,89 @@
         },
         "notification": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "method": {
-              "type": "string",
-              "const": "stagehand.log_event"
-            },
-            "params": {
+          "oneOf": [
+            {
               "type": "object",
               "properties": {
-                "request_id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
                 },
                 "method": {
-                  "type": "string"
-                },
-                "event_name": {
                   "type": "string",
-                  "min_length": 1
+                  "const": "stagehand.log_event"
                 },
-                "timestamp": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                },
-                "severity_number": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "maximum": 24
-                },
-                "body": {
-                  "ref": "#/$defs/__schema0"
-                },
-                "severity_text": {
-                  "type": "string"
-                },
-                "attributes": {
+                "params": {
                   "type": "object",
-                  "property_names": {
-                    "type": "string"
+                  "properties": {
+                    "request_id": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      ]
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "event_name": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "severity_number": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 24
+                    },
+                    "body": {
+                      "ref": "#/$defs/__schema0"
+                    },
+                    "severity_text": {
+                      "type": "string"
+                    },
+                    "attributes": {
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "ref": "#/$defs/__schema1"
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "pattern": "^(?!0{32}$)[0-9a-f]{32}$"
+                    },
+                    "span_id": {
+                      "type": "string",
+                      "pattern": "^(?!0{16}$)[0-9a-f]{16}$"
+                    }
                   },
-                  "additional_properties": {
-                    "ref": "#/$defs/__schema1"
-                  }
-                },
-                "trace_id": {
-                  "type": "string",
-                  "pattern": "^(?!0{32}$)[0-9a-f]{32}$"
-                },
-                "span_id": {
-                  "type": "string",
-                  "pattern": "^(?!0{16}$)[0-9a-f]{16}$"
+                  "required": [
+                    "request_id",
+                    "method",
+                    "event_name",
+                    "timestamp",
+                    "severity_number",
+                    "body"
+                  ],
+                  "additional_properties": false
                 }
               },
-              "required": [
-                "request_id",
-                "method",
-                "event_name",
-                "timestamp",
-                "severity_number",
-                "body"
-              ],
-              "additional_properties": false
+              "required": ["jsonrpc", "method", "params"],
+              "additionalProperties": false
             }
-          },
-          "required": ["jsonrpc", "method", "params"],
-          "additionalProperties": false,
+          ],
           "$defs": {
             "__schema0": {
               "anyOf": [

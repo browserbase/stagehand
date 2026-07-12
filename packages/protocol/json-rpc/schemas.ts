@@ -12,7 +12,7 @@ export const JSONRPCErrorCodes = {
 } as const;
 
 const JSONRPCParamsSchema = z.union([z.array(z.json()), z.record(z.string(), z.json())]);
-const JSONRPCRequestIdSchema = z.union([z.string(), z.int()]);
+export const JSONRPCRequestIdSchema = z.int().nonnegative();
 const JSONRPCErrorResponseIdSchema = z.union([JSONRPCRequestIdSchema, z.null()]);
 
 export const JSONRPCErrorObjectSchema = z.strictObject({
@@ -21,11 +21,11 @@ export const JSONRPCErrorObjectSchema = z.strictObject({
   data: z.json().optional(),
 });
 
-export const JSONRPCRequestSchema = z.object({
+export const JSONRPCRequestSchema = z.strictObject({
   jsonrpc: z.literal("2.0"),
+  id: JSONRPCRequestIdSchema,
   method: z.string(),
   params: JSONRPCParamsSchema.optional(),
-  id: JSONRPCRequestIdSchema.optional(),
 });
 
 export const JSONRPCNotificationSchema = z.strictObject({
@@ -51,7 +51,9 @@ export const JSONRPCResponseSchema = z.union([
   JSONRPCErrorResponseSchema,
 ]);
 
-export const JSONRPCRequestBatchSchema = z.array(JSONRPCRequestSchema).min(1);
+export const JSONRPCRequestBatchSchema = z
+  .array(z.union([JSONRPCRequestSchema, JSONRPCNotificationSchema]))
+  .min(1);
 export const JSONRPCResponseBatchSchema = z.array(JSONRPCResponseSchema).min(1);
 
 type MethodRegistry = Record<
@@ -123,22 +125,24 @@ export function createRpcSchemas<
   );
 
   return {
-    requestSchema: unionSchemas<RpcRequestOutput<TMethods>, RpcRequestInput<TMethods>>(
+    requestSchema: discriminatedUnionSchemas<RpcRequestOutput<TMethods>, RpcRequestInput<TMethods>>(
       requestSchemas,
     ),
-    notificationSchema: unionSchemas<
+    notificationSchema: discriminatedUnionSchemas<
       RpcNotificationOutput<TNotifications>,
       RpcNotificationInput<TNotifications>
     >(notificationSchemas),
   };
 }
 
-function unionSchemas<TOutput, TInput>(schemas: z.ZodType[]): z.ZodType<TOutput, TInput> {
+function discriminatedUnionSchemas<TOutput, TInput>(
+  schemas: z.ZodObject[],
+): z.ZodType<TOutput, TInput> {
   if (schemas.length === 0) {
     throw new Error("A protocol registry must contain at least one entry");
   }
-  if (schemas.length === 1) {
-    return schemas[0]! as z.ZodType<TOutput, TInput>;
-  }
-  return z.union(schemas as [z.ZodType, z.ZodType, ...z.ZodType[]]) as z.ZodType<TOutput, TInput>;
+  return z.discriminatedUnion("method", schemas as [z.ZodObject, ...z.ZodObject[]]) as z.ZodType<
+    TOutput,
+    TInput
+  >;
 }

@@ -2,19 +2,25 @@ import { describe, expect, it } from "vite-plus/test";
 import { JSONRPCRequestSchema } from "../schemas.ts";
 
 describe("JSONRPCRequestSchema", () => {
-  it("accepts a call with a string id", () => {
-    const request = { jsonrpc: "2.0", id: "req_1", method: "subtract", params: [42, 23] };
-    expect(JSONRPCRequestSchema.parse(request)).toStrictEqual(request);
-  });
-
   it("accepts a call with an integer id", () => {
     const request = { jsonrpc: "2.0", id: 1, method: "subtract", params: [42, 23] };
     expect(JSONRPCRequestSchema.parse(request)).toStrictEqual(request);
   });
 
-  it("accepts a notification without an id", () => {
+  it("rejects a notification without an id", () => {
     const request = { jsonrpc: "2.0", method: "update", params: { enabled: true } };
-    expect(JSONRPCRequestSchema.parse(request)).toStrictEqual(request);
+    expect(() => JSONRPCRequestSchema.parse(request)).toThrow();
+  });
+
+  it("rejects unknown properties", () => {
+    expect(() =>
+      JSONRPCRequestSchema.parse({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "subtract",
+        extra: true,
+      }),
+    ).toThrow();
   });
 
   it("requires jsonrpc", () => {
@@ -80,6 +86,8 @@ describe("JSONRPCRequestSchema", () => {
   });
 
   it.each([
+    ["a string", "1"],
+    ["a negative integer", -1],
     ["a fractional number", 1.5],
     ["null", null],
     ["a boolean", true],

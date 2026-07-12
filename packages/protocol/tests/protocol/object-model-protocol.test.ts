@@ -51,14 +51,14 @@ describe("Stagehand object-model protocol", () => {
   it("exports a JSON-RPC request schema for generated clients", () => {
     const request = StagehandRpcRequestSchema.parse({
       jsonrpc: "2.0",
-      id: "4",
+      id: 4,
       method: "context.pages",
       params: {},
     });
 
     expect(request).toStrictEqual({
       jsonrpc: "2.0",
-      id: "4",
+      id: 4,
       method: "context.pages",
       params: {},
     });

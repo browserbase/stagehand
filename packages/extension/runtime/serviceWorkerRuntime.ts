@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import {
   JSONRPCErrorResponseSchema,
+  JSONRPCRequestIdSchema,
   JSONRPCRequestSchema,
   JSONRPCResponseSchema,
   JSONRPCSuccessResponseSchema,
@@ -170,10 +171,6 @@ async function handleStagehandRPCRequestWithState(
   }
 
   const envelope = envelopeResult.data;
-
-  if (envelope.id === undefined) {
-    return rpcError(null, -32600, "Invalid request", "stagehand.invalid_request");
-  }
 
   const requestResult = StagehandRpcRequestSchema.safeParse(input);
 
@@ -374,14 +371,14 @@ async function waitForTabLoad(
 }
 
 function rpcSuccess(
-  id: string | number,
+  id: number,
   result: z.input<typeof JSONRPCSuccessResponseSchema>["result"],
 ): StagehandRuntimeResponse {
   return JSONRPCSuccessResponseSchema.parse({ jsonrpc: "2.0", id, result });
 }
 
 function rpcError(
-  id: string | number | null,
+  id: number | null,
   code: number,
   message: string,
   type: string,
@@ -518,9 +515,10 @@ class BrowserLoopbackCdpConnection implements LoopbackCdpConnection {
   }
 }
 
-function requestIdFromInput(input: unknown): string | number | null {
+function requestIdFromInput(input: unknown): number | null {
   if (!isRecord(input)) return null;
-  return typeof input.id === "string" || typeof input.id === "number" ? input.id : null;
+  const result = JSONRPCRequestIdSchema.safeParse(input.id);
+  return result.success ? result.data : null;
 }
 
 function callChrome<Result>(

@@ -6,12 +6,12 @@ describe("JSONRPCResponseSchema", () => {
     expect(
       JSONRPCResponseSchema.parse({
         jsonrpc: "2.0",
-        id: "req_1",
+        id: 1,
         result: { ok: true },
       }),
     ).toStrictEqual({
       jsonrpc: "2.0",
-      id: "req_1",
+      id: 1,
       result: { ok: true },
     });
   });
@@ -20,7 +20,7 @@ describe("JSONRPCResponseSchema", () => {
     expect(
       JSONRPCResponseSchema.parse({
         jsonrpc: "2.0",
-        id: "req_1",
+        id: 1,
         error: {
           code: -32602,
           message: "Invalid params",
@@ -29,7 +29,7 @@ describe("JSONRPCResponseSchema", () => {
       }),
     ).toStrictEqual({
       jsonrpc: "2.0",
-      id: "req_1",
+      id: 1,
       error: {
         code: -32602,
         message: "Invalid params",
@@ -42,7 +42,7 @@ describe("JSONRPCResponseSchema", () => {
     expect(() =>
       JSONRPCResponseSchema.parse({
         jsonrpc: "2.0",
-        id: "req_1",
+        id: 1,
       }),
     ).toThrow();
   });
@@ -51,7 +51,7 @@ describe("JSONRPCResponseSchema", () => {
     expect(() =>
       JSONRPCResponseSchema.parse({
         jsonrpc: "2.0",
-        id: "req_1",
+        id: 1,
         result: { ok: true },
         error: {
           code: -32602,
@@ -63,11 +63,11 @@ describe("JSONRPCResponseSchema", () => {
   });
 
   it("requires jsonrpc", () => {
-    expect(() => JSONRPCResponseSchema.parse({ id: "req_1", result: null })).toThrow();
+    expect(() => JSONRPCResponseSchema.parse({ id: 1, result: null })).toThrow();
   });
 
   it.each(["", "1.0", "2", "2.1"])("rejects jsonrpc version %j", (jsonrpc) => {
-    expect(() => JSONRPCResponseSchema.parse({ jsonrpc, id: "req_1", result: null })).toThrow();
+    expect(() => JSONRPCResponseSchema.parse({ jsonrpc, id: 1, result: null })).toThrow();
   });
 
   it.each([
@@ -78,9 +78,9 @@ describe("JSONRPCResponseSchema", () => {
     ["an object", { ok: true }],
     ["an array", [1, "two"]],
   ])("accepts %s as a success result", (_name, result) => {
-    expect(JSONRPCResponseSchema.parse({ jsonrpc: "2.0", id: "req_1", result })).toStrictEqual({
+    expect(JSONRPCResponseSchema.parse({ jsonrpc: "2.0", id: 1, result })).toStrictEqual({
       jsonrpc: "2.0",
-      id: "req_1",
+      id: 1,
       result,
     });
   });
@@ -94,10 +94,11 @@ describe("JSONRPCResponseSchema", () => {
     ["NaN", Number.NaN],
     ["positive Infinity", Number.POSITIVE_INFINITY],
   ])("rejects %s as a success result", (_name, result) => {
-    expect(() => JSONRPCResponseSchema.parse({ jsonrpc: "2.0", id: "req_1", result })).toThrow();
+    expect(() => JSONRPCResponseSchema.parse({ jsonrpc: "2.0", id: 1, result })).toThrow();
   });
 
-  it.each(["req_1", 1])("accepts %j as a success response id", (id) => {
+  it("accepts a nonnegative integer as a success response id", () => {
+    const id = 1;
     expect(JSONRPCResponseSchema.parse({ jsonrpc: "2.0", id, result: null })).toStrictEqual({
       jsonrpc: "2.0",
       id,
@@ -105,11 +106,11 @@ describe("JSONRPCResponseSchema", () => {
     });
   });
 
-  it.each([null, 1.5, true, {}, []])("rejects %j as a success response id", (id) => {
+  it.each(["1", -1, null, 1.5, true, {}, []])("rejects %j as a success response id", (id) => {
     expect(() => JSONRPCResponseSchema.parse({ jsonrpc: "2.0", id, result: null })).toThrow();
   });
 
-  it.each(["req_1", 1, null])("accepts %j as an error response id", (id) => {
+  it.each([1, null])("accepts %j as an error response id", (id) => {
     expect(
       JSONRPCResponseSchema.parse({
         jsonrpc: "2.0",
@@ -123,7 +124,7 @@ describe("JSONRPCResponseSchema", () => {
     });
   });
 
-  it.each([1.5, true, {}, []])("rejects %j as an error response id", (id) => {
+  it.each(["1", -1, 1.5, true, {}, []])("rejects %j as an error response id", (id) => {
     expect(() =>
       JSONRPCResponseSchema.parse({
         jsonrpc: "2.0",

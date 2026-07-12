@@ -60,7 +60,7 @@ describe("Stagehand loopback protocol", () => {
     expect(
       StagehandRpcRequestSchema.parse({
         jsonrpc: "2.0",
-        id: "1",
+        id: 1,
         method: "runtime.configure",
         params: {
           cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
@@ -68,7 +68,7 @@ describe("Stagehand loopback protocol", () => {
       }),
     ).toStrictEqual({
       jsonrpc: "2.0",
-      id: "1",
+      id: 1,
       method: "runtime.configure",
       params: {
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
@@ -78,13 +78,13 @@ describe("Stagehand loopback protocol", () => {
     expect(
       StagehandRpcRequestSchema.parse({
         jsonrpc: "2.0",
-        id: "2",
+        id: 2,
         method: "browser.get_version",
         params: {},
       }),
     ).toStrictEqual({
       jsonrpc: "2.0",
-      id: "2",
+      id: 2,
       method: "browser.get_version",
       params: {},
     });

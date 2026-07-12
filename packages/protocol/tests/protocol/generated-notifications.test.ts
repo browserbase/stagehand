@@ -54,8 +54,10 @@ describe("generated Stagehand notifications", () => {
   it("requires params in the notification envelope", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as GeneratedProtocol;
     const notification = protocol.properties.transport.properties.notification as {
-      required: string[];
+      oneOf: Array<{ required: string[] }>;
     };
-    expect(notification.required).toContain("params");
+
+    expect(notification.oneOf).toHaveLength(1);
+    expect(notification.oneOf[0]?.required).toContain("params");
   });
 });

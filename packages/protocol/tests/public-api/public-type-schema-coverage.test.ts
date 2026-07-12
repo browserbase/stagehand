@@ -135,7 +135,7 @@ function getPublicTypeExports() {
   const configFile = ts.readConfigFile(configPath, (fileName) => ts.sys.readFile(fileName));
   const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, path.dirname(configPath));
   const entry = path.join(root, "packages/server/types/public/index.ts");
-  const program = ts.createProgram([...parsed.fileNames, entry], parsed.options);
+  const program = ts.createProgram([entry], parsed.options);
   const checker = program.getTypeChecker();
   const sourceFile = program.getSourceFile(entry);
 
