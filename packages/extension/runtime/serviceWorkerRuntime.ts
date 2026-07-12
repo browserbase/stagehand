@@ -59,16 +59,28 @@ type ChromeApi = {
   };
 };
 
-type StagehandRPCGlobal = typeof globalThis & {
+type StagehandRPCInstallScope = {
+  __stagehand_runtime?: {
+    name: "stagehand";
+    version: "stagehand.v4";
+  };
   StagehandRPC?: {
     handle(raw: unknown): Promise<StagehandRuntimeResponse>;
   };
-  chrome?: ChromeApi;
 };
+
+type StagehandRPCGlobal = typeof globalThis &
+  StagehandRPCInstallScope & {
+    chrome?: ChromeApi;
+  };
 
 const runtimeGlobal = globalThis as StagehandRPCGlobal;
 
-export function installStagehandRPC(scope: StagehandRPCGlobal = runtimeGlobal): void {
+export function installStagehandRPC(scope: StagehandRPCInstallScope = runtimeGlobal): void {
+  scope.__stagehand_runtime = {
+    name: "stagehand",
+    version: "stagehand.v4",
+  };
   scope.StagehandRPC = {
     handle: handleStagehandRPCRequest,
   };

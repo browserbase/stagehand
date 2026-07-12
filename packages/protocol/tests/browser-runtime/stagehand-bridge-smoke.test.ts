@@ -42,6 +42,7 @@ describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
   it("discovers the Stagehand service worker in a real Chromium session", () => {
     expect(bridge?.serviceWorker.url).toContain("chrome-extension://");
     expect(bridge?.serviceWorker.url).toContain("/service-worker.js");
+    expect(bridge?.serviceWorker.extensionId).toBeTruthy();
   });
 
   it("ping returns a typed response from the service worker runtime", async () => {

@@ -16,7 +16,7 @@
     "../server/version.ts",
     "../extension/build.ts",
     "../extension/src/**/*.ts",
-    "../extension/tests/**/*.ts"
-  ],
-  "exclude": ["../modcdp"]
+    "../extension/tests/**/*.ts",
+    "../modcdp/**/*.ts"
+  ]
 }
