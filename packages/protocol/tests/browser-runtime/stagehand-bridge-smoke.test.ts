@@ -52,6 +52,14 @@ describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
     });
   });
 
+  it("browser.get_version returns the browser version over loopback CDP", async () => {
+    const version = await bridge?.send("browser.get_version", {});
+
+    expect(version?.protocolVersion).toBe("1.3");
+    expect(version?.product).toContain("Chrome/");
+    expect(version?.userAgent).toContain("Chrome/");
+  });
+
   it("ping rejects invalid params before the handler runs", async () => {
     await expect(bridge?.send("ping", { extra: true } as never)).rejects.toThrow();
   });
@@ -97,6 +105,7 @@ async function launchChrome(startingUrl: string): Promise<LaunchedChrome> {
     chromeFlags: [
       ...Launcher.defaultFlags().filter((flag) => flag !== "--disable-extensions"),
       "--enable-unsafe-extension-debugging",
+      "--remote-allow-origins=*",
       "--window-size=1280,800",
       "--headless",
     ],

@@ -65,6 +65,108 @@
                 },
                 "method": {
                   "type": "string",
+                  "const": "runtime.configure"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "cdp_url": {
+                      "type": "string",
+                      "min_length": 1
+                    }
+                  },
+                  "required": ["cdp_url"],
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "runtime.loopback_status"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
+                  "const": "browser.get_version"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additional_properties": false
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  ]
+                },
+                "method": {
+                  "type": "string",
                   "const": "stagehand.init"
                 },
                 "params": {
@@ -1844,6 +1946,99 @@
                 }
               },
               "required": ["ok", "runtime"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "runtime.configure": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "cdp_url": {
+                  "type": "string",
+                  "min_length": 1
+                }
+              },
+              "required": ["cdp_url"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "configured": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["configured"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "runtime.loopback_status": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "configured": {
+                  "type": "boolean"
+                },
+                "connected": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["configured", "connected"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "browser.get_version": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "protocol_version": {
+                  "type": "string"
+                },
+                "product": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "string"
+                },
+                "user_agent": {
+                  "type": "string"
+                },
+                "js_version": {
+                  "type": "string"
+                }
+              },
               "additionalProperties": false
             }
           },
@@ -5158,6 +5353,9 @@
       },
       "required": [
         "ping",
+        "runtime.configure",
+        "runtime.loopback_status",
+        "browser.get_version",
         "stagehand.init",
         "stagehand.close",
         "stagehand.act",

@@ -539,6 +539,12 @@ export const StagehandInitParamsSchema = z
   })
   .strict();
 
+export const RuntimeConfigureParamsSchema = z
+  .object({
+    cdpUrl: z.string().min(1),
+  })
+  .strict();
+
 export const StagehandActParamsSchema = z
   .object({
     input: z.string().min(1),
@@ -606,6 +612,29 @@ export const StagehandPingResultSchema = z
   .object({
     ok: z.literal(true),
     runtime: z.literal("service_worker"),
+  })
+  .strict();
+
+export const RuntimeConfigureResultSchema = z
+  .object({
+    configured: z.literal(true),
+  })
+  .strict();
+
+export const RuntimeLoopbackStatusResultSchema = z
+  .object({
+    configured: z.boolean(),
+    connected: z.boolean(),
+  })
+  .strict();
+
+export const BrowserGetVersionResultSchema = z
+  .object({
+    protocolVersion: z.string().optional(),
+    product: z.string().optional(),
+    revision: z.string().optional(),
+    userAgent: z.string().optional(),
+    jsVersion: z.string().optional(),
   })
   .strict();
 

@@ -11,6 +11,46 @@ import { StagehandMethods, StagehandRpcRequestSchema } from "../../protocol/sche
 type StagehandRuntimeResponse = z.output<typeof JSONRPCResponseSchema>;
 type PageGotoParams = z.output<(typeof StagehandMethods)["page.goto"]["paramsSchema"]>;
 type PageGotoResult = z.output<(typeof StagehandMethods)["page.goto"]["resultSchema"]>;
+type RuntimeConfigureParams = z.output<
+  (typeof StagehandMethods)["runtime.configure"]["paramsSchema"]
+>;
+type BrowserGetVersionResult = z.output<
+  (typeof StagehandMethods)["browser.get_version"]["resultSchema"]
+>;
+
+type JsonObject = Record<string, unknown>;
+
+type CdpResponse<Result> = {
+  id: number;
+  result?: Result;
+  error?: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+};
+
+type PendingCdpRequest = {
+  method: string;
+  resolve: (value: unknown) => void;
+  reject: (reason: Error) => void;
+};
+
+export type LoopbackCdpConnection = {
+  readonly connected: boolean;
+  send<Result = JsonObject>(method: string, params?: JsonObject): Promise<Result>;
+  close(): void;
+};
+
+export type LoopbackCdpConnectionFactory = (cdpUrl: string) => Promise<LoopbackCdpConnection>;
+
+export type StagehandRuntimeDependencies = {
+  loopbackCdpFactory?: LoopbackCdpConnectionFactory;
+};
+
+type StagehandRuntimeState = {
+  loopback?: LoopbackCdpConnection;
+};
 
 type ChromeTab = {
   id?: number;
@@ -75,6 +115,9 @@ type StagehandRPCGlobal = typeof globalThis &
   };
 
 const runtimeGlobal = globalThis as StagehandRPCGlobal;
+const defaultRuntimeState: StagehandRuntimeState = {};
+const defaultLoopbackCdpFactory: LoopbackCdpConnectionFactory = (cdpUrl) =>
+  BrowserLoopbackCdpConnection.connect(cdpUrl);
 
 export function installStagehandRPC(scope: StagehandRPCInstallScope = runtimeGlobal): void {
   scope.__stagehand_runtime = {
@@ -87,6 +130,26 @@ export function installStagehandRPC(scope: StagehandRPCInstallScope = runtimeGlo
 }
 
 export async function handleStagehandRPCRequest(raw: unknown): Promise<StagehandRuntimeResponse> {
+  return handleStagehandRPCRequestWithState(raw, defaultRuntimeState, {
+    loopbackCdpFactory: defaultLoopbackCdpFactory,
+  });
+}
+
+export function createStagehandRPCHandler(
+  dependencies: StagehandRuntimeDependencies = {},
+): (raw: unknown) => Promise<StagehandRuntimeResponse> {
+  const state: StagehandRuntimeState = {};
+  return (raw) =>
+    handleStagehandRPCRequestWithState(raw, state, {
+      loopbackCdpFactory: dependencies.loopbackCdpFactory ?? defaultLoopbackCdpFactory,
+    });
+}
+
+async function handleStagehandRPCRequestWithState(
+  raw: unknown,
+  state: StagehandRuntimeState,
+  dependencies: Required<StagehandRuntimeDependencies>,
+): Promise<StagehandRuntimeResponse> {
   let input: unknown;
 
   try {
@@ -134,6 +197,34 @@ export async function handleStagehandRPCRequest(raw: unknown): Promise<Stagehand
             }),
           ),
         );
+      case "runtime.configure":
+        return rpcSuccess(
+          request.id,
+          encodeWireValue(
+            StagehandMethods["runtime.configure"].resultSchema.parse(
+              await configureLoopback(request.params, state, dependencies),
+            ),
+          ),
+        );
+      case "runtime.loopback_status":
+        return rpcSuccess(
+          request.id,
+          encodeWireValue(
+            StagehandMethods["runtime.loopback_status"].resultSchema.parse({
+              configured: state.loopback !== undefined,
+              connected: state.loopback?.connected ?? false,
+            }),
+          ),
+        );
+      case "browser.get_version":
+        return rpcSuccess(
+          request.id,
+          encodeWireValue(
+            StagehandMethods["browser.get_version"].resultSchema.parse(
+              await requireLoopback(state).send<BrowserGetVersionResult>("Browser.getVersion"),
+            ),
+          ),
+        );
       case "page.goto":
         return rpcSuccess(
           request.id,
@@ -149,7 +240,11 @@ export async function handleStagehandRPCRequest(raw: unknown): Promise<Stagehand
           "stagehand.unknown_command",
         );
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof StagehandRuntimeError) {
+      return rpcError(request.id, error.code, error.message, error.type);
+    }
+
     return rpcError(request.id, -32603, "Internal error", "stagehand.internal_error");
   }
 }
@@ -181,6 +276,48 @@ async function gotoActivePage(params: PageGotoParams): Promise<PageGotoResult> {
     url: currentTab.url ?? params.url,
     ...(currentTab.title === undefined ? {} : { title: currentTab.title }),
   };
+}
+
+async function configureLoopback(
+  params: RuntimeConfigureParams,
+  state: StagehandRuntimeState,
+  dependencies: Required<StagehandRuntimeDependencies>,
+): Promise<{ configured: true }> {
+  const previousLoopback = state.loopback;
+  state.loopback = undefined;
+  previousLoopback?.close();
+
+  try {
+    state.loopback = await dependencies.loopbackCdpFactory(params.cdpUrl);
+  } catch (error) {
+    throw new StagehandRuntimeError(
+      `Failed to configure Stagehand loopback CDP: ${errorMessage(error)}`,
+      -32002,
+      "stagehand.loopback_configure_failed",
+    );
+  }
+
+  return { configured: true };
+}
+
+function requireLoopback(state: StagehandRuntimeState): LoopbackCdpConnection {
+  if (!state.loopback) {
+    throw new StagehandRuntimeError(
+      "Stagehand loopback CDP is not configured",
+      -32000,
+      "stagehand.loopback_not_configured",
+    );
+  }
+
+  if (!state.loopback.connected) {
+    throw new StagehandRuntimeError(
+      "Stagehand loopback CDP is disconnected",
+      -32001,
+      "stagehand.loopback_disconnected",
+    );
+  }
+
+  return state.loopback;
 }
 
 async function getActiveTab(chromeApi: ChromeApi): Promise<ChromeTab> {
@@ -260,6 +397,127 @@ function rpcError(
   });
 }
 
+class StagehandRuntimeError extends Error {
+  constructor(
+    message: string,
+    readonly code: number,
+    readonly type: string,
+  ) {
+    super(message);
+    this.name = "StagehandRuntimeError";
+  }
+}
+
+class BrowserLoopbackCdpConnection implements LoopbackCdpConnection {
+  #nextId = 1;
+  #pending = new Map<number, PendingCdpRequest>();
+
+  private constructor(private readonly socket: WebSocket) {
+    this.socket.addEventListener("message", (event) => {
+      this.handleMessage(event.data).catch((error: unknown) => {
+        for (const pending of this.#pending.values()) {
+          pending.reject(
+            error instanceof Error ? error : new Error("Failed to handle loopback CDP message"),
+          );
+        }
+        this.#pending.clear();
+      });
+    });
+
+    this.socket.addEventListener("close", () => {
+      this.rejectPending("Loopback CDP websocket closed");
+    });
+
+    this.socket.addEventListener("error", () => {
+      this.rejectPending("Loopback CDP websocket error");
+    });
+  }
+
+  get connected(): boolean {
+    return this.socket.readyState === WebSocket.OPEN;
+  }
+
+  static async connect(cdpUrl: string): Promise<BrowserLoopbackCdpConnection> {
+    const socket = new WebSocket(cdpUrl);
+
+    await new Promise<void>((resolve, reject) => {
+      socket.addEventListener("open", () => resolve(), { once: true });
+      socket.addEventListener(
+        "error",
+        () => reject(new Error("Loopback CDP websocket failed to open")),
+        { once: true },
+      );
+    });
+
+    return new BrowserLoopbackCdpConnection(socket);
+  }
+
+  async send<Result = JsonObject>(method: string, params: JsonObject = {}): Promise<Result> {
+    if (!this.connected) {
+      throw new StagehandRuntimeError(
+        "Stagehand loopback CDP is disconnected",
+        -32001,
+        "stagehand.loopback_disconnected",
+      );
+    }
+
+    const id = this.#nextId++;
+    const message = { id, method, params };
+
+    const response = await new Promise<Result>((resolve, reject) => {
+      this.#pending.set(id, {
+        method,
+        resolve: (value) => resolve(value as Result),
+        reject,
+      });
+
+      this.socket.send(JSON.stringify(message));
+    });
+
+    return response;
+  }
+
+  close(): void {
+    this.socket.close();
+  }
+
+  private async handleMessage(data: unknown): Promise<void> {
+    const text = await messageDataToString(data);
+    const message = JSON.parse(text) as Partial<CdpResponse<unknown>>;
+
+    if (typeof message.id !== "number") {
+      return;
+    }
+
+    const pending = this.#pending.get(message.id);
+    if (!pending) {
+      return;
+    }
+
+    this.#pending.delete(message.id);
+
+    if (message.error) {
+      pending.reject(
+        new StagehandRuntimeError(
+          message.error.message,
+          message.error.code,
+          "stagehand.loopback_cdp_error",
+        ),
+      );
+      return;
+    }
+
+    pending.resolve(message.result);
+  }
+
+  private rejectPending(message: string): void {
+    for (const pending of this.#pending.values()) {
+      pending.reject(new StagehandRuntimeError(message, -32001, "stagehand.loopback_disconnected"));
+    }
+    this.#pending.clear();
+  }
+}
+
 function requestIdFromInput(input: unknown): string | number | null {
   if (!isRecord(input)) return null;
   return typeof input.id === "string" || typeof input.id === "number" ? input.id : null;
@@ -300,4 +558,25 @@ function requireTabId(tab: ChromeTab): number {
   }
 
   return tab.id;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function messageDataToString(data: unknown): Promise<string> {
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (data instanceof ArrayBuffer) {
+    return new TextDecoder().decode(data);
+  }
+
+  if (data instanceof Blob) {
+    return data.text();
+  }
+
+  const view = data as ArrayBufferView;
+  return new TextDecoder().decode(view);
 }

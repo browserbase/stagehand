@@ -1,6 +1,7 @@
 import { createRpcSchemas } from "./json-rpc/schemas.ts";
 import {
   ActResultSchema,
+  BrowserGetVersionResultSchema,
   ContextNewPageParamsSchema,
   ContextPagesResultSchema,
   EmptyParamsSchema,
@@ -19,6 +20,9 @@ import {
   PageRefSchema,
   PageTitleResultSchema,
   PageUrlResultSchema,
+  RuntimeConfigureParamsSchema,
+  RuntimeConfigureResultSchema,
+  RuntimeLoopbackStatusResultSchema,
   StagehandActParamsSchema,
   StagehandCloseResultSchema,
   StagehandExtractParamsSchema,
@@ -34,6 +38,18 @@ export const StagehandMethods = {
   ping: {
     paramsSchema: EmptyParamsSchema,
     resultSchema: StagehandPingResultSchema,
+  },
+  "runtime.configure": {
+    paramsSchema: RuntimeConfigureParamsSchema,
+    resultSchema: RuntimeConfigureResultSchema,
+  },
+  "runtime.loopback_status": {
+    paramsSchema: EmptyParamsSchema,
+    resultSchema: RuntimeLoopbackStatusResultSchema,
+  },
+  "browser.get_version": {
+    paramsSchema: EmptyParamsSchema,
+    resultSchema: BrowserGetVersionResultSchema,
   },
   "stagehand.init": {
     paramsSchema: StagehandInitParamsSchema,

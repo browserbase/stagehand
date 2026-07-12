@@ -4,15 +4,20 @@ import {
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
-import { PageGotoParamsSchema, StagehandLogEventSchema } from "../../schemas.js";
+import { EmptyParamsSchema, PageGotoParamsSchema, StagehandLogEventSchema } from "../../schemas.js";
 
 type StagehandRequest = z.output<typeof StagehandRpcRequestSchema>;
 type PageGotoRequest = Extract<StagehandRequest, { method: "page.goto" }>;
+type BrowserGetVersionRequest = Extract<StagehandRequest, { method: "browser.get_version" }>;
 type StagehandNotification = z.output<typeof StagehandRpcNotificationSchema>;
 type LogEventNotification = Extract<StagehandNotification, { method: "stagehand.log_event" }>;
 
 expectTypeOf<PageGotoRequest["method"]>().toEqualTypeOf<"page.goto">();
 expectTypeOf<PageGotoRequest["params"]>().toEqualTypeOf<z.output<typeof PageGotoParamsSchema>>();
+expectTypeOf<BrowserGetVersionRequest["method"]>().toEqualTypeOf<"browser.get_version">();
+expectTypeOf<BrowserGetVersionRequest["params"]>().toEqualTypeOf<
+  z.output<typeof EmptyParamsSchema>
+>();
 expectTypeOf<LogEventNotification["method"]>().toEqualTypeOf<"stagehand.log_event">();
 expectTypeOf<LogEventNotification["params"]>().toEqualTypeOf<
   z.output<typeof StagehandLogEventSchema>
