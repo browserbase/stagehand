@@ -34,6 +34,8 @@ import type {
   LocatorTextContentResultSchema,
   ModelConfigObjectSchema,
   ModelConfigSchema,
+  ModelNameSchema,
+  ModelProviderSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageCloseResultSchema,
@@ -84,6 +86,8 @@ export type AzureApiKeyModelConfigObject = z.infer<typeof AzureApiKeyModelConfig
 export type AzureModelConfigObject = z.infer<typeof AzureModelConfigObjectSchema>;
 export type ModelConfigObject = z.infer<typeof ModelConfigObjectSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+export type ModelName = z.infer<typeof ModelNameSchema>;
+export type ModelProvider = z.infer<typeof ModelProviderSchema>;
 export type Action = z.infer<typeof ActionSchema>;
 export type ActOptions = z.infer<typeof ActOptionsSchema>;
 export type ActResultData = z.infer<typeof ActResultDataSchema>;

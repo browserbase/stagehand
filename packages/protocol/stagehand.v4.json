@@ -20,16 +20,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -52,16 +45,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -90,16 +76,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -122,16 +101,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -154,16 +126,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -224,16 +189,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -256,16 +214,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -297,16 +248,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -336,16 +280,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -375,16 +312,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -407,16 +337,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -439,16 +362,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -475,16 +391,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -531,16 +440,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -568,16 +470,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -605,16 +500,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -642,16 +530,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -707,16 +588,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -751,16 +625,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -792,16 +659,9 @@
                   "const": "2.0"
                 },
                 "id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "method": {
                   "type": "string",
@@ -834,9 +694,9 @@
               "type": "object",
               "properties": {
                 "model_name": {
-                  "type": "string",
                   "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                  "example": "openai/gpt-5.4-mini"
+                  "example": "openai/gpt-5.4-mini",
+                  "ref": "#/$defs/ModelName"
                 },
                 "api_key": {
                   "description": "API key for the model provider",
@@ -875,6 +735,11 @@
               },
               "required": ["model_name", "provider", "auth", "provider_options"],
               "additionalProperties": false
+            },
+            "ModelName": {
+              "type": "string",
+              "pattern": "^(openai|bedrock|anthropic|google|vertex|xai|azure|groq|cerebras|togetherai|mistral|deepseek|perplexity|ollama|gateway)\\/[\\s\\S]{1,}$",
+              "description": "Model name with a required provider prefix (for example, 'openai/gpt-5')"
             },
             "GoogleServiceAccountCredentials": {
               "type": "object",
@@ -1020,9 +885,9 @@
               "type": "object",
               "properties": {
                 "model_name": {
-                  "type": "string",
                   "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                  "example": "openai/gpt-5.4-mini"
+                  "example": "openai/gpt-5.4-mini",
+                  "ref": "#/$defs/ModelName"
                 },
                 "base_url": {
                   "description": "Base URL for the model provider",
@@ -1128,9 +993,9 @@
               "type": "object",
               "properties": {
                 "model_name": {
-                  "type": "string",
                   "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                  "example": "openai/gpt-5.4-mini"
+                  "example": "openai/gpt-5.4-mini",
+                  "ref": "#/$defs/ModelName"
                 },
                 "api_key": {
                   "description": "API key for the model provider",
@@ -1170,9 +1035,9 @@
               "type": "object",
               "properties": {
                 "model_name": {
-                  "type": "string",
                   "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                  "example": "openai/gpt-5.4-mini"
+                  "example": "openai/gpt-5.4-mini",
+                  "ref": "#/$defs/ModelName"
                 },
                 "api_key": {
                   "description": "API key for the model provider",
@@ -1789,16 +1654,9 @@
               "$ref": "#/$defs/__schema0"
             },
             "id": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                }
-              ]
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             }
           },
           "required": ["jsonrpc", "result", "id"],
@@ -1866,16 +1724,9 @@
             "id": {
               "anyOf": [
                 {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 {
                   "type": "null"
@@ -2103,9 +1954,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -2144,6 +1995,11 @@
                   },
                   "required": ["model_name", "provider", "auth", "provider_options"],
                   "additionalProperties": false
+                },
+                "ModelName": {
+                  "type": "string",
+                  "pattern": "^(openai|bedrock|anthropic|google|vertex|xai|azure|groq|cerebras|togetherai|mistral|deepseek|perplexity|ollama|gateway)\\/[\\s\\S]{1,}$",
+                  "description": "Model name with a required provider prefix (for example, 'openai/gpt-5')"
                 },
                 "GoogleServiceAccountCredentials": {
                   "type": "object",
@@ -2289,9 +2145,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "base_url": {
                       "description": "Base URL for the model provider",
@@ -2397,9 +2253,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -2439,9 +2295,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -2608,9 +2464,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -2649,6 +2505,11 @@
                   },
                   "required": ["model_name", "provider", "auth", "provider_options"],
                   "additionalProperties": false
+                },
+                "ModelName": {
+                  "type": "string",
+                  "pattern": "^(openai|bedrock|anthropic|google|vertex|xai|azure|groq|cerebras|togetherai|mistral|deepseek|perplexity|ollama|gateway)\\/[\\s\\S]{1,}$",
+                  "description": "Model name with a required provider prefix (for example, 'openai/gpt-5')"
                 },
                 "GoogleServiceAccountCredentials": {
                   "type": "object",
@@ -2794,9 +2655,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "base_url": {
                       "description": "Base URL for the model provider",
@@ -2902,9 +2763,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -2944,9 +2805,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -3435,9 +3296,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -3476,6 +3337,11 @@
                   },
                   "required": ["model_name", "provider", "auth", "provider_options"],
                   "additionalProperties": false
+                },
+                "ModelName": {
+                  "type": "string",
+                  "pattern": "^(openai|bedrock|anthropic|google|vertex|xai|azure|groq|cerebras|togetherai|mistral|deepseek|perplexity|ollama|gateway)\\/[\\s\\S]{1,}$",
+                  "description": "Model name with a required provider prefix (for example, 'openai/gpt-5')"
                 },
                 "GoogleServiceAccountCredentials": {
                   "type": "object",
@@ -3621,9 +3487,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "base_url": {
                       "description": "Base URL for the model provider",
@@ -3729,9 +3595,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -3771,9 +3637,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -4230,9 +4096,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -4271,6 +4137,11 @@
                   },
                   "required": ["model_name", "provider", "auth", "provider_options"],
                   "additionalProperties": false
+                },
+                "ModelName": {
+                  "type": "string",
+                  "pattern": "^(openai|bedrock|anthropic|google|vertex|xai|azure|groq|cerebras|togetherai|mistral|deepseek|perplexity|ollama|gateway)\\/[\\s\\S]{1,}$",
+                  "description": "Model name with a required provider prefix (for example, 'openai/gpt-5')"
                 },
                 "GoogleServiceAccountCredentials": {
                   "type": "object",
@@ -4416,9 +4287,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "base_url": {
                       "description": "Base URL for the model provider",
@@ -4524,9 +4395,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",
@@ -4566,9 +4437,9 @@
                   "type": "object",
                   "properties": {
                     "model_name": {
-                      "type": "string",
                       "description": "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
-                      "example": "openai/gpt-5.4-mini"
+                      "example": "openai/gpt-5.4-mini",
+                      "ref": "#/$defs/ModelName"
                     },
                     "api_key": {
                       "description": "API key for the model provider",

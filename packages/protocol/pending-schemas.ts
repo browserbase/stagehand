@@ -9,6 +9,8 @@ import {
   ExtractResultSchema,
   GoogleServiceAccountAuthSchema,
   ModelConfigSchema,
+  ModelNameSchema,
+  ModelProviderSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageLocatorSchema,
@@ -35,6 +37,8 @@ export {
   LocatorSchema,
   ModelConfigObjectSchema,
   ModelConfigSchema,
+  ModelNameSchema,
+  ModelProviderSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageLocatorSchema,
@@ -46,8 +50,6 @@ export {
   VertexModelProviderOptionsSchema,
   VertexProviderOptionsSchema,
 } from "./schemas.ts";
-
-export const AvailableModelSchema = z.string().meta({ id: "AvailableModel" });
 
 export const ApiKeyAuthSchema = z
   .object({
@@ -75,10 +77,6 @@ export const AnthropicClientOptionsSchema = z
   })
   .strict()
   .meta({ id: "AnthropicClientOptions" });
-
-export const ModelProviderSchema = z
-  .enum(["openai", "anthropic", "cerebras", "groq", "google"])
-  .meta({ id: "ModelProvider" });
 
 export const ThinkingEffortSchema = z
   .enum(["none", "low", "medium", "high", "xhigh", "max"])
@@ -278,7 +276,6 @@ export const ClientOptionsBaseSchema = z
     organization: z.string().optional(),
     thinkingBudget: z.number().optional(),
     thinkingEffort: ThinkingEffortSchema.optional(),
-    temperature: z.number().optional(),
     headers: z.record(z.string(), z.string()).optional(),
     reasoningEffort: z.string().optional(),
   })
@@ -592,7 +589,7 @@ export const V3OptionsSchema = z
 
 export const SessionStartRequestSchema = z
   .object({
-    modelName: z.string().meta({
+    modelName: ModelNameSchema.meta({
       description: "Model name to use for AI operations",
       example: "openai/gpt-5.4-mini",
     }),

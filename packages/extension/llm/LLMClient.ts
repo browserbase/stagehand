@@ -3,16 +3,14 @@ import {
   embedMany,
   generateImage,
   generateSpeech,
-  generateObject,
   generateText,
-  streamObject,
   streamText,
   transcribe,
 } from "ai";
 import type { LanguageModel } from "ai";
 import type { z } from "zod/v4";
 import { LogLine } from "../types/public/logs.js";
-import { AvailableModel } from "../types/public/model.js";
+import { ModelName } from "../types/public/model.js";
 import type { ChatCompletionOptionsSchema } from "./schemas.js";
 
 export interface ChatMessage {
@@ -83,7 +81,6 @@ export type LLMResponse = {
 export interface CreateChatCompletionOptions {
   options: ChatCompletionOptionsInput;
   logger: (message: LogLine) => void;
-  retries?: number;
 }
 
 /** Simple usage shape if your LLM returns usage tokens. */
@@ -105,13 +102,13 @@ export interface LLMParsedResponse<T> {
 
 export abstract class LLMClient {
   public abstract type: "openai" | "anthropic" | "cerebras" | "groq" | (string & {});
-  public modelName: AvailableModel | (string & {});
+  public modelName: ModelName;
   public hasVision = false;
   // Compile-only bridge: provider SDK option types diverge from V3's shared options.
   public clientOptions: unknown;
   public userProvidedInstructions?: string;
 
-  constructor(modelName: AvailableModel, userProvidedInstructions?: string) {
+  constructor(modelName: ModelName, userProvidedInstructions?: string) {
     this.modelName = modelName;
     this.userProvidedInstructions = userProvidedInstructions;
   }
@@ -128,10 +125,8 @@ export abstract class LLMClient {
   // Overload 2: When response_model is not provided, returns T (defaults to LLMResponse)
   abstract createChatCompletion<T = LLMResponse>(options: CreateChatCompletionOptions): Promise<T>;
 
-  public generateObject = generateObject;
   public generateText = generateText;
   public streamText = streamText;
-  public streamObject = streamObject;
   public generateImage = generateImage;
   public embed = embed;
   public embedMany = embedMany;

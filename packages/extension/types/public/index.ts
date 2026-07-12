@@ -4,11 +4,11 @@ export * as Api from "./api.js";
 export type { BrowserbaseRegion } from "./schemas.js";
 export * from "./clipboard.js";
 export {
-  AvailableModelSchema,
   ClipboardOptionsSchema,
   ClipboardPasteOptionsSchema,
   LocatorCoordinatesSchema,
   LocatorSchema,
+  ModelNameSchema,
   PageLocatorSchema,
   V3FunctionNameSchema,
   VariablePrimitiveSchema,

@@ -67,6 +67,12 @@ expectTypeOf<SchemaInput<typeof ChatCompletionOptionsSchema>["llmRequestId"]>().
   string | undefined
 >();
 expectTypeOf<
+  SchemaOutput<typeof ChatCompletionOptionsSchema>["maxRetries"]
+>().toEqualTypeOf<number>();
+expectTypeOf<SchemaInput<typeof ChatCompletionOptionsSchema>["maxRetries"]>().toEqualTypeOf<
+  number | undefined
+>();
+expectTypeOf<
   NonNullable<SchemaOutput<typeof ChatCompletionOptionsSchema>["image"]>
 >().not.toHaveProperty("buffer");
 

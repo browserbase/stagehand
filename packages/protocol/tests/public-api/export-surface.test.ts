@@ -15,13 +15,13 @@ import { publicErrorTypes } from "./public-error-types.test.js";
 
 const publicApiShape = {
   Api: Stagehand.Api,
-  AvailableModelSchema: Stagehand.AvailableModelSchema,
   ClipboardOptionsSchema: Stagehand.ClipboardOptionsSchema,
   ClipboardPasteOptionsSchema: Stagehand.ClipboardPasteOptionsSchema,
   ConsoleMessage: Stagehand.ConsoleMessage,
   LOG_LEVEL_NAMES: Stagehand.LOG_LEVEL_NAMES,
   LocatorCoordinatesSchema: Stagehand.LocatorCoordinatesSchema,
   LocatorSchema: Stagehand.LocatorSchema,
+  ModelNameSchema: Stagehand.ModelNameSchema,
   PageLocatorSchema: Stagehand.PageLocatorSchema,
   Response: Stagehand.Response,
   V3FunctionName: Stagehand.V3FunctionName,

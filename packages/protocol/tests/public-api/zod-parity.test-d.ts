@@ -12,7 +12,6 @@ import {
   ApiKeyResolvedProviderClientOptionsSchema,
   AzureApiKeyClientOptionsSchema,
   AzureEntraClientOptionsSchema,
-  AvailableModelSchema,
   ClientOptionsBaseSchema,
   AzureApiKeyModelConfigObjectSchema,
   AzureEntraIdAuthSchema,
@@ -48,6 +47,7 @@ import {
   LocatorSchema,
   ModelAuthSchema,
   ModelConfigSchema,
+  ModelNameSchema,
   ModelProviderSchema,
   ModelProviderOptionsSchema,
   NavigateRequestSchema,
@@ -115,8 +115,8 @@ type InputKeys<TSchema> = keyof SchemaInput<TSchema>;
 
 // Public SDK/schema parity. These assertions should fail whenever a public
 // TypeScript type and its matching public Zod schema drift apart.
-expectTypeOf<SchemaOutput<typeof AvailableModelSchema>>().toEqualTypeOf<Public.AvailableModel>();
-expectTypeOf<SchemaInput<typeof AvailableModelSchema>>().toEqualTypeOf<Public.AvailableModel>();
+expectTypeOf<SchemaOutput<typeof ModelNameSchema>>().toEqualTypeOf<Public.ModelName>();
+expectTypeOf<SchemaInput<typeof ModelNameSchema>>().toEqualTypeOf<Public.ModelName>();
 
 expectTypeOf<
   SchemaOutput<typeof OpenAIClientOptionsSchema>

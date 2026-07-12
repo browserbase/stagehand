@@ -8,13 +8,13 @@ import { LLMClient } from "../llm/LLMClient.js";
 import { ObserveHandlerParams, SupportedUnderstudyAction } from "../types/private/handlers.js";
 import { EncodedId } from "../types/private/internal.js";
 import { Action } from "../types/public/methods.js";
-import { AvailableModel, ClientOptions, ModelConfiguration } from "../types/public/model.js";
+import { ClientOptions, ModelConfiguration, ModelName } from "../types/public/model.js";
 import { ObserveTimeoutError } from "../types/public/sdkErrors.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 
 export class ObserveHandler {
   private readonly llmClient: LLMClient;
-  private readonly defaultModelName: AvailableModel;
+  private readonly defaultModelName: ModelName;
   private readonly defaultClientOptions: ClientOptions;
   private readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
   private readonly systemPrompt: string;
@@ -31,7 +31,7 @@ export class ObserveHandler {
 
   constructor(
     llmClient: LLMClient,
-    defaultModelName: AvailableModel,
+    defaultModelName: ModelName,
     defaultClientOptions: ClientOptions,
     resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
     systemPrompt?: string,

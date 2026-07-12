@@ -71,11 +71,7 @@ export const ChatMessageSchema: z.ZodType<ChatMessage, ChatMessage> = z
 export const ChatCompletionOptionsSchema = z
   .object({
     messages: z.array(ChatMessageSchema),
-    temperature: z.number().optional(),
-    top_p: z.number().optional(),
-    frequency_penalty: z.number().optional(),
-    presence_penalty: z.number().optional(),
-    // TODO: replace V3's in-process Buffer screenshot path with a wire-safe
+    // Preserve the V3 screenshot flag while binary image data uses a worker-safe
     // image payload such as base64 plus media_type.
     image: z
       .object({
@@ -91,9 +87,10 @@ export const ChatCompletionOptionsSchema = z
       .optional(),
     tools: z.array(LLMToolSchema).optional(),
     tool_choice: z.union([z.literal("auto"), z.literal("none"), z.literal("required")]).optional(),
-    maxOutputTokens: z.number().optional(),
+    maxRetries: z.number().int().nonnegative().default(2),
     llmRequestId: z.string().default(() => globalThis.crypto.randomUUID()),
   })
+  .strict()
   .required({ messages: true });
 
 export const LLMResponseSchema: z.ZodType<LLMResponse, LLMResponse> = z

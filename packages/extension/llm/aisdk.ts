@@ -1,20 +1,10 @@
-import {
-  ModelMessage,
-  generateObject,
-  generateText,
-  ImagePart,
-  NoObjectGeneratedError,
-  TextPart,
-  ToolSet,
-  Tool,
-  LanguageModel,
-} from "ai";
+import { generateText, NoObjectGeneratedError, Output } from "ai";
+import type { ImagePart, LanguageModel, ModelMessage, TextPart, Tool, ToolSet } from "ai";
 import type { JSONValue } from "@ai-sdk/provider";
-import { ChatCompletion } from "openai/resources";
 import { z } from "zod/v4";
 import { LogLine } from "../types/public/logs.js";
-import { AvailableModel, ClientOptions } from "../types/public/model.js";
-import { CreateChatCompletionOptions, LLMClient } from "./LLMClient.js";
+import { ClientOptions, ModelName } from "../types/public/model.js";
+import { CreateChatCompletionOptions, LLMClient, type LLMResponse } from "./LLMClient.js";
 import { ChatCompletionOptionsSchema } from "./schemas.js";
 import { anthropicFallbacksOptions } from "./anthropicOptions.js";
 import { FlowLogger, extractLlmPromptSummary } from "../flowlogger/FlowLogger.js";
@@ -36,18 +26,18 @@ export class AISdkClient extends LLMClient {
 
   constructor({
     model,
+    modelName,
     logger,
     clientOptions,
   }: {
     model: LanguageModel;
+    modelName: ModelName;
     logger?: (message: LogLine) => void;
     clientOptions?: ClientOptions;
   }) {
-    const modelId =
-      typeof model === "string" ? model : ((model as { modelId?: string }).modelId ?? "unknown");
-    super(modelId as AvailableModel);
+    super(modelName);
     this.model = model;
-    this.modelId = modelId;
+    this.modelId = modelName;
     this.logger = logger;
     if (clientOptions) {
       this.clientOptions = clientOptions;
@@ -58,7 +48,7 @@ export class AISdkClient extends LLMClient {
     return this.model;
   }
 
-  async createChatCompletion<T = ChatCompletion>({
+  async createChatCompletion<T = LLMResponse>({
     options: optionsInitial,
   }: CreateChatCompletionOptions): Promise<T> {
     const options = ChatCompletionOptionsSchema.parse(optionsInitial);
@@ -152,14 +142,8 @@ export class AISdkClient extends LLMClient {
       };
     });
 
-    let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.modelId.includes("gpt-5");
     const isCodex = this.modelId.includes("codex");
-    const isOpus47 =
-      this.modelId === "anthropic/claude-opus-4-7" || this.modelId === "claude-opus-4-7";
-    // Kimi models only support temperature=1
-    const isKimi = this.modelId.includes("kimi");
-    const temperature = isKimi ? 1 : isOpus47 ? undefined : options.temperature;
 
     // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
     const isGPT5SubModel = this.modelId.includes("gpt-5.") && !isCodex;
@@ -225,7 +209,7 @@ export class AISdkClient extends LLMClient {
     }
 
     if (options.response_model) {
-      // Log LLM request for generateObject (extract)
+      // Log LLM request for structured generation (extract)
       const promptSummary = extractLlmPromptSummary(options.messages, {
         hasSchema: true,
       });
@@ -246,14 +230,29 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         });
       }
 
+      let objectResponse: Awaited<ReturnType<typeof generateText>>;
       try {
-        objectResponse = await generateObject({
-          model: this.model,
-          messages: formattedMessages,
-          schema: options.response_model.schema,
-          temperature,
-          ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {}),
-        });
+        let invalidOutputRetriesRemaining = options.maxRetries;
+        while (true) {
+          try {
+            objectResponse = await generateText({
+              model: this.model,
+              messages: formattedMessages,
+              output: Output.object({
+                name: options.response_model.name,
+                schema: options.response_model.schema,
+              }),
+              maxRetries: options.maxRetries,
+              ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {}),
+            });
+            break;
+          } catch (err) {
+            if (!NoObjectGeneratedError.isInstance(err) || invalidOutputRetriesRemaining === 0) {
+              throw err;
+            }
+            invalidOutputRetriesRemaining -= 1;
+          }
+        }
       } catch (err) {
         // Log error response to maintain request/response pairing
         FlowLogger.logLlmResponse({
@@ -301,7 +300,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       }
 
       const result = {
-        data: objectResponse.object,
+        data: objectResponse.output,
         usage: {
           prompt_tokens: objectResponse.usage.inputTokens ?? 0,
           completion_tokens: objectResponse.usage.outputTokens ?? 0,
@@ -313,11 +312,11 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         },
       } as T;
 
-      // Log LLM response for generateObject
+      // Log LLM response for structured generation
       FlowLogger.logLlmResponse({
         requestId: llmRequestId,
         model: this.modelId,
-        output: JSON.stringify(objectResponse.object),
+        output: JSON.stringify(objectResponse.output),
         inputTokens: objectResponse.usage.inputTokens,
         outputTokens: objectResponse.usage.outputTokens,
       });
@@ -329,7 +328,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         auxiliary: {
           response: {
             value: JSON.stringify({
-              object: objectResponse.object,
+              object: objectResponse.output,
               usage: objectResponse.usage,
               finishReason: objectResponse.finishReason,
               // Omit request and response properties that might contain images
@@ -381,7 +380,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
                 ? "none"
                 : "auto"
             : undefined,
-        temperature,
+        maxRetries: options.maxRetries,
       });
     } catch (err) {
       // Log error response to maintain request/response pairing

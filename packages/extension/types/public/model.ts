@@ -7,10 +7,10 @@ import {
   AzureApiKeyClientOptionsSchema,
   AzureEntraClientOptionsSchema,
   AzureResolvedProviderClientOptionsSchema,
-  AvailableModelSchema,
   ClientOptionsBaseSchema,
   ClientOptionsSchema,
   ModelConfigSchema,
+  ModelNameSchema,
   ModelProviderOptionsSchema,
   ModelProviderSchema,
   LLMToolSchema,
@@ -76,7 +76,7 @@ export type ModelProviderOptions = z.infer<typeof ModelProviderOptionsSchema>;
 
 export type LLMTool = z.infer<typeof LLMToolSchema>;
 
-export type AvailableModel = z.infer<typeof AvailableModelSchema>;
+export type ModelName = z.infer<typeof ModelNameSchema>;
 
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;
 

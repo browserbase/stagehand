@@ -9,7 +9,7 @@ import type * as Stagehand from "../../../server/types/public/index.js";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type ExpectedExportedTypes = {
   // Types from model.ts
-  AvailableModel: Stagehand.AvailableModel;
+  ModelName: Stagehand.ModelName;
   ModelProvider: Stagehand.ModelProvider;
   VertexProviderOptions: Stagehand.VertexProviderOptions;
   AzureProviderOptions: Stagehand.AzureProviderOptions;

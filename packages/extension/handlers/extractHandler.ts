@@ -9,7 +9,7 @@ import { LLMClient } from "../llm/LLMClient.js";
 import { ExtractHandlerParams } from "../types/private/handlers.js";
 import { EncodedId, ZodPathSegments } from "../types/private/internal.js";
 import { defaultExtractSchema, pageTextSchema } from "../types/public/methods.js";
-import { AvailableModel, ClientOptions, ModelConfiguration } from "../types/public/model.js";
+import { ClientOptions, ModelConfiguration, ModelName } from "../types/public/model.js";
 import { StagehandInvalidArgumentError, ExtractTimeoutError } from "../types/public/sdkErrors.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 
@@ -43,7 +43,7 @@ type ExtractionResponse<T extends z.ZodObject> = ExtractionResponseBase & z.infe
 
 export class ExtractHandler {
   private readonly llmClient: LLMClient;
-  private readonly defaultModelName: AvailableModel;
+  private readonly defaultModelName: ModelName;
   private readonly defaultClientOptions: ClientOptions;
   private readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
   private readonly systemPrompt: string;
@@ -60,7 +60,7 @@ export class ExtractHandler {
 
   constructor(
     llmClient: LLMClient,
-    defaultModelName: AvailableModel,
+    defaultModelName: ModelName,
     defaultClientOptions: ClientOptions,
     resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
     systemPrompt?: string,

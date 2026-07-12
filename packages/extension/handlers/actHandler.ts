@@ -10,7 +10,7 @@ import { captureHybridSnapshot, diffCombinedTrees } from "../understudy/a11y/sna
 import { LLMClient } from "../llm/LLMClient.js";
 import { SupportedUnderstudyAction } from "../types/private/index.js";
 import { EncodedId } from "../types/private/internal.js";
-import { AvailableModel, ClientOptions, ModelConfiguration } from "../types/public/model.js";
+import { ClientOptions, ModelConfiguration, ModelName } from "../types/public/model.js";
 import type { Variables } from "../types/public/variables.js";
 import type { Page } from "../understudy/page.js";
 import { performUnderstudyMethod, waitForDomNetworkQuiet } from "./handlerUtils/actHandlerUtils.js";
@@ -32,7 +32,7 @@ function actResult(result: ActResultData): ActResult {
 
 export class ActHandler {
   private readonly llmClient: LLMClient;
-  private readonly defaultModelName: AvailableModel;
+  private readonly defaultModelName: ModelName;
   private readonly defaultClientOptions: ClientOptions;
   private readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
   private readonly systemPrompt: string;
@@ -50,7 +50,7 @@ export class ActHandler {
 
   constructor(
     llmClient: LLMClient,
-    defaultModelName: AvailableModel,
+    defaultModelName: ModelName,
     defaultClientOptions: ClientOptions,
     resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
     systemPrompt?: string,

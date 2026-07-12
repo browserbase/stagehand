@@ -1,5 +1,32 @@
 import { z } from "zod/v4";
 
+export const ModelProviderSchema = z
+  .enum([
+    "openai",
+    "bedrock",
+    "anthropic",
+    "google",
+    "vertex",
+    "xai",
+    "azure",
+    "groq",
+    "cerebras",
+    "togetherai",
+    "mistral",
+    "deepseek",
+    "perplexity",
+    "ollama",
+    "gateway",
+  ])
+  .meta({ id: "ModelProvider" });
+
+export const ModelNameSchema = z
+  .templateLiteral([ModelProviderSchema, "/", z.string().min(1)])
+  .meta({
+    id: "ModelName",
+    description: "Model name with a required provider prefix (for example, 'openai/gpt-5')",
+  });
+
 export const VariablePrimitiveSchema = z
   .union([z.string(), z.number(), z.boolean()])
   .meta({ id: "VariablePrimitive" });
@@ -220,7 +247,7 @@ export const AzureModelProviderOptionsSchema = z
 
 const ModelConfigBaseSchema = z
   .object({
-    modelName: z.string().meta({
+    modelName: ModelNameSchema.meta({
       description: "Model name string with provider prefix (e.g., 'openai/gpt-5-nano')",
       example: "openai/gpt-5.4-mini",
     }),

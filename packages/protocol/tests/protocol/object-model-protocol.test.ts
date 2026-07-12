@@ -6,13 +6,22 @@ describe("Stagehand object-model protocol", () => {
   it("defines stagehand init as a JSON-RPC method", () => {
     const params = StagehandMethods["stagehand.init"].paramsSchema.parse({
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      model: { provider: "openai", modelName: "gpt-5-mini" },
+      model: { provider: "openai", modelName: "openai/gpt-5-mini" },
     });
 
     expect(params).toStrictEqual({
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      model: { provider: "openai", modelName: "gpt-5-mini" },
+      model: { provider: "openai", modelName: "openai/gpt-5-mini" },
     });
+  });
+
+  it("rejects model names without a provider prefix", () => {
+    expect(() =>
+      StagehandMethods["stagehand.init"].paramsSchema.parse({
+        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+        model: { provider: "openai", modelName: "gpt-5-mini" },
+      }),
+    ).toThrow();
   });
 
   it("requires page ids for page methods", () => {
