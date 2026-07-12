@@ -1,7 +1,7 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
 import { v3Logger } from "../logger.js";
-import { CdpConnection, CDPSessionLike } from "./cdp.js";
+import { CdpConnection, CDPSessionLike, type CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
 import { installV3PiercerIntoSession } from "./piercer.js";
 import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
@@ -164,12 +164,17 @@ export class V3Context {
       apiClient?: StagehandAPIClient | null;
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
       cdpHeaders?: Record<string, string>;
+      websocketFactory?: CdpWebSocketFactory;
     },
   ): Promise<V3Context> {
     const connectTask = async () => {
-      const conn = await CdpConnection.connect(wsUrl, {
-        headers: opts?.cdpHeaders,
-      });
+      const conn = opts?.websocketFactory
+        ? await CdpConnection.connectWithFactory(wsUrl, opts.websocketFactory, {
+            headers: opts.cdpHeaders,
+          })
+        : await CdpConnection.connect(wsUrl, {
+            headers: opts?.cdpHeaders,
+          });
       const ctx = new V3Context(
         conn,
         opts?.env ?? "LOCAL",

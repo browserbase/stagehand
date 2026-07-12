@@ -60,20 +60,59 @@ describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
     expect(version?.userAgent).toContain("Chrome/");
   });
 
+  it("context.pages returns PageRefs from the understudy context", async () => {
+    const pages = await requireBridge(bridge).send("context.pages", {});
+
+    expect(pages.length).toBeGreaterThanOrEqual(1);
+    expect(pages[0]?.pageId).toBeTruthy();
+    expect(pages[0]?.url).toContain(requireFixtureServer(fixtureServer).url);
+  });
+
+  it("context.new_page returns a PageRef from the understudy context", async () => {
+    const page = await requireBridge(bridge).send("context.new_page", {
+      url: "about:blank",
+    });
+
+    expect(page.pageId).toBeTruthy();
+    expect(page.url).toBe("about:blank");
+  });
+
   it("ping rejects invalid params before the handler runs", async () => {
     await expect(bridge?.send("ping", { extra: true } as never)).rejects.toThrow();
   });
 
-  it("page.goto returns a typed response from the service worker runtime", async () => {
+  it("routes page methods through real PageRefs in a browser session", async () => {
+    const activeBridge = requireBridge(bridge);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const pages = await activeBridge.send("context.pages", {});
+    const page = pages[0] ?? (await activeBridge.send("context.new_page", {}));
+
     await expect(
-      bridge?.send("page.goto", {
-        pageId: "active-page",
-        url: fixtureServer?.url ?? "",
+      activeBridge.send("page.goto", {
+        pageId: page.pageId,
+        url: activeFixtureServer.url,
       }),
     ).resolves.toStrictEqual({
-      pageId: "active-page",
-      url: fixtureServer?.url,
+      pageId: page.pageId,
+      url: activeFixtureServer.url,
+    });
+
+    await expect(activeBridge.send("page.url", { pageId: page.pageId })).resolves.toStrictEqual({
+      url: activeFixtureServer.url,
+    });
+    await expect(activeBridge.send("page.title", { pageId: page.pageId })).resolves.toStrictEqual({
       title: "Stagehand Smoke",
+    });
+  });
+
+  it("closes a throwaway PageRef in a browser session", async () => {
+    const activeBridge = requireBridge(bridge);
+    const page = await activeBridge.send("context.new_page", {
+      url: "about:blank",
+    });
+
+    await expect(activeBridge.send("page.close", { pageId: page.pageId })).resolves.toStrictEqual({
+      closed: true,
     });
   });
 
@@ -90,6 +129,22 @@ describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
     expect("cdp" in (bridge as object)).toBe(false);
   });
 });
+
+function requireBridge(value: StagehandBridge | undefined): StagehandBridge {
+  if (!value) {
+    throw new Error("Stagehand bridge was not initialized");
+  }
+
+  return value;
+}
+
+function requireFixtureServer(value: FixtureServer | undefined): FixtureServer {
+  if (!value) {
+    throw new Error("Fixture server was not initialized");
+  }
+
+  return value;
+}
 
 async function launchChrome(startingUrl: string): Promise<LaunchedChrome> {
   const chromePath = getChromePath();

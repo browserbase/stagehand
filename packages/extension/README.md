@@ -1,5 +1,5 @@
 # Server
 
-Stagehand server/runtime code that runs inside the extension service worker.
+Stagehand application code that runs inside the extension service worker.
 
-This package owns the extension service-worker host, controllers, services, repositories, session, schemas, and V3/V4-derived source areas.
+`app.ts` composes the RPC router, controllers, services, and browser transports. The extension package owns the service-worker entry point that initializes the app.
