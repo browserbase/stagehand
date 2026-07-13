@@ -31,7 +31,7 @@ Your Browserbase API key for authentication
 | Flag | Description |
 |------|-------------|
 | `--proxies` | Enable Browserbase proxies for the session |
-| `--advancedStealth` | Enable Browserbase Advanced Stealth (Scale Plan only) |
+| `--verified` | Enable Browserbase Verified Identity (Scale Plan only) |
 | `--keepAlive` | Enable Browserbase Keep Alive Session |
 | `--contextId <contextId>` | Specify a Browserbase Context ID to use |
 | `--persist [boolean]` | Whether to persist the Browserbase context (default: true) |
@@ -149,13 +149,13 @@ Enable Browserbase proxies for IP rotation and geo-location testing.
 ```
 </Tab>
 
-<Tab title="Advanced Stealth">
-Enable advanced anti-detection features for enhanced stealth browsing.
+<Tab title="Verified">
+Enable Browserbase Verified Identity so browsing sessions are recognized as legitimate by supported bot protection systems.
 
 <Panel>
-[Learn more about Advanced Stealth](https://docs.browserbase.com/features/stealth-mode#advanced-stealth-mode)
+[Learn more about Verified Identity](https://docs.browserbase.com/platform/identity/overview)
 
-**Note:** Advanced Stealth is only available for Scale Plan users.
+**Note:** Verified Identity is only available for Scale Plan users.
 </Panel>
 
 ```json
@@ -163,7 +163,7 @@ Enable advanced anti-detection features for enhanced stealth browsing.
   "mcpServers": {
     "browserbase": {
       "command": "npx",
-      "args": ["@browserbasehq/mcp", "--advancedStealth"],
+      "args": ["@browserbasehq/mcp", "--verified"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
         "GEMINI_API_KEY": "your_gemini_api_key"
@@ -337,7 +337,7 @@ Configure custom host and port for SHTTP transport.
 
 <Accordion title="Security - What security measures should I implement?">
 - Store API keys securely in environment variables
-- Use Advanced Stealth for sensitive operations
+- Use Verified Identity for sensitive operations
 - Implement proper session management
 - Rotate cookies and contexts regularly
 </Accordion>
