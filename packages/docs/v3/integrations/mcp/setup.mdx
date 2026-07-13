@@ -67,7 +67,7 @@ Pass your Browserbase API key as an HTTP authorization header: `Authorization: B
 | `modelApiKey`     | string         | Required when `modelName` is non-default   |
 | `keepAlive`       | boolean string | `"true"` or `"false"`                      |
 | `proxies`         | boolean string | `"true"` or `"false"`                      |
-| `advancedStealth` | boolean string | `"true"` or `"false"`                      |
+| `verified`        | boolean string | `"true"` or `"false"`                      |
 
 <Warning>
   Boolean query values must be exact strings: `"true"` or `"false"`.
@@ -134,7 +134,7 @@ Command-line flags are only available when running the server locally (`npx @bro
 | Flag | Description |
 |------|-------------|
 | `--proxies` | Enable Browserbase proxies for the session |
-| `--advancedStealth` | Enable Browserbase Advanced Stealth (Scale Plan only) |
+| `--verified` | Enable Browserbase Verified Identity (Scale Plan only) |
 | `--keepAlive` | Enable Browserbase Keep Alive Session |
 | `--contextId <contextId>` | Specify a Browserbase Context ID to use |
 | `--persist [boolean]` | Whether to persist the Browserbase context (default: true) |
