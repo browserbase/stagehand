@@ -175,14 +175,17 @@ async function summarizeDiscovery(): Promise<DiscoverySummary> {
  * Verdict rules:
  *   fail  — zero provider keys, OR defaults.env=browserbase with both BB
  *           vars missing, OR discovery threw.
- *   warn  — at least one provider key present, but Braintrust missing or
- *           BB partial (only one of two BB vars set).
+ *   warn  — at least one provider key present, but no experiment backend
+ *           (both Braintrust and LangSmith missing), the selected primary
+ *           backend's key is missing, or BB is partial (only one of two BB
+ *           vars set).
  *   ok    — otherwise.
  */
 function computeVerdict(
   keys: EnvSnapshot,
   config: ConfigSummary,
   discovery: DiscoverySummary,
+  tracePrimary: string,
 ): { verdict: Verdict; reasons: string[] } {
   const reasons: string[] = [];
 
@@ -224,13 +227,28 @@ function computeVerdict(
       "Browserbase is partially configured (one of API key / project ID is missing).",
     );
   }
-  if (keys.braintrust.state === "missing") {
+  const noExperimentBackend =
+    keys.braintrust.state === "missing" && keys.langsmith.state === "missing";
+  if (noExperimentBackend) {
     reasons.push(
-      "BRAINTRUST_API_KEY missing — `experiments` commands will fail.",
+      "No experiment backend configured (BRAINTRUST_API_KEY and LANGSMITH_API_KEY both missing) — `experiments` commands will fail.",
     );
   }
 
-  if (partialBB || keys.braintrust.state === "missing") {
+  const primaryBackendMissing =
+    (tracePrimary === "braintrust" && keys.braintrust.state === "missing") ||
+    (tracePrimary === "langsmith" && keys.langsmith.state === "missing");
+  if (primaryBackendMissing) {
+    const requiredKey =
+      tracePrimary === "braintrust"
+        ? "BRAINTRUST_API_KEY"
+        : "LANGSMITH_API_KEY";
+    reasons.push(
+      `EVAL_TRACE_PRIMARY=${tracePrimary} but ${requiredKey} missing.`,
+    );
+  }
+
+  if (partialBB || noExperimentBackend || primaryBackendMissing) {
     return { verdict: "warn", reasons };
   }
 
@@ -246,7 +264,13 @@ async function buildReport(entryDir: string): Promise<DoctorReport> {
   const config = summarizeConfig(entryDir);
   const discovery = await summarizeDiscovery();
   const keys = snapshotEnv();
-  const { verdict, reasons } = computeVerdict(keys, config, discovery);
+  const tracePrimary = resolveKey("EVAL_TRACE_PRIMARY").value || "braintrust";
+  const { verdict, reasons } = computeVerdict(
+    keys,
+    config,
+    discovery,
+    tracePrimary,
+  );
   return { verdict, runtime, config, discovery, keys, reasons };
 }
 
@@ -342,6 +366,9 @@ function renderHuman(report: DoctorReport): void {
       r.keys.braintrust,
       "(needed for `experiments`)",
     ),
+  );
+  console.log(
+    keyRow("LANGSMITH_API_KEY", r.keys.langsmith, "(needed for `experiments`)"),
   );
   console.log("");
 

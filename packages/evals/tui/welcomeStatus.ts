@@ -45,6 +45,7 @@ export type EnvSnapshot = {
   google: GoogleKeyEntry;
   browserbase: BrowserbaseKeyEntry;
   braintrust: ProviderKeyEntry;
+  langsmith: ProviderKeyEntry;
 };
 
 // ---------------------------------------------------------------------------
@@ -167,6 +168,7 @@ export function snapshotEnv(): EnvSnapshot {
     google: googleEntry(),
     browserbase: browserbaseEntry(),
     braintrust: providerEntry("BRAINTRUST_API_KEY"),
+    langsmith: providerEntry("LANGSMITH_API_KEY"),
   };
 }
 
