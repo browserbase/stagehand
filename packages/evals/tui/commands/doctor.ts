@@ -243,6 +243,13 @@ function computeVerdict(
   const primaryBackendMissing =
     (tracePrimary === "braintrust" && keys.braintrust.state === "missing") ||
     (tracePrimary === "langsmith" && keys.langsmith.state === "missing");
+  const tracePrimaryUnrecognized =
+    tracePrimary !== "braintrust" && tracePrimary !== "langsmith";
+  if (tracePrimaryUnrecognized) {
+    reasons.push(
+      `EVAL_TRACE_PRIMARY="${tracePrimary}" is not recognized (expected "braintrust" or "langsmith").`,
+    );
+  }
   if (primaryBackendMissing) {
     const requiredKey =
       tracePrimary === "braintrust"
@@ -266,6 +273,7 @@ function computeVerdict(
   if (
     partialBB ||
     keys.braintrust.state === "missing" ||
+    tracePrimaryUnrecognized ||
     primaryBackendMissing ||
     langSmithTracingDisabled
   ) {
@@ -285,7 +293,9 @@ async function buildReport(entryDir: string): Promise<DoctorReport> {
   const discovery = await summarizeDiscovery();
   const keys = snapshotEnv();
   const tracePrimary = resolveKey("EVAL_TRACE_PRIMARY").value || "braintrust";
-  const langSmithTracing = resolveKey("LANGSMITH_TRACING").value;
+  // This is a runtime behavior gate, so it must mirror langSmithTracingEnabled
+  // and deliberately bypass resolveKey's package-.env fallback.
+  const langSmithTracing = process.env.LANGSMITH_TRACING ?? "";
   const { verdict, reasons } = computeVerdict(
     keys,
     config,
