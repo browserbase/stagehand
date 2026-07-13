@@ -186,6 +186,7 @@ function computeVerdict(
   config: ConfigSummary,
   discovery: DiscoverySummary,
   tracePrimary: string,
+  langSmithTracing: string,
 ): { verdict: Verdict; reasons: string[] } {
   const reasons: string[] = [];
 
@@ -233,6 +234,10 @@ function computeVerdict(
     reasons.push(
       "No experiment backend configured (BRAINTRUST_API_KEY and LANGSMITH_API_KEY both missing) — `experiments` commands will fail.",
     );
+  } else if (keys.braintrust.state === "missing") {
+    reasons.push(
+      "BRAINTRUST_API_KEY missing — `experiments` commands require Braintrust (LangSmith is not yet wired into them).",
+    );
   }
 
   const primaryBackendMissing =
@@ -248,7 +253,22 @@ function computeVerdict(
     );
   }
 
-  if (partialBB || noExperimentBackend || primaryBackendMissing) {
+  const langSmithTracingDisabled =
+    tracePrimary === "langsmith" &&
+    keys.langsmith.state === "set" &&
+    langSmithTracing !== "true";
+  if (langSmithTracingDisabled) {
+    reasons.push(
+      'EVAL_TRACE_PRIMARY=langsmith but LANGSMITH_TRACING is not "true" — tracing is disabled.',
+    );
+  }
+
+  if (
+    partialBB ||
+    keys.braintrust.state === "missing" ||
+    primaryBackendMissing ||
+    langSmithTracingDisabled
+  ) {
     return { verdict: "warn", reasons };
   }
 
@@ -265,11 +285,13 @@ async function buildReport(entryDir: string): Promise<DoctorReport> {
   const discovery = await summarizeDiscovery();
   const keys = snapshotEnv();
   const tracePrimary = resolveKey("EVAL_TRACE_PRIMARY").value || "braintrust";
+  const langSmithTracing = resolveKey("LANGSMITH_TRACING").value;
   const { verdict, reasons } = computeVerdict(
     keys,
     config,
     discovery,
     tracePrimary,
+    langSmithTracing,
   );
   return { verdict, runtime, config, discovery, keys, reasons };
 }

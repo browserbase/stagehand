@@ -15,6 +15,9 @@ const PROVIDER_KEYS = [
   "BB_API_KEY",
   "BB_PROJECT_ID",
   "BRAINTRUST_API_KEY",
+  "LANGSMITH_API_KEY",
+  "LANGSMITH_TRACING",
+  "EVAL_TRACE_PRIMARY",
 ];
 
 const savedEnv: Record<string, string | undefined> = {};
@@ -144,6 +147,32 @@ describe("handleDoctor verdicts", () => {
     const { report } = await runDoctorJson(entryDir);
     expect(report.verdict).toBe("warn");
     expect(report.reasons.join(" ")).toMatch(/BRAINTRUST_API_KEY missing/);
+  });
+
+  it("warn — LangSmith configured but experiments still require Braintrust", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    process.env.LANGSMITH_API_KEY = "ls-test";
+    process.env.LANGSMITH_TRACING = "true";
+    process.env.EVAL_TRACE_PRIMARY = "langsmith";
+    __resetPackageEnvCacheForTests();
+    const entryDir = makeTempEntryDir({ env: "local", trials: 3 });
+    const { report } = await runDoctorJson(entryDir);
+    expect(report.verdict).toBe("warn");
+    expect(report.reasons.join(" ")).toMatch(
+      /BRAINTRUST_API_KEY missing.*experiments.*require Braintrust/,
+    );
+  });
+
+  it("warn — LangSmith primary tracing is disabled without its flag", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    process.env.BRAINTRUST_API_KEY = "bt-test";
+    process.env.LANGSMITH_API_KEY = "ls-test";
+    process.env.EVAL_TRACE_PRIMARY = "langsmith";
+    __resetPackageEnvCacheForTests();
+    const entryDir = makeTempEntryDir({ env: "local", trials: 3 });
+    const { report } = await runDoctorJson(entryDir);
+    expect(report.verdict).toBe("warn");
+    expect(report.reasons.join(" ")).toMatch(/LANGSMITH_TRACING.*not "true"/);
   });
 
   it("warn — Browserbase partially configured", async () => {

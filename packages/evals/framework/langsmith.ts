@@ -4,8 +4,9 @@ export function hasLangSmithApiKey(): boolean {
   return Boolean(process.env.LANGSMITH_API_KEY);
 }
 
-export const langSmithTracingEnabled =
-  hasLangSmithApiKey() && process.env.LANGSMITH_TRACING === "true";
+export function langSmithTracingEnabled(): boolean {
+  return hasLangSmithApiKey() && process.env.LANGSMITH_TRACING === "true";
+}
 
 export function resolveTraceTransport(): "native" | "otel" {
   return process.env.EVAL_TRACE_TRANSPORT === "otel" ? "otel" : "native";
@@ -22,7 +23,7 @@ export function assertLangSmithReady(): void {
       "LangSmith tracing was selected, but LANGSMITH_API_KEY is not set.",
     );
   }
-  if (process.env.LANGSMITH_TRACING !== "true") {
+  if (!langSmithTracingEnabled()) {
     throw new Error(
       'LangSmith tracing was selected, but LANGSMITH_TRACING is not set to "true".',
     );
