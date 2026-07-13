@@ -45,4 +45,5 @@ export enum SupportedUnderstudyAction {
   HOVER = "hover",
   DOUBLE_CLICK = "doubleClick",
   DRAG_AND_DROP = "dragAndDrop",
+  SET_INPUT_FILES = "setInputFiles",
 }

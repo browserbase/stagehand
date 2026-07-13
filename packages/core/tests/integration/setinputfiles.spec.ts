@@ -6,6 +6,7 @@ import crypto from "crypto";
 import type { Page as V3Page } from "../../lib/v3/understudy/page.js";
 import { V3 } from "../../lib/v3/v3.js";
 import { v3TestConfig } from "./v3.config.js";
+import { performUnderstudyMethod } from "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js";
 
 const FILE_UPLOAD_IFRAME_URL =
   "https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads-iframe/";
@@ -130,6 +131,40 @@ test.describe("tests setInputFiles()", () => {
     await page.locator(IMAGES_INPUT).setInputFiles([first, second]);
     await expectUploadSuccess(page, IMAGES_SUCCESS, "Images uploaded!");
     await expectFileCount(page, IMAGES_INPUT, 2);
+  });
+
+  test("understudy action executor uploads multiple files", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(FILE_UPLOAD_V2_URL);
+    const first = await createFixture("action-image-a", "A", ".png");
+    const second = await createFixture("action-image-b", "B", ".jpeg");
+
+    await performUnderstudyMethod(
+      page,
+      page.mainFrame(),
+      "setInputFiles",
+      `xpath=//*[@id="imagesUpload"]`,
+      [first, second],
+      30_000,
+    );
+
+    await expectUploadSuccess(page, IMAGES_SUCCESS, "Images uploaded!");
+    await expectFileCount(page, IMAGES_INPUT, 2);
+  });
+
+  test("act uploads a file supplied through variables", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(FILE_UPLOAD_V2_URL);
+    const resume = await createFixture("act-resume", "resume", ".pdf");
+
+    const result = await v3.act("upload %resume% to the resume field", {
+      variables: { resume },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.actions[0]?.method).toBe("setInputFiles");
+    await expectUploadSuccess(page, RESUME_SUCCESS, "Resume uploaded!");
+    await expectFileCount(page, RESUME_INPUT, 1);
   });
 
   test("locator uploads audio via payload object", async () => {

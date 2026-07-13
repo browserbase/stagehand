@@ -136,12 +136,40 @@ const METHOD_HANDLER_MAP: Record<
   click: clickElement,
   doubleClick,
   dragAndDrop,
+  setInputFiles,
   nextChunk: scrollToNextChunk,
   prevChunk: scrollToPreviousChunk,
   selectOptionFromDropdown: selectOption,
   selectOption: selectOption,
   hover: hover,
 };
+
+async function setInputFiles(
+  ctx: UnderstudyMethodHandlerContext,
+): Promise<void> {
+  const { locator, xpath, args } = ctx;
+  if (args.length === 0 || args.some((file) => file.trim().length === 0)) {
+    throw new UnderstudyCommandException(
+      "setInputFiles(): requires at least one non-empty file path",
+    );
+  }
+
+  try {
+    await locator.setInputFiles(args.length === 1 ? args[0] : [...args]);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    v3Logger({
+      category: "action",
+      message: "error setting input files",
+      level: 0,
+      auxiliary: {
+        error: { value: msg, type: "string" },
+        xpath: { value: xpath, type: "string" },
+      },
+    });
+    throw new UnderstudyCommandException(msg, e);
+  }
+}
 
 export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
   const { locator, xpath, args } = ctx;

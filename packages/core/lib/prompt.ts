@@ -155,7 +155,11 @@ You will be given:
 2. a hierarchical accessibility tree showing the semantic structure of the page. The tree is a hybrid of the DOM and the accessibility tree.
 
 Return an array of elements that match the instruction if they exist, otherwise return an empty array.
-When returning elements, include the appropriate method from the supported actions list.${actionsString}${variablesString}. When choosing non-left click actions, provide right or middle as the argument.
+When returning elements, include the appropriate method from the supported actions list.${actionsString}${variablesString}.
+When the instruction asks to find, locate, upload, or attach files on an "input, file" element, choose setInputFiles (not click) so the element can be targeted for programmatic upload.
+Put each file path or matching %variableName% placeholder in the arguments array when the instruction supplies them or when matching variables are available; otherwise return an empty arguments array.
+Do not choose click for a file input when the goal is to upload a file.
+When choosing non-left click actions, provide right or middle as the argument.
 
 Each element in the accessibility tree has an ID in square brackets, like [0-18372]. The ID has two parts: frame ordinal and backend node ID. Always copy the complete ID exactly as shown inside the brackets into elementId, including the frame ordinal and hyphen. For example, if the tree shows [0-18372], return elementId "0-18372"; never return only "18372".`;
   const content = observeSystemPrompt.replace(/\s+/g, " ");
@@ -231,6 +235,7 @@ export function buildActPrompt(
     If the user is asking to scroll to a position on the page, e.g., 'halfway' or 0.75, etc, you must return the argument formatted as the correct percentage, e.g., '50%' or '75%', etc.
     If the user is asking to scroll to the next chunk/previous chunk, choose the nextChunk/prevChunk method. No arguments are required here.
     If the action implies a key press, e.g., 'press enter', 'press a', 'press space', etc., always choose the press method with the appropriate key as argument — e.g. 'a', 'Enter', 'Space'. Do not choose a click action on an on-screen keyboard. Capitalize the first character like 'Enter', 'Tab', 'Escape' only for special keys. 
+    If the action asks to upload or attach files on an "input, file" element, choose setInputFiles and put each file path or matching variable placeholder in the arguments array. Do not choose click for a file input when the goal is to upload a file. Do not choose setInputFiles for find/locate-only instructions.
   
   Dropdown Specific Instructions:
     For interacting with dropdowns, there are two specific cases that you need to handle. 
@@ -271,6 +276,7 @@ export function buildStepTwoPrompt(
   If the user is asking to scroll to a position on the page, e.g., 'halfway' or 0.75, etc, you must return the argument formatted as the correct percentage, e.g., '50%' or '75%', etc.
   If the user is asking to scroll to the next chunk/previous chunk, choose the nextChunk/prevChunk method. No arguments are required here.
   If the action implies a key press, e.g., 'press enter', 'press a', 'press space', etc., always choose the press method with the appropriate key as argument — e.g. 'a', 'Enter', 'Space'. Do not choose a click action on an on-screen keyboard. Capitalize the first character like 'Enter', 'Tab', 'Escape' only for special keys. 
+  If the action asks to upload or attach files on an "input, file" element, choose setInputFiles and put each file path or matching variable placeholder in the arguments array. Do not choose click for a file input when the goal is to upload a file. Do not choose setInputFiles for find/locate-only instructions.
   `;
 
   instruction += buildActVariablesPrompt(variables);

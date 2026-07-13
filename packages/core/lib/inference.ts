@@ -304,7 +304,7 @@ export async function observe({
             z
               .string()
               .describe(
-                "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
+                "the arguments to pass to the method. For example, click takes no arguments, fill takes the value to fill, and setInputFiles takes one or more file paths or variable placeholders.",
               ),
           ),
         }),
@@ -449,7 +449,7 @@ export async function act({
           z
             .string()
             .describe(
-              "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
+              "the arguments to pass to the method. For example, click takes no arguments, fill takes the value to fill, and setInputFiles takes one or more file paths or variable placeholders.",
             ),
         ),
       })

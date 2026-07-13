@@ -56,6 +56,7 @@ With `act`, breaking complex actions into small, single-step actions works best.
 | Press | `press <key> in the search field` |
 | Scroll | `scroll to <position>` |
 | Select from dropdown | `select <value> from the dropdown` |
+| Upload files | `upload %resume% to the resume field` |
 </Accordion>
 
 ### Return value of `act()`?
@@ -116,6 +117,27 @@ await stagehand.act("choose 'Peach' from the favorite color dropdown", {
   timeout: 10000
 });
 ```
+
+### Upload files
+
+Pass local file paths through variables when uploading files. Stagehand targets the
+file input directly, without opening the operating system file picker.
+
+```typescript
+await stagehand.act("upload %resume% to the resume field", {
+  variables: { resume: "/path/to/resume.pdf" },
+});
+```
+
+Relative paths work too, including extensionless files such as `fixtures/resume`,
+as long as the path resolves to a real file on the machine running Stagehand.
+On Browserbase, file uploads always execute locally on your machine, so include
+the variable in the instruction (for example `%resume%`) or name the variable in
+the instruction text (for example `upload resume to the resume field`).
+
+The AI action accepts file paths only. To upload in-memory payloads containing a
+buffer, filename, and MIME type, use
+[`locator.setInputFiles()`](/v3/references/locator#setinputfiles) directly.
 
 ### Server-side Caching
 

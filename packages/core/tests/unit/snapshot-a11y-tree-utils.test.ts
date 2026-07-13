@@ -5,6 +5,7 @@ import type {
   A11yOptions,
 } from "../../lib/v3/types/private/snapshot.js";
 import {
+  appendMissingFileInputNodes,
   buildHierarchicalTree,
   decorateRoles,
   extractUrlFromAXNode,
@@ -108,6 +109,29 @@ describe("decorateRoles", () => {
     });
   });
 
+  it("overrides role to 'input, file' when input type metadata is present", () => {
+    const opts: A11yOptions = {
+      ...defaultOpts,
+      tagNameMap: { "enc-10": "input" },
+      inputTypeMap: { "enc-10": "file" },
+      scrollableMap: {},
+    };
+    const nodes = [
+      makeAxNode({
+        backendDOMNodeId: 10,
+        role: axString("button"),
+        name: axString("Choose File"),
+      }),
+    ];
+
+    const decorated = decorateRoles(nodes, opts);
+    expect(decorated[0]).toMatchObject({
+      encodedId: "enc-10",
+      role: "input, file",
+      name: "Choose File",
+    });
+  });
+
   it("falls back when encoding fails", () => {
     const opts: A11yOptions = {
       ...defaultOpts,
@@ -180,6 +204,49 @@ describe("buildHierarchicalTree", () => {
 
     const { tree } = await buildHierarchicalTree(nodes, opts);
     expect(tree).toEqual([]);
+  });
+
+  it("keeps structural file inputs so observe context retains upload targets", async () => {
+    const nodes: A11yNode[] = [
+      {
+        role: "generic",
+        name: "",
+        nodeId: "upload",
+        encodedId: "upload",
+        parentId: undefined,
+        childIds: [],
+      },
+    ];
+
+    const { tree } = await buildHierarchicalTree(nodes, {
+      ...opts,
+      tagNameMap: { upload: "input, file" },
+    });
+    expect(tree).toHaveLength(1);
+    expect(tree[0]?.encodedId).toBe("upload");
+    expect(tree[0]?.role).toBe("input, file");
+  });
+
+  it("keeps structural file inputs when input type metadata is present", async () => {
+    const nodes: A11yNode[] = [
+      {
+        role: "generic",
+        name: "",
+        nodeId: "upload",
+        encodedId: "upload",
+        parentId: undefined,
+        childIds: [],
+      },
+    ];
+
+    const { tree } = await buildHierarchicalTree(nodes, {
+      ...opts,
+      tagNameMap: { upload: "input" },
+      inputTypeMap: { upload: "file" },
+    });
+    expect(tree).toHaveLength(1);
+    expect(tree[0]?.encodedId).toBe("upload");
+    expect(tree[0]?.role).toBe("input, file");
   });
 
   it("promotes select/combobox tag names for structural nodes", async () => {
@@ -306,6 +373,60 @@ describe("buildHierarchicalTree", () => {
 
     const { tree } = await buildHierarchicalTree(nodes, opts);
     expect(tree).toEqual([]);
+  });
+});
+
+describe("appendMissingFileInputNodes", () => {
+  it("synthesizes a file input omitted from the accessibility tree", () => {
+    const tree = appendMissingFileInputNodes([], [], {
+      ...defaultOpts,
+      tagNameMap: { "enc-42": "input, file" },
+    });
+
+    expect(tree).toEqual([
+      {
+        role: "input, file",
+        nodeId: "synthetic-file-enc-42",
+        encodedId: "enc-42",
+      },
+    ]);
+  });
+
+  it("does not synthesize ignored file inputs", () => {
+    const tree = appendMissingFileInputNodes([], [], {
+      ...defaultOpts,
+      tagNameMap: { "enc-42": "input, file" },
+      decode: () => 42,
+      isIgnoredBackendNode: (backendNodeId) => backendNodeId === 42,
+    });
+
+    expect(tree).toEqual([]);
+  });
+
+  it("only synthesizes file inputs inside the scoped subtree", () => {
+    const opts: A11yOptions = {
+      ...defaultOpts,
+      tagNameMap: {
+        "enc-10": "section",
+        "enc-11": "input, file",
+        "enc-12": "input, file",
+      },
+      xpathMap: {
+        "enc-10": "/html[1]/body[1]/section[1]",
+        "enc-11": "/html[1]/body[1]/section[1]/input[1]",
+        "enc-12": "/html[1]/body[1]/input[1]",
+      },
+    };
+
+    const tree = appendMissingFileInputNodes([], [], opts, 10);
+
+    expect(tree).toEqual([
+      {
+        role: "input, file",
+        nodeId: "synthetic-file-enc-11",
+        encodedId: "enc-11",
+      },
+    ]);
   });
 });
 

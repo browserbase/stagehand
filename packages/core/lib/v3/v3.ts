@@ -96,6 +96,10 @@ import { FlowLogger, type FlowLoggerContext } from "./flowlogger/FlowLogger.js";
 import { EventEmitterWithWildcardSupport } from "./flowlogger/EventEmitter.js";
 import { EventStore } from "./flowlogger/EventStore.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
+import {
+  selectFileUploadAction,
+  shouldResolveFileUploadLocally,
+} from "./handlers/handlerUtils/actFileUploadRouting.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
@@ -1239,7 +1243,7 @@ export class V3 {
 
         // Use selector as provided to support XPath, CSS, and other engines
         const selector = input.selector;
-        if (this.apiClient) {
+        if (this.apiClient && input.method !== "setInputFiles") {
           actResult = await this.apiClient.act({
             input,
             options,
@@ -1286,10 +1290,15 @@ export class V3 {
       let actCacheContext: Awaited<
         ReturnType<typeof this.actCache.prepareContext>
       > | null = null;
+      const isFileUploadAct = shouldResolveFileUploadLocally(
+        input,
+        options?.variables,
+      );
       const canUseCache =
         typeof input === "string" &&
         !this.isAgentReplayRecording() &&
-        this.actCache.enabled;
+        this.actCache.enabled &&
+        !isFileUploadAct;
       if (canUseCache) {
         actCacheContext = await this.actCache.prepareContext(
           input,
@@ -1326,7 +1335,40 @@ export class V3 {
         timeout: options?.timeout,
         model: options?.model,
       };
-      if (this.apiClient) {
+      if (this.apiClient && isFileUploadAct) {
+        const ensureTimeRemaining = createTimeoutGuard(
+          options?.timeout,
+          (ms) => new ActTimeoutError(ms),
+        );
+        ensureTimeRemaining();
+        const frameId = page.mainFrameId();
+        const actions = await this.apiClient.observe({
+          instruction: input,
+          options,
+          frameId,
+        });
+        ensureTimeRemaining();
+        const uploadAction = selectFileUploadAction(
+          actions,
+          input,
+          options?.variables,
+        );
+
+        if (!uploadAction) {
+          throw new StagehandInvalidArgumentError(
+            'act(): the instruction requests a file upload, but observe() did not return a "setInputFiles" action. Ensure the instruction names the file input and supplies each local path through variables.',
+          );
+        }
+        actResult = await this.actHandler.takeDeterministicAction(
+          uploadAction,
+          page,
+          this.domSettleTimeoutMs,
+          this.resolveLlmClient(options?.model),
+          ensureTimeRemaining,
+          options?.variables,
+          input,
+        );
+      } else if (this.apiClient) {
         const frameId = page.mainFrameId();
         actResult = await this.apiClient.act({ input, options, frameId });
       } else {

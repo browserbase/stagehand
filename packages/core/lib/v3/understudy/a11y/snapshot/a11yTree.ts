@@ -43,6 +43,7 @@ export async function a11yForFrame(
   }
 
   let scopeApplied = false;
+  let scopedRootBackendNodeId: number | undefined;
   const nodesForOutline = await (async () => {
     const sel = opts.focusSelector?.trim();
     if (!sel) return nodes;
@@ -59,8 +60,16 @@ export async function a11yForFrame(
       const be = desc.node?.backendNodeId;
       if (typeof be !== "number") return nodes;
       const target = nodes.find((n) => n.backendDOMNodeId === be);
-      if (!target) return nodes;
+      if (!target) {
+        scopeApplied = true;
+        scopedRootBackendNodeId = be;
+        if (isEncodedFileInput(opts.encode(be), opts)) {
+          return [];
+        }
+        return nodes;
+      }
       scopeApplied = true;
+      scopedRootBackendNodeId = be;
       const keep = new Set<string>([target.nodeId]);
       const queue: Protocol.Accessibility.AXNode[] = [target];
       while (queue.length) {
@@ -99,9 +108,24 @@ export async function a11yForFrame(
 
   const decorated = decorateRoles(filteredNodes, opts);
   const { tree } = await buildHierarchicalTree(decorated, opts);
+  const treeWithFileInputs = appendMissingFileInputNodes(
+    tree,
+    decorated,
+    opts,
+    scopedRootBackendNodeId,
+  );
 
-  const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
+  const simplified = treeWithFileInputs
+    .map((n) => formatTreeLine(n))
+    .join("\n");
   return { outline: simplified.trimEnd(), urlMap, scopeApplied };
+}
+
+function isEncodedFileInput(encodedId: string, opts: A11yOptions): boolean {
+  const tag = String(opts.tagNameMap[encodedId] ?? "").toLowerCase();
+  if (tag === "input, file") return true;
+  const inputType = opts.inputTypeMap?.[encodedId];
+  return tag === "input" && String(inputType ?? "").toLowerCase() === "file";
 }
 
 export function decorateRoles(
@@ -137,8 +161,8 @@ export function decorateRoles(
 
     // File inputs typically get role "button" from Chrome's AX tree;
     // override so they appear as "input, file" in the outline.
-    if (tag === "input, file") {
-      role = tag;
+    if (encodedId && isEncodedFileInput(encodedId, opts)) {
+      role = "input, file";
     }
 
     return {
@@ -167,7 +191,8 @@ export async function buildHierarchicalTree(
     const keep =
       !!(n.name && n.name.trim()) ||
       !!(n.childIds && n.childIds.length) ||
-      !isStructural(n.role);
+      !isStructural(n.role) ||
+      isFileInputNode(n, opts);
     if (!keep) continue;
     nodeMap.set(n.nodeId, { ...n });
   }
@@ -194,6 +219,9 @@ export async function buildHierarchicalTree(
 
     const children = node.children ?? [];
     if (!children.length) {
+      if (isFileInputNode(node, opts)) {
+        return { ...node, role: "input, file" };
+      }
       return isStructural(node.role) ? null : node;
     }
 
@@ -203,12 +231,15 @@ export async function buildHierarchicalTree(
 
     const prunedStatic = removeRedundantStaticTextChildren(node, cleanedKids);
 
-    if (isStructural(node.role)) {
+    if (isStructural(node.role) && !isFileInputNode(node, opts)) {
       if (prunedStatic.length === 1) return prunedStatic[0]!;
       if (prunedStatic.length === 0) return null;
     }
 
     let newRole = node.role;
+    if (isFileInputNode(node, opts)) {
+      newRole = "input, file";
+    }
     if ((newRole === "generic" || newRole === "none") && node.encodedId) {
       const tagName = opts.tagNameMap[node.encodedId];
       if (tagName) newRole = tagName;
@@ -221,6 +252,99 @@ export async function buildHierarchicalTree(
 
     return { ...node, role: newRole, children: prunedStatic };
   }
+}
+
+function isFileInputNode(node: A11yNode, opts: A11yOptions): boolean {
+  if (!node.encodedId) return false;
+  return isEncodedFileInput(node.encodedId, opts);
+}
+
+function collectEncodedIds(
+  nodes: A11yNode[],
+  out = new Set<string>(),
+): Set<string> {
+  for (const node of nodes) {
+    if (node.encodedId) out.add(node.encodedId);
+    if (node.children?.length) collectEncodedIds(node.children, out);
+  }
+  return out;
+}
+
+export function appendMissingFileInputNodes(
+  tree: A11yNode[],
+  decorated: A11yNode[],
+  opts: A11yOptions,
+  scopedRootBackendNodeId?: number,
+): A11yNode[] {
+  const presentEncodedIds = collectEncodedIds(tree);
+  const decoratedByEncoded = new Map<string, A11yNode>();
+  for (const node of decorated) {
+    if (node.encodedId && !decoratedByEncoded.has(node.encodedId)) {
+      decoratedByEncoded.set(node.encodedId, node);
+    }
+  }
+
+  const fileInputEncodedIds = new Set<string>();
+  for (const [encodedId, tag] of Object.entries(opts.tagNameMap)) {
+    if (String(tag).toLowerCase() === "input, file") {
+      fileInputEncodedIds.add(encodedId);
+    }
+  }
+  for (const [encodedId, inputType] of Object.entries(
+    opts.inputTypeMap ?? {},
+  )) {
+    if (String(inputType).toLowerCase() === "file") {
+      fileInputEncodedIds.add(encodedId);
+    }
+  }
+
+  const extras: A11yNode[] = [];
+  const hasScopedRoot = scopedRootBackendNodeId !== undefined;
+  const scopedRootXpath = hasScopedRoot
+    ? opts.xpathMap?.[opts.encode(scopedRootBackendNodeId)]
+    : undefined;
+  for (const encodedId of fileInputEncodedIds) {
+    if (!isEncodedFileInput(encodedId, opts)) continue;
+    if (presentEncodedIds.has(encodedId)) continue;
+    const backendNodeId = opts.decode?.(encodedId);
+    if (
+      backendNodeId !== undefined &&
+      opts.isIgnoredBackendNode?.(backendNodeId)
+    ) {
+      continue;
+    }
+    if (hasScopedRoot && scopedRootXpath === undefined) {
+      continue;
+    }
+    if (scopedRootXpath !== undefined && scopedRootXpath !== "/") {
+      const candidateXpath = opts.xpathMap?.[encodedId];
+      if (
+        candidateXpath !== scopedRootXpath &&
+        !candidateXpath?.startsWith(`${scopedRootXpath}/`)
+      ) {
+        continue;
+      }
+    }
+
+    const existing = decoratedByEncoded.get(encodedId);
+    if (existing) {
+      extras.push({
+        ...existing,
+        role: "input, file",
+        children: undefined,
+      });
+      continue;
+    }
+
+    extras.push({
+      role: "input, file",
+      nodeId: `synthetic-file-${encodedId}`,
+      encodedId,
+    });
+  }
+
+  if (!extras.length) return tree;
+  return [...tree, ...extras];
 }
 
 export function isStructural(role: string): boolean {
