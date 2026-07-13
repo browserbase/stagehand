@@ -201,8 +201,10 @@ await context.setDomainPolicy(policy: DomainPolicy | null): Promise<void>
   </Expandable>
 </ParamField>
 
-<Note>
 Domain policy applies to HTTP and HTTPS requests across existing and future pages, attached child targets, iframes, and subresource loads. It is not limited to top-level page navigations. Non-HTTP(S) URLs such as `data:` and `file:` are not blocked by this policy.
+
+<Note>
+For newly opened targets, such as popups opened via `window.open()`, domain blocking can be race-sensitive. If Stagehand cannot guarantee that a disallowed target was intercepted in time, it closes that target.
 </Note>
 
 Calling `setDomainPolicy()` replaces the previous policy. To clear the policy, pass `null`, `{}`, or empty arrays:
