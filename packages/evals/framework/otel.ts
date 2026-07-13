@@ -65,27 +65,23 @@ async function initializeTracerProvider(options?: {
 
   const braintrustApiKey = process.env.BRAINTRUST_API_KEY;
   if (braintrustApiKey) {
-    const { OTLPTraceExporter } = await import(
-      "@opentelemetry/exporter-trace-otlp-proto"
-    );
+    const { BraintrustSpanProcessor } = await import("@braintrust/otel");
     const braintrustProjectName =
       process.env.CI === "true" ? "stagehand" : "stagehand-dev";
     const parent =
       options?.braintrustParent ??
       process.env.BRAINTRUST_OTEL_PARENT ??
       `project_name:${braintrustProjectName}`;
+    const braintrustOtelUrl = process.env.BRAINTRUST_OTEL_URL;
     spanProcessors.push(
-      new BatchSpanProcessor(
-        new OTLPTraceExporter({
-          url:
-            process.env.BRAINTRUST_OTEL_URL ??
-            "https://api.braintrust.dev/otel/v1/traces",
-          headers: {
-            Authorization: `Bearer ${braintrustApiKey}`,
-            "x-bt-parent": parent,
-          },
+      new BraintrustSpanProcessor({
+        apiKey: braintrustApiKey,
+        parent,
+        filterAISpans: false,
+        ...(braintrustOtelUrl && {
+          apiUrl: braintrustOtelUrl.replace(/otel\/v1\/traces\/?$/, ""),
         }),
-      ),
+      }),
     );
   }
 
