@@ -179,6 +179,76 @@ await context.setExtraHTTPHeaders({
 const page = await context.newPage("https://example.com");
 ```
 
+### setDomainPolicy()
+
+Set a context-wide network domain policy that allows or blocks HTTP(S) requests by hostname.
+
+```typescript
+await context.setDomainPolicy(policy: DomainPolicy | null): Promise<void>
+```
+
+<ParamField path="policy" type="DomainPolicy | null" required>
+  A domain policy with `allowedDomains`, `blockedDomains`, or both.
+
+  <Expandable title="DomainPolicy">
+    <ParamField path="allowedDomains" type="string[]" optional>
+      Domain-only allow patterns. When provided, HTTP(S) requests to non-matching domains are blocked.
+    </ParamField>
+
+    <ParamField path="blockedDomains" type="string[]" optional>
+      Domain-only block patterns. Matching HTTP(S) requests are blocked.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+Domain policy applies to HTTP and HTTPS requests across existing and future pages, attached child targets, iframes, and subresource loads. It is not limited to top-level page navigations. Non-HTTP(S) URLs such as `data:` and `file:` are not blocked by this policy.
+
+<Note>
+For newly opened targets, such as popups opened via `window.open()`, domain blocking can be race-sensitive. If Stagehand cannot guarantee that a disallowed target was intercepted in time, it closes that target.
+</Note>
+
+Calling `setDomainPolicy()` replaces the previous policy. To clear the policy, pass `null`, `{}`, or empty arrays:
+
+```typescript
+await context.setDomainPolicy(null);
+```
+
+Domain patterns must be domain-only values:
+- Use `"example.com"` for an exact hostname match
+- Use `"*.example.com"` to match subdomains such as `"app.example.com"` and `"deep.app.example.com"`
+- `"*.example.com"` does not match the apex domain `"example.com"`; include both patterns if you need both
+- Do not include a scheme, path, port, query string, or fragment
+- Matching is case-insensitive, and duplicate normalized patterns are ignored
+
+<Note>
+When both `blockedDomains` and `allowedDomains` are provided, `blockedDomains` takes precedence. Blocked requests fail with Chrome's `BlockedByClient` network error.
+</Note>
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+
+await context.setDomainPolicy({
+  allowedDomains: ["example.com", "*.example.com"],
+  blockedDomains: ["ads.example.com", "*.tracking.example.com"],
+});
+
+const page = await context.newPage("https://example.com");
+```
+
+### getDomainPolicy()
+
+Get the currently configured context-wide domain policy.
+
+```typescript
+context.getDomainPolicy(): DomainPolicy | null
+```
+
+**Returns:** `DomainPolicy | null` - The active domain policy, or `null` when no policy is configured.
+
 ### cookies()
 
 Retrieve browser cookies, optionally filtered by URL(s).
@@ -512,6 +582,34 @@ await stagehand.close();
 ```
 
 </Tab>
+<Tab title="Domain Policy">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+
+// Allow only example.com and its subdomains, while blocking ad traffic
+await context.setDomainPolicy({
+  allowedDomains: ["example.com", "*.example.com"],
+  blockedDomains: ["ads.example.com", "*.tracking.example.com"],
+});
+
+const page = await context.newPage("https://example.com");
+await page.goto("https://example.com/dashboard");
+
+// Read the active policy
+console.log(context.getDomainPolicy());
+
+// Clear the policy
+await context.setDomainPolicy(null);
+
+await stagehand.close();
+```
+
+</Tab>
 <Tab title="Cookie Management">
 
 ```typescript
@@ -660,6 +758,8 @@ Context methods may throw the following errors:
 - **CDP errors** - Connection errors with Chrome DevTools Protocol
 - **Invalid page errors** - Attempting to set an active page that doesn't exist in the context
 - **StagehandSetExtraHTTPHeadersError** - `setExtraHTTPHeaders()` failed to apply headers to one or more sessions. The error includes a `failures` array with per-session details
+- **StagehandInvalidArgumentError** - `setDomainPolicy()` received an invalid policy, such as a URL instead of a domain-only pattern
+- **StagehandSetDomainPolicyError** - `setDomainPolicy()` failed to enable or disable enforcement for one or more sessions. The error includes a `failures` array with per-session details
 
 Always handle errors appropriately:
 
@@ -680,10 +780,20 @@ interface V3Context {
   activePage(): Page | undefined;
   setActivePage(page: Page): void;
   setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
+  setDomainPolicy(policy: DomainPolicy | null): Promise<void>;
+  getDomainPolicy(): DomainPolicy | null;
   cookies(urls?: string | string[]): Promise<Cookie[]>;
   addCookies(cookies: CookieParam[]): Promise<void>;
   clearCookies(options?: ClearCookieOptions): Promise<void>;
   close(): Promise<void>;
+}
+
+interface DomainPolicy {
+  /** Domain-only allow patterns, e.g. "example.com" or "*.example.com". */
+  allowedDomains?: string[];
+
+  /** Domain-only block patterns, e.g. "example.com" or "*.example.com". */
+  blockedDomains?: string[];
 }
 
 interface Cookie {
