@@ -14,7 +14,9 @@ const NOOP_TRACER = new ProxyTracerProvider().getTracer(TRACER_NAME);
 let provider: NodeTracerProvider | null = null;
 let providerPromise: Promise<NodeTracerProvider | null> | null = null;
 
-export async function buildTracerProvider(): Promise<NodeTracerProvider | null> {
+export async function buildTracerProvider(options?: {
+  braintrustParent?: string;
+}): Promise<NodeTracerProvider | null> {
   if (resolveTraceTransport() !== "otel") {
     return null;
   }
@@ -23,8 +25,9 @@ export async function buildTracerProvider(): Promise<NodeTracerProvider | null> 
     return provider;
   }
 
+  // The provider is initialized once per process, so the first call's options win.
   const pendingProvider =
-    providerPromise ?? (providerPromise = initializeTracerProvider());
+    providerPromise ?? (providerPromise = initializeTracerProvider(options));
 
   try {
     return await pendingProvider;
@@ -35,7 +38,9 @@ export async function buildTracerProvider(): Promise<NodeTracerProvider | null> 
   }
 }
 
-async function initializeTracerProvider(): Promise<NodeTracerProvider | null> {
+async function initializeTracerProvider(options?: {
+  braintrustParent?: string;
+}): Promise<NodeTracerProvider | null> {
   const spanProcessors: SpanProcessor[] = [];
 
   const braintrustApiKey = process.env.BRAINTRUST_API_KEY;
@@ -46,6 +51,7 @@ async function initializeTracerProvider(): Promise<NodeTracerProvider | null> {
     const braintrustProjectName =
       process.env.CI === "true" ? "stagehand" : "stagehand-dev";
     const parent =
+      options?.braintrustParent ??
       process.env.BRAINTRUST_OTEL_PARENT ??
       `project_name:${braintrustProjectName}`;
     spanProcessors.push(
@@ -108,7 +114,10 @@ export async function shutdownTracing(): Promise<void> {
 
   try {
     await Promise.race([
-      activeProvider.forceFlush().then(() => activeProvider.shutdown()),
+      activeProvider
+        .forceFlush()
+        .catch(() => {})
+        .then(() => activeProvider.shutdown()),
       timeoutPromise,
     ]);
   } finally {

@@ -112,6 +112,24 @@ describe("buildTracerProvider", () => {
     expect(constructedSpanProcessors()).toHaveLength(1);
   });
 
+  it("uses the provided Braintrust parent over the environment default", async () => {
+    process.env.EVAL_TRACE_TRANSPORT = "otel";
+    process.env.BRAINTRUST_API_KEY = "braintrust-test-key";
+    process.env.BRAINTRUST_OTEL_PARENT = "project_name:from-env";
+    const { buildTracerProvider } = await import("../../framework/otel.js");
+
+    await expect(
+      buildTracerProvider({ braintrustParent: "project_name:custom" }),
+    ).resolves.not.toBeNull();
+    expect(mocks.braintrustExporter).toHaveBeenCalledWith({
+      url: "https://api.braintrust.dev/otel/v1/traces",
+      headers: {
+        Authorization: "Bearer braintrust-test-key",
+        "x-bt-parent": "project_name:custom",
+      },
+    });
+  });
+
   it("constructs a provider with only the LangSmith processor", async () => {
     process.env.EVAL_TRACE_TRANSPORT = "otel";
     process.env.LANGSMITH_API_KEY = "langsmith-test-key";
@@ -122,5 +140,20 @@ describe("buildTracerProvider", () => {
     expect(mocks.braintrustExporter).not.toHaveBeenCalled();
     expect(mocks.langSmithExporter).toHaveBeenCalledOnce();
     expect(constructedSpanProcessors()).toHaveLength(1);
+  });
+
+  it("shuts down the provider when forceFlush rejects", async () => {
+    process.env.EVAL_TRACE_TRANSPORT = "otel";
+    process.env.BRAINTRUST_API_KEY = "braintrust-test-key";
+    const { buildTracerProvider, shutdownTracing } = await import(
+      "../../framework/otel.js"
+    );
+
+    await buildTracerProvider();
+    const activeProvider = mocks.nodeTracerProvider.mock.results[0]?.value;
+    activeProvider.forceFlush.mockRejectedValueOnce(new Error("export failed"));
+
+    await expect(shutdownTracing()).resolves.toBeUndefined();
+    expect(activeProvider.shutdown).toHaveBeenCalledOnce();
   });
 });
