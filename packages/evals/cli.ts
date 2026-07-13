@@ -89,6 +89,12 @@ const args = process.argv.slice(2);
     } catch {
       // ignore
     }
+    try {
+      const { shutdownTracing } = await import("./framework/otel.js");
+      await shutdownTracing();
+    } catch {
+      // ignore
+    }
     process.exit(code);
   };
   process.on("SIGINT", () => void handleSignal("SIGINT"));

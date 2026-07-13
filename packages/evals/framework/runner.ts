@@ -29,6 +29,8 @@ import {
 } from "./braintrust.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
+import { resolveTraceTransport } from "./langsmith.js";
+import { buildTracerProvider, shutdownTracing } from "./otel.js";
 
 export { discoverTasks, resolveTarget } from "./discovery.js";
 export {
@@ -303,6 +305,11 @@ function formatProgressError(error: unknown): string | undefined {
 export async function runEvals(
   options: RunEvalsOptions,
 ): Promise<RunEvalsResult> {
+  const traceTransport = resolveTraceTransport();
+  if (traceTransport === "otel") {
+    await buildTracerProvider();
+  }
+
   const concurrency = options.concurrency ?? 3;
   const trials = options.trials ?? 3;
   const environment = options.environment ?? "LOCAL";
@@ -451,6 +458,9 @@ export async function runEvals(
 
   if (sendLogs) {
     await flush();
+  }
+  if (traceTransport === "otel") {
+    await shutdownTracing();
   }
 
   const summaryResults = evalResult.results.map((result) => {
