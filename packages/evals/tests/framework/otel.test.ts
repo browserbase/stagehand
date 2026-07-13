@@ -124,12 +124,26 @@ describe("buildTracerProvider", () => {
     await expect(
       buildTracerProvider({ braintrustParent: "project_name:custom" }),
     ).resolves.not.toBeNull();
-    expect(mocks.braintrustExporter).toHaveBeenCalledWith({
-      url: "https://api.braintrust.dev/otel/v1/traces",
-      headers: {
-        Authorization: "Bearer braintrust-test-key",
-        "x-bt-parent": "project_name:custom",
-      },
+    expect(mocks.braintrustSpanProcessor).toHaveBeenCalledWith({
+      apiKey: "braintrust-test-key",
+      parent: "project_name:custom",
+      filterAISpans: false,
+    });
+  });
+
+  it("derives the Braintrust apiUrl from BRAINTRUST_OTEL_URL", async () => {
+    process.env.EVAL_TRACE_TRANSPORT = "otel";
+    process.env.BRAINTRUST_API_KEY = "braintrust-test-key";
+    process.env.BRAINTRUST_OTEL_URL =
+      "https://custom.example.com/otel/v1/traces";
+    const { buildTracerProvider } = await import("../../framework/otel.js");
+
+    await expect(buildTracerProvider()).resolves.not.toBeNull();
+    expect(mocks.braintrustSpanProcessor).toHaveBeenCalledWith({
+      apiKey: "braintrust-test-key",
+      parent: "project_name:stagehand-dev",
+      filterAISpans: false,
+      apiUrl: "https://custom.example.com/",
     });
   });
 
