@@ -86,6 +86,8 @@ Remote browser and cloud API commands require:
 export BROWSERBASE_API_KEY=...
 ```
 
+The CLI forwards `BROWSERBASE_API_KEY` from the caller on every browser command, even when the daemon is already running. If a remote command first fails because the key was missing, set or export the key and retry the command; do not restart the daemon just to refresh the environment.
+
 ## Browser Automation Workflow
 
 Start by opening the page, then inspect state, act, and verify.
@@ -199,6 +201,8 @@ browse stop --force
 ```
 
 Use `browse doctor` before debugging a broken browser session. Use `browse doctor --json` when another agent or CI needs structured diagnostics.
+
+`browse stop` is idempotent. If no daemon is running, `{ "stopped": false }` with exit code `0` is successful cleanup, not an error.
 
 If a page command reports that no active page is available, inspect and recover the named session:
 
@@ -360,6 +364,7 @@ JSON output includes every match with full descriptions and ignores `--limit`; `
 ## Troubleshooting
 
 - "No active page": run `browse status --session <name>`, then `browse open <url> --session <name>` or `browse tab new <url> --session <name>`; use `browse stop --force` if the daemon is stale.
+- "Driver daemon ... is not running": run the exact `browse open` command printed by the error. Browser commands start the daemon automatically.
 - Chrome not found: use `--remote` with Browserbase credentials, install Chrome, or attach with `--cdp`.
 - Action fails: run `browse snapshot` and use a visible ref from the current page state.
 - 401 Unauthorized on `open`, `get`, or other driver commands: a set `BROWSERBASE_API_KEY` makes `browse` default to remote mode. Fix the key at https://browserbase.com/settings, unset it, or pass `--local` to run a managed local browser (no key needed).

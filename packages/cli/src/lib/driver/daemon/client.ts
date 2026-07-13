@@ -225,6 +225,10 @@ async function sendDriverRequest<T>(
       }
     });
     socket.on("error", (error) => {
+      if (isDaemonUnavailableError(error)) {
+        failRequest(daemonNotRunningError(session, request));
+        return;
+      }
       failRequest(error);
     });
     socket.on("end", () => {
@@ -361,4 +365,32 @@ async function removeStaleLock(lockPath: string): Promise<boolean> {
 
 function requestId(): string {
   return `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function isDaemonUnavailableError(error: Error): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "ECONNREFUSED" || code === "ENOENT";
+}
+
+function daemonNotRunningError(
+  session: string,
+  request: DriverRequest,
+): CommandFailure {
+  const sessionFlag = session === "default" ? "" : ` --session ${session}`;
+  const startCommand =
+    request.type === "open"
+      ? `browse open ${formatCommandArgument(request.url)}${sessionFlag}`
+      : `browse open <url>${sessionFlag}`;
+
+  return new CommandFailure(
+    `Driver daemon session "${session}" is not running. Start it with: ${startCommand}`,
+    1,
+    { resultCode: "daemon_not_running" },
+  );
+}
+
+function formatCommandArgument(value: string): string {
+  return /^[A-Za-z0-9_./:?&=%#@+~-]+$/.test(value)
+    ? value
+    : JSON.stringify(value);
 }

@@ -699,6 +699,25 @@ describe("driver foundation", () => {
     }
   });
 
+  it("explains how to start a missing daemon instead of leaking a socket error", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+
+    try {
+      await expect(
+        openViaDaemon("missing-daemon", "https://example.com/search?q=test"),
+      ).rejects.toMatchObject({
+        message:
+          'Driver daemon session "missing-daemon" is not running. Start it with: browse open https://example.com/search?q=test --session missing-daemon',
+        telemetry: { resultCode: "daemon_not_running" },
+      });
+    } finally {
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
+
   it("closes Stagehand when initialization fails", async () => {
     const init = vi.fn().mockRejectedValue(new Error("init failed"));
     const close = vi.fn().mockResolvedValue(undefined);
