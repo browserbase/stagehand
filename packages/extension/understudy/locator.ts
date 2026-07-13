@@ -1,8 +1,5 @@
 // lib/v3/understudy/locator.ts
 import { Protocol } from "devtools-protocol";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
 import {
   locatorScriptBootstrap,
   locatorScriptGlobalRefs,
@@ -16,9 +13,9 @@ import {
   StagehandLocatorError,
   ElementNotVisibleError,
 } from "../types/public/sdkErrors.js";
-import { normalizeInputFiles } from "./fileUploadUtils.js";
-import { SetInputFilesArgument, MouseButton } from "../types/public/locator.js";
-import { NormalizedFilePayload } from "../types/private/locator.js";
+import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
+import type { SetInputFilesArgument, MouseButton } from "../types/public/locator.js";
+import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
 
@@ -69,17 +66,13 @@ export class Locator {
   /**
    * Set files on an <input type="file"> element.
    *
-   * Mirrors Playwright's Locator.setInputFiles basics:
-   * - Accepts file path(s) or payload object(s) { name, mimeType, buffer }.
-   * - Uses CDP DOM.setFileInputFiles under the hood.
-   * - Best‑effort dispatches change/input via CDP (Chrome does by default).
+   * Accepts in-memory payload objects { name, mimeType, buffer } and constructs
+   * File objects in the page. Filesystem paths are not available in workers.
    * - Passing an empty array clears the selection.
    */
   public async setInputFiles(files: SetInputFilesArgument): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
-
-    const tempFiles: string[] = [];
 
     try {
       // Validate element is an <input type="file">
@@ -111,52 +104,13 @@ export class Locator {
         return;
       }
 
-      if (this.frame.isBrowserRemote()) {
-        await this.assignFilesViaPayloadInjection(objectId, normalized);
-        return;
-      }
-
-      const filePaths: string[] = [];
-      for (const payload of normalized) {
-        if (payload.absolutePath) {
-          filePaths.push(payload.absolutePath);
-          continue;
-        }
-        const ext = path.extname(payload.name);
-        const tmp = path.join(
-          os.tmpdir(),
-          `stagehand-upload-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`,
-        );
-        await fs.promises.writeFile(tmp, payload.buffer);
-        tempFiles.push(tmp);
-        filePaths.push(tmp);
-      }
-
-      await session.send<never>("DOM.setFileInputFiles", {
-        objectId,
-        files: filePaths,
-      });
+      await this.assignFilesViaPayloadInjection(objectId, normalized);
     } finally {
-      // Cleanup: release element and remove any temporary files we created
       await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
-      for (const p of tempFiles) {
-        try {
-          await fs.promises.unlink(p);
-        } catch {
-          // ignore
-        }
-      }
     }
   }
 
-  /**
-   * Remote browser fallback: build File objects inside the page and attach them via JS.
-   *
-   * When Stagehand is driving a browser that cannot see the local filesystem (Browserbase,
-   * remote CDP, etc.), CDP's DOM.setFileInputFiles would fail because Chrome can't reach
-   * our temp files. Instead we base64-encode the payloads, send them into the page, and
-   * let a DOM helper create File objects + dispatch change/input events.
-   */
+  /** Build File objects inside the page and attach them via JS. */
   private async assignFilesViaPayloadInjection(
     objectId: Protocol.Runtime.RemoteObjectId,
     files: NormalizedFilePayload[],
@@ -164,7 +118,7 @@ export class Locator {
     const session = this.frame.session;
 
     for (const payload of files) {
-      if (payload.buffer.length > MAX_REMOTE_UPLOAD_BYTES) {
+      if (payload.bytes.length > MAX_REMOTE_UPLOAD_BYTES) {
         throw new StagehandInvalidArgumentError(
           `setInputFiles(): file "${payload.name}" is larger than the 50MB limit for remote uploads`,
         );
@@ -175,7 +129,7 @@ export class Locator {
       name: payload.name,
       mimeType: payload.mimeType,
       lastModified: payload.lastModified,
-      base64: payload.buffer.toString("base64"),
+      base64: bytesToBase64(payload.bytes),
     }));
 
     const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(

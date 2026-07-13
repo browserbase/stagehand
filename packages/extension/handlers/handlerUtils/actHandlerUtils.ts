@@ -536,8 +536,8 @@ export async function waitForDomNetworkQuiet(frame: Frame, timeoutMs?: number): 
     const meta = new Map<string, { url: string; start: number }>();
     const docByFrame = new Map<string, string>();
 
-    let quietTimer: NodeJS.Timeout | null = null;
-    let stalledRequestSweepTimer: NodeJS.Timeout | null = null;
+    let quietTimer: ReturnType<typeof setTimeout> | null = null;
+    let stalledRequestSweepTimer: ReturnType<typeof setTimeout> | null = null;
 
     const clearQuiet = () => {
       if (quietTimer) {

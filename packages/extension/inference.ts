@@ -22,7 +22,7 @@ function inferenceNotPorted(operation: string): never {
 export async function extract<T extends z.ZodObject>(
   _params: LlmInferenceParams & {
     schema: T;
-    screenshot?: Buffer;
+    screenshot?: Uint8Array;
   },
 ): Promise<
   z.infer<T> & {

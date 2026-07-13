@@ -9,7 +9,7 @@ import {
   createStagehandRuntimeService,
   type StagehandRuntimeDependencies,
 } from "./services/stagehandRuntimeService.js";
-import { browserLoopbackCdpFactory } from "./transports/browserWebSocket.js";
+import { browserLoopbackCdpFactory } from "./transports/browserLoopbackCdpConnection.js";
 
 export type StagehandAppDependencies = StagehandRuntimeDependencies;
 

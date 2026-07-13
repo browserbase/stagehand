@@ -18,15 +18,9 @@
     "@ai-sdk/provider": "catalog:",
     "@ai-sdk/togetherai": "catalog:",
     "@ai-sdk/xai": "catalog:",
-    "@browserbasehq/sdk": "catalog:",
     "ai": "catalog:",
-    "chrome-launcher": "catalog:",
     "devtools-protocol": "catalog:",
     "ollama-ai-provider-v2": "catalog:",
-    "ws": "catalog:",
     "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@types/ws": "catalog:"
   }
 }

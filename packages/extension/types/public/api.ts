@@ -1,4 +1,3 @@
-import type Browserbase from "@browserbasehq/sdk";
 import type { z } from "zod/v4";
 import type {
   ActionSchema,
@@ -204,12 +203,6 @@ export type ExternalProxyConfig = z.infer<typeof ExternalProxyConfigSchema>;
 export type ProxyConfig = z.infer<typeof ProxyConfigSchema>;
 export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCreateParamsSchema>;
-
-// Type check: ensure our schema-derived type is assignable to the SDK type
-// This will cause a compile error if our schema drifts from the SDK
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type _BrowserbaseSessionCreateParamsCheck =
-  BrowserbaseSessionCreateParams extends Browserbase.Sessions.SessionCreateParams ? true : never;
 
 // /sessions/start
 export type SessionStartRequest = z.infer<typeof SessionStartRequestSchema>;

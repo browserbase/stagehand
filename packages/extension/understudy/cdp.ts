@@ -1,14 +1,13 @@
 // lib/v3/understudy/cdp.ts
-import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
-import { STAGEHAND_VERSION } from "../version.js";
+import { z } from "zod/v4";
 import { FlowLogger, type FlowEvent, type FlowLoggerContext } from "../flowlogger/FlowLogger.js";
 import { CdpConnectionClosedError, PageNotFoundError } from "../types/public/sdkErrors.js";
 
 /**
  * CDP transport & session multiplexer
  *
- * Owns the browser WebSocket and multiplexes flattened Target sessions.
+ * Uses an injected text transport and multiplexes flattened Target sessions.
  * Tracks inflight CDP calls, routes responses to the right session, and forwards events.
  *
  * This does not interpret Page/DOM/Runtime semantics — callers own that logic.
@@ -22,24 +21,20 @@ export interface CDPSessionLike {
 }
 
 export type CdpWebSocketCloseEvent = {
-  code?: number;
-  reason?: string;
+  code: number;
+  reason: string;
 };
 
-export type CdpWebSocketTransport = {
-  readonly readyState: number;
+export interface CdpWebSocketTransport {
+  readonly connected: boolean;
   send(payload: string): void;
-  close(): void;
-  onMessage(handler: (payload: string) => void): void;
+  close(): Promise<void>;
+  onMessage(handler: (data: string) => void): void;
   onClose(handler: (event: CdpWebSocketCloseEvent) => void): void;
   onError(handler: (error: Error) => void): void;
-  onceClose(handler: (event: CdpWebSocketCloseEvent) => void): void;
-};
+}
 
-export type CdpWebSocketFactory = (
-  wsUrl: string,
-  options?: { headers?: Record<string, string> },
-) => Promise<CdpWebSocketTransport>;
+export type CdpWebSocketFactory = (url: string) => Promise<CdpWebSocketTransport>;
 
 type Inflight = {
   resolve: (v: unknown) => void;
@@ -62,17 +57,30 @@ type SessionDispatchWaiter = {
   reject: (error: Error) => void;
 };
 
-type RawMessage =
-  | {
-      id: number;
-      result?: unknown;
-      error?: { code: number; message: string; data?: unknown };
-      sessionId?: string;
-    }
-  | { method: string; params?: unknown; sessionId?: string };
+const CdpErrorSchema = z.object({
+  code: z.number(),
+  message: z.string(),
+  data: z.unknown().optional(),
+});
+
+const CdpResponseSchema = z.object({
+  id: z.number(),
+  result: z.unknown().optional(),
+  error: CdpErrorSchema.optional(),
+  sessionId: z.string().optional(),
+});
+
+const CdpEventSchema = z.object({
+  method: z.string(),
+  params: z.unknown().optional(),
+  sessionId: z.string().optional(),
+});
+
+const RawMessageSchema = z.union([CdpResponseSchema, CdpEventSchema]);
+type RawMessage = z.infer<typeof RawMessageSchema>;
 
 export class CdpConnection implements CDPSessionLike {
-  private transport: CdpWebSocketTransport;
+  private messageQueue: Promise<void> = Promise.resolve();
   private nextId = 1;
   private inflight = new Map<number, Inflight>(); // Outstanding request records; `_sendViaSession()` inserts and `onMessage()` removes/resolves them.
   private latestCdpCallEvent = new Map<
@@ -110,42 +118,35 @@ export class CdpConnection implements CDPSessionLike {
     }
   }
 
-  private constructor(transport: CdpWebSocketTransport) {
-    this.transport = transport;
-    this.transport.onClose(({ code, reason }) => {
-      const why = `socket-close code=${String(code ?? "")} reason=${reason ?? ""}`;
+  private constructor(private readonly transport: CdpWebSocketTransport) {
+    this.transport.onClose((event) => {
+      const why = `socket-close code=${String(event.code)} reason=${event.reason}`;
       this.rejectAllInflight(why);
       this.emitTransportClosed(why);
     });
 
-    this.transport.onError((err) => {
-      const why = `socket-error ${err?.message ?? String(err)}`;
+    this.transport.onError((error) => {
+      const why = `socket-error ${error.message}`;
       this.rejectAllInflight(why);
       this.emitTransportClosed(why);
     });
-    this.transport.onMessage((data) => this.onMessage(data));
+    this.transport.onMessage((data) => {
+      this.messageQueue = this.messageQueue
+        .then(() => this.onMessage(data))
+        .catch((error: unknown) => {
+          const why = `socket-message-error ${error instanceof Error ? error.message : String(error)}`;
+          this.rejectAllInflight(why);
+          this.emitTransportClosed(why);
+          void this.transport.close();
+        });
+    });
   }
 
   static async connect(
     wsUrl: string,
-    options?: { headers?: Record<string, string> },
-  ): Promise<CdpConnection> {
-    // Include User-Agent header for server-side observability and version tracking
-    // Merge user-provided headers, letting them override defaults
-    const headers = {
-      "User-Agent": `Stagehand/${STAGEHAND_VERSION}`,
-      ...options?.headers,
-    };
-    const transport = await nodeWebSocketFactory(wsUrl, { headers });
-    return new CdpConnection(transport);
-  }
-
-  static async connectWithFactory(
-    wsUrl: string,
     websocketFactory: CdpWebSocketFactory,
-    options?: { headers?: Record<string, string> },
   ): Promise<CdpConnection> {
-    const transport = await websocketFactory(wsUrl, options);
+    const transport = await websocketFactory(wsUrl);
     return new CdpConnection(transport);
   }
 
@@ -207,11 +208,7 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   async close(): Promise<void> {
-    if (this.transport.readyState === WebSocket.CLOSED) return;
-    await new Promise<void>((resolve) => {
-      this.transport.onceClose(() => resolve());
-      this.transport.close();
-    });
+    await this.transport.close();
   }
 
   private rejectAllInflight(why: string): void {
@@ -306,7 +303,7 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   private onMessage(json: string): void {
-    const msg = JSON.parse(json) as RawMessage;
+    const msg: RawMessage = RawMessageSchema.parse(JSON.parse(json));
 
     if ("id" in msg) {
       const rec = this.inflight.get(msg.id);
@@ -520,58 +517,6 @@ export class CdpConnection implements CDPSessionLike {
     if (handlers) for (const h of handlers) h(params);
   }
 }
-
-function rawWebSocketMessageToString(data: WebSocket.RawData): string {
-  if (typeof data === "string") return data;
-  if (Buffer.isBuffer(data)) return data.toString();
-  if (Array.isArray(data)) return Buffer.concat(data).toString();
-  return Buffer.from(data).toString();
-}
-
-class NodeWebSocketTransport implements CdpWebSocketTransport {
-  constructor(private readonly ws: WebSocket) {}
-
-  get readyState(): number {
-    return this.ws.readyState;
-  }
-
-  send(payload: string): void {
-    this.ws.send(payload);
-  }
-
-  close(): void {
-    this.ws.close();
-  }
-
-  onMessage(handler: (payload: string) => void): void {
-    this.ws.on("message", (data) => handler(rawWebSocketMessageToString(data)));
-  }
-
-  onClose(handler: (event: CdpWebSocketCloseEvent) => void): void {
-    this.ws.on("close", (code, reason) => {
-      handler({ code, reason: String(reason || "") });
-    });
-  }
-
-  onError(handler: (error: Error) => void): void {
-    this.ws.on("error", handler);
-  }
-
-  onceClose(handler: (event: CdpWebSocketCloseEvent) => void): void {
-    this.ws.once("close", (code, reason) => {
-      handler({ code, reason: String(reason || "") });
-    });
-  }
-}
-
-export const nodeWebSocketFactory: CdpWebSocketFactory = async (wsUrl, options) => {
-  const ws = new WebSocket(wsUrl, { headers: options?.headers });
-  await new Promise<void>((resolve, reject) => {
-    ws.once("open", () => resolve());
-    ws.once("error", (e) => reject(e));
-  });
-  return new NodeWebSocketTransport(ws);
-};
 
 export class CdpSession implements CDPSessionLike {
   constructor(

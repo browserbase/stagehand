@@ -62,7 +62,6 @@ describe("JSON-RPC wire casing", () => {
     const definition = StagehandMethods["stagehand.init"];
     const apiValue = {
       cdpUrl: "ws://localhost/devtools/browser/1",
-      cdpHeaders: { "X-Custom-Key": "value" },
       model: {
         modelName: "openai/gpt-5-mini",
         provider: "openai" as const,
@@ -72,7 +71,6 @@ describe("JSON-RPC wire casing", () => {
 
     const wireValue = {
       cdp_url: "ws://localhost/devtools/browser/1",
-      cdp_headers: { "X-Custom-Key": "value" },
       model: {
         model_name: "openai/gpt-5-mini",
         provider: "openai",

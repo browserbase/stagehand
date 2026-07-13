@@ -144,15 +144,6 @@
                     "model": {
                       "ref": "#/$defs/ModelConfig"
                     },
-                    "cdp_headers": {
-                      "type": "object",
-                      "property_names": {
-                        "type": "string"
-                      },
-                      "additional_properties": {
-                        "type": "string"
-                      }
-                    },
                     "session_id": {
                       "type": "string"
                     },
@@ -1913,15 +1904,6 @@
                 },
                 "model": {
                   "ref": "#/$defs/ModelConfig"
-                },
-                "cdp_headers": {
-                  "type": "object",
-                  "property_names": {
-                    "type": "string"
-                  },
-                  "additional_properties": {
-                    "type": "string"
-                  }
                 },
                 "session_id": {
                   "type": "string"

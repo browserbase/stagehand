@@ -1,18 +1,3 @@
-import Browserbase from "@browserbasehq/sdk";
-import { LaunchedChrome } from "chrome-launcher";
-
-export type InitState =
-  | { kind: "UNINITIALIZED" }
-  | {
-      kind: "LOCAL";
-      chrome: LaunchedChrome;
-      ws: string;
-      userDataDir?: string;
-      createdTempProfile?: boolean;
-      preserveUserDataDir?: boolean;
-    }
-  | { kind: "BROWSERBASE"; bb: Browserbase; sessionId: string; ws: string };
-
 export type EncodedId = `${number}-${number}`;
 
 /**
@@ -33,7 +18,4 @@ export interface ZodPathSegments {
   segments: Array<string | number>;
 }
 
-export type InitScriptSource<Arg> =
-  | string
-  | { path?: string; content?: string }
-  | ((arg: Arg) => unknown);
+export type InitScriptSource<Arg> = string | { content: string } | ((arg: Arg) => unknown);

@@ -1,13 +1,7 @@
-import { promises as fs } from "fs";
-import { InitScriptSource } from "../types/private/index.js";
+import type { InitScriptSource } from "../types/private/index.js";
 import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
 
 const DEFAULT_CALLER = "context.addInitScript";
-
-function appendSourceURL(source: string, filePath: string): string {
-  const sanitized = filePath.replace(/\n/g, "");
-  return `${source}\n//# sourceURL=${sanitized}`;
-}
 
 export async function normalizeInitScriptSource<Arg>(
   script: InitScriptSource<Arg>,
@@ -31,7 +25,7 @@ export async function normalizeInitScriptSource<Arg>(
 
   if (!script || typeof script !== "object") {
     throw new StagehandInvalidArgumentError(
-      `${caller}: provide a string, function, or an object with path/content.`,
+      `${caller}: provide a string, function, or an object with content.`,
     );
   }
 
@@ -39,12 +33,7 @@ export async function normalizeInitScriptSource<Arg>(
     return script.content;
   }
 
-  if (typeof script.path === "string" && script.path.trim()) {
-    const raw = await fs.readFile(script.path, "utf8");
-    return appendSourceURL(raw, script.path);
-  }
-
   throw new StagehandInvalidArgumentError(
-    `${caller}: provide a string, function, or an object with path/content.`,
+    `${caller}: provide a string, function, or an object with content.`,
   );
 }

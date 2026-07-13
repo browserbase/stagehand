@@ -4,14 +4,7 @@ import { z } from "zod/v4";
 
 // Values under these keys are user-controlled maps or JSON, so casing conversion
 // must rename the container but preserve every key inside it.
-const defaultOpaqueKeys = new Set([
-  "headers",
-  "cdpHeaders",
-  "cdp_headers",
-  "variables",
-  "attributes",
-  "body",
-]);
+const defaultOpaqueKeys = new Set(["headers", "variables", "attributes", "body"]);
 
 export type WireCasingOptions = {
   readonly opaqueKeys?: readonly string[];

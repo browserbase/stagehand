@@ -4,6 +4,7 @@ import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
 import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
 import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
+import type { SetInputFilesArgument } from "../types/public/locator.js";
 
 type Axis = "child" | "desc";
 type Step = { axis: Axis; raw: string; name: string };
@@ -181,21 +182,7 @@ export class DeepLocatorDelegate {
   }) {
     return (await this.real()).sendClickEvent(options);
   }
-  async setInputFiles(
-    files:
-      | string
-      | string[]
-      | {
-          name: string;
-          mimeType: string;
-          buffer: ArrayBuffer | Uint8Array | Buffer | string;
-        }
-      | Array<{
-          name: string;
-          mimeType: string;
-          buffer: ArrayBuffer | Uint8Array | Buffer | string;
-        }>,
-  ) {
+  async setInputFiles(files: SetInputFilesArgument) {
     return (await this.real()).setInputFiles(files);
   }
   first() {

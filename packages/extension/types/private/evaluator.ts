@@ -4,7 +4,7 @@ export type EvaluateOptions = {
   /** The answer to the question */
   answer?: string;
   /** Whether to take a screenshot of the task state, or array of screenshots to evaluate */
-  screenshot?: boolean | Buffer[];
+  screenshot?: boolean | Uint8Array[];
   /** Custom system prompt for the evaluator */
   systemPrompt?: string;
   /** Delay in milliseconds before taking the screenshot @default 250 */

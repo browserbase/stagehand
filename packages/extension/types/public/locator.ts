@@ -1,12 +1,14 @@
-import { Buffer } from "buffer";
+import { z } from "zod/v4";
 
 export type MouseButton = "left" | "right" | "middle";
 
-export interface SetInputFilePayload {
-  name: string;
-  mimeType?: string;
-  buffer: ArrayBuffer | Uint8Array | Buffer | string;
-  lastModified?: number;
-}
+export const SetInputFilePayloadSchema = z.object({
+  name: z.string().min(1),
+  mimeType: z.string().min(1).optional(),
+  buffer: z.union([z.string(), z.instanceof(ArrayBuffer), z.instanceof(Uint8Array)]),
+  lastModified: z.number().nonnegative().optional(),
+});
 
-export type SetInputFilesArgument = string | string[] | SetInputFilePayload | SetInputFilePayload[];
+export type SetInputFilePayload = z.infer<typeof SetInputFilePayloadSchema>;
+
+export type SetInputFilesArgument = SetInputFilePayload | SetInputFilePayload[];

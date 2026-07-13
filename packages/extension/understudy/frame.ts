@@ -5,6 +5,15 @@ import { Locator } from "./locator.js";
 import { StagehandEvalError } from "../types/public/sdkErrors.js";
 import { executionContexts } from "./executionContextRegistry.js";
 
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = globalThis.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
 interface FrameManager {
   session: CDPSessionLike;
   frameId: string;
@@ -177,7 +186,7 @@ export class Frame implements FrameManager {
     type?: "png" | "jpeg";
     quality?: number;
     scale?: number;
-  }): Promise<Buffer> {
+  }): Promise<Uint8Array> {
     await this.session.send("Page.enable");
     const format = options?.type ?? "png";
     const params: Protocol.Page.CaptureScreenshotRequest & { scale?: number } = {
@@ -213,7 +222,7 @@ export class Frame implements FrameManager {
       "Page.captureScreenshot",
       params,
     );
-    return Buffer.from(data, "base64");
+    return base64ToBytes(data);
   }
 
   /** Child frames via Page.getFrameTree */

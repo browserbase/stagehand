@@ -22,6 +22,15 @@ import type { Page } from "./page.js";
 
 type ServerAddr = { ipAddress: string; port: number };
 
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = globalThis.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
 export function isSerializableResponse(value: unknown): value is SerializableResponse {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<SerializableResponse>;
@@ -277,7 +286,7 @@ export class Response {
    * intentionally lazy because not every caller needs the payload, and CDP only
    * allows retrieving it once the response completes.
    */
-  async body(): Promise<Buffer> {
+  async body(): Promise<Uint8Array> {
     const result = await this.session
       .send<Protocol.Network.GetResponseBodyResponse>("Network.getResponseBody", {
         requestId: this.requestId,
@@ -287,15 +296,15 @@ export class Response {
       });
 
     if (result.base64Encoded) {
-      return Buffer.from(result.body, "base64");
+      return base64ToBytes(result.body);
     }
-    return Buffer.from(result.body, "utf-8");
+    return new TextEncoder().encode(result.body);
   }
 
   /** Decodes the response body as UTF-8 text. */
   async text(): Promise<string> {
-    const buffer = await this.body();
-    return buffer.toString("utf-8");
+    const bytes = await this.body();
+    return new TextDecoder().decode(bytes);
   }
 
   /** Parses the response body as JSON and throws if parsing fails. */

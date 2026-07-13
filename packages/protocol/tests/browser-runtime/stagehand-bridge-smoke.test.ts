@@ -1,5 +1,10 @@
 import { createServer, type Server } from "node:http";
+import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { getChromePath, launch, Launcher, type LaunchedChrome } from "chrome-launcher";
+import { build } from "vite-plus";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { stagehandExtensionDistDir } from "../../../extension/build.ts";
 import { connectStagehandBridge, type StagehandBridge } from "../../../modcdp/index.js";
@@ -9,19 +14,14 @@ type FixtureServer = {
   close(): Promise<void>;
 };
 
-// The production V4 CI installs and verifies a Chrome version with the extension
-// support this provisional smoke test needs. Keep it local until that browser
-// infrastructure replaces this test alongside the bridge.
-const describeBrowserRuntime = process.env.CI ? describe.skip : describe;
-
-describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
+describe("Stagehand service worker bridge smoke", () => {
   let extensionDir: string | undefined;
   let fixtureServer: FixtureServer | undefined;
   let chrome: LaunchedChrome | undefined;
   let bridge: StagehandBridge | undefined;
 
   beforeAll(async () => {
-    extensionDir = stagehandExtensionDistDir;
+    extensionDir = await createFullGraphSmokeExtension();
     fixtureServer = await startFixtureServer();
     chrome = await launchChrome(fixtureServer.url);
     bridge = await connectStagehandBridge({
@@ -37,6 +37,7 @@ describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
     bridge?.close();
     chrome?.kill();
     await fixtureServer?.close();
+    if (extensionDir) await rm(extensionDir, { force: true, recursive: true });
   });
 
   it("discovers the Stagehand service worker in a real Chromium session", () => {
@@ -130,6 +131,84 @@ describeBrowserRuntime("Stagehand service worker bridge smoke", () => {
   });
 });
 
+async function createFullGraphSmokeExtension(): Promise<string> {
+  const extensionDir = await mkdtemp(path.join(tmpdir(), "stagehand-full-graph-extension-"));
+  const outputFiles = await readdir(stagehandExtensionDistDir);
+  await Promise.all(
+    outputFiles.map((file) =>
+      cp(path.join(stagehandExtensionDistDir, file), path.join(extensionDir, file), {
+        recursive: true,
+      }),
+    ),
+  );
+
+  const extensionEntryPath = fileURLToPath(
+    new URL("../../../extension/src/service-worker.ts", import.meta.url),
+  );
+  const serverModulePath = (relativePath: string): string =>
+    fileURLToPath(new URL(`../../../server/${relativePath}`, import.meta.url));
+  const workerEntryPath = path.join(extensionDir, "stagehand-full-graph-entry.ts");
+
+  await writeFile(
+    workerEntryPath,
+    [
+      `import ${JSON.stringify(extensionEntryPath)};`,
+      `import { ActHandler } from ${JSON.stringify(serverModulePath("handlers/actHandler.ts"))};`,
+      `import { ExtractHandler } from ${JSON.stringify(serverModulePath("handlers/extractHandler.ts"))};`,
+      `import { ObserveHandler } from ${JSON.stringify(serverModulePath("handlers/observeHandler.ts"))};`,
+      `import { LLMProvider } from ${JSON.stringify(serverModulePath("llm/LLMProvider.ts"))};`,
+      `import { FlowLogger } from ${JSON.stringify(serverModulePath("flowlogger/FlowLogger.ts"))};`,
+      `import { v3Logger } from ${JSON.stringify(serverModulePath("logger.ts"))};`,
+      `import { withTimeout } from ${JSON.stringify(serverModulePath("timeoutConfig.ts"))};`,
+      `import { CdpConnection } from ${JSON.stringify(serverModulePath("understudy/cdp.ts"))};`,
+      `import { V3Context } from ${JSON.stringify(serverModulePath("understudy/context.ts"))};`,
+      `import { Locator } from ${JSON.stringify(serverModulePath("understudy/locator.ts"))};`,
+      `import { Page } from ${JSON.stringify(serverModulePath("understudy/page.ts"))};`,
+      `import { Response as StagehandResponse } from ${JSON.stringify(serverModulePath("understudy/response.ts"))};`,
+      "const graph = [ActHandler, ExtractHandler, ObserveHandler, LLMProvider, FlowLogger, v3Logger, withTimeout, CdpConnection, V3Context, Locator, Page, StagehandResponse];",
+      "(globalThis as typeof globalThis & { __stagehandServerGraph?: string[] }).__stagehandServerGraph = graph.map((value) => value.name);",
+    ].join("\n"),
+  );
+
+  await build({
+    configFile: false,
+    logLevel: "silent",
+    build: {
+      emptyOutDir: false,
+      minify: false,
+      outDir: extensionDir,
+      target: "es2022",
+      rolldownOptions: {
+        input: workerEntryPath,
+        output: { entryFileNames: "service-worker.js" },
+      },
+    },
+  });
+  await rm(workerEntryPath, { force: true });
+  await assertWorkerBundleIsV8Only(extensionDir);
+  return extensionDir;
+}
+
+async function assertWorkerBundleIsV8Only(extensionDir: string): Promise<void> {
+  const outputFiles = await readdir(extensionDir, { recursive: true });
+  const forbidden = [
+    "__vite-browser-external",
+    'from "node:',
+    "from 'node:",
+    "Node WebSocket transport is unavailable",
+    "ws does not work in the browser",
+  ];
+
+  for (const relativePath of outputFiles.filter((file) => file.endsWith(".js"))) {
+    const source = await readFile(path.join(extensionDir, relativePath), "utf8");
+    for (const token of forbidden) {
+      if (source.includes(token)) {
+        throw new Error(`Worker bundle ${relativePath} contains forbidden Node token ${token}`);
+      }
+    }
+  }
+}
+
 function requireBridge(value: StagehandBridge | undefined): StagehandBridge {
   if (!value) {
     throw new Error("Stagehand bridge was not initialized");
@@ -163,6 +242,7 @@ async function launchChrome(startingUrl: string): Promise<LaunchedChrome> {
       "--remote-allow-origins=*",
       "--window-size=1280,800",
       "--headless",
+      ...(process.env.CI ? ["--no-sandbox"] : []),
     ],
   });
 }

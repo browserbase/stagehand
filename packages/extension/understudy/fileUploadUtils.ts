@@ -1,86 +1,47 @@
-import { promises as fs, type Stats } from "fs";
-import path from "path";
-import { Buffer } from "buffer";
 import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
-import { SetInputFilesArgument, SetInputFilePayload } from "../types/public/locator.js";
-import { NormalizedFilePayload } from "../types/private/locator.js";
+import { SetInputFilePayloadSchema, type SetInputFilesArgument } from "../types/public/locator.js";
+import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const DEFAULT_MIME_TYPE = "application/octet-stream";
 
-/**
- * Normalize user-provided setInputFiles arguments into in-memory payloads.
- * - Resolves string paths relative to the provided base directory.
- * - Validates that each path exists and is a regular file.
- * - Converts all buffers into Node Buffers for downstream processing.
- */
+/** Normalize in-memory file payloads for worker-safe page injection. */
 export async function normalizeInputFiles(
   files: SetInputFilesArgument,
-  opts: { baseDir?: string } = {},
 ): Promise<NormalizedFilePayload[]> {
-  if (files === null || files === undefined) return [];
-
-  const flattened = Array.isArray(files) ? (files as Array<string | SetInputFilePayload>) : [files];
+  const flattened = Array.isArray(files) ? files : [files];
   if (!flattened.length) return [];
 
-  const baseDir = opts.baseDir ?? process.cwd();
-  const normalized: NormalizedFilePayload[] = [];
-
-  for (const entry of flattened) {
-    if (typeof entry === "string") {
-      const absolutePath = path.isAbsolute(entry) ? entry : path.resolve(baseDir, entry);
-      const stat = await statFile(absolutePath);
-      if (!stat.isFile()) {
-        throw new StagehandInvalidArgumentError(
-          `setInputFiles(): expected a file but received directory or special entry at ${absolutePath}`,
-        );
-      }
-      const buffer = await fs.readFile(absolutePath);
-      normalized.push({
-        name: path.basename(absolutePath) || "upload.bin",
-        mimeType: DEFAULT_MIME_TYPE,
-        buffer,
-        lastModified: stat.mtimeMs || Date.now(),
-        absolutePath,
-      });
-      continue;
+  return flattened.map((entry) => {
+    const result = SetInputFilePayloadSchema.safeParse(entry);
+    if (!result.success) {
+      throw new StagehandInvalidArgumentError(
+        `setInputFiles(): expected an in-memory file payload: ${result.error.message}`,
+      );
     }
 
-    if (entry && typeof entry === "object" && "buffer" in entry) {
-      const payload = entry as SetInputFilePayload;
-      const buffer = toBuffer(payload.buffer);
-      normalized.push({
-        name: payload.name || "upload.bin",
-        mimeType: payload.mimeType || DEFAULT_MIME_TYPE,
-        buffer,
-        lastModified: typeof payload.lastModified === "number" ? payload.lastModified : Date.now(),
-      });
-      continue;
-    }
-
-    throw new StagehandInvalidArgumentError(
-      "setInputFiles(): expected file path(s) or payload object(s)",
-    );
-  }
-
-  return normalized;
+    const payload = result.data;
+    return {
+      name: payload.name,
+      mimeType: payload.mimeType ?? DEFAULT_MIME_TYPE,
+      bytes: toBytes(payload.buffer),
+      lastModified: payload.lastModified ?? Date.now(),
+    };
+  });
 }
 
-async function statFile(absolutePath: string): Promise<Stats> {
-  try {
-    return await fs.stat(absolutePath);
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException)?.code;
-    if (code === "ENOENT") {
-      throw new StagehandInvalidArgumentError(`setInputFiles(): file not found at ${absolutePath}`);
-    }
-    throw error;
-  }
-}
-
-export function toBuffer(data: ArrayBuffer | Uint8Array | Buffer | string): Buffer {
-  if (Buffer.isBuffer(data)) return data;
-  if (data instanceof Uint8Array) return Buffer.from(data);
-  if (typeof data === "string") return Buffer.from(data);
-  if (data instanceof ArrayBuffer) return Buffer.from(new Uint8Array(data));
+export function toBytes(data: ArrayBuffer | Uint8Array | string): Uint8Array {
+  if (data instanceof Uint8Array) return new Uint8Array(data);
+  if (typeof data === "string") return new TextEncoder().encode(data);
+  if (data instanceof ArrayBuffer) return new Uint8Array(data.slice(0));
   throw new StagehandInvalidArgumentError("Unsupported file payload buffer type");
+}
+
+export function bytesToBase64(bytes: Uint8Array): string {
+  const chunks: string[] = [];
+  const chunkSize = 32_768;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
+    chunks.push(String.fromCharCode(...chunk));
+  }
+  return globalThis.btoa(chunks.join(""));
 }

@@ -556,7 +556,6 @@ export const StagehandInitParamsSchema = z
   .object({
     cdpUrl: z.string().min(1),
     model: ModelConfigSchema.optional(),
-    cdpHeaders: z.record(z.string(), z.string()).optional(),
     sessionId: z.string().optional(),
     systemPrompt: z.string().optional(),
     logInferenceToFile: z.boolean().optional(),

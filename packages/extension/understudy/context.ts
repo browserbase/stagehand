@@ -1,7 +1,8 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
 import { v3Logger } from "../logger.js";
-import { CdpConnection, CDPSessionLike, type CdpWebSocketFactory } from "./cdp.js";
+import { CdpConnection } from "./cdp.js";
+import type { CDPSessionLike, CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
 import { installV3PiercerIntoSession } from "./piercer.js";
 import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
@@ -19,7 +20,6 @@ import {
   StagehandSetExtraHTTPHeadersError,
   StagehandSetDomainPolicyError,
 } from "../types/public/sdkErrors.js";
-import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 import {
   filterCookies,
   normalizeCookieParams,
@@ -75,16 +75,7 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
 }
 
 const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
-const CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 30000;
-const FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV = "STAGEHAND_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS";
 const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION = "waitForFirstTopLevelPage (no top-level Page)";
-
-function getFirstTopLevelPageTimeoutMs(): number {
-  return (
-    getEnvTimeoutMs(FIRST_TOP_LEVEL_PAGE_TIMEOUT_ENV) ??
-    (process.env.CI ? CI_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS : DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS)
-  );
-}
 
 /**
  * V3Context
@@ -159,22 +150,15 @@ export class V3Context {
    */
   static async create(
     wsUrl: string,
-    opts?: {
+    opts: {
+      websocketFactory: CdpWebSocketFactory;
       env?: "LOCAL" | "BROWSERBASE";
       apiClient?: StagehandAPIClient | null;
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
-      cdpHeaders?: Record<string, string>;
-      websocketFactory?: CdpWebSocketFactory;
     },
   ): Promise<V3Context> {
     const connectTask = async () => {
-      const conn = opts?.websocketFactory
-        ? await CdpConnection.connectWithFactory(wsUrl, opts.websocketFactory, {
-            headers: opts.cdpHeaders,
-          })
-        : await CdpConnection.connect(wsUrl, {
-            headers: opts?.cdpHeaders,
-          });
+      const conn = await CdpConnection.connect(wsUrl, opts.websocketFactory);
       const ctx = new V3Context(
         conn,
         opts?.env ?? "LOCAL",
@@ -187,31 +171,11 @@ export class V3Context {
       // time after the CDP socket is open before the initial page registers.
       const firstPageTimeoutMs = Math.max(
         opts?.localBrowserLaunchOptions?.connectTimeoutMs ?? 0,
-        getFirstTopLevelPageTimeoutMs(),
+        DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS,
       );
       await ctx.ensureFirstTopLevelPage(firstPageTimeoutMs);
       return ctx;
     };
-
-    const cdpTimeoutMs =
-      opts?.env === "BROWSERBASE" ? getEnvTimeoutMs("BROWSERBASE_CDP_CONNECT_MAX_MS") : undefined;
-
-    if (cdpTimeoutMs) {
-      let timedOut = false;
-      const connectPromise = connectTask();
-      const guarded = withTimeout(connectPromise, cdpTimeoutMs, "Browserbase CDP connect").catch(
-        (err) => {
-          timedOut = true;
-          throw err;
-        },
-      );
-      connectPromise
-        .then((ctx) => {
-          if (timedOut) void ctx.close();
-        })
-        .catch(() => {});
-      return await guarded;
-    }
 
     return await connectTask();
   }

@@ -19,7 +19,6 @@ export interface ScreenshotOptions {
   mask?: Locator[];
   maskColor?: string;
   omitBackground?: boolean;
-  path?: string;
   quality?: number;
   scale?: ScreenshotScaleOption;
   style?: string;
