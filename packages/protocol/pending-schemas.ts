@@ -13,6 +13,7 @@ import {
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageLocatorSchema,
+  StagehandTelemetryOptionsSchema,
   VertexModelProviderOptionsSchema,
 } from "./schemas.ts";
 
@@ -587,6 +588,7 @@ export const StagehandOptionsSchema = z
     localBrowserConnectOptions: LocalBrowserConnectOptionsSchema.optional(),
     browserbaseSessionCreateParams: BrowserbaseSessionCreateParamsSchema.optional(),
     browserbaseConnectOptions: BrowserbaseConnectOptionsSchema.optional(),
+    telemetry: StagehandTelemetryOptionsSchema,
     selfHeal: z.boolean().optional(),
   })
   .strict()

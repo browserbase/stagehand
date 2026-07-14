@@ -7,16 +7,25 @@ import { createStagehandController } from "./controllers/stagehandController.js"
 import { createStagehandRouter, type StagehandHandlers } from "./rpc/router.js";
 import {
   createStagehandRuntimeService,
-  type StagehandRuntimeDependencies,
+  type LoopbackCdpConnectionFactory,
+  type UnderstudyRuntimeContextFactory,
 } from "./services/stagehandRuntimeService.js";
-import { browserLoopbackCdpFactory } from "./transports/browserLoopbackCdpConnection.js";
+import type { StagehandTracing } from "./tracing.js";
 
-export type StagehandAppDependencies = StagehandRuntimeDependencies;
+export type StagehandAppDependencies = {
+  tracing: StagehandTracing;
+  loopbackCdpFactory: LoopbackCdpConnectionFactory;
+  understudyContextFactory: UnderstudyRuntimeContextFactory;
+};
 
-export function createStagehandApp(dependencies: StagehandAppDependencies = {}) {
+export function createStagehandApp({
+  tracing,
+  loopbackCdpFactory,
+  understudyContextFactory,
+}: StagehandAppDependencies) {
   const service = createStagehandRuntimeService({
-    ...dependencies,
-    loopbackCdpFactory: dependencies.loopbackCdpFactory ?? browserLoopbackCdpFactory,
+    loopbackCdpFactory,
+    understudyContextFactory,
   });
   const runtime = createRuntimeController({ service });
   const browser = createBrowserController({ service });
@@ -49,6 +58,6 @@ export function createStagehandApp(dependencies: StagehandAppDependencies = {}) 
   } satisfies StagehandHandlers;
 
   return {
-    handle: createStagehandRouter(routes),
+    handle: createStagehandRouter(routes, { tracing }),
   };
 }

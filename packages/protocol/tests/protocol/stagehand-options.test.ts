@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 import { BrowserbaseConnectOptionsSchema, StagehandOptionsSchema } from "../../pending-schemas.js";
 
+const defaultTelemetry = {
+  traces: {
+    endpoint: "https://example.com/v1/traces",
+    headers: {},
+  },
+};
+
 describe("Stagehand constructor options", () => {
   it("accepts local browser launch options", () => {
     expect(
@@ -15,6 +22,7 @@ describe("Stagehand constructor options", () => {
         headless: false,
         keepAlive: true,
       },
+      telemetry: defaultTelemetry,
     });
   });
 
@@ -31,6 +39,7 @@ describe("Stagehand constructor options", () => {
         cdpUrl: "http://127.0.0.1:9222",
         keepAlive: true,
       },
+      telemetry: defaultTelemetry,
     });
   });
 
@@ -55,6 +64,7 @@ describe("Stagehand constructor options", () => {
           suite: "smoke",
         },
       },
+      telemetry: defaultTelemetry,
     });
   });
 
@@ -73,6 +83,7 @@ describe("Stagehand constructor options", () => {
         apiKey: "bb_key",
         keepAlive: true,
       },
+      telemetry: defaultTelemetry,
     });
   });
 
@@ -89,6 +100,7 @@ describe("Stagehand constructor options", () => {
         sessionId: "session_123",
         apiKey: "bb_key",
       },
+      telemetry: defaultTelemetry,
     });
   });
 
@@ -100,6 +112,7 @@ describe("Stagehand constructor options", () => {
       }),
     ).toStrictEqual({
       localBrowserLaunchOptions: {},
+      telemetry: defaultTelemetry,
       selfHeal: true,
     });
   });

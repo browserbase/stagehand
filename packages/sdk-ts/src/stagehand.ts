@@ -1,4 +1,3 @@
-import type { z } from "zod/v4";
 import { stagehandExtensionDistDir } from "../../extension/build.js";
 import {
   connectStagehandBridge,
@@ -6,6 +5,7 @@ import {
   type StagehandBridgeOptions,
 } from "../../modcdp/index.js";
 import { StagehandOptionsSchema } from "../../protocol/pending-schemas.js";
+import type { StagehandOptions } from "../../protocol/types.js";
 import { BrowserContext } from "./browserContext.js";
 import { resolveBrowserSource, type ResolvedBrowserSource } from "./browserSource.js";
 import { BridgeProtocolClient } from "./bridgeProtocolClient.js";
@@ -14,8 +14,6 @@ import {
   parseStagehandProtocolResponse,
   type StagehandProtocolClient,
 } from "./protocolClient.js";
-
-export type StagehandOptions = z.output<typeof StagehandOptionsSchema>;
 
 type StagehandRuntimeDependencies = {
   resolveBrowserSource?: (options: StagehandOptions) => Promise<ResolvedBrowserSource>;
@@ -60,6 +58,7 @@ export class Stagehand {
         cdpUrl: browser.cdpUrl,
         extensionDir: stagehandExtensionDistDir,
         serviceWorkerUrlIncludes: "service-worker.js",
+        telemetry: parsedOptions.telemetry,
       });
       this.#bridge = bridge;
       this.#context = new BrowserContext(new BridgeProtocolClient(bridge));

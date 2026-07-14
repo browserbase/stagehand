@@ -95,14 +95,65 @@ describe("Stagehand", () => {
       localBrowserConnectOptions: {
         cdpUrl: "http://127.0.0.1:9222",
       },
+      telemetry: {
+        traces: {
+          endpoint: "https://example.com/v1/traces",
+          headers: {},
+        },
+      },
     });
     expect(connectBridge).toHaveBeenCalledWith({
       cdpUrl: "http://127.0.0.1:9222",
       extensionDir: expect.stringContaining("packages/extension/dist") as string,
       serviceWorkerUrlIncludes: "service-worker.js",
+      telemetry: {
+        traces: {
+          endpoint: "https://example.com/v1/traces",
+          headers: {},
+        },
+      },
     } satisfies StagehandBridgeOptions);
     expect(pages[0]?.pageId).toBe("page-1");
     expect(bridge.calls).toStrictEqual([{ method: "context.pages", params: {} }]);
+  });
+
+  it("passes the configured OTLP traces destination to the worker bridge", async () => {
+    const bridge = new FakeStagehandBridge();
+    const connectBridge = vi.fn(async () => bridge);
+    const stagehand = createStagehandWithDependenciesForTest(
+      {
+        localBrowserConnectOptions: {
+          cdpUrl: "http://127.0.0.1:9222",
+        },
+        telemetry: {
+          traces: {
+            endpoint: "https://collector.example.com/v1/traces",
+            headers: { Authorization: "Bearer test" },
+          },
+        },
+      },
+      {
+        resolveBrowserSource: async () => ({
+          cdpUrl: "http://127.0.0.1:9222",
+          keepAlive: true,
+        }),
+        connectBridge,
+      },
+    );
+
+    await stagehand.init();
+
+    expect(connectBridge).toHaveBeenCalledWith({
+      cdpUrl: "http://127.0.0.1:9222",
+      extensionDir: expect.stringContaining("packages/extension/dist") as string,
+      serviceWorkerUrlIncludes: "service-worker.js",
+      telemetry: {
+        traces: {
+          endpoint: "https://collector.example.com/v1/traces",
+          headers: { Authorization: "Bearer test" },
+        },
+      },
+    } satisfies StagehandBridgeOptions);
   });
 
   it("closes the runtime, bridge, and owned browser source", async () => {

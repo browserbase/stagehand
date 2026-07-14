@@ -1,7 +1,6 @@
-import type { z } from "zod/v4";
 import { StagehandOptionsSchema } from "../../protocol/pending-schemas.js";
+import type { StagehandOptions } from "../../protocol/types.js";
 
-type StagehandOptions = z.output<typeof StagehandOptionsSchema>;
 type LocalBrowserLaunchOptions = NonNullable<StagehandOptions["localBrowserLaunchOptions"]>;
 type BrowserbaseSessionCreateParams = NonNullable<
   StagehandOptions["browserbaseSessionCreateParams"]

@@ -1,3 +1,12 @@
+import {
+  ROOT_CONTEXT,
+  context as otelContext,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+  type Span,
+} from "@opentelemetry/api";
+import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import { z } from "zod/v4";
 import {
   JSONRPCErrorCodes,
@@ -9,6 +18,9 @@ import type { JSONRPCResponse } from "../../protocol/json-rpc/types.js";
 import { encodeWireValue } from "../../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods, StagehandRpcRequestSchema } from "../../protocol/schema-registry.js";
 import { StagehandRuntimeError } from "../services/stagehandRuntimeService.js";
+import type { StagehandTracing } from "../tracing.js";
+
+const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 
 export type StagehandHandlers = {
   [Method in keyof typeof StagehandMethods]: (
@@ -16,7 +28,10 @@ export type StagehandHandlers = {
   ) => Promise<z.output<(typeof StagehandMethods)[Method]["resultSchema"]>>;
 };
 
-export function createStagehandRouter(routes: StagehandHandlers) {
+export function createStagehandRouter(
+  routes: StagehandHandlers,
+  { tracing }: { tracing: StagehandTracing },
+) {
   return async (raw: unknown): Promise<JSONRPCResponse> => {
     let input: unknown;
 
@@ -60,12 +75,42 @@ export function createStagehandRouter(routes: StagehandHandlers) {
     const request = requestResult.data;
     const definition = StagehandMethods[request.method];
     const route = routes[request.method] as (params: typeof request.params) => Promise<unknown>;
+    if (request.method === "runtime.configure") {
+      tracing.configure(request.params.telemetry);
+    }
+
+    // CDP has no HTTP headers, so the bridge carries W3C trace context in flat JSON-RPC fields.
+    const parentContext = W3C_TRACE_CONTEXT_PROPAGATOR.extract(ROOT_CONTEXT, request, {
+      get(carrier, key) {
+        if (key === "traceparent" || key === "tracestate") return carrier[key];
+        return undefined;
+      },
+      keys(carrier) {
+        return ["traceparent", "tracestate"].filter((key) => key in carrier);
+      },
+    });
+    const span = tracing.tracer.startSpan(
+      request.method,
+      {
+        kind: SpanKind.SERVER,
+        attributes: {
+          "rpc.system.name": "jsonrpc",
+          "rpc.method": request.method,
+          "jsonrpc.request.id": String(request.id),
+        },
+      },
+      parentContext,
+    );
+    const requestContext = trace.setSpan(parentContext, span);
+    const shutdownAfterResponse = request.method === "stagehand.close";
 
     try {
-      const result = await route(request.params);
+      // Make the server span active so dependency instrumentation joins the same trace.
+      const result = await otelContext.with(requestContext, () => route(request.params));
       const resultResult = definition.resultSchema.safeParse(result);
 
       if (!resultResult.success) {
+        setRpcErrorOnSpan(span, JSONRPCErrorCodes.internalError, "stagehand.invalid_result");
         return rpcError(
           request.id,
           JSONRPCErrorCodes.internalError,
@@ -83,17 +128,34 @@ export function createStagehandRouter(routes: StagehandHandlers) {
       });
     } catch (error) {
       if (error instanceof StagehandRuntimeError) {
+        setRpcErrorOnSpan(span, error.code, error.type, error.message);
         return rpcError(request.id, error.code, error.message, error.type);
       }
 
+      setRpcErrorOnSpan(
+        span,
+        JSONRPCErrorCodes.internalError,
+        "stagehand.internal_error",
+        error instanceof Error ? error.message : undefined,
+      );
       return rpcError(
         request.id,
         JSONRPCErrorCodes.internalError,
         "Internal error",
         "stagehand.internal_error",
       );
+    } finally {
+      span.end();
+      if (shutdownAfterResponse) await tracing.shutdown();
     }
   };
+}
+
+// JSON-RPC errors are normal responses, so OpenTelemetry cannot infer span failure automatically.
+function setRpcErrorOnSpan(span: Span, code: number, type: string, message?: string): void {
+  span.setAttribute("rpc.response.status_code", String(code));
+  span.setAttribute("error.type", type);
+  span.setStatus({ code: SpanStatusCode.ERROR, ...(message ? { message } : {}) });
 }
 
 function rpcError(id: number | null, code: number, message: string, type: string): JSONRPCResponse {

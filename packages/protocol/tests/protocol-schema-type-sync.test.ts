@@ -37,14 +37,19 @@ describe("protocol schemas must stay in sync with protocol types", () => {
       const actual = [...typesSource.matchAll(/export type\s+(\w+)\s*=\s*([^;]+);/gs)]
         .map((match) => {
           const typeName = match[1]!;
-          const inference = match[2]!.match(/^z\.infer<\s*typeof\s+(\w+Schema)\s*>$/s);
+          const inference = match[2]!.match(/^z\.(infer|input)<\s*typeof\s+(\w+Schema)\s*>$/s);
+          const expectedInference = typeName === "StagehandOptions" ? "input" : "infer";
 
           expect(
             inference,
             `${typeName} must directly infer from an exported canonical protocol schema`,
           ).not.toBeNull();
+          expect(
+            inference![1],
+            `${typeName} must use z.${expectedInference} for its canonical protocol type`,
+          ).toBe(expectedInference);
 
-          return [typeName, inference![1]!] as const;
+          return [typeName, inference![2]!] as const;
         })
         .sort(([left], [right]) => left.localeCompare(right));
 

@@ -567,21 +567,25 @@ export const StagehandInitParamsSchema = z
 
 export const StagehandTelemetryOptionsSchema = z
   .strictObject({
-    traces: z
-      .strictObject({
-        endpoint: z.url().refine((value) => new URL(value).pathname.endsWith("/v1/traces"), {
-          message: "OTLP trace endpoint must end with /v1/traces",
-        }),
-        headers: z.record(z.string(), z.string()).optional(),
-      })
-      .optional(),
+    traces: z.strictObject({
+      endpoint: z.url().refine((value) => new URL(value).pathname.endsWith("/v1/traces"), {
+        message: "OTLP trace endpoint must end with /v1/traces",
+      }),
+      headers: z.record(z.string(), z.string()).default({}),
+    }),
+  })
+  .default({
+    traces: {
+      endpoint: "https://example.com/v1/traces", // TODO: Replace with the Browserbase OTLP traces ingestion endpoint.
+      headers: {},
+    },
   })
   .meta({ id: "StagehandTelemetryOptions" });
 
 export const RuntimeConfigureParamsSchema = z
   .object({
     cdpUrl: z.string().min(1),
-    telemetry: StagehandTelemetryOptionsSchema.optional(),
+    telemetry: StagehandTelemetryOptionsSchema,
   })
   .strict();
 

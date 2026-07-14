@@ -11,6 +11,12 @@ describe("StagehandBridgeOptionsSchema", () => {
     ).toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
       extensionDir: "/tmp/stagehand-extension",
+      telemetry: {
+        traces: {
+          endpoint: "https://example.com/v1/traces",
+          headers: {},
+        },
+      },
     });
   });
 
@@ -23,6 +29,34 @@ describe("StagehandBridgeOptionsSchema", () => {
     ).toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
       extensionId: "abcdefghijklmnopabcdefghijklmnop",
+      telemetry: {
+        traces: {
+          endpoint: "https://example.com/v1/traces",
+          headers: {},
+        },
+      },
+    });
+  });
+
+  it("accepts a custom OTLP traces destination", () => {
+    expect(
+      StagehandBridgeOptionsSchema.parse({
+        cdpUrl: "http://127.0.0.1:9222",
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        telemetry: {
+          traces: {
+            endpoint: "https://collector.example.com/v1/traces",
+            headers: { Authorization: "Bearer test" },
+          },
+        },
+      }),
+    ).toMatchObject({
+      telemetry: {
+        traces: {
+          endpoint: "https://collector.example.com/v1/traces",
+          headers: { Authorization: "Bearer test" },
+        },
+      },
     });
   });
 
