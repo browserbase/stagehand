@@ -389,6 +389,59 @@ describe("CLI telemetry", () => {
       await telemetryServer.close();
     }
   });
+
+  it("tags every event with execution-environment properties", async () => {
+    const telemetryServer = await startTelemetryServer();
+
+    try {
+      const installIdFile = await tempInstallIdFile("browse-telemetry-env-");
+      const result = await runCli(["status"], {
+        env: telemetryEnv(telemetryServer, installIdFile),
+      });
+
+      expect(result.exitCode).toBe(0);
+
+      const payloads = telemetryPayloads(telemetryServer);
+      for (const payload of payloads) {
+        expect(typeof payload.properties.is_container).toBe("boolean");
+        expect(typeof payload.properties.runtime_provider).toBe("string");
+        // The test CLI runs with piped stdio, so there is no interactive TTY.
+        expect(payload.properties.is_tty).toBe(false);
+      }
+    } finally {
+      await telemetryServer.close();
+    }
+  });
+
+  it("classifies a known sandbox via its env var (runtime_provider)", async () => {
+    const telemetryServer = await startTelemetryServer();
+
+    try {
+      const installIdFile = await tempInstallIdFile(
+        "browse-telemetry-env-e2b-",
+      );
+      const result = await runCli(["status"], {
+        env: {
+          ...telemetryEnv(telemetryServer, installIdFile),
+          // Neutralize CI/host providers std-env would otherwise report first.
+          GITHUB_ACTIONS: "",
+          GITLAB_CI: "",
+          VERCEL: "",
+          E2B_SANDBOX: "true",
+        },
+      });
+
+      expect(result.exitCode).toBe(0);
+
+      const invoked = findPayload(
+        telemetryPayloads(telemetryServer),
+        "cli.command_invoked",
+      );
+      expect(invoked.properties.runtime_provider).toBe("e2b");
+    } finally {
+      await telemetryServer.close();
+    }
+  });
 });
 
 async function startTelemetryServer(): Promise<FakeBrowserbaseServer> {
