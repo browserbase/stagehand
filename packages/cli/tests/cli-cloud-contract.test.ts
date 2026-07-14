@@ -669,6 +669,90 @@ describe("cloud API contracts", () => {
     );
   });
 
+  it("warns on stderr when auto-loading .env variables with BROWSE_LOAD_DOTENV unset", async () => {
+    const cwd = await createTempDir("browse-dotenv-warn-");
+
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, [{ id: "proj_123", name: "Demo" }]);
+      },
+      async ({ baseUrl, requests }) => {
+        await writeFile(
+          join(cwd, ".env"),
+          [
+            "BROWSERBASE_API_KEY=test-key",
+            `BROWSERBASE_BASE_URL=${baseUrl}`,
+          ].join("\n"),
+        );
+
+        const result = await runCli(["cloud", "projects", "list"], {
+          cwd,
+          env: {
+            BROWSERBASE_API_KEY: undefined,
+            BROWSERBASE_BASE_URL: undefined,
+            BROWSE_LOAD_DOTENV: undefined,
+          },
+        });
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "GET", "/v1/projects", "test-key");
+        expect(result.stderr).toContain("deprecated");
+        expect(result.stderr).toContain("BROWSERBASE_API_KEY");
+      },
+    );
+  });
+
+  it("does not warn when BROWSE_LOAD_DOTENV=1 is explicitly set", async () => {
+    const cwd = await createTempDir("browse-dotenv-optin-");
+
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, [{ id: "proj_123", name: "Demo" }]);
+      },
+      async ({ baseUrl, requests }) => {
+        await writeFile(
+          join(cwd, ".env"),
+          [
+            "BROWSERBASE_API_KEY=test-key",
+            `BROWSERBASE_BASE_URL=${baseUrl}`,
+          ].join("\n"),
+        );
+
+        const result = await runCli(["cloud", "projects", "list"], {
+          cwd,
+          env: {
+            BROWSERBASE_API_KEY: undefined,
+            BROWSERBASE_BASE_URL: undefined,
+            BROWSE_LOAD_DOTENV: "1",
+          },
+        });
+
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], "GET", "/v1/projects", "test-key");
+        expect(result.stderr).not.toContain("deprecated");
+      },
+    );
+  });
+
+  it("does not auto-load .env when BROWSE_LOAD_DOTENV=0", async () => {
+    const cwd = await createTempDir("browse-dotenv-optout-");
+
+    await writeFile(join(cwd, ".env"), "BROWSERBASE_API_KEY=test-key\n");
+
+    const result = await runCli(["cloud", "projects", "list"], {
+      cwd,
+      env: {
+        BROWSERBASE_API_KEY: undefined,
+        BROWSERBASE_BASE_URL: undefined,
+        BROWSE_LOAD_DOTENV: "0",
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Missing Browserbase API key");
+    expect(result.stderr).not.toContain("deprecated");
+  });
+
   it.each([
     {
       args: ["cloud", "contexts", "create", "--body", '{"region":"us-west-2"}'],
