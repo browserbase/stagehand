@@ -1,4 +1,7 @@
 import { promises as fs } from "node:fs";
+import { join } from "node:path";
+
+import { parse } from "dotenv";
 
 import { CommandFailure } from "../errors.js";
 import { getDriverStatus } from "./daemon/client.js";
@@ -49,6 +52,7 @@ export interface BuildDoctorReportOptions {
 }
 
 export interface DoctorDeps {
+  cwd?: string;
   discoverLocalCdp?: typeof discoverLocalCdp;
   env?: NodeJS.ProcessEnv;
   getDriverStatus?: typeof getDriverStatus;
@@ -194,6 +198,12 @@ export async function buildDoctorReport(
     if (modeCheck) checks.push(modeCheck);
   }
 
+  const environmentWarning = await dotenvShadowingWarning(
+    env,
+    deps.cwd ?? process.cwd(),
+  );
+  if (environmentWarning) checks.push(environmentWarning);
+
   const verdict = reportVerdict(checks);
   return {
     checks,
@@ -232,6 +242,48 @@ export function renderDoctorReport(report: DoctorReport): string {
     lines.push(`Next: ${report.next}`);
   }
   return lines.join("\n");
+}
+
+async function dotenvShadowingWarning(
+  env: NodeJS.ProcessEnv,
+  cwd: string,
+): Promise<DoctorCheck | null> {
+  const envKeys = (await getRemote()).forwardedEnvKeys();
+  const dotenvFiles = [".env", ".env.local"];
+  const conflicts: Array<{ file: string; variable: string }> = [];
+
+  for (const file of dotenvFiles) {
+    let parsed: Record<string, string>;
+    try {
+      parsed = parse(await fs.readFile(join(cwd, file)));
+    } catch {
+      continue;
+    }
+
+    for (const variable of envKeys) {
+      const processValue = env[variable];
+      const fileValue = parsed[variable];
+      if (
+        typeof processValue === "string" &&
+        typeof fileValue === "string" &&
+        fileValue !== processValue
+      ) {
+        conflicts.push({ file, variable });
+      }
+    }
+  }
+
+  if (conflicts.length === 0) return null;
+
+  const files = [...new Set(conflicts.map(({ file }) => file))];
+  const variables = [...new Set(conflicts.map(({ variable }) => variable))];
+  return {
+    details: { files, variables },
+    fix: `set ${variables.join(" and ")} explicitly for each process instead of relying on conflicting dotenv files`,
+    message: `${variables.join(" and ")} in the process environment ${variables.length === 1 ? "overrides" : "override"} different ${files.join(" and ")} ${files.length === 1 ? "value" : "values"}`,
+    name: "environment",
+    status: "warn",
+  };
 }
 
 async function daemonCheck(
