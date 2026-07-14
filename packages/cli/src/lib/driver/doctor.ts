@@ -249,13 +249,22 @@ async function dotenvShadowingWarning(
   cwd: string,
 ): Promise<DoctorCheck | null> {
   const envKeys = (await getRemote()).forwardedEnvKeys();
-  const dotenvFiles = [".env", ".env.local"];
-  const conflicts: Array<{ file: string; variable: string }> = [];
+  // `.env` is auto-loaded by `browse`, so a differing process value genuinely
+  // overrides it. `.env.local` is never loaded at all, so a differing value
+  // there was never going to apply -- flag it as ignored, not overridden, or
+  // the fix advice ("set it explicitly instead of relying on dotenv") reads
+  // as if unsetting the process var would let `.env.local` take effect.
+  const dotenvFiles = [
+    { loaded: true, name: ".env" },
+    { loaded: false, name: ".env.local" },
+  ];
+  const overrides: Array<{ file: string; variable: string }> = [];
+  const ignored: Array<{ file: string; variable: string }> = [];
 
-  for (const file of dotenvFiles) {
+  for (const { loaded, name } of dotenvFiles) {
     let parsed: Record<string, string>;
     try {
-      parsed = parse(await fs.readFile(join(cwd, file)));
+      parsed = parse(await fs.readFile(join(cwd, name)));
     } catch {
       continue;
     }
@@ -268,19 +277,49 @@ async function dotenvShadowingWarning(
         typeof fileValue === "string" &&
         fileValue !== processValue
       ) {
-        conflicts.push({ file, variable });
+        (loaded ? overrides : ignored).push({ file: name, variable });
       }
     }
   }
 
-  if (conflicts.length === 0) return null;
+  if (overrides.length === 0 && ignored.length === 0) return null;
 
-  const files = [...new Set(conflicts.map(({ file }) => file))];
-  const variables = [...new Set(conflicts.map(({ variable }) => variable))];
+  const messages: string[] = [];
+  const fixes: string[] = [];
+
+  if (overrides.length > 0) {
+    const variables = [...new Set(overrides.map(({ variable }) => variable))];
+    const plural = variables.length > 1;
+    messages.push(
+      `${variables.join(" and ")} in the process environment ${plural ? "override" : "overrides"} a different .env value`,
+    );
+    fixes.push(
+      `set ${variables.join(" and ")} explicitly for each process instead of relying on .env`,
+    );
+  }
+
+  if (ignored.length > 0) {
+    const variables = [...new Set(ignored.map(({ variable }) => variable))];
+    const plural = variables.length > 1;
+    messages.push(
+      `${variables.join(" and ")} in .env.local ${plural ? "differ" : "differs"} from the process environment -- browse never loads .env.local, so ${plural ? "these values are" : "this value is"} ignored, not applied`,
+    );
+    fixes.push(
+      `move ${variables.join(" and ")} from .env.local to .env, or export ${plural ? "them" : "it"} directly, if you want browse to pick ${plural ? "them" : "it"} up`,
+    );
+  }
+
+  const files = [
+    ...new Set([...overrides, ...ignored].map(({ file }) => file)),
+  ];
+  const variables = [
+    ...new Set([...overrides, ...ignored].map(({ variable }) => variable)),
+  ];
+
   return {
     details: { files, variables },
-    fix: `set ${variables.join(" and ")} explicitly for each process instead of relying on conflicting dotenv files`,
-    message: `${variables.join(" and ")} in the process environment ${variables.length === 1 ? "overrides" : "override"} different ${files.join(" and ")} ${files.length === 1 ? "value" : "values"}`,
+    fix: fixes.join("; "),
+    message: messages.join("; "),
     name: "environment",
     status: "warn",
   };

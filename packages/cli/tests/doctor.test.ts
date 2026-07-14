@@ -134,6 +134,41 @@ describe("doctor command", () => {
     expect(result.stdout).not.toContain("dotenv-local-key");
   });
 
+  it("flags a .env.local-only mismatch as ignored, not overridden", async () => {
+    const cwd = await tempProjectDir();
+    const daemonDir = await tempDaemonDir();
+    await writeFile(
+      join(cwd, ".env.local"),
+      "BROWSERBASE_API_KEY=dotenv-local-key\n",
+    );
+
+    const result = await runCli(["doctor", "--local", "--json"], {
+      cwd,
+      env: {
+        BROWSERBASE_API_KEY: "process-key",
+        BROWSE_DAEMON_DIR: daemonDir,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    const report = JSON.parse(result.stdout) as {
+      checks: Array<{
+        details?: { files: string[]; variables: string[] };
+        message: string;
+        name: string;
+      }>;
+      verdict: string;
+    };
+    expect(report.verdict).toBe("warn");
+    const check = report.checks.find((c) => c.name === "environment");
+    expect(check?.details).toEqual({
+      files: [".env.local"],
+      variables: ["BROWSERBASE_API_KEY"],
+    });
+    expect(check?.message).toContain("browse never loads .env.local");
+    expect(check?.message).not.toContain("overrides");
+  });
+
   it("does not warn when process and dotenv API keys match", async () => {
     const cwd = await tempProjectDir();
     const daemonDir = await tempDaemonDir();
