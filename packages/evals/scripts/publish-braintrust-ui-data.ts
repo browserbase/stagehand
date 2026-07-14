@@ -182,6 +182,11 @@ const MODEL_PRICING_USD_PER_1M_TOKENS = new Map<string, ModelPricing>([
   ["gpt-5.6-terra", { input: 2.5, cachedInput: 0.25, output: 15 }],
   ["openai/gpt-5.6-luna", { input: 1, cachedInput: 0.1, output: 6 }],
   ["gpt-5.6-luna", { input: 1, cachedInput: 0.1, output: 6 }],
+  // xAI pricing per docs.x.ai/developers/models (2026-07).
+  ["xai/grok-4.5", { input: 2, cachedInput: 0.5, output: 6 }],
+  ["grok-4.5", { input: 2, cachedInput: 0.5, output: 6 }],
+  ["xai/grok-4.3", { input: 1.25, cachedInput: 0.2, output: 2.5 }],
+  ["grok-4.3", { input: 1.25, cachedInput: 0.2, output: 2.5 }],
   ["anthropic/claude-opus-4-7", { input: 5, cachedInput: 0.5, output: 25 }],
   ["claude-opus-4-7", { input: 5, cachedInput: 0.5, output: 25 }],
   ["anthropic/claude-opus-4-6", { input: 5, cachedInput: 0.5, output: 25 }],
