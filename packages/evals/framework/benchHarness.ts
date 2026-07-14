@@ -32,6 +32,7 @@ import {
   type PreparedExternalHarnessAdapter,
 } from "./externalHarnessToolAdapter.js";
 import { runVercelAiSdkAgent } from "./vercelAiSdkRunner.js";
+import { runAnthropicSdkAgent } from "./anthropicSdkRunner.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type {
   AdapterBackedHarness,
@@ -444,12 +445,17 @@ export const vercelAiSdkHarness = buildAdapterBackedHarness(
   "vercel_ai_sdk",
   runVercelAiSdkAgent,
 );
+export const anthropicSdkHarness = buildAdapterBackedHarness(
+  "anthropic_sdk",
+  runAnthropicSdkAgent,
+);
 
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
   ["codex", codexHarness],
   ["vercel_ai_sdk", vercelAiSdkHarness],
+  ["anthropic_sdk", anthropicSdkHarness],
 ]);
 
 export function getBenchHarness(harness: Harness): BenchHarness {

@@ -338,6 +338,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.141
         version: 0.2.141(@cfworker/json-schema@4.1.1)(zod@4.2.1)
+      '@anthropic-ai/sdk':
+        specifier: 0.39.0
+        version: 0.39.0
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../core

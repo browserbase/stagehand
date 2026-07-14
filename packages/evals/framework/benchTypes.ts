@@ -32,6 +32,7 @@ export const EXECUTABLE_BENCH_HARNESSES = [
   "claude_code",
   "codex",
   "vercel_ai_sdk",
+  "anthropic_sdk",
 ] as const satisfies readonly Harness[];
 
 /**
