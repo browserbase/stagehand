@@ -1,5 +1,11 @@
 # browse
 
+## 0.9.6
+
+### Patch Changes
+
+- [#2361](https://github.com/browserbase/stagehand/pull/2361) [`2a6e20b`](https://github.com/browserbase/stagehand/commit/2a6e20b068bb724bdbd3c192b6463acd6b9b817c) Thanks [@shrey150](https://github.com/shrey150)! - Warn when auto-loading variables from `.env` and add `BROWSE_LOAD_DOTENV` to opt out ahead of a future release where this will be off by default.
+
 ## 0.9.5
 
 ### Patch Changes
