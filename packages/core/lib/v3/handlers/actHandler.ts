@@ -43,6 +43,7 @@ export class ActHandler {
   private readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
+  private readonly enableContextCompression: boolean;
   private readonly selfHeal: boolean;
   private readonly onMetrics?: (
     functionName: V3FunctionName,
@@ -71,6 +72,7 @@ export class ActHandler {
       inferenceTimeMs: number,
     ) => void,
     defaultDomSettleTimeoutMs?: number,
+    enableContextCompression?: boolean,
   ) {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
@@ -78,6 +80,7 @@ export class ActHandler {
     this.resolveLlmClient = resolveLlmClient;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
+    this.enableContextCompression = enableContextCompression ?? false;
     this.selfHeal = !!selfHeal;
     this.onMetrics = onMetrics;
     this.defaultDomSettleTimeoutMs = defaultDomSettleTimeoutMs;
@@ -114,6 +117,7 @@ export class ActHandler {
       userProvidedInstructions: this.systemPrompt,
       logger: v3Logger,
       logInferenceToFile: this.logInferenceToFile,
+      enableContextCompression: this.enableContextCompression,
     });
 
     this.recordActMetrics(response);
