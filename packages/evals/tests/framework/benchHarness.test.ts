@@ -3,6 +3,7 @@ import {
   anthropicSdkHarness,
   claudeCodeHarness,
   codexHarness,
+  cursorSdkHarness,
   getBenchHarness,
   openaiAgentsSdkHarness,
   vercelAiSdkHarness,
@@ -58,6 +59,18 @@ describe("bench harness registry", () => {
     const harness = getBenchHarness("openai_agents_sdk");
 
     expect(harness).toBe(openaiAgentsSdkHarness);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
+    await expect(harness.start({} as never)).rejects.toThrow(
+      /external harness execute path/,
+    );
+  });
+
+  it("registers cursor_sdk as a concrete executable harness", async () => {
+    const harness = getBenchHarness("cursor_sdk");
+
+    expect(harness).toBe(cursorSdkHarness);
     expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
     expect(harness.supportsApi).toBe(false);
     expect(harness.execute).toBeDefined();
