@@ -38,6 +38,7 @@
     "@types/node": "^25.6.2",
     "braintrust": "^0.4.10",
     "chalk": "^5.4.1",
+    "gray-matter": "^4.0.3",
     "string-comparison": "^1.3.0",
     "vite": "^7.3.5",
     "vitest": "^4.1.9"
