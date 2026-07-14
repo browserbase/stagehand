@@ -117,6 +117,64 @@ describe("Stagehand service worker bridge smoke", () => {
     });
   });
 
+  it("routes locator actions through real PageRefs in a browser session", async () => {
+    const activeBridge = requireBridge(bridge);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const pages = await activeBridge.send("context.pages", {});
+    const page = pages[0] ?? (await activeBridge.send("context.new_page", {}));
+
+    await activeBridge.send("page.goto", {
+      pageId: page.pageId,
+      url: activeFixtureServer.url,
+    });
+
+    await expect(
+      activeBridge.send("locator.is_visible", {
+        pageId: page.pageId,
+        selector: "#locator-message",
+      }),
+    ).resolves.toStrictEqual({
+      visible: true,
+    });
+
+    await expect(
+      activeBridge.send("locator.text_content", {
+        pageId: page.pageId,
+        selector: "#locator-message",
+      }),
+    ).resolves.toStrictEqual({
+      textContent: "locator text",
+    });
+
+    await expect(
+      activeBridge.send("locator.fill", {
+        pageId: page.pageId,
+        selector: "#locator-input",
+        value: "user@example.com",
+      }),
+    ).resolves.toStrictEqual({
+      filled: true,
+    });
+
+    await expect(
+      activeBridge.send("locator.click", {
+        pageId: page.pageId,
+        selector: "#locator-button",
+      }),
+    ).resolves.toStrictEqual({
+      clicked: true,
+    });
+
+    await expect(
+      activeBridge.send("locator.text_content", {
+        pageId: page.pageId,
+        selector: "#locator-output",
+      }),
+    ).resolves.toStrictEqual({
+      textContent: "clicked:user@example.com",
+    });
+  });
+
   it("unknown protocol command returns a typed protocol error", async () => {
     await expect(bridge?.send("browser.raw_cdp" as never, {} as never)).rejects.toMatchObject({
       code: -32601,
@@ -263,6 +321,16 @@ async function startFixtureServer(): Promise<FixtureServer> {
   </head>
   <body>
     <button id="smoke-button" onclick="document.title = 'Stagehand Smoke Clicked'; this.textContent = 'Clicked';">Click me</button>
+    <p id="locator-message">locator text</p>
+    <label for="locator-input">Email</label>
+    <input id="locator-input" name="email" />
+    <button
+      id="locator-button"
+      onclick="document.querySelector('#locator-output').textContent = 'clicked:' + document.querySelector('#locator-input').value;"
+    >
+      Submit
+    </button>
+    <p id="locator-output">waiting</p>
   </body>
 </html>`);
   });

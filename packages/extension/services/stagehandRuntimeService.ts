@@ -2,6 +2,13 @@ import type {
   BrowserGetVersionResult,
   ContextNewPageParams,
   ContextPagesResult,
+  LocatorClickParams,
+  LocatorClickResult,
+  LocatorDescriptor,
+  LocatorFillParams,
+  LocatorFillResult,
+  LocatorIsVisibleResult,
+  LocatorTextContentResult,
   PageCloseResult,
   PageGotoParams,
   PageIdParams,
@@ -29,6 +36,14 @@ export type UnderstudyRuntimePage = {
   goto(url: string, options?: PageGotoParams["options"]): Promise<unknown>;
   title(): Promise<string>;
   close(): Promise<void> | void;
+  deepLocator(selector: string): UnderstudyRuntimeLocator;
+};
+
+export type UnderstudyRuntimeLocator = {
+  click(options?: LocatorClickParams["options"]): Promise<void> | void;
+  fill(value: string): Promise<void> | void;
+  isVisible(): Promise<boolean>;
+  textContent(): Promise<string>;
 };
 
 export type UnderstudyRuntimeContext = {
@@ -146,6 +161,28 @@ export class StagehandRuntimeService {
     return { closed: true };
   }
 
+  async locatorClick(params: LocatorClickParams): Promise<LocatorClickResult> {
+    await this.resolveLocator(params).click(params.options);
+    return { clicked: true };
+  }
+
+  async locatorFill(params: LocatorFillParams): Promise<LocatorFillResult> {
+    await this.resolveLocator(params).fill(params.value);
+    return { filled: true };
+  }
+
+  async locatorIsVisible(params: LocatorDescriptor): Promise<LocatorIsVisibleResult> {
+    return {
+      visible: await this.resolveLocator(params).isVisible(),
+    };
+  }
+
+  async locatorTextContent(params: LocatorDescriptor): Promise<LocatorTextContentResult> {
+    return {
+      textContent: await this.resolveLocator(params).textContent(),
+    };
+  }
+
   async close(): Promise<void> {
     const loopback = this.#loopback;
     this.#loopback = undefined;
@@ -174,6 +211,10 @@ export class StagehandRuntimeService {
       -32602,
       "stagehand.page_not_found",
     );
+  }
+
+  private resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
+    return this.resolvePage(params.pageId).deepLocator(params.selector);
   }
 
   private refreshPageRegistry(pages: UnderstudyRuntimePage[]): void {

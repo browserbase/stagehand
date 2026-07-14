@@ -3,43 +3,32 @@ import type {
   LocatorDescriptor,
   LocatorFillParams,
 } from "../../protocol/types.js";
-import { StagehandRuntimeError } from "../services/stagehandRuntimeService.js";
+import type { StagehandRuntimeService } from "../services/stagehandRuntimeService.js";
 
-export function createLocatorController() {
-  async function click(_params: LocatorClickParams): Promise<never> {
+type LocatorService = Pick<
+  StagehandRuntimeService,
+  "locatorClick" | "locatorFill" | "locatorIsVisible" | "locatorTextContent"
+>;
+
+export function createLocatorController({ service }: { service: LocatorService }) {
+  async function click(params: LocatorClickParams) {
     console.log("[stagehand] locator.click");
-    throw new StagehandRuntimeError(
-      "Method not implemented by the smoke runtime",
-      -32601,
-      "stagehand.unknown_command",
-    );
+    return service.locatorClick(params);
   }
 
-  async function fill(_params: LocatorFillParams): Promise<never> {
+  async function fill(params: LocatorFillParams) {
     console.log("[stagehand] locator.fill");
-    throw new StagehandRuntimeError(
-      "Method not implemented by the smoke runtime",
-      -32601,
-      "stagehand.unknown_command",
-    );
+    return service.locatorFill(params);
   }
 
-  async function isVisible(_params: LocatorDescriptor): Promise<never> {
+  async function isVisible(params: LocatorDescriptor) {
     console.log("[stagehand] locator.is_visible");
-    throw new StagehandRuntimeError(
-      "Method not implemented by the smoke runtime",
-      -32601,
-      "stagehand.unknown_command",
-    );
+    return service.locatorIsVisible(params);
   }
 
-  async function textContent(_params: LocatorDescriptor): Promise<never> {
+  async function textContent(params: LocatorDescriptor) {
     console.log("[stagehand] locator.text_content");
-    throw new StagehandRuntimeError(
-      "Method not implemented by the smoke runtime",
-      -32601,
-      "stagehand.unknown_command",
-    );
+    return service.locatorTextContent(params);
   }
 
   return {

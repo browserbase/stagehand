@@ -23,7 +23,7 @@ export function createStagehandApp(dependencies: StagehandAppDependencies = {}) 
   const stagehand = createStagehandController({ service });
   const context = createContextController({ service });
   const page = createPageController({ service });
-  const locator = createLocatorController();
+  const locator = createLocatorController({ service });
 
   const routes = {
     ping: runtime.ping,
