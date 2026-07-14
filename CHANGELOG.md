@@ -254,7 +254,6 @@ Check the [migration guide](https://docs.stagehand.dev/v3/migrations/v2) for mor
   We're thrilled to announce the release of Stagehand 2.0, bringing significant improvements to make browser automation more powerful, faster, and easier to use than ever before.
 
   ### 🚀 New Features
-
   - **Introducing `stagehand.agent`**: A powerful new way to integrate SOTA Computer use models or Browserbase's [Open Operator](https://operator.browserbase.com) into Stagehand with one line of code! Perfect for multi-step workflows and complex interactions. [Learn more](https://docs.stagehand.dev/concepts/agent)
   - **Lightning-fast `act` and `extract`**: Major performance improvements to make your automations run significantly faster.
   - **Enhanced Logging**: Better visibility into what's happening during automation with improved logging and debugging capabilities.
@@ -262,7 +261,6 @@ Check the [migration guide](https://docs.stagehand.dev/v3/migrations/v2) for mor
   - **Improved Error Handling**: More descriptive errors and better error recovery to help you debug issues faster.
 
   ### 🛠️ Developer Experience
-
   - **Better TypeScript Support**: Enhanced type definitions and better IDE integration
   - **Better Error Messages**: Clearer, more actionable error messages to help you debug faster
   - **Improved Caching**: More reliable action caching for better performance

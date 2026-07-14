@@ -100,30 +100,30 @@ export async function resolveTargetForCommand(
 export function hasExplicitDriverTarget(flags: DriverFlags): boolean {
   return Boolean(
     flags.local ||
-      flags.remote ||
-      flags["auto-connect"] ||
-      flags.cdp ||
-      hasChromeArgFlags(flags) ||
-      flags["target-id"] ||
-      flags.headed ||
-      flags.headless ||
-      flags.verified ||
-      flags.proxies,
+    flags.remote ||
+    flags["auto-connect"] ||
+    flags.cdp ||
+    hasChromeArgFlags(flags) ||
+    flags["target-id"] ||
+    flags.headed ||
+    flags.headless ||
+    flags.verified ||
+    flags.proxies,
   );
 }
 
 function hasModeOnlyFlag(flags: DriverFlags): boolean {
   return Boolean(
     (flags.local || flags.remote) &&
-      !flags["auto-connect"] &&
-      !flags.cdp &&
-      !hasChromeArgFlags(flags) &&
-      !flags["target-id"] &&
-      !flags.headed &&
-      !flags.headless &&
-      !flags.verified &&
-      !flags.proxies &&
-      flags.local !== flags.remote,
+    !flags["auto-connect"] &&
+    !flags.cdp &&
+    !hasChromeArgFlags(flags) &&
+    !flags["target-id"] &&
+    !flags.headed &&
+    !flags.headless &&
+    !flags.verified &&
+    !flags.proxies &&
+    flags.local !== flags.remote,
   );
 }
 

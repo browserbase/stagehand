@@ -397,9 +397,8 @@ export function buildCommandTree(): CommandNode {
     summary: "Run evals",
     printHelp: async () => (await help()).printRunHelp(),
     handler: async (args, ctx) => {
-      const { parseRunArgs, resolveRunOptions } = await import(
-        "./commands/parse.js"
-      );
+      const { parseRunArgs, resolveRunOptions } =
+        await import("./commands/parse.js");
       const { readConfig } = await import("./commands/config.js");
       const { runCommand } = await import("./commands/run.js");
 
@@ -560,9 +559,8 @@ export function buildCommandTree(): CommandNode {
       // matchPath strips known children (path/set/reset/core) before
       // we get here, so any args remaining are unknown subcommands —
       // delegate to handleConfig which prints the right error.
-      const { handleConfig, printConfig } = await import(
-        "./commands/config.js"
-      );
+      const { handleConfig, printConfig } =
+        await import("./commands/config.js");
       if (args.length === 0) {
         printConfig(ctx.entryDir);
         return;

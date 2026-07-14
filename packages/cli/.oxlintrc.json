@@ -1,0 +1,59 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "extends": ["../../.oxlintrc.json"],
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    "coverage/**",
+    "out/**",
+    ".cache/**",
+    ".browserbase/**",
+    "**/.browserbase/**",
+    "*.tgz"
+  ],
+  "rules": {
+    "eslint-js/no-restricted-syntax": [
+      "error",
+      {
+        "selector": "CallExpression[callee.name='Function']",
+        "message": "Dynamic function construction is prohibited."
+      },
+      {
+        "selector": "NewExpression[callee.name='Function']",
+        "message": "Dynamic function construction is prohibited."
+      },
+      {
+        "selector": "CallExpression[callee.object.name='globalThis'][callee.property.name='Function']",
+        "message": "Dynamic function construction via globalThis.Function is prohibited."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.{js,mjs,cjs,ts}"],
+      "env": {
+        "node": true,
+        "browser": false
+      }
+    },
+    {
+      "files": ["tests/**/*.ts"],
+      "env": {
+        "node": true,
+        "vitest": true,
+        "browser": false
+      }
+    },
+    {
+      "files": ["**/*.{js,cjs,mjs,ts}"],
+      "rules": {
+        "no-empty": [
+          "error",
+          {
+            "allowEmptyCatch": true
+          }
+        ]
+      }
+    }
+  ]
+}
