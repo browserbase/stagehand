@@ -4,6 +4,19 @@ import {
   AvailableCuaModel,
 } from "./v3/types/public/agent.js";
 
+/**
+ * Sentinel model name that delegates model selection to the Stagehand API.
+ * Only valid when running through the API (env: "BROWSERBASE" with
+ * disableAPI: false); no local LLM client or provider API key is involved.
+ */
+export const AUTO_MODEL_NAME = "auto";
+
+export function isAutoModel(
+  model?: string | { modelName: string; [key: string]: unknown },
+): boolean {
+  return extractModelName(model) === AUTO_MODEL_NAME;
+}
+
 //useful when resolving a model from string or object formats we accept
 export function extractModelName(
   model?: string | { modelName: string; [key: string]: unknown },

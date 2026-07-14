@@ -1,5 +1,33 @@
 # @browserbasehq/stagehand
 
+## 3.7.0
+
+### Minor Changes
+
+- [#2283](https://github.com/browserbase/stagehand/pull/2283) [`871ca7e`](https://github.com/browserbase/stagehand/commit/871ca7e305f4dc36a6936620735f189647a6de17) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `context.setDomainPolicy({ allowedDomains: ["allowed.domain"] })` which allows users to define a set of domains that are accessible to stagehand
+
+- [#2274](https://github.com/browserbase/stagehand/pull/2274) [`f31980f`](https://github.com/browserbase/stagehand/commit/f31980f37a8f01cdb7758c91eea9e5f57911af44) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add `context.setDomainPolicy({blockedDomains: ["some.domain"]})` which allows users to define a list of domains that will be blocked by stagehand
+
+### Patch Changes
+
+- [#2305](https://github.com/browserbase/stagehand/pull/2305) [`cd1daad`](https://github.com/browserbase/stagehand/commit/cd1daad7f7655307e951ee68a4a6c5f98928f9bc) Thanks [@shrey150](https://github.com/shrey150)! - Remove the noisy AI SDK "system message in messages" warning logged on every hybrid/DOM `agent.execute()` call.
+
+- [#2328](https://github.com/browserbase/stagehand/pull/2328) [`d287ff4`](https://github.com/browserbase/stagehand/commit/d287ff4d2c96f1aa71abf07b35bc878e0ff34ce3) Thanks [@miguelg719](https://github.com/miguelg719)! - Allow modelName "auto" in the constructor and per-primitive model overrides when running through the Stagehand API
+
+- [#2294](https://github.com/browserbase/stagehand/pull/2294) [`3938590`](https://github.com/browserbase/stagehand/commit/39385906b3bc9d419fee27afbee14c3a5fd4020f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - automatically close popups that violate user defined domain policy
+
+- [#2298](https://github.com/browserbase/stagehand/pull/2298) [`892701a`](https://github.com/browserbase/stagehand/commit/892701a30f8d4bd6e5cccb721eeee1fee7f6e675) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix CUA `keypress` actions to press key combinations as a single chord.
+
+- [#2345](https://github.com/browserbase/stagehand/pull/2345) [`21826c7`](https://github.com/browserbase/stagehand/commit/21826c75ce978832c5be5bc3e3a06806dd91086e) Thanks [@monadoid](https://github.com/monadoid)! - Repair malformed UTF-16 snapshot text before it reaches model prompts.
+
+- [#2306](https://github.com/browserbase/stagehand/pull/2306) [`8dcef1b`](https://github.com/browserbase/stagehand/commit/8dcef1b49142e83b94d0d9b8ee5b480181aee486) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Use the screenshot provider's declared media type when sending CUA image payloads. The `setScreenshotProvider` callback now returns `ScreenshotProviderResult` (`{ base64, mediaType }`) instead of a bare base64 string.
+
+- [#2273](https://github.com/browserbase/stagehand/pull/2273) [`93a23d3`](https://github.com/browserbase/stagehand/commit/93a23d3adf04de91d95b2463f6edfde3d1cb7114) Thanks [@miguelg719](https://github.com/miguelg719)! - Add support for the new `google/gemini-3.5-flash` computer-use tools model
+
+- [#2278](https://github.com/browserbase/stagehand/pull/2278) [`022d68f`](https://github.com/browserbase/stagehand/commit/022d68fc81ffe96e16008c3c751ea005eeb0b929) Thanks [@shrey150](https://github.com/shrey150)! - Fix `TypeError: Converting circular structure to JSON` when creating an agent with MCP `integrations` that include a `Client` instance (e.g. a local/stdio server from `connectToMCPServer`). The agent-creation log serialized the raw `integrations` array, and a live MCP `Client` is circular. It now logs a safe descriptor (URL strings kept, client instances summarized) so `agent({ integrations: [client] })` works.
+
+- [#2288](https://github.com/browserbase/stagehand/pull/2288) [`bb5ffa6`](https://github.com/browserbase/stagehand/commit/bb5ffa6f49a41dc4a962d063cbba9cccd193859c) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - clean up cdp session event handlers on target detach
+
 ## 3.6.0
 
 ### Minor Changes

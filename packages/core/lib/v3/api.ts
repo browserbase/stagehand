@@ -4,6 +4,7 @@ import {
   hasModelProviderAuth,
   loadApiKeyFromEnv,
 } from "../utils.js";
+import { isAutoModel } from "../modelUtils.js";
 import { STAGEHAND_VERSION } from "../version.js";
 import {
   StagehandAPIError,
@@ -655,6 +656,15 @@ export class StagehandAPIClient {
    * model provider differs from the one used to init the session.
    */
   private prepareModelConfig(model: ModelConfiguration): PreparedModelConfig {
+    // "auto" delegates model selection to the API, so never inherit the
+    // default model's provider config or API key — the server picks the
+    // provider. Explicit per-call options are still passed through.
+    if (isAutoModel(model)) {
+      return typeof model === "string"
+        ? { modelName: model }
+        : ({ ...model } as PreparedModelConfig);
+    }
+
     if (typeof model === "string") {
       // Extract provider from model string (e.g., "openai/gpt-5-nano" -> "openai")
       const provider = this.getModelProvider(model);

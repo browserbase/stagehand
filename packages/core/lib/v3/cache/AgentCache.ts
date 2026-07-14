@@ -35,6 +35,7 @@ import {
   waitForCachedSelector,
 } from "./utils.js";
 import { substituteVariables } from "../agent/utils/variables.js";
+import { isAutoModel } from "../../modelUtils.js";
 
 const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
 
@@ -82,7 +83,13 @@ export class AgentCache {
   }
 
   shouldAttemptCache(instruction: string): boolean {
-    return this.enabled && instruction.trim().length > 0;
+    return (
+      this.enabled &&
+      instruction.trim().length > 0 &&
+      // "auto" sessions have no local LLM client for replay self-heal;
+      // rely on the API (and its server-side cache) instead.
+      !isAutoModel(this.getBaseModelName())
+    );
   }
 
   sanitizeExecuteOptions(
