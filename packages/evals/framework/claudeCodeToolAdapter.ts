@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
@@ -54,7 +55,7 @@ export interface BrowseCliHarnessAdapterInput {
   logger: EvalLogger;
   logCategory: string;
   /**
-   * Install SKILL.md at <cwd>/.claude/skills/browser (default true, the
+   * Install SKILL.md at <cwd>/.claude/skills/browse (default true, the
    * claude_code/codex behavior). Callers that deliver skill content through
    * the system prompt instead pass false so no skill file is readable from
    * the per-run cwd.
@@ -94,7 +95,7 @@ const BROWSE_SKILL_SOURCE = path.join(
 // conflicting examples in the body — at install time, so the harness ships
 // one source of truth (the real, maintained browse skill) instead of a
 // second copy that drifts.
-const EVAL_HARNESS_ADDENDUM = `
+export const EVAL_HARNESS_ADDENDUM = `
 ## Eval Harness Addendum
 
 This skill is installed by the Stagehand eval harness, which overrides some of
@@ -1134,13 +1135,22 @@ function buildBrowseCliPromptInstructions(
   ].join("\n");
 }
 
+// The real CLI skill (BROWSE_SKILL_SOURCE) with EVAL_HARNESS_ADDENDUM
+// spliced in -- the one source of truth every eval-harness skill-delivery
+// path (Claude Code's Skill-tool file, and the external bare-loop harnesses'
+// prompt_show/injected modes) reads from, so they all deliver identical
+// content and differ only in delivery mechanism.
+export async function buildAddendedSkillText(): Promise<string> {
+  const cliSkill = await fsp.readFile(BROWSE_SKILL_SOURCE, "utf8");
+  return insertAfterFrontmatter(cliSkill, EVAL_HARNESS_ADDENDUM);
+}
+
 export async function installBrowseSkill(cwd: string): Promise<void> {
   const targetDir = path.join(cwd, ".claude", "skills", "browse");
   await fsp.mkdir(targetDir, { recursive: true });
-  const cliSkill = await fsp.readFile(BROWSE_SKILL_SOURCE, "utf8");
   await fsp.writeFile(
     path.join(targetDir, "SKILL.md"),
-    insertAfterFrontmatter(cliSkill, EVAL_HARNESS_ADDENDUM),
+    await buildAddendedSkillText(),
   );
 }
 
@@ -1265,8 +1275,17 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> & {
   );
 }
 
+// Short and fixed-length regardless of pid/timestamp magnitude: the daemon's
+// Unix-domain socket path is runtimeDir() + "/" + sanitizeSessionName(this) +
+// ".sock", and macOS caps sockaddr_un's sun_path at ~104 bytes. The previous
+// `evals-claude-${pid}-${Date.now()}-${suffix}` form could reach ~111 bytes
+// total, over the limit -- the daemon then exited silently on bind and every
+// local run timed out waiting 30s for a socket that was never going to
+// appear. Hashing keeps this name short no matter how large pid/timestamp
+// get.
 function createBrowseSessionName(): string {
-  return `evals-claude-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const raw = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `ec-${createHash("sha256").update(raw).digest("hex").slice(0, 12)}`;
 }
 
 async function runBrowseCommand(

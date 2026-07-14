@@ -29,7 +29,6 @@
  *     tool call.
  */
 import { execFile } from "node:child_process";
-import fsp from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import {
@@ -37,25 +36,17 @@ import {
   type SkillDeliveryMode,
 } from "./benchTypes.js";
 import type { EvalLogger } from "../logger.js";
-import { getRepoRootDir } from "../runtimePaths.js";
 import type { StartupProfile } from "../core/contracts/tool.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import {
+  buildAddendedSkillText,
+  EVAL_HARNESS_ADDENDUM,
   isAllowedBrowseCommand,
   prepareBrowseCliHarnessAdapter,
   type BrowseCliToolMetadata,
 } from "./claudeCodeToolAdapter.js";
 
 const execFileAsync = promisify(execFile);
-
-const BROWSER_SKILL_SOURCE = path.join(
-  getRepoRootDir(),
-  "packages",
-  "evals",
-  "skills",
-  "browser",
-  "SKILL.md",
-);
 
 /** Shown in the prompt_show warning: not every browse CLI release ships `browse skills show`. */
 const SKILLS_SHOW_MIN_VERSION_HINT =
@@ -170,7 +161,11 @@ async function buildSystemPromptAddendum(
       });
       return `${BARE_LOOP_DEFAULT_SYSTEM_PROMPT}\n${PROMPT_SHOW_SYSTEM_PROMPT_ADDENDUM}`;
     case "injected": {
-      const skillText = await fsp.readFile(BROWSER_SKILL_SOURCE, "utf8");
+      // Same content prompt_show delivers (real CLI skill + the eval-harness
+      // addendum, via runBareBrowseCommand's `skills show` interception
+      // below) -- the two modes should differ only in delivery mechanism,
+      // not in what the model actually reads.
+      const skillText = await buildAddendedSkillText();
       return [
         BARE_LOOP_DEFAULT_SYSTEM_PROMPT,
         "The following skill documentation for this CLI has already been loaded for you:",
@@ -208,6 +203,19 @@ export interface RunBareBrowseCommandResult {
  * Reuses claudeCodeToolAdapter's `isAllowedBrowseCommand` gate — same
  * philosophy as Claude Code/Codex: one browse command per tool call, no
  * shell metacharacters.
+ *
+ * `skillMode` enforces the skill-delivery arm at the command layer rather
+ * than trusting the model to respect the system prompt alone:
+ *   - "none" rejects `skills ...` outright, so the model can't defeat the
+ *     zero-skill-content baseline by following `--help`'s own pointer to
+ *     `browse skills show`.
+ *   - "prompt_show" appends EVAL_HARNESS_ADDENDUM to a successful
+ *     `skills show` call's output, so it delivers the exact same content
+ *     "injected" mode puts in the system prompt (including the "don't pass
+ *     --session/--local/--remote yourself" rule the wrapper below depends
+ *     on) -- otherwise the two arms differ in content, not just delivery
+ *     mechanism, and the raw CLI skill actively conflicts with this
+ *     wrapper's own flag injection.
  */
 export async function runBareBrowseCommand(
   adapter: Pick<
@@ -215,6 +223,7 @@ export async function runBareBrowseCommand(
     "browseBinPath" | "cwd" | "env"
   >,
   args: string,
+  skillMode: SkillDeliveryMode,
   timeoutMs = 60_000,
 ): Promise<RunBareBrowseCommandResult> {
   const candidate = `browse ${args}`.trim();
@@ -227,6 +236,14 @@ export async function runBareBrowseCommand(
   }
 
   const argv = tokenizeBrowseArgs(args);
+  if (skillMode === "none" && argv[0] === "skills") {
+    return {
+      ok: false,
+      output:
+        "Rejected: skill discovery is disabled for this baseline (skillMode=none).",
+    };
+  }
+
   try {
     const { stdout, stderr } = await execFileAsync(
       adapter.browseBinPath,
@@ -240,15 +257,29 @@ export async function runBareBrowseCommand(
     );
     // Keep stderr even on success: CLIs routinely print warnings/progress
     // there while exiting 0, and the model should see the full tool result.
-    const combined = [stdout, stderr]
+    let combined = [stdout, stderr]
       .map((part) => part.trim())
       .filter(Boolean)
       .join("\n");
+    if (
+      skillMode === "prompt_show" &&
+      argv[0] === "skills" &&
+      argv[1] === "show"
+    ) {
+      combined = insertAddendumIntoSkillsShowOutput(combined);
+    }
     return { ok: true, output: combined };
   } catch (error) {
     const message = describeExecError(error);
     return { ok: false, output: `ERROR: ${message}` };
   }
+}
+
+// `browse skills show` prints the raw CLI skill with no addendum -- append
+// EVAL_HARNESS_ADDENDUM the same way installBrowseSkill splices it in, so
+// prompt_show delivers identical content to injected mode.
+function insertAddendumIntoSkillsShowOutput(output: string): string {
+  return `${output.trimEnd()}\n${EVAL_HARNESS_ADDENDUM}`;
 }
 
 function describeExecError(error: unknown): string {

@@ -149,6 +149,7 @@ describe("runBareBrowseCommand", () => {
     const result = await runBareBrowseCommand(
       adapter,
       "open https://example.com",
+      "none",
     );
     expect(result.ok).toBe(true);
     expect(result.output).toBe("args:open https://example.com");
@@ -162,7 +163,7 @@ describe("runBareBrowseCommand", () => {
       "open $(whoami)",
       "open https://example.com > /tmp/out",
     ]) {
-      const result = await runBareBrowseCommand(adapter, args);
+      const result = await runBareBrowseCommand(adapter, args, "none");
       expect(result.ok).toBe(false);
       expect(result.output).toMatch(/Rejected/);
     }
@@ -170,8 +171,42 @@ describe("runBareBrowseCommand", () => {
 
   it("captures failures as tool errors instead of throwing", async () => {
     const adapter = await makeFakeAdapter('echo "boom" >&2; exit 3');
-    const result = await runBareBrowseCommand(adapter, "open https://x.test");
+    const result = await runBareBrowseCommand(
+      adapter,
+      "open https://x.test",
+      "none",
+    );
     expect(result.ok).toBe(false);
     expect(result.output).toContain("boom");
+  });
+
+  it('rejects "skills" commands under skillMode=none without spawning anything', async () => {
+    const adapter = await makeFakeAdapter("echo should-not-run");
+    const result = await runBareBrowseCommand(adapter, "skills show", "none");
+    expect(result.ok).toBe(false);
+    expect(result.output).toMatch(/Rejected.*skillMode=none/);
+  });
+
+  it('allows "skills show" under skillMode=prompt_show and appends the eval-harness addendum', async () => {
+    const adapter = await makeFakeAdapter('echo "raw skill content"');
+    const result = await runBareBrowseCommand(
+      adapter,
+      "skills show",
+      "prompt_show",
+    );
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain("raw skill content");
+    expect(result.output).toContain("Eval Harness Addendum");
+  });
+
+  it('does not append the addendum to "skills show" under skillMode=injected', async () => {
+    const adapter = await makeFakeAdapter('echo "raw skill content"');
+    const result = await runBareBrowseCommand(
+      adapter,
+      "skills show",
+      "injected",
+    );
+    expect(result.ok).toBe(true);
+    expect(result.output).toBe("raw skill content");
   });
 });
