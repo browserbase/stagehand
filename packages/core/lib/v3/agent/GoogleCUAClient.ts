@@ -70,19 +70,90 @@ export class GoogleCUAClient extends AgentClient {
 
     this.tools = tools;
     // Process client options
-    this.apiKey =
-      (clientOptions?.apiKey as string) ||
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      process.env.GOOGLE_API_KEY ||
-      "";
-    this.baseURL = clientOptions?.baseURL as string | undefined;
+    const isVertex = type === "vertex" || clientOptions?.provider === "vertex";
+    if (isVertex && this.modelName.startsWith("vertex/")) {
+      this.modelName = this.modelName.slice("vertex/".length);
+    }
+    let genAIOptions: GoogleGenAIOptions;
+
+    if (isVertex) {
+      // Vertex AI mode: authenticate with an explicit service account, an
+      // express-mode API key, or ambient ADC (in that order). The env API key
+      // only applies when nothing explicit contradicts it.
+      const vertexOptions =
+        clientOptions?.providerOptions &&
+        "vertex" in clientOptions.providerOptions
+          ? clientOptions.providerOptions.vertex
+          : undefined;
+      const auth = clientOptions?.auth;
+      const hasServiceAccount = auth?.type === "googleServiceAccount";
+      this.apiKey = hasServiceAccount
+        ? ""
+        : (clientOptions?.apiKey as string) ||
+          (!vertexOptions?.project
+            ? process.env.GOOGLE_VERTEX_AI_API_KEY || ""
+            : "");
+      this.baseURL =
+        vertexOptions?.baseURL ??
+        (clientOptions?.baseURL as string | undefined);
+
+      if (this.apiKey) {
+        // Express mode: the SDK rejects apiKey combined with project/location.
+        genAIOptions = { vertexai: true, apiKey: this.apiKey };
+      } else {
+        genAIOptions = {
+          vertexai: true,
+          ...((vertexOptions?.project ?? process.env.GOOGLE_CLOUD_PROJECT)
+            ? {
+                project:
+                  vertexOptions?.project ?? process.env.GOOGLE_CLOUD_PROJECT,
+              }
+            : {}),
+          ...((vertexOptions?.location ?? process.env.GOOGLE_CLOUD_LOCATION)
+            ? {
+                location:
+                  vertexOptions?.location ?? process.env.GOOGLE_CLOUD_LOCATION,
+              }
+            : {}),
+          ...(auth?.type === "googleServiceAccount"
+            ? {
+                googleAuthOptions: {
+                  credentials: auth.credentials,
+                  ...(auth.scopes ? { scopes: auth.scopes } : {}),
+                  ...(auth.projectId ? { projectId: auth.projectId } : {}),
+                  ...(auth.universeDomain
+                    ? { universeDomain: auth.universeDomain }
+                    : {}),
+                },
+              }
+            : {}),
+        };
+      }
+      if (this.baseURL) {
+        genAIOptions.httpOptions = { baseUrl: this.baseURL };
+      }
+      if (vertexOptions?.headers) {
+        genAIOptions.httpOptions = {
+          ...(genAIOptions.httpOptions ?? {}),
+          headers: vertexOptions.headers,
+        };
+      }
+    } else {
+      this.apiKey =
+        (clientOptions?.apiKey as string) ||
+        process.env.GEMINI_API_KEY ||
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+        process.env.GOOGLE_API_KEY ||
+        "";
+      this.baseURL = clientOptions?.baseURL as string | undefined;
+
+      genAIOptions = {
+        apiKey: this.apiKey,
+        ...(this.baseURL ? { httpOptions: { baseUrl: this.baseURL } } : {}),
+      };
+    }
 
     // Initialize the Google Generative AI client
-    const genAIOptions: GoogleGenAIOptions = {
-      apiKey: this.apiKey,
-      ...(this.baseURL ? { httpOptions: { baseUrl: this.baseURL } } : {}),
-    };
     this.client = new GoogleGenAI(genAIOptions);
 
     // Get environment if specified
