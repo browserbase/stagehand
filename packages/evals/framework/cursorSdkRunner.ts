@@ -56,17 +56,28 @@ type BrowseCustomToolResult = {
 const HARNESS = "cursor_sdk";
 export const DEFAULT_CURSOR_MODEL = "composer-2.5";
 
+/**
+ * Mirrors `@cursor/sdk`'s real `TokenUsage` (usage-types.d.ts):
+ * `{ inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens,
+ * totalTokens, reasoningTokens? }`. `totalTokens` excludes `reasoningTokens`
+ * (a subset of output) per the SDK's own doc comment.
+ */
+export interface CursorTokenUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  totalTokens?: number;
+  reasoningTokens?: number;
+}
+
 export interface CursorRunHandle {
   stream(): AsyncGenerator<CursorSdkMessage, void>;
   wait(): Promise<{
     status: string;
     result?: string;
     error?: { message: string; code?: string };
-    usage?: {
-      inputTokens?: number;
-      outputTokens?: number;
-      cacheReadTokens?: number;
-    };
+    usage?: CursorTokenUsage;
   }>;
 }
 
@@ -132,9 +143,7 @@ export async function runCursorSdkAgent(
   let finalText = "";
   let runStatus = "error";
   let stopReason: string | undefined;
-  let usage:
-    | { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number }
-    | undefined;
+  let usage: CursorTokenUsage | undefined;
   let iterationError: unknown;
   let agent: CursorSdkAgentHandle | undefined;
 
@@ -164,6 +173,7 @@ export async function runCursorSdkAgent(
               const { ok, output } = await runBareBrowseCommand(
                 input.toolAdapter,
                 String(args.args ?? ""),
+                input.toolAdapter.skillMode,
               );
               // Same 20k clip the bare-loop recorder applies (bareLoopRunner's
               // readToolOutputLimit) — Cursor bypasses createBareLoopToolRecorder
@@ -269,9 +279,7 @@ export async function runCursorSdkAgent(
 }
 
 function buildCursorMetrics(
-  usage:
-    | { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number }
-    | undefined,
+  usage: CursorTokenUsage | undefined,
   messages: CursorSdkMessage[],
 ): Record<string, MetricValue> {
   // Count distinct terminal tool calls: the SDK can emit more than one
@@ -296,8 +304,14 @@ function buildCursorMetrics(
     cursor_input_tokens: metricValue(usage?.inputTokens),
     cursor_output_tokens: metricValue(usage?.outputTokens),
     cursor_cache_read_tokens: metricValue(usage?.cacheReadTokens),
+    cursor_cache_write_tokens: metricValue(usage?.cacheWriteTokens),
+    cursor_reasoning_tokens: metricValue(usage?.reasoningTokens),
+    // Prefer the SDK's own totalTokens -- recomputing input+output alone
+    // silently drops cache-write/reasoning tokens the real total accounts for.
     cursor_total_tokens: metricValue(
-      toFinite(usage?.inputTokens) + toFinite(usage?.outputTokens),
+      usage?.totalTokens !== undefined
+        ? toFinite(usage.totalTokens)
+        : toFinite(usage?.inputTokens) + toFinite(usage?.outputTokens),
     ),
   };
 }

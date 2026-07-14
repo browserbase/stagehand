@@ -174,6 +174,53 @@ describe("cursor_sdk runner", () => {
     expect(metrics.cursor_total_tokens.value).toBe(240);
   });
 
+  it("surfaces cacheWriteTokens/reasoningTokens and prefers the SDK's own totalTokens", async () => {
+    const adapter = await makeAdapter();
+
+    const sdk: CursorSdk = {
+      Agent: {
+        create: async (options) => {
+          return {
+            send: async () => ({
+              stream: async function* () {},
+              wait: async () => ({
+                status: "finished",
+                result:
+                  'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"checkout"}',
+                usage: {
+                  inputTokens: 200,
+                  outputTokens: 40,
+                  cacheReadTokens: 10,
+                  cacheWriteTokens: 75,
+                  // Deliberately not input+output (240) -- the real SDK
+                  // documents totalTokens as excluding reasoningTokens, so
+                  // it can differ from a naive sum in either direction.
+                  totalTokens: 300,
+                  reasoningTokens: 15,
+                },
+              }),
+            }),
+            close: () => {},
+          };
+          void options;
+        },
+      },
+    };
+
+    const result = await runCursorSdkAgent({
+      plan,
+      model: "cursor/composer-2.5" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      sdk,
+    });
+
+    const metrics = result.metrics as Record<string, { value: number }>;
+    expect(metrics.cursor_cache_write_tokens.value).toBe(75);
+    expect(metrics.cursor_reasoning_tokens.value).toBe(15);
+    expect(metrics.cursor_total_tokens.value).toBe(300);
+  });
+
   it("propagates a failing browse command's isError through the recorded trajectory", async () => {
     const adapter = await makeAdapter();
     // Overwrite the stub `browse` binary to fail, so runBareBrowseCommand
