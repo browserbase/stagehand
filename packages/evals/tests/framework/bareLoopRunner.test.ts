@@ -27,6 +27,7 @@ async function makeBrowseBin(script: string): Promise<{
   cwd: string;
   browseBinPath: string;
   env: Record<string, string>;
+  skillMode: "none";
 }> {
   tempDir = await fsp.mkdtemp(
     path.join(os.tmpdir(), "stagehand-evals-bareloop-test-"),
@@ -37,6 +38,7 @@ async function makeBrowseBin(script: string): Promise<{
     cwd: tempDir,
     browseBinPath: bin,
     env: { ...process.env } as Record<string, string>,
+    skillMode: "none",
   };
 }
 
@@ -72,7 +74,8 @@ describe("createBareLoopToolRecorder", () => {
       "test_harness",
     );
 
-    const output = await recorder.execute("open https://example.com");
+    const { ok, output } = await recorder.execute("open https://example.com");
+    expect(ok).toBe(true);
     expect(output).toHaveLength(40);
     expect(recorder.calls).toHaveLength(1);
     expect(recorder.calls[0].ok).toBe(true);
@@ -92,7 +95,8 @@ describe("createBareLoopToolRecorder", () => {
       "test_harness",
     );
 
-    const output = await recorder.execute("open https://example.com");
+    const { ok, output } = await recorder.execute("open https://example.com");
+    expect(ok).toBe(false);
     expect(output).toContain("boom");
     expect(recorder.calls[0].ok).toBe(false);
     expect(recorder.calls[0].error).toContain("boom");
@@ -138,6 +142,55 @@ describe("finalizeBareLoopResult", () => {
     expect(result.anthropicSdkStatus).toBe("error");
     expect(result.anthropicSdkStopReason).toBe("provider exploded");
     expect(result.error).toBe("provider exploded");
+  });
+
+  it("preserves aborted status instead of collapsing it to error", async () => {
+    const result = await finalizeBareLoopResult({
+      harness: "vercel_ai_sdk",
+      toolCalls: [],
+      finalText: "",
+      status: "aborted",
+      stopReason: "step cap reached (10)",
+      stepsUsed: 10,
+      maxSteps: 10,
+      logger: new EvalLogger(false),
+    });
+
+    expect(result.vercelAiSdkStatus).toBe("aborted");
+    expect(result.vercelAiSdkStopReason).toBe("step cap reached (10)");
+  });
+
+  it("prefers providerTotalTokens over the recomputed input+output sum", async () => {
+    const result = await finalizeBareLoopResult({
+      harness: "anthropic_sdk",
+      toolCalls: [],
+      finalText: 'EVAL_RESULT: {"success":true}',
+      status: "complete",
+      usage: { input_tokens: 100, output_tokens: 20 },
+      providerTotalTokens: 150,
+      stepsUsed: 1,
+      maxSteps: 40,
+      logger: new EvalLogger(false),
+    });
+
+    const metrics = result.metrics as Record<string, { value: number }>;
+    expect(metrics.anthropic_sdk_total_tokens.value).toBe(150);
+  });
+
+  it("falls back to input+output when providerTotalTokens is not supplied", async () => {
+    const result = await finalizeBareLoopResult({
+      harness: "anthropic_sdk",
+      toolCalls: [],
+      finalText: 'EVAL_RESULT: {"success":true}',
+      status: "complete",
+      usage: { input_tokens: 100, output_tokens: 20 },
+      stepsUsed: 1,
+      maxSteps: 40,
+      logger: new EvalLogger(false),
+    });
+
+    const metrics = result.metrics as Record<string, { value: number }>;
+    expect(metrics.anthropic_sdk_total_tokens.value).toBe(120);
   });
 });
 

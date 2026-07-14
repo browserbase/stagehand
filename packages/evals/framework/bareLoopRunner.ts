@@ -57,9 +57,20 @@ export function buildBareLoopUserPrompt(plan: ExternalHarnessTaskPlan): string {
     .join("\n");
 }
 
+export interface BareLoopToolExecuteResult {
+  ok: boolean;
+  output: string;
+}
+
 export interface BareLoopToolRecorder {
-  /** Execute one browse command, record it as a NormalizedToolCall, return output. */
-  execute(args: string, reasoning?: string): Promise<string>;
+  /**
+   * Execute one browse command, record it as a NormalizedToolCall, and
+   * return both the (possibly clipped) output and whether it succeeded --
+   * callers need `ok` to propagate a real tool-error signal into their SDK's
+   * own tool-result protocol (e.g. Anthropic's tool_result.is_error) instead
+   * of the model only learning about a failure by reading error text.
+   */
+  execute(args: string, reasoning?: string): Promise<BareLoopToolExecuteResult>;
   readonly calls: NormalizedToolCall[];
 }
 
@@ -84,7 +95,7 @@ export function readToolOutputLimit(): number {
 export function createBareLoopToolRecorder(
   adapter: Pick<
     PreparedExternalHarnessAdapter,
-    "browseBinPath" | "cwd" | "env"
+    "browseBinPath" | "cwd" | "env" | "skillMode"
   >,
   logger: EvalLogger,
   category: string,
@@ -94,11 +105,15 @@ export function createBareLoopToolRecorder(
   const outputLimit = readToolOutputLimit();
   return {
     calls,
-    async execute(args: string, reasoning?: string): Promise<string> {
+    async execute(
+      args: string,
+      reasoning?: string,
+    ): Promise<BareLoopToolExecuteResult> {
       const started = performance.now();
       const { ok, output } = await runBareBrowseCommand(
         adapter,
         args,
+        adapter.skillMode,
         toolTimeoutMs ?? readToolTimeoutMs(),
       );
       const durationMs = Math.round(performance.now() - started);
@@ -116,7 +131,7 @@ export function createBareLoopToolRecorder(
         ...(!ok && { error: clip(output, 2000) }),
         ...(reasoning && { reasoning }),
       });
-      return clipped;
+      return { ok, output: clipped };
     },
   };
 }
@@ -132,6 +147,16 @@ export interface FinalizeBareLoopResultInput {
   /** Human-readable stop reason when the loop ended abnormally. */
   stopReason?: string;
   usage?: Partial<Trajectory["usage"]>;
+  /**
+   * The real provider-reported total token count, when the SDK exposes one
+   * (e.g. the AI SDK's totalUsage.totalTokens, or OpenAI Agents' Usage.
+   * totalTokens). Preferred over recomputing input+output for the
+   * `${prefix}_total_tokens` metric below, since a provider total can
+   * legitimately differ (e.g. it may include reasoning tokens). Not part of
+   * `usage` because `Trajectory["usage"]` is a shared core type used outside
+   * the eval harness.
+   */
+  providerTotalTokens?: number;
   stepsUsed: number;
   maxSteps: number;
   logger: EvalLogger;
@@ -166,8 +191,14 @@ export async function finalizeBareLoopResult(
     reasoning: parsed.summary,
     finalAnswer: parsed.finalAnswer,
     rawResult: parsed.raw,
+    // Preserve the real terminal status instead of collapsing
+    // aborted/stalled into a generic "error" -- a step-cap or cancellation
+    // is not the same outcome as a provider/harness failure, and collapsing
+    // them made capped runs report a "completed"-adjacent-but-actually-error
+    // status that contradicted their own stopReason (e.g. "step cap
+    // reached").
     [`${fieldPrefix}Status`]:
-      input.status === "complete" ? "completed" : "error",
+      input.status === "complete" ? "completed" : input.status,
     ...(input.stopReason && {
       [`${fieldPrefix}StopReason`]: input.stopReason,
     }),
@@ -179,7 +210,8 @@ export async function finalizeBareLoopResult(
       [`${prefix}_input_tokens`]: metricValue(input.usage?.input_tokens),
       [`${prefix}_output_tokens`]: metricValue(input.usage?.output_tokens),
       [`${prefix}_total_tokens`]: metricValue(
-        (input.usage?.input_tokens ?? 0) + (input.usage?.output_tokens ?? 0),
+        input.providerTotalTokens ??
+          (input.usage?.input_tokens ?? 0) + (input.usage?.output_tokens ?? 0),
       ),
     },
   };
