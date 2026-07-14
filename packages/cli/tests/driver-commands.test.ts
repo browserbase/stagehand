@@ -110,6 +110,49 @@ describe("driver commands", () => {
     }
   });
 
+  it("records the resolved session mode and headless choice in run telemetry", async () => {
+    vi.resetModules();
+    // No existing daemon → every command resolves a fresh target, and explicit
+    // --headed/--headless make the resolution display-independent.
+    const getDriverStatus = vi.fn().mockResolvedValue(undefined);
+    vi.doMock("../src/lib/driver/daemon/client.js", () => ({
+      getDriverStatus,
+    }));
+
+    try {
+      const { resolveTargetForCommand } = await import(
+        "../src/lib/driver/command-cli.js"
+      );
+      const { getRunTelemetry, resetRunTelemetry } = await import(
+        "../src/lib/run-telemetry.js"
+      );
+
+      resetRunTelemetry();
+      await resolveTargetForCommand("tele", { headless: true, local: true });
+      expect(getRunTelemetry()).toMatchObject({
+        sessionMode: "managed-local",
+        headless: true,
+      });
+
+      resetRunTelemetry();
+      await resolveTargetForCommand("tele", { headed: true, local: true });
+      expect(getRunTelemetry()).toMatchObject({
+        sessionMode: "managed-local",
+        headless: false,
+      });
+
+      resetRunTelemetry();
+      await resolveTargetForCommand("tele", { remote: true });
+      const remoteTelemetry = getRunTelemetry();
+      expect(remoteTelemetry.sessionMode).toBe("remote");
+      // headless only applies to managed-local; remote leaves it unset.
+      expect(remoteTelemetry.headless).toBeUndefined();
+    } finally {
+      vi.doUnmock("../src/lib/driver/daemon/client.js");
+      vi.resetModules();
+    }
+  });
+
   it("routes CDP targets through the daemon so session state persists", async () => {
     vi.resetModules();
     const ensureDriverDaemon = vi.fn().mockResolvedValue(undefined);
