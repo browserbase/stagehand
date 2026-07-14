@@ -37,6 +37,7 @@ export interface VercelAiSdkGenerateTextResult {
   totalUsage?: {
     inputTokens?: number;
     outputTokens?: number;
+    totalTokens?: number;
     cachedInputTokens?: number;
     reasoningTokens?: number;
   };
@@ -115,7 +116,10 @@ export async function runVercelAiSdkAgent(
                 'Everything after "browse", e.g. "open https://example.com".',
               ),
           }),
-          execute: async ({ args }: { args: string }) => recorder.execute(args),
+          execute: async ({ args }: { args: string }) => {
+            const { output } = await recorder.execute(args);
+            return output;
+          },
         }),
       },
     });
@@ -143,7 +147,7 @@ export async function runVercelAiSdkAgent(
     harness: HARNESS,
     toolCalls: recorder.calls,
     finalText,
-    status: loopError ? "error" : "complete",
+    status: loopError ? "error" : cappedOut ? "aborted" : "complete",
     stopReason: loopError
       ? stringifyLoopError(loopError)
       : cappedOut
@@ -159,6 +163,7 @@ export async function runVercelAiSdkAgent(
         reasoning_tokens: usage.reasoningTokens,
       }),
     },
+    providerTotalTokens: usage?.totalTokens,
     stepsUsed,
     maxSteps,
     logger: input.logger,

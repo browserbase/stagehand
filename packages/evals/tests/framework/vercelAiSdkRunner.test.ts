@@ -119,11 +119,51 @@ describe("vercel_ai_sdk runner", () => {
     });
 
     expect(result._success).toBe(false);
-    expect(result.vercelAiSdkStatus).toBe("completed");
+    expect(result.vercelAiSdkStatus).toBe("aborted");
     expect(result.vercelAiSdkStopReason).toContain("step cap reached (2)");
     const metrics = result.metrics as Record<string, { value: number }>;
     expect(metrics.vercel_ai_sdk_steps.value).toBe(2);
     expect(metrics.vercel_ai_sdk_max_steps.value).toBe(2);
+  });
+
+  it("prefers the AI SDK's reported totalTokens over the recomputed input+output sum", async () => {
+    const adapter = await makeAdapter();
+    const result = await runVercelAiSdkAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-6" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      generateTextFn: async () => ({
+        text: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"checkout"}',
+        steps: [{}],
+        finishReason: "stop",
+        // Deliberately not input+output (130) -- e.g. reasoning tokens the
+        // SDK bills but this harness doesn't otherwise track.
+        totalUsage: { inputTokens: 100, outputTokens: 30, totalTokens: 180 },
+      }),
+    });
+
+    const metrics = result.metrics as Record<string, { value: number }>;
+    expect(metrics.vercel_ai_sdk_total_tokens.value).toBe(180);
+  });
+
+  it("falls back to input+output when the AI SDK doesn't report totalTokens", async () => {
+    const adapter = await makeAdapter();
+    const result = await runVercelAiSdkAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-6" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      generateTextFn: async () => ({
+        text: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"checkout"}',
+        steps: [{}],
+        finishReason: "stop",
+        totalUsage: { inputTokens: 100, outputTokens: 30 },
+      }),
+    });
+
+    const metrics = result.metrics as Record<string, { value: number }>;
+    expect(metrics.vercel_ai_sdk_total_tokens.value).toBe(130);
   });
 
   it("does not report a step cap on a clean stop even at the max step count", async () => {
