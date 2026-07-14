@@ -133,15 +133,19 @@ function renderStagehandNotification(notification: StagehandRpcNotification): vo
 
   switch (level) {
     case "debug":
+      // oxlint-disable-next-line no-console -- This is the SDK's intentional terminal log sink.
       console.debug(message, data);
       break;
     case "info":
+      // oxlint-disable-next-line no-console -- This is the SDK's intentional terminal log sink.
       console.info(message, data);
       break;
     case "warn":
+      // oxlint-disable-next-line no-console -- This is the SDK's intentional terminal log sink.
       console.warn(message, data);
       break;
     case "error":
+      // oxlint-disable-next-line no-console -- This is the SDK's intentional terminal log sink.
       console.error(message, data);
       break;
   }

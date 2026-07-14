@@ -9,7 +9,8 @@ import {
 } from "ai";
 import type { LanguageModel } from "ai";
 import type { z } from "zod/v4";
-import type { LogLine, ModelName } from "../../protocol/types.js";
+import type { ModelName } from "../../protocol/types.js";
+import type { StagehandLogger } from "../logger.js";
 import type { ChatCompletionOptionsSchema } from "./schemas.js";
 
 export interface ChatMessage {
@@ -79,7 +80,7 @@ export type LLMResponse = {
 
 export interface CreateChatCompletionOptions {
   options: ChatCompletionOptionsInput;
-  logger: (message: LogLine) => void;
+  logger: StagehandLogger;
 }
 
 /** Simple usage shape if your LLM returns usage tokens. */

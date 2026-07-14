@@ -1,6 +1,6 @@
 import type { LanguageModel, LanguageModelMiddleware } from "ai";
 import { UnsupportedAISDKModelProviderError } from "../errors.js";
-import type { ClientOptions, LogLine, ModelName, ModelProvider } from "../../protocol/types.js";
+import type { ClientOptions, ModelName, ModelProvider } from "../../protocol/types.js";
 import {
   ClientOptionsSchema,
   ModelNameSchema,
@@ -133,11 +133,9 @@ export function getAISDKLanguageModel(
 }
 
 export class LLMProvider {
-  private logger: (message: LogLine) => void;
   private middleware?: LanguageModelMiddleware;
 
-  constructor(logger: (message: LogLine) => void, middleware?: LanguageModelMiddleware) {
-    this.logger = logger;
+  constructor(middleware?: LanguageModelMiddleware) {
     this.middleware = middleware;
   }
 
@@ -166,7 +164,6 @@ export class LLMProvider {
     return new AISdkClient({
       model: languageModel,
       modelName: parsedModelName,
-      logger: this.logger,
       clientOptions: parsedClientOptions,
     });
   }

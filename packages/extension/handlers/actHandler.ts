@@ -2,7 +2,7 @@
 import { act as actInference } from "../inference.js";
 import { buildActPrompt, buildStepTwoPrompt } from "../prompt.js";
 import { trimTrailingTextNode } from "../utils.js";
-import { v3Logger } from "../logger.js";
+import type { StagehandLogger } from "../logger.js";
 import { ActHandlerParams } from "../types/private/handlers.js";
 import type {
   ActResult,
@@ -101,12 +101,14 @@ export class ActHandler {
     domElements,
     xpathMap,
     llmClient,
+    logger,
     requireMethodAndArguments = true,
   }: {
     instruction: string;
     domElements: string;
     xpathMap: Record<string, string>;
     llmClient: LLMClient;
+    logger: StagehandLogger;
     requireMethodAndArguments?: boolean;
   }): Promise<{ action?: Action; response: ActInferenceResponse }> {
     const response = await actInference({
@@ -114,7 +116,7 @@ export class ActHandler {
       domElements,
       llmClient,
       userProvidedInstructions: this.systemPrompt,
-      logger: v3Logger,
+      logger,
       logInferenceToFile: this.logInferenceToFile,
     });
 
@@ -123,6 +125,7 @@ export class ActHandler {
     const normalized = normalizeActInferenceElement(
       response.element as ActInferenceElement | undefined,
       xpathMap,
+      logger,
       requireMethodAndArguments,
     );
 
@@ -137,17 +140,21 @@ export class ActHandler {
   }
 
   async act(params: ActHandlerParams): Promise<ActResult> {
-    const { instruction, page, variables, timeout, model } = params;
+    const { instruction, page, variables, timeout, model, logger } = params;
 
     const llmClient = this.resolveLlmClient(model);
     const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new ActTimeoutError(ms));
 
     ensureTimeRemaining();
-    await waitForDomNetworkQuiet(page.mainFrame(), this.defaultDomSettleTimeoutMs);
+    await waitForDomNetworkQuiet(page.mainFrame(), logger, this.defaultDomSettleTimeoutMs);
     ensureTimeRemaining();
-    const { combinedTree, combinedXpathMap } = await captureHybridSnapshot(page, {
-      experimental: true,
-    });
+    const { combinedTree, combinedXpathMap } = await captureHybridSnapshot(
+      page,
+      {
+        experimental: true,
+      },
+      logger,
+    );
 
     const actInstruction = buildActPrompt(
       instruction,
@@ -161,13 +168,12 @@ export class ActHandler {
       domElements: combinedTree,
       xpathMap: combinedXpathMap,
       llmClient,
+      logger,
     });
 
     if (!firstAction) {
-      v3Logger({
+      logger.info("No actionable element returned by the LLM", {
         category: "action",
-        message: "no actionable element returned by LLM",
-        level: 1,
       });
       return actResult({
         success: false,
@@ -182,6 +188,7 @@ export class ActHandler {
     const firstResult = await this.takeDeterministicAction(
       firstAction,
       page,
+      logger,
       this.defaultDomSettleTimeoutMs,
       llmClient,
       ensureTimeRemaining,
@@ -196,9 +203,13 @@ export class ActHandler {
     // Take a new focused snapshot and observe again
     ensureTimeRemaining();
     const { combinedTree: combinedTree2, combinedXpathMap: combinedXpathMap2 } =
-      await captureHybridSnapshot(page, {
-        experimental: true,
-      });
+      await captureHybridSnapshot(
+        page,
+        {
+          experimental: true,
+        },
+        logger,
+      );
 
     let diffedTree = diffCombinedTrees(combinedTree, combinedTree2);
     if (!diffedTree.trim()) {
@@ -228,6 +239,7 @@ export class ActHandler {
       domElements: diffedTree,
       xpathMap: combinedXpathMap2,
       llmClient,
+      logger,
     });
 
     if (!secondAction) {
@@ -239,6 +251,7 @@ export class ActHandler {
     const secondResult = await this.takeDeterministicAction(
       secondAction,
       page,
+      logger,
       this.defaultDomSettleTimeoutMs,
       llmClient,
       ensureTimeRemaining,
@@ -261,6 +274,7 @@ export class ActHandler {
   async takeDeterministicAction(
     action: Action,
     page: Page,
+    logger: StagehandLogger,
     domSettleTimeoutMs?: number,
     llmClientOverride?: LLMClient,
     ensureTimeRemaining?: () => void,
@@ -271,13 +285,9 @@ export class ActHandler {
     const effectiveClient = llmClientOverride ?? this.llmClient;
     const method = action.method?.trim();
     if (!method || method === "not-supported") {
-      v3Logger({
+      logger.error("Action has no supported method", {
         category: "action",
-        message: "action has no supported method",
-        level: 0,
-        auxiliary: {
-          act: { value: JSON.stringify(action), type: "object" },
-        },
+        action: JSON.stringify(action),
       });
       return {
         success: false,
@@ -298,6 +308,7 @@ export class ActHandler {
         method,
         action.selector,
         resolvedArgs,
+        logger,
         settleTimeout,
       );
       return {
@@ -321,17 +332,10 @@ export class ActHandler {
 
       // Attempt self-heal: rerun actInference and retry with updated selector
       if (this.selfHeal) {
-        v3Logger({
+        logger.info("Error performing action; reprocessing the page and trying again", {
           category: "action",
-          message: "Error performing action. Reprocessing the page and trying again",
-          level: 1,
-          auxiliary: {
-            error: { value: msg, type: "string" },
-            action: {
-              value: JSON.stringify(action),
-              type: "object",
-            },
-          },
+          error: msg,
+          action: JSON.stringify(action),
         });
 
         try {
@@ -344,9 +348,13 @@ export class ActHandler {
 
           // Take a fresh snapshot and ask for a new actionable element
           ensureTimeRemaining?.();
-          const { combinedTree, combinedXpathMap } = await captureHybridSnapshot(page, {
-            experimental: true,
-          });
+          const { combinedTree, combinedXpathMap } = await captureHybridSnapshot(
+            page,
+            {
+              experimental: true,
+            },
+            logger,
+          );
 
           const instruction = buildActPrompt(
             actCommand,
@@ -361,6 +369,7 @@ export class ActHandler {
               domElements: combinedTree,
               xpathMap: combinedXpathMap,
               llmClient: effectiveClient,
+              logger,
               requireMethodAndArguments: false,
             });
 
@@ -387,6 +396,7 @@ export class ActHandler {
             method,
             newSelector,
             resolvedArgs,
+            logger,
             settleTimeout,
           );
 
@@ -430,6 +440,7 @@ export class ActHandler {
 function normalizeActInferenceElement(
   element: ActInferenceElement | undefined,
   xpathMap: Record<string, string>,
+  logger: StagehandLogger,
   requireMethodAndArguments = true,
 ): Action | undefined {
   if (!element) {
@@ -464,26 +475,18 @@ function normalizeActInferenceElement(
         resolvedArgs = [`xpath=${trimmedArgXpath}`, ...args.slice(1)];
       } else {
         // Target element lookup failed, filter out this action
-        v3Logger({
+        logger.info("Drag-and-drop target element lookup failed", {
           category: "action",
-          message: "dragAndDrop target element lookup failed",
-          level: 1,
-          auxiliary: {
-            targetElementId: { value: targetArg, type: "string" },
-            sourceElementId: { value: elementId, type: "string" },
-          },
+          targetElementId: targetArg,
+          sourceElementId: elementId,
         });
         return undefined;
       }
     } else {
-      v3Logger({
+      logger.error("Drag-and-drop target element has an invalid ID format", {
         category: "action",
-        message: "dragAndDrop target element invalid ID format",
-        level: 0,
-        auxiliary: {
-          targetElementId: { value: String(targetArg), type: "string" },
-          sourceElementId: { value: elementId, type: "string" },
-        },
+        targetElementId: String(targetArg),
+        sourceElementId: elementId,
       });
       return undefined;
     }

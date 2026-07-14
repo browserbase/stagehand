@@ -3,6 +3,11 @@ import { browserLoopbackCdpFactory } from "../../../server/transports/browserLoo
 import { browserWebSocketFactory } from "../../../server/understudy/browserWebSocketTransport.js";
 import { CdpConnection } from "../../../server/understudy/cdp.js";
 
+const discardCdpLogs = {
+  debug: () => {},
+  error: () => {},
+};
+
 class FakeWebSocket extends EventTarget {
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
@@ -73,7 +78,11 @@ describe("CdpConnection browser WebSocket transport", () => {
   });
 
   it("decodes browser message types without reordering CDP responses", async () => {
-    const connection = await CdpConnection.connect("ws://cdp.test", browserWebSocketFactory);
+    const connection = await CdpConnection.connect(
+      "ws://cdp.test",
+      browserWebSocketFactory,
+      discardCdpLogs,
+    );
     const socket = latestSocket();
     const completionOrder: string[] = [];
 
@@ -134,7 +143,11 @@ describe("CdpConnection browser WebSocket transport", () => {
   });
 
   it("rejects pending work when an incoming CDP envelope is invalid", async () => {
-    const connection = await CdpConnection.connect("ws://cdp.test", browserWebSocketFactory);
+    const connection = await CdpConnection.connect(
+      "ws://cdp.test",
+      browserWebSocketFactory,
+      discardCdpLogs,
+    );
     const socket = latestSocket();
     const pending = connection.send("Runtime.evaluate");
 

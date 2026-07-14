@@ -16,7 +16,7 @@ describe("init script normalization", () => {
   it("serializes a function with its argument", async () => {
     const source = await normalizeInitScriptSource(
       (value: { enabled: boolean }) => {
-        globalThis.console.info(value.enabled);
+        Reflect.set(globalThis, "stagehandTestValue", value.enabled);
       },
       { enabled: true },
     );

@@ -1,7 +1,6 @@
 // lib/v3/handlers/observeHandler.ts
 import { observe as runObserve } from "../inference.js";
 import { trimTrailingTextNode } from "../utils.js";
-import { v3Logger } from "../logger.js";
 import type {
   Action,
   ClientOptions,
@@ -62,7 +61,8 @@ export class ObserveHandler {
   }
 
   async observe(params: ObserveHandlerParams): Promise<Action[]> {
-    const { instruction, page, timeout, selector, ignoreSelectors, model, variables } = params;
+    const { instruction, page, timeout, selector, ignoreSelectors, model, variables, logger } =
+      params;
 
     const llmClient = this.resolveLlmClient(model);
 
@@ -72,34 +72,29 @@ export class ObserveHandler {
       instruction ??
       "Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.";
 
-    v3Logger({
+    logger.info("Starting observation", {
       category: "observation",
-      message: "starting observation",
-      level: 1,
-      auxiliary: {
-        instruction: {
-          value: effectiveInstruction,
-          type: "string",
-        },
-      },
+      instruction: effectiveInstruction,
     });
 
     // Build the hybrid snapshot (a11y-centric text tree + lookup maps)
     const focusSelector = selector?.replace(/^xpath=/i, "") ?? "";
     ensureTimeRemaining();
-    const snapshot = await captureHybridSnapshot(page, {
-      experimental: this.experimental,
-      focusSelector: focusSelector || undefined,
-      ignoreSelectors,
-    });
+    const snapshot = await captureHybridSnapshot(
+      page,
+      {
+        experimental: this.experimental,
+        focusSelector: focusSelector || undefined,
+        ignoreSelectors,
+      },
+      logger,
+    );
 
     const combinedTree = snapshot.combinedTree;
     const combinedXpathMap = snapshot.combinedXpathMap ?? {};
 
-    v3Logger({
+    logger.info("Got accessibility tree data", {
       category: "observation",
-      message: "Got accessibility tree data",
-      level: 1,
     });
 
     // Call the LLM to propose actionable elements
@@ -109,7 +104,7 @@ export class ObserveHandler {
       domElements: combinedTree,
       llmClient,
       userProvidedInstructions: this.systemPrompt,
-      logger: v3Logger,
+      logger,
       logInferenceToFile: this.logInferenceToFile,
       supportedActions: Object.values(SupportedUnderstudyAction),
       variables,
@@ -160,26 +155,18 @@ export class ObserveHandler {
                   resolvedArgs = [`xpath=${trimmedArgXpath}`, ...rest.arguments.slice(1)];
                 } else {
                   // Target element lookup failed, filter out this action
-                  v3Logger({
+                  logger.error("Drag-and-drop target element lookup failed", {
                     category: "observation",
-                    message: "dragAndDrop target element lookup failed",
-                    level: 0,
-                    auxiliary: {
-                      targetElementId: { value: targetArg, type: "string" },
-                      sourceElementId: { value: elementId, type: "string" },
-                    },
+                    targetElementId: targetArg,
+                    sourceElementId: elementId,
                   });
                   return undefined;
                 }
               } else {
-                v3Logger({
+                logger.error("Drag-and-drop target element has an invalid ID format", {
                   category: "observation",
-                  message: "dragAndDrop target element invalid ID format",
-                  level: 0,
-                  auxiliary: {
-                    targetElementId: { value: targetArg, type: "string" },
-                    sourceElementId: { value: elementId, type: "string" },
-                  },
+                  targetElementId: targetArg,
+                  sourceElementId: elementId,
                 });
                 return undefined;
               }
@@ -207,16 +194,9 @@ export class ObserveHandler {
       )
     ).filter(<T>(e: T | undefined): e is T => e !== undefined);
 
-    v3Logger({
+    logger.info("Found elements", {
       category: "observation",
-      message: "found elements",
-      level: 1,
-      auxiliary: {
-        elements: {
-          value: JSON.stringify(elementsWithSelectors),
-          type: "object",
-        },
-      },
+      elements: JSON.stringify(elementsWithSelectors),
     });
 
     return elementsWithSelectors;

@@ -1,6 +1,7 @@
 import { Page } from "../../understudy/page.js";
 import type { z } from "zod/v4";
 import type { ModelConfiguration, Variables } from "../../../protocol/types.js";
+import type { StagehandLogger } from "../../logger.js";
 
 export interface ActHandlerParams {
   instruction: string;
@@ -8,6 +9,7 @@ export interface ActHandlerParams {
   variables?: Variables;
   timeout?: number;
   page: Page;
+  logger: StagehandLogger;
 }
 
 export interface ExtractHandlerParams<T extends z.ZodType> {
@@ -19,6 +21,7 @@ export interface ExtractHandlerParams<T extends z.ZodType> {
   ignoreSelectors?: string[];
   screenshot?: boolean;
   page: Page;
+  logger: StagehandLogger;
 }
 
 export interface ObserveHandlerParams {
@@ -29,6 +32,7 @@ export interface ObserveHandlerParams {
   selector?: string;
   ignoreSelectors?: string[];
   page: Page;
+  logger: StagehandLogger;
 }
 
 // We can use this enum to list the actions supported in performUnderstudyMethod

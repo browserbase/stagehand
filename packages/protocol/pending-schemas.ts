@@ -161,32 +161,6 @@ export const DomainPolicySchema = z
   .strict()
   .meta({ id: "DomainPolicy" });
 
-export const LogLevelSchema = z
-  .union([z.literal(0), z.literal(1), z.literal(2)])
-  .meta({ id: "LogLevel" });
-
-export const LogLineSchema = z
-  .object({
-    id: z.string().optional(),
-    category: z.string().optional(),
-    message: z.string(),
-    level: LogLevelSchema.optional(),
-    timestamp: z.string().optional(),
-    auxiliary: z
-      .record(
-        z.string(),
-        z
-          .object({
-            value: z.string(),
-            type: z.enum(["object", "string", "html", "integer", "float", "boolean"]),
-          })
-          .strict(),
-      )
-      .optional(),
-  })
-  .strict()
-  .meta({ id: "LogLine" });
-
 export const LoadStateSchema = z
   .enum(["load", "domcontentloaded", "networkidle"])
   .meta({ id: "LoadState" });

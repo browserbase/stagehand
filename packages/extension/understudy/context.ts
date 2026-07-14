@@ -1,6 +1,6 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
-import { v3Logger } from "../logger.js";
+import type { StagehandLogger } from "../logger.js";
 import { CdpConnection } from "./cdp.js";
 import type { CDPSessionLike, CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
@@ -95,6 +95,7 @@ const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION = "waitForFirstTopLevelPage (no to
 export class V3Context {
   private constructor(
     readonly conn: CdpConnection,
+    private readonly logger: StagehandLogger,
     private readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
     private readonly apiClient: StagehandAPIClient | null = null,
     private readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
@@ -159,12 +160,14 @@ export class V3Context {
       env?: "LOCAL" | "BROWSERBASE";
       apiClient?: StagehandAPIClient | null;
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
+      logger: StagehandLogger;
     },
   ): Promise<V3Context> {
     const connectTask = async () => {
-      const conn = await CdpConnection.connect(wsUrl, opts.websocketFactory);
+      const conn = await CdpConnection.connect(wsUrl, opts.websocketFactory, opts.logger);
       const ctx = new V3Context(
         conn,
+        opts.logger,
         opts?.env ?? "LOCAL",
         opts?.apiClient ?? null,
         opts?.localBrowserLaunchOptions ?? null,
@@ -203,11 +206,12 @@ export class V3Context {
       if (!(err instanceof TimeoutError)) {
         throw err;
       }
-      v3Logger({
-        category: "ctx",
-        message: "No open browser pages found after connect; creating an initial about:blank page",
-        level: 1,
-      });
+      this.logger.info(
+        "No open browser pages found after connect; creating an initial blank page",
+        {
+          category: "ctx",
+        },
+      );
     }
 
     await this.newPage("about:blank");
@@ -250,16 +254,9 @@ export class V3Context {
       await new Promise((r) => setTimeout(r, 25));
     }
     if (pending.size) {
-      v3Logger({
+      this.logger.debug("Timed out waiting for existing top-level targets to attach", {
         category: "ctx",
-        message: "Timed out waiting for existing top-level targets to attach",
-        level: 2,
-        auxiliary: {
-          remainingTargets: {
-            value: JSON.stringify(Array.from(pending)),
-            type: "object",
-          },
-        },
+        remainingTargets: Array.from(pending),
       });
     }
   }
@@ -318,13 +315,9 @@ export class V3Context {
     if (this.pagesByTarget.get(targetId) !== page) {
       const lookup = this.findTargetIdByPage(page);
       if (!lookup) {
-        v3Logger({
+        this.logger.debug("setActivePage called with an unknown page", {
           category: "ctx",
-          message: "setActivePage called with unknown Page",
-          level: 2,
-          auxiliary: {
-            targetId: { value: String(targetId), type: "string" },
-          },
+          targetId: String(targetId),
         });
         return;
       }
@@ -505,14 +498,10 @@ export class V3Context {
       // ignore malformed URLs for logging
     }
 
-    v3Logger({
+    this.logger.debug("Blocked request by domain policy", {
       category: "network",
-      message: "Blocked request by domain policy",
-      level: 2,
-      auxiliary: {
-        hostname: { value: hostname, type: "string" },
-        ruleType: { value: decision.reason, type: "string" },
-      },
+      hostname,
+      ruleType: decision.reason,
     });
 
     await session
@@ -875,23 +864,13 @@ export class V3Context {
       // Short-lived child targets can detach before resume is acknowledged.
       // Keep this noisy only for top-level pages where missing attach is fatal.
       if (isTopLevelPage(info)) {
-        v3Logger({
+        this.logger.debug("Failed target pre-resume setup ordering", {
           category: "ctx",
-          message: "Failed target pre-resume setup ordering",
-          level: 2,
-          auxiliary: {
-            targetId: { value: String(info.targetId), type: "string" },
-            targetType: { value: String(info.type), type: "string" },
-            preResumeDispatched: {
-              value: String(preResumeDispatched),
-              type: "string",
-            },
-            resumedDispatched: {
-              value: String(resumedDispatched),
-              type: "string",
-            },
-            resumedOk: { value: String(resumedOk), type: "string" },
-          },
+          targetId: String(info.targetId),
+          targetType: String(info.type),
+          preResumeDispatched,
+          resumedDispatched,
+          resumedOk,
         });
       }
       return;
@@ -919,17 +898,13 @@ export class V3Context {
           ]),
         );
       }
-      v3Logger({
+      this.logger.error("Closing target because domain policy could not be guaranteed", {
         category: "ctx",
-        message: "Closing target because domain policy could not be guaranteed",
-        level: 0,
-        auxiliary: {
-          targetId: { value: String(info.targetId), type: "string" },
-          targetType: { value: String(info.type), type: "string" },
-          targetUrl: { value: String(info.url ?? ""), type: "string" },
-          sessionId: { value: sessionId, type: "string" },
-          cdpError: { value: fetchErrorMessage, type: "string" },
-        },
+        targetId: String(info.targetId),
+        targetType: String(info.type),
+        targetUrl: String(info.url ?? ""),
+        sessionId,
+        cdpError: fetchErrorMessage,
       });
       await this.conn.send("Target.closeTarget", { targetId: info.targetId }).catch(() => {});
       return;
@@ -954,6 +929,7 @@ export class V3Context {
             this.conn,
             session,
             info.targetId,
+            this.logger,
             this.apiClient,
             this.localBrowserLaunchOptions,
             this.env === "BROWSERBASE",
@@ -962,19 +938,12 @@ export class V3Context {
           createError = error;
         }
         if (!page) {
-          v3Logger({
+          this.logger.debug("Failed to create top-level page", {
             category: "ctx",
-            message: "Failed to create top-level Page",
-            level: 2,
-            auxiliary: {
-              targetId: { value: String(info.targetId), type: "string" },
-              targetType: { value: String(info.type), type: "string" },
-              targetUrl: { value: String(info.url ?? ""), type: "string" },
-              error: {
-                value: String(createError instanceof Error ? createError.message : createError),
-                type: "string",
-              },
-            },
+            targetId: String(info.targetId),
+            targetType: String(info.type),
+            targetUrl: String(info.url ?? ""),
+            error: String(createError instanceof Error ? createError.message : createError),
           });
           return;
         }
@@ -1068,22 +1037,18 @@ export class V3Context {
     const decision = getDomainPolicyDecision(info.url ?? "", this.domainPolicy);
     if (decision.action === "continue") return false;
 
-    v3Logger({
-      category: "network",
-      message: "Popup reached a disallowed domain before it could be intercepted; closing it",
-      level: 2,
-      auxiliary: {
-        targetId: { value: String(info.targetId), type: "string" },
-        targetUrl: { value: String(info.url ?? ""), type: "string" },
-        openerId: { value: String(info.openerId ?? ""), type: "string" },
-        openerFrameId: {
-          value: String(info.openerFrameId ?? ""),
-          type: "string",
-        },
-        ruleType: { value: decision.reason, type: "string" },
-        source: { value: source, type: "string" },
+    this.logger.debug(
+      "Popup reached a disallowed domain before it could be intercepted; closing it",
+      {
+        category: "network",
+        targetId: String(info.targetId),
+        targetUrl: String(info.url ?? ""),
+        openerId: String(info.openerId ?? ""),
+        openerFrameId: String(info.openerFrameId ?? ""),
+        ruleType: decision.reason,
+        source,
       },
-    });
+    );
 
     const closePromise = this.closeTargetAfterDomainPolicyViolation(info, {
       failureMessage: "Failed to close popup after it reached a disallowed domain",
@@ -1110,19 +1075,12 @@ export class V3Context {
         return true;
       }
 
-      v3Logger({
+      this.logger.error(opts.failureMessage, {
         category: "network",
-        message: opts.failureMessage,
-        level: 0,
-        auxiliary: {
-          targetId: { value: String(info.targetId), type: "string" },
-          targetType: { value: String(info.type), type: "string" },
-          targetUrl: { value: String(info.url ?? ""), type: "string" },
-          error: {
-            value: error instanceof Error ? error.message : String(error),
-            type: "string",
-          },
-        },
+        targetId: String(info.targetId),
+        targetType: String(info.type),
+        targetUrl: String(info.url ?? ""),
+        error: error instanceof Error ? error.message : String(error),
       });
       return false;
     }

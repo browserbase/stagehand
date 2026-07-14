@@ -2,7 +2,6 @@
 import { z } from "zod/v4";
 import { extract as runExtract } from "../inference.js";
 import { getZodType, injectUrls, transformSchema } from "../utils.js";
-import { v3Logger } from "../logger.js";
 import type {
   ClientOptions,
   ModelConfiguration,
@@ -96,8 +95,17 @@ export class ExtractHandler {
   async extract<T extends z.ZodType>(
     params: ExtractHandlerParams<T>,
   ): Promise<z.infer<T> | { pageText: string }> {
-    const { instruction, schema, page, selector, ignoreSelectors, timeout, model, screenshot } =
-      params;
+    const {
+      instruction,
+      schema,
+      page,
+      selector,
+      ignoreSelectors,
+      timeout,
+      model,
+      screenshot,
+      logger,
+    } = params;
 
     const llmClient = this.resolveLlmClient(model);
 
@@ -108,11 +116,15 @@ export class ExtractHandler {
     if (noArgs) {
       const focusSelector = selector?.replace(/^xpath=/i, "") ?? "";
       ensureTimeRemaining();
-      const snap = await captureHybridSnapshot(page, {
-        experimental: this.experimental,
-        focusSelector: focusSelector || undefined,
-        ignoreSelectors,
-      });
+      const snap = await captureHybridSnapshot(
+        page,
+        {
+          experimental: this.experimental,
+          focusSelector: focusSelector || undefined,
+          ignoreSelectors,
+        },
+        logger,
+      );
       ensureTimeRemaining();
 
       const result = { pageText: snap.combinedTree };
@@ -136,11 +148,15 @@ export class ExtractHandler {
 
     // Build the hybrid snapshot (includes combinedTree; combinedUrlMap optional)
     ensureTimeRemaining();
-    const { combinedTree, combinedUrlMap } = await captureHybridSnapshot(page, {
-      experimental: this.experimental,
-      focusSelector: focusSelector,
-      ignoreSelectors,
-    });
+    const { combinedTree, combinedUrlMap } = await captureHybridSnapshot(
+      page,
+      {
+        experimental: this.experimental,
+        focusSelector: focusSelector,
+        ignoreSelectors,
+      },
+      logger,
+    );
 
     const screenshotBuffer = screenshot
       ? await (async () => {
@@ -154,14 +170,15 @@ export class ExtractHandler {
         })()
       : undefined;
 
-    v3Logger({
-      category: "extraction",
-      message: screenshot
-        ? "Starting extraction using a11y snapshot and viewport screenshot"
-        : "Starting extraction using a11y snapshot",
-      level: 1,
-      auxiliary: instruction ? { instruction: { value: instruction, type: "string" } } : undefined,
-    });
+    logger.info(
+      screenshot
+        ? "Starting extraction using an accessibility snapshot and viewport screenshot"
+        : "Starting extraction using an accessibility snapshot",
+      {
+        category: "extraction",
+        instruction: instruction ?? null,
+      },
+    );
 
     // Normalize schema: if instruction provided without schema, use defaultExtractSchema
     const baseSchema: z.ZodType = (schema ?? defaultExtractSchema) as z.ZodType;
@@ -187,7 +204,7 @@ export class ExtractHandler {
       schema: transformedSchema as z.ZodObject,
       llmClient,
       userProvidedInstructions: this.systemPrompt,
-      logger: v3Logger,
+      logger,
       logInferenceToFile: this.logInferenceToFile,
       screenshot: screenshotBuffer,
     });
@@ -234,22 +251,18 @@ export class ExtractHandler {
         ? resultString.slice(0, resultPreviewLength) + "..."
         : resultString;
 
-    v3Logger({
-      category: "extraction",
-      message: completed
+    logger.info(
+      completed
         ? "Extraction completed successfully"
         : "Extraction incomplete after processing all data",
-      level: 1,
-      auxiliary: {
-        prompt_tokens: { value: String(prompt_tokens), type: "string" },
-        completion_tokens: { value: String(completion_tokens), type: "string" },
-        inference_time_ms: {
-          value: String(inference_time_ms),
-          type: "string",
-        },
-        result: { value: resultPreview, type: "string" },
+      {
+        category: "extraction",
+        promptTokens: prompt_tokens,
+        completionTokens: completion_tokens,
+        inferenceTimeMs: inference_time_ms,
+        result: resultPreview,
       },
-    });
+    );
 
     return output as z.infer<T>;
   }

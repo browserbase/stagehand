@@ -11,7 +11,7 @@ await stagehand.init();
 const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
 
 await page.goto("https://example.com");
-console.log(await page.url());
+const currentUrl = await page.url();
 
 await page.locator("#email").fill("user@example.com");
 await page.locator("button[type=submit]").click();

@@ -4,7 +4,6 @@ import {
   locatorScriptGlobalRefs,
   type LocatorScriptName,
 } from "../dom/build/locatorScripts.generated.js";
-import { v3Logger } from "../logger.js";
 import type { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
 
@@ -134,14 +133,10 @@ export class FrameSelectorResolver {
       }
 
       if (!loggedFallback) {
-        v3Logger({
+        this.frame.logger.debug("Using CSS pierce fallback", {
           category: "locator",
-          message: "css pierce-fallback",
-          level: 2,
-          auxiliary: {
-            frameId: { value: String(this.frame.frameId), type: "string" },
-            selector: { value: selector, type: "string" },
-          },
+          frameId: String(this.frame.frameId),
+          selector,
         });
         loggedFallback = true;
       }
@@ -243,20 +238,13 @@ export class FrameSelectorResolver {
 
       if (evalRes.exceptionDetails) {
         const details = evalRes.exceptionDetails;
-        v3Logger({
+        this.frame.logger.error("Count text evaluation failed", {
           category: "locator",
-          message: "count text evaluate exception",
-          level: 0,
-          auxiliary: {
-            frameId: { value: String(this.frame.frameId), type: "string" },
-            selector: { value: value, type: "string" },
-            exception: {
-              value:
-                details.text ??
-                String(details.exception?.description ?? details.exception?.value ?? ""),
-              type: "string",
-            },
-          },
+          frameId: String(this.frame.frameId),
+          selector: value,
+          exception:
+            details.text ??
+            String(details.exception?.description ?? details.exception?.value ?? ""),
         });
         return 0;
       }

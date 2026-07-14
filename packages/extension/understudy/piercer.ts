@@ -1,5 +1,4 @@
 import type { Protocol } from "devtools-protocol";
-import { v3Logger } from "../logger.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
 import { reRenderScriptContent } from "../dom/build/reRenderScriptContent.js";
@@ -43,24 +42,4 @@ export async function installV3PiercerIntoSession(session: CDPSessionLike): Prom
     })
     .catch(() => {});
   return true;
-}
-
-/** (Optional) stream patch logs in your node console during bring-up */
-export function tapPiercerConsole(session: CDPSessionLike, label: string): void {
-  session.on<Protocol.Runtime.ConsoleAPICalledEvent>("Runtime.consoleAPICalled", (evt) => {
-    const head = evt.args?.[0]?.value as string | undefined;
-    if (head?.startsWith?.("[v3-piercer]")) {
-      v3Logger({
-        category: "piercer",
-        message: `[${label}] ${head}`,
-        level: 2,
-        auxiliary: {
-          value: {
-            value: String(evt.args?.[1]?.value ?? ""),
-            type: "string",
-          },
-        },
-      });
-    }
-  });
 }

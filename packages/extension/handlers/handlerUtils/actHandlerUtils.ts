@@ -5,8 +5,7 @@ import { Locator } from "../../understudy/locator.js";
 import type { MouseButton } from "../../../protocol/types.js";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
-import { v3Logger } from "../../logger.js";
-import { FlowLogger } from "../../flowlogger/FlowLogger.js";
+import type { StagehandLogger } from "../../logger.js";
 import { toTitleCase } from "../../utils.js";
 import { StagehandClickError, UnderstudyCommandException } from "../../errors.js";
 
@@ -18,6 +17,7 @@ export interface UnderstudyMethodHandlerContext {
   frame: Frame;
   page: Page;
   initialUrl: string;
+  logger: StagehandLogger;
   domSettleTimeoutMs?: number;
 }
 
@@ -29,48 +29,56 @@ function normalizeRootXPath(input: string): string {
   return s;
 }
 
+function stringifyArgument(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (value instanceof Error) return value.message;
+  try {
+    return JSON.stringify(value) ?? "";
+  } catch {
+    return "[unserializable]";
+  }
+}
+
 export async function performUnderstudyMethod(
   page: Page,
   frame: Frame,
   method: string,
   rawXPath: string,
   args: ReadonlyArray<unknown>,
+  logger: StagehandLogger,
   domSettleTimeoutMs?: number,
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
 
   try {
-    await FlowLogger.runWithLogging(
-      {
-        eventType: `Understudy${toTitleCase(method)}`, // e.g. "UnderstudyClick"
-        data: {
-          target: selectorRaw,
-        },
-      },
-      async () => {
+    await logger.span(
+      `Understudy${toTitleCase(method)}`,
+      { target: selectorRaw },
+      async (spanLogger) => {
         // Unified resolver: supports '>>' hops and XPath across iframes.
         const locator: Locator = await resolveLocatorWithHops(page, frame, selectorRaw);
         const initialUrl = await getFrameUrl(frame);
 
-        v3Logger({
+        spanLogger.debug("Performing understudy method", {
           category: "action",
-          message: "performing understudy method",
-          level: 2,
-          auxiliary: {
-            xpath: { value: selectorRaw, type: "string" },
-            method: { value: method, type: "string" },
-            url: { value: initialUrl, type: "string" },
-          },
+          xpath: selectorRaw,
+          method,
+          url: initialUrl,
         });
 
         const ctx: UnderstudyMethodHandlerContext = {
           method,
           locator,
           xpath: selectorRaw,
-          args: args.map((a) => (a == null ? "" : String(a))),
+          args: args.map(stringifyArgument),
           frame,
           page,
           initialUrl,
+          logger: spanLogger,
           domSettleTimeoutMs,
         };
         const handler = METHOD_HANDLER_MAP[method] ?? null;
@@ -80,30 +88,23 @@ export async function performUnderstudyMethod(
           return;
         }
 
-        v3Logger({
+        spanLogger.info("Chosen method is invalid", {
           category: "action",
-          message: "chosen method is invalid",
-          level: 1,
-          auxiliary: { method: { value: method, type: "string" } },
+          method,
         });
         throw new UnderstudyCommandException(`Method ${method} not supported`);
       },
-      args,
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
-    v3Logger({
+    logger.info("Error performing method", {
       category: "action",
-      message: "error performing method",
-      level: 1,
-      auxiliary: {
-        error: { value: msg, type: "string" },
-        trace: { value: stack ?? "", type: "string" },
-        method: { value: method, type: "string" },
-        xpath: { value: selectorRaw, type: "string" },
-        args: { value: JSON.stringify(args), type: "object" },
-      },
+      error: msg,
+      stack: stack ?? null,
+      method,
+      xpath: selectorRaw,
+      args: args.map(stringifyArgument),
     });
     if (e instanceof UnderstudyCommandException) {
       throw e;
@@ -134,34 +135,28 @@ const METHOD_HANDLER_MAP: Record<string, (ctx: UnderstudyMethodHandlerContext) =
 };
 
 export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
-  const { locator, xpath, args } = ctx;
+  const { locator, xpath, args, logger } = ctx;
   try {
     const text = args[0]?.toString() || "";
     await locator.selectOption(text);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
-    v3Logger({
+    logger.error("Error selecting option", {
       category: "action",
-      message: "error selecting option",
-      level: 0,
-      auxiliary: {
-        error: { value: msg, type: "string" },
-        trace: { value: stack ?? "", type: "string" },
-        xpath: { value: xpath, type: "string" },
-      },
+      error: msg,
+      stack: stack ?? null,
+      xpath,
     });
     throw new UnderstudyCommandException(msg, e);
   }
 }
 
 async function scrollIntoView(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { locator, xpath } = ctx;
-  v3Logger({
+  const { locator, xpath, logger } = ctx;
+  logger.debug("Scrolling element into view", {
     category: "action",
-    message: "scrolling element into view",
-    level: 2,
-    auxiliary: { xpath: { value: xpath, type: "string" } },
+    xpath,
   });
   const { objectId } = await locator.resolveNode();
   const ownerSession = locator.getFrame().session;
@@ -170,15 +165,11 @@ async function scrollIntoView(ctx: UnderstudyMethodHandlerContext): Promise<void
 }
 
 async function scrollElementToPercentage(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { locator, xpath, args } = ctx;
-  v3Logger({
+  const { locator, xpath, args, logger } = ctx;
+  logger.debug("Scrolling element vertically to specified percentage", {
     category: "action",
-    message: "scrolling element vertically to specified percentage",
-    level: 2,
-    auxiliary: {
-      xpath: { value: xpath, type: "string" },
-      coordinate: { value: JSON.stringify(args), type: "string" },
-    },
+    xpath,
+    coordinate: [...args],
   });
 
   const [yArg = "0%"] = args;
@@ -201,13 +192,11 @@ async function scrollByPixelOffset(ctx: UnderstudyMethodHandlerContext): Promise
 }
 
 async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { frame, args } = ctx;
+  const { frame, args, logger } = ctx;
   const deltaY = Number(args[0] ?? 200);
-  v3Logger({
+  logger.debug("Dispatching mouse wheel", {
     category: "action",
-    message: "dispatching mouse wheel",
-    level: 2,
-    auxiliary: { deltaY: { value: String(deltaY), type: "string" } },
+    deltaY,
   });
   await frame.session.send<never>("Input.dispatchMouseEvent", {
     type: "mouseWheel",
@@ -219,114 +208,90 @@ async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { locator, xpath, args } = ctx;
+  const { locator, xpath, args, logger } = ctx;
   try {
     await locator.fill(""); // clear
     await locator.fill(args[0] ?? "");
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    v3Logger({
+    logger.info("Error filling element", {
       category: "action",
-      message: "error filling element",
-      level: 1,
-      auxiliary: {
-        error: { value: msg, type: "string" },
-        xpath: { value: xpath, type: "string" },
-      },
+      error: msg,
+      xpath,
     });
     throw new UnderstudyCommandException(msg, e);
   }
 }
 
 async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { locator, xpath, args } = ctx;
+  const { locator, xpath, args, logger } = ctx;
   try {
     await locator.type(args[0] ?? "");
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    v3Logger({
+    logger.info("Error typing into element", {
       category: "action",
-      message: "error typing into element",
-      level: 1,
-      auxiliary: {
-        error: { value: msg, type: "string" },
-        xpath: { value: xpath, type: "string" },
-      },
+      error: msg,
+      xpath,
     });
     throw new UnderstudyCommandException(msg, e);
   }
 }
 
 async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { args, xpath, page } = ctx;
+  const { args, xpath, page, logger } = ctx;
   const key = args[0] ?? "";
   try {
-    v3Logger({
+    logger.info("Pressing key", {
       category: "action",
-      message: "pressing key",
-      level: 1,
-      auxiliary: {
-        key: { value: key, type: "string" },
-        xpath: { value: xpath, type: "string" },
-      },
+      key,
+      xpath,
     });
     await page.keyPress(key);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    v3Logger({
+    logger.info("Error pressing key", {
       category: "action",
-      message: "error pressing key",
-      level: 1,
-      auxiliary: {
-        error: { value: msg, type: "string" },
-        key: { value: key, type: "string" },
-        xpath: { value: xpath, type: "string" },
-      },
+      error: msg,
+      key,
+      xpath,
     });
     throw new UnderstudyCommandException(msg, e);
   }
 }
 
 async function clickElement(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { locator, xpath, args } = ctx;
+  const { locator, xpath, args, logger } = ctx;
   try {
     await locator.click({ button: (args[0] as MouseButton) || undefined });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    v3Logger({
+    logger.error("Error performing click", {
       category: "action",
-      message: "error performing click",
-      level: 0,
-      auxiliary: {
-        error: { value: msg, type: "string" },
-        xpath: { value: xpath, type: "string" },
-      },
+      error: msg,
+      xpath,
     });
     throw new StagehandClickError(ctx.xpath, msg);
   }
 }
 
 async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { locator, xpath } = ctx;
+  const { locator, xpath, logger } = ctx;
   try {
     await locator.click({ clickCount: 2 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    v3Logger({
+    logger.error("Error performing double click", {
       category: "action",
-      message: "error performing doubleClick",
-      level: 0,
-      auxiliary: {
-        error: { value: msg, type: "string" },
-        xpath: { value: xpath, type: "string" },
-      },
+      error: msg,
+      xpath,
     });
     throw new UnderstudyCommandException(msg, e);
   }
 }
 
 async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { page, frame, locator, args, xpath } = ctx;
+  const { page, frame, locator, args, xpath, logger } = ctx;
   const toXPath = String(args[0] ?? "").trim();
   if (!toXPath) throw new UnderstudyCommandException("dragAndDrop requires a target XPath arg");
 
@@ -385,15 +350,11 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    v3Logger({
+    logger.error("Error performing drag and drop", {
       category: "action",
-      message: "error performing dragAndDrop",
-      level: 0,
-      auxiliary: {
-        error: { value: msg, type: "string" },
-        from: { value: xpath, type: "string" },
-        to: { value: toXPath, type: "string" },
-      },
+      error: msg,
+      from: xpath,
+      to: toXPath,
     });
     throw new UnderstudyCommandException(msg, e);
   }
@@ -411,12 +372,10 @@ async function scrollByElementHeight(
   ctx: UnderstudyMethodHandlerContext,
   direction: 1 | -1,
 ): Promise<void> {
-  const { locator, xpath } = ctx;
-  v3Logger({
+  const { locator, xpath, logger } = ctx;
+  logger.debug(direction > 0 ? "Scrolling to next chunk" : "Scrolling to previous chunk", {
     category: "action",
-    message: direction > 0 ? "scrolling to next chunk" : "scrolling to previous chunk",
-    level: 2,
-    auxiliary: { xpath: { value: xpath, type: "string" } },
+    xpath,
   });
 
   const { objectId } = await locator.resolveNode();
@@ -460,21 +419,17 @@ async function scrollByElementHeight(
 }
 
 export async function hover(ctx: UnderstudyMethodHandlerContext) {
-  const { locator, xpath } = ctx;
+  const { locator, xpath, logger } = ctx;
   try {
     await locator.hover();
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
-    v3Logger({
+    logger.error("Error attempting to hover", {
       category: "action",
-      message: "error attempting to hover",
-      level: 0,
-      auxiliary: {
-        error: { value: msg, type: "string" },
-        trace: { value: stack ?? "", type: "string" },
-        xpath: { value: xpath, type: "string" },
-      },
+      error: msg,
+      stack: stack ?? null,
+      xpath,
     });
     throw new UnderstudyCommandException(msg, e);
   }
@@ -492,7 +447,11 @@ async function getFrameUrl(frame: Frame): Promise<string> {
  * More robust DOM settle using Network + Page events to detect network quiet.
  * Closely modeled after the provided snippet, adapted to our Frame/session + logger.
  */
-export async function waitForDomNetworkQuiet(frame: Frame, timeoutMs?: number): Promise<void> {
+export async function waitForDomNetworkQuiet(
+  frame: Frame,
+  logger: StagehandLogger,
+  timeoutMs?: number,
+): Promise<void> {
   const overallTimeout =
     typeof timeoutMs === "number" && Number.isFinite(timeoutMs) ? Math.max(0, timeoutMs) : 5_000;
   const client = frame.session;
@@ -595,13 +554,9 @@ export async function waitForDomNetworkQuiet(frame: Frame, timeoutMs?: number): 
         if (now - m.start > 2_000) {
           inflight.delete(id);
           meta.delete(id);
-          v3Logger({
+          logger.info("Forcing completion of stalled iframe document", {
             category: "dom",
-            message: "⏳ forcing completion of stalled iframe document",
-            level: 1,
-            auxiliary: {
-              url: { value: (m.url ?? "").slice(0, 120), type: "string" },
-            },
+            url: (m.url ?? "").slice(0, 120),
           });
         }
       }
@@ -612,13 +567,9 @@ export async function waitForDomNetworkQuiet(frame: Frame, timeoutMs?: number): 
 
     const guard = setTimeout(() => {
       if (inflight.size) {
-        v3Logger({
+        logger.info("DOM settle timeout reached with network requests still pending", {
           category: "dom",
-          message: "⚠️ DOM-settle timeout reached – network requests still pending",
-          level: 1,
-          auxiliary: {
-            count: { value: String(inflight.size), type: "integer" },
-          },
+          count: inflight.size,
         });
       }
       resolveDone();

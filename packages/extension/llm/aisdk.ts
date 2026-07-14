@@ -2,14 +2,17 @@ import { generateText, NoObjectGeneratedError, Output } from "ai";
 import type { ImagePart, LanguageModel, ModelMessage, TextPart, Tool, ToolSet } from "ai";
 import type { JSONValue } from "@ai-sdk/provider";
 import { z } from "zod/v4";
-import type { ClientOptions, LogLine, ModelName } from "../../protocol/types.js";
+import type { ClientOptions, ModelName } from "../../protocol/types.js";
 import { CreateChatCompletionOptions, LLMClient, type LLMResponse } from "./LLMClient.js";
 import { ChatCompletionOptionsSchema } from "./schemas.js";
 import { anthropicFallbacksOptions } from "./anthropicOptions.js";
-import { FlowLogger, extractLlmPromptSummary } from "../flowlogger/FlowLogger.js";
 
 type ProviderOptionValue = JSONValue;
 type ProviderOptionMap = Record<string, ProviderOptionValue>;
+
+function summarizeLlmPrompt(messages: unknown, options?: unknown): string {
+  return JSON.stringify({ messages, options });
+}
 
 function inferProviderName(modelId: string): string | undefined {
   const [providerName] = modelId.split("/");
@@ -21,23 +24,19 @@ export class AISdkClient extends LLMClient {
   // Compile-only bridge: accept the broad AI SDK model union until the final LLM boundary is chosen.
   private model: LanguageModel;
   private modelId: string;
-  private logger?: (message: LogLine) => void;
 
   constructor({
     model,
     modelName,
-    logger,
     clientOptions,
   }: {
     model: LanguageModel;
     modelName: ModelName;
-    logger?: (message: LogLine) => void;
     clientOptions?: ClientOptions;
   }) {
     super(modelName);
     this.model = model;
     this.modelId = modelName;
-    this.logger = logger;
     if (clientOptions) {
       this.clientOptions = clientOptions;
     }
@@ -49,35 +48,28 @@ export class AISdkClient extends LLMClient {
 
   async createChatCompletion<T = LLMResponse>({
     options: optionsInitial,
+    logger,
   }: CreateChatCompletionOptions): Promise<T> {
     const options = ChatCompletionOptionsSchema.parse(optionsInitial);
     const { llmRequestId } = options;
 
-    this.logger?.({
+    logger.debug("Creating chat completion", {
       category: "aisdk",
-      message: "creating chat completion",
-      level: 2,
-      auxiliary: {
-        options: {
-          value: JSON.stringify({
-            ...options,
-            image: undefined,
-            messages: options.messages.map((msg) => ({
-              ...msg,
-              content: Array.isArray(msg.content)
-                ? msg.content.map((c) =>
-                    "image_url" in c ? { ...c, image_url: { url: "[IMAGE_REDACTED]" } } : c,
-                  )
-                : msg.content,
-            })),
-          }),
-          type: "object",
-        },
-        modelName: {
-          value: this.modelId,
-          type: "string",
-        },
-      },
+      options: JSON.stringify({
+        ...options,
+        image: undefined,
+        messages: options.messages.map((message) => ({
+          ...message,
+          content: Array.isArray(message.content)
+            ? message.content.map((content) =>
+                "image_url" in content
+                  ? { ...content, image_url: { url: "[IMAGE_REDACTED]" } }
+                  : content,
+              )
+            : message.content,
+        })),
+      }),
+      modelName: this.modelId,
     });
 
     const formattedMessages: ModelMessage[] = options.messages.map((message) => {
@@ -209,10 +201,10 @@ export class AISdkClient extends LLMClient {
 
     if (options.response_model) {
       // Log LLM request for structured generation (extract)
-      const promptSummary = extractLlmPromptSummary(options.messages, {
+      const promptSummary = summarizeLlmPrompt(options.messages, {
         hasSchema: true,
       });
-      FlowLogger.logLlmRequest({
+      logger.debug("LLM request", {
         requestId: llmRequestId,
         model: this.modelId,
         prompt: promptSummary,
@@ -254,43 +246,22 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
         }
       } catch (err) {
         // Log error response to maintain request/response pairing
-        FlowLogger.logLlmResponse({
+        logger.error("LLM request failed", {
           requestId: llmRequestId,
           model: this.modelId,
-          output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+          error: err instanceof Error ? err.message : "unknown",
         });
 
         if (NoObjectGeneratedError.isInstance(err)) {
-          this.logger?.({
+          logger.error("AI SDK failed to generate an object", {
             category: "AISDK error",
-            message: err.message,
-            level: 0,
-            auxiliary: {
-              cause: {
-                value: JSON.stringify(err.cause ?? {}),
-                type: "object",
-              },
-              text: {
-                value: err.text ?? "",
-                type: "string",
-              },
-              response: {
-                value: JSON.stringify(err.response ?? {}),
-                type: "object",
-              },
-              usage: {
-                value: JSON.stringify(err.usage ?? {}),
-                type: "object",
-              },
-              finishReason: {
-                value: err.finishReason ?? "unknown",
-                type: "string",
-              },
-              llmRequestId: {
-                value: llmRequestId,
-                type: "string",
-              },
-            },
+            error: err.message,
+            cause: JSON.stringify(err.cause ?? {}),
+            text: err.text ?? "",
+            response: JSON.stringify(err.response ?? {}),
+            usage: JSON.stringify(err.usage ?? {}),
+            finishReason: err.finishReason ?? "unknown",
+            llmRequestId,
           });
 
           throw err;
@@ -312,33 +283,14 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       } as T;
 
       // Log LLM response for structured generation
-      FlowLogger.logLlmResponse({
+      logger.info("LLM response", {
+        category: "aisdk",
         requestId: llmRequestId,
         model: this.modelId,
         output: JSON.stringify(objectResponse.output),
-        inputTokens: objectResponse.usage.inputTokens,
-        outputTokens: objectResponse.usage.outputTokens,
-      });
-
-      this.logger?.({
-        category: "aisdk",
-        message: "response",
-        level: 1,
-        auxiliary: {
-          response: {
-            value: JSON.stringify({
-              object: objectResponse.output,
-              usage: objectResponse.usage,
-              finishReason: objectResponse.finishReason,
-              // Omit request and response properties that might contain images
-            }),
-            type: "object",
-          },
-          llmRequestId: {
-            value: llmRequestId,
-            type: "string",
-          },
-        },
+        inputTokens: objectResponse.usage.inputTokens ?? null,
+        outputTokens: objectResponse.usage.outputTokens ?? null,
+        finishReason: objectResponse.finishReason,
       });
 
       return result;
@@ -356,10 +308,10 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
 
     // Log LLM request for generateText (act/observe)
     const toolCount = Object.keys(tools).length;
-    const promptSummary = extractLlmPromptSummary(options.messages, {
+    const promptSummary = summarizeLlmPrompt(options.messages, {
       toolCount,
     });
-    FlowLogger.logLlmRequest({
+    logger.debug("LLM request", {
       requestId: llmRequestId,
       model: this.modelId,
       prompt: promptSummary,
@@ -383,10 +335,10 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       });
     } catch (err) {
       // Log error response to maintain request/response pairing
-      FlowLogger.logLlmResponse({
+      logger.error("LLM request failed", {
         requestId: llmRequestId,
         model: this.modelId,
-        output: `[error: ${err instanceof Error ? err.message : "unknown"}]`,
+        error: err instanceof Error ? err.message : "unknown",
       });
       throw err;
     }
@@ -428,35 +380,16 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
     } as T;
 
     // Log LLM response for generateText
-    FlowLogger.logLlmResponse({
+    logger.debug("LLM response", {
+      category: "aisdk",
       requestId: llmRequestId,
       model: this.modelId,
       output:
         textResponse.text ||
         (transformedToolCalls.length > 0 ? `[${transformedToolCalls.length} tool calls]` : ""),
-      inputTokens: textResponse.usage.inputTokens,
-      outputTokens: textResponse.usage.outputTokens,
-    });
-
-    this.logger?.({
-      category: "aisdk",
-      message: "response",
-      level: 2,
-      auxiliary: {
-        response: {
-          value: JSON.stringify({
-            text: textResponse.text,
-            usage: textResponse.usage,
-            finishReason: textResponse.finishReason,
-            // Omit request and response properties that might contain images
-          }),
-          type: "object",
-        },
-        llmRequestId: {
-          value: llmRequestId,
-          type: "string",
-        },
-      },
+      inputTokens: textResponse.usage.inputTokens ?? null,
+      outputTokens: textResponse.usage.outputTokens ?? null,
+      finishReason: textResponse.finishReason,
     });
 
     return result;

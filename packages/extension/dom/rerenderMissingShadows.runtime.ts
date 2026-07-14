@@ -25,11 +25,7 @@ export function rerenderMissingShadowHosts(): void {
         // ignore individual failures
       }
     }
-
-    if (needsReset.length) {
-      console.info("[v3-piercer] rerender", { count: needsReset.length });
-    }
-  } catch (err) {
-    console.info("[v3-piercer] rerender error", { message: String(err ?? "") });
+  } catch {
+    // Re-rendering is a best-effort compatibility repair in the inspected page.
   }
 }

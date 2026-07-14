@@ -55,7 +55,10 @@ export type UnderstudyRuntimeContext = {
   close(): Promise<void> | void;
 };
 
-export type UnderstudyRuntimeContextFactory = (cdpUrl: string) => Promise<UnderstudyRuntimeContext>;
+export type UnderstudyRuntimeContextFactory = (
+  cdpUrl: string,
+  logger: StagehandLogger,
+) => Promise<UnderstudyRuntimeContext>;
 
 export type StagehandRuntimeAdapters = {
   loopbackCdpFactory?: LoopbackCdpConnectionFactory;
@@ -121,7 +124,7 @@ export class StagehandRuntime {
 
     try {
       this.#loopback = await this.adapters.loopbackCdpFactory(cdpUrl);
-      this.#understudyContext = await this.adapters.understudyContextFactory(cdpUrl);
+      this.#understudyContext = await this.adapters.understudyContextFactory(cdpUrl, this.logger);
     } catch (error) {
       this.#loopback?.close();
       this.#loopback = undefined;

@@ -108,8 +108,6 @@ import type {
   LoadStateSchema,
   LocalBrowserConnectOptionsSchema,
   LocalBrowserLaunchOptionsSchema,
-  LogLevelSchema,
-  LogLineSchema,
   ModelAuthSchema,
   ModelProviderOptionsSchema,
   NavigateOptionsSchema,
@@ -247,8 +245,6 @@ export type LLMTool = z.infer<typeof LLMToolSchema>;
 export type LoadState = z.infer<typeof LoadStateSchema>;
 export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
 export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptionsSchema>;
-export type LogLevel = z.infer<typeof LogLevelSchema>;
-export type LogLine = z.infer<typeof LogLineSchema>;
 export type ModelAuth = z.infer<typeof ModelAuthSchema>;
 export type ModelProviderOptions = z.infer<typeof ModelProviderOptionsSchema>;
 export type OllamaResolvedProviderClientOptions = z.infer<

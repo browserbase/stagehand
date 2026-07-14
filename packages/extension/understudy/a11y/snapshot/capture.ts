@@ -7,7 +7,7 @@ import {
   type ResolvedNode,
   type SelectorQuery,
 } from "../../selectorResolver.js";
-import { v3Logger } from "../../../logger.js";
+import type { StagehandLogger } from "../../../logger.js";
 import type {
   FrameContext,
   FrameDomMaps,
@@ -54,6 +54,7 @@ type ChildFramesByParent = Map<string, ChildFrameHost[]>;
 export async function captureHybridSnapshot(
   page: Page,
   options?: SnapshotOptions,
+  logger: StagehandLogger = page.logger,
 ): Promise<HybridSnapshot> {
   const pierce = options?.pierceShadow ?? true;
   const includeIframes = options?.includeIframes !== false;
@@ -73,6 +74,7 @@ export async function captureHybridSnapshot(
       pierce,
       new Map<string, SessionDomIndex>(),
       new Map(),
+      logger,
     );
     if (scopedSnapshot) return scopedSnapshot;
   }
@@ -98,6 +100,7 @@ export async function captureHybridSnapshot(
       pierce,
       sessionToIndex,
       exclusionIntervalsByFrame,
+      logger,
     );
     if (scopedSnapshot) return scopedSnapshot;
   }
@@ -161,20 +164,14 @@ export async function tryScopedSnapshot(
   pierce: boolean,
   sessionToIndex: Map<string, SessionDomIndex>,
   exclusionIntervalsByFrame: ExclusionIntervalsByFrame,
+  logger: StagehandLogger,
 ): Promise<HybridSnapshot | null> {
   const requestedFocus = options?.focusSelector?.trim();
   if (!requestedFocus) return null;
 
   const logScopeFallback = () => {
-    v3Logger({
-      message: `Unable to narrow scope with selector. Falling back to using full DOM`,
-      level: 1,
-      auxiliary: {
-        arguments: {
-          value: `selector: ${options?.focusSelector?.trim()}`,
-          type: "string",
-        },
-      },
+    logger.info("Unable to narrow scope with selector; falling back to the full DOM", {
+      selector: options?.focusSelector?.trim() ?? "",
     });
   };
 
@@ -471,7 +468,7 @@ async function resolveIgnoredNodesInFrame(
   query: SelectorQuery,
 ): Promise<Array<{ frameId: string; backendNodeId: number }>> {
   const session = ownerSession(page, frameId);
-  const frame = new Frame(session, frameId, "", false);
+  const frame = new Frame(session, frameId, "", false, page.logger);
   const resolver = new FrameSelectorResolver(frame);
   const resolvedNodes = await resolver.resolveAll(query);
   if (!resolvedNodes.length) return [];

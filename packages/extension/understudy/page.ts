@@ -1,5 +1,5 @@
 import { Protocol } from "devtools-protocol";
-import { v3Logger } from "../logger.js";
+import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { Frame } from "./frame.js";
@@ -98,6 +98,7 @@ export class Page {
     private readonly mainSession: CDPSessionLike,
     private readonly _targetId: string,
     mainFrameId: string,
+    public readonly logger: StagehandLogger,
     apiClient?: StagehandAPIClient | null,
     browserIsRemote = false,
   ) {
@@ -117,6 +118,7 @@ export class Page {
       mainFrameId,
       this.pageId,
       this.browserIsRemote,
+      this.logger,
     );
 
     this.networkManager = new NetworkManager();
@@ -266,6 +268,7 @@ export class Page {
     conn: CdpConnection,
     session: CDPSessionLike,
     targetId: string,
+    logger: StagehandLogger,
     apiClient?: StagehandAPIClient | null,
     localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
     browserIsRemote = false,
@@ -281,7 +284,7 @@ export class Page {
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(conn, session, targetId, mainFrameId, apiClient, browserIsRemote);
+    const page = new Page(conn, session, targetId, mainFrameId, logger, apiClient, browserIsRemote);
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
@@ -343,6 +346,7 @@ export class Page {
         newRoot,
         this.pageId,
         this.browserIsRemote,
+        this.logger,
       );
     }
 
@@ -447,7 +451,7 @@ export class Page {
     if (hit) return hit;
 
     const sess = this.getSessionForFrame(frameId);
-    const f = new Frame(sess, frameId, this.pageId, this.browserIsRemote);
+    const f = new Frame(sess, frameId, this.pageId, this.browserIsRemote, this.logger);
     this.frameCache.set(frameId, f);
     return f;
   }
@@ -463,30 +467,6 @@ export class Page {
 
   public unregisterSessionForNetwork(sessionId: string | undefined): void {
     this.networkManager.untrackSession(sessionId);
-  }
-
-  public on(event: "console", listener: unknown): Page {
-    void event;
-    void listener;
-    // TODO(logging): Replace this compatibility no-op with the structured
-    // logging/event API, or remove it if no compatibility surface is needed.
-    return this;
-  }
-
-  public once(event: "console", listener: unknown): Page {
-    void event;
-    void listener;
-    // TODO(logging): Replace this compatibility no-op with the structured
-    // logging/event API, or remove it if no compatibility surface is needed.
-    return this;
-  }
-
-  public off(event: "console", listener: unknown): Page {
-    void event;
-    void listener;
-    // TODO(logging): Replace this compatibility no-op with the structured
-    // logging/event API, or remove it if no compatibility surface is needed.
-    return this;
   }
 
   // ---------------- MAIN APIs ----------------
@@ -1189,28 +1169,17 @@ export class Page {
       try {
         const hit = await resolveXpathForLocation(this, x, y);
         if (hit) {
-          v3Logger({
+          this.logger.debug("Click resolved hit", {
             category: "page",
-            message: "click resolved hit",
-            level: 2,
-            auxiliary: {
-              frameId: { value: String(hit.frameId), type: "string" },
-              backendNodeId: {
-                value: String(hit.backendNodeId),
-                type: "string",
-              },
-              x: { value: String(x), type: "integer" },
-              y: { value: String(y), type: "integer" },
-            },
+            frameId: String(hit.frameId),
+            backendNodeId: String(hit.backendNodeId),
+            x,
+            y,
           });
           xpathResult = hit.absoluteXPath;
-          v3Logger({
+          this.logger.debug("Click resolved XPath", {
             category: "page",
-            message: `click resolved xpath`,
-            level: 2,
-            auxiliary: {
-              xpath: { value: String(xpathResult ?? ""), type: "string" },
-            },
+            xpath: String(xpathResult ?? ""),
           });
         }
       } catch {
@@ -1268,31 +1237,20 @@ export class Page {
       try {
         const hit = await resolveXpathForLocation(this, x, y);
         if (hit) {
-          v3Logger({
+          this.logger.debug("Hover resolved hit", {
             category: "page",
-            message: "hover resolved hit",
-            level: 2,
-            auxiliary: {
-              frameId: { value: String(hit.frameId), type: "string" },
-              backendNodeId: {
-                value: String(hit.backendNodeId),
-                type: "string",
-              },
-              x: { value: String(x), type: "integer" },
-              y: { value: String(y), type: "integer" },
-            },
+            frameId: String(hit.frameId),
+            backendNodeId: String(hit.backendNodeId),
+            x,
+            y,
           });
           xpathResult = hit.absoluteXPath;
         }
       } catch {
-        v3Logger({
+        this.logger.debug("Failed to resolve XPath for hover", {
           category: "page",
-          message: "Failed to resolve xpath for hover",
-          level: 2,
-          auxiliary: {
-            x: { value: String(x), type: "integer" },
-            y: { value: String(y), type: "integer" },
-          },
+          x,
+          y,
         });
       }
     }
@@ -1625,10 +1583,14 @@ export class Page {
   }
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
     try {
-      const { combinedTree, combinedXpathMap, combinedUrlMap } = await captureHybridSnapshot(this, {
-        pierceShadow: true,
-        includeIframes: options?.includeIframes,
-      });
+      const { combinedTree, combinedXpathMap, combinedUrlMap } = await captureHybridSnapshot(
+        this,
+        {
+          pierceShadow: true,
+          includeIframes: options?.includeIframes,
+        },
+        this.logger,
+      );
 
       return {
         formattedTree: combinedTree,

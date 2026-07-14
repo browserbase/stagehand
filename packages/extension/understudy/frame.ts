@@ -4,6 +4,7 @@ import type { CDPSessionLike } from "./cdp.js";
 import { Locator } from "./locator.js";
 import { StagehandEvalError } from "../errors.js";
 import { executionContexts } from "./executionContextRegistry.js";
+import type { StagehandLogger } from "../logger.js";
 
 function base64ToBytes(base64: string): Uint8Array {
   const binary = globalThis.atob(base64);
@@ -37,6 +38,7 @@ export class Frame implements FrameManager {
     public frameId: string,
     public pageId: string,
     private readonly remoteBrowser: boolean,
+    public readonly logger: StagehandLogger,
   ) {
     this.sessionId = this.session.id ?? null;
   }
@@ -234,7 +236,9 @@ export class Frame implements FrameManager {
 
     const collect = (tree: Protocol.Page.FrameTree) => {
       if (tree.frame.parentId === this.frameId) {
-        frames.push(new Frame(this.session, tree.frame.id, this.pageId, this.remoteBrowser));
+        frames.push(
+          new Frame(this.session, tree.frame.id, this.pageId, this.remoteBrowser, this.logger),
+        );
       }
       tree.childFrames?.forEach(collect);
     };

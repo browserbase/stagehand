@@ -1,5 +1,4 @@
 export interface V3ShadowPatchOptions {
-  debug?: boolean;
   tagExisting?: boolean;
 }
 
@@ -20,7 +19,6 @@ type V3InternalState = {
   hostToRoot: WeakMap<Element, ShadowRoot>;
   openCount: number;
   closedCount: number;
-  debug: boolean;
 };
 
 declare global {
@@ -31,9 +29,6 @@ declare global {
 }
 
 export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
-  // hardcoded debug (remove later if desired)
-  const DEBUG = true;
-
   type PatchedFn = Element["attachShadow"] & {
     __v3Patched?: boolean;
     __v3State?: V3InternalState;
@@ -58,9 +53,7 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
   // function, reuse its shared state and rebind the backdoor (no new WeakMap).
   const currentFn = Element.prototype.attachShadow as PatchedFn;
   if (currentFn.__v3Patched && currentFn.__v3State) {
-    currentFn.__v3State.debug = DEBUG; // keep debug toggle consistent
     bindBackdoor(currentFn.__v3State);
-    // idempotent: do not log "installed" again
     return;
   }
 
@@ -69,7 +62,6 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
     hostToRoot: new WeakMap<Element, ShadowRoot>(),
     openCount: 0,
     closedCount: 0,
-    debug: DEBUG,
   };
 
   const original = currentFn; // keep a reference to call through
@@ -80,13 +72,6 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
       state.hostToRoot.set(this, root);
       if (mode === "closed") state.closedCount++;
       else state.openCount++;
-      if (state.debug) {
-        console.info("[v3-piercer] attachShadow", {
-          tag: (this as Element).tagName?.toLowerCase() ?? "",
-          mode,
-          url: location.href,
-        });
-      }
     } catch {
       //
     }
@@ -121,12 +106,4 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
 
   window.__stagehandV3Injected = true;
   bindBackdoor(state);
-
-  if (state.debug) {
-    console.info("[v3-piercer] installed", {
-      url: location.href,
-      isTop: window.top === window,
-      readyState: document.readyState,
-    });
-  }
 }
