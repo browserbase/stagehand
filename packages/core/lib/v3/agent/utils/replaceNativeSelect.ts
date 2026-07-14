@@ -63,12 +63,19 @@ export const REPLACE_NATIVE_SELECT_SCRIPT = `(() => {
     W.__shSelectActive = select;
     overlay.innerHTML = "";
     Array.from(select.options).forEach((opt) => {
+      // Native selects disable every option inside a disabled <optgroup>, but
+      // option.disabled does not reflect the ancestor group — derive it here.
+      const disabled =
+        opt.disabled ||
+        (opt.parentNode &&
+          opt.parentNode.nodeName === "OPTGROUP" &&
+          opt.parentNode.disabled);
       const row = document.createElement("div");
       row.textContent = opt.label;
       row.style.cssText = "padding:8px 12px;white-space:nowrap;" +
-        (opt.disabled ? "color:#aaa;cursor:default;" : "cursor:pointer;") +
+        (disabled ? "color:#aaa;cursor:default;" : "cursor:pointer;") +
         (opt.selected ? "background:#e6f0ff;" : "");
-      if (!opt.disabled) {
+      if (!disabled) {
         row.addEventListener("mouseover", () => { row.style.background = "#f0f0f0"; });
         row.addEventListener("mouseout", () => {
           row.style.background = opt.selected ? "#e6f0ff" : "#fff";

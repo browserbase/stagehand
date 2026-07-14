@@ -35,7 +35,7 @@ export interface CuaSupportedExecuteOptions {
  * Validates agent configuration and experimental feature usage.
  *
  * This utility consolidates all validation checks for both CUA and non-CUA agent paths:
- * - Invalid argument errors for CUA (streaming, abort signal, message continuation, excludeTools, output schema are not supported)
+ * - Invalid argument errors for CUA (streaming, abort signal, message continuation are not supported; excludeTools and output schema are unsupported except for providers that opt in via CUA_SUPPORTED_EXECUTE_OPTIONS, e.g. Yutori Navigator)
  * - Experimental feature checks for integrations and tools (both CUA and non-CUA)
  * - Experimental feature checks for hybrid mode (requires experimental: true)
  * - Experimental feature checks for non-CUA only (callbacks, signal, messages, streaming, excludeTools, output schema)

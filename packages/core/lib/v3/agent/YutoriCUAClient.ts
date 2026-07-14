@@ -47,6 +47,28 @@ const TOOL_SET_CORE = "browser_tools_core-20260403";
 // press-move-release); hold_key likewise has no key-hold support there.
 const DEFAULT_DISABLED_TOOLS = ["mouse_down", "mouse_up", "hold_key"];
 
+// Navigator core action names. A custom tool (stagehand.agent({ tools })) must
+// never shadow one of these, or the agent's own browser actions would be
+// hijacked — core actions always take precedence at dispatch.
+const CORE_ACTION_NAMES = new Set([
+  "left_click",
+  "double_click",
+  "triple_click",
+  "middle_click",
+  "right_click",
+  "mouse_move",
+  "scroll",
+  "drag",
+  "type",
+  "key_press",
+  "hold_key",
+  "goto_url",
+  "go_back",
+  "go_forward",
+  "refresh",
+  "wait",
+]);
+
 function normalizeYutoriModelName(modelName: string): string {
   const name = modelName || "n1.5-latest";
   const slashIndex = name.indexOf("/");
@@ -572,7 +594,7 @@ export class YutoriCUAClient extends AgentClient {
     // Custom user tool (stagehand.agent({ tools })): execute it directly —
     // it is not a page action, so it never goes through the action handler —
     // and record it in the trajectory like the other CUA providers do.
-    if (this.tools && name in this.tools) {
+    if (this.tools && name in this.tools && !CORE_ACTION_NAMES.has(name)) {
       const action: AgentAction = {
         type: "custom_tool",
         name,

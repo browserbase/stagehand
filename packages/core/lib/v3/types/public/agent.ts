@@ -364,6 +364,10 @@ export interface AgentExecuteOptionsBase {
    *   excludeTools: ["screenshot", "extract"]
    * });
    * ```
+   *
+   * For computer-use (CUA) agents this is only honored by providers that opt in
+   * via CUA_SUPPORTED_EXECUTE_OPTIONS (currently Yutori Navigator, which forwards
+   * it server-side); other CUA providers reject it.
    */
   excludeTools?: string[];
   /**
@@ -384,6 +388,10 @@ export interface AgentExecuteOptionsBase {
    *
    * console.log(result.output); // { price: "$199", airline: "Delta", departureTime: "8:00 AM" }
    * ```
+   *
+   * For computer-use (CUA) agents this is only supported by providers that opt
+   * in via CUA_SUPPORTED_EXECUTE_OPTIONS (currently Yutori Navigator, which
+   * returns it in the server-side result); other CUA providers reject it.
    */
   output?: StagehandZodObject;
   /**
