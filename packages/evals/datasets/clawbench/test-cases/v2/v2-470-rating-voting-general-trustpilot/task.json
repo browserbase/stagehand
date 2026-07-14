@@ -1,0 +1,30 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 470,
+    "metaclass": "rating-voting",
+    "class": "general",
+    "description": "Write a 5-star review for Wealthsimple on Trustpilot",
+    "sites_involved": [
+      "trustpilot.com"
+    ],
+    "platform": "trustpilot",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Write a 5-star review for Wealthsimple on Trustpilot",
+  "eval_schema": {
+    "url_pattern": "trustpilot\\.com/api/consumer/review",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": [
+    {
+      "path": "extra_info/review_content.json",
+      "description": "Review content for submission"
+    }
+  ]
+}

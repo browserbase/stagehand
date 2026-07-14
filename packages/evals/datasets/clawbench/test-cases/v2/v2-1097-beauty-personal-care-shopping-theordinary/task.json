@@ -1,0 +1,29 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1097,
+    "metaclass": "beauty-personal-care",
+    "class": "shopping",
+    "description": "Add The Ordinary Niacinamide 10% + Zinc 1% and Hyaluronic Acid 2% + B5 (with Ceramides) to cart on The Ordinary website",
+    "sites_involved": [
+      "theordinary.com"
+    ],
+    "platform": "theordinary",
+    "product_urls": [
+      "https://theordinary.com/en-us/niacinamide-10-zinc-1-serum-100436.html",
+      "https://theordinary.com/en-us/hyaluronic-acid-2-b5-serum-with-ceramides-100637.html"
+    ],
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Add The Ordinary Niacinamide 10% + Zinc 1% and Hyaluronic Acid 2% + B5 (with Ceramides) to cart on The Ordinary website",
+  "eval_schema": {
+    "url_pattern": "theordinary\\.com.*Cart-AddProduct",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

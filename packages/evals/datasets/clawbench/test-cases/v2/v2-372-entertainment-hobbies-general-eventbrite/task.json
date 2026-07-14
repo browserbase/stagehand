@@ -1,0 +1,30 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 372,
+    "metaclass": "entertainment-hobbies",
+    "class": "general",
+    "description": "Eventbrite: Create a free event \"ML Paper Reading Group\"",
+    "sites_involved": [
+      "eventbrite.com"
+    ],
+    "platform": "eventbrite",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Eventbrite: Create a free event \"ML Paper Reading Group\"",
+  "eval_schema": {
+    "url_pattern": "www\\.eventbrite\\.com/api/v3/organizations/\\d+/events/auto-create",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": [
+    {
+      "path": "extra_info/event_details.json",
+      "description": "Event details including name, date, time, location, and description"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1113,
+    "metaclass": "health-fitness",
+    "class": "mealplan",
+    "description": "Set your dietary preferences on Eat This Much to keto with a daily budget of $15, then navigate to the planner and regenerate today's meals.",
+    "sites_involved": [
+      "eatthismuch.com"
+    ],
+    "platform": "eatthismuch",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Set your dietary preferences on Eat This Much to keto with a daily budget of $15, then navigate to the planner and regenerate today's meals.",
+  "eval_schema": {
+    "url_pattern": "eatthismuch\\.com/g/generate/day",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

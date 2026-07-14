@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 600,
+    "metaclass": "hobbies-crafts",
+    "class": "community",
+    "description": "Search for a free beginner knitting pattern for a scarf on Ravelry and add it to your library",
+    "sites_involved": [
+      "ravelry.com"
+    ],
+    "platform": "ravelry",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search for a free beginner knitting pattern for a scarf on Ravelry and add it to your library",
+  "eval_schema": {
+    "url_pattern": "ravelry\\.com/patterns/library/[^/]+/add_to_library",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1137,
+    "metaclass": "entertainment",
+    "class": "rating",
+    "description": "Search for 'The Office' on Trakt.tv and rate it 10 out of 10 stars",
+    "sites_involved": [
+      "trakt.tv"
+    ],
+    "platform": "trakt",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search for 'The Office' on Trakt.tv and rate it 10 out of 10 stars",
+  "eval_schema": {
+    "url_pattern": "trakt\\.tv.*(sync/ratings)",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

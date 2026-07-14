@@ -1,0 +1,13 @@
+{
+  "repo_name": "openclaw-agent-benchmark",
+  "visibility": "public",
+  "license": "MIT",
+  "description": "A benchmark for evaluating browser agents on real-world web tasks",
+  "topics": [
+    "benchmark",
+    "browser-agent",
+    "evaluation"
+  ],
+  "has_wiki": false,
+  "has_issues": true
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1124,
+    "metaclass": "education",
+    "class": "course",
+    "description": "Search for 'Organic Chemistry' on Khan Academy and add the course to your learning list",
+    "sites_involved": [
+      "khanacademy.org"
+    ],
+    "platform": "khanacademy",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search for 'Organic Chemistry' on Khan Academy and add the course to your learning list",
+  "eval_schema": {
+    "url_pattern": "khanacademy\\.org/api/internal/graphql/setUserCourses",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

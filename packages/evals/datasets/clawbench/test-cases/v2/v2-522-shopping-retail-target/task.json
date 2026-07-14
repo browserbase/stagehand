@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 522,
+    "metaclass": "shopping",
+    "class": "retail",
+    "description": "Search Target for a 12-inch non-stick frying pan, find the highest rated one, and add it to cart",
+    "sites_involved": [
+      "target.com"
+    ],
+    "platform": "target",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search Target for a non-stick frying pan 12 inch and add the highest rated one to cart",
+  "eval_schema": {
+    "url_pattern": "carts\\.target\\.com/web_checkouts/v\\d+/cart_items",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 503,
+    "metaclass": "office-secretary-tasks",
+    "class": "calendar",
+    "description": "Use Doodle to find a time tomorrow for a 30-minute design review in SF",
+    "sites_involved": [
+      "doodle.com"
+    ],
+    "platform": "doodle",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Use Doodle to find a time tomorrow for a 30-minute design review in SF",
+  "eval_schema": {
+    "url_pattern": "api\\.doodle\\.com/scheduling/scheduling-attempts",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

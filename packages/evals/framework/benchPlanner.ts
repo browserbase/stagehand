@@ -3,6 +3,8 @@ import { EvalsError } from "../errors.js";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
 import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
+import { buildClawBenchTestcases } from "../clawbench/suite.js";
+import { resolveClawBenchModelName } from "../clawbench/modelConfig.js";
 import {
   getAgentModelEntries,
   getModelList,
@@ -101,17 +103,18 @@ export function resolveBenchModelEntries(
     harness === "stagehand" ? resolveRequestedAgentModes(options) : undefined;
 
   if (options.modelOverride) {
+    const modelOverride = options.modelOverride;
     const baseModes =
       isAgentCategory && requestedAgentModes
         ? requestedAgentModes
         : [
             harness === "stagehand"
-              ? resolveAgentModeForModel(options.modelOverride)
+              ? resolveAgentModeForModel(modelOverride)
               : "hybrid",
           ];
     const modelEntries = uniqueAgentModelEntries(
       baseModes.map((mode) => ({
-        modelName: options.modelOverride,
+        modelName: modelOverride,
         mode,
         cua: mode === "cua",
       })),
@@ -133,6 +136,7 @@ export function resolveBenchModelEntries(
     harness,
     effectiveCategory,
     isAgentCategory,
+    benchTasks,
   );
 
   return {
@@ -201,7 +205,22 @@ function resolveDefaultModelEntries(
   harness: Harness,
   effectiveCategory: string | null,
   isAgentCategory: boolean,
+  benchTasks?: DiscoveredTask[],
 ): AgentModelEntry[] {
+  if (
+    harness === "stagehand" &&
+    benchTasks?.length === 1 &&
+    benchTasks[0].name === "agent/clawbench"
+  ) {
+    return [
+      {
+        modelName: resolveClawBenchModelName(),
+        mode: "hybrid",
+        cua: false,
+      },
+    ];
+  }
+
   if (harness === "claude_code") {
     return readModelListEnv(
       "EVAL_CLAUDE_CODE_MODELS",
@@ -225,7 +244,7 @@ function resolveDefaultModelEntries(
 
   return isAgentCategory
     ? getAgentModelEntries()
-    : getModelList(effectiveCategory).map((modelName) => ({
+    : getModelList(effectiveCategory ?? undefined).map((modelName) => ({
         modelName,
         mode: "hybrid" as const,
         cua: false,
@@ -513,6 +532,7 @@ export function generateSuiteTestcases(
     "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
     "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
     "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
+    "agent/clawbench": (models) => buildClawBenchTestcases(models),
   };
   const legacyOnlySuites = new Set(["agent/gaia"]);
 
@@ -528,8 +548,17 @@ export function generateSuiteTestcases(
     const idx = remaining.findIndex((t) => t.name === suiteName);
     if (idx === -1) continue;
     const datasetName = suiteName.split("/").pop();
-    if (!datasetFilter || datasetFilter === datasetName) {
-      const task = remaining[idx];
+    const task = remaining[idx];
+    const isDirectClawBenchTarget =
+      suiteName === "agent/clawbench" &&
+      benchTasks.length === 1 &&
+      task.name === "agent/clawbench";
+    const shouldBuildSuite =
+      suiteName === "agent/clawbench"
+        ? isDirectClawBenchTarget &&
+          (!datasetFilter || datasetFilter === datasetName)
+        : !datasetFilter || datasetFilter === datasetName;
+    if (shouldBuildSuite) {
       testcases.push(
         ...builder(modelEntries).map((testcase) =>
           withBenchMetadata(testcase, task, options),

@@ -96,6 +96,7 @@ export interface ResolvedRunOptions {
  * WebBench never had a unified suite implementation.
  */
 const SUPPORTED_BENCHMARKS = new Set([
+  "clawbench",
   "webvoyager",
   "onlineMind2Web",
   "webtailbench",

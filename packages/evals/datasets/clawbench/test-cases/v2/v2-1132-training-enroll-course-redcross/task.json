@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 1132,
+    "metaclass": "charity",
+    "class": "training",
+    "description": "Enroll in an online First Aid/CPR certification course on the Red Cross website (cart checkout submission)",
+    "sites_involved": [
+      "redcross.org"
+    ],
+    "platform": "redcross",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Enroll in an online First Aid/CPR certification course on the Red Cross website",
+  "eval_schema": {
+    "url_pattern": "redcross\\.org\\/take-a-class\\/cart\\/checkout-confirmation",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}

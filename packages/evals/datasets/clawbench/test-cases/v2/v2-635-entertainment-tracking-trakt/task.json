@@ -1,0 +1,25 @@
+{
+  "$schema": "../../task.schema.json",
+  "metadata": {
+    "task_id": 635,
+    "metaclass": "entertainment",
+    "class": "tracking",
+    "description": "Search for 'Breaking Bad' on Trakt.tv and add it to your watchlist",
+    "sites_involved": [
+      "trakt.tv"
+    ],
+    "platform": "trakt",
+    "common_info": {
+      "email_credentials": "credentials to use the assigned disposable email account",
+      "user_info": "alex_green_personal_info.json; the dummy user's personal information",
+      "user_resume": "PDF resume with disposable email account injected"
+    }
+  },
+  "instruction": "Search for 'Breaking Bad' on Trakt.tv and add it to your watchlist",
+  "eval_schema": {
+    "url_pattern": "trakt\\.tv.*(sync/watchlist)",
+    "method": "POST"
+  },
+  "time_limit": 30,
+  "extra_info": []
+}
