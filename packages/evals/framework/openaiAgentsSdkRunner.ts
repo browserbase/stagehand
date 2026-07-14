@@ -58,8 +58,28 @@ export interface OpenAiAgentsRunResult {
     usage?: {
       inputTokens?: number;
       outputTokens?: number;
+      totalTokens?: number;
     };
   }>;
+}
+
+/**
+ * The real `@openai/agents-core` `AgentsError` (base of `MaxTurnsExceededError`)
+ * carries a `state?: RunState` -- `RunState.usage` is a getter returning the
+ * real cumulative `Usage` (inputTokens/outputTokens/totalTokens), and
+ * `_currentTurn` is a public field with the real turn count reached before
+ * the cap fired. Without this, the exception path has no way to recover
+ * real usage/turns since `sdk.run()` never returned a result.
+ */
+interface MaxTurnsExceededErrorState {
+  state?: {
+    usage?: {
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+    };
+    _currentTurn?: number;
+  };
 }
 
 export interface OpenAiAgentsSdk {
@@ -105,6 +125,7 @@ export async function runOpenAiAgentsSdkAgent(
 
   let finalText = "";
   let usage = { input_tokens: 0, output_tokens: 0 };
+  let providerTotalTokens: number | undefined;
   let loopError: unknown;
   let cappedOut = false;
   let modelTurns: number | undefined;
@@ -131,7 +152,8 @@ export async function runOpenAiAgentsSdkAgent(
           params && typeof params === "object"
             ? String((params as Record<string, unknown>).args ?? "")
             : "";
-        return recorder.execute(args);
+        const { output } = await recorder.execute(args);
+        return output;
       },
     });
 
@@ -152,6 +174,7 @@ export async function runOpenAiAgentsSdkAgent(
         ? result.finalOutput
         : (safeJson(result.finalOutput) ?? "");
     usage = sumAgentsUsage(result.rawResponses);
+    providerTotalTokens = sumProviderTotalTokens(result.rawResponses);
     modelTurns = result.rawResponses?.length;
   } catch (error) {
     if (isMaxTurnsExceededError(error)) {
@@ -160,6 +183,20 @@ export async function runOpenAiAgentsSdkAgent(
       // Treat it as the same step-cap outcome those two report, not a
       // harness/SDK failure.
       cappedOut = true;
+      // `sdk.run()` never returned, so `usage`/`modelTurns` above are still
+      // at their zero/undefined defaults -- recover the real numbers from
+      // the exception's own state instead of reporting a live run as 0/0.
+      const state = (error as MaxTurnsExceededErrorState).state;
+      if (state?.usage) {
+        usage = {
+          input_tokens: toFinite(state.usage.inputTokens),
+          output_tokens: toFinite(state.usage.outputTokens),
+        };
+        providerTotalTokens = state.usage.totalTokens;
+      }
+      if (typeof state?._currentTurn === "number") {
+        modelTurns = state._currentTurn;
+      }
       input.logger.warn({
         category: HARNESS,
         message: `openai_agents_sdk hit the max-turns cap (${maxTurns})`,
@@ -179,13 +216,14 @@ export async function runOpenAiAgentsSdkAgent(
     harness: HARNESS,
     toolCalls: recorder.calls,
     finalText,
-    status: loopError ? "error" : "complete",
+    status: loopError ? "error" : cappedOut ? "aborted" : "complete",
     stopReason: loopError
       ? stringifyLoopError(loopError)
       : cappedOut
         ? `step cap reached (${maxTurns})`
         : undefined,
     usage,
+    providerTotalTokens,
     // Steps are model turns when the SDK reports them (rawResponses is one
     // entry per turn); tool-call count alone undercounts runs that end with
     // a text-only turn. Fall back to tool calls when no result was returned.
@@ -206,6 +244,19 @@ function sumAgentsUsage(responses: OpenAiAgentsRunResult["rawResponses"]): {
     totals.output_tokens += toFinite(response.usage?.outputTokens);
   }
   return totals;
+}
+
+/** `undefined` if no raw response reported a totalTokens field, so the caller can fall back to recomputing input+output. */
+function sumProviderTotalTokens(
+  responses: OpenAiAgentsRunResult["rawResponses"],
+): number | undefined {
+  let total: number | undefined;
+  for (const response of responses ?? []) {
+    if (typeof response.usage?.totalTokens === "number") {
+      total = (total ?? 0) + response.usage.totalTokens;
+    }
+  }
+  return total;
 }
 
 function toFinite(value: unknown): number {

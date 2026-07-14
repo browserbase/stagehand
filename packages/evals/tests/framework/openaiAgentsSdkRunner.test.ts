@@ -178,7 +178,7 @@ describe("openai_agents_sdk runner", () => {
     });
 
     expect(result._success).toBe(false);
-    expect(result.openaiAgentsSdkStatus).toBe("completed");
+    expect(result.openaiAgentsSdkStatus).toBe("aborted");
     expect(result.openaiAgentsSdkStopReason).toContain("step cap reached (3)");
   });
 
@@ -202,7 +202,73 @@ describe("openai_agents_sdk runner", () => {
       sdk,
     });
 
-    expect(result.openaiAgentsSdkStatus).toBe("completed");
+    expect(result.openaiAgentsSdkStatus).toBe("aborted");
     expect(result.openaiAgentsSdkStopReason).toContain("step cap reached (5)");
+  });
+
+  it("recovers real usage and turn count from the exception's state instead of reporting 0/0", async () => {
+    const adapter = await makeAdapter();
+    process.env.EVAL_OPENAI_AGENTS_SDK_MAX_TURNS = "10";
+
+    const sdk: OpenAiAgentsSdk = {
+      tool: (options) => ({ options }),
+      Agent: class {} as unknown as OpenAiAgentsSdk["Agent"],
+      run: async () => {
+        // Real AgentsError subclasses (MaxTurnsExceededError included) carry
+        // a `state` property with a real `usage` getter and `_currentTurn`.
+        const error = new Error("Max turns (10) exceeded");
+        error.name = "MaxTurnsExceededError";
+        Object.assign(error, {
+          state: {
+            usage: { inputTokens: 8000, outputTokens: 900, totalTokens: 9200 },
+            _currentTurn: 10,
+          },
+        });
+        throw error;
+      },
+    };
+
+    const result = await runOpenAiAgentsSdkAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      sdk,
+    });
+
+    expect(result.openaiAgentsSdkStatus).toBe("aborted");
+    const metrics = result.metrics as Record<string, { value: number }>;
+    expect(metrics.openai_agents_sdk_input_tokens.value).toBe(8000);
+    expect(metrics.openai_agents_sdk_output_tokens.value).toBe(900);
+    expect(metrics.openai_agents_sdk_total_tokens.value).toBe(9200);
+    expect(metrics.openai_agents_sdk_steps.value).toBe(10);
+  });
+
+  it("prefers the SDK's reported totalTokens over the recomputed input+output sum on a clean run", async () => {
+    const adapter = await makeAdapter();
+    const sdk: OpenAiAgentsSdk = {
+      tool: (options) => ({ options }),
+      Agent: class {} as unknown as OpenAiAgentsSdk["Agent"],
+      run: async () => ({
+        finalOutput:
+          'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"checkout"}',
+        rawResponses: [
+          { usage: { inputTokens: 100, outputTokens: 25, totalTokens: 130 } },
+        ],
+      }),
+    };
+
+    const result = await runOpenAiAgentsSdkAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      sdk,
+    });
+
+    const metrics = result.metrics as Record<string, { value: number }>;
+    // Real totalTokens (130) happens to equal input+output here -- the point
+    // is it's sourced from the SDK's own field, not recomputed blind.
+    expect(metrics.openai_agents_sdk_total_tokens.value).toBe(130);
   });
 });
