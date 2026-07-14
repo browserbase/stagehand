@@ -8,12 +8,17 @@ export const elementsHandlers: DriverCommandHandlers = {
       .object({ selector: z.string().min(1) })
       .parse(params);
     const stagehand = await manager.stagehandInstance();
-    await stagehand.act({
+    // act() reports a failed action (e.g. a selector that matches nothing) by
+    // returning success:false rather than throwing, so surface it as an error
+    // instead of reporting { clicked: true } — matching select/upload, which
+    // throw via deepLocator when the element is missing.
+    const result = await stagehand.act({
       arguments: [],
       description: "click element",
       method: "click",
       selector: manager.resolveSelector(selector),
     } as never);
+    if (!result.success) throw new Error(result.message);
     return { clicked: true };
   },
 
@@ -26,12 +31,13 @@ export const elementsHandlers: DriverCommandHandlers = {
       })
       .parse(params);
     const stagehand = await manager.stagehandInstance();
-    await stagehand.act({
+    const result = await stagehand.act({
       arguments: [value],
       description: "fill element",
       method: "fill",
       selector: manager.resolveSelector(selector),
     } as never);
+    if (!result.success) throw new Error(result.message);
     if (pressEnter) {
       const page = await manager.activePage();
       await page.keyPress("Enter");
