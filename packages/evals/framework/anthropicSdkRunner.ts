@@ -46,6 +46,7 @@ export interface AnthropicMessageResponse {
     input_tokens?: number;
     output_tokens?: number;
     cache_read_input_tokens?: number | null;
+    cache_creation_input_tokens?: number | null;
   };
 }
 
@@ -108,7 +109,12 @@ export async function runAnthropicSdkAgent(
   const messages: Array<Record<string, unknown>> = [
     { role: "user", content: buildBareLoopUserPrompt(input.plan) },
   ];
-  const usageTotals = { input_tokens: 0, output_tokens: 0, cached: 0 };
+  const usageTotals = {
+    input_tokens: 0,
+    output_tokens: 0,
+    cached: 0,
+    cacheCreation: 0,
+  };
 
   let finalText = "";
   let stepsUsed = 0;
@@ -139,6 +145,8 @@ export async function runAnthropicSdkAgent(
       usageTotals.input_tokens += response.usage?.input_tokens ?? 0;
       usageTotals.output_tokens += response.usage?.output_tokens ?? 0;
       usageTotals.cached += response.usage?.cache_read_input_tokens ?? 0;
+      usageTotals.cacheCreation +=
+        response.usage?.cache_creation_input_tokens ?? 0;
 
       const textParts = response.content
         .filter((block) => block.type === "text" && block.text)
@@ -147,8 +155,19 @@ export async function runAnthropicSdkAgent(
         finalText = textParts.join("\n");
       }
 
-      if (response.stop_reason !== "tool_use") {
+      // Only "end_turn" is a genuine, natural completion. Every other
+      // non-tool_use stop reason (max_tokens, refusal, pause_turn, ...) means
+      // the model was cut off or stopped abnormally -- reporting those as
+      // "complete" would make a truncated response indistinguishable from a
+      // real success.
+      if (response.stop_reason === "end_turn") {
         return finish("complete");
+      }
+      if (response.stop_reason !== "tool_use") {
+        return finish(
+          "aborted",
+          `stop_reason: ${response.stop_reason ?? "unknown"}`,
+        );
       }
 
       const toolUses = response.content.filter(
@@ -160,7 +179,7 @@ export async function runAnthropicSdkAgent(
           use.input && typeof use.input === "object"
             ? String((use.input as Record<string, unknown>).args ?? "")
             : "";
-        const output = await recorder.execute(
+        const { ok, output } = await recorder.execute(
           args,
           textParts.join("\n") || undefined,
         );
@@ -168,6 +187,7 @@ export async function runAnthropicSdkAgent(
           type: "tool_result",
           tool_use_id: use.id ?? "",
           content: output,
+          is_error: !ok,
         });
       }
 
@@ -184,9 +204,12 @@ export async function runAnthropicSdkAgent(
     });
   }
 
-  return finish(loopError ? "error" : "complete");
+  return finish(loopError ? "error" : cappedOut ? "aborted" : "complete");
 
-  function finish(status: "complete" | "error"): Promise<TaskResult> {
+  function finish(
+    status: "complete" | "aborted" | "error",
+    abnormalStopReason?: string,
+  ): Promise<TaskResult> {
     return finalizeBareLoopResult({
       harness: HARNESS,
       toolCalls: recorder.calls,
@@ -194,9 +217,11 @@ export async function runAnthropicSdkAgent(
       status,
       stopReason: loopError
         ? stringifyLoopError(loopError)
-        : cappedOut
-          ? `step cap reached (${maxSteps})`
-          : undefined,
+        : abnormalStopReason
+          ? abnormalStopReason
+          : cappedOut
+            ? `step cap reached (${maxSteps})`
+            : undefined,
       usage: {
         input_tokens: usageTotals.input_tokens,
         output_tokens: usageTotals.output_tokens,
@@ -204,6 +229,16 @@ export async function runAnthropicSdkAgent(
           cached_input_tokens: usageTotals.cached,
         }),
       },
+      // Anthropic's real total input = input + cache_creation + cache_read;
+      // the `usage` field above only carries cache_read (cached_input_tokens
+      // is a display convention shared with the other bare-loop runners), so
+      // report the true total separately rather than fold cache_creation in
+      // there and double-count it.
+      providerTotalTokens:
+        usageTotals.input_tokens +
+        usageTotals.output_tokens +
+        usageTotals.cacheCreation +
+        usageTotals.cached,
       stepsUsed,
       maxSteps,
       logger: input.logger,

@@ -121,6 +121,7 @@ describe("anthropic_sdk runner", () => {
     expect(toolResults[0].type).toBe("tool_result");
     expect(toolResults[0].tool_use_id).toBe("tu-1");
     expect(String(toolResults[0].content)).toContain("browse-output:--help");
+    expect(toolResults[0].is_error).toBe(false);
 
     expect(result._success).toBe(true);
     expect(result.finalAnswer).toBe("checkout");
@@ -159,10 +160,119 @@ describe("anthropic_sdk runner", () => {
     });
 
     expect(result._success).toBe(false);
+    expect(result.anthropicSdkStatus).toBe("aborted");
     expect(result.anthropicSdkStopReason).toContain("step cap reached (2)");
     const metrics = result.metrics as Record<string, { value: number }>;
     expect(metrics.anthropic_sdk_tool_calls.value).toBe(2);
     expect(metrics.anthropic_sdk_max_steps.value).toBe(2);
+  });
+
+  it("reports aborted (not completed) when the model is truncated by max_tokens", async () => {
+    const adapter = await makeAdapter();
+    const result = await runAnthropicSdkAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-6" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      client: {
+        messages: {
+          create: async () => ({
+            content: [{ type: "text", text: "partial output cut off mid" }],
+            stop_reason: "max_tokens",
+            usage: { input_tokens: 40, output_tokens: 4096 },
+          }),
+        },
+      },
+    });
+
+    expect(result._success).toBe(false);
+    expect(result.anthropicSdkStatus).toBe("aborted");
+    expect(result.anthropicSdkStopReason).toContain("stop_reason: max_tokens");
+  });
+
+  it("propagates a rejected tool call as a native is_error tool_result", async () => {
+    const adapter = await makeAdapter();
+    process.env.EVAL_ANTHROPIC_SDK_MAX_STEPS = "2";
+    const requests: Array<Record<string, unknown>> = [];
+
+    await runAnthropicSdkAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-6" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      client: {
+        messages: {
+          create: async (params) => {
+            requests.push(params);
+            if (requests.length === 1) {
+              return {
+                content: [
+                  {
+                    type: "tool_use",
+                    id: "tu-fail",
+                    name: "browse",
+                    input: { args: "&& rm -rf /" },
+                  },
+                ],
+                stop_reason: "tool_use",
+                usage: { input_tokens: 10, output_tokens: 5 },
+              };
+            }
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: 'EVAL_RESULT: {"success":false,"summary":"gave up"}',
+                },
+              ],
+              stop_reason: "end_turn",
+              usage: { input_tokens: 10, output_tokens: 5 },
+            };
+          },
+        },
+      },
+    });
+
+    const secondMessages = requests[1].messages as Array<
+      Record<string, unknown>
+    >;
+    const toolResults = secondMessages[2].content as Array<
+      Record<string, unknown>
+    >;
+    expect(toolResults[0].is_error).toBe(true);
+  });
+
+  it("prefers input + cache_creation + cache_read over the recomputed input+output sum", async () => {
+    const adapter = await makeAdapter();
+    const result = await runAnthropicSdkAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-6" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: adapter,
+      client: {
+        messages: {
+          create: async () => ({
+            content: [
+              {
+                type: "text",
+                text: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"checkout"}',
+              },
+            ],
+            stop_reason: "end_turn",
+            usage: {
+              input_tokens: 50,
+              output_tokens: 20,
+              cache_creation_input_tokens: 200,
+              cache_read_input_tokens: 30,
+            },
+          }),
+        },
+      },
+    });
+
+    const metrics = result.metrics as Record<string, { value: number }>;
+    // 50 + 20 + 200 + 30 = 300, not the naive 50 + 20 = 70.
+    expect(metrics.anthropic_sdk_total_tokens.value).toBe(300);
   });
 
   it("wires the caller's AbortSignal through to the SDK's native abort option", async () => {
