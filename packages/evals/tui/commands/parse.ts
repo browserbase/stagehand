@@ -14,9 +14,9 @@
  *   5. Ambient EVAL_* env vars consumed downstream by runner/suites
  */
 import {
+  ADAPTER_BACKED_HARNESSES,
   DEFAULT_BENCH_HARNESS,
-  EXTERNAL_HARNESSES,
-  isExternalHarness,
+  isAdapterBackedHarness,
   parseBenchHarness,
   parseSkillDeliveryMode,
   type Harness,
@@ -451,9 +451,9 @@ export function resolveRunOptions(
   const skillMode = flags.skillMode
     ? parseSkillDeliveryMode(flags.skillMode)
     : undefined;
-  if (skillMode && !isExternalHarness(harness)) {
+  if (skillMode && !isAdapterBackedHarness(harness)) {
     throw new Error(
-      `--skill-mode only applies to external harnesses (${EXTERNAL_HARNESSES.join(", ")}).`,
+      `--skill-mode only applies to adapter-backed harnesses (${ADAPTER_BACKED_HARNESSES.join(", ")}). claude_code and codex have their own provisioning and do not consume it.`,
     );
   }
   const agentMode = flags.agentMode

@@ -26,12 +26,12 @@ describe("resolveRunOptions", () => {
     expect(resolved.harness).toBe("claude_code");
   });
 
-  it("parses --skill-mode for external harnesses", () => {
+  it("parses --skill-mode for adapter-backed harnesses", () => {
     for (const mode of ["none", "prompt_show", "injected"] as const) {
       const flags = parseRunArgs([
         "b:webvoyager",
         "--harness",
-        "claude_code",
+        "vercel_ai_sdk",
         "--skill-mode",
         mode,
       ]);
@@ -49,7 +49,7 @@ describe("resolveRunOptions", () => {
     const flags = parseRunArgs([
       "b:webvoyager",
       "--harness",
-      "claude_code",
+      "vercel_ai_sdk",
       "--skill-mode",
       "bogus",
     ]);
@@ -67,8 +67,23 @@ describe("resolveRunOptions", () => {
       "none",
     ]);
     expect(() => resolveRunOptions(flags, {}, {})).toThrow(
-      /only applies to external harnesses/,
+      /only applies to adapter-backed harnesses/,
     );
+  });
+
+  it("rejects --skill-mode for claude_code/codex -- they have their own provisioning and silently ignored it", () => {
+    for (const harness of ["claude_code", "codex"] as const) {
+      const flags = parseRunArgs([
+        "b:webvoyager",
+        "--harness",
+        harness,
+        "--skill-mode",
+        "none",
+      ]);
+      expect(() => resolveRunOptions(flags, {}, {})).toThrow(
+        /only applies to adapter-backed harnesses/,
+      );
+    }
   });
 
   it("accepts explicit agent modes", () => {
