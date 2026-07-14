@@ -37,9 +37,11 @@ type ExpectedExportedTypes = {
   // Types from metrics.ts
   StagehandMetrics: Stagehand.StagehandMetrics;
   // Types from options.ts
-  V3Env: Stagehand.V3Env;
+  BrowserbaseConnectOptions: Stagehand.BrowserbaseConnectOptions;
+  BrowserbaseSessionCreateParams: Stagehand.BrowserbaseSessionCreateParams;
+  LocalBrowserConnectOptions: Stagehand.LocalBrowserConnectOptions;
   LocalBrowserLaunchOptions: Stagehand.LocalBrowserLaunchOptions;
-  V3Options: Stagehand.V3Options;
+  StagehandOptions: Stagehand.StagehandOptions;
   // Types from page.ts
   LocatorCoordinates: Stagehand.LocatorCoordinates;
   PageLocator: Stagehand.PageLocator;

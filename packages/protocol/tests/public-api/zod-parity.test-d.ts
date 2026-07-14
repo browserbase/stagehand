@@ -28,6 +28,7 @@ import {
   BrowserbaseProxyConfigSchema,
   BrowserbaseProxyGeolocationSchema,
   BrowserbaseRegionSchema,
+  BrowserbaseConnectOptionsSchema,
   BrowserbaseSessionCreateParamsSchema,
   BrowserbaseViewportSchema,
   ClientOptionsSchema,
@@ -41,6 +42,7 @@ import {
   GenericModelConfigObjectSchema,
   GoogleServiceAccountAuthSchema,
   GoogleServiceAccountCredentialsSchema,
+  LocalBrowserConnectOptionsSchema,
   LocalBrowserLaunchOptionsSchema,
   LLMToolSchema,
   LocatorCoordinatesSchema,
@@ -78,6 +80,7 @@ import {
   StreamEventStatusSchema,
   StreamEventSystemDataSchema,
   StreamEventTypeSchema,
+  StagehandOptionsSchema,
   ThinkingEffortSchema,
   TokenUsageSchema,
   V3FunctionNameSchema,
@@ -306,6 +309,22 @@ expectTypeOf<
 expectTypeOf<
   SchemaInput<typeof LocalBrowserLaunchOptionsSchema>
 >().toEqualTypeOf<Public.LocalBrowserLaunchOptions>();
+expectTypeOf<
+  SchemaOutput<typeof LocalBrowserConnectOptionsSchema>
+>().toEqualTypeOf<Public.LocalBrowserConnectOptions>();
+expectTypeOf<
+  SchemaInput<typeof LocalBrowserConnectOptionsSchema>
+>().toEqualTypeOf<Public.LocalBrowserConnectOptions>();
+expectTypeOf<
+  SchemaOutput<typeof BrowserbaseConnectOptionsSchema>
+>().toEqualTypeOf<Public.BrowserbaseConnectOptions>();
+expectTypeOf<
+  SchemaInput<typeof BrowserbaseConnectOptionsSchema>
+>().toEqualTypeOf<Public.BrowserbaseConnectOptions>();
+expectTypeOf<
+  SchemaOutput<typeof StagehandOptionsSchema>
+>().toEqualTypeOf<Public.StagehandOptions>();
+expectTypeOf<SchemaInput<typeof StagehandOptionsSchema>>().toEqualTypeOf<Public.StagehandOptions>();
 
 expectTypeOf<SchemaOutput<typeof LLMToolSchema>>().toEqualTypeOf<Public.LLMTool>();
 expectTypeOf<SchemaInput<typeof LLMToolSchema>>().toEqualTypeOf<Public.LLMTool>();
@@ -457,6 +476,33 @@ type _LocalBrowserLaunchOptionsOutputKeys = AssertTrue<
 type _LocalBrowserLaunchOptionsInputKeys = AssertTrue<
   IsEqual<InputKeys<typeof LocalBrowserLaunchOptionsSchema>, keyof Public.LocalBrowserLaunchOptions>
 >;
+type _LocalBrowserConnectOptionsOutputKeys = AssertTrue<
+  IsEqual<
+    OutputKeys<typeof LocalBrowserConnectOptionsSchema>,
+    keyof Public.LocalBrowserConnectOptions
+  >
+>;
+type _LocalBrowserConnectOptionsInputKeys = AssertTrue<
+  IsEqual<
+    InputKeys<typeof LocalBrowserConnectOptionsSchema>,
+    keyof Public.LocalBrowserConnectOptions
+  >
+>;
+type _BrowserbaseConnectOptionsOutputKeys = AssertTrue<
+  IsEqual<
+    OutputKeys<typeof BrowserbaseConnectOptionsSchema>,
+    keyof Public.BrowserbaseConnectOptions
+  >
+>;
+type _BrowserbaseConnectOptionsInputKeys = AssertTrue<
+  IsEqual<InputKeys<typeof BrowserbaseConnectOptionsSchema>, keyof Public.BrowserbaseConnectOptions>
+>;
+type _StagehandOptionsOutputKeys = AssertTrue<
+  IsEqual<OutputKeys<typeof StagehandOptionsSchema>, keyof Public.StagehandOptions>
+>;
+type _StagehandOptionsInputKeys = AssertTrue<
+  IsEqual<InputKeys<typeof StagehandOptionsSchema>, keyof Public.StagehandOptions>
+>;
 type _LLMToolOutputKeys = AssertTrue<
   IsEqual<OutputKeys<typeof LLMToolSchema>, keyof Public.LLMTool>
 >;
@@ -523,13 +569,9 @@ type _StagehandMetricsSchema = typeof PublicSchemas.StagehandMetricsSchema;
 expectTypeOf<SchemaOutput<_StagehandMetricsSchema>>().toEqualTypeOf<Public.StagehandMetrics>();
 expectTypeOf<SchemaInput<_StagehandMetricsSchema>>().toEqualTypeOf<Public.StagehandMetrics>();
 
-type _V3EnvSchema = typeof PublicSchemas.V3EnvSchema;
-expectTypeOf<SchemaOutput<_V3EnvSchema>>().toEqualTypeOf<Public.V3Env>();
-expectTypeOf<SchemaInput<_V3EnvSchema>>().toEqualTypeOf<Public.V3Env>();
-
-type _V3OptionsSchema = typeof PublicSchemas.V3OptionsSchema;
-expectTypeOf<SchemaOutput<_V3OptionsSchema>>().toEqualTypeOf<Public.V3Options>();
-expectTypeOf<SchemaInput<_V3OptionsSchema>>().toEqualTypeOf<Public.V3Options>();
+type _StagehandOptionsSchema = typeof PublicSchemas.StagehandOptionsSchema;
+expectTypeOf<SchemaOutput<_StagehandOptionsSchema>>().toEqualTypeOf<Public.StagehandOptions>();
+expectTypeOf<SchemaInput<_StagehandOptionsSchema>>().toEqualTypeOf<Public.StagehandOptions>();
 
 type _LoadStateSchema = typeof PublicSchemas.LoadStateSchema;
 expectTypeOf<SchemaOutput<_LoadStateSchema>>().toEqualTypeOf<Public.LoadState>();

@@ -8,7 +8,6 @@ import {
   ExtractOptionsSchema,
   ExtractResultSchema,
   GoogleServiceAccountAuthSchema,
-  ModelConfigSchema,
   ModelNameSchema,
   ModelProviderSchema,
   ObserveOptionsSchema,
@@ -236,13 +235,21 @@ export const LocalBrowserLaunchOptionsSchema = z
     deviceScaleFactor: z.number().optional(),
     hasTouch: z.boolean().optional(),
     ignoreHTTPSErrors: z.boolean().optional(),
-    cdpUrl: z.string().optional(),
     connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),
+    keepAlive: z.boolean().optional(),
   })
   .strict()
   .meta({ id: "LocalBrowserLaunchOptions" });
+
+export const LocalBrowserConnectOptionsSchema = z
+  .object({
+    cdpUrl: z.string().min(1),
+    keepAlive: z.boolean().optional(),
+  })
+  .strict()
+  .meta({ id: "LocalBrowserConnectOptions" });
 
 export const ModelAuthSchema = z
   .discriminatedUnion("type", [
@@ -537,11 +544,7 @@ export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 /** Browserbase session creation parameters */
 export const BrowserbaseSessionCreateParamsSchema = z
   .object({
-    projectId: z.string().optional().meta({
-      deprecated: true,
-      description:
-        "Deprecated. Browserbase API keys are now project-scoped, so this field is no longer required.",
-    }),
+    apiKey: z.string().min(1).optional(),
     browserSettings: BrowserbaseBrowserSettingsSchema.optional(),
     extensionId: z.string().optional(),
     keepAlive: z.boolean().optional(),
@@ -553,34 +556,55 @@ export const BrowserbaseSessionCreateParamsSchema = z
   .meta({ id: "BrowserbaseSessionCreateParams" });
 export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCreateParamsSchema>;
 
-export const V3EnvSchema = z.enum(["LOCAL", "BROWSERBASE"]).meta({ id: "V3Env" });
-
-export const V3OptionsSchema = z
+export const BrowserbaseConnectOptionsSchema = z
   .object({
-    env: V3EnvSchema,
-    sessionId: z.string().optional(),
-    apiKey: z.string().optional(),
-    projectId: z.string().optional(),
-    browserbaseSessionCreateParams: BrowserbaseSessionCreateParamsSchema.optional(),
-    browserbaseSessionID: z.string().optional(),
+    cdpUrl: z.string().min(1).optional(),
+    sessionId: z.string().min(1).optional(),
+    apiKey: z.string().min(1).optional(),
     keepAlive: z.boolean().optional(),
-    localBrowserLaunchOptions: LocalBrowserLaunchOptionsSchema.optional(),
-    model: ModelConfigSchema.optional(),
-    systemPrompt: z.string().optional(),
-    logInferenceToFile: z.boolean().optional(),
-    experimental: z.boolean().optional(),
-    verbose: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
-    selfHeal: z.boolean().optional(),
-    waitForCaptchaSolves: z.boolean().optional(),
-    actTimeoutMs: z.number().optional(),
-    disablePino: z.boolean().optional(),
-    cacheDir: z.string().optional(),
-    domSettleTimeout: z.number().optional(),
-    disableAPI: z.boolean().optional(),
-    serverCache: z.boolean().optional(),
   })
   .strict()
-  .meta({ id: "V3Options" });
+  .superRefine((options, context) => {
+    const selectedTargets = [options.cdpUrl, options.sessionId].filter(
+      (value) => value !== undefined,
+    );
+    if (selectedTargets.length === 1) return;
+
+    context.addIssue({
+      code: "custom",
+      path: [],
+      message: "Provide exactly one of cdpUrl or sessionId",
+    });
+  })
+  .meta({ id: "BrowserbaseConnectOptions" });
+
+const browserSourceOptionKeys = [
+  "localBrowserLaunchOptions",
+  "localBrowserConnectOptions",
+  "browserbaseSessionCreateParams",
+  "browserbaseConnectOptions",
+] as const;
+
+export const StagehandOptionsSchema = z
+  .object({
+    localBrowserLaunchOptions: LocalBrowserLaunchOptionsSchema.optional(),
+    localBrowserConnectOptions: LocalBrowserConnectOptionsSchema.optional(),
+    browserbaseSessionCreateParams: BrowserbaseSessionCreateParamsSchema.optional(),
+    browserbaseConnectOptions: BrowserbaseConnectOptionsSchema.optional(),
+    selfHeal: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((options, context) => {
+    const selectedKeys = browserSourceOptionKeys.filter((key) => options[key] !== undefined);
+    if (selectedKeys.length === 1) return;
+
+    context.addIssue({
+      code: "custom",
+      path: [],
+      message: "Provide exactly one browser source option",
+    });
+  })
+  .meta({ id: "StagehandOptions" });
 
 // =============================================================================
 // Session Start

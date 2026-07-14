@@ -1,12 +1,19 @@
 import type { z } from "zod/v4";
-import { LocalBrowserLaunchOptionsSchema, V3EnvSchema, V3OptionsSchema } from "./schemas.js";
-
-export type V3Env = z.infer<typeof V3EnvSchema>;
+import {
+  BrowserbaseConnectOptionsSchema,
+  BrowserbaseSessionCreateParamsSchema,
+  LocalBrowserConnectOptionsSchema,
+  LocalBrowserLaunchOptionsSchema,
+  StagehandOptionsSchema,
+} from "./schemas.js";
 
 // Re-export for backwards compatibility (camelCase alias)
 export const localBrowserLaunchOptionsSchema = LocalBrowserLaunchOptionsSchema;
 
 export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptionsSchema>;
+export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
+export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCreateParamsSchema>;
+export type BrowserbaseConnectOptions = z.infer<typeof BrowserbaseConnectOptionsSchema>;
 
-/** Constructor options for V3 */
-export type V3Options = z.infer<typeof V3OptionsSchema>;
+/** Constructor options for Stagehand */
+export type StagehandOptions = z.infer<typeof StagehandOptionsSchema>;
