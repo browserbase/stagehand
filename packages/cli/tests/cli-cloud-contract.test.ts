@@ -734,24 +734,27 @@ describe("cloud API contracts", () => {
     );
   });
 
-  it("does not auto-load .env when BROWSE_LOAD_DOTENV=0", async () => {
-    const cwd = await createTempDir("browse-dotenv-optout-");
+  it.each(["0", "false", "no", "FALSE", "NO"])(
+    "does not auto-load .env when BROWSE_LOAD_DOTENV=%s",
+    async (optOutValue) => {
+      const cwd = await createTempDir("browse-dotenv-optout-");
 
-    await writeFile(join(cwd, ".env"), "BROWSERBASE_API_KEY=test-key\n");
+      await writeFile(join(cwd, ".env"), "BROWSERBASE_API_KEY=test-key\n");
 
-    const result = await runCli(["cloud", "projects", "list"], {
-      cwd,
-      env: {
-        BROWSERBASE_API_KEY: undefined,
-        BROWSERBASE_BASE_URL: undefined,
-        BROWSE_LOAD_DOTENV: "0",
-      },
-    });
+      const result = await runCli(["cloud", "projects", "list"], {
+        cwd,
+        env: {
+          BROWSERBASE_API_KEY: undefined,
+          BROWSERBASE_BASE_URL: undefined,
+          BROWSE_LOAD_DOTENV: optOutValue,
+        },
+      });
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Missing Browserbase API key");
-    expect(result.stderr).not.toContain("deprecated");
-  });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Missing Browserbase API key");
+      expect(result.stderr).not.toContain("deprecated");
+    },
+  );
 
   it.each([
     {
