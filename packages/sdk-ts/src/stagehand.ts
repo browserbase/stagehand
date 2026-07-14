@@ -5,7 +5,7 @@ import {
   type StagehandBridgeOptions,
 } from "../../modcdp/index.js";
 import { StagehandOptionsSchema } from "../../protocol/pending-schemas.js";
-import type { StagehandOptions } from "../../protocol/types.js";
+import type { StagehandOptions, StagehandRpcNotification } from "../../protocol/types.js";
 import { BrowserContext } from "./browserContext.js";
 import { resolveBrowserSource, type ResolvedBrowserSource } from "./browserSource.js";
 import { BridgeProtocolClient } from "./bridgeProtocolClient.js";
@@ -15,17 +15,18 @@ import {
   type StagehandProtocolClient,
 } from "./protocolClient.js";
 
-type StagehandRuntimeDependencies = {
+type StagehandAdapters = {
   resolveBrowserSource?: (options: StagehandOptions) => Promise<ResolvedBrowserSource>;
   connectBridge?: (options: StagehandBridgeOptions) => Promise<StagehandBridge>;
 };
 
-const stagehandRuntimeDependencies = new WeakMap<Stagehand, StagehandRuntimeDependencies>();
+const stagehandAdapters = new WeakMap<Stagehand, StagehandAdapters>();
 
 export class Stagehand {
   #context: BrowserContext | undefined;
   #initialized = false;
   #bridge: StagehandBridge | undefined;
+  #removeNotificationListener: (() => void) | undefined;
   #browser: ResolvedBrowserSource | undefined;
 
   constructor(private readonly options: StagehandOptions) {}
@@ -47,20 +48,19 @@ export class Stagehand {
     }
 
     const parsedOptions = StagehandOptionsSchema.parse(this.options);
-    const dependencies = stagehandRuntimeDependencies.get(this) ?? {};
-    const browser = await (dependencies.resolveBrowserSource ?? resolveBrowserSource)(
-      parsedOptions,
-    );
+    const adapters = stagehandAdapters.get(this) ?? {};
+    const browser = await (adapters.resolveBrowserSource ?? resolveBrowserSource)(parsedOptions);
     this.#browser = browser;
 
     try {
-      const bridge = await (dependencies.connectBridge ?? connectStagehandBridge)({
+      const bridge = await (adapters.connectBridge ?? connectStagehandBridge)({
         cdpUrl: browser.cdpUrl,
         extensionDir: stagehandExtensionDistDir,
         serviceWorkerUrlIncludes: "service-worker.js",
         telemetry: parsedOptions.telemetry,
       });
       this.#bridge = bridge;
+      this.#removeNotificationListener = bridge.onNotification(renderStagehandNotification);
       this.#context = new BrowserContext(new BridgeProtocolClient(bridge));
     } catch (error) {
       await this.closeBrowserSource();
@@ -77,6 +77,8 @@ export class Stagehand {
         await this.#bridge?.send("stagehand.close", {});
       }
     } finally {
+      this.#removeNotificationListener?.();
+      this.#removeNotificationListener = undefined;
       this.#bridge?.close();
       await this.closeBrowserSource();
       this.#bridge = undefined;
@@ -119,17 +121,37 @@ export function createStagehandWithClientForTest(client: StagehandProtocolClient
           const response = await client.send(request);
           return parseStagehandProtocolResponse(method, response);
         },
+        onNotification: () => () => {},
         close: () => {},
       }),
     },
   );
 }
 
+function renderStagehandNotification(notification: StagehandRpcNotification): void {
+  const { level, message, data } = notification.params;
+
+  switch (level) {
+    case "debug":
+      console.debug(message, data);
+      break;
+    case "info":
+      console.info(message, data);
+      break;
+    case "warn":
+      console.warn(message, data);
+      break;
+    case "error":
+      console.error(message, data);
+      break;
+  }
+}
+
 export function createStagehandWithDependenciesForTest(
   options: StagehandOptions,
-  dependencies: StagehandRuntimeDependencies,
+  adapters: StagehandAdapters,
 ): Stagehand {
   const stagehand = new Stagehand(options);
-  stagehandRuntimeDependencies.set(stagehand, dependencies);
+  stagehandAdapters.set(stagehand, adapters);
   return stagehand;
 }

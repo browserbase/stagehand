@@ -1,17 +1,16 @@
 import type { ContextNewPageParams, EmptyParams } from "../../protocol/types.js";
-import type { StagehandRuntimeService } from "../services/stagehandRuntimeService.js";
+import type { StagehandHandlerContext } from "../rpc/router.js";
+import type { StagehandRuntime } from "../runtime.js";
 
-type ContextService = Pick<StagehandRuntimeService, "contextNewPage" | "contextPages">;
-
-export function createContextController({ service }: { service: ContextService }) {
-  async function pages(_params: EmptyParams) {
-    console.log("[stagehand] context.pages");
-    return service.contextPages();
+export function createContextController(runtime: StagehandRuntime) {
+  async function pages(_params: EmptyParams, { logger }: StagehandHandlerContext) {
+    logger.info("[stagehand] context.pages", {});
+    return runtime.contextPages();
   }
 
-  async function newPage(params: ContextNewPageParams) {
-    console.log("[stagehand] context.new_page");
-    return service.contextNewPage(params);
+  async function newPage(params: ContextNewPageParams, { logger }: StagehandHandlerContext) {
+    logger.info("[stagehand] context.new_page", {});
+    return runtime.contextNewPage(params);
   }
 
   return {

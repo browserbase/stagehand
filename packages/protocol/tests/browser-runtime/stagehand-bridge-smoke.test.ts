@@ -8,6 +8,7 @@ import { build } from "vite-plus";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { stagehandExtensionDistDir } from "../../../extension/build.ts";
 import { connectStagehandBridge, type StagehandBridge } from "../../../modcdp/index.js";
+import type { StagehandRpcNotification } from "../../types.js";
 
 type FixtureServer = {
   url: string;
@@ -51,6 +52,27 @@ describe("Stagehand service worker bridge smoke", () => {
       ok: true,
       runtime: "service_worker",
     });
+  });
+
+  it("streams validated Stagehand log notifications over the existing CDP connection", async () => {
+    const notifications: StagehandRpcNotification[] = [];
+    const activeBridge = requireBridge(bridge);
+    const stopListening = activeBridge.onNotification((notification) => {
+      notifications.push(notification);
+    });
+
+    await activeBridge.send("ping", {});
+
+    expect(notifications).toContainEqual({
+      jsonrpc: "2.0",
+      method: "stagehand.log",
+      params: {
+        level: "info",
+        message: "[stagehand] ping",
+        data: {},
+      },
+    });
+    stopListening();
   });
 
   it("browser.get_version returns the browser version over loopback CDP", async () => {

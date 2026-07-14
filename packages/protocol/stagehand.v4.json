@@ -70,7 +70,7 @@
                       "ref": "#/$defs/StagehandTelemetryOptions"
                     }
                   },
-                  "required": ["cdp_url"],
+                  "required": ["cdp_url", "telemetry"],
                   "additional_properties": false
                 },
                 "traceparent": {
@@ -793,6 +793,12 @@
           ],
           "$defs": {
             "StagehandTelemetryOptions": {
+              "default": {
+                "traces": {
+                  "endpoint": "https://example.com/v1/traces",
+                  "headers": {}
+                }
+              },
               "type": "object",
               "properties": {
                 "traces": {
@@ -803,6 +809,7 @@
                       "format": "uri"
                     },
                     "headers": {
+                      "default": {},
                       "type": "object",
                       "property_names": {
                         "type": "string"
@@ -812,10 +819,11 @@
                       }
                     }
                   },
-                  "required": ["endpoint"],
+                  "required": ["endpoint", "headers"],
                   "additional_properties": false
                 }
               },
+              "required": ["traces"],
               "additionalProperties": false
             },
             "ModelConfiguration": {
@@ -1658,7 +1666,7 @@
                       }
                     }
                   },
-                  "required": ["level", "message"],
+                  "required": ["level", "message", "data"],
                   "additional_properties": false
                 }
               },
@@ -1880,10 +1888,16 @@
                   "ref": "#/$defs/StagehandTelemetryOptions"
                 }
               },
-              "required": ["cdp_url"],
+              "required": ["cdp_url", "telemetry"],
               "additionalProperties": false,
               "$defs": {
                 "StagehandTelemetryOptions": {
+                  "default": {
+                    "traces": {
+                      "endpoint": "https://example.com/v1/traces",
+                      "headers": {}
+                    }
+                  },
                   "type": "object",
                   "properties": {
                     "traces": {
@@ -1894,6 +1908,7 @@
                           "format": "uri"
                         },
                         "headers": {
+                          "default": {},
                           "type": "object",
                           "property_names": {
                             "type": "string"
@@ -1903,10 +1918,11 @@
                           }
                         }
                       },
-                      "required": ["endpoint"],
+                      "required": ["endpoint", "headers"],
                       "additional_properties": false
                     }
                   },
+                  "required": ["traces"],
                   "additionalProperties": false
                 }
               }
@@ -5350,7 +5366,7 @@
                   }
                 }
               },
-              "required": ["level", "message"],
+              "required": ["level", "message", "data"],
               "additionalProperties": false,
               "$defs": {
                 "__schema0": {

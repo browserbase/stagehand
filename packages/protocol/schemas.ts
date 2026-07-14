@@ -741,8 +741,10 @@ export const LocatorTextContentResultSchema = z
 
 export const StagehandLogLevelSchema = z.enum(["debug", "info", "warn", "error"]);
 
+export const StagehandLogDataSchema = z.record(z.string(), z.json());
+
 export const StagehandLogSchema = z.strictObject({
   level: StagehandLogLevelSchema,
   message: z.string().min(1),
-  data: z.record(z.string(), z.json()).optional(),
+  data: StagehandLogDataSchema,
 });

@@ -18,7 +18,10 @@ import type {
   RuntimeConfigureParams,
   RuntimeConfigureResult,
   RuntimeLoopbackStatusResult,
-} from "../../protocol/types.js";
+} from "../protocol/types.js";
+import type { StagehandLogEmitter } from "./logger.js";
+import { StagehandLogger } from "./logger.js";
+import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -54,12 +57,13 @@ export type UnderstudyRuntimeContext = {
 
 export type UnderstudyRuntimeContextFactory = (cdpUrl: string) => Promise<UnderstudyRuntimeContext>;
 
-export type StagehandRuntimeDependencies = {
+export type StagehandRuntimeAdapters = {
   loopbackCdpFactory?: LoopbackCdpConnectionFactory;
   understudyContextFactory?: UnderstudyRuntimeContextFactory;
+  emitLog?: StagehandLogEmitter;
 };
 
-type ResolvedStagehandRuntimeDependencies = Required<StagehandRuntimeDependencies>;
+type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
 
 const defaultLoopbackCdpFactory: LoopbackCdpConnectionFactory = async () => {
   throw new Error("Stagehand loopback CDP factory is not configured");
@@ -67,23 +71,35 @@ const defaultLoopbackCdpFactory: LoopbackCdpConnectionFactory = async () => {
 const defaultUnderstudyContextFactory: UnderstudyRuntimeContextFactory = async () => {
   throw new Error("Stagehand understudy context factory is not configured");
 };
+const discardLog: StagehandLogEmitter = () => {};
 
-export function createStagehandRuntimeService(
-  dependencies: StagehandRuntimeDependencies = {},
-): StagehandRuntimeService {
-  return new StagehandRuntimeService({
-    loopbackCdpFactory: dependencies.loopbackCdpFactory ?? defaultLoopbackCdpFactory,
-    understudyContextFactory:
-      dependencies.understudyContextFactory ?? defaultUnderstudyContextFactory,
-  });
+export function createStagehandRuntime(
+  adapters: StagehandRuntimeAdapters = {},
+  tracing: StagehandTracing = createStagehandTracing(),
+): StagehandRuntime {
+  return new StagehandRuntime(
+    {
+      loopbackCdpFactory: adapters.loopbackCdpFactory ?? defaultLoopbackCdpFactory,
+      understudyContextFactory:
+        adapters.understudyContextFactory ?? defaultUnderstudyContextFactory,
+      emitLog: adapters.emitLog ?? discardLog,
+    },
+    tracing,
+  );
 }
 
-export class StagehandRuntimeService {
+export class StagehandRuntime {
+  readonly logger: StagehandLogger;
   #loopback?: LoopbackCdpConnection;
   #understudyContext?: UnderstudyRuntimeContext;
   #pagesById = new Map<string, UnderstudyRuntimePage>();
 
-  constructor(private readonly dependencies: ResolvedStagehandRuntimeDependencies) {}
+  constructor(
+    private readonly adapters: ResolvedStagehandRuntimeAdapters,
+    readonly tracing: StagehandTracing,
+  ) {
+    this.logger = new StagehandLogger(tracing, adapters.emitLog);
+  }
 
   loopbackStatus(): RuntimeLoopbackStatusResult {
     return {
@@ -104,8 +120,8 @@ export class StagehandRuntimeService {
     await previousContext?.close();
 
     try {
-      this.#loopback = await this.dependencies.loopbackCdpFactory(cdpUrl);
-      this.#understudyContext = await this.dependencies.understudyContextFactory(cdpUrl);
+      this.#loopback = await this.adapters.loopbackCdpFactory(cdpUrl);
+      this.#understudyContext = await this.adapters.understudyContextFactory(cdpUrl);
     } catch (error) {
       this.#loopback?.close();
       this.#loopback = undefined;

@@ -3,32 +3,28 @@ import type {
   LocatorDescriptor,
   LocatorFillParams,
 } from "../../protocol/types.js";
-import type { StagehandRuntimeService } from "../services/stagehandRuntimeService.js";
+import type { StagehandHandlerContext } from "../rpc/router.js";
+import type { StagehandRuntime } from "../runtime.js";
 
-type LocatorService = Pick<
-  StagehandRuntimeService,
-  "locatorClick" | "locatorFill" | "locatorIsVisible" | "locatorTextContent"
->;
-
-export function createLocatorController({ service }: { service: LocatorService }) {
-  async function click(params: LocatorClickParams) {
-    console.log("[stagehand] locator.click");
-    return service.locatorClick(params);
+export function createLocatorController(runtime: StagehandRuntime) {
+  async function click(params: LocatorClickParams, { logger }: StagehandHandlerContext) {
+    logger.info("[stagehand] locator.click", {});
+    return runtime.locatorClick(params);
   }
 
-  async function fill(params: LocatorFillParams) {
-    console.log("[stagehand] locator.fill");
-    return service.locatorFill(params);
+  async function fill(params: LocatorFillParams, { logger }: StagehandHandlerContext) {
+    logger.info("[stagehand] locator.fill", {});
+    return runtime.locatorFill(params);
   }
 
-  async function isVisible(params: LocatorDescriptor) {
-    console.log("[stagehand] locator.is_visible");
-    return service.locatorIsVisible(params);
+  async function isVisible(params: LocatorDescriptor, { logger }: StagehandHandlerContext) {
+    logger.info("[stagehand] locator.is_visible", {});
+    return runtime.locatorIsVisible(params);
   }
 
-  async function textContent(params: LocatorDescriptor) {
-    console.log("[stagehand] locator.text_content");
-    return service.locatorTextContent(params);
+  async function textContent(params: LocatorDescriptor, { logger }: StagehandHandlerContext) {
+    logger.info("[stagehand] locator.text_content", {});
+    return runtime.locatorTextContent(params);
   }
 
   return {

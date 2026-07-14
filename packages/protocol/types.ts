@@ -55,6 +55,7 @@ import type {
   StagehandExtractParamsSchema,
   StagehandInitParamsSchema,
   StagehandInitResultSchema,
+  StagehandLogDataSchema,
   StagehandLogLevelSchema,
   StagehandLogSchema,
   StagehandMetricsSchema,
@@ -210,6 +211,7 @@ export type LocatorClickResult = z.infer<typeof LocatorClickResultSchema>;
 export type LocatorFillResult = z.infer<typeof LocatorFillResultSchema>;
 export type LocatorIsVisibleResult = z.infer<typeof LocatorIsVisibleResultSchema>;
 export type LocatorTextContentResult = z.infer<typeof LocatorTextContentResultSchema>;
+export type StagehandLogData = z.infer<typeof StagehandLogDataSchema>;
 export type StagehandLog = z.infer<typeof StagehandLogSchema>;
 export type StagehandLogLevel = z.infer<typeof StagehandLogLevelSchema>;
 export type StagehandNotifications = z.infer<typeof StagehandNotificationsSchema>;

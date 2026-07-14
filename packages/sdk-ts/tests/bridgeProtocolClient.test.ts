@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { StagehandBridge, StagehandServiceWorkerInfo } from "../../modcdp/index.js";
+import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { BridgeProtocolClient } from "../src/bridgeProtocolClient.js";
 import type {
   StagehandMethod,
@@ -45,6 +46,10 @@ class FakeStagehandBridge implements StagehandBridge {
       throw new Error(`No fake response queued for ${method}`);
     }
     return responses.shift() as StagehandMethodResult<Method>;
+  }
+
+  onNotification(_listener: (notification: StagehandRpcNotification) => void): () => void {
+    return () => {};
   }
 
   close(): void {

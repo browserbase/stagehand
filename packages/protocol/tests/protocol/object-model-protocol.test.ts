@@ -121,6 +121,7 @@ describe("Stagehand object-model protocol", () => {
         params: {
           level: "info",
           message: "Starting action",
+          data: {},
         },
       }),
     ).toThrow();

@@ -1,30 +1,26 @@
 import type { PageGotoParams, PageIdParams } from "../../protocol/types.js";
-import type { StagehandRuntimeService } from "../services/stagehandRuntimeService.js";
+import type { StagehandHandlerContext } from "../rpc/router.js";
+import type { StagehandRuntime } from "../runtime.js";
 
-type PageService = Pick<
-  StagehandRuntimeService,
-  "pageClose" | "pageGoto" | "pageTitle" | "pageUrl"
->;
-
-export function createPageController({ service }: { service: PageService }) {
-  async function goto(params: PageGotoParams) {
-    console.log("[stagehand] page.goto");
-    return service.pageGoto(params);
+export function createPageController(runtime: StagehandRuntime) {
+  async function goto(params: PageGotoParams, { logger }: StagehandHandlerContext) {
+    logger.info("[stagehand] page.goto", {});
+    return runtime.pageGoto(params);
   }
 
-  async function url(params: PageIdParams) {
-    console.log("[stagehand] page.url");
-    return service.pageUrl(params);
+  async function url(params: PageIdParams, { logger }: StagehandHandlerContext) {
+    logger.info("[stagehand] page.url", {});
+    return runtime.pageUrl(params);
   }
 
-  async function title(params: PageIdParams) {
-    console.log("[stagehand] page.title");
-    return service.pageTitle(params);
+  async function title(params: PageIdParams, { logger }: StagehandHandlerContext) {
+    logger.info("[stagehand] page.title", {});
+    return runtime.pageTitle(params);
   }
 
-  async function close(params: PageIdParams) {
-    console.log("[stagehand] page.close");
-    return service.pageClose(params);
+  async function close(params: PageIdParams, { logger }: StagehandHandlerContext) {
+    logger.info("[stagehand] page.close", {});
+    return runtime.pageClose(params);
   }
 
   return {

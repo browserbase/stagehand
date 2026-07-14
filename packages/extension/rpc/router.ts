@@ -17,20 +17,25 @@ import {
 import type { JSONRPCResponse } from "../../protocol/json-rpc/types.js";
 import { encodeWireValue } from "../../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods, StagehandRpcRequestSchema } from "../../protocol/schema-registry.js";
-import { StagehandRuntimeError } from "../services/stagehandRuntimeService.js";
-import type { StagehandTracing } from "../tracing.js";
+import type { StagehandLogger } from "../logger.js";
+import { StagehandRuntimeError, type StagehandRuntime } from "../runtime.js";
 
 const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
+
+export type StagehandHandlerContext = {
+  logger: StagehandLogger;
+};
 
 export type StagehandHandlers = {
   [Method in keyof typeof StagehandMethods]: (
     params: z.output<(typeof StagehandMethods)[Method]["paramsSchema"]>,
+    context: StagehandHandlerContext,
   ) => Promise<z.output<(typeof StagehandMethods)[Method]["resultSchema"]>>;
 };
 
 export function createStagehandRouter(
   routes: StagehandHandlers,
-  { tracing }: { tracing: StagehandTracing },
+  runtime: Pick<StagehandRuntime, "logger" | "tracing">,
 ) {
   return async (raw: unknown): Promise<JSONRPCResponse> => {
     let input: unknown;
@@ -74,9 +79,12 @@ export function createStagehandRouter(
 
     const request = requestResult.data;
     const definition = StagehandMethods[request.method];
-    const route = routes[request.method] as (params: typeof request.params) => Promise<unknown>;
+    const route = routes[request.method] as (
+      params: typeof request.params,
+      context: StagehandHandlerContext,
+    ) => Promise<unknown>;
     if (request.method === "runtime.configure") {
-      tracing.configure(request.params.telemetry);
+      runtime.tracing.configure(request.params.telemetry);
     }
 
     // CDP has no HTTP headers, so the bridge carries W3C trace context in flat JSON-RPC fields.
@@ -89,7 +97,7 @@ export function createStagehandRouter(
         return ["traceparent", "tracestate"].filter((key) => key in carrier);
       },
     });
-    const span = tracing.tracer.startSpan(
+    const span = runtime.tracing.tracer.startSpan(
       request.method,
       {
         kind: SpanKind.SERVER,
@@ -102,11 +110,14 @@ export function createStagehandRouter(
       parentContext,
     );
     const requestContext = trace.setSpan(parentContext, span);
+    const handlerContext = { logger: runtime.logger.withContext(requestContext) };
     const shutdownAfterResponse = request.method === "stagehand.close";
 
     try {
       // Make the server span active so dependency instrumentation joins the same trace.
-      const result = await otelContext.with(requestContext, () => route(request.params));
+      const result = await otelContext.with(requestContext, () =>
+        route(request.params, handlerContext),
+      );
       const resultResult = definition.resultSchema.safeParse(result);
 
       if (!resultResult.success) {
@@ -146,7 +157,7 @@ export function createStagehandRouter(
       );
     } finally {
       span.end();
-      if (shutdownAfterResponse) await tracing.shutdown();
+      if (shutdownAfterResponse) await runtime.tracing.shutdown();
     }
   };
 }

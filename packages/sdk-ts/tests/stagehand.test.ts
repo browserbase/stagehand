@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import type { StagehandBridge, StagehandBridgeOptions } from "../../modcdp/index.js";
+import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { Stagehand } from "../src/index.js";
 import type { ResolvedBrowserSource } from "../src/browserSource.js";
 import type {
@@ -26,6 +27,7 @@ class FakeStagehandBridge implements StagehandBridge {
   readonly calls: ProtocolCall[] = [];
   closed = false;
   #responses = new Map<StagehandMethod, unknown[]>();
+  #notificationListeners = new Set<(notification: StagehandRpcNotification) => void>();
 
   queueResponse<Method extends StagehandMethod>(
     method: Method,
@@ -46,6 +48,19 @@ class FakeStagehandBridge implements StagehandBridge {
       throw new Error(`No fake response queued for ${method}`);
     }
     return responses.shift() as StagehandMethodResult<Method>;
+  }
+
+  onNotification(listener: (notification: StagehandRpcNotification) => void): () => void {
+    this.#notificationListeners.add(listener);
+    return () => this.#notificationListeners.delete(listener);
+  }
+
+  emitNotification(notification: StagehandRpcNotification): void {
+    for (const listener of this.#notificationListeners) listener(notification);
+  }
+
+  get notificationListenerCount(): number {
+    return this.#notificationListeners.size;
   }
 
   close(): void {
@@ -182,6 +197,45 @@ describe("Stagehand", () => {
     expect(bridge.closed).toBe(true);
     expect(closeBrowser).toHaveBeenCalledOnce();
     expect(() => stagehand.context).toThrow("Call stagehand.init() before using context");
+  });
+
+  it("renders streamed Stagehand logs and removes the listener when Stagehand closes", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const bridge = new FakeStagehandBridge();
+    bridge.queueResponse("stagehand.close", { closed: true });
+    const stagehand = createStagehandWithDependenciesForTest(
+      {
+        localBrowserConnectOptions: {
+          cdpUrl: "http://127.0.0.1:9222",
+        },
+      },
+      {
+        resolveBrowserSource: async () => ({
+          cdpUrl: "http://127.0.0.1:9222",
+          keepAlive: true,
+        }),
+        connectBridge: async () => bridge,
+      },
+    );
+
+    await stagehand.init();
+    bridge.emitNotification({
+      jsonrpc: "2.0",
+      method: "stagehand.log",
+      params: {
+        level: "info",
+        message: "Page opened",
+        data: { pageId: "page-1" },
+      },
+    });
+
+    expect(info).toHaveBeenCalledWith("Page opened", { pageId: "page-1" });
+    expect(bridge.notificationListenerCount).toBe(1);
+
+    await stagehand.close();
+
+    expect(bridge.notificationListenerCount).toBe(0);
+    info.mockRestore();
   });
 
   it("does not close a keepAlive browser source", async () => {

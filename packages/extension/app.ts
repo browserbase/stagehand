@@ -5,39 +5,20 @@ import { createPageController } from "./controllers/pageController.js";
 import { createRuntimeController } from "./controllers/runtimeController.js";
 import { createStagehandController } from "./controllers/stagehandController.js";
 import { createStagehandRouter, type StagehandHandlers } from "./rpc/router.js";
-import {
-  createStagehandRuntimeService,
-  type LoopbackCdpConnectionFactory,
-  type UnderstudyRuntimeContextFactory,
-} from "./services/stagehandRuntimeService.js";
-import type { StagehandTracing } from "./tracing.js";
+import type { StagehandRuntime } from "./runtime.js";
 
-export type StagehandAppDependencies = {
-  tracing: StagehandTracing;
-  loopbackCdpFactory: LoopbackCdpConnectionFactory;
-  understudyContextFactory: UnderstudyRuntimeContextFactory;
-};
-
-export function createStagehandApp({
-  tracing,
-  loopbackCdpFactory,
-  understudyContextFactory,
-}: StagehandAppDependencies) {
-  const service = createStagehandRuntimeService({
-    loopbackCdpFactory,
-    understudyContextFactory,
-  });
-  const runtime = createRuntimeController({ service });
-  const browser = createBrowserController({ service });
-  const stagehand = createStagehandController({ service });
-  const context = createContextController({ service });
-  const page = createPageController({ service });
-  const locator = createLocatorController({ service });
+export function createStagehandApp(runtime: StagehandRuntime) {
+  const runtimeController = createRuntimeController(runtime);
+  const browser = createBrowserController(runtime);
+  const stagehand = createStagehandController(runtime);
+  const context = createContextController(runtime);
+  const page = createPageController(runtime);
+  const locator = createLocatorController(runtime);
 
   const routes = {
-    ping: runtime.ping,
-    "runtime.configure": runtime.configure,
-    "runtime.loopback_status": runtime.loopbackStatus,
+    ping: runtimeController.ping,
+    "runtime.configure": runtimeController.configure,
+    "runtime.loopback_status": runtimeController.loopbackStatus,
     "browser.get_version": browser.getVersion,
     "stagehand.init": stagehand.init,
     "stagehand.close": stagehand.close,
@@ -58,6 +39,6 @@ export function createStagehandApp({
   } satisfies StagehandHandlers;
 
   return {
-    handle: createStagehandRouter(routes, { tracing }),
+    handle: createStagehandRouter(routes, runtime),
   };
 }

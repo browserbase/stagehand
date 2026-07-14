@@ -35,6 +35,8 @@ import {
   StagehandPingResultSchema,
 } from "./schemas.ts";
 
+export const STAGEHAND_NOTIFICATION_BINDING_NAME = "__stagehand_emit_notification";
+
 export const StagehandMethods = {
   ping: {
     paramsSchema: EmptyParamsSchema,

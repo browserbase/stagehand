@@ -3,7 +3,7 @@ import {
   StagehandRuntimeError,
   type LoopbackCdpConnection,
   type LoopbackCdpConnectionFactory,
-} from "../services/stagehandRuntimeService.js";
+} from "../runtime.js";
 import { browserWebSocketFactory } from "../understudy/browserWebSocketTransport.js";
 import type { CdpWebSocketTransport } from "../understudy/cdp.js";
 

@@ -8,7 +8,7 @@ type JsonValue = z.infer<typeof JsonValueSchema>;
 type ExpectedLog = {
   level: "debug" | "info" | "warn" | "error";
   message: string;
-  data?: Record<string, JsonValue>;
+  data: Record<string, JsonValue>;
 };
 
 expectTypeOf<z.input<typeof StagehandLogSchema>>().toEqualTypeOf<ExpectedLog>();
