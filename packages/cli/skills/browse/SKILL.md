@@ -51,16 +51,16 @@ Use `browse <topic> --help` for exact flags before running unfamiliar commands.
 
 ## Browser Target Selection
 
-Browser driver commands auto-start the browse daemon when needed. Choose the browser target per command with flags:
+Browser driver commands auto-start the browse daemon when needed. Choose the browser target per command with flags, and give every task its own named session:
 
 ```bash
-browse open https://example.com --local
-browse open https://example.com --local --headed
-browse open https://example.com --remote
-browse open https://example.com --remote --verified --proxies
-browse open https://example.com --auto-connect
-browse open https://example.com --cdp 9222
-browse open https://example.com --cdp ws://127.0.0.1:9222/devtools/browser/<id>
+browse open https://example.com --session research-a7f --local
+browse open https://example.com --session research-a7f --local --headed
+browse open https://example.com --session research-a7f --remote
+browse open https://example.com --session research-a7f --remote --verified --proxies
+browse open https://example.com --session research-a7f --auto-connect
+browse open https://example.com --session research-a7f --cdp 9222
+browse open https://example.com --session research-a7f --cdp ws://127.0.0.1:9222/devtools/browser/<id>
 ```
 
 Use local mode for development, localhost, trusted sites, and fast iteration. Use `--auto-connect` only when the user explicitly wants to attach to an already-running debuggable Chrome session with existing cookies or login state; use `--local` when no debuggable Chrome is available. Use remote mode when Browserbase credentials are available and the site needs hosted browser infrastructure, Verified browser mode, CAPTCHA solving, proxies, or session persistence.
@@ -71,13 +71,13 @@ For a Verified and/or proxied remote session, add `--verified` and/or `--proxies
 
 Choose headed/headless and local/remote mode when starting a session. A running session keeps its mode: passing a conflicting flag such as `--headed` to an already-running headless session fails until you run `browse stop --session <name>` or target a different session.
 
-Use named sessions for any non-trivial work, especially when multiple agents or parallel tasks may run at once. Every browser command accepts `--session <name>` (or `-s <name>`); the `BROWSE_SESSION` env var sets the default, and commands without either share the `default` session.
+Always give each task its own named session. Pass `--session <name>` (or `-s <name>`) on every browser command, using a short task-derived name plus a unique suffix (`research-a7f`), or set the `BROWSE_SESSION` env var once for the whole task. Commands without either share the machine-wide `default` session, and two tasks that pick the same name share one browser: another agent's navigation replaces your active page and invalidates your refs, and its `browse stop` kills your browser mid-task. Other agents' sessions are invisible to you, so never assume you are alone — do not use the shared `default` session unless the user explicitly asks you to attach to it.
 
 If `BROWSE_SESSION` is already set in the environment, every command already targets that session — do not pass `--session` or invent a new name. An explicit `--session <name>` always overrides `BROWSE_SESSION` for that command, so only pass it to deliberately target a different session.
 
 ```bash
-browse open https://example.com --session research --local
-browse snapshot --session research
+browse open https://example.com --session research-a7f --local
+browse snapshot --session research-a7f
 ```
 
 Remote browser and cloud API commands require:
@@ -105,19 +105,19 @@ Refs are refreshed on every snapshot. After clicks, form submits, navigation, or
 
 ## Parallel Browser Work
 
-Use a different `--session` value for each independent browser task. Sessions isolate tabs, cookies, refs, and daemon state; parallel tasks that omit `--session` share the `default` session and overwrite each other's active page.
+Give each independent browser task a unique `--session` value. Sessions isolate tabs, cookies, refs, and daemon state; parallel tasks that omit `--session` share the `default` session and overwrite each other's active page — and parallel tasks that happen to pick the same name collide the same way, so uniqueness matters as much as naming. When spawning subagents that browse, assign each one its own session name (or set `BROWSE_SESSION` per subagent) instead of letting them choose.
 
 ```bash
-browse open https://example.com/search-a --session search-a --local
-browse open https://example.com/search-b --session search-b --local
-browse snapshot --session search-a
-browse snapshot --session search-b
+browse open https://example.com/search-a --session search-a-9fk --local
+browse open https://example.com/search-b --session search-b-2qh --local
+browse snapshot --session search-a-9fk
+browse snapshot --session search-b-2qh
 ```
 
 When a task is complete, stop only that task's session:
 
 ```bash
-browse stop --session search-a
+browse stop --session search-a-9fk
 ```
 
 ## Core Browser Commands
@@ -350,7 +350,7 @@ JSON output includes every match with full descriptions and ignores `--limit`; `
 3. Re-run `browse snapshot` after navigation or DOM-changing actions because refs can change.
 4. Prefer refs from snapshots for clicks and uploads; use selectors or XPath when refs are unavailable.
 5. Use `--local` for localhost and repeatable development; use `--remote` for protected sites or Browserbase-specific behavior.
-6. Use a distinct `--session <name>` for each parallel or long-running task; commands without the flag share the `default` session.
+6. Always pass a unique `--session <name>` per task (task-derived name + unique suffix); the unnamed `default` session is shared by every agent on the machine, and duplicate names collide the same way.
 7. Use `--auto-connect` only when attaching to an existing debuggable local Chrome session is intended.
 8. Use `browse doctor` when session startup, browser discovery, CDP attach, or Browserbase auth looks wrong.
 9. Never retry a failing command unchanged. If the same command fails twice with the same error, stop — run `browse doctor --json`, then change approach (fix the key, switch `--local`/`--remote`, or `browse stop --force` and start fresh). Repeating an identical failing command will keep failing.
@@ -360,6 +360,7 @@ JSON output includes every match with full descriptions and ignores `--limit`; `
 ## Troubleshooting
 
 - "No active page": run `browse status --session <name>`, then `browse open <url> --session <name>` or `browse tab new <url> --session <name>`; use `browse stop --force` if the daemon is stale.
+- Page changed to a URL you never navigated to, refs stopped matching, or your session died mid-task: another agent is sharing your session name (or `default`). Switch to a fresh unique `--session <name>` and re-open your URL instead of fighting for the shared one.
 - Chrome not found: use `--remote` with Browserbase credentials, install Chrome, or attach with `--cdp`.
 - Action fails: run `browse snapshot` and use a visible ref from the current page state.
 - 401 Unauthorized on `open`, `get`, or other driver commands: a set `BROWSERBASE_API_KEY` makes `browse` default to remote mode. Fix the key at https://browserbase.com/settings, unset it, or pass `--local` to run a managed local browser (no key needed).
