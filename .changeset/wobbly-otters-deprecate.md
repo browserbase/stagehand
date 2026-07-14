@@ -1,5 +1,5 @@
 ---
-"browse": minor
+"browse": patch
 ---
 
-`browse` now warns when it auto-loads environment variables from `.env` and adds a `BROWSE_LOAD_DOTENV` toggle to opt out ahead of a future release where auto-loading will be off by default.
+Warn when auto-loading variables from `.env` and add `BROWSE_LOAD_DOTENV` to opt out ahead of a future release where this will be off by default.
