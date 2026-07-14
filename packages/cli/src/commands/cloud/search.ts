@@ -7,6 +7,7 @@ import {
 } from "../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../base.js";
+import { writeOpenNudge } from "../../lib/open-nudge.js";
 import {
   outputFormatFlags,
   outputTable,
@@ -80,25 +81,22 @@ export default class Search extends BrowseCommand {
         console.log(
           `Wrote ${result.results.length} results for "${result.query}" to ${flags.output}.`,
         );
-        return;
+      } else {
+        outputJson({
+          ok: true,
+          outputPath: flags.output,
+          requestId: result.requestId,
+          query: result.query,
+          resultCount: result.results.length,
+        });
       }
-
-      outputJson({
-        ok: true,
-        outputPath: flags.output,
-        requestId: result.requestId,
-        query: result.query,
-        resultCount: result.results.length,
-      });
-      return;
-    }
-
-    if (outputFormat === "table") {
+    } else if (outputFormat === "table") {
       outputSearchTable(result.results, { wide: flags.wide });
-      return;
+    } else {
+      outputJson(result);
     }
 
-    outputJson(result);
+    await writeOpenNudge(this.config.cacheDir);
   }
 }
 
