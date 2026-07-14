@@ -624,6 +624,11 @@ export const ActOptionsSchema = z
       description: "Timeout in ms for the action",
       example: 30000,
     }),
+    cacheThreshold: z.number().int().nonnegative().optional().meta({
+      description:
+        "Per-action override of the server cache validation threshold — how many times this action must be seen before the cached result is served. Persists on the cache entry for later requests that omit it.",
+      example: 5,
+    }),
   })
   .optional()
   .meta({ id: "ActOptions" });
@@ -708,6 +713,11 @@ export const ExtractOptionsSchema = z
         "When true, include a screenshot of the current viewport in the extraction LLM call. Defaults to false.",
       example: false,
     }),
+    cacheThreshold: z.number().int().nonnegative().optional().meta({
+      description:
+        "Per-action override of the server cache validation threshold — how many times this action must be seen before the cached result is served. Persists on the cache entry for later requests that omit it.",
+      example: 5,
+    }),
   })
   .optional()
   .meta({ id: "ExtractOptions" });
@@ -788,6 +798,11 @@ export const ObserveOptionsSchema = z
           "Selectors for elements and subtrees that should be excluded from observation",
         example: ["nav", ".cookie-banner", "#sidebar-ads"],
       }),
+    cacheThreshold: z.number().int().nonnegative().optional().meta({
+      description:
+        "Per-action override of the server cache validation threshold — how many times this action must be seen before the cached result is served. Persists on the cache entry for later requests that omit it.",
+      example: 5,
+    }),
   })
   .optional()
   .meta({ id: "ObserveOptions" });

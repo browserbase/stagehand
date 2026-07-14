@@ -21,6 +21,13 @@ export interface ActOptions {
    * When false, disables server-side caching.
    */
   serverCache?: boolean;
+  /**
+   * Per-action override of the server cache validation threshold: how many
+   * times this action must be seen before the cached result is served.
+   * The value persists on the cache entry, so later requests that omit it
+   * keep honoring it; passing a new value updates it. Non-negative integer.
+   */
+  serverCacheThreshold?: number;
 }
 
 export interface ActResult {
@@ -63,6 +70,13 @@ export interface ExtractOptions {
    * When false, disables server-side caching.
    */
   serverCache?: boolean;
+  /**
+   * Per-action override of the server cache validation threshold: how many
+   * times this action must be seen before the cached result is served.
+   * The value persists on the cache entry, so later requests that omit it
+   * keep honoring it; passing a new value updates it. Non-negative integer.
+   */
+  serverCacheThreshold?: number;
 }
 
 export const defaultExtractSchema = z.object({
@@ -86,6 +100,13 @@ export interface ObserveOptions {
    * When false, disables server-side caching.
    */
   serverCache?: boolean;
+  /**
+   * Per-action override of the server cache validation threshold: how many
+   * times this action must be seen before the cached result is served.
+   * The value persists on the cache entry, so later requests that omit it
+   * keep honoring it; passing a new value updates it. Non-negative integer.
+   */
+  serverCacheThreshold?: number;
 }
 
 /**

@@ -302,16 +302,28 @@ export class StagehandAPIClient {
     let wireOptions: Api.ActRequest["options"];
     let serverCache: boolean | undefined;
     if (options) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, serverCache: enableCache, ...restOptions } = options;
+      const {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        page: _,
+        serverCache: enableCache,
+        serverCacheThreshold,
+        ...restOptions
+      } = options;
       serverCache = enableCache;
       if (restOptions.model) {
         restOptions.model = this.prepareModelConfig(restOptions.model);
       } else if (this.defaultModelConfig) {
         restOptions.model = this.getDefaultModelConfig();
       }
-      if (Object.keys(restOptions).length > 0) {
-        wireOptions = restOptions as unknown as Api.ActRequest["options"];
+      // serverCacheThreshold is SDK-named; the API expects options.cacheThreshold
+      const mappedOptions = {
+        ...restOptions,
+        ...(serverCacheThreshold !== undefined && {
+          cacheThreshold: serverCacheThreshold,
+        }),
+      };
+      if (Object.keys(mappedOptions).length > 0) {
+        wireOptions = mappedOptions as unknown as Api.ActRequest["options"];
       }
     } else if (this.defaultModelConfig) {
       wireOptions = {
@@ -346,16 +358,28 @@ export class StagehandAPIClient {
     let wireOptions: Api.ExtractRequest["options"];
     let serverCache: boolean | undefined;
     if (options) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, serverCache: enableCache, ...restOptions } = options;
+      const {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        page: _,
+        serverCache: enableCache,
+        serverCacheThreshold,
+        ...restOptions
+      } = options;
       serverCache = enableCache;
       if (restOptions.model) {
         restOptions.model = this.prepareModelConfig(restOptions.model);
       } else if (this.defaultModelConfig) {
         restOptions.model = this.getDefaultModelConfig();
       }
-      if (Object.keys(restOptions).length > 0) {
-        wireOptions = restOptions as unknown as Api.ExtractRequest["options"];
+      // serverCacheThreshold is SDK-named; the API expects options.cacheThreshold
+      const mappedOptions = {
+        ...restOptions,
+        ...(serverCacheThreshold !== undefined && {
+          cacheThreshold: serverCacheThreshold,
+        }),
+      };
+      if (Object.keys(mappedOptions).length > 0) {
+        wireOptions = mappedOptions as unknown as Api.ExtractRequest["options"];
       }
     } else if (this.defaultModelConfig) {
       wireOptions = {
@@ -387,16 +411,28 @@ export class StagehandAPIClient {
     let wireOptions: Api.ObserveRequest["options"];
     let serverCache: boolean | undefined;
     if (options) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { page: _, serverCache: enableCache, ...restOptions } = options;
+      const {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        page: _,
+        serverCache: enableCache,
+        serverCacheThreshold,
+        ...restOptions
+      } = options;
       serverCache = enableCache;
       if (restOptions.model) {
         restOptions.model = this.prepareModelConfig(restOptions.model);
       } else if (this.defaultModelConfig) {
         restOptions.model = this.getDefaultModelConfig();
       }
-      if (Object.keys(restOptions).length > 0) {
-        wireOptions = restOptions as unknown as Api.ObserveRequest["options"];
+      // serverCacheThreshold is SDK-named; the API expects options.cacheThreshold
+      const mappedOptions = {
+        ...restOptions,
+        ...(serverCacheThreshold !== undefined && {
+          cacheThreshold: serverCacheThreshold,
+        }),
+      };
+      if (Object.keys(mappedOptions).length > 0) {
+        wireOptions = mappedOptions as unknown as Api.ObserveRequest["options"];
       }
     } else if (this.defaultModelConfig) {
       wireOptions = {

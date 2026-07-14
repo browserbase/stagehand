@@ -133,6 +133,92 @@ describe("StagehandAPIClient variable serialization", () => {
     });
   });
 
+  it("maps serverCacheThreshold to wire options.cacheThreshold", async () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-test",
+      logger: vi.fn(),
+    });
+    const executeMock = vi.fn().mockResolvedValue({
+      success: true,
+      message: "ok",
+      actionDescription: "clicked",
+      actions: [],
+    });
+
+    (
+      client as unknown as {
+        execute: typeof executeMock;
+      }
+    ).execute = executeMock;
+
+    await client.act({
+      input: "click the submit button",
+      options: {
+        serverCacheThreshold: 5,
+        timeout: 30000,
+      },
+    });
+
+    expect(executeMock).toHaveBeenCalledWith({
+      method: "act",
+      args: {
+        input: "click the submit button",
+        options: {
+          timeout: 30000,
+          cacheThreshold: 5,
+        },
+        frameId: undefined,
+      },
+      serverCache: undefined,
+    });
+  });
+
+  it("maps serverCacheThreshold for observe and extract requests", async () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-test",
+      logger: vi.fn(),
+    });
+    const executeMock = vi.fn().mockResolvedValue([]);
+
+    (
+      client as unknown as {
+        execute: typeof executeMock;
+      }
+    ).execute = executeMock;
+
+    await client.observe({
+      instruction: "find the submit button",
+      options: { serverCacheThreshold: 0 },
+    });
+
+    expect(executeMock).toHaveBeenLastCalledWith({
+      method: "observe",
+      args: {
+        instruction: "find the submit button",
+        options: { cacheThreshold: 0 },
+        frameId: undefined,
+      },
+      serverCache: undefined,
+    });
+
+    executeMock.mockResolvedValue({ title: "ok" });
+    await client.extract({
+      instruction: "extract the title",
+      options: { serverCacheThreshold: 10, serverCache: true },
+    });
+
+    expect(executeMock).toHaveBeenLastCalledWith({
+      method: "extract",
+      args: {
+        instruction: "extract the title",
+        schema: undefined,
+        options: { cacheThreshold: 10 },
+        frameId: undefined,
+      },
+      serverCache: true,
+    });
+  });
+
   it("preserves rich variables when sending the agentExecute request", async () => {
     const client = new StagehandAPIClient({
       apiKey: "bb-test",
