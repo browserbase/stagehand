@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod/v4";
 import {
   StagehandMethods,
-  StagehandNotifications,
+  StagehandNotificationsSchema,
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../schema-registry.ts";
@@ -38,13 +38,13 @@ const methodSchemas = Object.fromEntries(
 );
 
 const notificationSchemas = Object.fromEntries(
-  Object.entries(StagehandNotifications).map(([methodName, definition]) => [
+  Object.entries(StagehandNotificationsSchema.shape).map(([methodName, paramsSchema]) => [
     methodName,
     {
       type: "object",
       additionalProperties: false,
       properties: {
-        params: renameJsonSchemaProperties(z.toJSONSchema(definition.paramsSchema)),
+        params: renameJsonSchemaProperties(z.toJSONSchema(paramsSchema)),
       },
       required: ["params"],
     },

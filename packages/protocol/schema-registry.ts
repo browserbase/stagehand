@@ -1,4 +1,5 @@
 import { createRpcSchemas } from "./json-rpc/schemas.ts";
+import { z } from "zod/v4";
 import {
   ActResultSchema,
   BrowserGetVersionResultSchema,
@@ -28,7 +29,7 @@ import {
   StagehandExtractParamsSchema,
   StagehandInitParamsSchema,
   StagehandInitResultSchema,
-  StagehandLogEventSchema,
+  StagehandLogSchema,
   StagehandMetricsSchema,
   StagehandObserveParamsSchema,
   StagehandPingResultSchema,
@@ -121,13 +122,11 @@ export const StagehandMethods = {
   },
 } as const;
 
-export const StagehandNotifications = {
-  "stagehand.log_event": {
-    paramsSchema: StagehandLogEventSchema,
-  },
-} as const;
+export const StagehandNotificationsSchema = z.strictObject({
+  "stagehand.log": StagehandLogSchema,
+});
 
-const stagehandRpcSchemas = createRpcSchemas(StagehandMethods, StagehandNotifications);
+const stagehandRpcSchemas = createRpcSchemas(StagehandMethods, StagehandNotificationsSchema);
 
 export const StagehandRpcRequestSchema = stagehandRpcSchemas.requestSchema;
 export const StagehandRpcNotificationSchema = stagehandRpcSchemas.notificationSchema;

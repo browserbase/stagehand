@@ -26,6 +26,8 @@ export const JSONRPCRequestSchema = z.strictObject({
   id: JSONRPCRequestIdSchema,
   method: z.string(),
   params: JSONRPCParamsSchema.optional(),
+  traceparent: z.string().optional(),
+  tracestate: z.string().optional(),
 });
 
 export const JSONRPCNotificationSchema = z.strictObject({
@@ -63,13 +65,16 @@ type MethodRegistry = Record<
     resultSchema: z.ZodType;
   }
 >;
-type NotificationRegistry = Record<
-  string,
-  {
-    paramsSchema: z.ZodType;
-  }
->;
+type NotificationRegistrySchema = z.ZodObject<Record<string, z.ZodType>>;
 type RegistryKey<TRegistry> = Extract<keyof TRegistry, string>;
+type RpcRequestTraceContextInput = Pick<
+  z.input<typeof JSONRPCRequestSchema>,
+  "traceparent" | "tracestate"
+>;
+type RpcRequestTraceContextOutput = Pick<
+  z.output<typeof JSONRPCRequestSchema>,
+  "traceparent" | "tracestate"
+>;
 
 type RpcRequestInput<TMethods extends MethodRegistry> = {
   [TMethod in RegistryKey<TMethods>]: {
@@ -77,7 +82,7 @@ type RpcRequestInput<TMethods extends MethodRegistry> = {
     id: z.input<typeof JSONRPCRequestIdSchema>;
     method: TMethod;
     params: unknown;
-  };
+  } & RpcRequestTraceContextInput;
 }[RegistryKey<TMethods>];
 
 type RpcRequestOutput<TMethods extends MethodRegistry> = {
@@ -86,42 +91,46 @@ type RpcRequestOutput<TMethods extends MethodRegistry> = {
     id: z.output<typeof JSONRPCRequestIdSchema>;
     method: TMethod;
     params: z.output<TMethods[TMethod]["paramsSchema"]>;
-  };
+  } & RpcRequestTraceContextOutput;
 }[RegistryKey<TMethods>];
 
-type RpcNotificationInput<TNotifications extends NotificationRegistry> = {
-  [TMethod in RegistryKey<TNotifications>]: {
+type NotificationKey<TNotifications extends NotificationRegistrySchema> = Extract<
+  keyof z.output<TNotifications>,
+  string
+>;
+
+type RpcNotificationInput<TNotifications extends NotificationRegistrySchema> = {
+  [TMethod in NotificationKey<TNotifications>]: {
     jsonrpc: "2.0";
     method: TMethod;
     params: unknown;
   };
-}[RegistryKey<TNotifications>];
+}[NotificationKey<TNotifications>];
 
-type RpcNotificationOutput<TNotifications extends NotificationRegistry> = {
-  [TMethod in RegistryKey<TNotifications>]: {
+type RpcNotificationOutput<TNotifications extends NotificationRegistrySchema> = {
+  [TMethod in NotificationKey<TNotifications>]: {
     jsonrpc: "2.0";
     method: TMethod;
-    params: z.output<TNotifications[TMethod]["paramsSchema"]>;
+    params: z.output<TNotifications>[TMethod];
   };
-}[RegistryKey<TNotifications>];
+}[NotificationKey<TNotifications>];
 
 export function createRpcSchemas<
   TMethods extends MethodRegistry,
-  TNotifications extends NotificationRegistry,
+  TNotifications extends NotificationRegistrySchema,
 >(methods: TMethods, notifications: TNotifications) {
   const requestSchemas = Object.entries(methods).map(([methodName, definition]) =>
-    z.strictObject({
-      jsonrpc: z.literal("2.0"),
-      id: JSONRPCRequestIdSchema,
+    JSONRPCRequestSchema.extend({
       method: z.literal(methodName),
       params: wireSchema(definition.paramsSchema),
     }),
   );
-  const notificationSchemas = Object.entries(notifications).map(([methodName, definition]) =>
-    JSONRPCNotificationSchema.extend({
-      method: z.literal(methodName),
-      params: wireSchema(definition.paramsSchema),
-    }),
+  const notificationSchemas = Object.entries(notifications.shape).map(
+    ([methodName, paramsSchema]) =>
+      JSONRPCNotificationSchema.extend({
+        method: z.literal(methodName),
+        params: wireSchema(paramsSchema),
+      }),
   );
 
   return {

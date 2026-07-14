@@ -565,9 +565,23 @@ export const StagehandInitParamsSchema = z
   })
   .strict();
 
+export const StagehandTelemetryOptionsSchema = z
+  .strictObject({
+    traces: z
+      .strictObject({
+        endpoint: z.url().refine((value) => new URL(value).pathname.endsWith("/v1/traces"), {
+          message: "OTLP trace endpoint must end with /v1/traces",
+        }),
+        headers: z.record(z.string(), z.string()).optional(),
+      })
+      .optional(),
+  })
+  .meta({ id: "StagehandTelemetryOptions" });
+
 export const RuntimeConfigureParamsSchema = z
   .object({
     cdpUrl: z.string().min(1),
+    telemetry: StagehandTelemetryOptionsSchema.optional(),
   })
   .strict();
 
@@ -721,28 +735,10 @@ export const LocatorTextContentResultSchema = z
   })
   .strict();
 
-const TraceIdSchema = z.string().regex(/^(?!0{32}$)[0-9a-f]{32}$/);
-const SpanIdSchema = z.string().regex(/^(?!0{16}$)[0-9a-f]{16}$/);
+export const StagehandLogLevelSchema = z.enum(["debug", "info", "warn", "error"]);
 
-export const StagehandLogEventSchema = z
-  .strictObject({
-    requestId: z.union([z.string(), z.int()]),
-    method: z.string(),
-    eventName: z.string().min(1),
-    timestamp: z.iso.datetime({ offset: true }),
-    severityNumber: z.int().min(1).max(24),
-    body: z.json(),
-    severityText: z.string().optional(),
-    attributes: z.record(z.string(), z.json()).optional(),
-    traceId: TraceIdSchema.optional(),
-    spanId: SpanIdSchema.optional(),
-  })
-  .superRefine((event, context) => {
-    if (event.spanId && !event.traceId) {
-      context.addIssue({
-        code: "custom",
-        path: ["spanId"],
-        message: "spanId requires traceId",
-      });
-    }
-  });
+export const StagehandLogSchema = z.strictObject({
+  level: StagehandLogLevelSchema,
+  message: z.string().min(1),
+  data: z.record(z.string(), z.json()).optional(),
+});

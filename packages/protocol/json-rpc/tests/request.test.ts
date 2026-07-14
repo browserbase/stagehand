@@ -7,6 +7,33 @@ describe("JSONRPCRequestSchema", () => {
     expect(JSONRPCRequestSchema.parse(request)).toStrictEqual(request);
   });
 
+  it("accepts optional W3C trace context on a request", () => {
+    const request = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "subtract",
+      params: [42, 23],
+      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+      tracestate: "vendor=value",
+    };
+
+    expect(JSONRPCRequestSchema.parse(request)).toStrictEqual(request);
+  });
+
+  it.each([
+    ["traceparent", 1],
+    ["tracestate", { vendor: "value" }],
+  ])("rejects a non-string %s", (field, value) => {
+    expect(() =>
+      JSONRPCRequestSchema.parse({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "subtract",
+        [field]: value,
+      }),
+    ).toThrow();
+  });
+
   it("rejects a notification without an id", () => {
     const request = { jsonrpc: "2.0", method: "update", params: { enabled: true } };
     expect(() => JSONRPCRequestSchema.parse(request)).toThrow();

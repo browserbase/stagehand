@@ -1,5 +1,6 @@
 import type { z } from "zod/v4";
 import type {
+  StagehandNotificationsSchema,
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "./schema-registry.js";
@@ -54,10 +55,12 @@ import type {
   StagehandExtractParamsSchema,
   StagehandInitParamsSchema,
   StagehandInitResultSchema,
-  StagehandLogEventSchema,
+  StagehandLogLevelSchema,
+  StagehandLogSchema,
   StagehandMetricsSchema,
   StagehandObserveParamsSchema,
   StagehandPingResultSchema,
+  StagehandTelemetryOptionsSchema,
   VariablePrimitiveSchema,
   VariablesSchema,
   VariableValueSchema,
@@ -183,6 +186,7 @@ export type EmptyParams = z.infer<typeof EmptyParamsSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
 export type LocatorDescriptor = z.infer<typeof LocatorDescriptorSchema>;
 export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
+export type StagehandTelemetryOptions = z.infer<typeof StagehandTelemetryOptionsSchema>;
 export type RuntimeConfigureParams = z.infer<typeof RuntimeConfigureParamsSchema>;
 export type StagehandActParams = z.infer<typeof StagehandActParamsSchema>;
 export type StagehandObserveParams = z.infer<typeof StagehandObserveParamsSchema>;
@@ -206,7 +210,9 @@ export type LocatorClickResult = z.infer<typeof LocatorClickResultSchema>;
 export type LocatorFillResult = z.infer<typeof LocatorFillResultSchema>;
 export type LocatorIsVisibleResult = z.infer<typeof LocatorIsVisibleResultSchema>;
 export type LocatorTextContentResult = z.infer<typeof LocatorTextContentResultSchema>;
-export type StagehandLogEvent = z.infer<typeof StagehandLogEventSchema>;
+export type StagehandLog = z.infer<typeof StagehandLogSchema>;
+export type StagehandLogLevel = z.infer<typeof StagehandLogLevelSchema>;
+export type StagehandNotifications = z.infer<typeof StagehandNotificationsSchema>;
 export type StagehandRpcRequest = z.infer<typeof StagehandRpcRequestSchema>;
 export type StagehandRpcNotification = z.infer<typeof StagehandRpcNotificationSchema>;
 

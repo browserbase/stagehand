@@ -32,6 +32,12 @@
                   "type": "object",
                   "properties": {},
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -59,10 +65,19 @@
                     "cdp_url": {
                       "type": "string",
                       "min_length": 1
+                    },
+                    "telemetry": {
+                      "ref": "#/$defs/StagehandTelemetryOptions"
                     }
                   },
                   "required": ["cdp_url"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -88,6 +103,12 @@
                   "type": "object",
                   "properties": {},
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -113,6 +134,12 @@
                   "type": "object",
                   "properties": {},
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -167,6 +194,12 @@
                   },
                   "required": ["cdp_url"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -192,6 +225,12 @@
                   "type": "object",
                   "properties": {},
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -226,6 +265,12 @@
                   },
                   "required": ["input"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -258,6 +303,12 @@
                     }
                   },
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -290,6 +341,12 @@
                     }
                   },
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -315,6 +372,12 @@
                   "type": "object",
                   "properties": {},
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -340,6 +403,12 @@
                   "type": "object",
                   "properties": {},
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -369,6 +438,12 @@
                     }
                   },
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -418,6 +493,12 @@
                   },
                   "required": ["page_id", "url"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -448,6 +529,12 @@
                   },
                   "required": ["page_id"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -478,6 +565,12 @@
                   },
                   "required": ["page_id"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -508,6 +601,12 @@
                   },
                   "required": ["page_id"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -557,6 +656,12 @@
                   },
                   "required": ["page_id", "selector"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -594,6 +699,12 @@
                   },
                   "required": ["page_id", "selector", "value"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -628,6 +739,12 @@
                   },
                   "required": ["page_id", "selector"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -662,6 +779,12 @@
                   },
                   "required": ["page_id", "selector"],
                   "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
                 }
               },
               "required": ["jsonrpc", "id", "method", "params"],
@@ -669,6 +792,32 @@
             }
           ],
           "$defs": {
+            "StagehandTelemetryOptions": {
+              "type": "object",
+              "properties": {
+                "traces": {
+                  "type": "object",
+                  "properties": {
+                    "endpoint": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "headers": {
+                      "type": "object",
+                      "property_names": {
+                        "type": "string"
+                      },
+                      "additional_properties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["endpoint"],
+                  "additional_properties": false
+                }
+              },
+              "additionalProperties": false
+            },
             "ModelConfiguration": {
               "$ref": "#/$defs/ModelConfigObject"
             },
@@ -1486,72 +1635,30 @@
                 },
                 "method": {
                   "type": "string",
-                  "const": "stagehand.log_event"
+                  "const": "stagehand.log"
                 },
                 "params": {
                   "type": "object",
                   "properties": {
-                    "request_id": {
-                      "any_of": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        }
-                      ]
+                    "level": {
+                      "type": "string",
+                      "enum": ["debug", "info", "warn", "error"]
                     },
-                    "method": {
-                      "type": "string"
-                    },
-                    "event_name": {
+                    "message": {
                       "type": "string",
                       "min_length": 1
                     },
-                    "timestamp": {
-                      "type": "string",
-                      "format": "date-time",
-                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                    },
-                    "severity_number": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 24
-                    },
-                    "body": {
-                      "ref": "#/$defs/__schema0"
-                    },
-                    "severity_text": {
-                      "type": "string"
-                    },
-                    "attributes": {
+                    "data": {
                       "type": "object",
                       "property_names": {
                         "type": "string"
                       },
                       "additional_properties": {
-                        "ref": "#/$defs/__schema1"
+                        "ref": "#/$defs/__schema0"
                       }
-                    },
-                    "trace_id": {
-                      "type": "string",
-                      "pattern": "^(?!0{32}$)[0-9a-f]{32}$"
-                    },
-                    "span_id": {
-                      "type": "string",
-                      "pattern": "^(?!0{16}$)[0-9a-f]{16}$"
                     }
                   },
-                  "required": [
-                    "request_id",
-                    "method",
-                    "event_name",
-                    "timestamp",
-                    "severity_number",
-                    "body"
-                  ],
+                  "required": ["level", "message"],
                   "additional_properties": false
                 }
               },
@@ -1587,37 +1694,6 @@
                   },
                   "additionalProperties": {
                     "$ref": "#/$defs/__schema0"
-                  }
-                }
-              ]
-            },
-            "__schema1": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/$defs/__schema1"
-                  }
-                },
-                {
-                  "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {
-                    "$ref": "#/$defs/__schema1"
                   }
                 }
               ]
@@ -1799,10 +1875,41 @@
                 "cdp_url": {
                   "type": "string",
                   "min_length": 1
+                },
+                "telemetry": {
+                  "ref": "#/$defs/StagehandTelemetryOptions"
                 }
               },
               "required": ["cdp_url"],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "$defs": {
+                "StagehandTelemetryOptions": {
+                  "type": "object",
+                  "properties": {
+                    "traces": {
+                      "type": "object",
+                      "properties": {
+                        "endpoint": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "headers": {
+                          "type": "object",
+                          "property_names": {
+                            "type": "string"
+                          },
+                          "additional_properties": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["endpoint"],
+                      "additional_properties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
             },
             "result": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5217,7 +5324,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "stagehand.log_event": {
+        "stagehand.log": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -5225,67 +5332,25 @@
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "type": "object",
               "properties": {
-                "request_id": {
-                  "any_of": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    }
-                  ]
+                "level": {
+                  "type": "string",
+                  "enum": ["debug", "info", "warn", "error"]
                 },
-                "method": {
-                  "type": "string"
-                },
-                "event_name": {
+                "message": {
                   "type": "string",
                   "min_length": 1
                 },
-                "timestamp": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                },
-                "severity_number": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "maximum": 24
-                },
-                "body": {
-                  "ref": "#/$defs/__schema0"
-                },
-                "severity_text": {
-                  "type": "string"
-                },
-                "attributes": {
+                "data": {
                   "type": "object",
                   "property_names": {
                     "type": "string"
                   },
                   "additional_properties": {
-                    "ref": "#/$defs/__schema1"
+                    "ref": "#/$defs/__schema0"
                   }
-                },
-                "trace_id": {
-                  "type": "string",
-                  "pattern": "^(?!0{32}$)[0-9a-f]{32}$"
-                },
-                "span_id": {
-                  "type": "string",
-                  "pattern": "^(?!0{16}$)[0-9a-f]{16}$"
                 }
               },
-              "required": [
-                "request_id",
-                "method",
-                "event_name",
-                "timestamp",
-                "severity_number",
-                "body"
-              ],
+              "required": ["level", "message"],
               "additionalProperties": false,
               "$defs": {
                 "__schema0": {
@@ -5318,37 +5383,6 @@
                       }
                     }
                   ]
-                },
-                "__schema1": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/$defs/__schema1"
-                      }
-                    },
-                    {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {
-                        "$ref": "#/$defs/__schema1"
-                      }
-                    }
-                  ]
                 }
               }
             }
@@ -5356,7 +5390,7 @@
           "required": ["params"]
         }
       },
-      "required": ["stagehand.log_event"]
+      "required": ["stagehand.log"]
     }
   },
   "required": ["transport", "methods", "notifications"]

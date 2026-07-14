@@ -14,6 +14,8 @@ type ExpectedRequest = {
   id: number;
   method: string;
   params?: JsonValue[] | Record<string, JsonValue>;
+  traceparent?: string;
+  tracestate?: string;
 };
 type ExpectedSuccessResponse = {
   jsonrpc: "2.0";

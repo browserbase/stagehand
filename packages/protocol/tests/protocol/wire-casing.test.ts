@@ -6,7 +6,7 @@ import {
   renameJsonSchemaProperties,
   wireSchema,
 } from "../../json-rpc/wire-casing.js";
-import { StagehandMethods, StagehandNotifications } from "../../schema-registry.js";
+import { StagehandMethods, StagehandNotificationsSchema } from "../../schema-registry.js";
 
 const snakeCaseKey = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 const snakeCaseMethodSegment = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
@@ -14,7 +14,10 @@ const schemaUrl = new URL("../../stagehand.v4.json", import.meta.url);
 
 describe("JSON-RPC wire casing", () => {
   it("uses snake_case method and notification names", () => {
-    for (const name of [...Object.keys(StagehandMethods), ...Object.keys(StagehandNotifications)]) {
+    for (const name of [
+      ...Object.keys(StagehandMethods),
+      ...Object.keys(StagehandNotificationsSchema.shape),
+    ]) {
       for (const segment of name.split(".")) {
         expect(segment, `${name} must use snake_case segments`).toMatch(snakeCaseMethodSegment);
       }
@@ -33,9 +36,9 @@ describe("JSON-RPC wire casing", () => {
       );
     }
 
-    for (const [method, definition] of Object.entries(StagehandNotifications)) {
+    for (const [method, paramsSchema] of Object.entries(StagehandNotificationsSchema.shape)) {
       expectDeclaredPropertiesToBeSnakeCase(
-        renameJsonSchemaProperties(z.toJSONSchema(definition.paramsSchema)),
+        renameJsonSchemaProperties(z.toJSONSchema(paramsSchema)),
         `${method}.params`,
       );
     }
@@ -82,28 +85,21 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(definition.paramsSchema).parse(wireValue)).toStrictEqual(apiValue);
   });
 
-  it("preserves log attribute keys while encoding notifications", () => {
-    const definition = StagehandNotifications["stagehand.log_event"];
+  it("preserves Stagehand log data keys while encoding notifications", () => {
+    const paramsSchema = StagehandNotificationsSchema.shape["stagehand.log"];
     const encoded = encodeWireValue({
-      requestId: "req_1",
-      method: "page.goto",
-      eventName: "page.goto.started",
-      timestamp: "2026-07-10T17:00:00.000Z",
-      severityNumber: 9,
-      body: { doNotRenameMe: true },
-      attributes: { doNotRenameMe: "value" },
+      level: "info",
+      message: "Starting action",
+      data: { doNotRenameMe: "value" },
     });
 
     expect(encoded).toMatchObject({
-      request_id: "req_1",
-      event_name: "page.goto.started",
-      severity_number: 9,
-      body: { doNotRenameMe: true },
-      attributes: { doNotRenameMe: "value" },
+      level: "info",
+      message: "Starting action",
+      data: { doNotRenameMe: "value" },
     });
-    expect(wireSchema(definition.paramsSchema).parse(encoded)).toMatchObject({
-      body: { doNotRenameMe: true },
-      attributes: { doNotRenameMe: "value" },
+    expect(wireSchema(paramsSchema).parse(encoded)).toMatchObject({
+      data: { doNotRenameMe: "value" },
     });
   });
 

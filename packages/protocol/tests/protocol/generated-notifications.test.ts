@@ -29,16 +29,16 @@ describe("generated Stagehand notifications", () => {
     requireNotifications(protocol);
   });
 
-  it("includes stagehand.log_event in the notifications registry", async () => {
+  it("includes stagehand.log in the notifications registry", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as GeneratedProtocol;
     const notifications = requireNotifications(protocol);
-    expect(notifications.properties["stagehand.log_event"]).toBeDefined();
+    expect(notifications.properties["stagehand.log"]).toBeDefined();
   });
 
-  it("generates params but no result for stagehand.log_event", async () => {
+  it("generates params but no result for stagehand.log", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as GeneratedProtocol;
     const notifications = requireNotifications(protocol);
-    const notification = notifications.properties["stagehand.log_event"];
+    const notification = notifications.properties["stagehand.log"];
 
     expect(notification).toBeDefined();
     expect(notification.properties.params).toBeDefined();

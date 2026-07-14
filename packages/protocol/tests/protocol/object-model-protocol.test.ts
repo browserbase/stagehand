@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
-import * as StagehandRegistry from "../../schema-registry.js";
-import { StagehandMethods, StagehandRpcRequestSchema } from "../../schema-registry.js";
+import {
+  StagehandMethods,
+  StagehandNotificationsSchema,
+  StagehandRpcNotificationSchema,
+  StagehandRpcRequestSchema,
+} from "../../schema-registry.js";
 
 describe("Stagehand object-model protocol", () => {
   it("defines stagehand init as a JSON-RPC method", () => {
@@ -63,6 +67,8 @@ describe("Stagehand object-model protocol", () => {
       id: 4,
       method: "context.pages",
       params: {},
+      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+      tracestate: "vendor=value",
     });
 
     expect(request).toStrictEqual({
@@ -70,6 +76,8 @@ describe("Stagehand object-model protocol", () => {
       id: 4,
       method: "context.pages",
       params: {},
+      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+      tracestate: "vendor=value",
     });
   });
 
@@ -83,81 +91,66 @@ describe("Stagehand object-model protocol", () => {
     ).toThrow();
   });
 
-  it("registers stagehand.log_event as a server-to-client notification", () => {
-    const notifications = Reflect.get(StagehandRegistry, "StagehandNotifications");
-    expect(notifications).toBeDefined();
-    expect(notifications).toHaveProperty("stagehand.log_event");
+  it("defines notification parameter schemas in one Zod object", () => {
+    expect(StagehandNotificationsSchema.shape).toHaveProperty("stagehand.log");
   });
 
   it("exports a JSON-RPC notification schema for generated clients", () => {
-    const notificationSchema = Reflect.get(StagehandRegistry, "StagehandRpcNotificationSchema");
-    expect(notificationSchema).toBeDefined();
+    expect(StagehandRpcNotificationSchema).toBeDefined();
   });
 
-  it("parses stagehand.log_event without an id", () => {
-    const notificationSchema = Reflect.get(StagehandRegistry, "StagehandRpcNotificationSchema") as {
-      parse(input: unknown): unknown;
-    };
-    expect(notificationSchema).toBeDefined();
-
+  it("parses a Stagehand log notification without an id", () => {
     const notification = {
       jsonrpc: "2.0",
-      method: "stagehand.log_event",
+      method: "stagehand.log",
       params: {
-        request_id: "req_123",
-        method: "stagehand.act",
-        event_name: "stagehand.act.started",
-        timestamp: "2026-07-10T17:00:00.000Z",
-        severity_number: 9,
-        body: "Starting action",
+        level: "info",
+        message: "Starting action",
+        data: { pageId: "page_1" },
       },
     };
-    expect(notificationSchema.parse(notification)).toStrictEqual({
-      ...notification,
-      params: {
-        requestId: "req_123",
-        method: "stagehand.act",
-        eventName: "stagehand.act.started",
-        timestamp: "2026-07-10T17:00:00.000Z",
-        severityNumber: 9,
-        body: "Starting action",
-      },
-    });
+    expect(StagehandRpcNotificationSchema.parse(notification)).toStrictEqual(notification);
   });
 
-  it("rejects ids on stagehand.log_event notifications", () => {
-    const notificationSchema = Reflect.get(StagehandRegistry, "StagehandRpcNotificationSchema") as {
-      parse(input: unknown): unknown;
-    };
-    expect(notificationSchema).toBeDefined();
+  it("rejects ids on Stagehand log notifications", () => {
     expect(() =>
-      notificationSchema.parse({
+      StagehandRpcNotificationSchema.parse({
         jsonrpc: "2.0",
         id: "event_1",
-        method: "stagehand.log_event",
+        method: "stagehand.log",
         params: {
-          request_id: "req_123",
-          method: "stagehand.act",
-          event_name: "stagehand.act.started",
-          timestamp: "2026-07-10T17:00:00.000Z",
-          severity_number: 9,
-          body: "Starting action",
+          level: "info",
+          message: "Starting action",
         },
       }),
     ).toThrow();
   });
 
   it("rejects unknown notification methods", () => {
-    const notificationSchema = Reflect.get(StagehandRegistry, "StagehandRpcNotificationSchema") as {
-      parse(input: unknown): unknown;
-    };
-    expect(notificationSchema).toBeDefined();
     expect(() =>
-      notificationSchema.parse({
+      StagehandRpcNotificationSchema.parse({
         jsonrpc: "2.0",
         method: "stagehand.unknown",
         params: {},
       }),
     ).toThrow();
+  });
+
+  it("accepts telemetry configuration as protocol data", () => {
+    expect(
+      StagehandMethods["runtime.configure"].paramsSchema.parse({
+        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+        telemetry: {
+          traces: {
+            endpoint: "https://otel.example.com/v1/traces",
+            headers: { Authorization: "Bearer test" },
+          },
+        },
+      }),
+    ).toMatchObject({
+      telemetry: {
+        traces: { endpoint: "https://otel.example.com/v1/traces" },
+      },
+    });
   });
 });
