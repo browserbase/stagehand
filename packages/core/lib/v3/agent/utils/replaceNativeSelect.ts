@@ -64,7 +64,7 @@ export const REPLACE_NATIVE_SELECT_SCRIPT = `(() => {
     overlay.innerHTML = "";
     Array.from(select.options).forEach((opt) => {
       const row = document.createElement("div");
-      row.textContent = opt.text;
+      row.textContent = opt.label;
       row.style.cssText = "padding:8px 12px;white-space:nowrap;" +
         (opt.disabled ? "color:#aaa;cursor:default;" : "cursor:pointer;") +
         (opt.selected ? "background:#e6f0ff;" : "");

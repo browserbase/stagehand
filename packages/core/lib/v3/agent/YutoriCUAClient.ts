@@ -13,6 +13,7 @@ import {
   AgentResult,
   AgentType,
   AgentExecutionOptions,
+  ScreenshotProviderResult,
 } from "../types/public/agent.js";
 import { ClientOptions } from "../types/public/model.js";
 import { AgentClient } from "./AgentClient.js";
@@ -121,7 +122,7 @@ export class YutoriCUAClient extends AgentClient {
   private client: OpenAI;
   private currentViewport = { width: 1280, height: 800 };
   private currentUrl?: string;
-  private screenshotProvider?: () => Promise<string>;
+  private screenshotProvider?: () => Promise<ScreenshotProviderResult>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
 
   private temperature = 0.3;
@@ -247,7 +248,9 @@ export class YutoriCUAClient extends AgentClient {
     this.currentUrl = url;
   }
 
-  setScreenshotProvider(provider: () => Promise<string>): void {
+  setScreenshotProvider(
+    provider: () => Promise<ScreenshotProviderResult>,
+  ): void {
     this.screenshotProvider = provider;
   }
 
@@ -264,8 +267,8 @@ export class YutoriCUAClient extends AgentClient {
       return `data:image/png;base64,${options.base64Image}`;
     }
     if (this.screenshotProvider) {
-      const base64Image = await this.screenshotProvider();
-      return `data:image/png;base64,${base64Image}`;
+      const shot = await this.screenshotProvider();
+      return `data:${shot.mediaType};base64,${shot.base64}`;
     }
     throw new AgentScreenshotProviderError(
       "`screenshotProvider` has not been set. " +
@@ -736,7 +739,9 @@ export class YutoriCUAClient extends AgentClient {
             result: `[ERROR] ${name}: modifier keys are not supported`,
           };
         }
-        const direction = String(args.direction ?? "down");
+        const direction = String(args.direction ?? "down")
+          .toLowerCase()
+          .trim();
         const amount = typeof args.amount === "number" ? args.amount : 3;
         const px = amount * 100; // 1 unit ~= 100px
         let scroll_x = 0;
@@ -806,7 +811,10 @@ export class YutoriCUAClient extends AgentClient {
           : { action: null, result: "[ERROR] refresh: current URL unknown" };
 
       case "wait": {
-        const duration = Math.max(0, Math.min(Number(args.duration ?? 5), 100));
+        const parsedDuration = Number(args.duration ?? 5);
+        const duration = Number.isFinite(parsedDuration)
+          ? Math.max(0, Math.min(parsedDuration, 100))
+          : 5;
         return {
           action: { ...base, type: "wait", timeMs: duration * 1000 },
           result: `Waited ${duration}s`,

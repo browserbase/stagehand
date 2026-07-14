@@ -23,7 +23,10 @@ function createClient(
     },
     tools,
   );
-  client.setScreenshotProvider(async () => "mock-base64-screenshot");
+  client.setScreenshotProvider(async () => ({
+    base64: "mock-base64-screenshot",
+    mediaType: "image/png",
+  }));
   client.setViewport(1280, 800);
   client.setCurrentUrl("https://example.com/page");
   return client;
@@ -421,7 +424,10 @@ describe("YutoriCUAClient", () => {
       apiKey: "test-key",
       baseURL: "https://example.com",
     });
-    client.setScreenshotProvider(async () => "mock-base64-screenshot");
+    client.setScreenshotProvider(async () => ({
+    base64: "mock-base64-screenshot",
+    mediaType: "image/png",
+  }));
     client.setViewport(1280, 800);
     const handler = vi.fn();
     client.setActionHandler(handler);
