@@ -10,6 +10,7 @@
     "test": "vp test run --root ../.. packages/sdk-ts/tests"
   },
   "dependencies": {
+    "chrome-launcher": "catalog:",
     "zod": "catalog:"
   }
 }

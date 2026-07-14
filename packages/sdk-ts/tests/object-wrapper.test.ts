@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { BrowserContext, Locator, Page, Stagehand } from "../src/index.js";
+import { BrowserContext, Locator, Page } from "../src/index.js";
+import { createStagehandWithClientForTest } from "../src/stagehand.js";
 import type {
   StagehandMethod,
   StagehandMethodParams,
@@ -64,7 +65,7 @@ function requestCall<Method extends StagehandMethod>(
 describe("Stagehand TS object wrapper", () => {
   it("initializes locally without sending stagehand.init", async () => {
     const client = new FakeProtocolClient();
-    const stagehand = new Stagehand({ client });
+    const stagehand = createStagehandWithClientForTest(client);
 
     expect(stagehand.initialized).toBe(false);
     await stagehand.init();
@@ -77,7 +78,7 @@ describe("Stagehand TS object wrapper", () => {
   it("closes the remote runtime", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse("stagehand.close", { closed: true });
-    const stagehand = new Stagehand({ client });
+    const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
 
     await stagehand.close();
@@ -92,7 +93,8 @@ describe("Stagehand TS object wrapper", () => {
       { pageId: "page-1", url: "https://example.com", title: "Example" },
       { pageId: "page-2" },
     ]);
-    const stagehand = new Stagehand({ client });
+    const stagehand = createStagehandWithClientForTest(client);
+    await stagehand.init();
 
     const pages = await stagehand.context.pages();
 
@@ -114,7 +116,8 @@ describe("Stagehand TS object wrapper", () => {
       pageId: "new-page",
       url: "https://browserbase.com",
     });
-    const stagehand = new Stagehand({ client });
+    const stagehand = createStagehandWithClientForTest(client);
+    await stagehand.init();
 
     const page = await stagehand.context.newPage({ url: "https://browserbase.com" });
 
