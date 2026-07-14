@@ -1,7 +1,15 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { handleDoctor } from "../../tui/commands/doctor.js";
 import { __resetPackageEnvCacheForTests } from "../../tui/welcomeStatus.js";
 
@@ -18,11 +26,12 @@ const PROVIDER_KEYS = [
   "LANGSMITH_API_KEY",
   "LANGSMITH_TRACING",
   "EVAL_TRACE_PRIMARY",
+  "EVALS_DISABLE_PACKAGE_ENV",
 ];
 
 const savedEnv: Record<string, string | undefined> = {};
 const tempDirs: string[] = [];
-let savedDisablePkgEnv: string | undefined;
+let envSnapshotted = false;
 
 type DoctorJsonReport = {
   verdict: string;
@@ -31,13 +40,17 @@ type DoctorJsonReport = {
 };
 
 function clearProviderKeys(): void {
+  if (!envSnapshotted) {
+    for (const key of PROVIDER_KEYS) {
+      savedEnv[key] = process.env[key];
+    }
+    envSnapshotted = true;
+  }
   for (const key of PROVIDER_KEYS) {
-    savedEnv[key] = process.env[key];
     delete process.env[key];
   }
   // Neutralize the package-local .env loader so tests don't depend on
   // whatever real keys the developer happens to have at packages/evals/.env.
-  savedDisablePkgEnv = process.env.EVALS_DISABLE_PACKAGE_ENV;
   process.env.EVALS_DISABLE_PACKAGE_ENV = "1";
   __resetPackageEnvCacheForTests();
 }
@@ -46,11 +59,6 @@ function restoreProviderKeys(): void {
   for (const key of PROVIDER_KEYS) {
     if (savedEnv[key] === undefined) delete process.env[key];
     else process.env[key] = savedEnv[key];
-  }
-  if (savedDisablePkgEnv === undefined) {
-    delete process.env.EVALS_DISABLE_PACKAGE_ENV;
-  } else {
-    process.env.EVALS_DISABLE_PACKAGE_ENV = savedDisablePkgEnv;
   }
   __resetPackageEnvCacheForTests();
 }
@@ -92,13 +100,13 @@ async function runDoctorJson(
 
 beforeEach(() => clearProviderKeys());
 afterEach(() => {
-  restoreProviderKeys();
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
     if (dir) fs.rmSync(dir, { recursive: true, force: true });
   }
   vi.restoreAllMocks();
 });
+afterAll(() => restoreProviderKeys());
 
 describe("handleDoctor --json", () => {
   it("always exits 0 even on fail verdict", async () => {
@@ -168,6 +176,44 @@ describe("handleDoctor verdicts", () => {
     process.env.BRAINTRUST_API_KEY = "bt-test";
     process.env.LANGSMITH_API_KEY = "ls-test";
     process.env.EVAL_TRACE_PRIMARY = "langsmith";
+    __resetPackageEnvCacheForTests();
+    const entryDir = makeTempEntryDir({ env: "local", trials: 3 });
+    const { report } = await runDoctorJson(entryDir);
+    expect(report.verdict).toBe("warn");
+    expect(report.reasons.join(" ")).toMatch(/LANGSMITH_TRACING.*not "true"/);
+  });
+
+  it("warn — unrecognized trace primary", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    process.env.BRAINTRUST_API_KEY = "bt-test";
+    process.env.EVAL_TRACE_PRIMARY = "foo";
+    const entryDir = makeTempEntryDir({ env: "local", trials: 3 });
+    const { report } = await runDoctorJson(entryDir);
+    expect(report.verdict).toBe("warn");
+    expect(report.reasons.join(" ")).toMatch(
+      /EVAL_TRACE_PRIMARY="foo" is not recognized/,
+    );
+  });
+
+  it("does not warn when LangSmith primary tracing is enabled in process.env", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    process.env.BRAINTRUST_API_KEY = "bt-test";
+    process.env.LANGSMITH_API_KEY = "ls-test";
+    process.env.LANGSMITH_TRACING = "true";
+    process.env.EVAL_TRACE_PRIMARY = "langsmith";
+    const entryDir = makeTempEntryDir({ env: "local", trials: 3 });
+    const { report } = await runDoctorJson(entryDir);
+    expect(report.verdict).toBe("ok");
+    expect(report.reasons.join(" ")).not.toMatch(/LANGSMITH_TRACING/);
+  });
+
+  it("warns when LangSmith tracing is absent from process.env", async () => {
+    process.env.OPENAI_API_KEY = "sk-test";
+    process.env.BRAINTRUST_API_KEY = "bt-test";
+    process.env.LANGSMITH_API_KEY = "ls-test";
+    process.env.EVAL_TRACE_PRIMARY = "langsmith";
+    delete process.env.LANGSMITH_TRACING;
+    delete process.env.EVALS_DISABLE_PACKAGE_ENV;
     __resetPackageEnvCacheForTests();
     const entryDir = makeTempEntryDir({ env: "local", trials: 3 });
     const { report } = await runDoctorJson(entryDir);
