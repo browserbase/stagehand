@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
-import type { DomainPolicy } from "../types/public/context.js";
+import type { DomainPolicy } from "../../protocol/types.js";
+import { StagehandInvalidArgumentError } from "../errors.js";
 
 type DomainRule = { type: "exact"; hostname: string } | { type: "wildcard"; hostname: string };
 

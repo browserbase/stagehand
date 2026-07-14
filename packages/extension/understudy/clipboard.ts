@@ -1,21 +1,17 @@
 import type { Protocol } from "devtools-protocol";
 import type { V3Context } from "./context.js";
 import type { Page } from "./page.js";
-import type {
-  BrowserClipboard,
-  ClipboardOptions,
-  ClipboardPasteOptions,
-} from "../types/public/clipboard.js";
-import { StagehandEvalError } from "../types/public/sdkErrors.js";
+import type { ClipboardOptions, ClipboardPasteOptions } from "../../protocol/types.js";
+import { StagehandEvalError } from "../errors.js";
 
 type ContextClipboardParams = {
   context: V3Context;
   resolvePage: (page?: Page) => Promise<Page>;
 };
 
-// Compile-only bridge: public clipboard options now carry serializable locators,
-// but locator hydration is not wired yet, so these methods use the active page.
-export class ContextClipboard implements BrowserClipboard {
+// TODO(runtime-cleanup): Hydrate ClipboardOptions.locator instead of always
+// resolving the active Understudy page.
+export class ContextClipboard {
   constructor(private readonly params: ContextClipboardParams) {}
   async writeText(text: string, options?: ClipboardOptions): Promise<void> {
     await this.writeTextInternal(text, options);

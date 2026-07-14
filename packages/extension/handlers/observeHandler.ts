@@ -2,14 +2,19 @@
 import { observe as runObserve } from "../inference.js";
 import { trimTrailingTextNode } from "../utils.js";
 import { v3Logger } from "../logger.js";
-import { V3FunctionName } from "../types/public/methods.js";
+import type {
+  Action,
+  ClientOptions,
+  ModelConfiguration,
+  ModelName,
+  V3FunctionName,
+} from "../../protocol/types.js";
+import { V3FunctionNameSchema } from "../../protocol/pending-schemas.js";
 import { captureHybridSnapshot } from "../understudy/a11y/snapshot/index.js";
 import { LLMClient } from "../llm/LLMClient.js";
 import { ObserveHandlerParams, SupportedUnderstudyAction } from "../types/private/handlers.js";
 import { EncodedId } from "../types/private/internal.js";
-import { Action } from "../types/public/methods.js";
-import { ClientOptions, ModelConfiguration, ModelName } from "../types/public/model.js";
-import { ObserveTimeoutError } from "../types/public/sdkErrors.js";
+import { ObserveTimeoutError } from "../errors.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 
 export class ObserveHandler {
@@ -120,7 +125,7 @@ export class ObserveHandler {
 
     // Update OBSERVE metrics from the LLM observation call
     this.onMetrics?.(
-      V3FunctionName.OBSERVE,
+      V3FunctionNameSchema.enum.OBSERVE,
       prompt_tokens,
       completion_tokens,
       reasoning_tokens,

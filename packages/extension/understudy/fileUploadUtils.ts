@@ -1,5 +1,8 @@
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
-import { SetInputFilePayloadSchema, type SetInputFilesArgument } from "../types/public/locator.js";
+import { StagehandInvalidArgumentError } from "../errors.js";
+import {
+  SetInputFilePayloadSchema,
+  type SetInputFilesArgument,
+} from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const DEFAULT_MIME_TYPE = "application/octet-stream";

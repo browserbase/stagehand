@@ -8,28 +8,23 @@ import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
 import { captureHybridSnapshot, resolveXpathForLocation } from "./a11y/snapshot/index.js";
 import { FrameRegistry } from "./frameRegistry.js";
 import { executionContexts } from "./executionContextRegistry.js";
-import { LoadState, SnapshotResult, PageSnapshotOptions } from "../types/public/page.js";
+import type {
+  LoadState,
+  LocalBrowserLaunchOptions,
+  PageSnapshotOptions,
+  SnapshotResult,
+} from "../../protocol/types.js";
 import { NetworkManager } from "./networkManager.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response, isSerializableResponse } from "./response.js";
-import { ConsoleMessage, ConsoleListener } from "./consoleMessage.js";
 import type { StagehandAPIClient } from "../api.js";
-import {
-  LocalBrowserLaunchOptions,
-  StagehandSetExtraHTTPHeadersError,
-  StagehandSnapshotError,
-} from "../types/public/index.js";
+import { StagehandSetExtraHTTPHeadersError, StagehandSnapshotError } from "../errors.js";
 import type { Locator } from "./locator.js";
-import { StagehandInvalidArgumentError, StagehandEvalError } from "../types/public/sdkErrors.js";
+import { StagehandInvalidArgumentError, StagehandEvalError } from "../errors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
-import type {
-  ScreenshotAnimationsOption,
-  ScreenshotCaretOption,
-  ScreenshotOptions,
-  ScreenshotScaleOption,
-} from "../types/public/screenshotTypes.js";
+import type { UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
 import {
   applyMaskOverlays,
   applyStyleToFrames,
@@ -94,11 +89,6 @@ export class Page {
   private readonly networkManager: NetworkManager;
   /** Optional API client for routing page operations to the API */
   private readonly apiClient: StagehandAPIClient | null = null;
-  private readonly consoleListeners = new Set<ConsoleListener>();
-  private readonly consoleHandlers = new Map<
-    string,
-    (evt: Protocol.Runtime.ConsoleAPICalledEvent) => void
-  >();
   /** Document-start scripts installed across every session this page owns. */
   private readonly initScripts: string[] = [];
   private extraHTTPHeaders: Record<string, string> = {};
@@ -394,10 +384,6 @@ export class Page {
 
     void this.applyInitScriptsToSession(childSession).catch(() => {});
 
-    if (this.consoleListeners.size > 0) {
-      this.installConsoleTap(childSession);
-    }
-
     // session will start emitting its own page events; mark ownership seed now
     this.registry.adoptChildSession(childSession.id ?? "child", childMainFrameId);
     this.frameCache.delete(childMainFrameId);
@@ -442,7 +428,6 @@ export class Page {
       this.registry.onFrameDetached(fid, "remove");
       this.frameCache.delete(fid);
     }
-    this.teardownConsoleTap(sessionId);
     this.sessions.delete(sessionId);
     this.networkManager.untrackSession(sessionId);
   }
@@ -480,45 +465,27 @@ export class Page {
     this.networkManager.untrackSession(sessionId);
   }
 
-  public on(event: "console", listener: ConsoleListener): Page {
-    if (event !== "console") {
-      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
-    }
-
-    const firstListener = this.consoleListeners.size === 0;
-    this.consoleListeners.add(listener);
-
-    if (firstListener) {
-      this.ensureConsoleTaps();
-    }
-
+  public on(event: "console", listener: unknown): Page {
+    void event;
+    void listener;
+    // TODO(logging): Replace this compatibility no-op with the structured
+    // logging/event API, or remove it if no compatibility surface is needed.
     return this;
   }
 
-  public once(event: "console", listener: ConsoleListener): Page {
-    if (event !== "console") {
-      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
-    }
-
-    const wrapper: ConsoleListener = (message) => {
-      this.off("console", wrapper);
-      listener(message);
-    };
-
-    return this.on("console", wrapper);
+  public once(event: "console", listener: unknown): Page {
+    void event;
+    void listener;
+    // TODO(logging): Replace this compatibility no-op with the structured
+    // logging/event API, or remove it if no compatibility surface is needed.
+    return this;
   }
 
-  public off(event: "console", listener: ConsoleListener): Page {
-    if (event !== "console") {
-      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
-    }
-
-    this.consoleListeners.delete(listener);
-
-    if (this.consoleListeners.size === 0) {
-      this.removeAllConsoleTaps();
-    }
-
+  public off(event: "console", listener: unknown): Page {
+    void event;
+    void listener;
+    // TODO(logging): Replace this compatibility no-op with the structured
+    // logging/event API, or remove it if no compatibility surface is needed.
     return this;
   }
 
@@ -575,8 +542,6 @@ export class Page {
       await new Promise((r) => setTimeout(r, 25));
     }
     this.networkManager.dispose();
-    this.removeAllConsoleTaps();
-    this.consoleListeners.clear();
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {
@@ -612,82 +577,6 @@ export class Page {
 
   public listAllFrameIds(): string[] {
     return this.registry.listAllFrames();
-  }
-
-  private ensureConsoleTaps(): void {
-    if (this.consoleListeners.size === 0) return;
-
-    this.installConsoleTap(this.mainSession);
-    for (const session of this.sessions.values()) {
-      this.installConsoleTap(session);
-    }
-  }
-
-  private installConsoleTap(session: CDPSessionLike): void {
-    const key = this.sessionKey(session);
-    if (this.consoleHandlers.has(key)) return;
-
-    void session.send("Runtime.enable").catch(() => {});
-
-    const handler = (evt: Protocol.Runtime.ConsoleAPICalledEvent) => {
-      this.emitConsole(evt);
-    };
-
-    session.on<Protocol.Runtime.ConsoleAPICalledEvent>("Runtime.consoleAPICalled", handler);
-
-    this.consoleHandlers.set(key, handler);
-  }
-
-  private sessionKey(session: CDPSessionLike): string {
-    return session.id ?? "__root__";
-  }
-
-  private resolveSessionByKey(key: string): CDPSessionLike | undefined {
-    if (this.mainSession.id) {
-      if (this.mainSession.id === key) return this.mainSession;
-    } else if (key === "__root__") {
-      return this.mainSession;
-    }
-
-    return this.sessions.get(key);
-  }
-
-  private teardownConsoleTap(key: string): void {
-    const handler = this.consoleHandlers.get(key);
-    if (!handler) return;
-
-    const session = this.resolveSessionByKey(key);
-    session?.off("Runtime.consoleAPICalled", handler);
-    this.consoleHandlers.delete(key);
-  }
-
-  private removeAllConsoleTaps(): void {
-    for (const key of this.consoleHandlers.keys()) {
-      this.teardownConsoleTap(key);
-    }
-  }
-
-  private emitConsole(evt: Protocol.Runtime.ConsoleAPICalledEvent): void {
-    if (this.consoleListeners.size === 0) return;
-
-    const message = new ConsoleMessage(evt, this);
-    const listeners = [...this.consoleListeners];
-
-    for (const listener of listeners) {
-      try {
-        listener(message);
-      } catch (error) {
-        v3Logger({
-          category: "page",
-          message: "Console listener threw",
-          level: 2,
-          auxiliary: {
-            error: { value: String(error), type: "string" },
-            type: { value: evt.type, type: "string" },
-          },
-        });
-      }
-    }
   }
 
   // -------- Convenience APIs delegated to the current main frame --------
@@ -978,7 +867,7 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
-  async screenshot(options?: ScreenshotOptions): Promise<Uint8Array> {
+  async screenshot(options?: UnderstudyScreenshotOptions): Promise<Uint8Array> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
 
@@ -998,9 +887,10 @@ export class Page {
       );
     }
 
-    const caretMode: ScreenshotCaretOption = opts.caret ?? "hide";
-    const animationsMode: ScreenshotAnimationsOption = opts.animations ?? "allow";
-    const scaleMode: ScreenshotScaleOption = opts.scale ?? "device";
+    const caretMode: NonNullable<UnderstudyScreenshotOptions["caret"]> = opts.caret ?? "hide";
+    const animationsMode: NonNullable<UnderstudyScreenshotOptions["animations"]> =
+      opts.animations ?? "allow";
+    const scaleMode: NonNullable<UnderstudyScreenshotOptions["scale"]> = opts.scale ?? "device";
     const frames = collectFramesForScreenshot(this);
     const clip = opts.clip ? normalizeScreenshotClip(opts.clip) : undefined;
     const captureScale = await computeScreenshotScale(this, scaleMode);

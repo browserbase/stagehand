@@ -8,8 +8,8 @@ import type {
   LLMResponse,
   LLMUsage,
 } from "./LLMClient.js";
-import { LLMToolSchema } from "../types/public/schemas.js";
-export { LLMToolSchema } from "../types/public/schemas.js";
+import { LLMToolSchema } from "../../protocol/pending-schemas.js";
+export { LLMToolSchema } from "../../protocol/pending-schemas.js";
 
 export const ChatMessageImageContentSchema: z.ZodType<
   ChatMessageImageContent,

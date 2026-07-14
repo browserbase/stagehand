@@ -3,8 +3,8 @@ import type { CDPSessionLike } from "./cdp.js";
 import type { Frame } from "./frame.js";
 import type { Locator } from "./locator.js";
 import type { Page } from "./page.js";
-import type { ScreenshotClip, ScreenshotScaleOption } from "../types/public/screenshotTypes.js";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
+import { StagehandInvalidArgumentError } from "../errors.js";
+import type { ScreenshotClip, UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
 import { screenshotScriptSources } from "../dom/build/screenshotScripts.generated.js";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
@@ -40,7 +40,7 @@ export function normalizeScreenshotClip(clip: ScreenshotClip): ScreenshotClip {
 
 export async function computeScreenshotScale(
   page: Page,
-  mode: ScreenshotScaleOption,
+  mode: NonNullable<UnderstudyScreenshotOptions["scale"]>,
 ): Promise<number | undefined> {
   if (mode !== "css") return undefined;
   try {

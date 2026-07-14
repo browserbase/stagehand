@@ -1,4 +1,4 @@
-import { TimeoutError } from "./types/public/sdkErrors.js";
+import { TimeoutError } from "./errors.js";
 
 export async function withTimeout<T>(
   promise: Promise<T>,

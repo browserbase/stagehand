@@ -2,7 +2,7 @@
 import type { Protocol } from "devtools-protocol";
 import { z } from "zod/v4";
 import { FlowLogger, type FlowEvent, type FlowLoggerContext } from "../flowlogger/FlowLogger.js";
-import { CdpConnectionClosedError, PageNotFoundError } from "../types/public/sdkErrors.js";
+import { CdpConnectionClosedError, PageNotFoundError } from "../errors.js";
 
 /**
  * CDP transport & session multiplexer

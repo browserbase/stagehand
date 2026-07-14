@@ -1,4 +1,4 @@
-import type { LogLine } from "./types/public/logs.js";
+import type { LogLine } from "../protocol/types.js";
 
 /**
  * Stagehand V3 Logging

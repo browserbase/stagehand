@@ -9,8 +9,7 @@ import {
 } from "ai";
 import type { LanguageModel } from "ai";
 import type { z } from "zod/v4";
-import { LogLine } from "../types/public/logs.js";
-import { ModelName } from "../types/public/model.js";
+import type { LogLine, ModelName } from "../../protocol/types.js";
 import type { ChatCompletionOptionsSchema } from "./schemas.js";
 
 export interface ChatMessage {

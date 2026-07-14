@@ -1,5 +1,5 @@
 import type { InitScriptSource } from "../types/private/index.js";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
+import { StagehandInvalidArgumentError } from "../errors.js";
 
 const DEFAULT_CALLER = "context.addInitScript";
 

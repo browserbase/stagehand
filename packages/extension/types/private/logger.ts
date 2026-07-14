@@ -1,4 +1,4 @@
-import type { LogLine } from "../public/logs.js";
+import type { LogLine } from "../../../protocol/types.js";
 
 export type Logger = (line: LogLine) => void;
 

@@ -4,14 +4,22 @@ import { buildActPrompt, buildStepTwoPrompt } from "../prompt.js";
 import { trimTrailingTextNode } from "../utils.js";
 import { v3Logger } from "../logger.js";
 import { ActHandlerParams } from "../types/private/handlers.js";
-import { ActResult, ActResultData, Action, V3FunctionName } from "../types/public/methods.js";
-import { ActTimeoutError } from "../types/public/sdkErrors.js";
+import type {
+  ActResult,
+  ActResultData,
+  Action,
+  ClientOptions,
+  ModelConfiguration,
+  ModelName,
+  V3FunctionName,
+  Variables,
+} from "../../protocol/types.js";
+import { V3FunctionNameSchema } from "../../protocol/pending-schemas.js";
+import { ActTimeoutError } from "../errors.js";
 import { captureHybridSnapshot, diffCombinedTrees } from "../understudy/a11y/snapshot/index.js";
 import { LLMClient } from "../llm/LLMClient.js";
 import { SupportedUnderstudyAction } from "../types/private/index.js";
 import { EncodedId } from "../types/private/internal.js";
-import { ClientOptions, ModelConfiguration, ModelName } from "../types/public/model.js";
-import type { Variables } from "../types/public/variables.js";
 import type { Page } from "../understudy/page.js";
 import { performUnderstudyMethod, waitForDomNetworkQuiet } from "./handlerUtils/actHandlerUtils.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
@@ -79,7 +87,7 @@ export class ActHandler {
 
   private recordActMetrics(response: ActInferenceResponse): void {
     this.onMetrics?.(
-      V3FunctionName.ACT,
+      V3FunctionNameSchema.enum.ACT,
       response.prompt_tokens ?? 0,
       response.completion_tokens ?? 0,
       response.reasoning_tokens ?? 0,

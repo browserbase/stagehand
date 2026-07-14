@@ -1,5 +1,5 @@
 import type { ChatMessage } from "./llm/LLMClient.js";
-import type { Variables, VariableValue } from "./types/public/variables.js";
+import type { Variables, VariableValue } from "../protocol/types.js";
 
 interface VariablePromptEntry {
   name: string;

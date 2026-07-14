@@ -1,9 +1,9 @@
 import type { Protocol } from "devtools-protocol";
-import type { LoadState } from "../types/public/page.js";
+import type { LoadState } from "../../protocol/types.js";
 import type { CDPSessionLike } from "./cdp.js";
 import type { NetworkManager } from "./networkManager.js";
 import type { Page } from "./page.js";
-import { TimeoutError } from "../types/public/sdkErrors.js";
+import { TimeoutError } from "../errors.js";
 import {
   DEFAULT_IDLE_WAIT,
   IGNORED_RESOURCE_TYPES,

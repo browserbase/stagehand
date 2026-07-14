@@ -1,4 +1,4 @@
-import { ZodSchemaValidationError } from "./types/public/sdkErrors.js";
+import { ZodSchemaValidationError } from "./errors.js";
 import { z } from "zod/v4";
 import { ZodPathSegments } from "./types/private/internal.js";
 

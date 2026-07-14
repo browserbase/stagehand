@@ -323,8 +323,8 @@ export const ModelConfigObjectSchema = z
   .meta({ id: "ModelConfigObject" });
 
 /** Model configuration */
-export const ModelConfigSchema = ModelConfigObjectSchema.meta({
-  id: "ModelConfig",
+export const ModelConfigurationSchema = ModelConfigObjectSchema.meta({
+  id: "ModelConfiguration",
 });
 
 /** Action object returned by observe and used by act */
@@ -361,7 +361,7 @@ export const ActionSchema = z
 
 export const ActOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional().meta({
+    model: ModelConfigurationSchema.optional().meta({
       description: "Model configuration object",
     }),
     variables: VariablesSchema.optional().meta({
@@ -428,7 +428,7 @@ export const ActResultSchema = z
 
 export const ExtractOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional().meta({
+    model: ModelConfigurationSchema.optional().meta({
       description: "Model configuration object",
     }),
     timeout: z.number().optional().meta({
@@ -484,7 +484,7 @@ export const ExtractResultSchema = z
 
 export const ObserveOptionsSchema = z
   .object({
-    model: ModelConfigSchema.optional().meta({
+    model: ModelConfigurationSchema.optional().meta({
       description: "Model configuration object",
     }),
     variables: VariablesSchema.optional().meta({
@@ -555,7 +555,7 @@ export const LocatorDescriptorSchema = z
 export const StagehandInitParamsSchema = z
   .object({
     cdpUrl: z.string().min(1),
-    model: ModelConfigSchema.optional(),
+    model: ModelConfigurationSchema.optional(),
     sessionId: z.string().optional(),
     systemPrompt: z.string().optional(),
     logInferenceToFile: z.boolean().optional(),
@@ -618,10 +618,12 @@ export const PageIdParamsSchema = z
   })
   .strict();
 
+export const MouseButtonSchema = z.enum(["left", "right", "middle"]);
+
 export const LocatorClickParamsSchema = LocatorDescriptorSchema.extend({
   options: z
     .object({
-      button: z.enum(["left", "right", "middle"]).optional(),
+      button: MouseButtonSchema.optional(),
       clickCount: z.number().int().positive().optional(),
     })
     .strict()

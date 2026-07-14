@@ -2,13 +2,13 @@
 import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame.js";
 import { Locator } from "../../understudy/locator.js";
-import { MouseButton } from "../../types/public/locator.js";
+import type { MouseButton } from "../../../protocol/types.js";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import { v3Logger } from "../../logger.js";
 import { FlowLogger } from "../../flowlogger/FlowLogger.js";
 import { toTitleCase } from "../../utils.js";
-import { StagehandClickError, UnderstudyCommandException } from "../../types/public/sdkErrors.js";
+import { StagehandClickError, UnderstudyCommandException } from "../../errors.js";
 
 export interface UnderstudyMethodHandlerContext {
   method: string;

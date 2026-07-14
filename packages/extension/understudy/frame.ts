@@ -2,7 +2,7 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import { Locator } from "./locator.js";
-import { StagehandEvalError } from "../types/public/sdkErrors.js";
+import { StagehandEvalError } from "../errors.js";
 import { executionContexts } from "./executionContextRegistry.js";
 
 function base64ToBytes(base64: string): Uint8Array {

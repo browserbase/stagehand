@@ -8,8 +8,13 @@ import { installV3PiercerIntoSession } from "./piercer.js";
 import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandAPIClient } from "../api.js";
-import { LocalBrowserLaunchOptions } from "../types/public/index.js";
-import type { BrowserClipboard } from "../types/public/clipboard.js";
+import type {
+  ClearCookieOptions,
+  Cookie,
+  CookieParam,
+  DomainPolicy,
+  LocalBrowserLaunchOptions,
+} from "../../protocol/types.js";
 import { InitScriptSource } from "../types/private/index.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { ContextClipboard } from "./clipboard.js";
@@ -19,14 +24,13 @@ import {
   PageNotFoundError,
   StagehandSetExtraHTTPHeadersError,
   StagehandSetDomainPolicyError,
-} from "../types/public/sdkErrors.js";
+} from "../errors.js";
 import {
   filterCookies,
   normalizeCookieParams,
   cookieMatchesFilter,
   toCdpCookieParam,
 } from "./cookies.js";
-import { Cookie, ClearCookieOptions, CookieParam, DomainPolicy } from "../types/public/context.js";
 import { getDomainPolicyDecision, normalizeDomainPolicy } from "./domainPolicy.js";
 import type { NormalizedDomainPolicy } from "./domainPolicy.js";
 
@@ -519,7 +523,7 @@ export class V3Context {
       .catch(() => {});
   }
 
-  public get clipboard(): BrowserClipboard {
+  public get clipboard(): ContextClipboard {
     return (this._clipboard ??= new ContextClipboard({
       context: this,
       resolvePage: async (page) => {

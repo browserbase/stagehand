@@ -35,7 +35,7 @@ export {
   LocatorCoordinatesSchema,
   LocatorSchema,
   ModelConfigObjectSchema,
-  ModelConfigSchema,
+  ModelConfigurationSchema,
   ModelNameSchema,
   ModelProviderSchema,
   ObserveOptionsSchema,
@@ -539,8 +539,6 @@ export const ProxyConfigSchema = z
 export const BrowserbaseRegionSchema = z
   .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
   .meta({ id: "BrowserbaseRegion" });
-export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
-
 /** Browserbase session creation parameters */
 export const BrowserbaseSessionCreateParamsSchema = z
   .object({
@@ -554,8 +552,6 @@ export const BrowserbaseSessionCreateParamsSchema = z
     userMetadata: z.record(z.string(), z.unknown()).optional(),
   })
   .meta({ id: "BrowserbaseSessionCreateParams" });
-export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCreateParamsSchema>;
-
 export const BrowserbaseConnectOptionsSchema = z
   .object({
     cdpUrl: z.string().min(1).optional(),

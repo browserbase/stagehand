@@ -15,7 +15,7 @@
 
 import type { Protocol } from "devtools-protocol";
 import type { SerializableResponse } from "../types/private/index.js";
-import { ResponseBodyError, ResponseParseError } from "../types/public/sdkErrors.js";
+import { ResponseBodyError, ResponseParseError } from "../errors.js";
 import type { CDPSessionLike } from "./cdp.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
@@ -99,6 +99,10 @@ function parseHeadersText(headersText: string | undefined): Array<{ name: string
  * Thin wrapper around CDP response metadata that mirrors the ergonomics of
  * Playwright's `Response` class. The class intentionally keeps the same method
  * names so upstream integrations can transition with minimal code changes.
+ *
+ * TODO(protocol): Keep this class internal. If clients need navigation response
+ * metadata, define a JSON-safe Zod result in protocol and map this live CDP
+ * state into that result instead of exposing this object.
  */
 export class Response {
   private readonly page: Page;

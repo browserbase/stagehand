@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { SetInputFilesArgument } from "../types/public/locator.js";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
+import { StagehandInvalidArgumentError } from "../errors.js";
+import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import { bytesToBase64, normalizeInputFiles, toBytes } from "./fileUploadUtils.js";
 
 describe("file upload payload normalization", () => {

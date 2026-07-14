@@ -12,9 +12,10 @@ import {
   StagehandInvalidArgumentError,
   StagehandLocatorError,
   ElementNotVisibleError,
-} from "../types/public/sdkErrors.js";
+} from "../errors.js";
 import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
-import type { SetInputFilesArgument, MouseButton } from "../types/public/locator.js";
+import type { MouseButton } from "../../protocol/types.js";
+import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright

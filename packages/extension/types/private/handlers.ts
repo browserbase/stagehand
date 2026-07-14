@@ -1,7 +1,6 @@
 import { Page } from "../../understudy/page.js";
-import { ModelConfiguration } from "../public/model.js";
 import type { z } from "zod/v4";
-import type { Variables } from "../public/variables.js";
+import type { ModelConfiguration, Variables } from "../../../protocol/types.js";
 
 export interface ActHandlerParams {
   instruction: string;

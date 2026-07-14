@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
-import { StagehandDomProcessError } from "../../../types/public/sdkErrors.js";
+import { StagehandDomProcessError } from "../../../errors.js";
 import type { SessionDomIndex } from "../../../types/private/snapshot.js";
 import { buildChildXPathSegments, joinXPath, normalizeXPath } from "./xpathUtils.js";
 

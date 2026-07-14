@@ -3,10 +3,7 @@ import { Locator } from "./locator.js";
 import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
-import {
-  ContentFrameNotFoundError,
-  StagehandInvalidArgumentError,
-} from "../types/public/sdkErrors.js";
+import { ContentFrameNotFoundError, StagehandInvalidArgumentError } from "../errors.js";
 
 /**
  * FrameLocator: resolves iframe elements to their child Frames and allows

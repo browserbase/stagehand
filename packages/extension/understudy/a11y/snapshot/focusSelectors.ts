@@ -3,7 +3,7 @@ import type { CDPSessionLike } from "../../cdp.js";
 import { Page } from "../../page.js";
 import { executionContexts } from "../../executionContextRegistry.js";
 import { buildLocatorInvocation } from "../../locatorInvocation.js";
-import { StagehandIframeError } from "../../../types/public/sdkErrors.js";
+import { StagehandIframeError } from "../../../errors.js";
 import type {
   Axis,
   FrameParentIndex,

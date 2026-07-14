@@ -1,4 +1,4 @@
-import type { VariableValue } from "../../types/public/variables.js";
+import type { VariableValue } from "../../../protocol/types.js";
 
 /**
  * Resolves a VariableValue to its primitive string value.

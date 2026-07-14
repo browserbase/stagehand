@@ -1,7 +1,7 @@
 // Compile-only shim: copied handlers depend on these V3 inference entry points.
 // Replace this file with the real V3 inference implementation in a dedicated port slice.
 import type { z } from "zod/v4";
-import type { LogLine } from "./types/public/logs.js";
+import type { LogLine } from "../protocol/types.js";
 import type { LLMClient } from "./llm/LLMClient.js";
 
 type LlmInferenceParams = {

@@ -3,14 +3,22 @@ import { z } from "zod/v4";
 import { extract as runExtract } from "../inference.js";
 import { getZodType, injectUrls, transformSchema } from "../utils.js";
 import { v3Logger } from "../logger.js";
-import { V3FunctionName } from "../types/public/methods.js";
+import type {
+  ClientOptions,
+  ModelConfiguration,
+  ModelName,
+  V3FunctionName,
+} from "../../protocol/types.js";
+import {
+  defaultExtractSchema,
+  pageTextSchema,
+  V3FunctionNameSchema,
+} from "../../protocol/pending-schemas.js";
 import { captureHybridSnapshot } from "../understudy/a11y/snapshot/index.js";
 import { LLMClient } from "../llm/LLMClient.js";
 import { ExtractHandlerParams } from "../types/private/handlers.js";
 import { EncodedId, ZodPathSegments } from "../types/private/internal.js";
-import { defaultExtractSchema, pageTextSchema } from "../types/public/methods.js";
-import { ClientOptions, ModelConfiguration, ModelName } from "../types/public/model.js";
-import { StagehandInvalidArgumentError, ExtractTimeoutError } from "../types/public/sdkErrors.js";
+import { StagehandInvalidArgumentError, ExtractTimeoutError } from "../errors.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 
 /**
@@ -197,7 +205,7 @@ export class ExtractHandler {
 
     // Update EXTRACT metrics from the LLM calls
     this.onMetrics?.(
-      V3FunctionName.EXTRACT,
+      V3FunctionNameSchema.enum.EXTRACT,
       prompt_tokens,
       completion_tokens,
       reasoning_tokens,

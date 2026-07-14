@@ -142,7 +142,7 @@
                       "min_length": 1
                     },
                     "model": {
-                      "ref": "#/$defs/ModelConfig"
+                      "ref": "#/$defs/ModelConfiguration"
                     },
                     "session_id": {
                       "type": "string"
@@ -669,7 +669,7 @@
             }
           ],
           "$defs": {
-            "ModelConfig": {
+            "ModelConfiguration": {
               "$ref": "#/$defs/ModelConfigObject"
             },
             "VertexModelConfigObject": {
@@ -1070,7 +1070,7 @@
               "properties": {
                 "model": {
                   "description": "Model configuration object",
-                  "ref": "#/$defs/ModelConfig"
+                  "ref": "#/$defs/ModelConfiguration"
                 },
                 "variables": {
                   "description": "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
@@ -1389,7 +1389,7 @@
               "properties": {
                 "model": {
                   "description": "Model configuration object",
-                  "ref": "#/$defs/ModelConfig"
+                  "ref": "#/$defs/ModelConfiguration"
                 },
                 "variables": {
                   "description": "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
@@ -1436,7 +1436,7 @@
               "properties": {
                 "model": {
                   "description": "Model configuration object",
-                  "ref": "#/$defs/ModelConfig"
+                  "ref": "#/$defs/ModelConfiguration"
                 },
                 "timeout": {
                   "description": "Timeout in ms for the extraction",
@@ -1894,7 +1894,7 @@
                   "min_length": 1
                 },
                 "model": {
-                  "ref": "#/$defs/ModelConfig"
+                  "ref": "#/$defs/ModelConfiguration"
                 },
                 "session_id": {
                   "type": "string"
@@ -1920,7 +1920,7 @@
               "required": ["cdp_url"],
               "additionalProperties": false,
               "$defs": {
-                "ModelConfig": {
+                "ModelConfiguration": {
                   "$ref": "#/$defs/ModelConfigObject"
                 },
                 "VertexModelConfigObject": {
@@ -2401,7 +2401,7 @@
                   "properties": {
                     "model": {
                       "description": "Model configuration object",
-                      "ref": "#/$defs/ModelConfig"
+                      "ref": "#/$defs/ModelConfiguration"
                     },
                     "variables": {
                       "description": "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
@@ -2430,7 +2430,7 @@
                   },
                   "additionalProperties": false
                 },
-                "ModelConfig": {
+                "ModelConfiguration": {
                   "$ref": "#/$defs/ModelConfigObject"
                 },
                 "VertexModelConfigObject": {
@@ -3220,7 +3220,7 @@
                   "properties": {
                     "model": {
                       "description": "Model configuration object",
-                      "ref": "#/$defs/ModelConfig"
+                      "ref": "#/$defs/ModelConfiguration"
                     },
                     "variables": {
                       "description": "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
@@ -3262,7 +3262,7 @@
                   },
                   "additionalProperties": false
                 },
-                "ModelConfig": {
+                "ModelConfiguration": {
                   "$ref": "#/$defs/ModelConfigObject"
                 },
                 "VertexModelConfigObject": {
@@ -4026,7 +4026,7 @@
                   "properties": {
                     "model": {
                       "description": "Model configuration object",
-                      "ref": "#/$defs/ModelConfig"
+                      "ref": "#/$defs/ModelConfiguration"
                     },
                     "timeout": {
                       "description": "Timeout in ms for the extraction",
@@ -4062,7 +4062,7 @@
                   },
                   "additionalProperties": false
                 },
-                "ModelConfig": {
+                "ModelConfiguration": {
                   "$ref": "#/$defs/ModelConfigObject"
                 },
                 "VertexModelConfigObject": {

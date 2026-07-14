@@ -2,9 +2,10 @@ import { Locator } from "./locator.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
+import { StagehandInvalidArgumentError } from "../errors.js";
 import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
-import type { SetInputFilesArgument } from "../types/public/locator.js";
+import type { MouseButton } from "../../protocol/types.js";
+import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 
 type Axis = "child" | "desc";
 type Step = { axis: Axis; raw: string; name: string };
@@ -122,7 +123,7 @@ export class DeepLocatorDelegate {
   }
 
   // Locator API delegates
-  async click(options?: { button?: "left" | "right" | "middle"; clickCount?: number }) {
+  async click(options?: { button?: MouseButton; clickCount?: number }) {
     return (await this.real()).click(options);
   }
   async count() {

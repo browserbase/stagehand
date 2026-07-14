@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { InitScriptSource } from "../types/private/index.js";
-import { StagehandInvalidArgumentError } from "../types/public/sdkErrors.js";
+import { StagehandInvalidArgumentError } from "../errors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 
 describe("init script normalization", () => {

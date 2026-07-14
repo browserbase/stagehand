@@ -1,5 +1,5 @@
-import { Cookie, CookieParam, ClearCookieOptions } from "../types/public/context.js";
-import { CookieValidationError } from "../types/public/sdkErrors.js";
+import type { ClearCookieOptions, Cookie, CookieParam } from "../../protocol/types.js";
+import { CookieValidationError } from "../errors.js";
 
 /**
  * helpers for browser cookie management.

@@ -21,7 +21,7 @@ import type {
   LLMResponse,
   LLMUsage,
 } from "./LLMClient.js";
-import type { LLMTool } from "../types/public/model.js";
+import type { LLMTool } from "../../protocol/types.js";
 
 type SchemaOutput<TSchema> = TSchema extends { _output: infer TOutput }
   ? NonNullable<TOutput>

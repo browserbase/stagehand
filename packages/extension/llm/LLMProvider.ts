@@ -1,12 +1,11 @@
 import type { LanguageModel, LanguageModelMiddleware } from "ai";
-import { UnsupportedAISDKModelProviderError } from "../types/public/sdkErrors.js";
-import { LogLine } from "../types/public/logs.js";
-import { ClientOptions, ModelName, ModelProvider } from "../types/public/model.js";
+import { UnsupportedAISDKModelProviderError } from "../errors.js";
+import type { ClientOptions, LogLine, ModelName, ModelProvider } from "../../protocol/types.js";
 import {
   ClientOptionsSchema,
   ModelNameSchema,
   ResolvedProviderClientOptionsSchema,
-} from "../types/public/schemas.js";
+} from "../../protocol/pending-schemas.js";
 import { AISdkClient } from "./aisdk.js";
 import { LLMClient } from "./LLMClient.js";
 import { createOpenAI } from "@ai-sdk/openai";
