@@ -623,8 +623,6 @@ export const LocatorClickParamsSchema = LocatorDescriptorSchema.extend({
     .object({
       button: z.enum(["left", "right", "middle"]).optional(),
       clickCount: z.number().int().positive().optional(),
-      delay: z.number().nonnegative().optional(),
-      timeoutMs: z.number().int().positive().optional(),
     })
     .strict()
     .optional(),

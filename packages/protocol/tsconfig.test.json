@@ -21,6 +21,8 @@
     "../extension/build.ts",
     "../extension/src/**/*.ts",
     "../extension/tests/**/*.ts",
+    "../sdk-ts/src/**/*.ts",
+    "../sdk-ts/tests/**/*.ts",
     "../modcdp/**/*.ts"
   ]
 }

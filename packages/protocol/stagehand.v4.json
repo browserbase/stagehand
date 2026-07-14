@@ -550,15 +550,6 @@
                           "type": "integer",
                           "exclusive_minimum": 0,
                           "maximum": 9007199254740991
-                        },
-                        "delay": {
-                          "type": "number",
-                          "minimum": 0
-                        },
-                        "timeout_ms": {
-                          "type": "integer",
-                          "exclusive_minimum": 0,
-                          "maximum": 9007199254740991
                         }
                       },
                       "additional_properties": false
@@ -5069,15 +5060,6 @@
                       "enum": ["left", "right", "middle"]
                     },
                     "click_count": {
-                      "type": "integer",
-                      "exclusive_minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "delay": {
-                      "type": "number",
-                      "minimum": 0
-                    },
-                    "timeout_ms": {
                       "type": "integer",
                       "exclusive_minimum": 0,
                       "maximum": 9007199254740991

@@ -2,5 +2,14 @@
   "name": "@browserbasehq/stagehand-v4-spike-sdk-ts",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vp test run --root ../.. packages/sdk-ts/tests"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  }
 }
