@@ -231,8 +231,7 @@ client_settings:
       read_env: BROWSERBASE_PROJECT_ID
       description: Deprecated. Browserbase API keys are now project-scoped, so this value is no longer required.
       nullable: true
-      auth:
-        security_scheme: BBProjectIdAuth
+      send_in_header: x-bb-project-id
     MODEL_API_KEY:
       type: string
       read_env: MODEL_API_KEY
@@ -246,10 +245,6 @@ security_schemes:
     type: apiKey
     in: header
     name: x-bb-api-key
-  BBProjectIdAuth:
-    type: apiKey
-    in: header
-    name: x-bb-project-id
   LLMModelApiKeyAuth:
     type: apiKey
     in: header
@@ -257,7 +252,6 @@ security_schemes:
 
 security:
   - BBApiKeyAuth: []
-    BBProjectIdAuth: []
     LLMModelApiKeyAuth: []
 
 # `readme` is used to configure the code snippets that will be rendered in the
