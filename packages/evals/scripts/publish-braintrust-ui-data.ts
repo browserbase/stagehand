@@ -175,6 +175,13 @@ const MODEL_PRICING_USD_PER_1M_TOKENS = new Map<string, ModelPricing>([
   // deliberately to keep the dashboard stable across the cutover.
   ["anthropic/claude-sonnet-5", { input: 3, cachedInput: 0.3, output: 15 }],
   ["claude-sonnet-5", { input: 3, cachedInput: 0.3, output: 15 }],
+  // GPT-5.6 tiers per OpenAI pricing (2026-07).
+  ["openai/gpt-5.6-sol", { input: 5, cachedInput: 0.5, output: 30 }],
+  ["gpt-5.6-sol", { input: 5, cachedInput: 0.5, output: 30 }],
+  ["openai/gpt-5.6-terra", { input: 2.5, cachedInput: 0.25, output: 15 }],
+  ["gpt-5.6-terra", { input: 2.5, cachedInput: 0.25, output: 15 }],
+  ["openai/gpt-5.6-luna", { input: 1, cachedInput: 0.1, output: 6 }],
+  ["gpt-5.6-luna", { input: 1, cachedInput: 0.1, output: 6 }],
   ["anthropic/claude-opus-4-7", { input: 5, cachedInput: 0.5, output: 25 }],
   ["claude-opus-4-7", { input: 5, cachedInput: 0.5, output: 25 }],
   ["anthropic/claude-opus-4-6", { input: 5, cachedInput: 0.5, output: 25 }],
