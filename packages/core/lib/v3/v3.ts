@@ -1913,6 +1913,7 @@ export class V3 {
       resolvedMode,
       this.isCaptchaAutoSolveEnabled,
       agentThinkingEffort,
+      this.logInferenceToFile,
     );
 
     const resolvedOptions: AgentExecuteOptions | AgentStreamExecuteOptions =

@@ -250,7 +250,9 @@ interface V3Options {
 </ParamField>
 
 <ParamField path="logInferenceToFile" type="boolean" optional>
-  Log AI inference details to files for debugging.
+  When `true`, writes LLM request/response dumps for `act`, `observe`, `extract`, and `agent` to `./inference_summary/`. Agent logs are stored under `agent_summary/`.
+
+  **Note:** Local file logging applies to in-process runs. On Browserbase, inference files are written when `disableAPI: true` or `experimental: true` (local execution). The default hosted API path (`env: "BROWSERBASE"` with `disableAPI: false` and `experimental: false`) runs inference server-side and does not create local `inference_summary` files.
 
   **Default:** `false`
 </ParamField>

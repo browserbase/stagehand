@@ -296,7 +296,11 @@ export class V3CuaAgentHandler {
     const start = Date.now();
     let result: AgentResult;
     try {
-      result = await this.agent.execute({ options, logger: this.logger });
+      result = await this.agent.execute({
+        options,
+        logger: this.logger,
+        logInferenceToFile: this.v3.logInferenceToFile,
+      });
       if (this.evidenceCallback) {
         let finalUrl = "";
         try {

@@ -18,6 +18,12 @@ import {
   extractLlmCuaResponseSummary,
 } from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
+import {
+  getCuaRunStartTools,
+  logAgentRunStart,
+  runCuaStepWithInferenceLogging,
+  type CuaStepInferenceContext,
+} from "./utils/agentInferenceLogger.js";
 
 /**
  * Message types for FARA agent
@@ -640,8 +646,10 @@ For each function call, return a json object with function name and arguments wi
   private async executeStep(
     logger: (message: LogLine) => void,
     isFirstRound: boolean = false,
+    inferenceCtx?: CuaStepInferenceContext,
   ): Promise<{
     actions: AgentAction[];
+    message: string;
     completed: boolean;
     usage: {
       input_tokens: number;
@@ -715,6 +723,11 @@ For each function call, return a json object with function name and arguments wi
       content: this.generateSystemPrompt(),
     };
     history = [systemMessage, ...history];
+
+    inferenceCtx?.logCall({
+      messages: history,
+      temperature: this.temperature,
+    });
 
     // Make API call
     logger({
@@ -858,6 +871,7 @@ For each function call, return a json object with function name and arguments wi
 
     return {
       actions,
+      message: thoughts,
       completed,
       usage: {
         input_tokens: usage.prompt_tokens,
@@ -873,9 +887,18 @@ For each function call, return a json object with function name and arguments wi
    * @implements AgentClient.execute
    */
   async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
-    const { options, logger } = executionOptions;
+    const { options, logger, logInferenceToFile = false } = executionOptions;
     const { instruction } = options;
     const maxSteps = options.maxSteps || 10;
+
+    if (logInferenceToFile) {
+      logAgentRunStart({
+        instruction,
+        modelId: this.modelName,
+        tools: getCuaRunStartTools(),
+        agentType: "cua",
+      });
+    }
 
     let currentStep = 0;
     let completed = false;
@@ -907,8 +930,19 @@ For each function call, return a json object with function name and arguments wi
           level: 1,
         });
 
+        const stepIndex = currentStep + 1;
         const isFirstRound = currentStep === 0;
-        const result = await this.executeStep(logger, isFirstRound);
+        const result = await runCuaStepWithInferenceLogging({
+          logInferenceToFile,
+          stepIndex,
+          modelId: this.modelName,
+          executeStep: (ctx) => this.executeStep(logger, isFirstRound, ctx),
+          mapResponse: (stepResult) => ({
+            actions: stepResult.actions,
+            message: stepResult.message ?? "",
+            completed: stepResult.completed,
+          }),
+        });
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
         totalInferenceTime += result.usage.inference_time_ms;
@@ -922,9 +956,8 @@ For each function call, return a json object with function name and arguments wi
         currentStep++;
 
         // Record message for this step
-        const lastAction = result.actions[result.actions.length - 1];
-        if (lastAction?.reasoning) {
-          messageList.push(lastAction.reasoning);
+        if (result.message) {
+          messageList.push(result.message);
         }
       }
 

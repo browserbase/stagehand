@@ -497,6 +497,7 @@ export interface AgentExecutionOptions<
   options: TOptions;
   logger: (message: LogLine) => void;
   retries?: number;
+  logInferenceToFile?: boolean;
 }
 
 export interface AgentHandlerOptions {

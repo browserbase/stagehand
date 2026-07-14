@@ -33,6 +33,12 @@ import {
 } from "../llm/anthropicOptions.js";
 import { stripModelProvider } from "../../utils.js";
 import { v7 as uuidv7 } from "uuid";
+import {
+  getCuaRunStartTools,
+  logAgentRunStart,
+  runCuaStepWithInferenceLogging,
+  type CuaStepInferenceContext,
+} from "./utils/agentInferenceLogger.js";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -127,9 +133,20 @@ export class AnthropicCUAClient extends AgentClient {
    * @implements AgentClient.execute
    */
   async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
-    const { options, logger } = executionOptions;
+    const { options, logger, logInferenceToFile = false } = executionOptions;
     const { instruction } = options;
     const maxSteps = options.maxSteps || 10;
+
+    if (logInferenceToFile) {
+      logAgentRunStart({
+        instruction,
+        modelId: this.modelName,
+        tools: getCuaRunStartTools(
+          this.tools ? Object.keys(this.tools) : undefined,
+        ),
+        agentType: "cua",
+      });
+    }
 
     let currentStep = 0;
     let completed = false;
@@ -162,7 +179,13 @@ export class AnthropicCUAClient extends AgentClient {
           level: 1,
         });
 
-        const result = await this.executeStep(inputItems, logger);
+        const stepIndex = currentStep + 1;
+        const result = await runCuaStepWithInferenceLogging({
+          logInferenceToFile,
+          stepIndex,
+          modelId: this.modelName,
+          executeStep: (ctx) => this.executeStep(inputItems, logger, ctx),
+        });
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
         totalInferenceTime += result.usage.inference_time_ms;
@@ -239,6 +262,7 @@ export class AnthropicCUAClient extends AgentClient {
   async executeStep(
     inputItems: ResponseInputItem[],
     logger: (message: LogLine) => void,
+    inferenceCtx?: CuaStepInferenceContext,
   ): Promise<{
     actions: AgentAction[];
     message: string;
@@ -252,7 +276,11 @@ export class AnthropicCUAClient extends AgentClient {
   }> {
     try {
       // Get response from the model
-      const result = await this.getAction(inputItems, logger);
+      const result = await this.getAction(
+        inputItems,
+        logger,
+        inferenceCtx?.logCall,
+      );
       const content = result.content;
       const usage = {
         input_tokens: result.usage.input_tokens,
@@ -432,6 +460,7 @@ export class AnthropicCUAClient extends AgentClient {
   async getAction(
     inputItems: ResponseInputItem[],
     logger?: (message: LogLine) => void,
+    logCall?: (payload: unknown) => void,
   ): Promise<{
     content: AnthropicContentBlock[];
     id: string;
@@ -592,6 +621,8 @@ export class AnthropicCUAClient extends AgentClient {
         model: this.modelName,
         prompt: extractLlmCuaPromptSummary(messages),
       });
+
+      logCall?.(requestParams);
 
       const startTime = Date.now();
       // Create the message using the Anthropic Messages API

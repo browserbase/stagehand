@@ -31,6 +31,12 @@ import {
   extractLlmCuaResponseSummary,
 } from "../flowlogger/FlowLogger.js";
 import { v7 as uuidv7 } from "uuid";
+import {
+  getCuaRunStartTools,
+  logAgentRunStart,
+  runCuaStepWithInferenceLogging,
+  type CuaStepInferenceContext,
+} from "./utils/agentInferenceLogger.js";
 
 /**
  * Client for OpenAI's Computer Use Assistant API
@@ -143,9 +149,20 @@ export class OpenAICUAClient extends AgentClient {
    * @implements AgentClient.execute
    */
   async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
-    const { options, logger } = executionOptions;
+    const { options, logger, logInferenceToFile = false } = executionOptions;
     const { instruction } = options;
     const maxSteps = options.maxSteps || 10;
+
+    if (logInferenceToFile) {
+      logAgentRunStart({
+        instruction,
+        modelId: this.modelName,
+        tools: getCuaRunStartTools(
+          this.tools ? Object.keys(this.tools) : undefined,
+        ),
+        agentType: "cua",
+      });
+    }
 
     let currentStep = 0;
     let completed = false;
@@ -173,11 +190,14 @@ export class OpenAICUAClient extends AgentClient {
           level: 1,
         });
 
-        const result = await this.executeStep(
-          inputItems,
-          previousResponseId,
-          logger,
-        );
+        const stepIndex = currentStep + 1;
+        const result = await runCuaStepWithInferenceLogging({
+          logInferenceToFile,
+          stepIndex,
+          modelId: this.modelName,
+          executeStep: (ctx) =>
+            this.executeStep(inputItems, previousResponseId, logger, ctx),
+        });
         totalInputTokens += result.usage.input_tokens;
         totalOutputTokens += result.usage.output_tokens;
         totalInferenceTime += result.usage.inference_time_ms;
@@ -259,6 +279,7 @@ export class OpenAICUAClient extends AgentClient {
     inputItems: OpenAIRequestInputItem[],
     previousResponseId: string | undefined,
     logger: (message: LogLine) => void,
+    inferenceCtx?: CuaStepInferenceContext,
   ): Promise<{
     actions: AgentAction[];
     message: string;
@@ -273,7 +294,11 @@ export class OpenAICUAClient extends AgentClient {
   }> {
     try {
       // Get response from the model
-      const result = await this.getAction(inputItems, previousResponseId);
+      const result = await this.getAction(
+        inputItems,
+        previousResponseId,
+        inferenceCtx?.logCall,
+      );
       const output = result.output;
       const responseId = result.responseId;
       const usage = {
@@ -488,6 +513,7 @@ export class OpenAICUAClient extends AgentClient {
   async getAction(
     inputItems: OpenAIRequestInputItem[],
     previousResponseId?: string,
+    logCall?: (payload: unknown) => void,
   ): Promise<{
     output: ResponseItem[];
     responseId: string;
@@ -562,6 +588,8 @@ export class OpenAICUAClient extends AgentClient {
         model: this.modelName,
         prompt: extractLlmCuaPromptSummary(inputItems),
       });
+
+      logCall?.(requestParams);
 
       const startTime = Date.now();
       // Create the response using the OpenAI Responses API
