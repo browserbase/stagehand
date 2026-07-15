@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  StagehandMethodSchema,
   StagehandNotifications,
   StagehandRPC,
   StagehandRpcNotificationSchema,
@@ -7,6 +8,12 @@ import {
 } from "../../schema-registry.js";
 
 describe("Stagehand object-model protocol", () => {
+  it("derives every Stagehand method name from the RPC definitions", () => {
+    expect(StagehandMethodSchema.options).toStrictEqual(
+      Object.values(StagehandRPC).map((method) => method.name),
+    );
+  });
+
   it("defines stagehand init as a JSON-RPC method", () => {
     const params = StagehandRPC.stagehandInit.params.parse({
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",

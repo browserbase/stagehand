@@ -1,6 +1,7 @@
 import { expectTypeOf } from "vite-plus/test";
 import type { z } from "zod/v4";
 import {
+  StagehandMethodSchema,
   StagehandNotifications,
   StagehandRPC,
   StagehandRpcNotificationSchema,
@@ -11,6 +12,7 @@ import { StagehandLogSchema } from "../../schemas.js";
 type StagehandRequest = z.output<typeof StagehandRpcRequestSchema>;
 type StagehandNotification = z.output<typeof StagehandRpcNotificationSchema>;
 type LogNotification = Extract<StagehandNotification, { method: "stagehand.log" }>;
+type RegisteredStagehandMethod = (typeof StagehandRPC)[keyof typeof StagehandRPC]["name"];
 
 expectTypeOf(StagehandRPC.pageGoto.name).toEqualTypeOf<"page.goto">();
 expectTypeOf<z.input<typeof StagehandRPC.pageGoto.params>>().toEqualTypeOf<{
@@ -35,9 +37,8 @@ expectTypeOf<z.input<typeof StagehandRPC.locatorSelectOption.params>>().toEqualT
 expectTypeOf<z.output<typeof StagehandRPC.locatorSelectOption.result>>().toEqualTypeOf<{
   values: string[];
 }>();
-expectTypeOf<StagehandRequest["method"]>().toEqualTypeOf<
-  z.output<typeof import("../../schema-registry.js").StagehandMethodSchema>
->();
+expectTypeOf<StagehandRequest["method"]>().toEqualTypeOf<z.output<typeof StagehandMethodSchema>>();
+expectTypeOf<z.output<typeof StagehandMethodSchema>>().toEqualTypeOf<RegisteredStagehandMethod>();
 expectTypeOf(StagehandNotifications.log.name).toEqualTypeOf<"stagehand.log">();
 expectTypeOf<LogNotification["method"]>().toEqualTypeOf<"stagehand.log">();
 expectTypeOf<LogNotification["params"]>().toEqualTypeOf<z.output<typeof StagehandLogSchema>>();

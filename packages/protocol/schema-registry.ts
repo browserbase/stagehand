@@ -214,40 +214,9 @@ export const StagehandRPC = {
   },
 } as const satisfies Record<string, RPCMethod>;
 
-export const StagehandMethodSchema = z.enum([
-  "ping",
-  "runtime.configure",
-  "runtime.loopback_status",
-  "browser.get_version",
-  "stagehand.init",
-  "stagehand.close",
-  "stagehand.act",
-  "stagehand.observe",
-  "stagehand.extract",
-  "stagehand.metrics",
-  "context.pages",
-  "context.new_page",
-  "page.goto",
-  "page.url",
-  "page.title",
-  "page.close",
-  "locator.click",
-  "locator.fill",
-  "locator.hover",
-  "locator.count",
-  "locator.is_checked",
-  "locator.input_value",
-  "locator.is_visible",
-  "locator.inner_text",
-  "locator.inner_html",
-  "locator.text_content",
-  "locator.scroll_to",
-  "locator.centroid",
-  "locator.highlight",
-  "locator.send_click_event",
-  "locator.type",
-  "locator.select_option",
-]);
+export const StagehandMethodSchema = z.enum(
+  Object.values(StagehandRPC).map((method) => method.name),
+);
 
 export const StagehandRpcRequestSchema = JSONRPCRequestSchema.extend({
   method: StagehandMethodSchema,
