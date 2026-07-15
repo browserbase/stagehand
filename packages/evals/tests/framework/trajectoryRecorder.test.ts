@@ -322,6 +322,41 @@ describe("TrajectoryRecorder", () => {
     await expect(fs.readdir(taskDir)).resolves.toEqual(["run-1"]);
   });
 
+  it("overlapping finish() and persistResult() share ONE reservation (single-flight)", async () => {
+    const outputRoot = await makeTempDir();
+    process.env.EVAL_TRAJECTORY_GROUP = "test-group";
+    const recorder = new TrajectoryRecorder({
+      taskSpec: makeTaskSpec(),
+      outputRoot,
+      runId: "run-1",
+      persist: true,
+    });
+    recordSimpleStep(recorder, Buffer.from("only"));
+
+    // Kick both off WITHOUT awaiting in between. If ensureReserved() cached the
+    // resolved value instead of the in-flight promise, both calls would observe
+    // no reservation, both would reserve, and this one recorder's artifacts
+    // would split across `run-1` and `run-1-2`.
+    await Promise.all([
+      recorder.finish({ status: "complete" }),
+      recorder.persistResult({
+        outcomeSuccess: true,
+        explanation: "The task was completed.",
+      }),
+    ]);
+
+    const taskDir = path.join(outputRoot, "test-group", "recorder-task");
+    await expect(fs.readdir(taskDir)).resolves.toEqual(["run-1"]);
+    // Both writers landed in the same dir: trajectory files AND the score.
+    const runDir = path.join(taskDir, "run-1");
+    await expect(fs.readdir(runDir)).resolves.toEqual(
+      expect.arrayContaining(["trajectory.json", "scores"]),
+    );
+    await expect(fs.readdir(path.join(runDir, "scores"))).resolves.toEqual([
+      "result.json",
+    ]);
+  });
+
   it("two concurrent recorders with the same runId reserve distinct dirs", async () => {
     const outputRoot = await makeTempDir();
     process.env.EVAL_TRAJECTORY_GROUP = "test-group";

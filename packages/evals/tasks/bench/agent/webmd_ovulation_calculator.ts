@@ -2,6 +2,7 @@ import type { TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";
+import { previousMonthFirstDayLabel } from "../../../framework/taskDates.js";
 import {
   runWithVerifier,
   evaluationResultToSuccess,
@@ -17,18 +18,9 @@ export default defineBenchTask(
 
       // WebMD's ovulation calculator only accepts a last-period start date
       // within roughly the past 90 days, so a hardcoded date (previously
-      // "Mar 1") becomes task-invalid once >90 days elapse. Use the first day
-      // of the previous month, which is always within range (≤ ~62 days ago).
-      const periodDate = new Date();
-      periodDate.setDate(1);
-      periodDate.setMonth(periodDate.getMonth() - 1);
-      // Include the year: in January the previous month is December of the
-      // PRIOR year, and a year-less "Dec 1" reads as ~11 months in the future.
-      const periodLabel = periodDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
+      // "Mar 1") becomes task-invalid once >90 days elapse. See taskDates.ts
+      // for the month-overflow and January/prior-year edge cases.
+      const periodLabel = previousMonthFirstDayLabel();
 
       const instruction = `Search for the ovulation calculator and enter ${periodLabel} as the first date of the period and calculate the date of ovulation and pregnancy test day. use https://www.webmd.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site.`;
 

@@ -68,7 +68,12 @@ export class TrajectoryRecorder {
   // even if it finishes after the env moves on.
   private readonly group: string;
   // The on-disk reservation, made once (idempotently) by ensureReserved().
-  private reserved?: { directory: string; attempt: number };
+  // Single-flight: this caches the in-flight PROMISE, not the resolved value.
+  // Caching only the result would leave a check-then-await window in which two
+  // overlapping callers both observe `undefined`, both reserve, and land in two
+  // different dirs (the second taking a `-2` suffix) — splitting one recorder's
+  // artifacts across two run dirs.
+  private reservation?: Promise<{ directory: string; attempt: number }>;
   // Reassigned by ensureReserved(): the constructor computes the un-reserved
   // path for the `directory` getter; the reservation replaces it with the dir
   // actually created on disk (which may carry a -2/-3 collision suffix).
@@ -254,20 +259,32 @@ export class TrajectoryRecorder {
    * sees dirs concurrent recorders have actually created; the cached result
    * keeps finish() idempotent and makes finish()/persistResult() order-free.
    */
-  private async ensureReserved(): Promise<{
+  private ensureReserved(): Promise<{
     directory: string;
     attempt: number;
   }> {
-    if (!this.reserved) {
-      this.reserved = await reserveTrajectoryDir(
+    // Assign the promise synchronously, before any await, so concurrent callers
+    // observe it and share the single reservation rather than racing to make
+    // two. (Do not `await` inside the `if` — that reintroduces the window.)
+    if (!this.reservation) {
+      this.reservation = reserveTrajectoryDir(
         this.outputRoot,
         this.taskSpec.id,
         this.runId,
         this.group,
-      );
-      this.outputDir = this.reserved.directory;
+      )
+        .then((reserved) => {
+          this.outputDir = reserved.directory;
+          return reserved;
+        })
+        .catch((err) => {
+          // Don't cache a rejection: a later persist attempt should be able to
+          // retry rather than inherit this failure forever.
+          this.reservation = undefined;
+          throw err;
+        });
     }
-    return this.reserved;
+    return this.reservation;
   }
 
   async persistResult(
