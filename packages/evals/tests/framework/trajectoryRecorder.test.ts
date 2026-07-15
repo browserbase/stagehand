@@ -201,7 +201,12 @@ describe("TrajectoryRecorder", () => {
       explanation: "The task was completed.",
     });
 
-    const taskDir = path.join(outputRoot, "test-group", "recorder-task", "run-1");
+    const taskDir = path.join(
+      outputRoot,
+      "test-group",
+      "recorder-task",
+      "run-1",
+    );
     await expect(fs.readdir(taskDir)).resolves.toEqual(
       expect.arrayContaining([
         "core.log",

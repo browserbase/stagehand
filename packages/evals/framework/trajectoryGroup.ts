@@ -120,7 +120,8 @@ export async function reserveTrajectoryDir(
  */
 export function resolveTrajectoryRoot(): string {
   return (
-    process.env.EVAL_TRAJECTORY_ROOT || path.join(process.cwd(), ".trajectories")
+    process.env.EVAL_TRAJECTORY_ROOT ||
+    path.join(process.cwd(), ".trajectories")
   );
 }
 

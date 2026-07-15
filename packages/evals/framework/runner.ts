@@ -357,7 +357,8 @@ export async function runEvals(
     experimentName,
     model: options.modelOverride,
   });
-  if (options.modelOverride) process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
+  if (options.modelOverride)
+    process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
   if (options.provider) process.env.EVAL_PROVIDER = options.provider;
 
   const braintrustProjectName = hasCoreOnly
