@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
 
 /**
  * Local-persistence grouping for trajectories.
@@ -11,8 +12,15 @@ import path from "node:path";
  * the grouping after the fact required guessing by timestamp.
  *
  * This module lets the eval entrypoint stamp a run-scoped group (the experiment
- * name, plus the model when an override is active) into the env once, so every
- * task in that run lands under `<root>/<group>/<task.id>/<run-timestamp>/`.
+ * name, the model when an override is active, plus a run token) into the env
+ * once, so every task in that run lands under
+ * `<root>/<experiment>__<model>__<runToken>/<task.id>/<run-timestamp>/`.
+ *
+ * The run token is what makes the group *run-unique*: the experiment name is
+ * deterministic (e.g. "agent" or "all"), so without it a re-run of the same
+ * suite would land in the same group dir and clobber its `experiment.json`,
+ * silently relabelling the earlier run's trajectories with the newer run's
+ * Braintrust provenance.
  *
  * This is purely a local on-disk concern; it does not affect Braintrust
  * experiment naming or metadata.
@@ -33,16 +41,32 @@ export function sanitizeSlug(value: string): string {
 }
 
 /**
+ * A compact, sortable, filesystem-safe token identifying a single run, e.g.
+ * "20260715-110342" (local time, YYYYMMDD-HHMMSS). Generate this EXACTLY ONCE
+ * per run in the entrypoint and reuse it — calling it twice within one run would
+ * split that run's trajectories across two group dirs.
+ */
+export function generateRunToken(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return `${date}-${time}`;
+}
+
+/**
  * Build the run-scoped group slug. The experiment name is the floor; the model
- * is appended only when an override is set (the multi-model A/B case), which is
- * exactly what keeps two models' runs of the same suite from colliding on disk.
+ * is appended only when an override is set (the multi-model A/B case), and the
+ * run token last so a re-run of the same suite gets its own group dir instead of
+ * overwriting the previous run's `experiment.json`.
  */
 export function buildTrajectoryGroupSlug(opts: {
   experimentName: string;
   model?: string;
+  runToken?: string;
 }): string {
   const parts = [opts.experimentName];
   if (opts.model) parts.push(opts.model);
+  if (opts.runToken) parts.push(opts.runToken);
   return parts.map(sanitizeSlug).filter(Boolean).join("__");
 }
 
@@ -126,16 +150,26 @@ export function resolveTrajectoryRoot(): string {
 }
 
 /**
- * Write `experiment.json` at the group-dir root, cross-linking the local
- * trajectories to the resolved Braintrust experiment (name + hash, id, URLs).
- * The resolved name is only known after `Eval()` finishes, so this is a
- * one-time write from the entrypoint — not per task. Best-effort.
+ * Write `<root>/<group>/experiment.json`, cross-linking the local trajectories
+ * to the resolved Braintrust experiment (name + hash, id, URLs). The resolved
+ * name is only known after `Eval()` finishes, so this is a one-time write from
+ * the entrypoint — not per task. Best-effort.
+ *
+ * The `group` is passed explicitly (same discipline as `reserveTrajectoryDir`)
+ * rather than re-derived from env at completion time, so the link always lands
+ * on the group the caller actually recorded into.
+ *
+ * No-ops when trajectory persistence is off (CI, core-tier runs), so those runs
+ * don't leave behind an otherwise-empty `.trajectories/<group>/` tree. The gate
+ * lives here — the single choke point — so a future caller can't forget it.
  */
 export async function writeExperimentLink(
   root: string,
+  group: string,
   link: Record<string, unknown>,
 ): Promise<void> {
-  const dir = resolveTrajectoryGroupDir(root);
+  if (!shouldPersistTrajectory(undefined)) return;
+  const dir = path.join(root, group);
   const payload = { ...trajectoryRunMetadata(), ...link };
   if (Object.keys(payload).length === 0) return;
   try {

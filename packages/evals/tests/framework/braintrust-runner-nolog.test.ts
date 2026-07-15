@@ -37,9 +37,13 @@ vi.mock("../../framework/braintrust.js", () => ({
 
 describe("runner.ts skips Braintrust logging when API key is absent", () => {
   const originalKey = process.env.BRAINTRUST_API_KEY;
+  const originalPersist = process.env.VERIFIER_PERSIST_TRAJECTORIES;
 
   beforeEach(() => {
     delete process.env.BRAINTRUST_API_KEY;
+    // Keep the runner's experiment-link write from leaking a `.trajectories/`
+    // tree into cwd when these tests run outside CI.
+    process.env.VERIFIER_PERSIST_TRAJECTORIES = "0";
     mockEval.mockClear();
     mockFlush.mockClear();
     mockHasKey = false;
@@ -51,6 +55,16 @@ describe("runner.ts skips Braintrust logging when API key is absent", () => {
     } else {
       delete process.env.BRAINTRUST_API_KEY;
     }
+    if (originalPersist !== undefined) {
+      process.env.VERIFIER_PERSIST_TRAJECTORIES = originalPersist;
+    } else {
+      delete process.env.VERIFIER_PERSIST_TRAJECTORIES;
+    }
+    // runEvals stamps these; don't leak them into other test files.
+    delete process.env.EVAL_TRAJECTORY_GROUP;
+    delete process.env.EVAL_EXPERIMENT_NAME;
+    delete process.env.EVAL_MODEL_OVERRIDE;
+    delete process.env.EVAL_PROVIDER;
   });
 
   it("passes noSendLogs: true to Eval when BRAINTRUST_API_KEY is unset", async () => {

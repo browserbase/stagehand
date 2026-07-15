@@ -17,6 +17,7 @@ import { exactMatch, errorMatch, passRate } from "../scoring.js";
 import { generateExperimentName } from "../utils.js";
 import {
   buildTrajectoryGroupSlug,
+  generateRunToken,
   resolveTrajectoryRoot,
   writeExperimentLink,
 } from "./trajectoryGroup.js";
@@ -349,14 +350,18 @@ export async function runEvals(
   });
 
   // Stamp the run-scoped trajectory group + run metadata so every task in this
-  // run lands under one folder (`<root>/<experiment>__<model>/...`) with a
-  // metadata.json, instead of scattered per-task timestamps. Local persistence
-  // only — does not affect Braintrust experiment naming.
-  process.env.EVAL_EXPERIMENT_NAME = experimentName;
-  process.env.EVAL_TRAJECTORY_GROUP = buildTrajectoryGroupSlug({
+  // run lands under one folder (`<root>/<experiment>__<model>__<runToken>/...`)
+  // with a metadata.json, instead of scattered per-task timestamps. The run token
+  // is generated ONCE here and reused for the completion-time experiment link, so
+  // a re-run of the same suite can't clobber the previous run's experiment.json.
+  // Local persistence only — does not affect Braintrust experiment naming.
+  const trajectoryGroup = buildTrajectoryGroupSlug({
     experimentName,
     model: options.modelOverride,
+    runToken: generateRunToken(),
   });
+  process.env.EVAL_EXPERIMENT_NAME = experimentName;
+  process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
   if (options.modelOverride)
     process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
   if (options.provider) process.env.EVAL_PROVIDER = options.provider;
@@ -497,8 +502,9 @@ export async function runEvals(
 
   // Cross-link local trajectories to the resolved Braintrust experiment. The
   // hashed name (e.g. `agent/onlineMind2Web-92918006`) is only known now, after
-  // Eval() resolves — so write it once at the group-dir root.
-  await writeExperimentLink(resolveTrajectoryRoot(), {
+  // Eval() resolves — so write it once at the group-dir root of the group this
+  // run recorded into.
+  await writeExperimentLink(resolveTrajectoryRoot(), trajectoryGroup, {
     braintrustExperiment: resolvedExperimentName,
     braintrustExperimentId: evalResult.summary?.experimentId ?? null,
     braintrustExperimentUrl: resolvedExperimentUrl ?? null,

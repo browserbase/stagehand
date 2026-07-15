@@ -23,7 +23,8 @@ export interface PersistAdapterTrajectoryOptions {
   evaluationResult?: EvaluationResult;
   /**
    * Output directory root. Final layout lives at
-   * `<outputRoot>/<group>/<task.id>/<runId>/` (group = EVAL_TRAJECTORY_GROUP or "default").
+   * `<outputRoot>/<group>/<task.id>/<runId>/` (group = EVAL_TRAJECTORY_GROUP,
+   * i.e. `<experiment>__<model>__<runToken>`, or "default").
    * Defaults to `<cwd>/.trajectories`.
    */
   outputRoot?: string;

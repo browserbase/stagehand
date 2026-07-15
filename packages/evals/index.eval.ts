@@ -24,6 +24,7 @@ import {
 import { generateExperimentName } from "./utils.js";
 import {
   buildTrajectoryGroupSlug,
+  generateRunToken,
   resolveTrajectoryRoot,
   writeExperimentLink,
 } from "./framework/trajectoryGroup.js";
@@ -347,13 +348,18 @@ const generateFilteredTestcases = (): Testcase[] => {
   });
 
   // Stamp the run-scoped trajectory group so every task in this run lands under
-  // one folder (`<root>/<experiment>__<model>/...`) instead of scattered
-  // per-task timestamps. Local persistence only — does not affect Braintrust.
-  process.env.EVAL_EXPERIMENT_NAME = experimentName;
-  process.env.EVAL_TRAJECTORY_GROUP = buildTrajectoryGroupSlug({
+  // one folder (`<root>/<experiment>__<model>__<runToken>/...`) instead of
+  // scattered per-task timestamps. The run token is generated ONCE here and
+  // reused at completion time, so re-running the same suite can't clobber the
+  // previous run's experiment.json. Local persistence only — does not affect
+  // Braintrust.
+  const trajectoryGroup = buildTrajectoryGroupSlug({
     experimentName,
     model: process.env.EVAL_MODEL_OVERRIDE,
+    runToken: generateRunToken(),
   });
+  process.env.EVAL_EXPERIMENT_NAME = experimentName;
+  process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
 
   // Determine braintrust project name to use (stagehand in CI, stagehand-dev otherwise)
   const braintrustProjectName =
@@ -561,10 +567,11 @@ const generateFilteredTestcases = (): Testcase[] => {
 
     // Cross-link local trajectories to the resolved Braintrust experiment.
     // The hashed name (e.g. `agent/onlineMind2Web-92918006`) is only known now,
-    // after Eval() resolves — so write it once at the group-dir root.
+    // after Eval() resolves — so write it once at the group-dir root of the group
+    // this run recorded into.
     const summary = evalResult.summary;
     if (summary) {
-      await writeExperimentLink(resolveTrajectoryRoot(), {
+      await writeExperimentLink(resolveTrajectoryRoot(), trajectoryGroup, {
         braintrustExperiment: summary.experimentName,
         braintrustExperimentId: summary.experimentId ?? null,
         braintrustExperimentUrl: summary.experimentUrl ?? null,
