@@ -638,6 +638,11 @@
                       "type": "string",
                       "min_length": 1
                     },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
                     "options": {
                       "type": "object",
                       "properties": {
@@ -693,11 +698,196 @@
                       "type": "string",
                       "min_length": 1
                     },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
                     "value": {
                       "type": "string"
                     }
                   },
                   "required": ["page_id", "selector", "value"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.hover"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.count"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.is_checked"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.input_value"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["page_id", "selector"],
                   "additional_properties": false
                 },
                 "traceparent": {
@@ -735,6 +925,101 @@
                     "selector": {
                       "type": "string",
                       "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.inner_text"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.inner_html"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": ["page_id", "selector"],
@@ -775,9 +1060,387 @@
                     "selector": {
                       "type": "string",
                       "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
                   "required": ["page_id", "selector"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.scroll_to"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "percent": {
+                      "any_of": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["page_id", "selector", "percent"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.centroid"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.highlight"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "duration_ms": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "border_color": {
+                          "type": "object",
+                          "properties": {
+                            "r": {
+                              "type": "number"
+                            },
+                            "g": {
+                              "type": "number"
+                            },
+                            "b": {
+                              "type": "number"
+                            },
+                            "a": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["r", "g", "b"],
+                          "additional_properties": false
+                        },
+                        "content_color": {
+                          "type": "object",
+                          "properties": {
+                            "r": {
+                              "type": "number"
+                            },
+                            "g": {
+                              "type": "number"
+                            },
+                            "b": {
+                              "type": "number"
+                            },
+                            "a": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["r", "g", "b"],
+                          "additional_properties": false
+                        }
+                      },
+                      "additional_properties": false
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.send_click_event"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "bubbles": {
+                          "type": "boolean"
+                        },
+                        "cancelable": {
+                          "type": "boolean"
+                        },
+                        "composed": {
+                          "type": "boolean"
+                        },
+                        "detail": {
+                          "type": "number"
+                        }
+                      },
+                      "additional_properties": false
+                    }
+                  },
+                  "required": ["page_id", "selector"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.type"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "delay": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "additional_properties": false
+                    }
+                  },
+                  "required": ["page_id", "selector", "text"],
+                  "additional_properties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "locator.select_option"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "min_length": 1
+                    },
+                    "nth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "values": {
+                      "any_of": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["page_id", "selector", "values"],
                   "additional_properties": false
                 },
                 "traceparent": {
@@ -5175,6 +5838,11 @@
                   "type": "string",
                   "min_length": 1
                 },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
                 "options": {
                   "type": "object",
                   "properties": {
@@ -5224,6 +5892,11 @@
                   "type": "string",
                   "min_length": 1
                 },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
                 "value": {
                   "type": "string"
                 }
@@ -5246,6 +5919,161 @@
           },
           "required": ["params", "result"]
         },
+        "locator.hover": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "hovered": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["hovered"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.count": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["count"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.is_checked": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "checked": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["checked"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.input_value": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": ["value"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
         "locator.is_visible": {
           "type": "object",
           "additionalProperties": false,
@@ -5260,6 +6088,11 @@
                 "selector": {
                   "type": "string",
                   "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 }
               },
               "required": ["page_id", "selector"],
@@ -5279,6 +6112,82 @@
           },
           "required": ["params", "result"]
         },
+        "locator.inner_text": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": ["text"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.inner_html": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "html": {
+                  "type": "string"
+                }
+              },
+              "required": ["html"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
         "locator.text_content": {
           "type": "object",
           "additionalProperties": false,
@@ -5293,6 +6202,11 @@
                 "selector": {
                   "type": "string",
                   "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 }
               },
               "required": ["page_id", "selector"],
@@ -5307,6 +6221,347 @@
                 }
               },
               "required": ["text_content"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.scroll_to": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "percent": {
+                  "any_of": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "required": ["page_id", "selector", "percent"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "scrolled": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["scrolled"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.centroid": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              },
+              "required": ["x", "y"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.highlight": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "duration_ms": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "border_color": {
+                      "type": "object",
+                      "properties": {
+                        "r": {
+                          "type": "number"
+                        },
+                        "g": {
+                          "type": "number"
+                        },
+                        "b": {
+                          "type": "number"
+                        },
+                        "a": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["r", "g", "b"],
+                      "additional_properties": false
+                    },
+                    "content_color": {
+                      "type": "object",
+                      "properties": {
+                        "r": {
+                          "type": "number"
+                        },
+                        "g": {
+                          "type": "number"
+                        },
+                        "b": {
+                          "type": "number"
+                        },
+                        "a": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["r", "g", "b"],
+                      "additional_properties": false
+                    }
+                  },
+                  "additional_properties": false
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "highlighted": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["highlighted"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.send_click_event": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "bubbles": {
+                      "type": "boolean"
+                    },
+                    "cancelable": {
+                      "type": "boolean"
+                    },
+                    "composed": {
+                      "type": "boolean"
+                    },
+                    "detail": {
+                      "type": "number"
+                    }
+                  },
+                  "additional_properties": false
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "clicked": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["clicked"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.type": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "text": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "delay": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "additional_properties": false
+                }
+              },
+              "required": ["page_id", "selector", "text"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "typed": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["typed"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "locator.select_option": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "min_length": 1
+                },
+                "nth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "values": {
+                  "any_of": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                }
+              },
+              "required": ["page_id", "selector", "values"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["values"],
               "additionalProperties": false
             }
           },
@@ -5332,8 +6587,20 @@
         "page.close",
         "locator.click",
         "locator.fill",
+        "locator.hover",
+        "locator.count",
+        "locator.is_checked",
+        "locator.input_value",
         "locator.is_visible",
-        "locator.text_content"
+        "locator.inner_text",
+        "locator.inner_html",
+        "locator.text_content",
+        "locator.scroll_to",
+        "locator.centroid",
+        "locator.highlight",
+        "locator.send_click_event",
+        "locator.type",
+        "locator.select_option"
       ]
     },
     "notifications": {

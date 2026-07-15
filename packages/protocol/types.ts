@@ -26,13 +26,37 @@ import type {
   GoogleServiceAccountCredentialsSchema,
   LocatorClickParamsSchema,
   LocatorClickResultSchema,
+  LocatorCentroidParamsSchema,
+  LocatorCentroidResultSchema,
+  LocatorCountParamsSchema,
+  LocatorCountResultSchema,
   LocatorCoordinatesSchema,
   LocatorDescriptorSchema,
   LocatorFillParamsSchema,
   LocatorFillResultSchema,
+  LocatorHighlightParamsSchema,
+  LocatorHighlightResultSchema,
+  LocatorHoverParamsSchema,
+  LocatorHoverResultSchema,
+  LocatorInnerHtmlParamsSchema,
+  LocatorInnerHtmlResultSchema,
+  LocatorInnerTextParamsSchema,
+  LocatorInnerTextResultSchema,
+  LocatorInputValueParamsSchema,
+  LocatorInputValueResultSchema,
+  LocatorIsCheckedParamsSchema,
+  LocatorIsCheckedResultSchema,
   LocatorIsVisibleResultSchema,
   LocatorSchema,
+  LocatorScrollToParamsSchema,
+  LocatorScrollToResultSchema,
+  LocatorSelectOptionParamsSchema,
+  LocatorSelectOptionResultSchema,
+  LocatorSendClickEventParamsSchema,
+  LocatorSendClickEventResultSchema,
   LocatorTextContentResultSchema,
+  LocatorTypeParamsSchema,
+  LocatorTypeResultSchema,
   MouseButtonSchema,
   ModelConfigObjectSchema,
   ModelConfigurationSchema,
@@ -50,6 +74,7 @@ import type {
   RuntimeConfigureParamsSchema,
   RuntimeConfigureResultSchema,
   RuntimeLoopbackStatusResultSchema,
+  RgbaColorSchema,
   StagehandActParamsSchema,
   StagehandCloseResultSchema,
   StagehandExtractParamsSchema,
@@ -195,6 +220,19 @@ export type PageGotoParams = z.infer<typeof PageGotoParamsSchema>;
 export type PageIdParams = z.infer<typeof PageIdParamsSchema>;
 export type LocatorClickParams = z.infer<typeof LocatorClickParamsSchema>;
 export type LocatorFillParams = z.infer<typeof LocatorFillParamsSchema>;
+export type LocatorHoverParams = z.infer<typeof LocatorHoverParamsSchema>;
+export type LocatorCountParams = z.infer<typeof LocatorCountParamsSchema>;
+export type LocatorIsCheckedParams = z.infer<typeof LocatorIsCheckedParamsSchema>;
+export type LocatorInputValueParams = z.infer<typeof LocatorInputValueParamsSchema>;
+export type LocatorInnerTextParams = z.infer<typeof LocatorInnerTextParamsSchema>;
+export type LocatorInnerHtmlParams = z.infer<typeof LocatorInnerHtmlParamsSchema>;
+export type LocatorScrollToParams = z.infer<typeof LocatorScrollToParamsSchema>;
+export type RgbaColor = z.infer<typeof RgbaColorSchema>;
+export type LocatorHighlightParams = z.infer<typeof LocatorHighlightParamsSchema>;
+export type LocatorSendClickEventParams = z.infer<typeof LocatorSendClickEventParamsSchema>;
+export type LocatorTypeParams = z.infer<typeof LocatorTypeParamsSchema>;
+export type LocatorSelectOptionParams = z.infer<typeof LocatorSelectOptionParamsSchema>;
+export type LocatorCentroidParams = z.infer<typeof LocatorCentroidParamsSchema>;
 export type StagehandPingResult = z.infer<typeof StagehandPingResultSchema>;
 export type RuntimeConfigureResult = z.infer<typeof RuntimeConfigureResultSchema>;
 export type RuntimeLoopbackStatusResult = z.infer<typeof RuntimeLoopbackStatusResultSchema>;
@@ -207,8 +245,20 @@ export type PageTitleResult = z.infer<typeof PageTitleResultSchema>;
 export type PageCloseResult = z.infer<typeof PageCloseResultSchema>;
 export type LocatorClickResult = z.infer<typeof LocatorClickResultSchema>;
 export type LocatorFillResult = z.infer<typeof LocatorFillResultSchema>;
+export type LocatorHoverResult = z.infer<typeof LocatorHoverResultSchema>;
+export type LocatorCountResult = z.infer<typeof LocatorCountResultSchema>;
+export type LocatorIsCheckedResult = z.infer<typeof LocatorIsCheckedResultSchema>;
+export type LocatorInputValueResult = z.infer<typeof LocatorInputValueResultSchema>;
 export type LocatorIsVisibleResult = z.infer<typeof LocatorIsVisibleResultSchema>;
+export type LocatorInnerTextResult = z.infer<typeof LocatorInnerTextResultSchema>;
+export type LocatorInnerHtmlResult = z.infer<typeof LocatorInnerHtmlResultSchema>;
 export type LocatorTextContentResult = z.infer<typeof LocatorTextContentResultSchema>;
+export type LocatorScrollToResult = z.infer<typeof LocatorScrollToResultSchema>;
+export type LocatorCentroidResult = z.infer<typeof LocatorCentroidResultSchema>;
+export type LocatorHighlightResult = z.infer<typeof LocatorHighlightResultSchema>;
+export type LocatorSendClickEventResult = z.infer<typeof LocatorSendClickEventResultSchema>;
+export type LocatorTypeResult = z.infer<typeof LocatorTypeResultSchema>;
+export type LocatorSelectOptionResult = z.infer<typeof LocatorSelectOptionResultSchema>;
 export type StagehandLogData = z.infer<typeof StagehandLogDataSchema>;
 export type StagehandLog = z.infer<typeof StagehandLogSchema>;
 export type StagehandLogLevel = z.infer<typeof StagehandLogLevelSchema>;

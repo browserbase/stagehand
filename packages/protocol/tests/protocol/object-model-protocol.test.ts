@@ -54,11 +54,116 @@ describe("Stagehand object-model protocol", () => {
       StagehandMethods["locator.text_content"].paramsSchema.parse({
         pageId: "target-1",
         selector: "h1",
+        nth: 2,
       }),
     ).toStrictEqual({
       pageId: "target-1",
       selector: "h1",
+      nth: 2,
     });
+
+    expect(() =>
+      StagehandMethods["locator.text_content"].paramsSchema.parse({
+        pageId: "target-1",
+        selector: "h1",
+        nth: -1,
+      }),
+    ).toThrow();
+  });
+
+  it("defines locator parity method parameter and result schemas", () => {
+    expect(StagehandMethods["locator.hover"].paramsSchema.parse(locatorDescriptor())).toStrictEqual(
+      locatorDescriptor(),
+    );
+    expect(StagehandMethods["locator.hover"].resultSchema.parse({ hovered: true })).toStrictEqual({
+      hovered: true,
+    });
+
+    expect(StagehandMethods["locator.count"].resultSchema.parse({ count: 2 })).toStrictEqual({
+      count: 2,
+    });
+    expect(() => StagehandMethods["locator.count"].resultSchema.parse({ count: -1 })).toThrow();
+
+    expect(
+      StagehandMethods["locator.is_checked"].resultSchema.parse({ checked: true }),
+    ).toStrictEqual({ checked: true });
+    expect(
+      StagehandMethods["locator.input_value"].resultSchema.parse({ value: "user@example.com" }),
+    ).toStrictEqual({ value: "user@example.com" });
+    expect(
+      StagehandMethods["locator.inner_text"].resultSchema.parse({ text: "Submit" }),
+    ).toStrictEqual({
+      text: "Submit",
+    });
+    expect(
+      StagehandMethods["locator.inner_html"].resultSchema.parse({ html: "<b>Submit</b>" }),
+    ).toStrictEqual({
+      html: "<b>Submit</b>",
+    });
+
+    expect(
+      StagehandMethods["locator.scroll_to"].paramsSchema.parse({
+        ...locatorDescriptor(),
+        percent: "bottom",
+      }),
+    ).toStrictEqual({
+      ...locatorDescriptor(),
+      percent: "bottom",
+    });
+    expect(
+      StagehandMethods["locator.centroid"].resultSchema.parse({ x: 12.5, y: 44 }),
+    ).toStrictEqual({ x: 12.5, y: 44 });
+
+    expect(
+      StagehandMethods["locator.highlight"].paramsSchema.parse({
+        ...locatorDescriptor(),
+        options: {
+          durationMs: 250,
+          borderColor: { r: 255, g: 0, b: 0, a: 0.9 },
+        },
+      }),
+    ).toStrictEqual({
+      ...locatorDescriptor(),
+      options: {
+        durationMs: 250,
+        borderColor: { r: 255, g: 0, b: 0, a: 0.9 },
+      },
+    });
+
+    expect(
+      StagehandMethods["locator.send_click_event"].paramsSchema.parse({
+        ...locatorDescriptor(),
+        options: { bubbles: true, cancelable: true, composed: true, detail: 2 },
+      }),
+    ).toStrictEqual({
+      ...locatorDescriptor(),
+      options: { bubbles: true, cancelable: true, composed: true, detail: 2 },
+    });
+
+    expect(
+      StagehandMethods["locator.type"].paramsSchema.parse({
+        ...locatorDescriptor(),
+        text: "hello",
+        options: { delay: 10 },
+      }),
+    ).toStrictEqual({
+      ...locatorDescriptor(),
+      text: "hello",
+      options: { delay: 10 },
+    });
+
+    expect(
+      StagehandMethods["locator.select_option"].paramsSchema.parse({
+        ...locatorDescriptor(),
+        values: ["a", "b"],
+      }),
+    ).toStrictEqual({
+      ...locatorDescriptor(),
+      values: ["a", "b"],
+    });
+    expect(
+      StagehandMethods["locator.select_option"].resultSchema.parse({ values: ["a"] }),
+    ).toStrictEqual({ values: ["a"] });
   });
 
   it("exports a JSON-RPC request schema for generated clients", () => {
@@ -155,3 +260,11 @@ describe("Stagehand object-model protocol", () => {
     });
   });
 });
+
+function locatorDescriptor() {
+  return {
+    pageId: "target-1",
+    selector: "button",
+    nth: 1,
+  };
+}

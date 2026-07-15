@@ -549,6 +549,7 @@ export const LocatorDescriptorSchema = z
   .object({
     pageId: z.string(),
     selector: z.string().min(1),
+    nth: z.number().int().nonnegative().optional(),
   })
   .strict();
 
@@ -652,6 +653,68 @@ export const LocatorFillParamsSchema = LocatorDescriptorSchema.extend({
   value: z.string(),
 }).strict();
 
+export const LocatorHoverParamsSchema = LocatorDescriptorSchema;
+
+export const LocatorCountParamsSchema = LocatorDescriptorSchema;
+
+export const LocatorIsCheckedParamsSchema = LocatorDescriptorSchema;
+
+export const LocatorInputValueParamsSchema = LocatorDescriptorSchema;
+
+export const LocatorInnerTextParamsSchema = LocatorDescriptorSchema;
+
+export const LocatorInnerHtmlParamsSchema = LocatorDescriptorSchema;
+
+export const LocatorScrollToParamsSchema = LocatorDescriptorSchema.extend({
+  percent: z.union([z.number(), z.string()]),
+}).strict();
+
+export const RgbaColorSchema = z
+  .object({
+    r: z.number(),
+    g: z.number(),
+    b: z.number(),
+    a: z.number().optional(),
+  })
+  .strict();
+
+export const LocatorHighlightParamsSchema = LocatorDescriptorSchema.extend({
+  options: z
+    .object({
+      durationMs: z.number().int().nonnegative().optional(),
+      borderColor: RgbaColorSchema.optional(),
+      contentColor: RgbaColorSchema.optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
+
+export const LocatorSendClickEventParamsSchema = LocatorDescriptorSchema.extend({
+  options: z
+    .object({
+      bubbles: z.boolean().optional(),
+      cancelable: z.boolean().optional(),
+      composed: z.boolean().optional(),
+      detail: z.number().optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
+
+export const LocatorTypeParamsSchema = LocatorDescriptorSchema.extend({
+  text: z.string(),
+  options: z
+    .object({
+      delay: z.number().nonnegative().optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
+
+export const LocatorSelectOptionParamsSchema = LocatorDescriptorSchema.extend({
+  values: z.union([z.string(), z.array(z.string())]),
+}).strict();
+
 export const StagehandPingResultSchema = z
   .object({
     ok: z.literal(true),
@@ -727,15 +790,90 @@ export const LocatorFillResultSchema = z
   })
   .strict();
 
+export const LocatorHoverResultSchema = z
+  .object({
+    hovered: z.literal(true),
+  })
+  .strict();
+
+export const LocatorCountResultSchema = z
+  .object({
+    count: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const LocatorIsCheckedResultSchema = z
+  .object({
+    checked: z.boolean(),
+  })
+  .strict();
+
+export const LocatorInputValueResultSchema = z
+  .object({
+    value: z.string(),
+  })
+  .strict();
+
 export const LocatorIsVisibleResultSchema = z
   .object({
     visible: z.boolean(),
   })
   .strict();
 
+export const LocatorInnerTextResultSchema = z
+  .object({
+    text: z.string(),
+  })
+  .strict();
+
+export const LocatorInnerHtmlResultSchema = z
+  .object({
+    html: z.string(),
+  })
+  .strict();
+
 export const LocatorTextContentResultSchema = z
   .object({
     textContent: z.string(),
+  })
+  .strict();
+
+export const LocatorScrollToResultSchema = z
+  .object({
+    scrolled: z.literal(true),
+  })
+  .strict();
+
+export const LocatorCentroidParamsSchema = LocatorDescriptorSchema;
+
+export const LocatorCentroidResultSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+  })
+  .strict();
+
+export const LocatorHighlightResultSchema = z
+  .object({
+    highlighted: z.literal(true),
+  })
+  .strict();
+
+export const LocatorSendClickEventResultSchema = z
+  .object({
+    clicked: z.literal(true),
+  })
+  .strict();
+
+export const LocatorTypeResultSchema = z
+  .object({
+    typed: z.literal(true),
+  })
+  .strict();
+
+export const LocatorSelectOptionResultSchema = z
+  .object({
+    values: z.array(z.string()),
   })
   .strict();
 
