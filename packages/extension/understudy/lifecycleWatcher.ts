@@ -24,27 +24,27 @@ import {
  * can await `load`, `domcontentloaded`, or `networkidle` with a single promise.
  */
 export class LifecycleWatcher {
-  private readonly page: Page;
-  private readonly mainSession: CDPSessionLike;
-  private readonly networkManager: NetworkManager;
-  private readonly waitUntil: LoadState;
-  private readonly timeoutMs: number;
-  private readonly startTime: number;
-  private readonly navigationCommandId: number;
-  private currentLoaderId: string | undefined;
-  private idleStartTime: number;
+  readonly page: Page;
+  readonly mainSession: CDPSessionLike;
+  readonly networkManager: NetworkManager;
+  readonly waitUntil: LoadState;
+  readonly timeoutMs: number;
+  readonly startTime: number;
+  readonly navigationCommandId: number;
+  currentLoaderId: string | undefined;
+  idleStartTime: number;
 
-  private cleanupCallbacks: Array<() => void> = [];
-  private idleHandle: WaitForIdleHandle | null = null;
+  cleanupCallbacks: Array<() => void> = [];
+  idleHandle: WaitForIdleHandle | null = null;
 
-  private abortReject: ((error: Error) => void) | null = null;
-  private abortPromise: Promise<never>;
-  private abortError: Error | null = null;
-  private disposed = false;
+  abortReject: ((error: Error) => void) | null = null;
+  abortPromise: Promise<never>;
+  abortError: Error | null = null;
+  disposed = false;
 
-  private expectedLoaderId: string | undefined;
-  private initialLoaderId: string | undefined;
-  private pendingFollowupNavigation = false;
+  expectedLoaderId: string | undefined;
+  initialLoaderId: string | undefined;
+  pendingFollowupNavigation = false;
 
   /**
    * Create a watcher; callers should subsequently invoke {@link wait}.
@@ -141,7 +141,7 @@ export class LifecycleWatcher {
   }
 
   /** Subscribe to main-frame events to detect abort conditions. */
-  private installSessionListeners(): void {
+  installSessionListeners(): void {
     const onFrameNavigated = (evt: Protocol.Page.FrameNavigatedEvent) => {
       if (!evt?.frame?.id) return;
 
@@ -194,7 +194,7 @@ export class LifecycleWatcher {
   }
 
   /** Compute remaining time until the shared deadline elapses. */
-  private timeRemaining(deadline: number): number {
+  timeRemaining(deadline: number): number {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
       throw new TimeoutError("Lifecycle wait", this.timeoutMs);
@@ -203,7 +203,7 @@ export class LifecycleWatcher {
   }
 
   /** Await an operation but abort early if navigation replacement fires. */
-  private async awaitWithAbort<T>(operation: Promise<T>): Promise<T> {
+  async awaitWithAbort<T>(operation: Promise<T>): Promise<T> {
     try {
       return await Promise.race([operation, this.abortPromise]);
     } catch (error) {
@@ -213,7 +213,7 @@ export class LifecycleWatcher {
   }
 
   /** Mark the watcher as aborted and reject any pending waiters. */
-  private triggerAbort(error: Error): void {
+  triggerAbort(error: Error): void {
     if (this.abortError) return;
     this.abortError = error;
     if (this.abortReject) {
@@ -221,7 +221,7 @@ export class LifecycleWatcher {
       this.abortReject = null;
     }
   }
-  private waitForNetworkIdle(deadline: number): Promise<void> {
+  waitForNetworkIdle(deadline: number): Promise<void> {
     this.pendingFollowupNavigation = false;
     const remaining = this.timeRemaining(deadline);
     const idleWindow = Math.min(DEFAULT_IDLE_WAIT, remaining);
@@ -239,7 +239,7 @@ export class LifecycleWatcher {
     });
   }
 
-  private shouldRestartAfterFollowup(error: unknown): boolean {
+  shouldRestartAfterFollowup(error: unknown): boolean {
     if (!this.pendingFollowupNavigation) return false;
     if (!(error instanceof Error)) return false;
     if (error.message !== "waitForIdle disposed") return false;
@@ -247,7 +247,7 @@ export class LifecycleWatcher {
     return true;
   }
 
-  private adoptNewMainLoader(loaderId: string): void {
+  adoptNewMainLoader(loaderId: string): void {
     this.expectedLoaderId = loaderId;
     this.currentLoaderId = loaderId;
     this.idleStartTime = Date.now();
@@ -263,7 +263,7 @@ export class LifecycleWatcher {
     }
   }
 
-  private buildIdleFilter(): (info: NetworkRequestInfo) => boolean {
+  buildIdleFilter(): (info: NetworkRequestInfo) => boolean {
     const loaderId = this.currentLoaderId;
     const mainFrameId = this.page.mainFrameId();
 

@@ -37,7 +37,7 @@ export class Frame implements FrameManager {
     public session: CDPSessionLike,
     public frameId: string,
     public pageId: string,
-    private readonly remoteBrowser: boolean,
+    readonly remoteBrowser: boolean,
     public readonly logger: StagehandLogger,
   ) {
     this.sessionId = this.session.id ?? null;
@@ -298,7 +298,7 @@ export class Frame implements FrameManager {
   }
 
   /** Resolve the main-world execution context id for this frame. */
-  private async getMainWorldExecutionContextId(): Promise<number> {
+  async getMainWorldExecutionContextId(): Promise<number> {
     return executionContexts.waitForMainWorld(this.session, this.frameId, 1000);
   }
 }

@@ -78,16 +78,20 @@ const RawMessageSchema = z.union([CdpResponseSchema, CdpEventSchema]);
 type RawMessage = z.infer<typeof RawMessageSchema>;
 
 export class CdpConnection implements CDPSessionLike {
-  private messageQueue: Promise<void> = Promise.resolve();
-  private nextId = 1;
-  private inflight = new Map<number, Inflight>(); // Outstanding request records; `_sendViaSession()` inserts and `onMessage()` removes/resolves them.
-  private eventHandlers = new Map<string, Set<EventHandler>>();
-  private sessions = new Map<string, CdpSession>();
+  messageQueue: Promise<void> = Promise.resolve();
+  nextId = 1;
+  inflight = new Map<number, Inflight>(); // Outstanding request records; `_sendViaSession()` inserts and `onMessage()` removes/resolves them.
+  eventHandlers = new Map<string, Set<EventHandler>>();
+  sessions = new Map<string, CdpSession>();
   /** Maps sessionId -> targetId (1:1 mapping) */
-  private sessionToTarget = new Map<string, string>();
-  private sessionDispatchWaiters = new Set<SessionDispatchWaiter>();
+  sessionToTarget = new Map<string, string>();
+  sessionDispatchWaiters = new Set<SessionDispatchWaiter>();
   public readonly id: string | null = null; // root
-  private transportCloseHandlers = new Set<(why: string) => void>();
+  transportCloseHandlers = new Set<(why: string) => void>();
+
+  get connected(): boolean {
+    return this.transport.connected;
+  }
 
   public onTransportClosed(handler: (why: string) => void): void {
     this.transportCloseHandlers.add(handler);
@@ -96,7 +100,7 @@ export class CdpConnection implements CDPSessionLike {
     this.transportCloseHandlers.delete(handler);
   }
 
-  private emitTransportClosed(why: string) {
+  emitTransportClosed(why: string) {
     for (const h of this.transportCloseHandlers) {
       try {
         h(why);
@@ -106,9 +110,9 @@ export class CdpConnection implements CDPSessionLike {
     }
   }
 
-  private constructor(
-    private readonly transport: CdpWebSocketTransport,
-    private readonly logger: Pick<StagehandLogger, "debug" | "error">,
+  constructor(
+    readonly transport: CdpWebSocketTransport,
+    readonly logger: Pick<StagehandLogger, "debug" | "error">,
   ) {
     this.transport.onClose((event) => {
       const why = `socket-close code=${String(event.code)} reason=${event.reason}`;
@@ -194,7 +198,7 @@ export class CdpConnection implements CDPSessionLike {
     await this.transport.close();
   }
 
-  private rejectAllInflight(why: string): void {
+  rejectAllInflight(why: string): void {
     for (const [id, entry] of this.inflight.entries()) {
       entry.reject(new CdpConnectionClosedError(why));
       this.inflight.delete(id);
@@ -204,7 +208,7 @@ export class CdpConnection implements CDPSessionLike {
     }
   }
 
-  private clearSessionEventHandlers(sessionId: string): void {
+  clearSessionEventHandlers(sessionId: string): void {
     const prefix = `${sessionId}:`;
     for (const key of Array.from(this.eventHandlers.keys())) {
       if (key.startsWith(prefix)) {
@@ -213,7 +217,7 @@ export class CdpConnection implements CDPSessionLike {
     }
   }
 
-  private rejectSessionPendingWork(sessionId: string, targetId: string | null): void {
+  rejectSessionPendingWork(sessionId: string, targetId: string | null): void {
     for (const [id, entry] of this.inflight.entries()) {
       if (entry.sessionId === sessionId) {
         entry.reject(
@@ -284,12 +288,12 @@ export class CdpConnection implements CDPSessionLike {
     return res.targetInfos;
   }
 
-  private targetIdForSession(sessionId?: string | null): string | null {
+  targetIdForSession(sessionId?: string | null): string | null {
     if (!sessionId) return null;
     return this.sessionToTarget.get(sessionId) ?? sessionId;
   }
 
-  private onMessage(json: string): void {
+  onMessage(json: string): void {
     const msg: RawMessage = RawMessageSchema.parse(JSON.parse(json));
 
     if ("id" in msg) {
@@ -432,7 +436,7 @@ export class CdpConnection implements CDPSessionLike {
 
 export class CdpSession implements CDPSessionLike {
   constructor(
-    private readonly root: CdpConnection,
+    readonly root: CdpConnection,
     public readonly id: string,
   ) {}
 

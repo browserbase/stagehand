@@ -10,10 +10,10 @@ import { ContentFrameNotFoundError, StagehandInvalidArgumentError } from "../err
  * creating locators scoped to that frame. Supports chaining.
  */
 export class FrameLocator {
-  private readonly parent?: FrameLocator;
-  private readonly selector: string;
-  private readonly page: Page;
-  private readonly root?: Frame;
+  readonly parent?: FrameLocator;
+  readonly selector: string;
+  readonly page: Page;
+  readonly root?: Frame;
 
   constructor(page: Page, selector: string, parent?: FrameLocator, root?: Frame) {
     this.page = page;
@@ -82,12 +82,12 @@ export class FrameLocator {
 /** A small delegating wrapper that resolves the frame lazily per call. */
 class LocatorDelegate {
   constructor(
-    private readonly fl: FrameLocator,
-    private readonly sel: string,
-    private readonly nthIndex: number = -1,
+    readonly fl: FrameLocator,
+    readonly sel: string,
+    readonly nthIndex: number = -1,
   ) {}
 
-  private async real(): Promise<Locator> {
+  async real(): Promise<Locator> {
     const frame = await this.fl.resolveFrame();
     const locator = frame.locator(this.sel);
     if (this.nthIndex < 0) return locator;

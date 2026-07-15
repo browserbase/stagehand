@@ -23,7 +23,7 @@ import {
  * Aggregates network information for all CDP sessions owned by a Page.
  */
 export class NetworkManager {
-  private readonly sessions = new Map<
+  readonly sessions = new Map<
     string,
     {
       session: CDPSessionLike;
@@ -31,11 +31,11 @@ export class NetworkManager {
     }
   >();
 
-  private readonly observers = new Set<NetworkObserver>();
+  readonly observers = new Set<NetworkObserver>();
 
-  private readonly requests = new Map<string, NetworkRequestInfo>();
+  readonly requests = new Map<string, NetworkRequestInfo>();
 
-  private readonly documentRequestsByFrame = new Map<string, string>();
+  readonly documentRequestsByFrame = new Map<string, string>();
 
   /**
    * Begin tracking network traffic for a CDP session (top-level or OOPIF).
@@ -309,33 +309,33 @@ export class NetworkManager {
   }
 
   /** Fan-out helper when a tracked request starts. */
-  private emitStart(info: NetworkRequestInfo): void {
+  emitStart(info: NetworkRequestInfo): void {
     for (const obs of this.observers) {
       obs.onRequestStarted(info);
     }
   }
 
   /** Fan-out helper when a tracked request completes successfully. */
-  private emitFinish(info: NetworkRequestInfo): void {
+  emitFinish(info: NetworkRequestInfo): void {
     for (const obs of this.observers) {
       obs.onRequestFinished(info);
     }
   }
 
   /** Fan-out helper when a tracked request fails mid-flight. */
-  private emitFailure(info: NetworkRequestInfo): void {
+  emitFailure(info: NetworkRequestInfo): void {
     for (const obs of this.observers) {
       obs.onRequestFailed(info);
     }
   }
 
   /** Compute a stable key for a session (falls back to synthetic root id). */
-  private sessionKey(session: CDPSessionLike): string {
+  sessionKey(session: CDPSessionLike): string {
     return session.id ?? "__main__";
   }
 
   /** Compose the unique key for tracking a request under a session. */
-  private requestKey(sessionId: string, requestId: string): string {
+  requestKey(sessionId: string, requestId: string): string {
     return `${sessionId}:${requestId}`;
   }
 }

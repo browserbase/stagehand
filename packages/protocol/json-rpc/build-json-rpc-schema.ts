@@ -3,8 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod/v4";
 import {
-  StagehandMethods,
-  StagehandNotificationsSchema,
+  StagehandNotifications,
+  StagehandRPC,
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../schema-registry.ts";
@@ -21,16 +21,18 @@ const transportRequestSchema = requireParams(
 const transportNotificationSchema = requireParams(
   renameJsonSchemaProperties(z.toJSONSchema(StagehandRpcNotificationSchema)),
 );
+const methods = Object.values(StagehandRPC);
+const notifications = Object.values(StagehandNotifications);
 
 const methodSchemas = Object.fromEntries(
-  Object.entries(StagehandMethods).map(([methodName, definition]) => [
-    methodName,
+  methods.map((method) => [
+    method.name,
     {
       type: "object",
       additionalProperties: false,
       properties: {
-        params: renameJsonSchemaProperties(z.toJSONSchema(definition.paramsSchema)),
-        result: renameJsonSchemaProperties(z.toJSONSchema(definition.resultSchema)),
+        params: renameJsonSchemaProperties(z.toJSONSchema(method.params)),
+        result: renameJsonSchemaProperties(z.toJSONSchema(method.result)),
       },
       required: ["params", "result"],
     },
@@ -38,13 +40,13 @@ const methodSchemas = Object.fromEntries(
 );
 
 const notificationSchemas = Object.fromEntries(
-  Object.entries(StagehandNotificationsSchema.shape).map(([methodName, paramsSchema]) => [
-    methodName,
+  notifications.map((notification) => [
+    notification.name,
     {
       type: "object",
       additionalProperties: false,
       properties: {
-        params: renameJsonSchemaProperties(z.toJSONSchema(paramsSchema)),
+        params: renameJsonSchemaProperties(z.toJSONSchema(notification.params)),
       },
       required: ["params"],
     },

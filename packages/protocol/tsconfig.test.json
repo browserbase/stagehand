@@ -10,19 +10,18 @@
     "tests/**/*.ts",
     "../server/llm/LLMClient.ts",
     "../server/llm/**/*.test-d.ts",
-    "../server/app.ts",
     "../server/controllers/**/*.ts",
-    "../server/rpc/**/*.ts",
+    "../server/clients/**/*.ts",
+    "../server/rpcRouter.ts",
+    "../server/service-worker-lifecycle/**/*.ts",
+    "../server/service-worker.ts",
+    "../server/tests/**/*.ts",
     "../server/services/**/*.ts",
     "../server/transports/**/*.ts",
     "../server/types/**/*.ts",
     "../server/understudy/**/*.ts",
     "../server/version.ts",
-    "../extension/build.ts",
-    "../extension/src/**/*.ts",
-    "../extension/tests/**/*.ts",
     "../sdk-ts/src/**/*.ts",
-    "../sdk-ts/tests/**/*.ts",
-    "../modcdp/**/*.ts"
+    "../sdk-ts/tests/**/*.ts"
   ]
 }

@@ -1,62 +1,51 @@
 import type { PageGotoParams, PageRef } from "../../protocol/types.js";
+import { StagehandRPC } from "../../protocol/schema-registry.js";
 import { Locator } from "./locator.js";
-import {
-  buildStagehandProtocolRequest,
-  parseStagehandProtocolResponse,
-  type StagehandProtocolClient,
-} from "./protocolClient.js";
+import type { RPCClient } from "./rpcClient.js";
 
 export class Page {
-  #ref: PageRef;
+  currentRef: PageRef;
 
   constructor(
-    private readonly client: StagehandProtocolClient,
+    readonly client: RPCClient,
     ref: PageRef,
   ) {
-    this.#ref = ref;
+    this.currentRef = ref;
   }
 
   get pageId(): string {
-    return this.#ref.pageId;
+    return this.currentRef.pageId;
   }
 
   get ref(): PageRef {
-    return this.#ref;
+    return this.currentRef;
   }
 
   async goto(url: string, options?: PageGotoParams["options"]): Promise<this> {
-    const request = buildStagehandProtocolRequest("page.goto", {
+    this.currentRef = await this.client.send(StagehandRPC.pageGoto, {
       pageId: this.pageId,
       url,
       ...(options ? { options } : {}),
     });
-    const response = await this.client.send(request);
-    this.#ref = parseStagehandProtocolResponse(request.method, response);
     return this;
   }
 
   async url(): Promise<string> {
-    const request = buildStagehandProtocolRequest("page.url", {
+    const result = await this.client.send(StagehandRPC.pageUrl, {
       pageId: this.pageId,
     });
-    const response = await this.client.send(request);
-    const result = parseStagehandProtocolResponse(request.method, response);
     return result.url;
   }
 
   async title(): Promise<string> {
-    const request = buildStagehandProtocolRequest("page.title", {
+    const result = await this.client.send(StagehandRPC.pageTitle, {
       pageId: this.pageId,
     });
-    const response = await this.client.send(request);
-    const result = parseStagehandProtocolResponse(request.method, response);
     return result.title;
   }
 
   async close(): Promise<void> {
-    const request = buildStagehandProtocolRequest("page.close", { pageId: this.pageId });
-    const response = await this.client.send(request);
-    parseStagehandProtocolResponse(request.method, response);
+    await this.client.send(StagehandRPC.pageClose, { pageId: this.pageId });
   }
 
   locator(selector: string): Locator {

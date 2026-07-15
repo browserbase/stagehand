@@ -5,14 +5,11 @@ import type {
   StagehandInitParams,
   StagehandObserveParams,
 } from "../../protocol/types.js";
-import type { StagehandHandlerContext } from "../rpc/router.js";
+import type { HandlerContext } from "../rpcRouter.js";
 import { StagehandRuntimeError, type StagehandRuntime } from "../runtime.js";
 
 export function createStagehandController(runtime: StagehandRuntime) {
-  async function init(
-    _params: StagehandInitParams,
-    { logger }: StagehandHandlerContext,
-  ): Promise<never> {
+  async function init(_params: StagehandInitParams, { logger }: HandlerContext): Promise<never> {
     logger.info("[stagehand] stagehand.init", {});
     throw new StagehandRuntimeError(
       "Method not implemented by the smoke runtime",
@@ -21,16 +18,13 @@ export function createStagehandController(runtime: StagehandRuntime) {
     );
   }
 
-  async function close(_params: EmptyParams, { logger }: StagehandHandlerContext) {
+  async function close(_params: EmptyParams, { logger }: HandlerContext) {
     logger.info("[stagehand] stagehand.close", {});
     await runtime.close();
     return { closed: true as const };
   }
 
-  async function act(
-    _params: StagehandActParams,
-    { logger }: StagehandHandlerContext,
-  ): Promise<never> {
+  async function act(_params: StagehandActParams, { logger }: HandlerContext): Promise<never> {
     logger.info("[stagehand] stagehand.act", {});
     throw new StagehandRuntimeError(
       "Method not implemented by the smoke runtime",
@@ -41,7 +35,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
 
   async function observe(
     _params: StagehandObserveParams,
-    { logger }: StagehandHandlerContext,
+    { logger }: HandlerContext,
   ): Promise<never> {
     logger.info("[stagehand] stagehand.observe", {});
     throw new StagehandRuntimeError(
@@ -53,7 +47,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
 
   async function extract(
     _params: StagehandExtractParams,
-    { logger }: StagehandHandlerContext,
+    { logger }: HandlerContext,
   ): Promise<never> {
     logger.info("[stagehand] stagehand.extract", {});
     throw new StagehandRuntimeError(
@@ -63,10 +57,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
     );
   }
 
-  async function metrics(
-    _params: EmptyParams,
-    { logger }: StagehandHandlerContext,
-  ): Promise<never> {
+  async function metrics(_params: EmptyParams, { logger }: HandlerContext): Promise<never> {
     logger.info("[stagehand] stagehand.metrics", {});
     throw new StagehandRuntimeError(
       "Method not implemented by the smoke runtime",

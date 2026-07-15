@@ -1,5 +1,10 @@
-import { createRpcSchemas } from "./json-rpc/schemas.ts";
 import { z } from "zod/v4";
+import {
+  JSONRPCNotificationSchema,
+  JSONRPCRequestSchema,
+  type RPCMethod,
+  type RPCNotification,
+} from "./json-rpc/schemas.ts";
 import {
   ActResultSchema,
   BrowserGetVersionResultSchema,
@@ -59,148 +64,209 @@ import {
   StagehandPingResultSchema,
 } from "./schemas.ts";
 
-export const STAGEHAND_NOTIFICATION_BINDING_NAME = "__stagehand_emit_notification";
+export const STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost";
+export const StagehandSendToHostBindingSchema = z.literal(STAGEHAND_SEND_TO_HOST_BINDING);
 
-export const StagehandMethods = {
-  ping: {
-    paramsSchema: EmptyParamsSchema,
-    resultSchema: StagehandPingResultSchema,
+export const StagehandRPC = {
+  ping: { name: "ping", params: EmptyParamsSchema, result: StagehandPingResultSchema },
+  runtimeConfigure: {
+    name: "runtime.configure",
+    params: RuntimeConfigureParamsSchema,
+    result: RuntimeConfigureResultSchema,
   },
-  "runtime.configure": {
-    paramsSchema: RuntimeConfigureParamsSchema,
-    resultSchema: RuntimeConfigureResultSchema,
+  runtimeLoopbackStatus: {
+    name: "runtime.loopback_status",
+    params: EmptyParamsSchema,
+    result: RuntimeLoopbackStatusResultSchema,
   },
-  "runtime.loopback_status": {
-    paramsSchema: EmptyParamsSchema,
-    resultSchema: RuntimeLoopbackStatusResultSchema,
+  browserGetVersion: {
+    name: "browser.get_version",
+    params: EmptyParamsSchema,
+    result: BrowserGetVersionResultSchema,
   },
-  "browser.get_version": {
-    paramsSchema: EmptyParamsSchema,
-    resultSchema: BrowserGetVersionResultSchema,
+  stagehandInit: {
+    name: "stagehand.init",
+    params: StagehandInitParamsSchema,
+    result: StagehandInitResultSchema,
   },
-  "stagehand.init": {
-    paramsSchema: StagehandInitParamsSchema,
-    resultSchema: StagehandInitResultSchema,
+  stagehandClose: {
+    name: "stagehand.close",
+    params: EmptyParamsSchema,
+    result: StagehandCloseResultSchema,
   },
-  "stagehand.close": {
-    paramsSchema: EmptyParamsSchema,
-    resultSchema: StagehandCloseResultSchema,
+  stagehandAct: {
+    name: "stagehand.act",
+    params: StagehandActParamsSchema,
+    result: ActResultSchema,
   },
-  "stagehand.act": {
-    paramsSchema: StagehandActParamsSchema,
-    resultSchema: ActResultSchema,
+  stagehandObserve: {
+    name: "stagehand.observe",
+    params: StagehandObserveParamsSchema,
+    result: ObserveResultSchema,
   },
-  "stagehand.observe": {
-    paramsSchema: StagehandObserveParamsSchema,
-    resultSchema: ObserveResultSchema,
-  },
-  "stagehand.extract": {
-    paramsSchema: StagehandExtractParamsSchema,
-    resultSchema: ExtractResultSchema,
+  stagehandExtract: {
+    name: "stagehand.extract",
+    params: StagehandExtractParamsSchema,
+    result: ExtractResultSchema,
     resultWire: {
       decode: { opaqueKeys: ["result"] },
       encode: { opaqueKeys: ["result"] },
     },
   },
-  "stagehand.metrics": {
-    paramsSchema: EmptyParamsSchema,
-    resultSchema: StagehandMetricsSchema,
+  stagehandMetrics: {
+    name: "stagehand.metrics",
+    params: EmptyParamsSchema,
+    result: StagehandMetricsSchema,
   },
-  "context.pages": {
-    paramsSchema: EmptyParamsSchema,
-    resultSchema: ContextPagesResultSchema,
+  contextPages: {
+    name: "context.pages",
+    params: EmptyParamsSchema,
+    result: ContextPagesResultSchema,
   },
-  "context.new_page": {
-    paramsSchema: ContextNewPageParamsSchema,
-    resultSchema: PageRefSchema,
+  contextNewPage: {
+    name: "context.new_page",
+    params: ContextNewPageParamsSchema,
+    result: PageRefSchema,
   },
-  "page.goto": {
-    paramsSchema: PageGotoParamsSchema,
-    resultSchema: PageRefSchema,
+  pageGoto: { name: "page.goto", params: PageGotoParamsSchema, result: PageRefSchema },
+  pageUrl: { name: "page.url", params: PageIdParamsSchema, result: PageUrlResultSchema },
+  pageTitle: { name: "page.title", params: PageIdParamsSchema, result: PageTitleResultSchema },
+  pageClose: { name: "page.close", params: PageIdParamsSchema, result: PageCloseResultSchema },
+  locatorClick: {
+    name: "locator.click",
+    params: LocatorClickParamsSchema,
+    result: LocatorClickResultSchema,
   },
-  "page.url": {
-    paramsSchema: PageIdParamsSchema,
-    resultSchema: PageUrlResultSchema,
+  locatorFill: {
+    name: "locator.fill",
+    params: LocatorFillParamsSchema,
+    result: LocatorFillResultSchema,
   },
-  "page.title": {
-    paramsSchema: PageIdParamsSchema,
-    resultSchema: PageTitleResultSchema,
+  locatorHover: {
+    name: "locator.hover",
+    params: LocatorHoverParamsSchema,
+    result: LocatorHoverResultSchema,
   },
-  "page.close": {
-    paramsSchema: PageIdParamsSchema,
-    resultSchema: PageCloseResultSchema,
+  locatorCount: {
+    name: "locator.count",
+    params: LocatorCountParamsSchema,
+    result: LocatorCountResultSchema,
   },
-  "locator.click": {
-    paramsSchema: LocatorClickParamsSchema,
-    resultSchema: LocatorClickResultSchema,
+  locatorIsChecked: {
+    name: "locator.is_checked",
+    params: LocatorIsCheckedParamsSchema,
+    result: LocatorIsCheckedResultSchema,
   },
-  "locator.fill": {
-    paramsSchema: LocatorFillParamsSchema,
-    resultSchema: LocatorFillResultSchema,
+  locatorInputValue: {
+    name: "locator.input_value",
+    params: LocatorInputValueParamsSchema,
+    result: LocatorInputValueResultSchema,
   },
-  "locator.hover": {
-    paramsSchema: LocatorHoverParamsSchema,
-    resultSchema: LocatorHoverResultSchema,
+  locatorIsVisible: {
+    name: "locator.is_visible",
+    params: LocatorDescriptorSchema,
+    result: LocatorIsVisibleResultSchema,
   },
-  "locator.count": {
-    paramsSchema: LocatorCountParamsSchema,
-    resultSchema: LocatorCountResultSchema,
+  locatorInnerText: {
+    name: "locator.inner_text",
+    params: LocatorInnerTextParamsSchema,
+    result: LocatorInnerTextResultSchema,
   },
-  "locator.is_checked": {
-    paramsSchema: LocatorIsCheckedParamsSchema,
-    resultSchema: LocatorIsCheckedResultSchema,
+  locatorInnerHtml: {
+    name: "locator.inner_html",
+    params: LocatorInnerHtmlParamsSchema,
+    result: LocatorInnerHtmlResultSchema,
   },
-  "locator.input_value": {
-    paramsSchema: LocatorInputValueParamsSchema,
-    resultSchema: LocatorInputValueResultSchema,
+  locatorTextContent: {
+    name: "locator.text_content",
+    params: LocatorDescriptorSchema,
+    result: LocatorTextContentResultSchema,
   },
-  "locator.is_visible": {
-    paramsSchema: LocatorDescriptorSchema,
-    resultSchema: LocatorIsVisibleResultSchema,
+  locatorScrollTo: {
+    name: "locator.scroll_to",
+    params: LocatorScrollToParamsSchema,
+    result: LocatorScrollToResultSchema,
   },
-  "locator.inner_text": {
-    paramsSchema: LocatorInnerTextParamsSchema,
-    resultSchema: LocatorInnerTextResultSchema,
+  locatorCentroid: {
+    name: "locator.centroid",
+    params: LocatorCentroidParamsSchema,
+    result: LocatorCentroidResultSchema,
   },
-  "locator.inner_html": {
-    paramsSchema: LocatorInnerHtmlParamsSchema,
-    resultSchema: LocatorInnerHtmlResultSchema,
+  locatorHighlight: {
+    name: "locator.highlight",
+    params: LocatorHighlightParamsSchema,
+    result: LocatorHighlightResultSchema,
   },
-  "locator.text_content": {
-    paramsSchema: LocatorDescriptorSchema,
-    resultSchema: LocatorTextContentResultSchema,
+  locatorSendClickEvent: {
+    name: "locator.send_click_event",
+    params: LocatorSendClickEventParamsSchema,
+    result: LocatorSendClickEventResultSchema,
   },
-  "locator.scroll_to": {
-    paramsSchema: LocatorScrollToParamsSchema,
-    resultSchema: LocatorScrollToResultSchema,
+  locatorType: {
+    name: "locator.type",
+    params: LocatorTypeParamsSchema,
+    result: LocatorTypeResultSchema,
   },
-  "locator.centroid": {
-    paramsSchema: LocatorCentroidParamsSchema,
-    resultSchema: LocatorCentroidResultSchema,
+  locatorSelectOption: {
+    name: "locator.select_option",
+    params: LocatorSelectOptionParamsSchema,
+    result: LocatorSelectOptionResultSchema,
   },
-  "locator.highlight": {
-    paramsSchema: LocatorHighlightParamsSchema,
-    resultSchema: LocatorHighlightResultSchema,
-  },
-  "locator.send_click_event": {
-    paramsSchema: LocatorSendClickEventParamsSchema,
-    resultSchema: LocatorSendClickEventResultSchema,
-  },
-  "locator.type": {
-    paramsSchema: LocatorTypeParamsSchema,
-    resultSchema: LocatorTypeResultSchema,
-  },
-  "locator.select_option": {
-    paramsSchema: LocatorSelectOptionParamsSchema,
-    resultSchema: LocatorSelectOptionResultSchema,
-  },
-} as const;
+} as const satisfies Record<string, RPCMethod>;
 
-export const StagehandNotificationsSchema = z.strictObject({
-  "stagehand.log": StagehandLogSchema,
+export const StagehandMethodSchema = z.enum([
+  "ping",
+  "runtime.configure",
+  "runtime.loopback_status",
+  "browser.get_version",
+  "stagehand.init",
+  "stagehand.close",
+  "stagehand.act",
+  "stagehand.observe",
+  "stagehand.extract",
+  "stagehand.metrics",
+  "context.pages",
+  "context.new_page",
+  "page.goto",
+  "page.url",
+  "page.title",
+  "page.close",
+  "locator.click",
+  "locator.fill",
+  "locator.hover",
+  "locator.count",
+  "locator.is_checked",
+  "locator.input_value",
+  "locator.is_visible",
+  "locator.inner_text",
+  "locator.inner_html",
+  "locator.text_content",
+  "locator.scroll_to",
+  "locator.centroid",
+  "locator.highlight",
+  "locator.send_click_event",
+  "locator.type",
+  "locator.select_option",
+]);
+
+export const StagehandRpcRequestSchema = JSONRPCRequestSchema.extend({
+  method: StagehandMethodSchema,
+  params: z.record(z.string(), z.json()),
 });
 
-const stagehandRpcSchemas = createRpcSchemas(StagehandMethods, StagehandNotificationsSchema);
+export const StagehandNotifications = {
+  log: { name: "stagehand.log", params: StagehandLogSchema },
+} as const satisfies Record<string, RPCNotification>;
 
-export const StagehandRpcRequestSchema = stagehandRpcSchemas.requestSchema;
-export const StagehandRpcNotificationSchema = stagehandRpcSchemas.notificationSchema;
+export const StagehandRpcNotificationSchema = JSONRPCNotificationSchema.extend({
+  method: z.literal(StagehandNotifications.log.name),
+  params: StagehandLogSchema,
+});
+
+const stagehandMethodsByName = new Map<string, RPCMethod>(
+  Object.values(StagehandRPC).map((method) => [method.name, method]),
+);
+
+export function getStagehandRPCMethod(name: string): RPCMethod | undefined {
+  return stagehandMethodsByName.get(name);
+}

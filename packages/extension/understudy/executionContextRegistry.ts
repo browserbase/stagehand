@@ -5,8 +5,8 @@ type FrameId = Protocol.Page.FrameId;
 type ExecId = Protocol.Runtime.ExecutionContextId;
 
 export class ExecutionContextRegistry {
-  private readonly byFrame = new WeakMap<CDPSessionLike, Map<FrameId, ExecId>>();
-  private readonly byExec = new WeakMap<CDPSessionLike, Map<ExecId, FrameId>>();
+  readonly byFrame = new WeakMap<CDPSessionLike, Map<FrameId, ExecId>>();
+  readonly byExec = new WeakMap<CDPSessionLike, Map<ExecId, FrameId>>();
 
   /** Wire listeners for this session. Call BEFORE Runtime.enable. */
   attachSession(session: CDPSessionLike): void {
@@ -82,7 +82,7 @@ export class ExecutionContextRegistry {
     });
   }
 
-  private register(session: CDPSessionLike, frameId: FrameId, ctxId: ExecId): void {
+  register(session: CDPSessionLike, frameId: FrameId, ctxId: ExecId): void {
     let fwd = this.byFrame.get(session);
     if (!fwd) {
       fwd = new Map<FrameId, ExecId>();

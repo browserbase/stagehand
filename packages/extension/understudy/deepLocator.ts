@@ -111,13 +111,13 @@ export async function resolveLocatorWithHops(
  */
 export class DeepLocatorDelegate {
   constructor(
-    private readonly page: Page,
-    private readonly root: Frame,
-    private readonly selector: string,
-    private readonly nthIndex: number = 0,
+    readonly page: Page,
+    readonly root: Frame,
+    readonly selector: string,
+    readonly nthIndex: number = 0,
   ) {}
 
-  private async real(): Promise<Locator> {
+  async real(): Promise<Locator> {
     const base = await resolveLocatorWithHops(this.page, this.root, this.selector);
     return base.nth(this.nthIndex);
   }

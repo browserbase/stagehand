@@ -22,7 +22,7 @@ export interface ResolveManyOptions {
 }
 
 export class FrameSelectorResolver {
-  constructor(private readonly frame: Frame) {}
+  constructor(readonly frame: Frame) {}
 
   public static parseSelector(raw: string): SelectorQuery {
     const trimmed = raw.trim();
@@ -100,12 +100,12 @@ export class FrameSelectorResolver {
     return results[index] ?? null;
   }
 
-  private buildLocatorInvocation(name: LocatorScriptName, args: string[]): string {
+  buildLocatorInvocation(name: LocatorScriptName, args: string[]): string {
     const call = `${locatorScriptGlobalRefs[name]}(${args.join(", ")})`;
     return `(() => { ${locatorScriptBootstrap}; return ${call}; })()`;
   }
 
-  private async resolveCss(selector: string, limit: number): Promise<ResolvedNode[]> {
+  async resolveCss(selector: string, limit: number): Promise<ResolvedNode[]> {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
@@ -157,7 +157,7 @@ export class FrameSelectorResolver {
     return results;
   }
 
-  private async resolveText(value: string, limit: number): Promise<ResolvedNode[]> {
+  async resolveText(value: string, limit: number): Promise<ResolvedNode[]> {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
@@ -177,7 +177,7 @@ export class FrameSelectorResolver {
     return results;
   }
 
-  private async resolveXPath(value: string, limit: number): Promise<ResolvedNode[]> {
+  async resolveXPath(value: string, limit: number): Promise<ResolvedNode[]> {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
@@ -197,7 +197,7 @@ export class FrameSelectorResolver {
     return results;
   }
 
-  private async countCss(selector: string): Promise<number> {
+  async countCss(selector: string): Promise<number> {
     const session = this.frame.session;
 
     const { executionContextId } = await session.send<{
@@ -222,7 +222,7 @@ export class FrameSelectorResolver {
     return Math.max(primary, fallback);
   }
 
-  private async countText(value: string): Promise<number> {
+  async countText(value: string): Promise<number> {
     const session = this.frame.session;
     const ctxId = await executionContexts.waitForMainWorld(session, this.frame.frameId, 1000);
 
@@ -261,7 +261,7 @@ export class FrameSelectorResolver {
     }
   }
 
-  private async countXPath(value: string): Promise<number> {
+  async countXPath(value: string): Promise<number> {
     const session = this.frame.session;
 
     const ctxId = await executionContexts.waitForMainWorld(session, this.frame.frameId, 1000);
@@ -291,7 +291,7 @@ export class FrameSelectorResolver {
     }
   }
 
-  private async resolveFromObjectId(
+  async resolveFromObjectId(
     objectId: Protocol.Runtime.RemoteObjectId,
   ): Promise<ResolvedNode | null> {
     const session = this.frame.session;
@@ -308,7 +308,7 @@ export class FrameSelectorResolver {
     return { objectId, nodeId };
   }
 
-  private async evaluateCount(
+  async evaluateCount(
     expression: string,
     contextId: Protocol.Runtime.ExecutionContextId,
   ): Promise<number> {
@@ -335,7 +335,7 @@ export class FrameSelectorResolver {
     }
   }
 
-  private async evaluateElement(
+  async evaluateElement(
     expression: string,
     contextId: Protocol.Runtime.ExecutionContextId,
   ): Promise<ResolvedNode | null> {

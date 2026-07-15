@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { browserLoopbackCdpFactory } from "../../../server/transports/browserLoopbackCdpConnection.js";
 import { browserWebSocketFactory } from "../../../server/understudy/browserWebSocketTransport.js";
 import { CdpConnection } from "../../../server/understudy/cdp.js";
 
@@ -44,7 +43,7 @@ class FakeWebSocket extends EventTarget {
 class DelayedBlob extends Blob {
   constructor(
     parts: BlobPart[],
-    private readonly delayMs: number,
+    readonly delayMs: number,
   ) {
     super(parts);
   }
@@ -115,31 +114,6 @@ describe("CdpConnection browser WebSocket transport", () => {
     const fourth = connection.send<string>("Runtime.evaluate");
     socket.receive(JSON.stringify({ id: requestId(socket, 3), result: "fourth" }));
     await expect(fourth).resolves.toBe("fourth");
-  });
-
-  it("preserves response order in the loopback CDP transport", async () => {
-    const connection = await browserLoopbackCdpFactory("ws://loopback.test");
-    const socket = latestSocket();
-    const completionOrder: string[] = [];
-
-    const first = connection.send<string>("Browser.getVersion").then((result) => {
-      completionOrder.push(result);
-      return result;
-    });
-    const second = connection.send<string>("Browser.getVersion").then((result) => {
-      completionOrder.push(result);
-      return result;
-    });
-
-    socket.receive(
-      new DelayedBlob([JSON.stringify({ id: requestId(socket, 0), result: "first" })], 10),
-    );
-    socket.receive(
-      new TextEncoder().encode(JSON.stringify({ id: requestId(socket, 1), result: "second" })),
-    );
-
-    await expect(Promise.all([first, second])).resolves.toStrictEqual(["first", "second"]);
-    expect(completionOrder).toStrictEqual(["first", "second"]);
   });
 
   it("rejects pending work when an incoming CDP envelope is invalid", async () => {

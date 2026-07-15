@@ -133,7 +133,7 @@ export function getAISDKLanguageModel(
 }
 
 export class LLMProvider {
-  private middleware?: LanguageModelMiddleware;
+  middleware?: LanguageModelMiddleware;
 
   constructor(middleware?: LanguageModelMiddleware) {
     this.middleware = middleware;

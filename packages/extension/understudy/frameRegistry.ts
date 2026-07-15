@@ -57,16 +57,16 @@ function shellFrame(id: FrameId): Protocol.Page.Frame {
 
 export class FrameRegistry {
   /** Owner target id (top-level target); informational only */
-  private readonly ownerTargetId: string;
+  readonly ownerTargetId: string;
 
   /** Current main/root frame id (changes on root swaps) */
-  private rootFrameId: FrameId;
+  rootFrameId: FrameId;
 
   /** frameId → FrameInfo */
-  private frames = new Map<FrameId, FrameInfo>();
+  frames = new Map<FrameId, FrameInfo>();
 
   /** sessionId → Set<frameId> (inverse map for diagnostics/fast membership checks) */
-  private framesBySession = new Map<SessionId, Set<FrameId>>();
+  framesBySession = new Map<SessionId, Set<FrameId>>();
 
   constructor(ownerTargetId: string, mainFrameId: FrameId) {
     this.ownerTargetId = ownerTargetId;
@@ -312,7 +312,7 @@ export class FrameRegistry {
 
   // ---------------------- Internal helpers ----------------------
 
-  private ensureNode(fid: FrameId): void {
+  ensureNode(fid: FrameId): void {
     if (this.frames.has(fid)) return;
     this.frames.set(fid, {
       parentId: null,
@@ -323,7 +323,7 @@ export class FrameRegistry {
     });
   }
 
-  private renameNodeId(oldId: FrameId, newId: FrameId): void {
+  renameNodeId(oldId: FrameId, newId: FrameId): void {
     if (oldId === newId) return;
     this.ensureNode(oldId);
 
@@ -360,7 +360,7 @@ export class FrameRegistry {
     // If root moved, keep the root id updated is handled by caller
   }
 
-  private setOwnerSessionIdInternal(frameId: FrameId, sessionId: SessionId): void {
+  setOwnerSessionIdInternal(frameId: FrameId, sessionId: SessionId): void {
     this.ensureNode(frameId);
     const info = this.frames.get(frameId)!;
 

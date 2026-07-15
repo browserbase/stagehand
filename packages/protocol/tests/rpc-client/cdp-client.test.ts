@@ -2,10 +2,10 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
-  StagehandBridgeError,
-  waitForStagehandRuntimeReady,
-  waitForStagehandServiceWorker,
-} from "../../../modcdp/index.ts";
+  CDPClientError,
+  waitForRuntimeReady,
+  waitForServiceWorker,
+} from "../../../sdk-ts/src/cdpClient.ts";
 
 type CdpCall = {
   method: string;
@@ -24,20 +24,20 @@ type FakeCdpResult = Record<string, unknown>;
 
 class FakeCdp {
   readonly calls: CdpCall[] = [];
-  #handlers = new Map<string, () => FakeCdpResult | Promise<FakeCdpResult>>();
+  handlers = new Map<string, () => FakeCdpResult | Promise<FakeCdpResult>>();
 
   on(method: string, handler: () => FakeCdpResult | Promise<FakeCdpResult>): this {
-    this.#handlers.set(method, handler);
+    this.handlers.set(method, handler);
     return this;
   }
 
-  async send<Result>(
+  async sendCommand<Result>(
     method: string,
     params?: Record<string, unknown>,
     sessionId?: string,
   ): Promise<Result> {
     this.calls.push({ method, params, sessionId });
-    const handler = this.#handlers.get(method);
+    const handler = this.handlers.get(method);
 
     if (!handler) {
       return {} as Result;
@@ -131,7 +131,7 @@ describe("loadUnpackedExtension", () => {
 
   it("returns a clear error when Extensions.loadUnpacked is unavailable", async () => {
     const cdp = new FakeCdp().on("Extensions.loadUnpacked", () => {
-      throw new StagehandBridgeError("Method not found", -32603, {
+      throw new CDPClientError("Method not found", -32603, {
         cdpCode: -32601,
         cdpMessage: "Method not found",
         method: "Extensions.loadUnpacked",
@@ -152,7 +152,7 @@ describe("loadUnpackedExtension", () => {
   });
 });
 
-describe("waitForStagehandServiceWorker", () => {
+describe("waitForServiceWorker", () => {
   it("discovers a preloaded extension service worker by extension id", async () => {
     const worker = target("stagehand-worker", "chrome-extension://stagehandext/service-worker.js");
     const cdp = new FakeCdp().on("Target.getTargets", () => ({
@@ -163,7 +163,7 @@ describe("waitForStagehandServiceWorker", () => {
     }));
 
     await expect(
-      waitForStagehandServiceWorker(cdp, {
+      waitForServiceWorker(cdp, {
         extensionId: "stagehandext",
         timeoutMs: 1_000,
         delayFn: async () => {},
@@ -181,7 +181,7 @@ describe("waitForStagehandServiceWorker", () => {
     }));
 
     await expect(
-      waitForStagehandServiceWorker(cdp, {
+      waitForServiceWorker(cdp, {
         timeoutMs: 1_000,
         delayFn: async () => {},
       }),
@@ -197,7 +197,7 @@ describe("waitForStagehandServiceWorker", () => {
       .on("Target.closeTarget", () => ({ success: true }));
 
     await expect(
-      waitForStagehandServiceWorker(cdp, {
+      waitForServiceWorker(cdp, {
         activationDelayMs: 0,
         extensionId: "stagehandext",
         timeoutMs: 1_000,
@@ -208,7 +208,7 @@ describe("waitForStagehandServiceWorker", () => {
     expect(cdp.calls).toContainEqual(
       expect.objectContaining({
         method: "Target.createTarget",
-        params: { url: "chrome-extension://stagehandext/options.html" },
+        params: { url: "chrome-extension://stagehandext/wake-service-worker.html" },
       }),
     );
     expect(cdp.calls).toContainEqual(
@@ -220,8 +220,8 @@ describe("waitForStagehandServiceWorker", () => {
   });
 });
 
-describe("waitForStagehandRuntimeReady", () => {
-  it("resolves when the attached runtime exposes the Stagehand marker and RPC handle", async () => {
+describe("waitForRuntimeReady", () => {
+  it("resolves when the attached runtime exposes the Stagehand marker and RPC receiver", async () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: readyRuntime(),
@@ -229,7 +229,7 @@ describe("waitForStagehandRuntimeReady", () => {
     }));
 
     await expect(
-      waitForStagehandRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReady(cdp, "worker-session", {
         timeoutMs: 1_000,
         delayFn: async () => {},
       }),
@@ -254,7 +254,7 @@ describe("waitForStagehandRuntimeReady", () => {
         ok: false,
         runtimeName: "stagehand",
         runtimeVersion: "stagehand.v4",
-        hasStagehandRPCHandle: false,
+        hasStagehandReceiveFromHost: false,
       },
       readyRuntime(),
     ];
@@ -265,7 +265,7 @@ describe("waitForStagehandRuntimeReady", () => {
     }));
 
     await expect(
-      waitForStagehandRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 5,
         timeoutMs: 100,
         nowFn: () => now,
@@ -286,13 +286,13 @@ describe("waitForStagehandRuntimeReady", () => {
           ok: false,
           runtimeName: "other-extension",
           runtimeVersion: "1",
-          hasStagehandRPCHandle: false,
+          hasStagehandReceiveFromHost: false,
         },
       },
     }));
 
     await expect(
-      waitForStagehandRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
         timeoutMs: 2,
         nowFn: () => now,
@@ -320,7 +320,7 @@ describe("waitForStagehandRuntimeReady", () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => results.shift() ?? {});
 
     await expect(
-      waitForStagehandRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
         timeoutMs: 10,
         nowFn: () => now,
@@ -348,6 +348,6 @@ function readyRuntime(): Record<string, unknown> {
     ok: true,
     runtimeName: "stagehand",
     runtimeVersion: "stagehand.v4",
-    hasStagehandRPCHandle: true,
+    hasStagehandReceiveFromHost: true,
   };
 }

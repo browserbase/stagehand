@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import { StagehandMethods, StagehandRpcRequestSchema } from "../../schema-registry.js";
+import { StagehandRPC, StagehandRpcRequestSchema } from "../../schema-registry.js";
 
 describe("Stagehand loopback protocol", () => {
   it("defines runtime.configure as a JSON-RPC method", () => {
-    const params = StagehandMethods["runtime.configure"].paramsSchema.parse({
+    const params = StagehandRPC.runtimeConfigure.params.parse({
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
     });
 
@@ -18,7 +18,7 @@ describe("Stagehand loopback protocol", () => {
     });
 
     expect(
-      StagehandMethods["runtime.configure"].resultSchema.parse({
+      StagehandRPC.runtimeConfigure.result.parse({
         configured: true,
       }),
     ).toStrictEqual({
@@ -27,13 +27,13 @@ describe("Stagehand loopback protocol", () => {
   });
 
   it("rejects runtime.configure without a CDP URL", () => {
-    expect(() => StagehandMethods["runtime.configure"].paramsSchema.parse({})).toThrow();
+    expect(() => StagehandRPC.runtimeConfigure.params.parse({})).toThrow();
   });
 
   it("defines runtime.loopback_status as a JSON-RPC method", () => {
-    expect(StagehandMethods["runtime.loopback_status"].paramsSchema.parse({})).toStrictEqual({});
+    expect(StagehandRPC.runtimeLoopbackStatus.params.parse({})).toStrictEqual({});
     expect(
-      StagehandMethods["runtime.loopback_status"].resultSchema.parse({
+      StagehandRPC.runtimeLoopbackStatus.result.parse({
         configured: true,
         connected: false,
       }),
@@ -44,9 +44,9 @@ describe("Stagehand loopback protocol", () => {
   });
 
   it("defines browser.get_version as a JSON-RPC method", () => {
-    expect(StagehandMethods["browser.get_version"].paramsSchema.parse({})).toStrictEqual({});
+    expect(StagehandRPC.browserGetVersion.params.parse({})).toStrictEqual({});
     expect(
-      StagehandMethods["browser.get_version"].resultSchema.parse({
+      StagehandRPC.browserGetVersion.result.parse({
         protocolVersion: "1.3",
         product: "Chrome/143.0.0.0",
         revision: "@abc123",
@@ -78,12 +78,6 @@ describe("Stagehand loopback protocol", () => {
       method: "runtime.configure",
       params: {
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-        telemetry: {
-          traces: {
-            endpoint: "https://example.com/v1/traces",
-            headers: {},
-          },
-        },
       },
     });
 

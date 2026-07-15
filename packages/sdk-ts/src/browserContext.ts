@@ -1,25 +1,18 @@
 import type { ContextNewPageParams } from "../../protocol/types.js";
+import { StagehandRPC } from "../../protocol/schema-registry.js";
 import { Page } from "./page.js";
-import {
-  buildStagehandProtocolRequest,
-  parseStagehandProtocolResponse,
-  type StagehandProtocolClient,
-} from "./protocolClient.js";
+import type { RPCClient } from "./rpcClient.js";
 
 export class BrowserContext {
-  constructor(private readonly client: StagehandProtocolClient) {}
+  constructor(readonly client: RPCClient) {}
 
   async pages(): Promise<Page[]> {
-    const request = buildStagehandProtocolRequest("context.pages", {});
-    const response = await this.client.send(request);
-    const pageRefs = parseStagehandProtocolResponse(request.method, response);
+    const pageRefs = await this.client.send(StagehandRPC.contextPages, {});
     return pageRefs.map((pageRef) => new Page(this.client, pageRef));
   }
 
   async newPage(options: ContextNewPageParams = {}): Promise<Page> {
-    const request = buildStagehandProtocolRequest("context.new_page", options);
-    const response = await this.client.send(request);
-    const pageRef = parseStagehandProtocolResponse(request.method, response);
+    const pageRef = await this.client.send(StagehandRPC.contextNewPage, options);
     return new Page(this.client, pageRef);
   }
 }

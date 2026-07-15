@@ -2,21 +2,21 @@ import type { CdpWebSocketCloseEvent, CdpWebSocketFactory, CdpWebSocketTransport
 
 /** Adapts the browser-native WebSocket API to the text transport consumed by CDP. */
 class BrowserWebSocketTransport implements CdpWebSocketTransport {
-  #messageHandlers = new Set<(data: string) => void>();
-  #errorHandlers = new Set<(error: Error) => void>();
-  #messageQueue: Promise<void> = Promise.resolve();
+  messageHandlers = new Set<(data: string) => void>();
+  errorHandlers = new Set<(error: Error) => void>();
+  messageQueue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly socket: WebSocket) {
+  constructor(readonly socket: WebSocket) {
     this.socket.addEventListener("message", (event) => {
-      this.#messageQueue = this.#messageQueue
+      this.messageQueue = this.messageQueue
         .then(async () => {
           const data = await browserWebSocketMessageToString(event.data as unknown);
-          for (const handler of this.#messageHandlers) handler(data);
+          for (const handler of this.messageHandlers) handler(data);
         })
         .catch((error: unknown) => {
           const reason =
             error instanceof Error ? error : new Error("Failed to decode CDP websocket message");
-          for (const handler of this.#errorHandlers) handler(reason);
+          for (const handler of this.errorHandlers) handler(reason);
           void this.close();
         });
     });
@@ -40,7 +40,7 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
   }
 
   onMessage(handler: (data: string) => void): void {
-    this.#messageHandlers.add(handler);
+    this.messageHandlers.add(handler);
   }
 
   onClose(handler: (event: CdpWebSocketCloseEvent) => void): void {
@@ -50,7 +50,7 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
   }
 
   onError(handler: (error: Error) => void): void {
-    this.#errorHandlers.add(handler);
+    this.errorHandlers.add(handler);
     this.socket.addEventListener("error", (event) => {
       const message =
         "message" in event && typeof event.message === "string"

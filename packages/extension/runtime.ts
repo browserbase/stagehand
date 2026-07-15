@@ -47,16 +47,6 @@ import type { StagehandLogEmitter } from "./logger.js";
 import { StagehandLogger } from "./logger.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 
-type JsonObject = Record<string, unknown>;
-
-export type LoopbackCdpConnection = {
-  readonly connected: boolean;
-  send<Result = JsonObject>(method: string, params?: JsonObject): Promise<Result>;
-  close(): void;
-};
-
-export type LoopbackCdpConnectionFactory = (cdpUrl: string) => Promise<LoopbackCdpConnection>;
-
 export type UnderstudyRuntimePage = {
   targetId(): string;
   url(): string;
@@ -86,30 +76,28 @@ export type UnderstudyRuntimeLocator = {
   nth(index: number): UnderstudyRuntimeLocator;
 };
 
-export type UnderstudyRuntimeContext = {
+export type StagehandBrowserSession = {
+  readonly connected: boolean;
+  getVersion(): Promise<BrowserGetVersionResult>;
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
   close(): Promise<void> | void;
 };
 
-export type UnderstudyRuntimeContextFactory = (
+export type StagehandBrowserSessionFactory = (
   cdpUrl: string,
   logger: StagehandLogger,
-) => Promise<UnderstudyRuntimeContext>;
+) => Promise<StagehandBrowserSession>;
 
 export type StagehandRuntimeAdapters = {
-  loopbackCdpFactory?: LoopbackCdpConnectionFactory;
-  understudyContextFactory?: UnderstudyRuntimeContextFactory;
+  browserSessionFactory?: StagehandBrowserSessionFactory;
   emitLog?: StagehandLogEmitter;
 };
 
 type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
 
-const defaultLoopbackCdpFactory: LoopbackCdpConnectionFactory = async () => {
-  throw new Error("Stagehand loopback CDP factory is not configured");
-};
-const defaultUnderstudyContextFactory: UnderstudyRuntimeContextFactory = async () => {
-  throw new Error("Stagehand understudy context factory is not configured");
+const defaultBrowserSessionFactory: StagehandBrowserSessionFactory = async () => {
+  throw new Error("Stagehand browser session factory is not configured");
 };
 const discardLog: StagehandLogEmitter = () => {};
 
@@ -119,9 +107,7 @@ export function createStagehandRuntime(
 ): StagehandRuntime {
   return new StagehandRuntime(
     {
-      loopbackCdpFactory: adapters.loopbackCdpFactory ?? defaultLoopbackCdpFactory,
-      understudyContextFactory:
-        adapters.understudyContextFactory ?? defaultUnderstudyContextFactory,
+      browserSessionFactory: adapters.browserSessionFactory ?? defaultBrowserSessionFactory,
       emitLog: adapters.emitLog ?? discardLog,
     },
     tracing,
@@ -130,12 +116,11 @@ export function createStagehandRuntime(
 
 export class StagehandRuntime {
   readonly logger: StagehandLogger;
-  #loopback?: LoopbackCdpConnection;
-  #understudyContext?: UnderstudyRuntimeContext;
-  #pagesById = new Map<string, UnderstudyRuntimePage>();
+  browserSession?: StagehandBrowserSession;
+  pagesById = new Map<string, UnderstudyRuntimePage>();
 
   constructor(
-    private readonly adapters: ResolvedStagehandRuntimeAdapters,
+    readonly adapters: ResolvedStagehandRuntimeAdapters,
     readonly tracing: StagehandTracing,
   ) {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
@@ -143,29 +128,23 @@ export class StagehandRuntime {
 
   loopbackStatus(): RuntimeLoopbackStatusResult {
     return {
-      configured: this.#loopback !== undefined,
-      connected: this.#loopback?.connected ?? false,
+      configured: this.browserSession !== undefined,
+      connected: this.browserSession?.connected ?? false,
     };
   }
 
   async configureLoopback(params: RuntimeConfigureParams): Promise<RuntimeConfigureResult> {
     const { cdpUrl } = params;
-    const previousLoopback = this.#loopback;
-    this.#loopback = undefined;
-    previousLoopback?.close();
-
-    const previousContext = this.#understudyContext;
-    this.#understudyContext = undefined;
-    this.#pagesById.clear();
-    await previousContext?.close();
+    const previousSession = this.browserSession;
+    this.browserSession = undefined;
+    this.pagesById.clear();
+    await previousSession?.close();
 
     try {
-      this.#loopback = await this.adapters.loopbackCdpFactory(cdpUrl);
-      this.#understudyContext = await this.adapters.understudyContextFactory(cdpUrl, this.logger);
+      this.browserSession = await this.adapters.browserSessionFactory(cdpUrl, this.logger);
     } catch (error) {
-      this.#loopback?.close();
-      this.#loopback = undefined;
-      this.#understudyContext = undefined;
+      await this.browserSession?.close();
+      this.browserSession = undefined;
       throw new StagehandRuntimeError(
         `Failed to configure Stagehand loopback CDP: ${errorMessage(error)}`,
         -32002,
@@ -177,17 +156,17 @@ export class StagehandRuntime {
   }
 
   async browserGetVersion(): Promise<BrowserGetVersionResult> {
-    return await this.requireLoopback().send<BrowserGetVersionResult>("Browser.getVersion");
+    return await this.requireBrowserSession().getVersion();
   }
 
   async contextPages(): Promise<ContextPagesResult> {
-    const pages = this.requireUnderstudyContext().pages();
+    const pages = this.requireBrowserSession().pages();
     this.refreshPageRegistry(pages);
     return pages.map((page) => this.pageRefForId(page.targetId()));
   }
 
   async contextNewPage(params: ContextNewPageParams): Promise<PageRef> {
-    const page = await this.requireUnderstudyContext().newPage(params.url);
+    const page = await this.requireBrowserSession().newPage(params.url);
     this.registerPage(page);
     return this.pageRefForId(page.targetId());
   }
@@ -213,7 +192,7 @@ export class StagehandRuntime {
   async pageClose(params: PageIdParams): Promise<PageCloseResult> {
     const page = this.resolvePage(params.pageId);
     await page.close();
-    this.#pagesById.delete(params.pageId);
+    this.pagesById.delete(params.pageId);
     return { closed: true };
   }
 
@@ -307,26 +286,22 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
-    const loopback = this.#loopback;
-    this.#loopback = undefined;
-    loopback?.close();
-
-    const context = this.#understudyContext;
-    this.#understudyContext = undefined;
-    this.#pagesById.clear();
-    await context?.close();
+    const session = this.browserSession;
+    this.browserSession = undefined;
+    this.pagesById.clear();
+    await session?.close();
   }
 
-  private pageRefForId(pageId: string): PageRef {
+  pageRefForId(pageId: string): PageRef {
     return pageRefFromUnderstudyPage(this.resolvePage(pageId));
   }
 
-  private resolvePage(pageId: string): UnderstudyRuntimePage {
-    const cachedPage = this.#pagesById.get(pageId);
+  resolvePage(pageId: string): UnderstudyRuntimePage {
+    const cachedPage = this.pagesById.get(pageId);
     if (cachedPage) return cachedPage;
 
-    this.refreshPageRegistry(this.requireUnderstudyContext().pages());
-    const refreshedPage = this.#pagesById.get(pageId);
+    this.refreshPageRegistry(this.requireBrowserSession().pages());
+    const refreshedPage = this.pagesById.get(pageId);
     if (refreshedPage) return refreshedPage;
 
     throw new StagehandRuntimeError(
@@ -336,12 +311,12 @@ export class StagehandRuntime {
     );
   }
 
-  private resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
+  resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
     const locator = this.resolvePage(params.pageId).deepLocator(params.selector);
     return params.nth === undefined ? locator : locator.nth(params.nth);
   }
 
-  private refreshPageRegistry(pages: UnderstudyRuntimePage[]): void {
+  refreshPageRegistry(pages: UnderstudyRuntimePage[]): void {
     const currentPageIds = new Set<string>();
 
     for (const page of pages) {
@@ -349,19 +324,19 @@ export class StagehandRuntime {
       currentPageIds.add(pageId);
     }
 
-    for (const pageId of this.#pagesById.keys()) {
-      if (!currentPageIds.has(pageId)) this.#pagesById.delete(pageId);
+    for (const pageId of this.pagesById.keys()) {
+      if (!currentPageIds.has(pageId)) this.pagesById.delete(pageId);
     }
   }
 
-  private registerPage(page: UnderstudyRuntimePage): string {
+  registerPage(page: UnderstudyRuntimePage): string {
     const pageId = page.targetId();
-    this.#pagesById.set(pageId, page);
+    this.pagesById.set(pageId, page);
     return pageId;
   }
 
-  private requireLoopback(): LoopbackCdpConnection {
-    if (!this.#loopback) {
+  requireBrowserSession(): StagehandBrowserSession {
+    if (!this.browserSession) {
       throw new StagehandRuntimeError(
         "Stagehand loopback CDP is not configured",
         -32000,
@@ -369,7 +344,7 @@ export class StagehandRuntime {
       );
     }
 
-    if (!this.#loopback.connected) {
+    if (!this.browserSession.connected) {
       throw new StagehandRuntimeError(
         "Stagehand loopback CDP is disconnected",
         -32001,
@@ -377,19 +352,7 @@ export class StagehandRuntime {
       );
     }
 
-    return this.#loopback;
-  }
-
-  private requireUnderstudyContext(): UnderstudyRuntimeContext {
-    if (!this.#understudyContext) {
-      throw new StagehandRuntimeError(
-        "Stagehand loopback CDP is not configured",
-        -32000,
-        "stagehand.loopback_not_configured",
-      );
-    }
-
-    return this.#understudyContext;
+    return this.browserSession;
   }
 }
 

@@ -1,5 +1,5 @@
 # Server
 
-Stagehand application code that runs inside the extension service worker.
+Stagehand application code and Chrome extension service-worker runtime.
 
-`app.ts` composes the RPC router, controllers, services, and browser transports. The extension package owns the service-worker entry point that initializes the app.
+`service-worker.ts` composes the Chrome binding client, JSON-RPC client, request handler, and application runtime.

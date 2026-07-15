@@ -39,14 +39,14 @@ function actResult(result: ActResultData): ActResult {
 }
 
 export class ActHandler {
-  private readonly llmClient: LLMClient;
-  private readonly defaultModelName: ModelName;
-  private readonly defaultClientOptions: ClientOptions;
-  private readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
-  private readonly systemPrompt: string;
-  private readonly logInferenceToFile: boolean;
-  private readonly selfHeal: boolean;
-  private readonly onMetrics?: (
+  readonly llmClient: LLMClient;
+  readonly defaultModelName: ModelName;
+  readonly defaultClientOptions: ClientOptions;
+  readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
+  readonly systemPrompt: string;
+  readonly logInferenceToFile: boolean;
+  readonly selfHeal: boolean;
+  readonly onMetrics?: (
     functionName: V3FunctionName,
     promptTokens: number,
     completionTokens: number,
@@ -54,7 +54,7 @@ export class ActHandler {
     cachedInputTokens: number,
     inferenceTimeMs: number,
   ) => void;
-  private readonly defaultDomSettleTimeoutMs?: number;
+  readonly defaultDomSettleTimeoutMs?: number;
 
   constructor(
     llmClient: LLMClient,
@@ -85,7 +85,7 @@ export class ActHandler {
     this.defaultDomSettleTimeoutMs = defaultDomSettleTimeoutMs;
   }
 
-  private recordActMetrics(response: ActInferenceResponse): void {
+  recordActMetrics(response: ActInferenceResponse): void {
     this.onMetrics?.(
       V3FunctionNameSchema.enum.ACT,
       response.prompt_tokens ?? 0,
@@ -96,7 +96,7 @@ export class ActHandler {
     );
   }
 
-  private async getActionFromLLM({
+  async getActionFromLLM({
     instruction,
     domElements,
     xpathMap,

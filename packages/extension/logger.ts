@@ -13,9 +13,9 @@ const StagehandSpanSchema = z.strictObject({
 
 export class StagehandLogger {
   constructor(
-    private readonly tracing: Pick<StagehandTracing, "tracer">,
-    private readonly emitLog: StagehandLogEmitter,
-    private readonly parentContext?: Context,
+    readonly tracing: Pick<StagehandTracing, "tracer">,
+    readonly emitLog: StagehandLogEmitter,
+    readonly parentContext?: Context,
   ) {}
 
   withContext(parentContext: Context): StagehandLogger {
@@ -69,7 +69,7 @@ export class StagehandLogger {
     }
   }
 
-  private write(level: StagehandLogLevel, message: string, data: StagehandLogData): void {
+  write(level: StagehandLogLevel, message: string, data: StagehandLogData): void {
     const log = StagehandLogSchema.parse({ level, message, data });
     const span = this.tracing.tracer.startSpan(
       log.message,

@@ -1,0 +1,268 @@
+import {
+  JSONRPCEnvelopeSchema,
+  JSONRPCErrorCodes,
+  JSONRPCErrorResponseSchema,
+  JSONRPCNotificationSchema,
+  JSONRPCRequestIdSchema,
+  JSONRPCRequestSchema,
+  JSONRPCResponseSchema,
+  JSONRPCSuccessResponseSchema,
+  JSONRPCWireInputSchema,
+  type RPCMethod,
+  type RPCNotification,
+} from "../../protocol/json-rpc/schemas.js";
+import type { JSONRPCResponse } from "../../protocol/json-rpc/types.js";
+import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing.js";
+import {
+  getStagehandRPCMethod,
+  StagehandRpcRequestSchema,
+} from "../../protocol/schema-registry.js";
+import { z } from "zod/v4";
+import { RPCRouter } from "../rpcRouter.js";
+import { StagehandRuntimeError } from "../runtime.js";
+import { ChromeRuntimeClient } from "./chromeRuntimeClient.js";
+
+type PendingRequest = {
+  method: RPCMethod;
+  resolve(value: unknown): void;
+  reject(error: Error): void;
+  timeout: ReturnType<typeof setTimeout>;
+};
+
+const ERROR_DATA = {
+  methodNotFound: { type: "stagehand.unknown_command" },
+  invalidParams: { type: "stagehand.invalid_params" },
+  invalidResult: { type: "stagehand.invalid_result" },
+  internalError: { type: "stagehand.internal_error" },
+} as const;
+
+export class RPCClient {
+  nextRequestId = 1;
+  pending = new Map<number, PendingRequest>();
+  closed = false;
+
+  constructor(
+    readonly runtime: ChromeRuntimeClient,
+    readonly router: RPCRouter,
+    readonly requestTimeoutMs = 60_000,
+  ) {
+    this.runtime.onmessage = (message) => this.receive(message);
+    this.runtime.onclose = (reason) => this.close(reason);
+    this.runtime.onerror = (error) => this.close(error);
+  }
+
+  async send<Method extends RPCMethod>(
+    method: Method,
+    params: z.input<Method["params"]>,
+  ): Promise<z.output<Method["result"]>> {
+    if (this.closed) throw new Error("RPC client is closed");
+
+    const id = this.nextRequestId++;
+    const parsedParams = method.params.parse(params);
+    const request = JSONRPCRequestSchema.parse({
+      jsonrpc: "2.0",
+      id,
+      method: method.name,
+      params: encodeWireValue(parsedParams, method.paramsWire?.encode),
+    });
+    const response = this.waitForResponse(id, method);
+    const [, result] = await Promise.all([
+      this.runtime.send(request).catch((error: unknown) => {
+        this.rejectPending(id, asError(error));
+      }),
+      response,
+    ]);
+
+    return result as z.output<Method["result"]>;
+  }
+
+  async notify<Notification extends RPCNotification>(
+    notification: Notification,
+    params: z.input<Notification["params"]>,
+  ): Promise<void> {
+    if (this.closed) throw new Error("RPC client is closed");
+
+    await this.runtime.send(
+      JSONRPCNotificationSchema.parse({
+        jsonrpc: "2.0",
+        method: notification.name,
+        params: notification.params.parse(params),
+      }),
+    );
+  }
+
+  close(reason = new Error("RPC client closed")): void {
+    if (this.closed) return;
+    this.closed = true;
+    for (const [id] of this.pending) this.rejectPending(id, reason);
+    this.runtime.onmessage = undefined;
+    this.runtime.onclose = undefined;
+    this.runtime.onerror = undefined;
+    this.runtime.close();
+  }
+
+  waitForResponse(id: number, method: RPCMethod): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        if (!this.pending.delete(id)) return;
+        reject(new Error(`RPC request timed out: ${method.name}`));
+      }, this.requestTimeoutMs);
+
+      this.pending.set(id, { method, resolve, reject, timeout });
+    });
+  }
+
+  async receive(raw: unknown): Promise<void> {
+    const wireInput = JSONRPCWireInputSchema.safeParse(raw);
+    if (!wireInput.success) {
+      await this.sendError(null, JSONRPCErrorCodes.parseError, "Parse error");
+      return;
+    }
+
+    const envelope = JSONRPCEnvelopeSchema.safeParse(wireInput.data);
+    if (!envelope.success) {
+      await this.sendError(null, JSONRPCErrorCodes.invalidRequest, "Invalid request");
+      return;
+    }
+    const message = envelope.data;
+
+    if ("result" in message || "error" in message) {
+      const response = JSONRPCResponseSchema.safeParse(message);
+      if (!response.success) {
+        this.close(new Error("Invalid JSON-RPC response"));
+        return;
+      }
+      this.receiveResponse(response.data);
+      return;
+    }
+
+    if ("method" in message && !("id" in message)) {
+      if (JSONRPCNotificationSchema.safeParse(message).success) return;
+      await this.sendError(null, JSONRPCErrorCodes.invalidRequest, "Invalid request");
+      return;
+    }
+
+    const request = JSONRPCRequestSchema.safeParse(message);
+    if (!request.success) {
+      const requestId = JSONRPCRequestIdSchema.safeParse(message.id);
+      await this.sendError(
+        requestId.success ? requestId.data : null,
+        JSONRPCErrorCodes.invalidRequest,
+        "Invalid request",
+      );
+      return;
+    }
+
+    const method = getStagehandRPCMethod(request.data.method);
+    if (!method) {
+      await this.sendError(
+        request.data.id,
+        JSONRPCErrorCodes.methodNotFound,
+        "Method not found",
+        ERROR_DATA.methodNotFound,
+      );
+      return;
+    }
+
+    const stagehandRequest = StagehandRpcRequestSchema.safeParse(request.data);
+    if (!stagehandRequest.success) {
+      await this.sendError(
+        request.data.id,
+        JSONRPCErrorCodes.invalidParams,
+        "Invalid params",
+        ERROR_DATA.invalidParams,
+      );
+      return;
+    }
+
+    try {
+      const result = await this.router.handle(stagehandRequest.data);
+      const parsedResult = method.result.safeParse(result);
+      if (!parsedResult.success) {
+        await this.sendError(
+          request.data.id,
+          JSONRPCErrorCodes.internalError,
+          "Internal error",
+          ERROR_DATA.invalidResult,
+        );
+        return;
+      }
+
+      await this.runtime.send(
+        JSONRPCSuccessResponseSchema.parse({
+          jsonrpc: "2.0",
+          id: request.data.id,
+          result: encodeWireValue(parsedResult.data, method.resultWire?.encode),
+        }),
+      );
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        await this.sendError(
+          request.data.id,
+          JSONRPCErrorCodes.invalidParams,
+          "Invalid params",
+          ERROR_DATA.invalidParams,
+        );
+        return;
+      }
+      if (error instanceof StagehandRuntimeError) {
+        await this.sendError(request.data.id, error.code, error.message, { type: error.type });
+        return;
+      }
+      await this.sendError(
+        request.data.id,
+        JSONRPCErrorCodes.internalError,
+        "Internal error",
+        ERROR_DATA.internalError,
+      );
+    }
+  }
+
+  receiveResponse(response: JSONRPCResponse): void {
+    if (response.id === null) return;
+    const pending = this.pending.get(response.id);
+    if (!pending) return;
+
+    this.pending.delete(response.id);
+    clearTimeout(pending.timeout);
+
+    if ("error" in response) {
+      pending.reject(new Error(response.error.message));
+      return;
+    }
+
+    try {
+      pending.resolve(
+        wireSchema(pending.method.result, pending.method.resultWire?.decode).parse(response.result),
+      );
+    } catch (error) {
+      pending.reject(asError(error));
+    }
+  }
+
+  rejectPending(id: number, error: Error): void {
+    const pending = this.pending.get(id);
+    if (!pending) return;
+    this.pending.delete(id);
+    clearTimeout(pending.timeout);
+    pending.reject(error);
+  }
+
+  async sendError(id: number | null, code: number, message: string, data?: unknown): Promise<void> {
+    await this.runtime.send(
+      JSONRPCErrorResponseSchema.parse({
+        jsonrpc: "2.0",
+        id,
+        error: {
+          code,
+          message,
+          ...(data === undefined ? {} : { data }),
+        },
+      }),
+    );
+  }
+}
+
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}

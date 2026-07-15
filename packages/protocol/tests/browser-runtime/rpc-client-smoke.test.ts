@@ -6,26 +6,29 @@ import { fileURLToPath } from "node:url";
 import { getChromePath, launch, Launcher, type LaunchedChrome } from "chrome-launcher";
 import { build } from "vite-plus";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
-import { stagehandExtensionDistDir } from "../../../extension/build.ts";
-import { connectStagehandBridge, type StagehandBridge } from "../../../modcdp/index.js";
+import { z } from "zod/v4";
+import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.js";
+import { StagehandRPC } from "../../schema-registry.js";
 import type { StagehandRpcNotification } from "../../types.js";
+
+const stagehandExtensionDistDir = new URL("../../../server/dist", import.meta.url).pathname;
 
 type FixtureServer = {
   url: string;
   close(): Promise<void>;
 };
 
-describe("Stagehand service worker bridge smoke", () => {
+describe("Stagehand service worker RPC client smoke", () => {
   let extensionDir: string | undefined;
   let fixtureServer: FixtureServer | undefined;
   let chrome: LaunchedChrome | undefined;
-  let bridge: StagehandBridge | undefined;
+  let rpcClient: RPCClient | undefined;
 
   beforeAll(async () => {
     extensionDir = await createFullGraphSmokeExtension();
     fixtureServer = await startFixtureServer();
     chrome = await launchChrome(fixtureServer.url);
-    bridge = await connectStagehandBridge({
+    rpcClient = await connectRPCClient({
       cdpUrl: `http://127.0.0.1:${chrome.port}`,
       extensionDir,
       serviceWorkerUrlIncludes: "service-worker.js",
@@ -35,33 +38,51 @@ describe("Stagehand service worker bridge smoke", () => {
   }, 45_000);
 
   afterAll(async () => {
-    bridge?.close();
+    rpcClient?.close();
     chrome?.kill();
     await fixtureServer?.close();
     if (extensionDir) await rm(extensionDir, { force: true, recursive: true });
   });
 
   it("discovers the Stagehand service worker in a real Chromium session", () => {
-    expect(bridge?.serviceWorker.url).toContain("chrome-extension://");
-    expect(bridge?.serviceWorker.url).toContain("/service-worker.js");
-    expect(bridge?.serviceWorker.extensionId).toBeTruthy();
+    expect(rpcClient?.serviceWorker.url).toContain("chrome-extension://");
+    expect(rpcClient?.serviceWorker.url).toContain("/service-worker.js");
+    expect(rpcClient?.serviceWorker.extensionId).toBeTruthy();
   });
 
   it("ping returns a typed response from the service worker runtime", async () => {
-    await expect(bridge?.send("ping", {})).resolves.toStrictEqual({
+    await expect(rpcClient?.send(StagehandRPC.ping, {})).resolves.toStrictEqual({
       ok: true,
       runtime: "service_worker",
     });
   });
 
-  it("streams validated Stagehand log notifications over the existing CDP connection", async () => {
+  it("buffers Stagehand logs until the SDK notification listener is attached", () => {
     const notifications: StagehandRpcNotification[] = [];
-    const activeBridge = requireBridge(bridge);
-    const stopListening = activeBridge.onNotification((notification) => {
+    const stopListening = requireRpcClient(rpcClient).onNotification((notification) => {
       notifications.push(notification);
     });
 
-    await activeBridge.send("ping", {});
+    expect(notifications).toContainEqual({
+      jsonrpc: "2.0",
+      method: "stagehand.log",
+      params: {
+        level: "info",
+        message: "[stagehand] runtime.configure",
+        data: {},
+      },
+    });
+    stopListening();
+  });
+
+  it("streams validated Stagehand log notifications over the existing CDP connection", async () => {
+    const notifications: StagehandRpcNotification[] = [];
+    const activeRpcClient = requireRpcClient(rpcClient);
+    const stopListening = activeRpcClient.onNotification((notification) => {
+      notifications.push(notification);
+    });
+
+    await activeRpcClient.send(StagehandRPC.ping, {});
 
     expect(notifications).toContainEqual({
       jsonrpc: "2.0",
@@ -76,7 +97,7 @@ describe("Stagehand service worker bridge smoke", () => {
   });
 
   it("browser.get_version returns the browser version over loopback CDP", async () => {
-    const version = await bridge?.send("browser.get_version", {});
+    const version = await rpcClient?.send(StagehandRPC.browserGetVersion, {});
 
     expect(version?.protocolVersion).toBe("1.3");
     expect(version?.product).toContain("Chrome/");
@@ -84,7 +105,7 @@ describe("Stagehand service worker bridge smoke", () => {
   });
 
   it("context.pages returns PageRefs from the understudy context", async () => {
-    const pages = await requireBridge(bridge).send("context.pages", {});
+    const pages = await requireRpcClient(rpcClient).send(StagehandRPC.contextPages, {});
 
     expect(pages.length).toBeGreaterThanOrEqual(1);
     expect(pages[0]?.pageId).toBeTruthy();
@@ -92,7 +113,7 @@ describe("Stagehand service worker bridge smoke", () => {
   });
 
   it("context.new_page returns a PageRef from the understudy context", async () => {
-    const page = await requireBridge(bridge).send("context.new_page", {
+    const page = await requireRpcClient(rpcClient).send(StagehandRPC.contextNewPage, {
       url: "about:blank",
     });
 
@@ -101,17 +122,17 @@ describe("Stagehand service worker bridge smoke", () => {
   });
 
   it("ping rejects invalid params before the handler runs", async () => {
-    await expect(bridge?.send("ping", { extra: true } as never)).rejects.toThrow();
+    await expect(rpcClient?.send(StagehandRPC.ping, { extra: true } as never)).rejects.toThrow();
   });
 
   it("routes page methods through real PageRefs in a browser session", async () => {
-    const activeBridge = requireBridge(bridge);
+    const activeRpcClient = requireRpcClient(rpcClient);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const pages = await activeBridge.send("context.pages", {});
-    const page = pages[0] ?? (await activeBridge.send("context.new_page", {}));
+    const pages = await activeRpcClient.send(StagehandRPC.contextPages, {});
+    const page = pages[0] ?? (await activeRpcClient.send(StagehandRPC.contextNewPage, {}));
 
     await expect(
-      activeBridge.send("page.goto", {
+      activeRpcClient.send(StagehandRPC.pageGoto, {
         pageId: page.pageId,
         url: activeFixtureServer.url,
       }),
@@ -120,38 +141,42 @@ describe("Stagehand service worker bridge smoke", () => {
       url: activeFixtureServer.url,
     });
 
-    await expect(activeBridge.send("page.url", { pageId: page.pageId })).resolves.toStrictEqual({
-      url: activeFixtureServer.url,
-    });
-    await expect(activeBridge.send("page.title", { pageId: page.pageId })).resolves.toStrictEqual({
+    await expect(
+      activeRpcClient.send(StagehandRPC.pageUrl, { pageId: page.pageId }),
+    ).resolves.toStrictEqual({ url: activeFixtureServer.url });
+    await expect(
+      activeRpcClient.send(StagehandRPC.pageTitle, { pageId: page.pageId }),
+    ).resolves.toStrictEqual({
       title: "Stagehand Smoke",
     });
   });
 
   it("closes a throwaway PageRef in a browser session", async () => {
-    const activeBridge = requireBridge(bridge);
-    const page = await activeBridge.send("context.new_page", {
+    const activeRpcClient = requireRpcClient(rpcClient);
+    const page = await activeRpcClient.send(StagehandRPC.contextNewPage, {
       url: "about:blank",
     });
 
-    await expect(activeBridge.send("page.close", { pageId: page.pageId })).resolves.toStrictEqual({
+    await expect(
+      activeRpcClient.send(StagehandRPC.pageClose, { pageId: page.pageId }),
+    ).resolves.toStrictEqual({
       closed: true,
     });
   });
 
   it("routes locator actions through real PageRefs in a browser session", async () => {
-    const activeBridge = requireBridge(bridge);
+    const activeRpcClient = requireRpcClient(rpcClient);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const pages = await activeBridge.send("context.pages", {});
-    const page = pages[0] ?? (await activeBridge.send("context.new_page", {}));
+    const pages = await activeRpcClient.send(StagehandRPC.contextPages, {});
+    const page = pages[0] ?? (await activeRpcClient.send(StagehandRPC.contextNewPage, {}));
 
-    await activeBridge.send("page.goto", {
+    await activeRpcClient.send(StagehandRPC.pageGoto, {
       pageId: page.pageId,
       url: activeFixtureServer.url,
     });
 
     await expect(
-      activeBridge.send("locator.is_visible", {
+      activeRpcClient.send(StagehandRPC.locatorIsVisible, {
         pageId: page.pageId,
         selector: "#locator-message",
       }),
@@ -160,7 +185,7 @@ describe("Stagehand service worker bridge smoke", () => {
     });
 
     await expect(
-      activeBridge.send("locator.text_content", {
+      activeRpcClient.send(StagehandRPC.locatorTextContent, {
         pageId: page.pageId,
         selector: "#locator-message",
       }),
@@ -169,7 +194,7 @@ describe("Stagehand service worker bridge smoke", () => {
     });
 
     await expect(
-      activeBridge.send("locator.fill", {
+      activeRpcClient.send(StagehandRPC.locatorFill, {
         pageId: page.pageId,
         selector: "#locator-input",
         value: "user@example.com",
@@ -179,7 +204,7 @@ describe("Stagehand service worker bridge smoke", () => {
     });
 
     await expect(
-      activeBridge.send("locator.click", {
+      activeRpcClient.send(StagehandRPC.locatorClick, {
         pageId: page.pageId,
         selector: "#locator-button",
       }),
@@ -188,7 +213,7 @@ describe("Stagehand service worker bridge smoke", () => {
     });
 
     await expect(
-      activeBridge.send("locator.text_content", {
+      activeRpcClient.send(StagehandRPC.locatorTextContent, {
         pageId: page.pageId,
         selector: "#locator-output",
       }),
@@ -198,16 +223,17 @@ describe("Stagehand service worker bridge smoke", () => {
   });
 
   it("unknown protocol command returns a typed protocol error", async () => {
-    await expect(bridge?.send("browser.raw_cdp" as never, {} as never)).rejects.toMatchObject({
+    await expect(
+      rpcClient?.send({ name: "browser.raw_cdp", params: z.object({}), result: z.unknown() }, {}),
+    ).rejects.toMatchObject({
       code: -32601,
       data: { type: "stagehand.unknown_command" },
     });
   });
 
-  it("bridge does not expose raw CDP passthrough as public API", () => {
-    expect(bridge).toBeDefined();
-    expect("sendCDP" in (bridge as object)).toBe(false);
-    expect("cdp" in (bridge as object)).toBe(false);
+  it("rpcClient does not expose a raw CDP command method", () => {
+    expect(rpcClient).toBeDefined();
+    expect("sendCDP" in (rpcClient as object)).toBe(false);
   });
 });
 
@@ -223,7 +249,7 @@ async function createFullGraphSmokeExtension(): Promise<string> {
   );
 
   const extensionEntryPath = fileURLToPath(
-    new URL("../../../extension/src/service-worker.ts", import.meta.url),
+    new URL("../../../server/service-worker.ts", import.meta.url),
   );
   const serverModulePath = (relativePath: string): string =>
     fileURLToPath(new URL(`../../../server/${relativePath}`, import.meta.url));
@@ -288,9 +314,9 @@ async function assertWorkerBundleIsV8Only(extensionDir: string): Promise<void> {
   }
 }
 
-function requireBridge(value: StagehandBridge | undefined): StagehandBridge {
+function requireRpcClient(value: RPCClient | undefined): RPCClient {
   if (!value) {
-    throw new Error("Stagehand bridge was not initialized");
+    throw new Error("Stagehand RPC client was not initialized");
   }
 
   return value;

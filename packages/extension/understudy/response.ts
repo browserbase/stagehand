@@ -105,25 +105,25 @@ function parseHeadersText(headersText: string | undefined): Array<{ name: string
  * state into that result instead of exposing this object.
  */
 export class Response {
-  private readonly page: Page;
-  private readonly session: CDPSessionLike;
-  private readonly requestId: string;
-  private readonly frameId?: string;
-  private readonly loaderId?: string;
-  private readonly response: Protocol.Network.Response;
-  private readonly fromServiceWorkerFlag: boolean;
-  private readonly serverAddress?: ServerAddr | null;
+  readonly page: Page;
+  readonly session: CDPSessionLike;
+  readonly requestId: string;
+  readonly frameId?: string;
+  readonly loaderId?: string;
+  readonly response: Protocol.Network.Response;
+  readonly fromServiceWorkerFlag: boolean;
+  readonly serverAddress?: ServerAddr | null;
 
-  private headersObject: Record<string, string>;
-  private headersArrayCache: Array<{ name: string; value: string }> | null = null;
-  private allHeadersCache: Record<string, string> | null = null;
-  private readonly headerValuesMap = new Map<string, string[]>();
+  headersObject: Record<string, string>;
+  headersArrayCache: Array<{ name: string; value: string }> | null = null;
+  allHeadersCache: Record<string, string> | null = null;
+  readonly headerValuesMap = new Map<string, string[]>();
 
-  private finishedDeferred = createDeferred<null | Error>();
-  private finishedSettled = false;
+  finishedDeferred = createDeferred<null | Error>();
+  finishedSettled = false;
 
-  private extraInfoHeaders: Protocol.Network.Headers | null = null;
-  private extraInfoHeadersText: string | undefined;
+  extraInfoHeaders: Protocol.Network.Headers | null = null;
+  extraInfoHeadersText: string | undefined;
 
   /**
    * Build a response wrapper from the CDP notification associated with a

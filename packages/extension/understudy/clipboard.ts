@@ -12,12 +12,12 @@ type ContextClipboardParams = {
 // TODO(runtime-cleanup): Hydrate ClipboardOptions.locator instead of always
 // resolving the active Understudy page.
 export class ContextClipboard {
-  constructor(private readonly params: ContextClipboardParams) {}
+  constructor(readonly params: ContextClipboardParams) {}
   async writeText(text: string, options?: ClipboardOptions): Promise<void> {
     await this.writeTextInternal(text, options);
   }
 
-  private async writeTextInternal(text: string, options?: ClipboardOptions): Promise<void> {
+  async writeTextInternal(text: string, options?: ClipboardOptions): Promise<void> {
     void options;
     const page = await this.resolvePage();
     await this.ensurePageFocused(page);
@@ -74,11 +74,11 @@ export class ContextClipboard {
     await page.keyPress("ControlOrMeta+X");
   }
 
-  private async resolvePage(page?: Page): Promise<Page> {
+  async resolvePage(page?: Page): Promise<Page> {
     return await this.params.resolvePage(page);
   }
 
-  private async grantClipboardPermissions(page: Page): Promise<void> {
+  async grantClipboardPermissions(page: Page): Promise<void> {
     const origin = this.originForPage(page);
     if (!origin) return;
 
@@ -90,7 +90,7 @@ export class ContextClipboard {
       .catch(() => {});
   }
 
-  private async ensurePageFocused(page: Page): Promise<void> {
+  async ensurePageFocused(page: Page): Promise<void> {
     this.params.context.setActivePage(page);
     await page.sendInternalCDP("Page.bringToFront").catch(() => {});
     await page.sendInternalCDP("Runtime.enable").catch(() => {});
@@ -103,7 +103,7 @@ export class ContextClipboard {
       .catch(() => {});
   }
 
-  private originForPage(page: Page): string | undefined {
+  originForPage(page: Page): string | undefined {
     try {
       const parsed = new URL(page.url());
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -115,10 +115,7 @@ export class ContextClipboard {
     }
   }
 
-  private throwIfEvaluationFailed(
-    operation: string,
-    response: Protocol.Runtime.EvaluateResponse,
-  ): void {
+  throwIfEvaluationFailed(operation: string, response: Protocol.Runtime.EvaluateResponse): void {
     if (!response.exceptionDetails) return;
 
     const message =

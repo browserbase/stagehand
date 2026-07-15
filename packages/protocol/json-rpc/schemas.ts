@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { wireSchema } from "./wire-casing.ts";
+import type { WireCasingOptions } from "./wire-casing.ts";
 
 // JSON-RPC 2.0: https://www.jsonrpc.org/specification
 
@@ -53,105 +53,39 @@ export const JSONRPCResponseSchema = z.union([
   JSONRPCErrorResponseSchema,
 ]);
 
-export const JSONRPCRequestBatchSchema = z
-  .array(z.union([JSONRPCRequestSchema, JSONRPCNotificationSchema]))
-  .min(1);
-export const JSONRPCResponseBatchSchema = z.array(JSONRPCResponseSchema).min(1);
+export const JSONRPCMessageSchema = z.union([
+  JSONRPCRequestSchema,
+  JSONRPCNotificationSchema,
+  JSONRPCResponseSchema,
+]);
 
-type MethodRegistry = Record<
-  string,
-  {
-    paramsSchema: z.ZodType;
-    resultSchema: z.ZodType;
+export const JSONRPCWireInputSchema = z.unknown().transform((input, context) => {
+  if (typeof input !== "string") return input;
+
+  try {
+    return JSON.parse(input) as unknown;
+  } catch {
+    context.addIssue({ code: "custom", message: "Invalid JSON" });
+    return z.NEVER;
   }
->;
-type NotificationRegistrySchema = z.ZodObject<Record<string, z.ZodType>>;
-type RegistryKey<TRegistry> = Extract<keyof TRegistry, string>;
-type RpcRequestTraceContextInput = Pick<
-  z.input<typeof JSONRPCRequestSchema>,
-  "traceparent" | "tracestate"
->;
-type RpcRequestTraceContextOutput = Pick<
-  z.output<typeof JSONRPCRequestSchema>,
-  "traceparent" | "tracestate"
->;
+});
 
-type RpcRequestInput<TMethods extends MethodRegistry> = {
-  [TMethod in RegistryKey<TMethods>]: {
-    jsonrpc: "2.0";
-    id: z.input<typeof JSONRPCRequestIdSchema>;
-    method: TMethod;
-    params: unknown;
-  } & RpcRequestTraceContextInput;
-}[RegistryKey<TMethods>];
+export const JSONRPCEnvelopeSchema = z.record(z.string(), z.unknown());
 
-type RpcRequestOutput<TMethods extends MethodRegistry> = {
-  [TMethod in RegistryKey<TMethods>]: {
-    jsonrpc: "2.0";
-    id: z.output<typeof JSONRPCRequestIdSchema>;
-    method: TMethod;
-    params: z.output<TMethods[TMethod]["paramsSchema"]>;
-  } & RpcRequestTraceContextOutput;
-}[RegistryKey<TMethods>];
+type JSONRPCWireOptions = {
+  decode?: WireCasingOptions;
+  encode?: WireCasingOptions;
+};
 
-type NotificationKey<TNotifications extends NotificationRegistrySchema> = Extract<
-  keyof z.output<TNotifications>,
-  string
->;
+export type RPCMethod = {
+  name: string;
+  params: z.ZodType;
+  result: z.ZodType;
+  paramsWire?: JSONRPCWireOptions;
+  resultWire?: JSONRPCWireOptions;
+};
 
-type RpcNotificationInput<TNotifications extends NotificationRegistrySchema> = {
-  [TMethod in NotificationKey<TNotifications>]: {
-    jsonrpc: "2.0";
-    method: TMethod;
-    params: unknown;
-  };
-}[NotificationKey<TNotifications>];
-
-type RpcNotificationOutput<TNotifications extends NotificationRegistrySchema> = {
-  [TMethod in NotificationKey<TNotifications>]: {
-    jsonrpc: "2.0";
-    method: TMethod;
-    params: z.output<TNotifications>[TMethod];
-  };
-}[NotificationKey<TNotifications>];
-
-export function createRpcSchemas<
-  TMethods extends MethodRegistry,
-  TNotifications extends NotificationRegistrySchema,
->(methods: TMethods, notifications: TNotifications) {
-  const requestSchemas = Object.entries(methods).map(([methodName, definition]) =>
-    JSONRPCRequestSchema.extend({
-      method: z.literal(methodName),
-      params: wireSchema(definition.paramsSchema),
-    }),
-  );
-  const notificationSchemas = Object.entries(notifications.shape).map(
-    ([methodName, paramsSchema]) =>
-      JSONRPCNotificationSchema.extend({
-        method: z.literal(methodName),
-        params: wireSchema(paramsSchema),
-      }),
-  );
-
-  return {
-    requestSchema: discriminatedUnionSchemas<RpcRequestOutput<TMethods>, RpcRequestInput<TMethods>>(
-      requestSchemas,
-    ),
-    notificationSchema: discriminatedUnionSchemas<
-      RpcNotificationOutput<TNotifications>,
-      RpcNotificationInput<TNotifications>
-    >(notificationSchemas),
-  };
-}
-
-function discriminatedUnionSchemas<TOutput, TInput>(
-  schemas: z.ZodObject[],
-): z.ZodType<TOutput, TInput> {
-  if (schemas.length === 0) {
-    throw new Error("A protocol registry must contain at least one entry");
-  }
-  return z.discriminatedUnion("method", schemas as [z.ZodObject, ...z.ZodObject[]]) as z.ZodType<
-    TOutput,
-    TInput
-  >;
-}
+export type RPCNotification = {
+  name: string;
+  params: z.ZodType;
+};

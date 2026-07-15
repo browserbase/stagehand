@@ -1,95 +1,86 @@
-import { stagehandExtensionDistDir } from "../../extension/build.js";
-import {
-  connectStagehandBridge,
-  type StagehandBridge,
-  type StagehandBridgeOptions,
-} from "../../modcdp/index.js";
+import { connectRPCClient, type RPCClient, type RPCClientOptions } from "./rpcClient.js";
 import { StagehandOptionsSchema } from "../../protocol/pending-schemas.js";
+import { StagehandRPC } from "../../protocol/schema-registry.js";
 import type { StagehandOptions, StagehandRpcNotification } from "../../protocol/types.js";
 import { BrowserContext } from "./browserContext.js";
 import { resolveBrowserSource, type ResolvedBrowserSource } from "./browserSource.js";
-import { BridgeProtocolClient } from "./bridgeProtocolClient.js";
-import {
-  buildStagehandProtocolRequest,
-  parseStagehandProtocolResponse,
-  type StagehandProtocolClient,
-} from "./protocolClient.js";
 
 type StagehandAdapters = {
   resolveBrowserSource?: (options: StagehandOptions) => Promise<ResolvedBrowserSource>;
-  connectBridge?: (options: StagehandBridgeOptions) => Promise<StagehandBridge>;
+  connectRpcClient?: (options: RPCClientOptions) => Promise<RPCClient>;
 };
 
 const stagehandAdapters = new WeakMap<Stagehand, StagehandAdapters>();
 
 export class Stagehand {
-  #context: BrowserContext | undefined;
-  #initialized = false;
-  #bridge: StagehandBridge | undefined;
-  #removeNotificationListener: (() => void) | undefined;
-  #browser: ResolvedBrowserSource | undefined;
+  browserContext: BrowserContext | undefined;
+  isInitialized = false;
+  rpcClient: RPCClient | undefined;
+  removeNotificationListener: (() => void) | undefined;
+  browser: ResolvedBrowserSource | undefined;
 
-  constructor(private readonly options: StagehandOptions) {}
+  constructor(readonly options: StagehandOptions) {}
 
   get context(): BrowserContext {
-    if (!this.#context) {
+    if (!this.browserContext) {
       throw new Error("Stagehand is not initialized. Call stagehand.init() before using context.");
     }
-    return this.#context;
+    return this.browserContext;
   }
 
   get initialized(): boolean {
-    return this.#initialized;
+    return this.isInitialized;
   }
 
   async init(): Promise<void> {
-    if (this.#initialized) {
+    if (this.isInitialized) {
       return;
     }
 
     const parsedOptions = StagehandOptionsSchema.parse(this.options);
     const adapters = stagehandAdapters.get(this) ?? {};
     const browser = await (adapters.resolveBrowserSource ?? resolveBrowserSource)(parsedOptions);
-    this.#browser = browser;
+    this.browser = browser;
 
     try {
-      const bridge = await (adapters.connectBridge ?? connectStagehandBridge)({
+      const rpcClient = await (adapters.connectRpcClient ?? connectRPCClient)({
         cdpUrl: browser.cdpUrl,
-        extensionDir: stagehandExtensionDistDir,
+        // TODO: Move extension provisioning into browser-source initialization.
+        extensionDir: new URL("../../server/dist", import.meta.url).pathname,
         serviceWorkerUrlIncludes: "service-worker.js",
         telemetry: parsedOptions.telemetry,
       });
-      this.#bridge = bridge;
-      this.#removeNotificationListener = bridge.onNotification(renderStagehandNotification);
-      this.#context = new BrowserContext(new BridgeProtocolClient(bridge));
+      this.rpcClient = rpcClient;
+      this.removeNotificationListener = rpcClient.onNotification(renderStagehandNotification);
+      this.browserContext = new BrowserContext(rpcClient);
     } catch (error) {
       await this.closeBrowserSource();
       throw error;
     }
 
-    this.#initialized = true;
+    this.isInitialized = true;
   }
 
   async close(): Promise<void> {
-    const context = this.#context;
+    const context = this.browserContext;
     try {
       if (context) {
-        await this.#bridge?.send("stagehand.close", {});
+        await this.rpcClient?.send(StagehandRPC.stagehandClose, {});
       }
     } finally {
-      this.#removeNotificationListener?.();
-      this.#removeNotificationListener = undefined;
-      this.#bridge?.close();
+      this.removeNotificationListener?.();
+      this.removeNotificationListener = undefined;
+      this.rpcClient?.close();
       await this.closeBrowserSource();
-      this.#bridge = undefined;
-      this.#context = undefined;
-      this.#initialized = false;
+      this.rpcClient = undefined;
+      this.browserContext = undefined;
+      this.isInitialized = false;
     }
   }
 
   async closeBrowserSource(): Promise<void> {
-    const browser = this.#browser;
-    this.#browser = undefined;
+    const browser = this.browser;
+    this.browser = undefined;
     if (!browser || browser.keepAlive) {
       return;
     }
@@ -97,7 +88,7 @@ export class Stagehand {
   }
 }
 
-export function createStagehandWithClientForTest(client: StagehandProtocolClient): Stagehand {
+export function createStagehandWithClientForTest(client: RPCClient): Stagehand {
   return createStagehandWithDependenciesForTest(
     {
       localBrowserConnectOptions: {
@@ -109,21 +100,7 @@ export function createStagehandWithClientForTest(client: StagehandProtocolClient
         cdpUrl: "test://stagehand",
         keepAlive: true,
       }),
-      connectBridge: async () => ({
-        serviceWorker: {
-          targetId: "test-worker",
-          url: "chrome-extension://stagehand/service-worker.js",
-          title: "Stagehand",
-          extensionId: "stagehand",
-        },
-        send: async (method, params) => {
-          const request = buildStagehandProtocolRequest(method, params);
-          const response = await client.send(request);
-          return parseStagehandProtocolResponse(method, response);
-        },
-        onNotification: () => () => {},
-        close: () => {},
-      }),
+      connectRpcClient: async () => client,
     },
   );
 }

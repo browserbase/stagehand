@@ -62,41 +62,41 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
 
 export class Page {
   /** Every CDP child session this page owns (top-level + adopted OOPIF sessions). */
-  private readonly sessions = new Map<string, CDPSessionLike>(); // sessionId -> session
+  readonly sessions = new Map<string, CDPSessionLike>(); // sessionId -> session
 
   /** Unified truth for frame topology + ownership. */
-  private readonly registry: FrameRegistry;
+  readonly registry: FrameRegistry;
 
   /** A convenience wrapper bound to the current main frame id (top-level session). */
-  private mainFrameWrapper: Frame;
+  mainFrameWrapper: Frame;
 
   /** Compact ordinal per frameId (used by snapshot encoding). */
-  private frameOrdinals = new Map<string, number>();
-  private nextOrdinal = 0;
+  frameOrdinals = new Map<string, number>();
+  nextOrdinal = 0;
 
   /** cache Frames per frameId so everyone uses the same one */
-  private readonly frameCache = new Map<string, Frame>();
-  private readonly browserIsRemote: boolean;
+  readonly frameCache = new Map<string, Frame>();
+  readonly browserIsRemote: boolean;
 
   /** Stable id for Frames created by this Page (use top-level TargetId). */
-  private readonly pageId: string;
+  readonly pageId: string;
   /** Cached current URL for synchronous page.url() */
-  private _currentUrl: string = "about:blank";
+  _currentUrl: string = "about:blank";
 
-  private navigationCommandSeq = 0;
-  private latestNavigationCommandId = 0;
+  navigationCommandSeq = 0;
+  latestNavigationCommandId = 0;
 
-  private readonly networkManager: NetworkManager;
+  readonly networkManager: NetworkManager;
   /** Optional API client for routing page operations to the API */
-  private readonly apiClient: StagehandAPIClient | null = null;
+  readonly apiClient: StagehandAPIClient | null = null;
   /** Document-start scripts installed across every session this page owns. */
-  private readonly initScripts: string[] = [];
-  private extraHTTPHeaders: Record<string, string> = {};
+  readonly initScripts: string[] = [];
+  extraHTTPHeaders: Record<string, string> = {};
 
-  private constructor(
-    private readonly conn: CdpConnection,
-    private readonly mainSession: CDPSessionLike,
-    private readonly _targetId: string,
+  constructor(
+    readonly conn: CdpConnection,
+    readonly mainSession: CDPSessionLike,
+    readonly _targetId: string,
     mainFrameId: string,
     public readonly logger: StagehandLogger,
     apiClient?: StagehandAPIClient | null,
@@ -126,14 +126,14 @@ export class Page {
   }
 
   // Send a single init script to a specific CDP session.
-  private async installInitScriptOnSession(session: CDPSessionLike, source: string): Promise<void> {
+  async installInitScriptOnSession(session: CDPSessionLike, source: string): Promise<void> {
     await session.send("Page.addScriptToEvaluateOnNewDocument", {
       source: source,
     });
   }
 
   // Replay every previously registered init script onto a newly adopted session.
-  private async applyInitScriptsToSession(session: CDPSessionLike): Promise<void> {
+  async applyInitScriptsToSession(session: CDPSessionLike): Promise<void> {
     for (const source of this.initScripts) {
       await this.installInitScriptOnSession(session, source);
     }
@@ -160,8 +160,8 @@ export class Page {
   }
 
   // --- Optional visual cursor overlay management ---
-  private cursorEnabled = false;
-  private async ensureCursorScript(): Promise<void> {
+  cursorEnabled = false;
+  async ensureCursorScript(): Promise<void> {
     const script = `(() => {
       const ID = '__v3_cursor_overlay__';
       const state = { el: null, last: null };
@@ -244,7 +244,7 @@ export class Page {
     this.cursorEnabled = true;
   }
 
-  private async updateCursor(x: number, y: number): Promise<void> {
+  async updateCursor(x: number, y: number): Promise<void> {
     if (!this.cursorEnabled) return;
     try {
       await this.mainSession.send("Runtime.evaluate", {
@@ -532,7 +532,7 @@ export class Page {
     return this.registry.asProtocolFrameTree(rootMainFrameId);
   }
 
-  private async applyExtraHTTPHeadersToSession(
+  async applyExtraHTTPHeadersToSession(
     session: CDPSessionLike,
     headers: Record<string, string>,
   ): Promise<void> {
@@ -542,7 +542,7 @@ export class Page {
     });
   }
 
-  private ensureOrdinal(frameId: string): number {
+  ensureOrdinal(frameId: string): number {
     const hit = this.frameOrdinals.get(frameId);
     if (hit !== undefined) return hit;
     const ord = this.nextOrdinal++;
@@ -777,7 +777,7 @@ export class Page {
     return this._currentUrl;
   }
 
-  private beginNavigationCommand(): number {
+  beginNavigationCommand(): number {
     const id = ++this.navigationCommandSeq;
     this.latestNavigationCommandId = id;
     return id;
@@ -1603,10 +1603,10 @@ export class Page {
   }
 
   // Track pressed modifier keys
-  private _pressedModifiers = new Set<string>();
+  _pressedModifiers = new Set<string>();
 
   /** Press a key down without releasing it */
-  private async keyDown(key: string): Promise<void> {
+  async keyDown(key: string): Promise<void> {
     const normalizedKey = this.normalizeModifierKey(key);
 
     const modifierKeys = ["Alt", "Control", "Meta", "Shift"];
@@ -1683,7 +1683,7 @@ export class Page {
   }
 
   /** Release a pressed key */
-  private async keyUp(key: string): Promise<void> {
+  async keyUp(key: string): Promise<void> {
     const normalizedKey = this.normalizeModifierKey(key);
 
     let modifiers = 0;
@@ -1732,7 +1732,7 @@ export class Page {
   }
 
   /** Normalize key names to match CDP expectations */
-  private normalizeModifierKey(key: string): string {
+  normalizeModifierKey(key: string): string {
     const lower = key.toLowerCase();
     switch (lower) {
       // Modifier keys
@@ -1803,7 +1803,7 @@ export class Page {
   /**
    * Get the map of named keys with their properties
    */
-  private getNamedKeys(): Record<
+  getNamedKeys(): Record<
     string,
     {
       key: string;
@@ -1845,7 +1845,7 @@ export class Page {
    * Minimal description for printable keys (letters/digits/space) to provide code and VK.
    * Used when non-Shift modifiers are pressed to avoid sending text while keeping accelerator info.
    */
-  private describePrintableKey(ch: string): {
+  describePrintableKey(ch: string): {
     key: string;
     code?: string;
     vk?: number;
@@ -1882,7 +1882,7 @@ export class Page {
     };
   }
 
-  private isMacOS(): boolean {
+  isMacOS(): boolean {
     return /mac|iphone|ipad|ipod/iu.test(globalThis.navigator?.platform ?? "");
   }
 
@@ -1890,7 +1890,7 @@ export class Page {
    * Return Chromium mac editing commands (without trailing ':') for a given code like 'KeyA'
    * Only used on macOS to trigger system editing shortcuts (e.g., selectAll, copy, paste...).
    */
-  private macCommandsFor(code: string): string[] {
+  macCommandsFor(code: string): string[] {
     if (!this.isMacOS()) return [];
     const parts: string[] = [];
     if (this._pressedModifiers.has("Shift")) parts.push("Shift");
@@ -1915,11 +1915,11 @@ export class Page {
   // ---- Page-level lifecycle waiter that follows main frame id swaps ----
 
   /** Resolve the main-world execution context for the current main frame. */
-  private async mainWorldExecutionContextId(): Promise<number> {
+  async mainWorldExecutionContextId(): Promise<number> {
     return executionContexts.waitForMainWorld(this.mainSession, this.mainFrameId(), 1000);
   }
 
-  private async isMainLoadStateReady(state: "domcontentloaded" | "load"): Promise<boolean> {
+  async isMainLoadStateReady(state: "domcontentloaded" | "load"): Promise<boolean> {
     try {
       const ctxId = await this.mainWorldExecutionContextId();
       const { result } = await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(

@@ -22,8 +22,8 @@ function inferProviderName(modelId: string): string | undefined {
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
   // Compile-only bridge: accept the broad AI SDK model union until the final LLM boundary is chosen.
-  private model: LanguageModel;
-  private modelId: string;
+  model: LanguageModel;
+  modelId: string;
 
   constructor({
     model,

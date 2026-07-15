@@ -1,66 +1,69 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import type { StagehandBridge, StagehandBridgeOptions } from "../../modcdp/index.js";
+import { z } from "zod/v4";
+import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
+import { StagehandRPC } from "../../protocol/schema-registry.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { Stagehand } from "../src/index.js";
 import type { ResolvedBrowserSource } from "../src/browserSource.js";
-import type {
-  StagehandMethod,
-  StagehandMethodParams,
-  StagehandMethodResult,
-} from "../src/protocolClient.js";
+import { RPCClient, type RPCClientOptions } from "../src/rpcClient.js";
 import { createStagehandWithDependenciesForTest } from "../src/stagehand.js";
 
-type ProtocolCall<Method extends StagehandMethod = StagehandMethod> = {
-  [K in Method]: {
-    method: K;
-    params: StagehandMethodParams<K>;
-  };
-}[Method];
+type ProtocolCall = { method: string; params: unknown };
 
-class FakeStagehandBridge implements StagehandBridge {
-  readonly serviceWorker = {
-    targetId: "worker-target",
-    url: "chrome-extension://stagehand/service-worker.js",
-    title: "Stagehand",
-    extensionId: "stagehand",
-  };
+class FakeRPCClient extends RPCClient {
   readonly calls: ProtocolCall[] = [];
   closed = false;
-  #responses = new Map<StagehandMethod, unknown[]>();
-  #notificationListeners = new Set<(notification: StagehandRpcNotification) => void>();
+  responses = new Map<string, unknown[]>();
+  notificationListeners = new Set<(notification: StagehandRpcNotification) => void>();
 
-  queueResponse<Method extends StagehandMethod>(
-    method: Method,
-    response: StagehandMethodResult<Method>,
-  ): void {
-    const responses = this.#responses.get(method) ?? [];
-    responses.push(response);
-    this.#responses.set(method, responses);
+  constructor() {
+    super(
+      {
+        serviceWorker: {
+          targetId: "worker-target",
+          url: "chrome-extension://stagehand/service-worker.js",
+          title: "Stagehand",
+          extensionId: "stagehand",
+        },
+        send: async () => {},
+        close: () => {},
+      },
+      1_000,
+    );
   }
 
-  async send<Method extends StagehandMethod>(
+  queueResponse<Method extends RPCMethod>(
     method: Method,
-    params: StagehandMethodParams<Method>,
-  ): Promise<StagehandMethodResult<Method>> {
-    this.calls.push({ method, params } as ProtocolCall);
-    const responses = this.#responses.get(method);
+    response: z.input<Method["result"]>,
+  ): void {
+    const responses = this.responses.get(method.name) ?? [];
+    responses.push(response);
+    this.responses.set(method.name, responses);
+  }
+
+  async send<Method extends RPCMethod>(
+    method: Method,
+    params: z.input<Method["params"]>,
+  ): Promise<z.output<Method["result"]>> {
+    this.calls.push({ method: method.name, params });
+    const responses = this.responses.get(method.name);
     if (!responses?.length) {
-      throw new Error(`No fake response queued for ${method}`);
+      throw new Error(`No fake response queued for ${method.name}`);
     }
-    return responses.shift() as StagehandMethodResult<Method>;
+    return method.result.parse(responses.shift()) as z.output<Method["result"]>;
   }
 
   onNotification(listener: (notification: StagehandRpcNotification) => void): () => void {
-    this.#notificationListeners.add(listener);
-    return () => this.#notificationListeners.delete(listener);
+    this.notificationListeners.add(listener);
+    return () => this.notificationListeners.delete(listener);
   }
 
   emitNotification(notification: StagehandRpcNotification): void {
-    for (const listener of this.#notificationListeners) listener(notification);
+    for (const listener of this.notificationListeners) listener(notification);
   }
 
   get notificationListenerCount(): number {
-    return this.#notificationListeners.size;
+    return this.notificationListeners.size;
   }
 
   close(): void {
@@ -79,16 +82,16 @@ describe("Stagehand", () => {
     expect(() => stagehand.context).toThrow("Call stagehand.init() before using context");
   });
 
-  it("initializes through browser source resolution and bridge connection", async () => {
-    const bridge = new FakeStagehandBridge();
-    bridge.queueResponse("context.pages", [{ pageId: "page-1", url: "about:blank" }]);
+  it("initializes through browser source resolution and RPC client connection", async () => {
+    const rpcClient = new FakeRPCClient();
+    rpcClient.queueResponse(StagehandRPC.contextPages, [{ pageId: "page-1", url: "about:blank" }]);
     const resolveBrowserSource = vi.fn(async (): Promise<ResolvedBrowserSource> => {
       return {
         cdpUrl: "http://127.0.0.1:9222",
         keepAlive: true,
       };
     });
-    const connectBridge = vi.fn(async () => bridge);
+    const connectRpcClient = vi.fn(async () => rpcClient);
 
     const stagehand = createStagehandWithDependenciesForTest(
       {
@@ -98,7 +101,7 @@ describe("Stagehand", () => {
       },
       {
         resolveBrowserSource,
-        connectBridge,
+        connectRpcClient,
       },
     );
 
@@ -117,9 +120,9 @@ describe("Stagehand", () => {
         },
       },
     });
-    expect(connectBridge).toHaveBeenCalledWith({
+    expect(connectRpcClient).toHaveBeenCalledWith({
       cdpUrl: "http://127.0.0.1:9222",
-      extensionDir: expect.stringContaining("packages/extension/dist") as string,
+      extensionDir: expect.stringContaining("packages/server/dist") as string,
       serviceWorkerUrlIncludes: "service-worker.js",
       telemetry: {
         traces: {
@@ -127,14 +130,14 @@ describe("Stagehand", () => {
           headers: {},
         },
       },
-    } satisfies StagehandBridgeOptions);
+    } satisfies RPCClientOptions);
     expect(pages[0]?.pageId).toBe("page-1");
-    expect(bridge.calls).toStrictEqual([{ method: "context.pages", params: {} }]);
+    expect(rpcClient.calls).toStrictEqual([{ method: "context.pages", params: {} }]);
   });
 
-  it("passes the configured OTLP traces destination to the worker bridge", async () => {
-    const bridge = new FakeStagehandBridge();
-    const connectBridge = vi.fn(async () => bridge);
+  it("passes the configured OTLP traces destination to the worker RPC client", async () => {
+    const rpcClient = new FakeRPCClient();
+    const connectRpcClient = vi.fn(async () => rpcClient);
     const stagehand = createStagehandWithDependenciesForTest(
       {
         localBrowserConnectOptions: {
@@ -152,15 +155,15 @@ describe("Stagehand", () => {
           cdpUrl: "http://127.0.0.1:9222",
           keepAlive: true,
         }),
-        connectBridge,
+        connectRpcClient,
       },
     );
 
     await stagehand.init();
 
-    expect(connectBridge).toHaveBeenCalledWith({
+    expect(connectRpcClient).toHaveBeenCalledWith({
       cdpUrl: "http://127.0.0.1:9222",
-      extensionDir: expect.stringContaining("packages/extension/dist") as string,
+      extensionDir: expect.stringContaining("packages/server/dist") as string,
       serviceWorkerUrlIncludes: "service-worker.js",
       telemetry: {
         traces: {
@@ -168,13 +171,13 @@ describe("Stagehand", () => {
           headers: { Authorization: "Bearer test" },
         },
       },
-    } satisfies StagehandBridgeOptions);
+    } satisfies RPCClientOptions);
   });
 
-  it("closes the runtime, bridge, and owned browser source", async () => {
+  it("closes the runtime, rpcClient, and owned browser source", async () => {
     const closeBrowser = vi.fn();
-    const bridge = new FakeStagehandBridge();
-    bridge.queueResponse("stagehand.close", { closed: true });
+    const rpcClient = new FakeRPCClient();
+    rpcClient.queueResponse(StagehandRPC.stagehandClose, { closed: true });
     const stagehand = createStagehandWithDependenciesForTest(
       {
         localBrowserLaunchOptions: {},
@@ -185,7 +188,7 @@ describe("Stagehand", () => {
           keepAlive: false,
           close: closeBrowser,
         }),
-        connectBridge: async () => bridge,
+        connectRpcClient: async () => rpcClient,
       },
     );
 
@@ -193,16 +196,16 @@ describe("Stagehand", () => {
     await stagehand.close();
 
     expect(stagehand.initialized).toBe(false);
-    expect(bridge.calls).toStrictEqual([{ method: "stagehand.close", params: {} }]);
-    expect(bridge.closed).toBe(true);
+    expect(rpcClient.calls).toStrictEqual([{ method: "stagehand.close", params: {} }]);
+    expect(rpcClient.closed).toBe(true);
     expect(closeBrowser).toHaveBeenCalledOnce();
     expect(() => stagehand.context).toThrow("Call stagehand.init() before using context");
   });
 
   it("renders streamed Stagehand logs and removes the listener when Stagehand closes", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
-    const bridge = new FakeStagehandBridge();
-    bridge.queueResponse("stagehand.close", { closed: true });
+    const rpcClient = new FakeRPCClient();
+    rpcClient.queueResponse(StagehandRPC.stagehandClose, { closed: true });
     const stagehand = createStagehandWithDependenciesForTest(
       {
         localBrowserConnectOptions: {
@@ -214,12 +217,12 @@ describe("Stagehand", () => {
           cdpUrl: "http://127.0.0.1:9222",
           keepAlive: true,
         }),
-        connectBridge: async () => bridge,
+        connectRpcClient: async () => rpcClient,
       },
     );
 
     await stagehand.init();
-    bridge.emitNotification({
+    rpcClient.emitNotification({
       jsonrpc: "2.0",
       method: "stagehand.log",
       params: {
@@ -230,18 +233,18 @@ describe("Stagehand", () => {
     });
 
     expect(info).toHaveBeenCalledWith("Page opened", { pageId: "page-1" });
-    expect(bridge.notificationListenerCount).toBe(1);
+    expect(rpcClient.notificationListenerCount).toBe(1);
 
     await stagehand.close();
 
-    expect(bridge.notificationListenerCount).toBe(0);
+    expect(rpcClient.notificationListenerCount).toBe(0);
     info.mockRestore();
   });
 
   it("does not close a keepAlive browser source", async () => {
     const closeBrowser = vi.fn();
-    const bridge = new FakeStagehandBridge();
-    bridge.queueResponse("stagehand.close", { closed: true });
+    const rpcClient = new FakeRPCClient();
+    rpcClient.queueResponse(StagehandRPC.stagehandClose, { closed: true });
     const stagehand = createStagehandWithDependenciesForTest(
       {
         localBrowserLaunchOptions: {
@@ -254,18 +257,18 @@ describe("Stagehand", () => {
           keepAlive: true,
           close: closeBrowser,
         }),
-        connectBridge: async () => bridge,
+        connectRpcClient: async () => rpcClient,
       },
     );
 
     await stagehand.init();
     await stagehand.close();
 
-    expect(bridge.closed).toBe(true);
+    expect(rpcClient.closed).toBe(true);
     expect(closeBrowser).not.toHaveBeenCalled();
   });
 
-  it("cleans up an owned browser source when bridge connection fails", async () => {
+  it("cleans up an owned browser source when RPC client connection fails", async () => {
     const closeBrowser = vi.fn();
     const stagehand = createStagehandWithDependenciesForTest(
       {
@@ -277,13 +280,13 @@ describe("Stagehand", () => {
           keepAlive: false,
           close: closeBrowser,
         }),
-        connectBridge: async () => {
-          throw new Error("bridge failed");
+        connectRpcClient: async () => {
+          throw new Error("RPC client failed");
         },
       },
     );
 
-    await expect(stagehand.init()).rejects.toThrow("bridge failed");
+    await expect(stagehand.init()).rejects.toThrow("RPC client failed");
     expect(stagehand.initialized).toBe(false);
     expect(closeBrowser).toHaveBeenCalledOnce();
   });

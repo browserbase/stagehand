@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Stagehand Runtime",
+  "version": "0.0.0",
+  "minimum_chrome_version": "116",
+  "permissions": ["offscreen", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "options_page": "wake-service-worker.html"
+}

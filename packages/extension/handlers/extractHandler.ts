@@ -49,14 +49,14 @@ interface ExtractionResponseBase {
 type ExtractionResponse<T extends z.ZodObject> = ExtractionResponseBase & z.infer<T>;
 
 export class ExtractHandler {
-  private readonly llmClient: LLMClient;
-  private readonly defaultModelName: ModelName;
-  private readonly defaultClientOptions: ClientOptions;
-  private readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
-  private readonly systemPrompt: string;
-  private readonly logInferenceToFile: boolean;
-  private readonly experimental: boolean;
-  private readonly onMetrics?: (
+  readonly llmClient: LLMClient;
+  readonly defaultModelName: ModelName;
+  readonly defaultClientOptions: ClientOptions;
+  readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
+  readonly systemPrompt: string;
+  readonly logInferenceToFile: boolean;
+  readonly experimental: boolean;
+  readonly onMetrics?: (
     functionName: V3FunctionName,
     promptTokens: number,
     completionTokens: number,

@@ -22,29 +22,23 @@ import { Response } from "./response.js";
  * primary document response once identified.
  */
 export class NavigationResponseTracker {
-  private readonly page: Page;
-  private readonly session: CDPSessionLike;
-  private readonly navigationCommandId: number;
+  readonly page: Page;
+  readonly session: CDPSessionLike;
+  readonly navigationCommandId: number;
 
-  private expectedLoaderId: string | undefined;
-  private selectedRequestId: string | null = null;
-  private selectedResponse: Response | null = null;
-  private acceptNextWithoutLoader = false;
+  expectedLoaderId: string | undefined;
+  selectedRequestId: string | null = null;
+  selectedResponse: Response | null = null;
+  acceptNextWithoutLoader = false;
 
-  private responseResolved = false;
-  private resolveResponse!: (value: Response | null) => void;
-  private responsePromise: Promise<Response | null>;
+  responseResolved = false;
+  resolveResponse!: (value: Response | null) => void;
+  responsePromise: Promise<Response | null>;
 
-  private readonly pendingResponsesByLoader = new Map<
-    string,
-    Protocol.Network.ResponseReceivedEvent
-  >();
-  private readonly pendingExtraInfo = new Map<
-    string,
-    Protocol.Network.ResponseReceivedExtraInfoEvent
-  >();
+  readonly pendingResponsesByLoader = new Map<string, Protocol.Network.ResponseReceivedEvent>();
+  readonly pendingExtraInfo = new Map<string, Protocol.Network.ResponseReceivedExtraInfoEvent>();
 
-  private readonly listeners: Array<{
+  readonly listeners: Array<{
     event: string;
     handler: (event: unknown) => void;
   }> = [];
@@ -123,7 +117,7 @@ export class NavigationResponseTracker {
   }
 
   /** Register all CDP listeners relevant to navigation tracking. */
-  private installListeners(): void {
+  installListeners(): void {
     this.addListener("Network.responseReceived", (event) => {
       this.onResponseReceived(event as Protocol.Network.ResponseReceivedEvent);
     });
@@ -139,13 +133,13 @@ export class NavigationResponseTracker {
   }
 
   /** Attach a CDP listener and track it for later disposal. */
-  private addListener(event: string, handler: (event: unknown) => void): void {
+  addListener(event: string, handler: (event: unknown) => void): void {
     this.session.on(event, handler as never);
     this.listeners.push({ event, handler });
   }
 
   /** Handle the initial response payload for document navigations. */
-  private onResponseReceived(event: Protocol.Network.ResponseReceivedEvent): void {
+  onResponseReceived(event: Protocol.Network.ResponseReceivedEvent): void {
     if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) return;
     if (!event || !event.response) return;
     if (event.type !== "Document") return;
@@ -176,9 +170,7 @@ export class NavigationResponseTracker {
   }
 
   /** Merge auxiliary header information once Chrome exposes it. */
-  private onResponseReceivedExtraInfo(
-    event: Protocol.Network.ResponseReceivedExtraInfoEvent,
-  ): void {
+  onResponseReceivedExtraInfo(event: Protocol.Network.ResponseReceivedExtraInfoEvent): void {
     if (!event || !event.requestId) return;
     if (this.selectedRequestId && event.requestId === this.selectedRequestId) {
       this.selectedResponse?.applyExtraInfo(event);
@@ -188,14 +180,14 @@ export class NavigationResponseTracker {
   }
 
   /** Resolve the response's finished promise when the request completes. */
-  private onLoadingFinished(event: Protocol.Network.LoadingFinishedEvent): void {
+  onLoadingFinished(event: Protocol.Network.LoadingFinishedEvent): void {
     if (!event || !event.requestId) return;
     if (event.requestId !== this.selectedRequestId) return;
     this.selectedResponse?.markFinished(null);
   }
 
   /** Resolve the response's finished promise with an error on failure. */
-  private onLoadingFailed(event: Protocol.Network.LoadingFailedEvent): void {
+  onLoadingFailed(event: Protocol.Network.LoadingFailedEvent): void {
     // Ignore malformed events or ones without a request id
     if (!event || !event.requestId) return;
     // Only the tracked document request should toggle the response state
@@ -210,7 +202,7 @@ export class NavigationResponseTracker {
    * resolve awaiting consumers. Subsequent events flesh out the header/body
    * helpers and mark the request as finished.
    */
-  private selectResponse(event: Protocol.Network.ResponseReceivedEvent): void {
+  selectResponse(event: Protocol.Network.ResponseReceivedEvent): void {
     if (event.loaderId) {
       this.pendingResponsesByLoader.delete(event.loaderId);
     }

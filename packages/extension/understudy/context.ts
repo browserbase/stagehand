@@ -9,6 +9,7 @@ import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandAPIClient } from "../api.js";
 import type {
+  BrowserGetVersionResult,
   ClearCookieOptions,
   Cookie,
   CookieParam,
@@ -93,47 +94,55 @@ const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION = "waitForFirstTopLevelPage (no to
  * so Page can record the correct owner at event time.
  */
 export class V3Context {
-  private constructor(
+  constructor(
     readonly conn: CdpConnection,
-    private readonly logger: StagehandLogger,
-    private readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
-    private readonly apiClient: StagehandAPIClient | null = null,
-    private readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
+    readonly logger: StagehandLogger,
+    readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
+    readonly apiClient: StagehandAPIClient | null = null,
+    readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
   ) {}
 
-  private readonly _piercerInstalled = new Set<string>();
+  readonly _piercerInstalled = new Set<string>();
   // Timestamp for most recent popup/open signal
-  private _lastPopupSignalAt = 0;
-  private readonly _targetSessionListeners = new Set<SessionId>();
-  private readonly _domainPolicySessionListeners = new Map<
+  _lastPopupSignalAt = 0;
+  readonly _targetSessionListeners = new Set<SessionId>();
+  readonly _domainPolicySessionListeners = new Map<
     SessionId,
     (evt: Protocol.Fetch.RequestPausedEvent) => void
   >();
 
-  private readonly _sessionInit = new Set<SessionId>();
-  private pagesByTarget = new Map<TargetId, Page>();
-  private mainFrameToTarget = new Map<string, TargetId>();
-  private sessionOwnerPage = new Map<SessionId, Page>();
-  private frameOwnerPage = new Map<string, Page>();
-  private pendingOopifByMainFrame = new Map<string, SessionId>();
-  private createdAtByTarget = new Map<TargetId, number>();
-  private typeByTarget = new Map<TargetId, TargetType>();
-  private _pageOrder: TargetId[] = [];
-  private pendingCreatedTargetUrl = new Map<TargetId, string>();
-  private pageCreationFailures = new Map<TargetId, Error>();
+  readonly _sessionInit = new Set<SessionId>();
+  pagesByTarget = new Map<TargetId, Page>();
+  mainFrameToTarget = new Map<string, TargetId>();
+  sessionOwnerPage = new Map<SessionId, Page>();
+  frameOwnerPage = new Map<string, Page>();
+  pendingOopifByMainFrame = new Map<string, SessionId>();
+  createdAtByTarget = new Map<TargetId, number>();
+  typeByTarget = new Map<TargetId, TargetType>();
+  _pageOrder: TargetId[] = [];
+  pendingCreatedTargetUrl = new Map<TargetId, string>();
+  pageCreationFailures = new Map<TargetId, Error>();
   // Popup close attempts can race targetCreated, targetInfoChanged, and attached.
   // In-flight promises let attach wait for a close result before deciding whether
   // to skip normal setup. Successful closes stay deduped for the context lifetime
   // because Chrome can emit late targetInfoChanged events after targetDestroyed.
   // Failed closes are not retained so attach can continue and future events may retry.
-  private domainPolicyClosingTargets = new Set<TargetId>();
-  private domainPolicyClosePromises = new Map<TargetId, Promise<boolean>>();
-  private readonly initScripts: string[] = [];
-  private extraHttpHeaders: Record<string, string> | null = null;
-  private domainPolicy: NormalizedDomainPolicy | null = null;
-  private _clipboard?: ContextClipboard;
+  domainPolicyClosingTargets = new Set<TargetId>();
+  domainPolicyClosePromises = new Map<TargetId, Promise<boolean>>();
+  readonly initScripts: string[] = [];
+  extraHttpHeaders: Record<string, string> | null = null;
+  domainPolicy: NormalizedDomainPolicy | null = null;
+  _clipboard?: ContextClipboard;
 
-  private installTargetSessionListeners(session: CDPSessionLike): void {
+  get connected(): boolean {
+    return this.conn.connected;
+  }
+
+  async getVersion(): Promise<BrowserGetVersionResult> {
+    return await this.conn.send<BrowserGetVersionResult>("Browser.getVersion");
+  }
+
+  installTargetSessionListeners(session: CDPSessionLike): void {
     const sessionId = session.id;
     if (!sessionId) return;
     if (this._targetSessionListeners.has(sessionId)) return;
@@ -187,7 +196,7 @@ export class V3Context {
     return await connectTask();
   }
 
-  private hasTopLevelPage(): boolean {
+  hasTopLevelPage(): boolean {
     for (const [targetId, targetType] of this.typeByTarget) {
       if (targetType === "page" && this.pagesByTarget.has(targetId)) {
         return true;
@@ -196,7 +205,7 @@ export class V3Context {
     return false;
   }
 
-  private async ensureFirstTopLevelPage(timeoutMs: number): Promise<void> {
+  async ensureFirstTopLevelPage(timeoutMs: number): Promise<void> {
     if (this.hasTopLevelPage()) return;
 
     try {
@@ -221,7 +230,7 @@ export class V3Context {
    * Wait until at least one top-level Page has been created and registered.
    * We poll internal maps that bootstrap/onAttachedToTarget populate.
    */
-  private async waitForFirstTopLevelPage(timeoutMs: number): Promise<void> {
+  async waitForFirstTopLevelPage(timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       // A top-level Page is present if typeByTarget has an entry "page"
@@ -237,10 +246,7 @@ export class V3Context {
     throw new TimeoutError(WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION, timeoutMs);
   }
 
-  private async waitForInitialTopLevelTargets(
-    targetIds: TargetId[],
-    timeoutMs = 3000,
-  ): Promise<void> {
+  async waitForInitialTopLevelTargets(targetIds: TargetId[], timeoutMs = 3000): Promise<void> {
     if (!targetIds.length) return;
     const pending = new Set(targetIds);
     const deadline = Date.now() + timeoutMs;
@@ -261,7 +267,7 @@ export class V3Context {
     }
   }
 
-  private async ensurePiercer(session: CDPSessionLike): Promise<boolean> {
+  async ensurePiercer(session: CDPSessionLike): Promise<boolean> {
     const id = session.id ?? "";
     if (this._piercerInstalled.has(id)) return true;
 
@@ -273,7 +279,7 @@ export class V3Context {
   }
 
   /** Mark a page target as the most-recent one (active). */
-  private _pushActive(tid: TargetId): void {
+  _pushActive(tid: TargetId): void {
     // remove prior entry if any
     const i = this._pageOrder.indexOf(tid);
     if (i !== -1) this._pageOrder.splice(i, 1);
@@ -281,7 +287,7 @@ export class V3Context {
   }
 
   /** Remove a page target from the recency list (used on close). */
-  private _removeFromOrder(tid: TargetId): void {
+  _removeFromOrder(tid: TargetId): void {
     const i = this._pageOrder.indexOf(tid);
     if (i !== -1) this._pageOrder.splice(i, 1);
   }
@@ -457,7 +463,7 @@ export class V3Context {
     }
   }
 
-  private installDomainPolicyHandler(session: CDPSessionLike): void {
+  installDomainPolicyHandler(session: CDPSessionLike): void {
     const sessionId = session.id;
     if (!sessionId) return;
     if (this._domainPolicySessionListeners.has(sessionId)) return;
@@ -469,7 +475,7 @@ export class V3Context {
     session.on<Protocol.Fetch.RequestPausedEvent>("Fetch.requestPaused", handler);
   }
 
-  private uninstallDomainPolicyHandler(session: CDPSessionLike): void {
+  uninstallDomainPolicyHandler(session: CDPSessionLike): void {
     const sessionId = session.id;
     if (!sessionId) return;
 
@@ -480,7 +486,7 @@ export class V3Context {
     this._domainPolicySessionListeners.delete(sessionId);
   }
 
-  private async handleDomainPolicyRequestPaused(
+  async handleDomainPolicyRequestPaused(
     session: CDPSessionLike,
     evt: Protocol.Fetch.RequestPausedEvent,
   ): Promise<void> {
@@ -538,7 +544,7 @@ export class V3Context {
     return rows.map((r) => r.page);
   }
 
-  private async applyInitScriptsToPage(page: Page, opts?: { seedOnly?: boolean }): Promise<void> {
+  async applyInitScriptsToPage(page: Page, opts?: { seedOnly?: boolean }): Promise<void> {
     if (opts?.seedOnly) {
       for (const source of this.initScripts) {
         page.seedInitScript(source);
@@ -633,7 +639,7 @@ export class V3Context {
    * - Handle auto-attach events.
    * - Clean up on detach/destroy.
    */
-  private async bootstrap(): Promise<void> {
+  async bootstrap(): Promise<void> {
     // Live attach via auto-attach (normal path)
     this.conn.on<Protocol.Target.AttachedToTargetEvent>("Target.attachedToTarget", async (evt) => {
       await this.onAttachedToTarget(evt.targetInfo, evt.sessionId);
@@ -687,10 +693,7 @@ export class V3Context {
    *   if the parent is known; otherwise stage until parent `frameAttached`.
    * - Resume the target only after listeners are wired.
    */
-  private async onAttachedToTarget(
-    info: Protocol.Target.TargetInfo,
-    sessionId: SessionId,
-  ): Promise<void> {
+  async onAttachedToTarget(info: Protocol.Target.TargetInfo, sessionId: SessionId): Promise<void> {
     if (await this.closePopupIfBlockedByDomainPolicy(info, "attached")) {
       return;
     }
@@ -1021,7 +1024,7 @@ export class V3Context {
     }
   }
 
-  private async closePopupIfBlockedByDomainPolicy(
+  async closePopupIfBlockedByDomainPolicy(
     info: Protocol.Target.TargetInfo,
     source: "targetCreated" | "targetInfoChanged" | "attached",
   ): Promise<boolean> {
@@ -1063,7 +1066,7 @@ export class V3Context {
     return await closePromise;
   }
 
-  private async closeTargetAfterDomainPolicyViolation(
+  async closeTargetAfterDomainPolicyViolation(
     info: Protocol.Target.TargetInfo,
     opts: { failureMessage: string },
   ): Promise<boolean> {
@@ -1092,7 +1095,7 @@ export class V3Context {
    * - If a top-level target, cleanup its `Page` and mappings.
    * - Drop any staged child for this session.
    */
-  private onDetachedFromTarget(sessionId: SessionId, targetId: string | null): void {
+  onDetachedFromTarget(sessionId: SessionId, targetId: string | null): void {
     const owner = this.sessionOwnerPage.get(sessionId);
     if (owner) {
       owner.detachOopifSession(sessionId);
@@ -1121,7 +1124,7 @@ export class V3Context {
   /**
    * Cleanup a top-level Page by target id, removing its root and staged children.
    */
-  private cleanupByTarget(targetId: TargetId): void {
+  cleanupByTarget(targetId: TargetId): void {
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
 
@@ -1150,7 +1153,7 @@ export class V3Context {
    * Wire Page-domain frame events for a session into the owning Page & mappings.
    * We forward the *emitting session* with every event so Page can stamp ownership precisely.
    */
-  private installFrameEventBridges(sessionId: SessionId, owner: Page): void {
+  installFrameEventBridges(sessionId: SessionId, owner: Page): void {
     const session = this.conn.getSession(sessionId);
     if (!session) return;
 
@@ -1213,21 +1216,21 @@ export class V3Context {
   /**
    * Register that a session belongs to a Page (used by event routing).
    */
-  private wireSessionToOwnerPage(sessionId: SessionId, owner: Page): void {
+  wireSessionToOwnerPage(sessionId: SessionId, owner: Page): void {
     this.sessionOwnerPage.set(sessionId, owner);
   }
 
   /**
    * Utility: reverse-lookup the top-level target id that owns a given Page.
    */
-  private findTargetIdByPage(page: Page): TargetId | undefined {
+  findTargetIdByPage(page: Page): TargetId | undefined {
     for (const [tid, p] of this.pagesByTarget) {
       if (p === page) return tid;
     }
     return undefined;
   }
 
-  private _notePopupSignal(): void {
+  _notePopupSignal(): void {
     this._lastPopupSignalAt = Date.now();
   }
 

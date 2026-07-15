@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
-import { connectStagehandBridge, StagehandBridgeOptionsSchema } from "../../../modcdp/index.ts";
+import { connectRPCClient, RPCClientOptionsSchema } from "../../../sdk-ts/src/rpcClient.ts";
 
-describe("StagehandBridgeOptionsSchema", () => {
+describe("RPCClientOptionsSchema", () => {
   it("accepts load-unpacked mode with extensionDir", () => {
     expect(
-      StagehandBridgeOptionsSchema.parse({
+      RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
         extensionDir: "/tmp/stagehand-extension",
       }),
@@ -22,7 +22,7 @@ describe("StagehandBridgeOptionsSchema", () => {
 
   it("accepts preloaded extension mode with extensionId", () => {
     expect(
-      StagehandBridgeOptionsSchema.parse({
+      RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
         extensionId: "abcdefghijklmnopabcdefghijklmnop",
       }),
@@ -40,7 +40,7 @@ describe("StagehandBridgeOptionsSchema", () => {
 
   it("accepts a custom OTLP traces destination", () => {
     expect(
-      StagehandBridgeOptionsSchema.parse({
+      RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
         extensionId: "abcdefghijklmnopabcdefghijklmnop",
         telemetry: {
@@ -62,7 +62,7 @@ describe("StagehandBridgeOptionsSchema", () => {
 
   it("rejects options without an explicit extension load mode", () => {
     expect(() =>
-      StagehandBridgeOptionsSchema.parse({
+      RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
       }),
     ).toThrow();
@@ -70,7 +70,7 @@ describe("StagehandBridgeOptionsSchema", () => {
 
   it("rejects ambiguous options with both extensionDir and extensionId", () => {
     expect(() =>
-      StagehandBridgeOptionsSchema.parse({
+      RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
         extensionDir: "/tmp/stagehand-extension",
         extensionId: "abcdefghijklmnopabcdefghijklmnop",
@@ -78,9 +78,9 @@ describe("StagehandBridgeOptionsSchema", () => {
     ).toThrow();
   });
 
-  it("rejects unknown bridge options", () => {
+  it("rejects unknown rpcClient options", () => {
     expect(() =>
-      StagehandBridgeOptionsSchema.parse({
+      RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
         extensionDir: "/tmp/stagehand-extension",
         rawCdp: true,
@@ -88,9 +88,9 @@ describe("StagehandBridgeOptionsSchema", () => {
     ).toThrow();
   });
 
-  it("validates options at the bridge boundary before opening CDP", async () => {
+  it("validates options at the RPC client boundary before opening CDP", async () => {
     await expect(
-      connectStagehandBridge({
+      connectRPCClient({
         cdpUrl: "http://127.0.0.1:1",
       } as never),
     ).rejects.toThrow();

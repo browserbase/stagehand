@@ -6,7 +6,7 @@ import {
   renameJsonSchemaProperties,
   wireSchema,
 } from "../../json-rpc/wire-casing.js";
-import { StagehandMethods, StagehandNotificationsSchema } from "../../schema-registry.js";
+import { StagehandNotifications, StagehandRPC } from "../../schema-registry.js";
 
 const snakeCaseKey = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 const snakeCaseMethodSegment = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
@@ -15,8 +15,8 @@ const schemaUrl = new URL("../../stagehand.v4.json", import.meta.url);
 describe("JSON-RPC wire casing", () => {
   it("uses snake_case method and notification names", () => {
     for (const name of [
-      ...Object.keys(StagehandMethods),
-      ...Object.keys(StagehandNotificationsSchema.shape),
+      ...Object.values(StagehandRPC).map((method) => method.name),
+      ...Object.values(StagehandNotifications).map((notification) => notification.name),
     ]) {
       for (const segment of name.split(".")) {
         expect(segment, `${name} must use snake_case segments`).toMatch(snakeCaseMethodSegment);
@@ -25,27 +25,28 @@ describe("JSON-RPC wire casing", () => {
   });
 
   it("uses snake_case for every declared wire property", () => {
-    for (const [method, definition] of Object.entries(StagehandMethods)) {
+    for (const definition of Object.values(StagehandRPC)) {
+      const method = definition.name;
       expectDeclaredPropertiesToBeSnakeCase(
-        renameJsonSchemaProperties(z.toJSONSchema(definition.paramsSchema)),
+        renameJsonSchemaProperties(z.toJSONSchema(definition.params)),
         `${method}.params`,
       );
       expectDeclaredPropertiesToBeSnakeCase(
-        renameJsonSchemaProperties(z.toJSONSchema(definition.resultSchema)),
+        renameJsonSchemaProperties(z.toJSONSchema(definition.result)),
         `${method}.result`,
       );
     }
 
-    for (const [method, paramsSchema] of Object.entries(StagehandNotificationsSchema.shape)) {
+    for (const notification of Object.values(StagehandNotifications)) {
       expectDeclaredPropertiesToBeSnakeCase(
-        renameJsonSchemaProperties(z.toJSONSchema(paramsSchema)),
-        `${method}.params`,
+        renameJsonSchemaProperties(z.toJSONSchema(notification.params)),
+        `${notification.name}.params`,
       );
     }
   });
 
   it("encodes camelCase API values and decodes snake_case wire values", () => {
-    const schema = StagehandMethods["page.goto"].paramsSchema;
+    const schema = StagehandRPC.pageGoto.params;
     const apiValue = {
       pageId: "page_1",
       url: "https://example.com",
@@ -62,7 +63,7 @@ describe("JSON-RPC wire casing", () => {
   });
 
   it("encodes locator parity params with snake_case wire fields", () => {
-    const schema = StagehandMethods["locator.send_click_event"].paramsSchema;
+    const schema = StagehandRPC.locatorSendClickEvent.params;
     const apiValue = {
       pageId: "page_1",
       selector: "button",
@@ -87,7 +88,7 @@ describe("JSON-RPC wire casing", () => {
   });
 
   it("preserves arbitrary map keys while encoding nested configuration", () => {
-    const definition = StagehandMethods["stagehand.init"];
+    const definition = StagehandRPC.stagehandInit;
     const apiValue = {
       cdpUrl: "ws://localhost/devtools/browser/1",
       model: {
@@ -107,11 +108,11 @@ describe("JSON-RPC wire casing", () => {
     };
 
     expect(encodeWireValue(apiValue)).toStrictEqual(wireValue);
-    expect(wireSchema(definition.paramsSchema).parse(wireValue)).toStrictEqual(apiValue);
+    expect(wireSchema(definition.params).parse(wireValue)).toStrictEqual(apiValue);
   });
 
   it("preserves Stagehand log data keys while encoding notifications", () => {
-    const paramsSchema = StagehandNotificationsSchema.shape["stagehand.log"];
+    const paramsSchema = StagehandNotifications.log.params;
     const encoded = encodeWireValue({
       level: "info",
       message: "Starting action",
@@ -129,7 +130,7 @@ describe("JSON-RPC wire casing", () => {
   });
 
   it("preserves arbitrary extraction result keys", () => {
-    const definition = StagehandMethods["stagehand.extract"];
+    const definition = StagehandRPC.stagehandExtract;
     const apiValue = {
       result: { userName: "Sam" },
       actionId: "action_1",
@@ -141,7 +142,7 @@ describe("JSON-RPC wire casing", () => {
 
     expect(encodeWireValue(apiValue, definition.resultWire.encode)).toStrictEqual(wireValue);
     expect(
-      wireSchema(definition.resultSchema, definition.resultWire.decode).parse(wireValue),
+      wireSchema(definition.result, definition.resultWire.decode).parse(wireValue),
     ).toStrictEqual(apiValue);
   });
 
@@ -166,14 +167,9 @@ describe("JSON-RPC wire casing", () => {
   it("keeps transport params required and snake_case", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as Record<string, unknown>;
     const transport = asRecord(asRecord(asRecord(protocol.properties).transport).properties);
-    const requestVariants = asRecord(transport.request).oneOf;
-
-    expect(Array.isArray(requestVariants)).toBe(true);
-    for (const variant of requestVariants as unknown[]) {
-      const required = asRecord(variant).required;
-      expect(required).toContain("params");
-      expectDeclaredPropertiesToBeSnakeCase(variant, "transport.request");
-    }
+    const request = asRecord(transport.request);
+    expect(request.required).toContain("params");
+    expectDeclaredPropertiesToBeSnakeCase(request, "transport.request");
 
     expectDeclaredPropertiesToBeSnakeCase(transport.notification, "transport.notification");
   });

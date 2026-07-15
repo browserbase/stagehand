@@ -40,17 +40,17 @@ const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Play
  * - Releases remote objects (`Runtime.releaseObject`) where appropriate.
  */
 export class Locator {
-  private readonly selectorResolver: FrameSelectorResolver;
+  readonly selectorResolver: FrameSelectorResolver;
 
-  private readonly selectorQuery: SelectorQuery;
+  readonly selectorQuery: SelectorQuery;
 
   // -1 means "no explicit nth()"; default locator resolves to first match for actions.
-  private readonly nthIndex: number;
+  readonly nthIndex: number;
 
   constructor(
-    private readonly frame: Frame,
-    private readonly selector: string,
-    private readonly options?: { deep?: boolean; depth?: number },
+    readonly frame: Frame,
+    readonly selector: string,
+    readonly options?: { deep?: boolean; depth?: number },
     nthIndex: number = -1,
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
@@ -112,7 +112,7 @@ export class Locator {
   }
 
   /** Build File objects inside the page and attach them via JS. */
-  private async assignFilesViaPayloadInjection(
+  async assignFilesViaPayloadInjection(
     objectId: Protocol.Runtime.RemoteObjectId,
     files: NormalizedFilePayload[],
   ): Promise<void> {
@@ -819,7 +819,7 @@ export class Locator {
   }
 
   /** Compute a center point from a BoxModel content quad */
-  private centerFromBoxContent(content: number[]): { cx: number; cy: number } {
+  centerFromBoxContent(content: number[]): { cx: number; cy: number } {
     // content is [x1,y1, x2,y2, x3,y3, x4,y4]
     if (!content || content.length < 8) {
       throw new StagehandInvalidArgumentError("Invalid box model content quad");

@@ -1,8 +1,9 @@
 import type { z } from "zod/v4";
 import type {
-  StagehandNotificationsSchema,
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
+  StagehandMethodSchema,
+  StagehandSendToHostBindingSchema,
 } from "./schema-registry.js";
 import type {
   ActionSchema,
@@ -262,9 +263,10 @@ export type LocatorSelectOptionResult = z.infer<typeof LocatorSelectOptionResult
 export type StagehandLogData = z.infer<typeof StagehandLogDataSchema>;
 export type StagehandLog = z.infer<typeof StagehandLogSchema>;
 export type StagehandLogLevel = z.infer<typeof StagehandLogLevelSchema>;
-export type StagehandNotifications = z.infer<typeof StagehandNotificationsSchema>;
 export type StagehandRpcRequest = z.infer<typeof StagehandRpcRequestSchema>;
 export type StagehandRpcNotification = z.infer<typeof StagehandRpcNotificationSchema>;
+export type StagehandMethod = z.infer<typeof StagehandMethodSchema>;
+export type StagehandSendToHostBinding = z.infer<typeof StagehandSendToHostBindingSchema>;
 
 export type AnthropicClientOptions = z.infer<typeof AnthropicClientOptionsSchema>;
 export type AISDKApiKeyProvider = z.infer<typeof AISDKApiKeyProviderSchema>;

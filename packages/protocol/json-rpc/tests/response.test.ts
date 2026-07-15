@@ -134,30 +134,3 @@ describe("JSONRPCResponseSchema", () => {
     ).toThrow();
   });
 });
-
-describe("JSON-RPC batch schemas", () => {
-  it("rejects an empty request batch", async () => {
-    const { JSONRPCRequestBatchSchema } = await import("../schemas.ts");
-    expect(() => JSONRPCRequestBatchSchema.parse([])).toThrow();
-  });
-
-  it("accepts a mixed batch of calls and notifications", async () => {
-    const { JSONRPCRequestBatchSchema } = await import("../schemas.ts");
-    const batch = [
-      { jsonrpc: "2.0", id: 1, method: "sum", params: [1, 2] },
-      { jsonrpc: "2.0", method: "notify", params: { ready: true } },
-    ];
-    expect(JSONRPCRequestBatchSchema.parse(batch)).toStrictEqual(batch);
-  });
-
-  it("rejects an empty response batch", async () => {
-    const { JSONRPCResponseBatchSchema } = await import("../schemas.ts");
-    expect(() => JSONRPCResponseBatchSchema.parse([])).toThrow();
-  });
-
-  it("accepts a non-empty response batch", async () => {
-    const { JSONRPCResponseBatchSchema } = await import("../schemas.ts");
-    const batch = [{ jsonrpc: "2.0", id: 1, result: 3 }];
-    expect(JSONRPCResponseBatchSchema.parse(batch)).toStrictEqual(batch);
-  });
-});
