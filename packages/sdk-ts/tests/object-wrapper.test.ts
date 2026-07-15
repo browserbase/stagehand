@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
-import { StagehandRPC } from "../../protocol/schema-registry.js";
+import { StagehandMethods } from "../../protocol/schema-registry.js";
 import { BrowserContext, Locator, Page } from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
 import { createStagehandWithClientForTest } from "../src/stagehand.js";
@@ -78,19 +78,19 @@ describe("Stagehand TS object wrapper", () => {
 
   it("closes the remote runtime", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.stagehandClose, { closed: true });
+    client.queueResponse(StagehandMethods.stagehandClose, { closed: true });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
 
     await stagehand.close();
 
     expect(stagehand.initialized).toBe(false);
-    expect(client.calls).toStrictEqual([requestCall(StagehandRPC.stagehandClose, {})]);
+    expect(client.calls).toStrictEqual([requestCall(StagehandMethods.stagehandClose, {})]);
   });
 
   it("wraps context.pages results as Page objects", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.contextPages, [
+    client.queueResponse(StagehandMethods.contextPages, [
       { pageId: "page-1", url: "https://example.com", title: "Example" },
       { pageId: "page-2" },
     ]);
@@ -99,7 +99,7 @@ describe("Stagehand TS object wrapper", () => {
 
     const pages = await stagehand.context.pages();
 
-    expect(client.calls).toStrictEqual([requestCall(StagehandRPC.contextPages, {})]);
+    expect(client.calls).toStrictEqual([requestCall(StagehandMethods.contextPages, {})]);
     expect(pages).toHaveLength(2);
     expect(pages[0]).toBeInstanceOf(Page);
     expect(pages[0]?.pageId).toBe("page-1");
@@ -113,7 +113,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("wraps context.newPage results as a Page", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.contextNewPage, {
+    client.queueResponse(StagehandMethods.contextNewPage, {
       pageId: "new-page",
       url: "https://browserbase.com",
     });
@@ -123,7 +123,7 @@ describe("Stagehand TS object wrapper", () => {
     const page = await stagehand.context.newPage({ url: "https://browserbase.com" });
 
     expect(client.calls).toStrictEqual([
-      requestCall(StagehandRPC.contextNewPage, { url: "https://browserbase.com" }),
+      requestCall(StagehandMethods.contextNewPage, { url: "https://browserbase.com" }),
     ]);
     expect(page).toBeInstanceOf(Page);
     expect(page.pageId).toBe("new-page");
@@ -135,7 +135,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes page.goto and updates the page ref", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.pageGoto, {
+    client.queueResponse(StagehandMethods.pageGoto, {
       pageId: "page-1",
       url: "https://example.com/next",
       title: "Next",
@@ -149,7 +149,7 @@ describe("Stagehand TS object wrapper", () => {
 
     expect(returnedPage).toBe(page);
     expect(client.calls).toStrictEqual([
-      requestCall(StagehandRPC.pageGoto, {
+      requestCall(StagehandMethods.pageGoto, {
         pageId: "page-1",
         url: "https://example.com/next",
         options: {
@@ -167,30 +167,36 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes page.url and unwraps the result", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.pageUrl, { url: "https://example.com" });
+    client.queueResponse(StagehandMethods.pageUrl, { url: "https://example.com" });
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(page.url()).resolves.toBe("https://example.com");
-    expect(client.calls).toStrictEqual([requestCall(StagehandRPC.pageUrl, { pageId: "page-1" })]);
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageUrl, { pageId: "page-1" }),
+    ]);
   });
 
   it("routes page.title and unwraps the result", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.pageTitle, { title: "Example" });
+    client.queueResponse(StagehandMethods.pageTitle, { title: "Example" });
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(page.title()).resolves.toBe("Example");
-    expect(client.calls).toStrictEqual([requestCall(StagehandRPC.pageTitle, { pageId: "page-1" })]);
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageTitle, { pageId: "page-1" }),
+    ]);
   });
 
   it("routes page.close", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.pageClose, { closed: true });
+    client.queueResponse(StagehandMethods.pageClose, { closed: true });
     const page = new Page(client, { pageId: "page-1" });
 
     await page.close();
 
-    expect(client.calls).toStrictEqual([requestCall(StagehandRPC.pageClose, { pageId: "page-1" })]);
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageClose, { pageId: "page-1" }),
+    ]);
   });
 
   it("creates descriptor-backed locators without sending protocol calls", () => {
@@ -205,7 +211,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes locator.click with the page descriptor", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.locatorClick, { clicked: true });
+    client.queueResponse(StagehandMethods.locatorClick, { clicked: true });
     const page = new Page(client, { pageId: "page-1" });
 
     await page.locator("button").click({
@@ -214,7 +220,7 @@ describe("Stagehand TS object wrapper", () => {
     });
 
     expect(client.calls).toStrictEqual([
-      requestCall(StagehandRPC.locatorClick, {
+      requestCall(StagehandMethods.locatorClick, {
         pageId: "page-1",
         selector: "button",
         options: {
@@ -227,13 +233,13 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes locator.fill with the page descriptor", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.locatorFill, { filled: true });
+    client.queueResponse(StagehandMethods.locatorFill, { filled: true });
     const page = new Page(client, { pageId: "page-1" });
 
     await page.locator("#email").fill("user@example.com");
 
     expect(client.calls).toStrictEqual([
-      requestCall(StagehandRPC.locatorFill, {
+      requestCall(StagehandMethods.locatorFill, {
         pageId: "page-1",
         selector: "#email",
         value: "user@example.com",
@@ -243,12 +249,12 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes locator.isVisible and unwraps the result", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.locatorIsVisible, { visible: true });
+    client.queueResponse(StagehandMethods.locatorIsVisible, { visible: true });
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(page.locator("#message").isVisible()).resolves.toBe(true);
     expect(client.calls).toStrictEqual([
-      requestCall(StagehandRPC.locatorIsVisible, {
+      requestCall(StagehandMethods.locatorIsVisible, {
         pageId: "page-1",
         selector: "#message",
       }),
@@ -257,12 +263,12 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes locator.textContent and unwraps the result", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.locatorTextContent, { textContent: "hello" });
+    client.queueResponse(StagehandMethods.locatorTextContent, { textContent: "hello" });
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(page.locator("#message").textContent()).resolves.toBe("hello");
     expect(client.calls).toStrictEqual([
-      requestCall(StagehandRPC.locatorTextContent, {
+      requestCall(StagehandMethods.locatorTextContent, {
         pageId: "page-1",
         selector: "#message",
       }),
@@ -271,12 +277,12 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes read locator methods and unwraps their results", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.locatorCount, { count: 2 });
-    client.queueResponse(StagehandRPC.locatorIsChecked, { checked: true });
-    client.queueResponse(StagehandRPC.locatorInputValue, { value: "user@example.com" });
-    client.queueResponse(StagehandRPC.locatorInnerText, { text: "visible text" });
-    client.queueResponse(StagehandRPC.locatorInnerHtml, { html: "<span>visible text</span>" });
-    client.queueResponse(StagehandRPC.locatorCentroid, { x: 12, y: 34 });
+    client.queueResponse(StagehandMethods.locatorCount, { count: 2 });
+    client.queueResponse(StagehandMethods.locatorIsChecked, { checked: true });
+    client.queueResponse(StagehandMethods.locatorInputValue, { value: "user@example.com" });
+    client.queueResponse(StagehandMethods.locatorInnerText, { text: "visible text" });
+    client.queueResponse(StagehandMethods.locatorInnerHtml, { html: "<span>visible text</span>" });
+    client.queueResponse(StagehandMethods.locatorCentroid, { x: 12, y: 34 });
     const page = new Page(client, { pageId: "page-1" });
     const locator = page.locator("#field");
 
@@ -288,23 +294,23 @@ describe("Stagehand TS object wrapper", () => {
     await expect(locator.centroid()).resolves.toStrictEqual({ x: 12, y: 34 });
 
     expect(client.calls).toStrictEqual([
-      requestCall(StagehandRPC.locatorCount, { pageId: "page-1", selector: "#field" }),
-      requestCall(StagehandRPC.locatorIsChecked, { pageId: "page-1", selector: "#field" }),
-      requestCall(StagehandRPC.locatorInputValue, { pageId: "page-1", selector: "#field" }),
-      requestCall(StagehandRPC.locatorInnerText, { pageId: "page-1", selector: "#field" }),
-      requestCall(StagehandRPC.locatorInnerHtml, { pageId: "page-1", selector: "#field" }),
-      requestCall(StagehandRPC.locatorCentroid, { pageId: "page-1", selector: "#field" }),
+      requestCall(StagehandMethods.locatorCount, { pageId: "page-1", selector: "#field" }),
+      requestCall(StagehandMethods.locatorIsChecked, { pageId: "page-1", selector: "#field" }),
+      requestCall(StagehandMethods.locatorInputValue, { pageId: "page-1", selector: "#field" }),
+      requestCall(StagehandMethods.locatorInnerText, { pageId: "page-1", selector: "#field" }),
+      requestCall(StagehandMethods.locatorInnerHtml, { pageId: "page-1", selector: "#field" }),
+      requestCall(StagehandMethods.locatorCentroid, { pageId: "page-1", selector: "#field" }),
     ]);
   });
 
   it("routes write locator methods with their options", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.locatorHover, { hovered: true });
-    client.queueResponse(StagehandRPC.locatorScrollTo, { scrolled: true });
-    client.queueResponse(StagehandRPC.locatorHighlight, { highlighted: true });
-    client.queueResponse(StagehandRPC.locatorSendClickEvent, { clicked: true });
-    client.queueResponse(StagehandRPC.locatorType, { typed: true });
-    client.queueResponse(StagehandRPC.locatorSelectOption, { values: ["pro"] });
+    client.queueResponse(StagehandMethods.locatorHover, { hovered: true });
+    client.queueResponse(StagehandMethods.locatorScrollTo, { scrolled: true });
+    client.queueResponse(StagehandMethods.locatorHighlight, { highlighted: true });
+    client.queueResponse(StagehandMethods.locatorSendClickEvent, { clicked: true });
+    client.queueResponse(StagehandMethods.locatorType, { typed: true });
+    client.queueResponse(StagehandMethods.locatorSelectOption, { values: ["pro"] });
     const page = new Page(client, { pageId: "page-1" });
     const locator = page.locator("#field");
 
@@ -316,29 +322,29 @@ describe("Stagehand TS object wrapper", () => {
     await expect(locator.selectOption(["starter", "pro"])).resolves.toStrictEqual(["pro"]);
 
     expect(client.calls).toStrictEqual([
-      requestCall(StagehandRPC.locatorHover, { pageId: "page-1", selector: "#field" }),
-      requestCall(StagehandRPC.locatorScrollTo, {
+      requestCall(StagehandMethods.locatorHover, { pageId: "page-1", selector: "#field" }),
+      requestCall(StagehandMethods.locatorScrollTo, {
         pageId: "page-1",
         selector: "#field",
         percent: 50,
       }),
-      requestCall(StagehandRPC.locatorHighlight, {
+      requestCall(StagehandMethods.locatorHighlight, {
         pageId: "page-1",
         selector: "#field",
         options: { durationMs: 0, borderColor: { r: 1, g: 2, b: 3 } },
       }),
-      requestCall(StagehandRPC.locatorSendClickEvent, {
+      requestCall(StagehandMethods.locatorSendClickEvent, {
         pageId: "page-1",
         selector: "#field",
         options: { detail: 2 },
       }),
-      requestCall(StagehandRPC.locatorType, {
+      requestCall(StagehandMethods.locatorType, {
         pageId: "page-1",
         selector: "#field",
         text: "hello",
         options: { delay: 1 },
       }),
-      requestCall(StagehandRPC.locatorSelectOption, {
+      requestCall(StagehandMethods.locatorSelectOption, {
         pageId: "page-1",
         selector: "#field",
         values: ["starter", "pro"],
@@ -348,7 +354,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("creates descriptor-backed nth locators without sending protocol calls", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandRPC.locatorClick, { clicked: true });
+    client.queueResponse(StagehandMethods.locatorClick, { clicked: true });
     const page = new Page(client, { pageId: "page-1" });
 
     const locator = page.locator("button").first().nth(2);
@@ -359,7 +365,7 @@ describe("Stagehand TS object wrapper", () => {
     await locator.click();
 
     expect(client.calls).toStrictEqual([
-      requestCall(StagehandRPC.locatorClick, {
+      requestCall(StagehandMethods.locatorClick, {
         pageId: "page-1",
         selector: "button",
         nth: 2,

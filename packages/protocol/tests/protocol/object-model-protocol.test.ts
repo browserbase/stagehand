@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   StagehandMethodSchema,
   StagehandNotifications,
-  StagehandRPC,
+  StagehandMethods,
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
@@ -10,12 +10,12 @@ import {
 describe("Stagehand object-model protocol", () => {
   it("derives every Stagehand method name from the RPC definitions", () => {
     expect(StagehandMethodSchema.options).toStrictEqual(
-      Object.values(StagehandRPC).map((method) => method.name),
+      Object.values(StagehandMethods).map((method) => method.name),
     );
   });
 
   it("defines stagehand init as a JSON-RPC method", () => {
-    const params = StagehandRPC.stagehandInit.params.parse({
+    const params = StagehandMethods.stagehandInit.params.parse({
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
       model: { provider: "openai", modelName: "openai/gpt-5-mini" },
     });
@@ -28,7 +28,7 @@ describe("Stagehand object-model protocol", () => {
 
   it("rejects model names without a provider prefix", () => {
     expect(() =>
-      StagehandRPC.stagehandInit.params.parse({
+      StagehandMethods.stagehandInit.params.parse({
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         model: { provider: "openai", modelName: "gpt-5-mini" },
       }),
@@ -37,14 +37,14 @@ describe("Stagehand object-model protocol", () => {
 
   it("requires page ids for page methods", () => {
     expect(() =>
-      StagehandRPC.pageGoto.params.parse({
+      StagehandMethods.pageGoto.params.parse({
         url: "https://example.com",
         wait_until: "load",
       }),
     ).toThrow();
 
     expect(
-      StagehandRPC.pageGoto.params.parse({
+      StagehandMethods.pageGoto.params.parse({
         pageId: "target-1",
         url: "https://example.com",
         options: { waitUntil: "load", timeoutMs: 10_000 },
@@ -58,7 +58,7 @@ describe("Stagehand object-model protocol", () => {
 
   it("keeps locators as page-scoped descriptors", () => {
     expect(
-      StagehandRPC.locatorTextContent.params.parse({
+      StagehandMethods.locatorTextContent.params.parse({
         pageId: "target-1",
         selector: "h1",
         nth: 2,
@@ -70,7 +70,7 @@ describe("Stagehand object-model protocol", () => {
     });
 
     expect(() =>
-      StagehandRPC.locatorTextContent.params.parse({
+      StagehandMethods.locatorTextContent.params.parse({
         pageId: "target-1",
         selector: "h1",
         nth: -1,
@@ -79,33 +79,35 @@ describe("Stagehand object-model protocol", () => {
   });
 
   it("defines locator parity method parameter and result schemas", () => {
-    expect(StagehandRPC.locatorHover.params.parse(locatorDescriptor())).toStrictEqual(
+    expect(StagehandMethods.locatorHover.params.parse(locatorDescriptor())).toStrictEqual(
       locatorDescriptor(),
     );
-    expect(StagehandRPC.locatorHover.result.parse({ hovered: true })).toStrictEqual({
+    expect(StagehandMethods.locatorHover.result.parse({ hovered: true })).toStrictEqual({
       hovered: true,
     });
 
-    expect(StagehandRPC.locatorCount.result.parse({ count: 2 })).toStrictEqual({
+    expect(StagehandMethods.locatorCount.result.parse({ count: 2 })).toStrictEqual({
       count: 2,
     });
-    expect(() => StagehandRPC.locatorCount.result.parse({ count: -1 })).toThrow();
+    expect(() => StagehandMethods.locatorCount.result.parse({ count: -1 })).toThrow();
 
-    expect(StagehandRPC.locatorIsChecked.result.parse({ checked: true })).toStrictEqual({
+    expect(StagehandMethods.locatorIsChecked.result.parse({ checked: true })).toStrictEqual({
       checked: true,
     });
     expect(
-      StagehandRPC.locatorInputValue.result.parse({ value: "user@example.com" }),
+      StagehandMethods.locatorInputValue.result.parse({ value: "user@example.com" }),
     ).toStrictEqual({ value: "user@example.com" });
-    expect(StagehandRPC.locatorInnerText.result.parse({ text: "Submit" })).toStrictEqual({
+    expect(StagehandMethods.locatorInnerText.result.parse({ text: "Submit" })).toStrictEqual({
       text: "Submit",
     });
-    expect(StagehandRPC.locatorInnerHtml.result.parse({ html: "<b>Submit</b>" })).toStrictEqual({
-      html: "<b>Submit</b>",
-    });
+    expect(StagehandMethods.locatorInnerHtml.result.parse({ html: "<b>Submit</b>" })).toStrictEqual(
+      {
+        html: "<b>Submit</b>",
+      },
+    );
 
     expect(
-      StagehandRPC.locatorScrollTo.params.parse({
+      StagehandMethods.locatorScrollTo.params.parse({
         ...locatorDescriptor(),
         percent: "bottom",
       }),
@@ -113,13 +115,13 @@ describe("Stagehand object-model protocol", () => {
       ...locatorDescriptor(),
       percent: "bottom",
     });
-    expect(StagehandRPC.locatorCentroid.result.parse({ x: 12.5, y: 44 })).toStrictEqual({
+    expect(StagehandMethods.locatorCentroid.result.parse({ x: 12.5, y: 44 })).toStrictEqual({
       x: 12.5,
       y: 44,
     });
 
     expect(
-      StagehandRPC.locatorHighlight.params.parse({
+      StagehandMethods.locatorHighlight.params.parse({
         ...locatorDescriptor(),
         options: {
           durationMs: 250,
@@ -135,7 +137,7 @@ describe("Stagehand object-model protocol", () => {
     });
 
     expect(
-      StagehandRPC.locatorSendClickEvent.params.parse({
+      StagehandMethods.locatorSendClickEvent.params.parse({
         ...locatorDescriptor(),
         options: { bubbles: true, cancelable: true, composed: true, detail: 2 },
       }),
@@ -145,7 +147,7 @@ describe("Stagehand object-model protocol", () => {
     });
 
     expect(
-      StagehandRPC.locatorType.params.parse({
+      StagehandMethods.locatorType.params.parse({
         ...locatorDescriptor(),
         text: "hello",
         options: { delay: 10 },
@@ -157,7 +159,7 @@ describe("Stagehand object-model protocol", () => {
     });
 
     expect(
-      StagehandRPC.locatorSelectOption.params.parse({
+      StagehandMethods.locatorSelectOption.params.parse({
         ...locatorDescriptor(),
         values: ["a", "b"],
       }),
@@ -165,7 +167,7 @@ describe("Stagehand object-model protocol", () => {
       ...locatorDescriptor(),
       values: ["a", "b"],
     });
-    expect(StagehandRPC.locatorSelectOption.result.parse({ values: ["a"] })).toStrictEqual({
+    expect(StagehandMethods.locatorSelectOption.result.parse({ values: ["a"] })).toStrictEqual({
       values: ["a"],
     });
   });
@@ -248,7 +250,7 @@ describe("Stagehand object-model protocol", () => {
 
   it("accepts telemetry configuration as protocol data", () => {
     expect(
-      StagehandRPC.runtimeConfigure.params.parse({
+      StagehandMethods.runtimeConfigure.params.parse({
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         telemetry: {
           traces: {

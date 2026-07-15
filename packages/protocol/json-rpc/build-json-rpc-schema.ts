@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod/v4";
 import {
   StagehandNotifications,
-  StagehandRPC,
+  StagehandMethods,
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../schema-registry.ts";
@@ -21,7 +21,7 @@ const transportRequestSchema = requireParams(
 const transportNotificationSchema = requireParams(
   renameJsonSchemaProperties(z.toJSONSchema(StagehandRpcNotificationSchema)),
 );
-const methods = Object.values(StagehandRPC);
+const methods = Object.values(StagehandMethods);
 const notifications = Object.values(StagehandNotifications);
 
 const methodSchemas = Object.fromEntries(

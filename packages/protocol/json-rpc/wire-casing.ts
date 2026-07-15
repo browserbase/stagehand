@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 const defaultOpaqueKeys = new Set(["headers", "variables", "attributes", "body", "data"]);
 
 export type WireCasingOptions = {
+  /** API-side container keys whose nested, user-controlled keys must retain their casing. */
   readonly opaqueKeys?: readonly string[];
 };
 
@@ -69,7 +70,15 @@ export function renameJsonSchemaProperties(value: unknown): unknown {
 
 function findOpaquePaths(value: unknown, additionalOpaqueKeys: readonly string[] = []): string[] {
   const paths: string[] = [];
-  const opaqueKeys = new Set([...defaultOpaqueKeys, ...additionalOpaqueKeys]);
+  const opaqueKeys = new Set(
+    Object.keys(
+      snakecaseKeys(
+        Object.fromEntries(
+          [...defaultOpaqueKeys, ...additionalOpaqueKeys].map((key) => [key, null]),
+        ),
+      ),
+    ),
+  );
 
   function visit(entry: unknown, path: string): void {
     if (Array.isArray(entry)) {

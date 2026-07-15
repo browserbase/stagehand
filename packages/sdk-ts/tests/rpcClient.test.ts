@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
-import { StagehandRPC } from "../../protocol/schema-registry.js";
+import { StagehandMethods } from "../../protocol/schema-registry.js";
 import { RPCClient, type CDPTransport } from "../src/rpcClient.js";
 
 class FakeCDPTransport implements CDPTransport {
@@ -35,7 +35,7 @@ describe("RPCClient", () => {
     const client = new RPCClient(cdp, 1_000);
 
     await expect(
-      client.send(StagehandRPC.pageGoto, {
+      client.send(StagehandMethods.pageGoto, {
         pageId: "page-1",
         url: "https://example.com",
       }),
@@ -59,7 +59,7 @@ describe("RPCClient", () => {
     const cdp = new FakeCDPTransport({ ok: true, runtime: "service_worker" });
     const client = new RPCClient(cdp, 1_000);
 
-    await expect(client.send(StagehandRPC.ping, { extra: true } as never)).rejects.toThrow();
+    await expect(client.send(StagehandMethods.ping, { extra: true } as never)).rejects.toThrow();
 
     expect(cdp.sent).toStrictEqual([]);
   });

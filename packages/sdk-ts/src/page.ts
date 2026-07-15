@@ -1,5 +1,5 @@
 import type { PageGotoParams, PageRef } from "../../protocol/types.js";
-import { StagehandRPC } from "../../protocol/schema-registry.js";
+import { StagehandMethods } from "../../protocol/schema-registry.js";
 import { Locator } from "./locator.js";
 import type { RPCClient } from "./rpcClient.js";
 
@@ -22,7 +22,7 @@ export class Page {
   }
 
   async goto(url: string, options?: PageGotoParams["options"]): Promise<this> {
-    this.currentRef = await this.rpcClient.send(StagehandRPC.pageGoto, {
+    this.currentRef = await this.rpcClient.send(StagehandMethods.pageGoto, {
       pageId: this.pageId,
       url,
       ...(options ? { options } : {}),
@@ -31,21 +31,21 @@ export class Page {
   }
 
   async url(): Promise<string> {
-    const result = await this.rpcClient.send(StagehandRPC.pageUrl, {
+    const result = await this.rpcClient.send(StagehandMethods.pageUrl, {
       pageId: this.pageId,
     });
     return result.url;
   }
 
   async title(): Promise<string> {
-    const result = await this.rpcClient.send(StagehandRPC.pageTitle, {
+    const result = await this.rpcClient.send(StagehandMethods.pageTitle, {
       pageId: this.pageId,
     });
     return result.title;
   }
 
   async close(): Promise<void> {
-    await this.rpcClient.send(StagehandRPC.pageClose, { pageId: this.pageId });
+    await this.rpcClient.send(StagehandMethods.pageClose, { pageId: this.pageId });
   }
 
   locator(selector: string): Locator {

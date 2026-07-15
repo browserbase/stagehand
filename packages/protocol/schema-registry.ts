@@ -68,7 +68,7 @@ import {
 export const STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost";
 export const StagehandSendToHostBindingSchema = z.literal(STAGEHAND_SEND_TO_HOST_BINDING);
 
-export const StagehandRPC = {
+export const StagehandMethods = {
   ping: { name: "ping", params: EmptyParamsSchema, result: StagehandPingResultSchema },
   runtimeConfigure: {
     name: "runtime.configure",
@@ -109,10 +109,7 @@ export const StagehandRPC = {
     name: "stagehand.extract",
     params: StagehandExtractParamsSchema,
     result: ExtractResultSchema,
-    resultWire: {
-      decode: { opaqueKeys: ["result"] },
-      encode: { opaqueKeys: ["result"] },
-    },
+    resultWire: { opaqueKeys: ["result"] },
   },
   stagehandMetrics: {
     name: "stagehand.metrics",
@@ -216,10 +213,10 @@ export const StagehandRPC = {
 } as const satisfies Record<string, RPCMethod>;
 
 export const StagehandMethodSchema = z.enum(
-  Object.values(StagehandRPC).map((method) => method.name),
+  Object.values(StagehandMethods).map((method) => method.name),
 );
 
-const stagehandRpcRequestSchemas = Object.values(StagehandRPC).map((method) =>
+const stagehandRpcRequestSchemas = Object.values(StagehandMethods).map((method) =>
   JSONRPCRequestSchema.extend({
     method: z.literal(method.name),
     params: wireSchema(method.params),
@@ -243,9 +240,9 @@ export const StagehandRpcNotificationSchema = JSONRPCNotificationSchema.extend({
 });
 
 const stagehandMethodsByName = new Map<string, RPCMethod>(
-  Object.values(StagehandRPC).map((method) => [method.name, method]),
+  Object.values(StagehandMethods).map((method) => [method.name, method]),
 );
 
-export function getStagehandRPCMethod(name: string): RPCMethod | undefined {
+export function getStagehandMethod(name: string): RPCMethod | undefined {
   return stagehandMethodsByName.get(name);
 }

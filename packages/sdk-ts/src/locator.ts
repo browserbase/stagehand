@@ -1,5 +1,5 @@
 import { LocatorDescriptorSchema } from "../../protocol/schemas.js";
-import { StagehandRPC } from "../../protocol/schema-registry.js";
+import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
   LocatorClickParams,
   LocatorCentroidResult,
@@ -19,85 +19,85 @@ export class Locator {
   ) {}
 
   async click(options?: LocatorClickParams["options"]): Promise<void> {
-    await this.rpcClient.send(StagehandRPC.locatorClick, {
+    await this.rpcClient.send(StagehandMethods.locatorClick, {
       ...this.descriptor,
       ...(options ? { options } : {}),
     });
   }
 
   async hover(): Promise<void> {
-    await this.rpcClient.send(StagehandRPC.locatorHover, this.descriptor);
+    await this.rpcClient.send(StagehandMethods.locatorHover, this.descriptor);
   }
 
   async fill(value: string): Promise<void> {
-    await this.rpcClient.send(StagehandRPC.locatorFill, {
+    await this.rpcClient.send(StagehandMethods.locatorFill, {
       ...this.descriptor,
       value,
     });
   }
 
   async count(): Promise<number> {
-    const result = await this.rpcClient.send(StagehandRPC.locatorCount, this.descriptor);
+    const result = await this.rpcClient.send(StagehandMethods.locatorCount, this.descriptor);
     return result.count;
   }
 
   async isChecked(): Promise<boolean> {
-    const result = await this.rpcClient.send(StagehandRPC.locatorIsChecked, this.descriptor);
+    const result = await this.rpcClient.send(StagehandMethods.locatorIsChecked, this.descriptor);
     return result.checked;
   }
 
   async inputValue(): Promise<string> {
-    const result = await this.rpcClient.send(StagehandRPC.locatorInputValue, this.descriptor);
+    const result = await this.rpcClient.send(StagehandMethods.locatorInputValue, this.descriptor);
     return result.value;
   }
 
   async isVisible(): Promise<boolean> {
-    const result = await this.rpcClient.send(StagehandRPC.locatorIsVisible, this.descriptor);
+    const result = await this.rpcClient.send(StagehandMethods.locatorIsVisible, this.descriptor);
     return result.visible;
   }
 
   async innerText(): Promise<string> {
-    const result = await this.rpcClient.send(StagehandRPC.locatorInnerText, this.descriptor);
+    const result = await this.rpcClient.send(StagehandMethods.locatorInnerText, this.descriptor);
     return result.text;
   }
 
   async innerHtml(): Promise<string> {
-    const result = await this.rpcClient.send(StagehandRPC.locatorInnerHtml, this.descriptor);
+    const result = await this.rpcClient.send(StagehandMethods.locatorInnerHtml, this.descriptor);
     return result.html;
   }
 
   async textContent(): Promise<string> {
-    const result = await this.rpcClient.send(StagehandRPC.locatorTextContent, this.descriptor);
+    const result = await this.rpcClient.send(StagehandMethods.locatorTextContent, this.descriptor);
     return result.textContent;
   }
 
   async scrollTo(percent: LocatorScrollToParams["percent"]): Promise<void> {
-    await this.rpcClient.send(StagehandRPC.locatorScrollTo, {
+    await this.rpcClient.send(StagehandMethods.locatorScrollTo, {
       ...this.descriptor,
       percent,
     });
   }
 
   async centroid(): Promise<LocatorCentroidResult> {
-    return this.rpcClient.send(StagehandRPC.locatorCentroid, this.descriptor);
+    return this.rpcClient.send(StagehandMethods.locatorCentroid, this.descriptor);
   }
 
   async highlight(options?: LocatorHighlightParams["options"]): Promise<void> {
-    await this.rpcClient.send(StagehandRPC.locatorHighlight, {
+    await this.rpcClient.send(StagehandMethods.locatorHighlight, {
       ...this.descriptor,
       ...(options ? { options } : {}),
     });
   }
 
   async sendClickEvent(options?: LocatorSendClickEventParams["options"]): Promise<void> {
-    await this.rpcClient.send(StagehandRPC.locatorSendClickEvent, {
+    await this.rpcClient.send(StagehandMethods.locatorSendClickEvent, {
       ...this.descriptor,
       ...(options ? { options } : {}),
     });
   }
 
   async type(text: string, options?: LocatorTypeParams["options"]): Promise<void> {
-    await this.rpcClient.send(StagehandRPC.locatorType, {
+    await this.rpcClient.send(StagehandMethods.locatorType, {
       ...this.descriptor,
       text,
       ...(options ? { options } : {}),
@@ -105,7 +105,7 @@ export class Locator {
   }
 
   async selectOption(values: LocatorSelectOptionParams["values"]): Promise<string[]> {
-    const result = await this.rpcClient.send(StagehandRPC.locatorSelectOption, {
+    const result = await this.rpcClient.send(StagehandMethods.locatorSelectOption, {
       ...this.descriptor,
       values,
     });

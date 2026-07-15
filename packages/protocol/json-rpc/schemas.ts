@@ -72,17 +72,12 @@ export const JSONRPCWireInputSchema = z.unknown().transform((input, context) => 
 
 export const JSONRPCEnvelopeSchema = z.record(z.string(), z.unknown());
 
-type JSONRPCWireOptions = {
-  decode?: WireCasingOptions;
-  encode?: WireCasingOptions;
-};
-
 export type RPCMethod = {
   name: string;
   params: z.ZodType;
   result: z.ZodType;
-  paramsWire?: JSONRPCWireOptions;
-  resultWire?: JSONRPCWireOptions;
+  paramsWire?: WireCasingOptions;
+  resultWire?: WireCasingOptions;
 };
 
 export type RPCNotification = {

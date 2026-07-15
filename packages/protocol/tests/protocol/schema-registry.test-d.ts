@@ -3,7 +3,7 @@ import type { z } from "zod/v4";
 import {
   StagehandMethodSchema,
   StagehandNotifications,
-  StagehandRPC,
+  StagehandMethods,
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
@@ -12,10 +12,10 @@ import { StagehandLogSchema } from "../../schemas.js";
 type StagehandRequest = z.output<typeof StagehandRpcRequestSchema>;
 type StagehandNotification = z.output<typeof StagehandRpcNotificationSchema>;
 type LogNotification = Extract<StagehandNotification, { method: "stagehand.log" }>;
-type RegisteredStagehandMethod = (typeof StagehandRPC)[keyof typeof StagehandRPC]["name"];
+type RegisteredStagehandMethod = (typeof StagehandMethods)[keyof typeof StagehandMethods]["name"];
 
-expectTypeOf(StagehandRPC.pageGoto.name).toEqualTypeOf<"page.goto">();
-expectTypeOf<z.input<typeof StagehandRPC.pageGoto.params>>().toEqualTypeOf<{
+expectTypeOf(StagehandMethods.pageGoto.name).toEqualTypeOf<"page.goto">();
+expectTypeOf<z.input<typeof StagehandMethods.pageGoto.params>>().toEqualTypeOf<{
   pageId: string;
   url: string;
   options?: {
@@ -23,18 +23,18 @@ expectTypeOf<z.input<typeof StagehandRPC.pageGoto.params>>().toEqualTypeOf<{
     timeoutMs?: number;
   };
 }>();
-expectTypeOf(StagehandRPC.browserGetVersion.name).toEqualTypeOf<"browser.get_version">();
-expectTypeOf<z.input<typeof StagehandRPC.browserGetVersion.params>>().toEqualTypeOf<
+expectTypeOf(StagehandMethods.browserGetVersion.name).toEqualTypeOf<"browser.get_version">();
+expectTypeOf<z.input<typeof StagehandMethods.browserGetVersion.params>>().toEqualTypeOf<
   Record<string, never>
 >();
-expectTypeOf(StagehandRPC.locatorSelectOption.name).toEqualTypeOf<"locator.select_option">();
-expectTypeOf<z.input<typeof StagehandRPC.locatorSelectOption.params>>().toEqualTypeOf<{
+expectTypeOf(StagehandMethods.locatorSelectOption.name).toEqualTypeOf<"locator.select_option">();
+expectTypeOf<z.input<typeof StagehandMethods.locatorSelectOption.params>>().toEqualTypeOf<{
   pageId: string;
   selector: string;
   nth?: number;
   values: string | string[];
 }>();
-expectTypeOf<z.output<typeof StagehandRPC.locatorSelectOption.result>>().toEqualTypeOf<{
+expectTypeOf<z.output<typeof StagehandMethods.locatorSelectOption.result>>().toEqualTypeOf<{
   values: string[];
 }>();
 expectTypeOf<StagehandRequest["method"]>().toEqualTypeOf<z.output<typeof StagehandMethodSchema>>();

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import { StagehandRPC, StagehandRpcRequestSchema } from "../../schema-registry.js";
+import { StagehandMethods, StagehandRpcRequestSchema } from "../../schema-registry.js";
 
 describe("Stagehand loopback protocol", () => {
   it("defines runtime.configure as a JSON-RPC method", () => {
-    const params = StagehandRPC.runtimeConfigure.params.parse({
+    const params = StagehandMethods.runtimeConfigure.params.parse({
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
     });
 
@@ -18,7 +18,7 @@ describe("Stagehand loopback protocol", () => {
     });
 
     expect(
-      StagehandRPC.runtimeConfigure.result.parse({
+      StagehandMethods.runtimeConfigure.result.parse({
         configured: true,
       }),
     ).toStrictEqual({
@@ -27,13 +27,13 @@ describe("Stagehand loopback protocol", () => {
   });
 
   it("rejects runtime.configure without a CDP URL", () => {
-    expect(() => StagehandRPC.runtimeConfigure.params.parse({})).toThrow();
+    expect(() => StagehandMethods.runtimeConfigure.params.parse({})).toThrow();
   });
 
   it("defines runtime.loopback_status as a JSON-RPC method", () => {
-    expect(StagehandRPC.runtimeLoopbackStatus.params.parse({})).toStrictEqual({});
+    expect(StagehandMethods.runtimeLoopbackStatus.params.parse({})).toStrictEqual({});
     expect(
-      StagehandRPC.runtimeLoopbackStatus.result.parse({
+      StagehandMethods.runtimeLoopbackStatus.result.parse({
         configured: true,
         connected: false,
       }),
@@ -44,9 +44,9 @@ describe("Stagehand loopback protocol", () => {
   });
 
   it("defines browser.get_version as a JSON-RPC method", () => {
-    expect(StagehandRPC.browserGetVersion.params.parse({})).toStrictEqual({});
+    expect(StagehandMethods.browserGetVersion.params.parse({})).toStrictEqual({});
     expect(
-      StagehandRPC.browserGetVersion.result.parse({
+      StagehandMethods.browserGetVersion.result.parse({
         protocolVersion: "1.3",
         product: "Chrome/143.0.0.0",
         revision: "@abc123",

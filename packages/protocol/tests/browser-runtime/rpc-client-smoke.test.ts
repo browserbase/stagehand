@@ -8,7 +8,7 @@ import { build } from "vite-plus";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { z } from "zod/v4";
 import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.js";
-import { StagehandRPC } from "../../schema-registry.js";
+import { StagehandMethods } from "../../schema-registry.js";
 import type { StagehandRpcNotification } from "../../types.js";
 
 const stagehandExtensionDistDir = new URL("../../../server/dist", import.meta.url).pathname;
@@ -51,7 +51,7 @@ describe("Stagehand service worker RPC client smoke", () => {
   });
 
   it("ping returns a typed response from the service worker runtime", async () => {
-    await expect(rpcClient?.send(StagehandRPC.ping, {})).resolves.toStrictEqual({
+    await expect(rpcClient?.send(StagehandMethods.ping, {})).resolves.toStrictEqual({
       ok: true,
       runtime: "service_worker",
     });
@@ -82,7 +82,7 @@ describe("Stagehand service worker RPC client smoke", () => {
       notifications.push(notification);
     });
 
-    await activeRpcClient.send(StagehandRPC.ping, {});
+    await activeRpcClient.send(StagehandMethods.ping, {});
 
     expect(notifications).toContainEqual({
       jsonrpc: "2.0",
@@ -97,7 +97,7 @@ describe("Stagehand service worker RPC client smoke", () => {
   });
 
   it("browser.get_version returns the browser version over loopback CDP", async () => {
-    const version = await rpcClient?.send(StagehandRPC.browserGetVersion, {});
+    const version = await rpcClient?.send(StagehandMethods.browserGetVersion, {});
 
     expect(version?.protocolVersion).toBe("1.3");
     expect(version?.product).toContain("Chrome/");
@@ -105,7 +105,7 @@ describe("Stagehand service worker RPC client smoke", () => {
   });
 
   it("context.pages returns PageRefs from the understudy context", async () => {
-    const pages = await requireRpcClient(rpcClient).send(StagehandRPC.contextPages, {});
+    const pages = await requireRpcClient(rpcClient).send(StagehandMethods.contextPages, {});
 
     expect(pages.length).toBeGreaterThanOrEqual(1);
     expect(pages[0]?.pageId).toBeTruthy();
@@ -113,7 +113,7 @@ describe("Stagehand service worker RPC client smoke", () => {
   });
 
   it("context.new_page returns a PageRef from the understudy context", async () => {
-    const page = await requireRpcClient(rpcClient).send(StagehandRPC.contextNewPage, {
+    const page = await requireRpcClient(rpcClient).send(StagehandMethods.contextNewPage, {
       url: "about:blank",
     });
 
@@ -122,17 +122,19 @@ describe("Stagehand service worker RPC client smoke", () => {
   });
 
   it("ping rejects invalid params before the handler runs", async () => {
-    await expect(rpcClient?.send(StagehandRPC.ping, { extra: true } as never)).rejects.toThrow();
+    await expect(
+      rpcClient?.send(StagehandMethods.ping, { extra: true } as never),
+    ).rejects.toThrow();
   });
 
   it("routes page methods through real PageRefs in a browser session", async () => {
     const activeRpcClient = requireRpcClient(rpcClient);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const pages = await activeRpcClient.send(StagehandRPC.contextPages, {});
-    const page = pages[0] ?? (await activeRpcClient.send(StagehandRPC.contextNewPage, {}));
+    const pages = await activeRpcClient.send(StagehandMethods.contextPages, {});
+    const page = pages[0] ?? (await activeRpcClient.send(StagehandMethods.contextNewPage, {}));
 
     await expect(
-      activeRpcClient.send(StagehandRPC.pageGoto, {
+      activeRpcClient.send(StagehandMethods.pageGoto, {
         pageId: page.pageId,
         url: activeFixtureServer.url,
       }),
@@ -142,10 +144,10 @@ describe("Stagehand service worker RPC client smoke", () => {
     });
 
     await expect(
-      activeRpcClient.send(StagehandRPC.pageUrl, { pageId: page.pageId }),
+      activeRpcClient.send(StagehandMethods.pageUrl, { pageId: page.pageId }),
     ).resolves.toStrictEqual({ url: activeFixtureServer.url });
     await expect(
-      activeRpcClient.send(StagehandRPC.pageTitle, { pageId: page.pageId }),
+      activeRpcClient.send(StagehandMethods.pageTitle, { pageId: page.pageId }),
     ).resolves.toStrictEqual({
       title: "Stagehand Smoke",
     });
@@ -153,12 +155,12 @@ describe("Stagehand service worker RPC client smoke", () => {
 
   it("closes a throwaway PageRef in a browser session", async () => {
     const activeRpcClient = requireRpcClient(rpcClient);
-    const page = await activeRpcClient.send(StagehandRPC.contextNewPage, {
+    const page = await activeRpcClient.send(StagehandMethods.contextNewPage, {
       url: "about:blank",
     });
 
     await expect(
-      activeRpcClient.send(StagehandRPC.pageClose, { pageId: page.pageId }),
+      activeRpcClient.send(StagehandMethods.pageClose, { pageId: page.pageId }),
     ).resolves.toStrictEqual({
       closed: true,
     });
@@ -167,16 +169,16 @@ describe("Stagehand service worker RPC client smoke", () => {
   it("routes locator actions through real PageRefs in a browser session", async () => {
     const activeRpcClient = requireRpcClient(rpcClient);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const pages = await activeRpcClient.send(StagehandRPC.contextPages, {});
-    const page = pages[0] ?? (await activeRpcClient.send(StagehandRPC.contextNewPage, {}));
+    const pages = await activeRpcClient.send(StagehandMethods.contextPages, {});
+    const page = pages[0] ?? (await activeRpcClient.send(StagehandMethods.contextNewPage, {}));
 
-    await activeRpcClient.send(StagehandRPC.pageGoto, {
+    await activeRpcClient.send(StagehandMethods.pageGoto, {
       pageId: page.pageId,
       url: activeFixtureServer.url,
     });
 
     await expect(
-      activeRpcClient.send(StagehandRPC.locatorIsVisible, {
+      activeRpcClient.send(StagehandMethods.locatorIsVisible, {
         pageId: page.pageId,
         selector: "#locator-message",
       }),
@@ -185,7 +187,7 @@ describe("Stagehand service worker RPC client smoke", () => {
     });
 
     await expect(
-      activeRpcClient.send(StagehandRPC.locatorTextContent, {
+      activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
         selector: "#locator-message",
       }),
@@ -194,7 +196,7 @@ describe("Stagehand service worker RPC client smoke", () => {
     });
 
     await expect(
-      activeRpcClient.send(StagehandRPC.locatorFill, {
+      activeRpcClient.send(StagehandMethods.locatorFill, {
         pageId: page.pageId,
         selector: "#locator-input",
         value: "user@example.com",
@@ -204,7 +206,7 @@ describe("Stagehand service worker RPC client smoke", () => {
     });
 
     await expect(
-      activeRpcClient.send(StagehandRPC.locatorClick, {
+      activeRpcClient.send(StagehandMethods.locatorClick, {
         pageId: page.pageId,
         selector: "#locator-button",
       }),
@@ -213,7 +215,7 @@ describe("Stagehand service worker RPC client smoke", () => {
     });
 
     await expect(
-      activeRpcClient.send(StagehandRPC.locatorTextContent, {
+      activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
         selector: "#locator-output",
       }),

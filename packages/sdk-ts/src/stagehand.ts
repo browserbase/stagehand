@@ -1,6 +1,6 @@
 import { connectRPCClient, type RPCClient, type RPCClientOptions } from "./rpcClient.js";
 import { StagehandOptionsSchema } from "../../protocol/pending-schemas.js";
-import { StagehandRPC } from "../../protocol/schema-registry.js";
+import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type { StagehandOptions, StagehandRpcNotification } from "../../protocol/types.js";
 import { BrowserContext } from "./browserContext.js";
 import { resolveBrowserSource, type ResolvedBrowserSource } from "./browserSource.js";
@@ -65,7 +65,7 @@ export class Stagehand {
     const context = this.browserContext;
     try {
       if (context) {
-        await this.rpcClient?.send(StagehandRPC.stagehandClose, {});
+        await this.rpcClient?.send(StagehandMethods.stagehandClose, {});
       }
     } finally {
       this.removeNotificationListener?.();

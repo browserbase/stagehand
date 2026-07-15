@@ -1,7 +1,7 @@
 import { trace } from "@opentelemetry/api";
 import { describe, expect, it } from "vite-plus/test";
 import { JSONRPCRequestSchema } from "../../protocol/json-rpc/schemas.ts";
-import { StagehandRPC } from "../../protocol/schema-registry.ts";
+import { StagehandMethods } from "../../protocol/schema-registry.ts";
 import { ChromeRuntimeClient } from "../clients/chromeRuntimeClient.ts";
 import { RPCClient } from "../clients/rpcClient.ts";
 import { createStagehandRuntime } from "../runtime.ts";
@@ -38,7 +38,7 @@ describe("worker RPCClient", () => {
     runtimeClient = new ChromeRuntimeClient(scope, "sendToHost");
     const client = new RPCClient(runtimeClient, new RPCRouter(runtime), 1_000);
 
-    await expect(client.send(StagehandRPC.ping, {})).resolves.toStrictEqual({
+    await expect(client.send(StagehandMethods.ping, {})).resolves.toStrictEqual({
       ok: true,
       runtime: "service_worker",
     });

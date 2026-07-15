@@ -13,10 +13,7 @@ import {
 } from "../../protocol/json-rpc/schemas.js";
 import type { JSONRPCResponse } from "../../protocol/json-rpc/types.js";
 import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing.js";
-import {
-  getStagehandRPCMethod,
-  StagehandRpcRequestSchema,
-} from "../../protocol/schema-registry.js";
+import { getStagehandMethod, StagehandRpcRequestSchema } from "../../protocol/schema-registry.js";
 import { z } from "zod/v4";
 import { RPCRouter } from "../rpcRouter.js";
 import { StagehandRuntimeError } from "../runtime.js";
@@ -63,7 +60,7 @@ export class RPCClient {
       jsonrpc: "2.0",
       id,
       method: method.name,
-      params: encodeWireValue(parsedParams, method.paramsWire?.encode),
+      params: encodeWireValue(parsedParams, method.paramsWire),
     });
     const response = this.waitForResponse(id, method);
     const [, result] = await Promise.all([
@@ -153,7 +150,7 @@ export class RPCClient {
       return;
     }
 
-    const method = getStagehandRPCMethod(request.data.method);
+    const method = getStagehandMethod(request.data.method);
     if (!method) {
       await this.sendError(
         request.data.id,
@@ -192,7 +189,7 @@ export class RPCClient {
         JSONRPCSuccessResponseSchema.parse({
           jsonrpc: "2.0",
           id: request.data.id,
-          result: encodeWireValue(parsedResult.data, method.resultWire?.encode),
+          result: encodeWireValue(parsedResult.data, method.resultWire),
         }),
       );
     } catch (error) {
@@ -233,7 +230,7 @@ export class RPCClient {
 
     try {
       pending.resolve(
-        wireSchema(pending.method.result, pending.method.resultWire?.decode).parse(response.result),
+        wireSchema(pending.method.result, pending.method.resultWire).parse(response.result),
       );
     } catch (error) {
       pending.reject(asError(error));

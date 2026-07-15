@@ -21,7 +21,7 @@ import type { JSONRPCMessage, JSONRPCResponse } from "../../protocol/json-rpc/ty
 import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing.js";
 import {
   StagehandNotifications,
-  StagehandRPC,
+  StagehandMethods,
   StagehandRpcNotificationSchema,
 } from "../../protocol/schema-registry.js";
 import { StagehandTelemetryOptionsSchema } from "../../protocol/schemas.js";
@@ -131,7 +131,7 @@ export class RPCClient {
           jsonrpc: "2.0",
           id: requestId,
           method: method.name,
-          params: encodeWireValue(parsedParams, method.paramsWire?.encode),
+          params: encodeWireValue(parsedParams, method.paramsWire),
           ...getTraceContextFields(requestContext),
         });
         span.setAttribute("jsonrpc.request.id", String(request.id));
@@ -247,7 +247,7 @@ export class RPCClient {
 
     try {
       pending.resolve(
-        wireSchema(pending.method.result, pending.method.resultWire?.decode).parse(response.result),
+        wireSchema(pending.method.result, pending.method.resultWire).parse(response.result),
       );
     } catch (error) {
       pending.reject(asError(error));
@@ -304,7 +304,7 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
   const client = new RPCClient(cdpClient, commandTimeoutMs);
 
   try {
-    await client.send(StagehandRPC.runtimeConfigure, {
+    await client.send(StagehandMethods.runtimeConfigure, {
       cdpUrl: cdpClient.webSocketDebuggerUrl,
       telemetry: options.telemetry,
     });

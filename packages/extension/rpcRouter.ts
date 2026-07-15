@@ -9,7 +9,7 @@ import {
 import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
 import { wireSchema } from "../protocol/json-rpc/wire-casing.js";
-import { StagehandRPC } from "../protocol/schema-registry.js";
+import { StagehandMethods } from "../protocol/schema-registry.js";
 import type { StagehandRpcRequest } from "../protocol/types.js";
 import { z } from "zod/v4";
 import { createBrowserController } from "./controllers/browserController.js";
@@ -85,7 +85,7 @@ export class RPCRouter {
       throw error;
     } finally {
       span.end();
-      if (request.method === StagehandRPC.stagehandClose.name) {
+      if (request.method === StagehandMethods.stagehandClose.name) {
         await this.runtime.tracing.shutdown();
       }
     }
@@ -94,157 +94,163 @@ export class RPCRouter {
   async route(request: StagehandRpcRequest, context: HandlerContext): Promise<unknown> {
     switch (request.method) {
       case "ping":
-        return this.runtimeController.ping(parseParams(StagehandRPC.ping, request.params), context);
+        return this.runtimeController.ping(
+          parseParams(StagehandMethods.ping, request.params),
+          context,
+        );
       case "runtime.configure":
         return this.runtimeController.configure(
-          parseParams(StagehandRPC.runtimeConfigure, request.params),
+          parseParams(StagehandMethods.runtimeConfigure, request.params),
           context,
         );
       case "runtime.loopback_status":
         return this.runtimeController.loopbackStatus(
-          parseParams(StagehandRPC.runtimeLoopbackStatus, request.params),
+          parseParams(StagehandMethods.runtimeLoopbackStatus, request.params),
           context,
         );
       case "browser.get_version":
         return this.browserController.getVersion(
-          parseParams(StagehandRPC.browserGetVersion, request.params),
+          parseParams(StagehandMethods.browserGetVersion, request.params),
           context,
         );
       case "stagehand.init":
         return this.stagehandController.init(
-          parseParams(StagehandRPC.stagehandInit, request.params),
+          parseParams(StagehandMethods.stagehandInit, request.params),
           context,
         );
       case "stagehand.close":
         return this.stagehandController.close(
-          parseParams(StagehandRPC.stagehandClose, request.params),
+          parseParams(StagehandMethods.stagehandClose, request.params),
           context,
         );
       case "stagehand.act":
         return this.stagehandController.act(
-          parseParams(StagehandRPC.stagehandAct, request.params),
+          parseParams(StagehandMethods.stagehandAct, request.params),
           context,
         );
       case "stagehand.observe":
         return this.stagehandController.observe(
-          parseParams(StagehandRPC.stagehandObserve, request.params),
+          parseParams(StagehandMethods.stagehandObserve, request.params),
           context,
         );
       case "stagehand.extract":
         return this.stagehandController.extract(
-          parseParams(StagehandRPC.stagehandExtract, request.params),
+          parseParams(StagehandMethods.stagehandExtract, request.params),
           context,
         );
       case "stagehand.metrics":
         return this.stagehandController.metrics(
-          parseParams(StagehandRPC.stagehandMetrics, request.params),
+          parseParams(StagehandMethods.stagehandMetrics, request.params),
           context,
         );
       case "context.pages":
         return this.contextController.pages(
-          parseParams(StagehandRPC.contextPages, request.params),
+          parseParams(StagehandMethods.contextPages, request.params),
           context,
         );
       case "context.new_page":
         return this.contextController.newPage(
-          parseParams(StagehandRPC.contextNewPage, request.params),
+          parseParams(StagehandMethods.contextNewPage, request.params),
           context,
         );
       case "page.goto":
         return this.pageController.goto(
-          parseParams(StagehandRPC.pageGoto, request.params),
+          parseParams(StagehandMethods.pageGoto, request.params),
           context,
         );
       case "page.url":
-        return this.pageController.url(parseParams(StagehandRPC.pageUrl, request.params), context);
+        return this.pageController.url(
+          parseParams(StagehandMethods.pageUrl, request.params),
+          context,
+        );
       case "page.title":
         return this.pageController.title(
-          parseParams(StagehandRPC.pageTitle, request.params),
+          parseParams(StagehandMethods.pageTitle, request.params),
           context,
         );
       case "page.close":
         return this.pageController.close(
-          parseParams(StagehandRPC.pageClose, request.params),
+          parseParams(StagehandMethods.pageClose, request.params),
           context,
         );
       case "locator.click":
         return this.locatorController.click(
-          parseParams(StagehandRPC.locatorClick, request.params),
+          parseParams(StagehandMethods.locatorClick, request.params),
           context,
         );
       case "locator.fill":
         return this.locatorController.fill(
-          parseParams(StagehandRPC.locatorFill, request.params),
+          parseParams(StagehandMethods.locatorFill, request.params),
           context,
         );
       case "locator.hover":
         return this.locatorController.hover(
-          parseParams(StagehandRPC.locatorHover, request.params),
+          parseParams(StagehandMethods.locatorHover, request.params),
           context,
         );
       case "locator.count":
         return this.locatorController.count(
-          parseParams(StagehandRPC.locatorCount, request.params),
+          parseParams(StagehandMethods.locatorCount, request.params),
           context,
         );
       case "locator.is_checked":
         return this.locatorController.isChecked(
-          parseParams(StagehandRPC.locatorIsChecked, request.params),
+          parseParams(StagehandMethods.locatorIsChecked, request.params),
           context,
         );
       case "locator.input_value":
         return this.locatorController.inputValue(
-          parseParams(StagehandRPC.locatorInputValue, request.params),
+          parseParams(StagehandMethods.locatorInputValue, request.params),
           context,
         );
       case "locator.is_visible":
         return this.locatorController.isVisible(
-          parseParams(StagehandRPC.locatorIsVisible, request.params),
+          parseParams(StagehandMethods.locatorIsVisible, request.params),
           context,
         );
       case "locator.inner_text":
         return this.locatorController.innerText(
-          parseParams(StagehandRPC.locatorInnerText, request.params),
+          parseParams(StagehandMethods.locatorInnerText, request.params),
           context,
         );
       case "locator.inner_html":
         return this.locatorController.innerHtml(
-          parseParams(StagehandRPC.locatorInnerHtml, request.params),
+          parseParams(StagehandMethods.locatorInnerHtml, request.params),
           context,
         );
       case "locator.text_content":
         return this.locatorController.textContent(
-          parseParams(StagehandRPC.locatorTextContent, request.params),
+          parseParams(StagehandMethods.locatorTextContent, request.params),
           context,
         );
       case "locator.scroll_to":
         return this.locatorController.scrollTo(
-          parseParams(StagehandRPC.locatorScrollTo, request.params),
+          parseParams(StagehandMethods.locatorScrollTo, request.params),
           context,
         );
       case "locator.centroid":
         return this.locatorController.centroid(
-          parseParams(StagehandRPC.locatorCentroid, request.params),
+          parseParams(StagehandMethods.locatorCentroid, request.params),
           context,
         );
       case "locator.highlight":
         return this.locatorController.highlight(
-          parseParams(StagehandRPC.locatorHighlight, request.params),
+          parseParams(StagehandMethods.locatorHighlight, request.params),
           context,
         );
       case "locator.send_click_event":
         return this.locatorController.sendClickEvent(
-          parseParams(StagehandRPC.locatorSendClickEvent, request.params),
+          parseParams(StagehandMethods.locatorSendClickEvent, request.params),
           context,
         );
       case "locator.type":
         return this.locatorController.type(
-          parseParams(StagehandRPC.locatorType, request.params),
+          parseParams(StagehandMethods.locatorType, request.params),
           context,
         );
       case "locator.select_option":
         return this.locatorController.selectOption(
-          parseParams(StagehandRPC.locatorSelectOption, request.params),
+          parseParams(StagehandMethods.locatorSelectOption, request.params),
           context,
         );
     }
@@ -255,9 +261,7 @@ function parseParams<Method extends RPCMethod>(
   method: Method,
   params: unknown,
 ): z.output<Method["params"]> {
-  return wireSchema(method.params, method.paramsWire?.decode).parse(params) as z.output<
-    Method["params"]
-  >;
+  return wireSchema(method.params, method.paramsWire).parse(params) as z.output<Method["params"]>;
 }
 
 function setRPCErrorOnSpan(span: Span, code: number, type: string, message?: string): void {

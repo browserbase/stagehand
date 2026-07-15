@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
-import { StagehandRPC } from "../../protocol/schema-registry.js";
+import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { Stagehand } from "../src/index.js";
 import type { ResolvedBrowserSource } from "../src/browserSource.js";
@@ -84,7 +84,9 @@ describe("Stagehand", () => {
 
   it("initializes through browser source resolution and RPC client connection", async () => {
     const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandRPC.contextPages, [{ pageId: "page-1", url: "about:blank" }]);
+    rpcClient.queueResponse(StagehandMethods.contextPages, [
+      { pageId: "page-1", url: "about:blank" },
+    ]);
     const resolveBrowserSource = vi.fn(async (): Promise<ResolvedBrowserSource> => {
       return {
         cdpUrl: "http://127.0.0.1:9222",
@@ -177,7 +179,7 @@ describe("Stagehand", () => {
   it("closes the runtime, rpcClient, and owned browser source", async () => {
     const closeBrowser = vi.fn();
     const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandRPC.stagehandClose, { closed: true });
+    rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
     const stagehand = createStagehandWithDependenciesForTest(
       {
         localBrowserLaunchOptions: {},
@@ -205,7 +207,7 @@ describe("Stagehand", () => {
   it("renders streamed Stagehand logs and removes the listener when Stagehand closes", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandRPC.stagehandClose, { closed: true });
+    rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
     const stagehand = createStagehandWithDependenciesForTest(
       {
         localBrowserConnectOptions: {
@@ -244,7 +246,7 @@ describe("Stagehand", () => {
   it("does not close a keepAlive browser source", async () => {
     const closeBrowser = vi.fn();
     const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandRPC.stagehandClose, { closed: true });
+    rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
     const stagehand = createStagehandWithDependenciesForTest(
       {
         localBrowserLaunchOptions: {
