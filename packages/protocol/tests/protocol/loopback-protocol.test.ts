@@ -78,6 +78,12 @@ describe("Stagehand loopback protocol", () => {
       method: "runtime.configure",
       params: {
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+        telemetry: {
+          traces: {
+            endpoint: "https://example.com/v1/traces",
+            headers: {},
+          },
+        },
       },
     });
 

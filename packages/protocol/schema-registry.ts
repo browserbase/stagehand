@@ -5,6 +5,7 @@ import {
   type RPCMethod,
   type RPCNotification,
 } from "./json-rpc/schemas.ts";
+import { wireSchema } from "./json-rpc/wire-casing.ts";
 import {
   ActResultSchema,
   BrowserGetVersionResultSchema,
@@ -218,10 +219,19 @@ export const StagehandMethodSchema = z.enum(
   Object.values(StagehandRPC).map((method) => method.name),
 );
 
-export const StagehandRpcRequestSchema = JSONRPCRequestSchema.extend({
-  method: StagehandMethodSchema,
-  params: z.record(z.string(), z.json()),
-});
+const stagehandRpcRequestSchemas = Object.values(StagehandRPC).map((method) =>
+  JSONRPCRequestSchema.extend({
+    method: z.literal(method.name),
+    params: wireSchema(method.params),
+  }),
+);
+
+export const StagehandRpcRequestSchema = z.union(
+  stagehandRpcRequestSchemas as [
+    (typeof stagehandRpcRequestSchemas)[number],
+    ...(typeof stagehandRpcRequestSchemas)[number][],
+  ],
+);
 
 export const StagehandNotifications = {
   log: { name: "stagehand.log", params: StagehandLogSchema },

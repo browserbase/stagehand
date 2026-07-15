@@ -167,9 +167,15 @@ describe("JSON-RPC wire casing", () => {
   it("keeps transport params required and snake_case", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as Record<string, unknown>;
     const transport = asRecord(asRecord(asRecord(protocol.properties).transport).properties);
-    const request = asRecord(transport.request);
-    expect(request.required).toContain("params");
-    expectDeclaredPropertiesToBeSnakeCase(request, "transport.request");
+    const requestSchema = asRecord(transport.request);
+    const requestVariants = requestSchema.oneOf ?? requestSchema.anyOf;
+
+    expect(Array.isArray(requestVariants)).toBe(true);
+    for (const variant of requestVariants as unknown[]) {
+      const request = asRecord(variant);
+      expect(request.required).toContain("params");
+      expectDeclaredPropertiesToBeSnakeCase(request, "transport.request");
+    }
 
     expectDeclaredPropertiesToBeSnakeCase(transport.notification, "transport.notification");
   });
