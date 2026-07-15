@@ -379,7 +379,8 @@ components:
           type: string
           const: vertex
         auth:
-          description: Vertex provider authentication configuration
+          description: Vertex provider authentication configuration. Optional when using
+            an express-mode apiKey or ambient application default credentials
           $ref: "#/components/schemas/GoogleServiceAccountAuth"
         providerOptions:
           description: Vertex provider-specific model configuration
@@ -387,8 +388,6 @@ components:
       required:
         - modelName
         - provider
-        - auth
-        - providerOptions
       additionalProperties: false
     AzureEntraModelConfigObject:
       type: object
