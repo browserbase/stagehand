@@ -288,4 +288,106 @@ describe("Stagehand TS object wrapper", () => {
       }),
     ]);
   });
+
+  it("routes read locator methods and unwraps their results", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse("locator.count", { count: 2 });
+    client.queueResponse("locator.is_checked", { checked: true });
+    client.queueResponse("locator.input_value", { value: "user@example.com" });
+    client.queueResponse("locator.inner_text", { text: "visible text" });
+    client.queueResponse("locator.inner_html", { html: "<span>visible text</span>" });
+    client.queueResponse("locator.centroid", { x: 12, y: 34 });
+    const page = new Page(client, { pageId: "page-1" });
+    const locator = page.locator("#field");
+
+    await expect(locator.count()).resolves.toBe(2);
+    await expect(locator.isChecked()).resolves.toBe(true);
+    await expect(locator.inputValue()).resolves.toBe("user@example.com");
+    await expect(locator.innerText()).resolves.toBe("visible text");
+    await expect(locator.innerHtml()).resolves.toBe("<span>visible text</span>");
+    await expect(locator.centroid()).resolves.toStrictEqual({ x: 12, y: 34 });
+
+    expect(client.calls).toStrictEqual([
+      requestCall("locator.count", { pageId: "page-1", selector: "#field" }),
+      requestCall("locator.is_checked", { pageId: "page-1", selector: "#field" }),
+      requestCall("locator.input_value", { pageId: "page-1", selector: "#field" }),
+      requestCall("locator.inner_text", { pageId: "page-1", selector: "#field" }),
+      requestCall("locator.inner_html", { pageId: "page-1", selector: "#field" }),
+      requestCall("locator.centroid", { pageId: "page-1", selector: "#field" }),
+    ]);
+  });
+
+  it("routes write locator methods with their options", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse("locator.hover", { hovered: true });
+    client.queueResponse("locator.scroll_to", { scrolled: true });
+    client.queueResponse("locator.highlight", { highlighted: true });
+    client.queueResponse("locator.send_click_event", { clicked: true });
+    client.queueResponse("locator.type", { typed: true });
+    client.queueResponse("locator.select_option", { values: ["pro"] });
+    const page = new Page(client, { pageId: "page-1" });
+    const locator = page.locator("#field");
+
+    await locator.hover();
+    await locator.scrollTo(50);
+    await locator.highlight({ durationMs: 0, borderColor: { r: 1, g: 2, b: 3 } });
+    await locator.sendClickEvent({ detail: 2 });
+    await locator.type("hello", { delay: 1 });
+    await expect(locator.selectOption(["starter", "pro"])).resolves.toStrictEqual(["pro"]);
+
+    expect(client.calls).toStrictEqual([
+      requestCall("locator.hover", { pageId: "page-1", selector: "#field" }),
+      requestCall("locator.scroll_to", { pageId: "page-1", selector: "#field", percent: 50 }),
+      requestCall("locator.highlight", {
+        pageId: "page-1",
+        selector: "#field",
+        options: { durationMs: 0, borderColor: { r: 1, g: 2, b: 3 } },
+      }),
+      requestCall("locator.send_click_event", {
+        pageId: "page-1",
+        selector: "#field",
+        options: { detail: 2 },
+      }),
+      requestCall("locator.type", {
+        pageId: "page-1",
+        selector: "#field",
+        text: "hello",
+        options: { delay: 1 },
+      }),
+      requestCall("locator.select_option", {
+        pageId: "page-1",
+        selector: "#field",
+        values: ["starter", "pro"],
+      }),
+    ]);
+  });
+
+  it("creates descriptor-backed nth locators without sending protocol calls", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse("locator.click", { clicked: true });
+    const page = new Page(client, { pageId: "page-1" });
+
+    const locator = page.locator("button").first().nth(2);
+
+    expect(locator).toBeInstanceOf(Locator);
+    expect(client.calls).toStrictEqual([]);
+
+    await locator.click();
+
+    expect(client.calls).toStrictEqual([
+      requestCall("locator.click", {
+        pageId: "page-1",
+        selector: "button",
+        nth: 2,
+      }),
+    ]);
+  });
+
+  it("rejects invalid nth indexes before sending protocol calls", () => {
+    const client = new FakeProtocolClient();
+    const page = new Page(client, { pageId: "page-1" });
+
+    expect(() => page.locator("button").nth(-1)).toThrow("Too small: expected number to be >=0");
+    expect(client.calls).toStrictEqual([]);
+  });
 });

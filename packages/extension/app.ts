@@ -4,17 +4,8 @@ import { createLocatorController } from "./controllers/locatorController.js";
 import { createPageController } from "./controllers/pageController.js";
 import { createRuntimeController } from "./controllers/runtimeController.js";
 import { createStagehandController } from "./controllers/stagehandController.js";
-import { JSONRPCErrorCodes } from "../protocol/json-rpc/schemas.js";
 import { createStagehandRouter, type StagehandHandlers } from "./rpc/router.js";
-import { StagehandRuntimeError, type StagehandRuntime } from "./runtime.js";
-
-async function unimplemented(): Promise<never> {
-  throw new StagehandRuntimeError(
-    "Method not implemented",
-    JSONRPCErrorCodes.methodNotFound,
-    "stagehand.unimplemented_command",
-  );
-}
+import type { StagehandRuntime } from "./runtime.js";
 
 export function createStagehandApp(runtime: StagehandRuntime) {
   const runtimeController = createRuntimeController(runtime);
@@ -43,20 +34,20 @@ export function createStagehandApp(runtime: StagehandRuntime) {
     "page.close": page.close,
     "locator.click": locator.click,
     "locator.fill": locator.fill,
-    "locator.hover": unimplemented,
-    "locator.count": unimplemented,
-    "locator.is_checked": unimplemented,
-    "locator.input_value": unimplemented,
+    "locator.hover": locator.hover,
+    "locator.count": locator.count,
+    "locator.is_checked": locator.isChecked,
+    "locator.input_value": locator.inputValue,
     "locator.is_visible": locator.isVisible,
-    "locator.inner_text": unimplemented,
-    "locator.inner_html": unimplemented,
+    "locator.inner_text": locator.innerText,
+    "locator.inner_html": locator.innerHtml,
     "locator.text_content": locator.textContent,
-    "locator.scroll_to": unimplemented,
-    "locator.centroid": unimplemented,
-    "locator.highlight": unimplemented,
-    "locator.send_click_event": unimplemented,
-    "locator.type": unimplemented,
-    "locator.select_option": unimplemented,
+    "locator.scroll_to": locator.scrollTo,
+    "locator.centroid": locator.centroid,
+    "locator.highlight": locator.highlight,
+    "locator.send_click_event": locator.sendClickEvent,
+    "locator.type": locator.type,
+    "locator.select_option": locator.selectOption,
   } satisfies StagehandHandlers;
 
   return {

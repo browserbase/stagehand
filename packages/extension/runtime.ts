@@ -4,11 +4,35 @@ import type {
   ContextPagesResult,
   LocatorClickParams,
   LocatorClickResult,
+  LocatorCentroidParams,
+  LocatorCentroidResult,
+  LocatorCountParams,
+  LocatorCountResult,
   LocatorDescriptor,
   LocatorFillParams,
   LocatorFillResult,
+  LocatorHighlightParams,
+  LocatorHighlightResult,
+  LocatorHoverParams,
+  LocatorHoverResult,
+  LocatorInnerHtmlParams,
+  LocatorInnerHtmlResult,
+  LocatorInnerTextParams,
+  LocatorInnerTextResult,
+  LocatorInputValueParams,
+  LocatorInputValueResult,
+  LocatorIsCheckedParams,
+  LocatorIsCheckedResult,
   LocatorIsVisibleResult,
+  LocatorScrollToParams,
+  LocatorScrollToResult,
+  LocatorSelectOptionParams,
+  LocatorSelectOptionResult,
+  LocatorSendClickEventParams,
+  LocatorSendClickEventResult,
   LocatorTextContentResult,
+  LocatorTypeParams,
+  LocatorTypeResult,
   PageCloseResult,
   PageGotoParams,
   PageIdParams,
@@ -44,9 +68,22 @@ export type UnderstudyRuntimePage = {
 
 export type UnderstudyRuntimeLocator = {
   click(options?: LocatorClickParams["options"]): Promise<void> | void;
+  hover(): Promise<void> | void;
   fill(value: string): Promise<void> | void;
+  count(): Promise<number>;
+  isChecked(): Promise<boolean>;
+  inputValue(): Promise<string>;
   isVisible(): Promise<boolean>;
+  innerText(): Promise<string>;
+  innerHtml(): Promise<string>;
   textContent(): Promise<string>;
+  scrollTo(percent: LocatorScrollToParams["percent"]): Promise<void> | void;
+  centroid(): Promise<LocatorCentroidResult>;
+  highlight(options?: LocatorHighlightParams["options"]): Promise<void> | void;
+  sendClickEvent(options?: LocatorSendClickEventParams["options"]): Promise<void> | void;
+  type(text: string, options?: LocatorTypeParams["options"]): Promise<void> | void;
+  selectOption(values: LocatorSelectOptionParams["values"]): Promise<string[]>;
+  nth(index: number): UnderstudyRuntimeLocator;
 };
 
 export type UnderstudyRuntimeContext = {
@@ -185,9 +222,32 @@ export class StagehandRuntime {
     return { clicked: true };
   }
 
+  async locatorHover(params: LocatorHoverParams): Promise<LocatorHoverResult> {
+    await this.resolveLocator(params).hover();
+    return { hovered: true };
+  }
+
   async locatorFill(params: LocatorFillParams): Promise<LocatorFillResult> {
     await this.resolveLocator(params).fill(params.value);
     return { filled: true };
+  }
+
+  async locatorCount(params: LocatorCountParams): Promise<LocatorCountResult> {
+    return {
+      count: await this.resolveLocator(params).count(),
+    };
+  }
+
+  async locatorIsChecked(params: LocatorIsCheckedParams): Promise<LocatorIsCheckedResult> {
+    return {
+      checked: await this.resolveLocator(params).isChecked(),
+    };
+  }
+
+  async locatorInputValue(params: LocatorInputValueParams): Promise<LocatorInputValueResult> {
+    return {
+      value: await this.resolveLocator(params).inputValue(),
+    };
   }
 
   async locatorIsVisible(params: LocatorDescriptor): Promise<LocatorIsVisibleResult> {
@@ -196,9 +256,53 @@ export class StagehandRuntime {
     };
   }
 
+  async locatorInnerText(params: LocatorInnerTextParams): Promise<LocatorInnerTextResult> {
+    return {
+      text: await this.resolveLocator(params).innerText(),
+    };
+  }
+
+  async locatorInnerHtml(params: LocatorInnerHtmlParams): Promise<LocatorInnerHtmlResult> {
+    return {
+      html: await this.resolveLocator(params).innerHtml(),
+    };
+  }
+
   async locatorTextContent(params: LocatorDescriptor): Promise<LocatorTextContentResult> {
     return {
       textContent: await this.resolveLocator(params).textContent(),
+    };
+  }
+
+  async locatorScrollTo(params: LocatorScrollToParams): Promise<LocatorScrollToResult> {
+    await this.resolveLocator(params).scrollTo(params.percent);
+    return { scrolled: true };
+  }
+
+  async locatorCentroid(params: LocatorCentroidParams): Promise<LocatorCentroidResult> {
+    return await this.resolveLocator(params).centroid();
+  }
+
+  async locatorHighlight(params: LocatorHighlightParams): Promise<LocatorHighlightResult> {
+    await this.resolveLocator(params).highlight(params.options);
+    return { highlighted: true };
+  }
+
+  async locatorSendClickEvent(
+    params: LocatorSendClickEventParams,
+  ): Promise<LocatorSendClickEventResult> {
+    await this.resolveLocator(params).sendClickEvent(params.options);
+    return { clicked: true };
+  }
+
+  async locatorType(params: LocatorTypeParams): Promise<LocatorTypeResult> {
+    await this.resolveLocator(params).type(params.text, params.options);
+    return { typed: true };
+  }
+
+  async locatorSelectOption(params: LocatorSelectOptionParams): Promise<LocatorSelectOptionResult> {
+    return {
+      values: await this.resolveLocator(params).selectOption(params.values),
     };
   }
 
@@ -233,7 +337,8 @@ export class StagehandRuntime {
   }
 
   private resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
-    return this.resolvePage(params.pageId).deepLocator(params.selector);
+    const locator = this.resolvePage(params.pageId).deepLocator(params.selector);
+    return params.nth === undefined ? locator : locator.nth(params.nth);
   }
 
   private refreshPageRegistry(pages: UnderstudyRuntimePage[]): void {
