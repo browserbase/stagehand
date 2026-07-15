@@ -7,7 +7,7 @@ export class Page {
   currentRef: PageRef;
 
   constructor(
-    readonly client: RPCClient,
+    readonly rpcClient: RPCClient,
     ref: PageRef,
   ) {
     this.currentRef = ref;
@@ -22,7 +22,7 @@ export class Page {
   }
 
   async goto(url: string, options?: PageGotoParams["options"]): Promise<this> {
-    this.currentRef = await this.client.send(StagehandRPC.pageGoto, {
+    this.currentRef = await this.rpcClient.send(StagehandRPC.pageGoto, {
       pageId: this.pageId,
       url,
       ...(options ? { options } : {}),
@@ -31,25 +31,25 @@ export class Page {
   }
 
   async url(): Promise<string> {
-    const result = await this.client.send(StagehandRPC.pageUrl, {
+    const result = await this.rpcClient.send(StagehandRPC.pageUrl, {
       pageId: this.pageId,
     });
     return result.url;
   }
 
   async title(): Promise<string> {
-    const result = await this.client.send(StagehandRPC.pageTitle, {
+    const result = await this.rpcClient.send(StagehandRPC.pageTitle, {
       pageId: this.pageId,
     });
     return result.title;
   }
 
   async close(): Promise<void> {
-    await this.client.send(StagehandRPC.pageClose, { pageId: this.pageId });
+    await this.rpcClient.send(StagehandRPC.pageClose, { pageId: this.pageId });
   }
 
   locator(selector: string): Locator {
-    return new Locator(this.client, {
+    return new Locator(this.rpcClient, {
       pageId: this.pageId,
       selector,
     });
