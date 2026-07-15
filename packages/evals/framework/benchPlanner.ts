@@ -3,6 +3,7 @@ import { EvalsError } from "../errors.js";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
 import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
+import { buildOdysseysBenchTestcases } from "../suites/odysseysbench.js";
 import {
   getAgentModelEntries,
   getModelList,
@@ -513,6 +514,7 @@ export function generateSuiteTestcases(
     "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
     "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
     "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
+    "agent/odysseysbench": (models) => buildOdysseysBenchTestcases(models),
   };
   const legacyOnlySuites = new Set(["agent/gaia"]);
 

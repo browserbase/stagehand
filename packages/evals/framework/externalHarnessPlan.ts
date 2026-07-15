@@ -2,7 +2,7 @@ import { EvalsError } from "../errors.js";
 import type { EvalInput } from "../types/evals.js";
 
 export interface ExternalHarnessTaskPlan {
-  dataset: "webvoyager" | "onlineMind2Web" | "webtailbench";
+  dataset: "webvoyager" | "onlineMind2Web" | "webtailbench" | "odysseysbench";
   taskId?: string;
   startUrl: string;
   instruction: string;
@@ -68,7 +68,22 @@ export function buildExternalHarnessTaskPlan(
     };
   }
 
+  if (input.name === "agent/odysseysbench") {
+    const instruction = readString(params, "confirmed_task");
+    if (!instruction) {
+      throw new EvalsError(
+        `Missing OdysseysBench params for external harness: expected confirmed_task.`,
+      );
+    }
+    return {
+      dataset: "odysseysbench",
+      taskId: readString(params, "task_id"),
+      startUrl: readString(params, "website") ?? "https://www.google.com",
+      instruction,
+    };
+  }
+
   throw new EvalsError(
-    `External harness "${input.name}" is not supported yet. Supported: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench.`,
+    `External harness "${input.name}" is not supported yet. Supported: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/odysseysbench.`,
   );
 }
