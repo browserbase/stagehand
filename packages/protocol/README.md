@@ -1,11 +1,10 @@
-# Protocol
+If you want to add a new method to the protocol, follow these steps:
 
-Canonical Zod operation schemas, shared protocol metadata, and generated manifest inputs.
-Always import zod objects from schemas.ts and the corresponding type from types.ts.
-
-1. Define or update method parameter, result, notification, and shared schemas in `schemas.ts`.
-2. Add the matching output type to the adjacent `types.ts` as `z.infer<typeof ExampleSchema>`.
-3. Register each root method or notification in `schema-registry.ts`; exported schemas alone do not become protocol operations.
-4. Add runtime contract tests under `tests/protocol`, or generic JSON-RPC tests under `json-rpc/tests`.
-5. Regenerate `stagehand.v4.json` with `vp run -w build:schema` from the repository root.
-6. Run `vp run -w check` and `vp run -w test` before submitting the change.
+1. Define the method's Zod parameter and result schemas in `schemas.ts`.
+2. Export their inferred types from `types.ts`.
+3. Add the method definition to `StagehandRPC` in `schema-registry.ts`.
+4. Implement the method in the appropriate server controller.
+5. Route the method to that controller in `../server/rpcRouter.ts`.
+6. Expose the method from the appropriate TypeScript SDK class using `client.send(StagehandRPC.example, params)`.
+7. Add protocol, server, and SDK tests for the method.
+8. Regenerate `stagehand.v4.json` with `vp run -w build:schema`, then run `vp run -w check` and `vp run -w test` from the repository root.
