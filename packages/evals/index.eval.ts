@@ -25,6 +25,7 @@ import { generateExperimentName } from "./utils.js";
 import {
   buildTrajectoryGroupSlug,
   generateRunToken,
+  resolveUnambiguousModel,
   resolveTrajectoryRoot,
   writeExperimentLink,
 } from "./framework/trajectoryGroup.js";
@@ -346,26 +347,44 @@ const generateFilteredTestcases = (): Testcase[] => {
     category: filterByCategory || undefined,
     environment: env,
   });
-
-  // Stamp the run-scoped trajectory group so every task in this run lands under
-  // one folder (`<root>/<experiment>__<model>__<runToken>/...`) instead of
-  // scattered per-task timestamps. The run token is generated ONCE here and
-  // reused at completion time, so re-running the same suite can't clobber the
-  // previous run's experiment.json. Local persistence only — does not affect
-  // Braintrust.
-  const trajectoryGroup = buildTrajectoryGroupSlug({
-    experimentName,
-    model: process.env.EVAL_MODEL_OVERRIDE,
-    runToken: generateRunToken(),
-  });
-  process.env.EVAL_EXPERIMENT_NAME = experimentName;
-  process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
-
   // Determine braintrust project name to use (stagehand in CI, stagehand-dev otherwise)
   const braintrustProjectName =
     process.env.CI === "true" ? "stagehand" : "stagehand-dev";
 
   try {
+    // Materialize the testcases before Eval() rather than letting Eval() call
+    // the generator lazily: the trajectory group has to be stamped into the env
+    // before any task (and therefore any TrajectoryRecorder) is constructed, and
+    // the group's model can only be derived from the testcases that will run.
+    // This stays INSIDE the try so a dataset-loading failure (the suite builders
+    // read .jsonl files from disk) is still reported by the catch below instead
+    // of escaping as an unhandled rejection.
+    const testcases = generateFilteredTestcases();
+    // The model is only recorded when it is unambiguous for the whole run. A
+    // run-global EVAL_MODEL_OVERRIDE does NOT drive the model matrix, so it
+    // cannot stand in for the model that actually ran.
+    const runModel = resolveUnambiguousModel(
+      testcases.map((testcase) => testcase.input?.modelName),
+    );
+
+    // Stamp the run-scoped trajectory group so every task in this run lands under
+    // one folder (`<root>/<experiment>[__<model>]__<runToken>/...`) instead of
+    // scattered per-task timestamps. The run token is generated ONCE here and
+    // reused at completion time, so re-running the same suite can't clobber the
+    // previous run's experiment.json. Local persistence only — does not affect
+    // Braintrust.
+    const trajectoryGroup = buildTrajectoryGroupSlug({
+      experimentName,
+      model: runModel,
+      runToken: generateRunToken(),
+    });
+    process.env.EVAL_EXPERIMENT_NAME = experimentName;
+    process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
+    // Absent beats wrong: on a multi-model run there is no single model to
+    // report, so clear any value a previous run left behind.
+    if (runModel) process.env.EVAL_TRAJECTORY_MODEL = runModel;
+    else delete process.env.EVAL_TRAJECTORY_MODEL;
+
     // Run the evaluations with the braintrust Eval function
     const evalResult = await Eval(braintrustProjectName, {
       experimentName,
@@ -380,7 +399,7 @@ const generateFilteredTestcases = (): Testcase[] => {
           model: process.env.EVAL_MODEL_OVERRIDE,
         }),
       },
-      data: generateFilteredTestcases,
+      data: () => testcases,
       // Each test is a function that runs the corresponding task module
       task: async (input: EvalInput) => {
         const logger = new EvalLogger();

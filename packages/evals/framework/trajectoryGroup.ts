@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
@@ -12,9 +13,9 @@ import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
  * the grouping after the fact required guessing by timestamp.
  *
  * This module lets the eval entrypoint stamp a run-scoped group (the experiment
- * name, the model when an override is active, plus a run token) into the env
- * once, so every task in that run lands under
- * `<root>/<experiment>__<model>__<runToken>/<task.id>/<run-timestamp>/`.
+ * name, the model when it is unambiguous, plus a run token) into the env once,
+ * so every task in that run lands under
+ * `<root>/<experiment>[__<model>]__<runToken>/<task.id>/<run-timestamp>/`.
  *
  * The run token is what makes the group *run-unique*: the experiment name is
  * deterministic (e.g. "agent" or "all"), so without it a re-run of the same
@@ -28,36 +29,72 @@ import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
 
 const GROUP_ENV = "EVAL_TRAJECTORY_GROUP";
 const EXPERIMENT_ENV = "EVAL_EXPERIMENT_NAME";
-const MODEL_ENV = "EVAL_MODEL_OVERRIDE";
+const TRAJECTORY_MODEL_ENV = "EVAL_TRAJECTORY_MODEL";
 const PROVIDER_ENV = "EVAL_PROVIDER";
 const ENVIRONMENT_ENV = "EVAL_ENV";
 
-/** Filesystem-safe slug: collapse anything outside [A-Za-z0-9._-] to "_". */
+/**
+ * Filesystem-safe slug: collapse anything outside [A-Za-z0-9._-] to "_".
+ *
+ * Path separators are already collapsed to "_" by the whitelist, but a value of
+ * pure dots survives it (".", ".." are all whitelisted characters) and would be
+ * interpreted by `path.join` as a path component rather than a name:
+ *   - ".."  escapes the trajectory root entirely (`<root>/../<task>` writes a
+ *     level ABOVE the root, and the best-effort `catch` would hide it), and
+ *   - "."   collapses the group into the root, re-scattering trajectories at the
+ *     top level and sharing one `experiment.json` across every run — exactly the
+ *     two states this module exists to prevent.
+ * `EVAL_TRAJECTORY_GROUP` is caller-supplied (integrations may set any value), so
+ * reject those here. Returning "" lets callers fall through to the "default"
+ * floor in `resolveTrajectoryGroup`.
+ */
 export function sanitizeSlug(value: string): string {
-  return value
+  const slug = value
     .trim()
     .replace(/[^A-Za-z0-9._-]+/g, "_")
     .replace(/^_+|_+$/g, "");
+  return /^\.+$/.test(slug) ? "" : slug;
 }
 
 /**
- * A compact, sortable, filesystem-safe token identifying a single run, e.g.
- * "20260715-110342" (local time, YYYYMMDD-HHMMSS). Generate this EXACTLY ONCE
- * per run in the entrypoint and reuse it — calling it twice within one run would
- * split that run's trajectories across two group dirs.
+ * A compact, sortable, filesystem-safe, collision-resistant token identifying
+ * a single run, e.g. "20260715-110342-9f3a1c" (local time followed by random
+ * entropy). Generate this EXACTLY ONCE per run in the entrypoint and reuse it —
+ * calling it twice within one run would split that run's trajectories across
+ * two group dirs.
  */
-export function generateRunToken(now: Date = new Date()): string {
+export function generateRunToken(
+  now: Date = new Date(),
+  entropy: string = randomBytes(3).toString("hex"),
+): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
   const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  return `${date}-${time}`;
+  return `${date}-${time}-${entropy}`;
+}
+
+/**
+ * Resolve the model that every model-backed testcase in a run actually uses.
+ * A run-global model override is only a request and does not imply that the
+ * generated testcase matrix ran that model, so ambiguous provenance is omitted.
+ */
+export function resolveUnambiguousModel(
+  models: ReadonlyArray<string | undefined>,
+): string | undefined {
+  const resolved = new Set<string>();
+  for (const model of models) {
+    const value = model?.trim();
+    if (!value || value.toLowerCase() === "none") continue;
+    resolved.add(value);
+  }
+  return resolved.size === 1 ? resolved.values().next().value : undefined;
 }
 
 /**
  * Build the run-scoped group slug. The experiment name is the floor; the model
- * is appended only when an override is set (the multi-model A/B case), and the
- * run token last so a re-run of the same suite gets its own group dir instead of
- * overwriting the previous run's `experiment.json`.
+ * is appended only when it is unambiguous for the run, and the run token last
+ * so a re-run of the same suite gets its own group dir instead of overwriting
+ * the previous run's `experiment.json`.
  */
 export function buildTrajectoryGroupSlug(opts: {
   experimentName: string;
@@ -149,6 +186,15 @@ export function resolveTrajectoryRoot(): string {
   );
 }
 
+/** True when `dir` exists and is a directory. Never throws. */
+async function isDirectory(dir: string): Promise<boolean> {
+  try {
+    return (await fs.stat(dir)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Write `<root>/<group>/experiment.json`, cross-linking the local trajectories
  * to the resolved Braintrust experiment (name + hash, id, URLs). The resolved
@@ -159,21 +205,33 @@ export function resolveTrajectoryRoot(): string {
  * rather than re-derived from env at completion time, so the link always lands
  * on the group the caller actually recorded into.
  *
- * No-ops when trajectory persistence is off (CI, core-tier runs), so those runs
- * don't leave behind an otherwise-empty `.trajectories/<group>/` tree. The gate
- * lives here — the single choke point — so a future caller can't forget it.
+ * Never leaves behind a `.trajectories/<group>/` tree containing nothing but an
+ * `experiment.json`. Two independent guards, because they answer different
+ * questions:
+ *  - persistence off (or explicitly disabled by the caller, e.g. a core-only
+ *    run): nothing will be recorded, so skip without even touching the disk.
+ *  - the group dir does not exist: nothing WAS recorded. The dir is created by
+ *    the first trajectory reservation, so its absence means no task in this run
+ *    persisted one — a core-only run, a legacy run of non-agent categories
+ *    (act/extract/combination never construct a TrajectoryRecorder), or a run
+ *    whose tasks all failed before persisting. This is the universal backstop:
+ *    it holds for any entrypoint without needing a tier signal.
+ * Both gates live here — the single choke point — so a caller can't forget them.
  */
 export async function writeExperimentLink(
   root: string,
   group: string,
   link: Record<string, unknown>,
+  opts?: { persist?: boolean },
 ): Promise<void> {
-  if (!shouldPersistTrajectory(undefined)) return;
+  if (!(opts?.persist ?? shouldPersistTrajectory(undefined))) return;
   const dir = path.join(root, group);
   const payload = { ...trajectoryRunMetadata(), ...link };
   if (Object.keys(payload).length === 0) return;
   try {
-    await fs.mkdir(dir, { recursive: true });
+    // Deliberately NOT mkdir: the dir must already exist (i.e. a trajectory
+    // landed in it) for the link to be meaningful.
+    if (!(await isDirectory(dir))) return;
     await fs.writeFile(
       path.join(dir, "experiment.json"),
       JSON.stringify(payload, null, 2),
@@ -187,7 +245,9 @@ export async function writeExperimentLink(
 export function trajectoryRunMetadata(): Record<string, string> {
   const fields: Record<string, string | undefined> = {
     experiment: process.env[EXPERIMENT_ENV],
-    model: process.env[MODEL_ENV],
+    // EVAL_MODEL_OVERRIDE is a request; this is the actual model resolved for
+    // the run and is stamped by an entrypoint only when it is unambiguous.
+    model: process.env[TRAJECTORY_MODEL_ENV],
     provider: process.env[PROVIDER_ENV],
     environment: process.env[ENVIRONMENT_ENV],
   };
