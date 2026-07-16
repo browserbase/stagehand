@@ -126,9 +126,10 @@ export type TrajectoryStatus = "complete" | "aborted" | "stalled" | "error";
 /**
  * Full trajectory for one task run.
  *
- * The on-disk layout is one directory per task:
+ * The on-disk layout is one directory per task run, under the run-scoped group
+ * dir (`<experiment>__<model>__<runToken>`, or "default" for ad-hoc runs):
  *
- *   .trajectories/<run-id>/<task-id>/
+ *   .trajectories/<group>/<task-id>/<run-id>/
  *     ├── task_data.json           — TaskSpec + result metadata
  *     ├── trajectory.json          — this object, with image paths instead of bytes
  *     ├── screenshots/

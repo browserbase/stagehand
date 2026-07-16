@@ -21,7 +21,7 @@ import {
 import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
 
 export interface VerifyOptions {
-  /** Absolute or cwd-relative path to a `<run-id>/<task-id>/` directory. */
+  /** Absolute or cwd-relative path to a `<group>/<task-id>/<run-id>/` directory. */
   trajectoryDir: string;
   /** Override the verifier model. Defaults to whatever V3Evaluator picks. */
   model?: string;
@@ -42,7 +42,9 @@ ${bold("evals verify")} ${dim("— re-score a saved trajectory offline")}
 
   ${cyan("Arguments")}
     <trajectory-dir>       Path to a saved trajectory directory containing
-                           trajectory.json (typically under .trajectories/<run-id>/<task-id>/).
+                           trajectory.json (typically under
+                           .trajectories/<group>/<task-id>/<run-id>/, where <group>
+                           is <experiment>__<model>__<runToken> or "default").
 
   ${cyan("Options")}
     --model <name>         Override the verifier LLM (default: V3Evaluator's default,
@@ -55,9 +57,9 @@ ${bold("evals verify")} ${dim("— re-score a saved trajectory offline")}
     --help, -h             This message.
 
   ${cyan("Examples")}
-    evals verify .trajectories/2026-05-11T06-47-09-697Z/united_13
-    evals verify .trajectories/<run>/<task> --model anthropic/claude-haiku-4-5 --label tuning-pass-1
-    evals verify .trajectories/<run>/<task> --json > result.json
+    evals verify .trajectories/agent__20260715-110342/united_13/2026-07-15T11-03-51-204Z
+    evals verify .trajectories/<group>/<task>/<run> --model anthropic/claude-haiku-4-5 --label tuning-pass-1
+    evals verify .trajectories/<group>/<task>/<run> --json > result.json
 `);
 }
 

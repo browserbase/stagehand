@@ -16,7 +16,7 @@ export default defineBenchTask(
       await page.goto(initUrl);
 
       const instruction =
-        "Add a 5-piece Tenders Combo to my bag with Sweet Corn as the side, Sweet Tea as the drink, and both Honey BBQ and Honey Mustard sauces. Select the store closest to Zip code 10001 for pick-up tomorrow at 12:00 PM.";
+        "Add a 5-piece Tenders Combo to my bag with Sweet Corn as the side, Sweet Tea as the drink, and both Honey BBQ and Honey Mustard sauces. Select the store closest to Zip code 10001 for pick-up tomorrow at 12:00 PM. Make sure you set the schedule for pickup";
 
       const taskSpec: TaskSpec = {
         id: "agent/kfc_tenders_combo",
