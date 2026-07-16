@@ -911,7 +911,7 @@ export class StagehandAPIClient {
     result: T,
     method: string,
     cacheStatus: "HIT" | "MISS" | null,
-    eventData: { data: { cacheHit?: boolean } },
+    eventData: { data: { cacheHit?: boolean; cacheMissReason?: string } },
   ): T {
     const finalCacheStatus =
       cacheStatus ||
@@ -936,9 +936,18 @@ export class StagehandAPIClient {
       typeof result === "object" &&
       (method === "act" || method === "extract" || method === "observe")
     ) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (result as ActResult | ExtractResult<any> | ObserveResult).cacheStatus =
-        finalCacheStatus;
+      const cacheAwareResult = result as
+        | ActResult
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        | ExtractResult<any>
+        | ObserveResult;
+      cacheAwareResult.cacheStatus = finalCacheStatus;
+      if (
+        finalCacheStatus === "MISS" &&
+        typeof eventData.data.cacheMissReason === "string"
+      ) {
+        cacheAwareResult.cacheMissReason = eventData.data.cacheMissReason;
+      }
     }
     return result;
   }

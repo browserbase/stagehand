@@ -151,6 +151,7 @@ describe("Stagehand public API types", () => {
       actionDescription: string;
       actions: Stagehand.Action[];
       cacheStatus?: "HIT" | "MISS";
+      cacheMissReason?: string;
     };
 
     it("matches expected type shape", () => {
@@ -197,6 +198,9 @@ describe("Stagehand public API types", () => {
       expectTypeOf<Stagehand.ObserveResult>().toExtend<Stagehand.Action[]>();
       expectTypeOf<Stagehand.ObserveResult["cacheStatus"]>().toEqualTypeOf<
         "HIT" | "MISS" | undefined
+      >();
+      expectTypeOf<Stagehand.ObserveResult["cacheMissReason"]>().toEqualTypeOf<
+        string | undefined
       >();
     });
   });

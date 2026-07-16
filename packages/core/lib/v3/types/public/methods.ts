@@ -36,11 +36,18 @@ export interface ActResult {
   actionDescription: string;
   actions: Action[];
   cacheStatus?: "HIT" | "MISS";
+  /**
+   * Why the server cache missed, when it reports a reason (e.g. "threshold",
+   * "empty_array", "timeout", "error"). Absent on hits and on first-time
+   * misses with no prior cache entry.
+   */
+  cacheMissReason?: string;
 }
 
 export type ExtractResult<T extends StagehandZodSchema> =
   InferStagehandSchema<T> & {
     cacheStatus?: "HIT" | "MISS";
+    cacheMissReason?: string;
   };
 
 export interface Action {
@@ -113,9 +120,13 @@ export interface ObserveOptions {
  * Observe returns an array of candidate actions. The optional `cacheStatus`
  * property is attached when the server responds with a
  * `browserbase-cache-status` header so callers can tell whether the result
- * was served from the server-side cache.
+ * was served from the server-side cache. `cacheMissReason` is attached when
+ * the server reports why a result missed the cache.
  */
-export type ObserveResult = Action[] & { cacheStatus?: "HIT" | "MISS" };
+export type ObserveResult = Action[] & {
+  cacheStatus?: "HIT" | "MISS";
+  cacheMissReason?: string;
+};
 
 export enum V3FunctionName {
   ACT = "ACT",
