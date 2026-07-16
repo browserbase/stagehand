@@ -6,7 +6,10 @@ import type { Page } from "../../lib/v3/understudy/page.js";
 import type { ClientOptions } from "../../lib/v3/types/public/model.js";
 import type { LLMClient } from "../../lib/v3/llm/LLMClient.js";
 import { createTimeoutGuard } from "../../lib/v3/handlers/handlerUtils/timeoutGuard.js";
-import { waitForDomNetworkQuiet } from "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js";
+import {
+  performUnderstudyMethod,
+  waitForDomNetworkQuiet,
+} from "../../lib/v3/handlers/handlerUtils/actHandlerUtils.js";
 import { captureHybridSnapshot } from "../../lib/v3/understudy/a11y/snapshot/index.js";
 import {
   ActTimeoutError,
@@ -20,6 +23,12 @@ import {
   observe as observeInference,
 } from "../../lib/inference.js";
 import { V3FunctionName } from "../../lib/v3/types/public/methods.js";
+import {
+  bindInstanceLogger,
+  unbindInstanceLogger,
+  withInstanceLogContext,
+} from "../../lib/v3/logger.js";
+import type { LogLine } from "../../lib/v3/types/public/logs.js";
 
 vi.mock("../../lib/v3/handlers/handlerUtils/timeoutGuard", () => ({
   createTimeoutGuard: vi.fn(),
@@ -1236,6 +1245,50 @@ describe("No-timeout success paths", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+
+  it("logs the generated Playwright action before executing it", async () => {
+    vi.mocked(performUnderstudyMethod).mockResolvedValue(undefined);
+    const logs: LogLine[] = [];
+    const instanceId = "act-action-visibility";
+
+    bindInstanceLogger(instanceId, (line) => logs.push(line));
+
+    try {
+      const handler = buildActHandler();
+      const fakePage = {
+        mainFrame: vi.fn().mockReturnValue({}),
+      } as unknown as Page;
+
+      await withInstanceLogContext(instanceId, () =>
+        handler.takeDeterministicAction(
+          {
+            selector: "xpath=/html/body/button",
+            description: "click the submit button",
+            method: "click",
+            arguments: ["left"],
+          },
+          fakePage,
+        ),
+      );
+
+      expect(logs).toContainEqual(
+        expect.objectContaining({
+          category: "action",
+          message: "executing playwright action",
+          auxiliary: expect.objectContaining({
+            selector: {
+              value: "xpath=/html/body/button",
+              type: "string",
+            },
+            method: { value: "click", type: "string" },
+            arguments: { value: '["left"]', type: "object" },
+          }),
+        }),
+      );
+    } finally {
+      unbindInstanceLogger(instanceId);
+    }
   });
 });
 
