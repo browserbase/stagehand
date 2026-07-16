@@ -160,7 +160,8 @@ export function getAISDKLanguageModel(
   clientOptions?: ClientOptions,
   middleware?: LanguageModelV2Middleware,
 ): LanguageModelV2 {
-  const { apiMode, ...providerClientOptions } = clientOptions ?? {};
+  const { openaiEndpointFormat, ...providerClientOptions } =
+    clientOptions ?? {};
   const aiSdkClientOptions = toAISDKClientOptions(
     subProvider,
     providerClientOptions,
@@ -172,7 +173,7 @@ export function getAISDKLanguageModel(
     );
 
   let model: LanguageModelV2;
-  if (subProvider === "openai" && apiMode === "chat") {
+  if (subProvider === "openai" && openaiEndpointFormat === "chat") {
     const provider = hasValidOptions
       ? createOpenAI(aiSdkClientOptions)
       : openai;

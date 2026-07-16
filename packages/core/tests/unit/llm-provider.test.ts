@@ -76,7 +76,7 @@ describe("getAISDKLanguageModel", () => {
           apiKey: "test-key",
           baseURL:
             "https://example.databricks.com/serving-endpoints/model/invocations",
-          apiMode: "chat",
+          openaiEndpointFormat: "chat",
         },
       );
 
@@ -104,7 +104,7 @@ describe("LLMProvider", () => {
       {
         apiKey: "test-key",
         baseURL: "https://example.databricks.com/serving-endpoints",
-        apiMode: "chat",
+        openaiEndpointFormat: "chat",
       },
       { disableAPI: true },
     );
