@@ -7,7 +7,7 @@ import { V3Banner } from '/snippets/v3-banner.mdx';
 
 <V3Banner />
 
-Browserbase Cache is a managed, server-side caching layer built into the Stagehand API. When you run Stagehand with `env: "BROWSERBASE"`, every `act()` call is automatically cached on Browserbase's servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens. You don't need to configure anything to start benefiting.
+Browserbase Cache is a managed, server-side caching layer built into the Stagehand API. When you run Stagehand with `env: "BROWSERBASE"`, every `act()`, `extract()`, and `observe()` call is automatically cached on Browserbase's servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens. You don't need to configure anything to start benefiting.
 
 Server caching can be used independently or together with [Local Caching](/v3/best-practices/local-caching).
 
