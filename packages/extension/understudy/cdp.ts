@@ -1,7 +1,6 @@
 // lib/v3/understudy/cdp.ts
 import type { Protocol } from "devtools-protocol";
 import { z } from "zod/v4";
-import { CdpConnectionClosedError, PageNotFoundError } from "../errors.js";
 import type { StagehandLogger } from "../logger.js";
 
 /**
@@ -200,11 +199,11 @@ export class CdpConnection implements CDPSessionLike {
 
   rejectAllInflight(why: string): void {
     for (const [id, entry] of this.inflight.entries()) {
-      entry.reject(new CdpConnectionClosedError(why));
+      entry.reject(new Error(`CDP connection closed: ${why}`));
       this.inflight.delete(id);
     }
     for (const waiter of Array.from(this.sessionDispatchWaiters)) {
-      waiter.reject(new CdpConnectionClosedError(why));
+      waiter.reject(new Error(`CDP connection closed: ${why}`));
     }
   }
 
@@ -221,8 +220,8 @@ export class CdpConnection implements CDPSessionLike {
     for (const [id, entry] of this.inflight.entries()) {
       if (entry.sessionId === sessionId) {
         entry.reject(
-          new PageNotFoundError(
-            `target closed before CDP response (sessionId=${sessionId}, targetId=${targetId})`,
+          new Error(
+            `No Page found for target closed before CDP response (sessionId=${sessionId}, targetId=${targetId})`,
           ),
         );
         this.inflight.delete(id);
@@ -231,8 +230,8 @@ export class CdpConnection implements CDPSessionLike {
     for (const waiter of Array.from(this.sessionDispatchWaiters)) {
       if (waiter.sessionId === sessionId) {
         waiter.reject(
-          new PageNotFoundError(
-            `target closed before CDP send (sessionId=${sessionId}, targetId=${targetId})`,
+          new Error(
+            `No Page found for target closed before CDP send (sessionId=${sessionId}, targetId=${targetId})`,
           ),
         );
       }

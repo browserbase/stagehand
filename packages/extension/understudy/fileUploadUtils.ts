@@ -1,4 +1,3 @@
-import { StagehandInvalidArgumentError } from "../errors.js";
 import {
   SetInputFilePayloadSchema,
   type SetInputFilesArgument,
@@ -17,9 +16,7 @@ export async function normalizeInputFiles(
   return flattened.map((entry) => {
     const result = SetInputFilePayloadSchema.safeParse(entry);
     if (!result.success) {
-      throw new StagehandInvalidArgumentError(
-        `setInputFiles(): expected an in-memory file payload: ${result.error.message}`,
-      );
+      throw result.error;
     }
 
     const payload = result.data;
@@ -36,7 +33,7 @@ export function toBytes(data: ArrayBuffer | Uint8Array | string): Uint8Array {
   if (data instanceof Uint8Array) return new Uint8Array(data);
   if (typeof data === "string") return new TextEncoder().encode(data);
   if (data instanceof ArrayBuffer) return new Uint8Array(data.slice(0));
-  throw new StagehandInvalidArgumentError("Unsupported file payload buffer type");
+  throw new TypeError("Unsupported file payload buffer type");
 }
 
 export function bytesToBase64(bytes: Uint8Array): string {

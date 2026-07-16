@@ -13,6 +13,7 @@ import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import {
   JSONRPCEnvelopeSchema,
   JSONRPCErrorCodes,
+  JSONRPCErrorObjectSchema,
   JSONRPCErrorResponseSchema,
   JSONRPCRequestIdSchema,
   JSONRPCRequestSchema,
@@ -86,17 +87,6 @@ export type CDPTransport = {
   close(): void;
 };
 
-export class RPCClientError extends Error {
-  constructor(
-    message: string,
-    readonly code: number = JSONRPCErrorCodes.internalError,
-    readonly data?: unknown,
-  ) {
-    super(message);
-    this.name = "RPCClientError";
-  }
-}
-
 export class RPCClient {
   readonly serviceWorker: ServiceWorkerInfo;
   nextRequestId = 1;
@@ -121,7 +111,7 @@ export class RPCClient {
     method: Method,
     params: z.input<Method["params"]>,
   ): Promise<z.output<Method["result"]>> {
-    if (this.closed) throw new RPCClientError("RPC client is closed");
+    if (this.closed) throw new Error("RPC client is closed");
 
     const parentContext = otelContext.active();
     const span = TRACER.startSpan(
@@ -173,7 +163,7 @@ export class RPCClient {
       params: z.output<Method["params"]>,
     ) => z.input<Method["result"]> | Promise<z.input<Method["result"]>>,
   ): () => void {
-    if (this.closed) throw new RPCClientError("RPC client is closed");
+    if (this.closed) throw new Error("RPC client is closed");
 
     const registeredHandler: RegisteredRequestHandler = {
       method,
@@ -197,7 +187,7 @@ export class RPCClient {
     return () => this.notificationListeners.delete(listener);
   }
 
-  close(reason: Error = new RPCClientError("RPC client closed")): void {
+  close(reason: Error = new Error("RPC client closed")): void {
     if (this.closed) return;
     this.closed = true;
     this.requestHandlers.clear();
@@ -214,7 +204,7 @@ export class RPCClient {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (!this.pending.delete(id)) return;
-        reject(new RPCClientError(`RPC request timed out: ${method.name}`));
+        reject(new Error(`RPC request timed out: ${method.name}`));
       }, this.requestTimeoutMs);
 
       this.pending.set(id, { method, resolve, reject, timeout });
@@ -240,7 +230,7 @@ export class RPCClient {
     if ("result" in message || "error" in message) {
       const response = JSONRPCResponseSchema.safeParse(message);
       if (!response.success) {
-        this.close(new RPCClientError("Invalid JSON-RPC response"));
+        this.close(new Error("Invalid JSON-RPC response"));
         return;
       }
       this.receiveResponse(response.data);
@@ -325,7 +315,12 @@ export class RPCClient {
       );
     } catch (error) {
       markSpanError(span, error);
-      await this.sendError(request.id, JSONRPCErrorCodes.internalError, "Internal error");
+      await this.sendError(
+        request.id,
+        JSONRPCErrorCodes.internalError,
+        error instanceof Error ? error.message : String(error),
+        { name: error instanceof Error ? error.name : "Error" },
+      );
     } finally {
       span.end();
     }
@@ -340,9 +335,7 @@ export class RPCClient {
     clearTimeout(pending.timeout);
 
     if ("error" in response) {
-      pending.reject(
-        new RPCClientError(response.error.message, response.error.code, response.error.data),
-      );
+      pending.reject(new Error(response.error.message, { cause: response.error }));
       return;
     }
 
@@ -363,12 +356,12 @@ export class RPCClient {
     pending.reject(error);
   }
 
-  async sendError(id: number | null, code: number, message: string): Promise<void> {
+  async sendError(id: number | null, code: number, message: string, data?: unknown): Promise<void> {
     await this.cdp.send(
       JSONRPCErrorResponseSchema.parse({
         jsonrpc: "2.0",
         id,
-        error: { code, message },
+        error: { code, message, ...(data === undefined ? {} : { data }) },
       }),
     );
   }
@@ -428,9 +421,10 @@ export function getTraceContextFields(requestContext: Context): {
 }
 
 function markSpanError(span: Span, error: unknown): void {
-  if (error instanceof RPCClientError) {
-    span.setAttribute("rpc.response.status_code", String(error.code));
-    span.setAttribute("error.type", String(error.code));
+  const rpcError = error instanceof Error ? JSONRPCErrorObjectSchema.safeParse(error.cause) : null;
+  if (rpcError?.success) {
+    span.setAttribute("rpc.response.status_code", String(rpcError.data.code));
+    span.setAttribute("error.type", String(rpcError.data.code));
   } else if (error instanceof Error) {
     span.setAttribute("error.type", error.name);
   }

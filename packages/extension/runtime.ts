@@ -107,11 +107,7 @@ const defaultBrowserSessionFactory: StagehandBrowserSessionFactory = async () =>
 };
 const discardLog: StagehandLogEmitter = () => {};
 const unavailableClientLLM = async (): Promise<never> => {
-  throw new StagehandRuntimeError(
-    "The connected SDK did not register a client-side LLM",
-    -32000,
-    "stagehand.client_llm_unavailable",
-  );
+  throw new Error("The connected SDK did not register a client-side LLM");
 };
 
 export function createStagehandRuntime(
@@ -160,11 +156,7 @@ export class StagehandRuntime {
     } catch (error) {
       await this.browserSession?.close();
       this.browserSession = undefined;
-      throw new StagehandRuntimeError(
-        `Failed to configure Stagehand loopback CDP: ${errorMessage(error)}`,
-        -32002,
-        "stagehand.loopback_configure_failed",
-      );
+      throw error;
     }
 
     return { configured: true };
@@ -331,11 +323,7 @@ export class StagehandRuntime {
     const refreshedPage = this.pagesById.get(pageId);
     if (refreshedPage) return refreshedPage;
 
-    throw new StagehandRuntimeError(
-      `Stagehand page "${pageId}" was not found; call context.pages and retry`,
-      -32602,
-      "stagehand.page_not_found",
-    );
+    throw new Error(`Stagehand page "${pageId}" was not found; call context.pages and retry`);
   }
 
   resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
@@ -364,33 +352,14 @@ export class StagehandRuntime {
 
   requireBrowserSession(): StagehandBrowserSession {
     if (!this.browserSession) {
-      throw new StagehandRuntimeError(
-        "Stagehand loopback CDP is not configured",
-        -32000,
-        "stagehand.loopback_not_configured",
-      );
+      throw new Error("Stagehand loopback CDP is not configured");
     }
 
     if (!this.browserSession.connected) {
-      throw new StagehandRuntimeError(
-        "Stagehand loopback CDP is disconnected",
-        -32001,
-        "stagehand.loopback_disconnected",
-      );
+      throw new Error("Stagehand loopback CDP is disconnected");
     }
 
     return this.browserSession;
-  }
-}
-
-export class StagehandRuntimeError extends Error {
-  constructor(
-    message: string,
-    readonly code: number,
-    readonly type: string,
-  ) {
-    super(message);
-    this.name = "StagehandRuntimeError";
   }
 }
 
@@ -399,8 +368,4 @@ function pageRefFromUnderstudyPage(page: UnderstudyRuntimePage): PageRef {
     pageId: page.targetId(),
     url: page.url(),
   };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

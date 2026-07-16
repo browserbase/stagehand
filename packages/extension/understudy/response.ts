@@ -15,7 +15,6 @@
 
 import type { Protocol } from "devtools-protocol";
 import type { SerializableResponse } from "../types/private/index.js";
-import { ResponseBodyError, ResponseParseError } from "../errors.js";
 import type { CDPSessionLike } from "./cdp.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
@@ -291,13 +290,12 @@ export class Response {
    * allows retrieving it once the response completes.
    */
   async body(): Promise<Uint8Array> {
-    const result = await this.session
-      .send<Protocol.Network.GetResponseBodyResponse>("Network.getResponseBody", {
+    const result = await this.session.send<Protocol.Network.GetResponseBodyResponse>(
+      "Network.getResponseBody",
+      {
         requestId: this.requestId,
-      })
-      .catch((error) => {
-        throw new ResponseBodyError(String(error));
-      });
+      },
+    );
 
     if (result.base64Encoded) {
       return base64ToBytes(result.body);
@@ -314,11 +312,7 @@ export class Response {
   /** Parses the response body as JSON and throws if parsing fails. */
   async json<T = unknown>(): Promise<T> {
     const text = await this.text();
-    try {
-      return JSON.parse(text) as T;
-    } catch (error) {
-      throw new ResponseParseError(String(error));
-    }
+    return JSON.parse(text) as T;
   }
 
   /**

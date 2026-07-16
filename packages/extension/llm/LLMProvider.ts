@@ -1,5 +1,4 @@
 import type { LanguageModel, LanguageModelMiddleware } from "ai";
-import { UnsupportedAISDKModelProviderError } from "../errors.js";
 import type { ClientOptions, ModelName, ModelProvider } from "../../protocol/types.js";
 import {
   ClientOptionsSchema,
@@ -118,7 +117,9 @@ export function getAISDKLanguageModel(
   const aiSdkClientOptions = toAISDKClientOptions(subProvider, clientOptions);
   const creator = AISDKProviderFactories[subProvider];
   if (!creator) {
-    throw new UnsupportedAISDKModelProviderError(subProvider, Object.keys(AISDKProviderFactories));
+    throw new TypeError(
+      `${subProvider} is not currently supported for aiSDK. Please use one of the supported model providers: ${Object.keys(AISDKProviderFactories).join(", ")}`,
+    );
   }
   const provider = creator(aiSdkClientOptions ?? {});
   const model =

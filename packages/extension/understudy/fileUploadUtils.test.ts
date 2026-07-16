@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { StagehandInvalidArgumentError } from "../errors.js";
+import { z } from "zod/v4";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import { bytesToBase64, normalizeInputFiles, toBytes } from "./fileUploadUtils.js";
 
@@ -39,10 +39,10 @@ describe("file upload payload normalization", () => {
   it("rejects filesystem paths and malformed payloads through the public Zod schema", async () => {
     await expect(
       normalizeInputFiles("./local-file.txt" as unknown as SetInputFilesArgument),
-    ).rejects.toBeInstanceOf(StagehandInvalidArgumentError);
+    ).rejects.toBeInstanceOf(z.ZodError);
     await expect(
       normalizeInputFiles({ name: "", buffer: "data" } as SetInputFilesArgument),
-    ).rejects.toThrow("expected an in-memory file payload");
+    ).rejects.toBeInstanceOf(z.ZodError);
   });
 
   it("converts every supported binary input to independent bytes", () => {

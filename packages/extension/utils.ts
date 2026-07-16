@@ -1,4 +1,3 @@
-import { ZodSchemaValidationError } from "./errors.js";
 import { z } from "zod/v4";
 import { ZodPathSegments } from "./types/private/internal.js";
 
@@ -97,7 +96,7 @@ export function validateZodSchema(schema: z.ZodType, data: unknown) {
   if (result.success) {
     return true;
   }
-  throw new ZodSchemaValidationError(data, result.error.format());
+  throw result.error;
 }
 
 /**

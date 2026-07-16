@@ -13,7 +13,7 @@ import { captureHybridSnapshot } from "../understudy/a11y/snapshot/index.js";
 import { LLMClient } from "../llm/LLMClient.js";
 import { ObserveHandlerParams, SupportedUnderstudyAction } from "../types/private/handlers.js";
 import { EncodedId } from "../types/private/internal.js";
-import { ObserveTimeoutError } from "../errors.js";
+import { TimeoutError } from "../errors.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 
 export class ObserveHandler {
@@ -66,7 +66,10 @@ export class ObserveHandler {
 
     const llmClient = this.resolveLlmClient(model);
 
-    const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new ObserveTimeoutError(ms));
+    const ensureTimeRemaining = createTimeoutGuard(
+      timeout,
+      (ms) => new TimeoutError("observe()", ms),
+    );
 
     const effectiveInstruction =
       instruction ??

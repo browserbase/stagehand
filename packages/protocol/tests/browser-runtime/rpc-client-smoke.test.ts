@@ -224,12 +224,16 @@ describe("Stagehand service worker RPC client smoke", () => {
     });
   });
 
-  it("unknown protocol command returns a typed protocol error", async () => {
+  it("unknown protocol command preserves the protocol error as the cause", async () => {
     await expect(
       rpcClient?.send({ name: "browser.raw_cdp", params: z.object({}), result: z.unknown() }, {}),
     ).rejects.toMatchObject({
-      code: -32601,
-      data: { type: "stagehand.unknown_command" },
+      constructor: Error,
+      message: "Method not found",
+      cause: {
+        code: -32601,
+        data: { type: "stagehand.unknown_command" },
+      },
     });
   });
 

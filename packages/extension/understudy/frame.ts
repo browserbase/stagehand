@@ -2,7 +2,6 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import { Locator } from "./locator.js";
-import { StagehandEvalError } from "../errors.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandLogger } from "../logger.js";
 
@@ -176,7 +175,7 @@ export class Frame implements FrameManager {
       });
     }
     if (res.exceptionDetails) {
-      throw new StagehandEvalError(res.exceptionDetails.text ?? "Evaluation failed");
+      throw new Error(res.exceptionDetails.text ?? "Evaluation failed");
     }
     return res.result.value as R;
   }

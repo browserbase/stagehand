@@ -7,7 +7,6 @@ import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import type { StagehandLogger } from "../../logger.js";
 import { toTitleCase } from "../../utils.js";
-import { StagehandClickError, UnderstudyCommandException } from "../../errors.js";
 
 export interface UnderstudyMethodHandlerContext {
   method: string;
@@ -92,7 +91,7 @@ export async function performUnderstudyMethod(
           category: "action",
           method,
         });
-        throw new UnderstudyCommandException(`Method ${method} not supported`);
+        throw new Error(`Method ${method} not supported`);
       },
     );
   } catch (e) {
@@ -106,10 +105,7 @@ export async function performUnderstudyMethod(
       xpath: selectorRaw,
       args: args.map(stringifyArgument),
     });
-    if (e instanceof UnderstudyCommandException) {
-      throw e;
-    }
-    throw new UnderstudyCommandException(msg, e);
+    throw e;
   }
 }
 
@@ -148,7 +144,7 @@ export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
       stack: stack ?? null,
       xpath,
     });
-    throw new UnderstudyCommandException(msg, e);
+    throw e;
   }
 }
 
@@ -182,13 +178,8 @@ async function scrollByPixelOffset(ctx: UnderstudyMethodHandlerContext): Promise
   const dx = Number(args[0] ?? 0);
   const dy = Number(args[1] ?? 0);
 
-  try {
-    const { x, y } = await locator.centroid();
-    await page.scroll(x, y, dx, dy);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new UnderstudyCommandException(msg, e);
-  }
+  const { x, y } = await locator.centroid();
+  await page.scroll(x, y, dx, dy);
 }
 
 async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
@@ -219,7 +210,7 @@ async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
       error: msg,
       xpath,
     });
-    throw new UnderstudyCommandException(msg, e);
+    throw e;
   }
 }
 
@@ -234,7 +225,7 @@ async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
       error: msg,
       xpath,
     });
-    throw new UnderstudyCommandException(msg, e);
+    throw e;
   }
 }
 
@@ -256,7 +247,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
       key,
       xpath,
     });
-    throw new UnderstudyCommandException(msg, e);
+    throw e;
   }
 }
 
@@ -271,7 +262,7 @@ async function clickElement(ctx: UnderstudyMethodHandlerContext): Promise<void> 
       error: msg,
       xpath,
     });
-    throw new StagehandClickError(ctx.xpath, msg);
+    throw e;
   }
 }
 
@@ -286,14 +277,14 @@ async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
       error: msg,
       xpath,
     });
-    throw new UnderstudyCommandException(msg, e);
+    throw e;
   }
 }
 
 async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { page, frame, locator, args, xpath, logger } = ctx;
   const toXPath = String(args[0] ?? "").trim();
-  if (!toXPath) throw new UnderstudyCommandException("dragAndDrop requires a target XPath arg");
+  if (!toXPath) throw new Error("dragAndDrop requires a target XPath arg");
 
   const targetLocator = await resolveLocatorWithHops(page, frame, toXPath);
 
@@ -356,7 +347,7 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
       from: xpath,
       to: toXPath,
     });
-    throw new UnderstudyCommandException(msg, e);
+    throw e;
   }
 }
 
@@ -431,7 +422,7 @@ export async function hover(ctx: UnderstudyMethodHandlerContext) {
       stack: stack ?? null,
       xpath,
     });
-    throw new UnderstudyCommandException(msg, e);
+    throw e;
   }
 }
 

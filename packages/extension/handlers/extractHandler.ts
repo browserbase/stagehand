@@ -17,7 +17,7 @@ import { captureHybridSnapshot } from "../understudy/a11y/snapshot/index.js";
 import { LLMClient } from "../llm/LLMClient.js";
 import { ExtractHandlerParams } from "../types/private/handlers.js";
 import { EncodedId, ZodPathSegments } from "../types/private/internal.js";
-import { StagehandInvalidArgumentError, ExtractTimeoutError } from "../errors.js";
+import { TimeoutError } from "../errors.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 
 /**
@@ -109,7 +109,10 @@ export class ExtractHandler {
 
     const llmClient = this.resolveLlmClient(model);
 
-    const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new ExtractTimeoutError(ms));
+    const ensureTimeRemaining = createTimeoutGuard(
+      timeout,
+      (ms) => new TimeoutError("extract()", ms),
+    );
 
     // No-args → page text (parity with v2)
     const noArgs = !instruction && !schema;
@@ -133,15 +136,11 @@ export class ExtractHandler {
     }
 
     if (!instruction && schema) {
-      throw new StagehandInvalidArgumentError(
-        "extract() requires an instruction when a schema is provided.",
-      );
+      throw new TypeError("extract() requires an instruction when a schema is provided.");
     }
 
     if (screenshot && llmClient.type !== "aisdk") {
-      throw new StagehandInvalidArgumentError(
-        "extract({ screenshot: true }) is only supported with AI SDK clients.",
-      );
+      throw new TypeError("extract({ screenshot: true }) is only supported with AI SDK clients.");
     }
 
     const focusSelector = selector?.replace(/^xpath=/, "") ?? "";
@@ -195,7 +194,7 @@ export class ExtractHandler {
 
     ensureTimeRemaining();
     if (!instruction) {
-      throw new StagehandInvalidArgumentError("extract() requires an instruction.");
+      throw new TypeError("extract() requires an instruction.");
     }
 
     const extractionResponse: ExtractionResponse<z.ZodObject> = await runExtract<z.ZodObject>({

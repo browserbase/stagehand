@@ -26,7 +26,6 @@ import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing
 import { getStagehandMethod, StagehandRpcRequestSchema } from "../../protocol/schema-registry.js";
 import { z } from "zod/v4";
 import { RPCRouter } from "../rpcRouter.js";
-import { StagehandRuntimeError } from "../runtime.js";
 import { ChromeRuntimeClient } from "./chromeRuntimeClient.js";
 
 type PendingRequest = {
@@ -38,9 +37,6 @@ type PendingRequest = {
 
 const ERROR_DATA = {
   methodNotFound: { type: "stagehand.unknown_command" },
-  invalidParams: { type: "stagehand.invalid_params" },
-  invalidResult: { type: "stagehand.invalid_result" },
-  internalError: { type: "stagehand.internal_error" },
 } as const;
 const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 
@@ -203,8 +199,8 @@ export class RPCClient {
       await this.sendError(
         request.data.id,
         JSONRPCErrorCodes.invalidParams,
-        "Invalid params",
-        ERROR_DATA.invalidParams,
+        stagehandRequest.error.message,
+        { name: stagehandRequest.error.name, issues: stagehandRequest.error.issues },
       );
       return;
     }
@@ -216,8 +212,8 @@ export class RPCClient {
         await this.sendError(
           request.data.id,
           JSONRPCErrorCodes.internalError,
-          "Internal error",
-          ERROR_DATA.invalidResult,
+          parsedResult.error.message,
+          { name: parsedResult.error.name, issues: parsedResult.error.issues },
         );
         return;
       }
@@ -231,23 +227,17 @@ export class RPCClient {
       );
     } catch (error) {
       if (error instanceof z.ZodError) {
-        await this.sendError(
-          request.data.id,
-          JSONRPCErrorCodes.invalidParams,
-          "Invalid params",
-          ERROR_DATA.invalidParams,
-        );
-        return;
-      }
-      if (error instanceof StagehandRuntimeError) {
-        await this.sendError(request.data.id, error.code, error.message, { type: error.type });
+        await this.sendError(request.data.id, JSONRPCErrorCodes.invalidParams, error.message, {
+          name: error.name,
+          issues: error.issues,
+        });
         return;
       }
       await this.sendError(
         request.data.id,
         JSONRPCErrorCodes.internalError,
-        "Internal error",
-        ERROR_DATA.internalError,
+        error instanceof Error ? error.message : String(error),
+        { name: error instanceof Error ? error.name : "Error" },
       );
     }
   }
@@ -261,7 +251,7 @@ export class RPCClient {
     clearTimeout(pending.timeout);
 
     if ("error" in response) {
-      pending.reject(new Error(response.error.message));
+      pending.reject(new Error(response.error.message, { cause: response.error }));
       return;
     }
 

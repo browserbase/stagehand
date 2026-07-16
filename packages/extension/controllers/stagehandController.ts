@@ -6,7 +6,7 @@ import type {
   StagehandObserveParams,
 } from "../../protocol/types.js";
 import type { HandlerContext } from "../rpcRouter.js";
-import { StagehandRuntimeError, type StagehandRuntime } from "../runtime.js";
+import type { StagehandRuntime } from "../runtime.js";
 
 export function createStagehandController(runtime: StagehandRuntime) {
   async function init(params: StagehandInitParams, { logger }: HandlerContext) {
@@ -22,11 +22,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
 
   async function act(_params: StagehandActParams, { logger }: HandlerContext): Promise<never> {
     logger.info("[stagehand] stagehand.act", {});
-    throw new StagehandRuntimeError(
-      "Method not implemented by the smoke runtime",
-      -32601,
-      "stagehand.unknown_command",
-    );
+    throw new Error("Method not implemented by the smoke runtime");
   }
 
   async function observe(
@@ -34,11 +30,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
     { logger }: HandlerContext,
   ): Promise<never> {
     logger.info("[stagehand] stagehand.observe", {});
-    throw new StagehandRuntimeError(
-      "Method not implemented by the smoke runtime",
-      -32601,
-      "stagehand.unknown_command",
-    );
+    throw new Error("Method not implemented by the smoke runtime");
   }
 
   async function extract(
@@ -46,20 +38,12 @@ export function createStagehandController(runtime: StagehandRuntime) {
     { logger }: HandlerContext,
   ): Promise<never> {
     logger.info("[stagehand] stagehand.extract", {});
-    throw new StagehandRuntimeError(
-      "Method not implemented by the smoke runtime",
-      -32601,
-      "stagehand.unknown_command",
-    );
+    throw new Error("Method not implemented by the smoke runtime");
   }
 
   async function metrics(_params: EmptyParams, { logger }: HandlerContext): Promise<never> {
     logger.info("[stagehand] stagehand.metrics", {});
-    throw new StagehandRuntimeError(
-      "Method not implemented by the smoke runtime",
-      -32601,
-      "stagehand.unknown_command",
-    );
+    throw new Error("Method not implemented by the smoke runtime");
   }
 
   return {

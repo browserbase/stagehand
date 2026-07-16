@@ -3,7 +3,6 @@ import type { CDPSessionLike } from "./cdp.js";
 import type { Frame } from "./frame.js";
 import type { Locator } from "./locator.js";
 import type { Page } from "./page.js";
-import { StagehandInvalidArgumentError } from "../errors.js";
 import type { ScreenshotClip, UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
 import { screenshotScriptSources } from "../dom/build/screenshotScripts.generated.js";
 
@@ -27,12 +26,12 @@ export function normalizeScreenshotClip(clip: ScreenshotClip): ScreenshotClip {
 
   for (const [key, value] of Object.entries({ x, y, width, height })) {
     if (!Number.isFinite(value)) {
-      throw new StagehandInvalidArgumentError(`screenshot: clip.${key} must be a finite number`);
+      throw new RangeError(`screenshot: clip.${key} must be a finite number`);
     }
   }
 
   if (width <= 0 || height <= 0) {
-    throw new StagehandInvalidArgumentError("screenshot: clip width/height must be positive");
+    throw new RangeError("screenshot: clip width/height must be positive");
   }
 
   return { x, y, width, height };

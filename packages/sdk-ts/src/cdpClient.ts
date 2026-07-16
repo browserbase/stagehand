@@ -1,4 +1,3 @@
-import { JSONRPCErrorCodes } from "../../protocol/json-rpc/schemas.js";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
@@ -83,6 +82,10 @@ const CDPErrorSchema = z.looseObject({
   data: z.unknown().optional(),
 });
 
+const CDPCommandErrorCauseSchema = CDPErrorSchema.extend({
+  method: z.string(),
+});
+
 const CDPResponseEnvelopeSchema = z.looseObject({
   id: z.int(),
   result: z.unknown().optional(),
@@ -108,17 +111,6 @@ const RuntimeReadinessSchema = z.object({
   runtimeVersion: z.unknown().optional(),
   hasStagehandReceiveFromHost: z.boolean(),
 });
-
-export class CDPClientError extends Error {
-  constructor(
-    message: string,
-    readonly code: number = JSONRPCErrorCodes.internalError,
-    readonly data?: unknown,
-  ) {
-    super(message);
-    this.name = "CDPClientError";
-  }
-}
 
 export class CDPClient {
   onmessage?: (message: unknown) => void | Promise<void>;
@@ -148,7 +140,7 @@ export class CDPClient {
     this.socket.addEventListener("close", () => {
       if (this.closed) return;
       this.closed = true;
-      const reason = new CDPClientError("CDP connection closed");
+      const reason = new Error("CDP connection closed");
       this.rejectPending(reason);
       this.onclose?.(reason);
     });
@@ -162,7 +154,7 @@ export class CDPClient {
 
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new CDPClientError("Timed out opening CDP WebSocket"));
+        reject(new Error("Timed out opening CDP WebSocket"));
       }, options.cdpConnectTimeoutMs);
 
       socket.addEventListener(
@@ -178,7 +170,7 @@ export class CDPClient {
         "error",
         () => {
           clearTimeout(timeout);
-          reject(new CDPClientError("Failed to open CDP WebSocket"));
+          reject(new Error("Failed to open CDP WebSocket"));
         },
         { once: true },
       );
@@ -226,14 +218,14 @@ export class CDPClient {
 
   get serviceWorker(): ServiceWorkerInfo {
     if (!this.attachedServiceWorker) {
-      throw new CDPClientError("Stagehand service worker is not attached");
+      throw new Error("Stagehand service worker is not attached");
     }
     return this.attachedServiceWorker;
   }
 
   async send(message: JSONRPCMessage): Promise<void> {
-    if (this.closed) throw new CDPClientError("CDP client is closed");
-    if (!this.sessionId) throw new CDPClientError("Stagehand service worker is not attached");
+    if (this.closed) throw new Error("CDP client is closed");
+    if (!this.sessionId) throw new Error("Stagehand service worker is not attached");
 
     const serializedMessage = JSON.stringify(message);
     const evaluated = await this.sendCommand<RuntimeEvaluateResult>(
@@ -248,7 +240,7 @@ export class CDPClient {
     );
 
     if (evaluated.exceptionDetails) {
-      throw new CDPClientError(
+      throw new Error(
         evaluated.exceptionDetails.exception?.description ??
           evaluated.exceptionDetails.text ??
           "Stagehand service worker rejected an RPC message",
@@ -263,7 +255,7 @@ export class CDPClient {
     timeoutMs = 10_000,
   ): Promise<Result> {
     if (this.socket.readyState !== WebSocket.OPEN) {
-      throw new CDPClientError("CDP connection is not open");
+      throw new Error("CDP connection is not open");
     }
 
     const id = this.nextId++;
@@ -272,7 +264,7 @@ export class CDPClient {
     return await new Promise<Result>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pending.delete(id);
-        reject(new CDPClientError(`CDP command timed out: ${method}`));
+        reject(new Error(`CDP command timed out: ${method}`));
       }, timeoutMs);
 
       this.pending.set(id, {
@@ -292,7 +284,7 @@ export class CDPClient {
     this.onmessage = undefined;
     this.onclose = undefined;
     this.onerror = undefined;
-    this.rejectPending(new CDPClientError("CDP client closed"));
+    this.rejectPending(new Error("CDP client closed"));
     this.socket.close();
   }
 
@@ -325,11 +317,11 @@ export class CDPClient {
 
     if (message.error) {
       pending.reject(
-        new CDPClientError(message.error.message, JSONRPCErrorCodes.internalError, {
-          cdpCode: message.error.code,
-          cdpMessage: message.error.message,
-          cdpData: message.error.data,
-          method: pending.method,
+        new Error(message.error.message, {
+          cause: CDPCommandErrorCauseSchema.parse({
+            ...message.error,
+            method: pending.method,
+          }),
         }),
       );
       return;
@@ -411,12 +403,11 @@ export async function waitForRuntimeReady(
     await delayFn(pollIntervalMs);
   }
 
-  throw new CDPClientError(
+  throw new Error(
     `Timed out waiting for the Stagehand extension runtime to become ready${
       lastError ? ` (${lastError})` : ""
     }`,
-    JSONRPCErrorCodes.internalError,
-    lastReadiness,
+    { cause: lastReadiness },
   );
 }
 
@@ -477,7 +468,7 @@ export async function waitForServiceWorker(
     await cdp.sendCommand("Target.closeTarget", { targetId: activationTargetId }).catch(() => {});
   }
 
-  throw new CDPClientError(
+  throw new Error(
     `Timed out discovering the Stagehand service worker target. Observed targets: ${lastTargets
       .map((target) => `${target.type}:${target.url}`)
       .join(", ")}`,
@@ -496,10 +487,9 @@ export async function loadUnpackedExtension(
     });
   } catch (error) {
     if (isExtensionsLoadUnpackedUnavailable(error)) {
-      throw new CDPClientError(
+      throw new Error(
         "This Chrome build does not support Extensions.loadUnpacked. Launch with --load-extension and connect using extensionId instead.",
-        JSONRPCErrorCodes.internalError,
-        error instanceof CDPClientError ? error.data : { cause: String(error) },
+        { cause: error },
       );
     }
 
@@ -507,7 +497,7 @@ export async function loadUnpackedExtension(
   }
 
   if (!loaded.id) {
-    throw new CDPClientError("Extensions.loadUnpacked did not return an extension id");
+    throw new Error("Extensions.loadUnpacked did not return an extension id");
   }
 
   return loaded.id;
@@ -546,7 +536,7 @@ export async function resolveBrowserWebSocketUrl(
     await delayFn(pollIntervalMs);
   }
 
-  throw new CDPClientError(
+  throw new Error(
     `Timed out resolving CDP WebSocket URL from ${baseUrl}${
       lastError ? ` (last error: ${lastError})` : ""
     }`,
@@ -567,14 +557,14 @@ function delay(ms: number): Promise<void> {
 }
 
 function isExtensionsLoadUnpackedUnavailable(error: unknown): boolean {
-  if (!(error instanceof CDPClientError)) return false;
+  if (!(error instanceof Error)) return false;
 
-  const data = error.data as { cdpCode?: unknown; cdpMessage?: unknown; method?: unknown };
+  const cause = CDPCommandErrorCauseSchema.safeParse(error.cause);
+  if (!cause.success) return false;
+
   return (
-    data?.method === "Extensions.loadUnpacked" &&
-    (data.cdpCode === -32601 ||
-      (typeof data.cdpMessage === "string" &&
-        /method not found|wasn't found/i.test(data.cdpMessage)))
+    cause.data.method === "Extensions.loadUnpacked" &&
+    (cause.data.code === -32601 || /method not found|wasn't found/i.test(cause.data.message))
   );
 }
 

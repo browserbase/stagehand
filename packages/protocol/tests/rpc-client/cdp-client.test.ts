@@ -2,7 +2,6 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
-  CDPClientError,
   waitForRuntimeReady,
   waitForServiceWorker,
 } from "../../../sdk-ts/src/cdpClient.ts";
@@ -131,10 +130,12 @@ describe("loadUnpackedExtension", () => {
 
   it("returns a clear error when Extensions.loadUnpacked is unavailable", async () => {
     const cdp = new FakeCdp().on("Extensions.loadUnpacked", () => {
-      throw new CDPClientError("Method not found", -32603, {
-        cdpCode: -32601,
-        cdpMessage: "Method not found",
-        method: "Extensions.loadUnpacked",
+      throw new Error("Method not found", {
+        cause: {
+          code: -32601,
+          message: "Method not found",
+          method: "Extensions.loadUnpacked",
+        },
       });
     });
 

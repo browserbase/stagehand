@@ -2,7 +2,6 @@ import type { Protocol } from "devtools-protocol";
 import type { V3Context } from "./context.js";
 import type { Page } from "./page.js";
 import type { ClipboardOptions, ClipboardPasteOptions } from "../../protocol/types.js";
-import { StagehandEvalError } from "../errors.js";
 
 type ContextClipboardParams = {
   context: V3Context;
@@ -122,6 +121,6 @@ export class ContextClipboard {
       response.exceptionDetails.exception?.description ??
       response.exceptionDetails.text ??
       "Runtime.evaluate failed";
-    throw new StagehandEvalError(`Failed to ${operation}: ${message}`);
+    throw new Error(`Failed to ${operation}: ${message}`);
   }
 }

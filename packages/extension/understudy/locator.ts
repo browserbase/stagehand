@@ -7,12 +7,6 @@ import {
 } from "../dom/build/locatorScripts.generated.js";
 import type { Frame } from "./frame.js";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver.js";
-import {
-  StagehandElementNotFoundError,
-  StagehandInvalidArgumentError,
-  StagehandLocatorError,
-  ElementNotVisibleError,
-} from "../errors.js";
 import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
 import type { MouseButton } from "../../protocol/types.js";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
@@ -77,23 +71,16 @@ export class Locator {
 
     try {
       // Validate element is an <input type="file">
-      try {
-        const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-          "Runtime.callFunctionOn",
-          {
-            objectId,
-            functionDeclaration: locatorScriptSources.ensureFileInputElement,
-            returnByValue: true,
-          },
-        );
-        const ok = Boolean(res.result.value);
-        if (!ok)
-          throw new StagehandInvalidArgumentError('Target is not an <input type="file"> element');
-      } catch (e) {
-        throw new StagehandInvalidArgumentError(
-          e instanceof Error ? e.message : "Unable to verify file input element",
-        );
-      }
+      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: locatorScriptSources.ensureFileInputElement,
+          returnByValue: true,
+        },
+      );
+      const ok = Boolean(res.result.value);
+      if (!ok) throw new TypeError('Target is not an <input type="file"> element');
 
       const normalized = await normalizeInputFiles(files);
 
@@ -120,7 +107,7 @@ export class Locator {
 
     for (const payload of files) {
       if (payload.bytes.length > MAX_REMOTE_UPLOAD_BYTES) {
-        throw new StagehandInvalidArgumentError(
+        throw new RangeError(
           `setInputFiles(): file "${payload.name}" is larger than the 50MB limit for remote uploads`,
         );
       }
@@ -149,9 +136,7 @@ export class Locator {
 
     const ok = Boolean(res.result?.value);
     if (!ok) {
-      throw new StagehandInvalidArgumentError(
-        "Unable to assign file payloads to remote input element",
-      );
+      throw new Error("Unable to assign file payloads to remote input element");
     }
   }
 
@@ -193,7 +178,7 @@ export class Locator {
       const box = await session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
         objectId,
       });
-      if (!box.model) throw new ElementNotVisibleError(this.selector);
+      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
       return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
@@ -286,7 +271,7 @@ export class Locator {
       const box = await session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
         objectId,
       });
-      if (!box.model) throw new ElementNotVisibleError(this.selector);
+      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
       await session.send<never>("Input.dispatchMouseEvent", {
@@ -323,7 +308,7 @@ export class Locator {
       const box = await session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
         objectId,
       });
-      if (!box.model) throw new ElementNotVisibleError(this.selector);
+      if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
       // Dispatch click events in a pipelined burst to reduce inter-click delay
@@ -454,7 +439,7 @@ export class Locator {
           res.exceptionDetails.exception?.description ??
           res.exceptionDetails.text ??
           "Unknown exception during locator().fill()";
-        throw new StagehandLocatorError("Filling", this.selector, message);
+        throw new Error(`Error Filling Element with selector: ${this.selector} Reason: ${message}`);
       }
 
       const result = res.result.value as
@@ -529,7 +514,7 @@ export class Locator {
           typeof result?.reason === "string" && result.reason.length > 0
             ? result.reason
             : "Failed to fill element";
-        throw new StagehandInvalidArgumentError(`Failed to fill element (${reason})`);
+        throw new Error(`Failed to fill element (${reason})`);
       }
 
       // Backward compatibility: if no status is returned (older bundle), fall back to setter logic.
@@ -750,7 +735,7 @@ export class Locator {
   nth(index: number): Locator {
     const value = Number(index);
     if (!Number.isFinite(value) || value < 0) {
-      throw new StagehandInvalidArgumentError("locator().nth() expects a non-negative index");
+      throw new RangeError("locator().nth() expects a non-negative index");
     }
 
     const nextIndex = Math.floor(value);
@@ -779,7 +764,7 @@ export class Locator {
     const index = this.nthIndex < 0 ? 0 : this.nthIndex;
     const resolved = await this.selectorResolver.resolveAtIndex(this.selectorQuery, index);
     if (!resolved) {
-      throw new StagehandElementNotFoundError([this.selector]);
+      throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
     }
 
     return resolved;
@@ -806,14 +791,14 @@ export class Locator {
         this.nthIndex,
       );
       if (!resolved) {
-        throw new StagehandElementNotFoundError([this.selector]);
+        throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
       }
       return [resolved];
     }
 
     const resolved = await this.selectorResolver.resolveAll(this.selectorQuery);
     if (!resolved.length) {
-      throw new StagehandElementNotFoundError([this.selector]);
+      throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
     }
     return resolved;
   }
@@ -822,7 +807,7 @@ export class Locator {
   centerFromBoxContent(content: number[]): { cx: number; cy: number } {
     // content is [x1,y1, x2,y2, x3,y3, x4,y4]
     if (!content || content.length < 8) {
-      throw new StagehandInvalidArgumentError("Invalid box model content quad");
+      throw new Error("Invalid box model content quad");
     }
     const xs = [content[0], content[2], content[4], content[6]];
     const ys = [content[1], content[3], content[5], content[7]];

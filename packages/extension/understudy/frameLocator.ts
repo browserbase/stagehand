@@ -3,7 +3,6 @@ import { Locator } from "./locator.js";
 import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
-import { ContentFrameNotFoundError, StagehandInvalidArgumentError } from "../errors.js";
 
 /**
  * FrameLocator: resolves iframe elements to their child Frames and allows
@@ -67,7 +66,7 @@ export class FrameLocator {
           // ignore and try next
         }
       }
-      throw new ContentFrameNotFoundError(this.selector);
+      throw new Error(`Unable to obtain a content frame for selector: ${this.selector}`);
     } finally {
       await parentSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
     }
@@ -140,7 +139,7 @@ class LocatorDelegate {
   nth(index: number): LocatorDelegate {
     const value = Number(index);
     if (!Number.isFinite(value) || value < 0) {
-      throw new StagehandInvalidArgumentError("locator().nth() expects a non-negative index");
+      throw new RangeError("locator().nth() expects a non-negative index");
     }
 
     const nextIndex = Math.floor(value);

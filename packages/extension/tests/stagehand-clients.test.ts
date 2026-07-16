@@ -642,9 +642,9 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 7,
       error: {
-        code: -32000,
+        code: -32603,
         message: "Stagehand loopback CDP is not configured",
-        data: { type: "stagehand.loopback_not_configured" },
+        data: { name: "Error" },
       },
     });
   });
@@ -854,9 +854,9 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 10,
       error: {
-        code: -32602,
+        code: -32603,
         message: 'Stagehand page "missing-page" was not found; call context.pages and retry',
-        data: { type: "stagehand.page_not_found" },
+        data: { name: "Error" },
       },
     });
   });
@@ -877,9 +877,9 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 10,
       error: {
-        code: -32000,
+        code: -32603,
         message: "Stagehand loopback CDP is not configured",
-        data: { type: "stagehand.loopback_not_configured" },
+        data: { name: "Error" },
       },
     });
   });
@@ -1073,11 +1073,7 @@ describe("Stagehand worker clients", () => {
         pageId: "missing-page",
         selector: "button",
       }),
-    ).rejects.toMatchObject({
-      code: -32602,
-      message: 'Stagehand page "missing-page" was not found; call context.pages and retry',
-      type: "stagehand.page_not_found",
-    });
+    ).rejects.toThrow('Stagehand page "missing-page" was not found; call context.pages and retry');
   });
 
   it("returns a clear error for locator commands before runtime is configured", async () => {
@@ -1088,11 +1084,7 @@ describe("Stagehand worker clients", () => {
         pageId: "page-a",
         selector: "button",
       }),
-    ).rejects.toMatchObject({
-      code: -32000,
-      message: "Stagehand loopback CDP is not configured",
-      type: "stagehand.loopback_not_configured",
-    });
+    ).rejects.toThrow("Stagehand loopback CDP is not configured");
   });
 
   it("routes locator.click through the RPC app", async () => {
@@ -1281,9 +1273,9 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 17,
       error: {
-        code: -32602,
+        code: -32603,
         message: 'Stagehand page "missing-page" was not found; call context.pages and retry',
-        data: { type: "stagehand.page_not_found" },
+        data: { name: "Error" },
       },
     });
   });
@@ -1305,9 +1297,9 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 18,
       error: {
-        code: -32000,
+        code: -32603,
         message: "Stagehand loopback CDP is not configured",
-        data: { type: "stagehand.loopback_not_configured" },
+        data: { name: "Error" },
       },
     });
   });
@@ -1326,9 +1318,9 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 6,
       error: {
-        code: -32000,
+        code: -32603,
         message: "Stagehand loopback CDP is not configured",
-        data: { type: "stagehand.loopback_not_configured" },
+        data: { name: "Error" },
       },
     });
   });
@@ -1346,7 +1338,7 @@ describe("Stagehand worker clients", () => {
       id: 2,
       error: {
         code: -32602,
-        data: { type: "stagehand.invalid_params" },
+        data: { name: "ZodError", issues: expect.any(Array) },
       },
     });
   });

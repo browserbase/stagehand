@@ -2,7 +2,6 @@ import { Locator } from "./locator.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
-import { StagehandInvalidArgumentError } from "../errors.js";
 import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
 import type { MouseButton } from "../../protocol/types.js";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
@@ -192,7 +191,7 @@ export class DeepLocatorDelegate {
   nth(index: number): DeepLocatorDelegate {
     const value = Number(index);
     if (!Number.isFinite(value) || value < 0) {
-      throw new StagehandInvalidArgumentError("deepLocator().nth() expects a non-negative index");
+      throw new RangeError("deepLocator().nth() expects a non-negative index");
     }
 
     const nextIndex = Math.floor(value);

@@ -19,9 +19,7 @@ import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response, isSerializableResponse } from "./response.js";
 import type { StagehandAPIClient } from "../api.js";
-import { StagehandSetExtraHTTPHeadersError, StagehandSnapshotError } from "../errors.js";
 import type { Locator } from "./locator.js";
-import { StagehandInvalidArgumentError, StagehandEvalError } from "../errors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 import type { UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
@@ -852,19 +850,15 @@ export class Page {
     const type = opts.type ?? "png";
 
     if (type !== "png" && type !== "jpeg") {
-      throw new StagehandInvalidArgumentError(`screenshot: unsupported image type "${type}"`);
+      throw new TypeError("screenshot: unsupported image type");
     }
 
     if (opts.fullPage && opts.clip) {
-      throw new StagehandInvalidArgumentError(
-        "screenshot: clip and fullPage cannot be used together",
-      );
+      throw new TypeError("screenshot: clip and fullPage cannot be used together");
     }
 
     if (type === "png" && typeof opts.quality === "number") {
-      throw new StagehandInvalidArgumentError(
-        'screenshot: quality option is only valid for type="jpeg"',
-      );
+      throw new TypeError('screenshot: quality option is only valid for type="jpeg"');
     }
 
     const caretMode: NonNullable<UnderstudyScreenshotOptions["caret"]> = opts.caret ?? "hide";
@@ -924,9 +918,8 @@ export class Page {
    * the root CDP session of the page, and all of its child CDP sessions.
    *
    * @param headers - the headers to be set.
-   * @throws {StagehandSetExtraHTTPHeadersError}
-   * Thrown when one or more CDP sessions fail to enable the Network domain or fail
-   * to apply the headers (i.e. `Network.enable` and/or `Network.setExtraHTTPHeaders` rejects).
+   * Throws the first original CDP error when one or more sessions fail to enable
+   * the Network domain or apply the headers.
    * @return void
    */
   async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
@@ -957,15 +950,19 @@ export class Page {
         pair.result.status === "rejected",
     );
 
-    const errors = filtered.map((pair) => {
-      const reason = pair.result.reason;
+    const failures = filtered.map((pair) => {
+      const reason: unknown = pair.result.reason;
       const sessId = pair.id ?? "root";
-      const message = reason?.message ?? String(reason);
-      return `session=${sessId} error=${message}`;
+      const message = reason instanceof Error ? reason.message : String(reason);
+      return { reason, sessionId: sessId, message };
     });
 
-    if (errors.length > 0) {
-      throw new StagehandSetExtraHTTPHeadersError(errors);
+    if (failures.length > 0) {
+      this.logger.error("setExtraHTTPHeaders failed for one or more sessions", {
+        category: "page",
+        failures: failures.map(({ sessionId, message }) => ({ sessionId, message })),
+      });
+      throw failures[0]!.reason;
     }
   }
 
@@ -1111,7 +1108,7 @@ export class Page {
     if (exceptionDetails) {
       const msg =
         exceptionDetails.text || exceptionDetails.exception?.description || "Evaluation failed";
-      throw new StagehandEvalError(msg);
+      throw new Error(msg);
     }
 
     return result?.value as R;
@@ -1582,24 +1579,20 @@ export class Page {
     }
   }
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
-    try {
-      const { combinedTree, combinedXpathMap, combinedUrlMap } = await captureHybridSnapshot(
-        this,
-        {
-          pierceShadow: true,
-          includeIframes: options?.includeIframes,
-        },
-        this.logger,
-      );
+    const { combinedTree, combinedXpathMap, combinedUrlMap } = await captureHybridSnapshot(
+      this,
+      {
+        pierceShadow: true,
+        includeIframes: options?.includeIframes,
+      },
+      this.logger,
+    );
 
-      return {
-        formattedTree: combinedTree,
-        xpathMap: combinedXpathMap,
-        urlMap: combinedUrlMap,
-      };
-    } catch (err) {
-      throw new StagehandSnapshotError(err);
-    }
+    return {
+      formattedTree: combinedTree,
+      xpathMap: combinedXpathMap,
+      urlMap: combinedUrlMap,
+    };
   }
 
   // Track pressed modifier keys

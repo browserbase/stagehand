@@ -1,6 +1,5 @@
 import type { Protocol } from "devtools-protocol";
 import type { DomainPolicy } from "../../protocol/types.js";
-import { StagehandInvalidArgumentError } from "../errors.js";
 
 type DomainRule = { type: "exact"; hostname: string } | { type: "wildcard"; hostname: string };
 
@@ -32,12 +31,12 @@ function validateHostname(
   const label = kind === "allowedDomains" ? "allowed" : "blocked";
 
   if (!hostname || hostname.length > 253) {
-    throw new StagehandInvalidArgumentError(`Invalid ${label} domain pattern: "${original}"`);
+    throw new TypeError(`Invalid ${label} domain pattern: "${original}"`);
   }
 
   const labels = hostname.split(".");
   if (labels.length < 2 || labels.some((label) => !DOMAIN_LABEL_RE.test(label))) {
-    throw new StagehandInvalidArgumentError(`Invalid ${label} domain pattern: "${original}"`);
+    throw new TypeError(`Invalid ${label} domain pattern: "${original}"`);
   }
 }
 
@@ -49,14 +48,14 @@ function normalizeDomainPattern(
   const capitalizedLabel = kind === "allowedDomains" ? "Allowed" : "Blocked";
 
   if (typeof pattern !== "string") {
-    throw new StagehandInvalidArgumentError(`${capitalizedLabel} domain patterns must be strings`);
+    throw new TypeError(`${capitalizedLabel} domain patterns must be strings`);
   }
 
   const original = pattern;
   const normalized = canonicalizeHostname(pattern.trim());
 
   if (!normalized) {
-    throw new StagehandInvalidArgumentError(`Invalid ${label} domain pattern: "${original}"`);
+    throw new TypeError(`Invalid ${label} domain pattern: "${original}"`);
   }
 
   if (
@@ -66,7 +65,7 @@ function normalizeDomainPattern(
     normalized.includes("?") ||
     normalized.includes("#")
   ) {
-    throw new StagehandInvalidArgumentError(
+    throw new TypeError(
       `${capitalizedLabel} domain patterns must be domain-only values: "${original}"`,
     );
   }
@@ -78,9 +77,7 @@ function normalizeDomainPattern(
   }
 
   if (normalized.includes("*")) {
-    throw new StagehandInvalidArgumentError(
-      `Wildcards are only supported as a leading "*.": "${original}"`,
-    );
+    throw new TypeError(`Wildcards are only supported as a leading "*.": "${original}"`);
   }
 
   validateHostname(normalized, original, kind);
@@ -111,7 +108,7 @@ function getDomainPatterns(
   // Passing undefined usually means the caller accidentally omitted the policy
   // argument or passed through an unset variable. Clearing must be explicit.
   if (policy === undefined) {
-    throw new StagehandInvalidArgumentError("Domain policy must be an object or null");
+    throw new TypeError("Domain policy must be an object or null");
   }
 
   const patterns = policy[key];
@@ -120,7 +117,7 @@ function getDomainPatterns(
   // Empty arrays intentionally clear that side of the policy, but malformed
   // runtime values should fail fast rather than silently disabling interception.
   if (!Array.isArray(patterns)) {
-    throw new StagehandInvalidArgumentError(`${key} must be an array of strings`);
+    throw new TypeError(`${key} must be an array of strings`);
   }
 
   return patterns;

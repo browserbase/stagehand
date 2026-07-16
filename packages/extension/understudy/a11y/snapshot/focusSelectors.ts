@@ -3,7 +3,6 @@ import type { CDPSessionLike } from "../../cdp.js";
 import { Page } from "../../page.js";
 import { executionContexts } from "../../executionContextRegistry.js";
 import { buildLocatorInvocation } from "../../locatorInvocation.js";
-import { StagehandIframeError } from "../../../errors.js";
 import type {
   Axis,
   FrameParentIndex,
@@ -75,11 +74,9 @@ export async function resolveFocusFrameAndTail(
     const selectorForIframe = buildXPathFromSteps(buf);
     const parentSess = page.getSessionForFrame(ctxFrameId);
     const objectId = await resolveObjectIdForXPath(parentSess, selectorForIframe, ctxFrameId);
-    if (!objectId)
-      throw new StagehandIframeError(
-        selectorForIframe,
-        "Failed to resolve iframe element by XPath",
-      );
+    if (!objectId) {
+      throw iframeResolutionError(selectorForIframe, "Failed to resolve iframe element by XPath");
+    }
 
     try {
       await parentSess.send("DOM.enable").catch(() => {});
@@ -102,8 +99,9 @@ export async function resolveFocusFrameAndTail(
           continue;
         }
       }
-      if (!childFrameId)
-        throw new StagehandIframeError(selectorForIframe, "Could not map iframe to child frameId");
+      if (!childFrameId) {
+        throw iframeResolutionError(selectorForIframe, "Could not map iframe to child frameId");
+      }
 
       absPrefix = prefixXPath(absPrefix || "/", selectorForIframe);
       ctxFrameId = childFrameId;
@@ -142,8 +140,9 @@ export async function resolveCssFocusFrameAndTail(
   for (let i = 0; i < Math.max(0, parts.length - 1); i++) {
     const parentSess = page.getSessionForFrame(ctxFrameId);
     const objectId = await resolveObjectIdForCss(parentSess, parts[i]!, ctxFrameId);
-    if (!objectId)
-      throw new StagehandIframeError(parts[i]!, "Failed to resolve iframe via CSS hop");
+    if (!objectId) {
+      throw iframeResolutionError(parts[i]!, "Failed to resolve iframe via CSS hop");
+    }
     try {
       await parentSess.send("DOM.enable").catch(() => {});
       const desc = await parentSess.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
@@ -164,8 +163,9 @@ export async function resolveCssFocusFrameAndTail(
           continue;
         }
       }
-      if (!childFrameId)
-        throw new StagehandIframeError(parts[i]!, "Could not map CSS iframe hop to child frameId");
+      if (!childFrameId) {
+        throw iframeResolutionError(parts[i]!, "Could not map CSS iframe hop to child frameId");
+      }
       ctxFrameId = childFrameId;
     } finally {
       await parentSess.send("Runtime.releaseObject", { objectId }).catch(() => {});
@@ -174,6 +174,12 @@ export async function resolveCssFocusFrameAndTail(
 
   const tailSelector = parts[parts.length - 1] ?? "*";
   return { targetFrameId: ctxFrameId, tailSelector, absPrefix };
+}
+
+function iframeResolutionError(frameUrl: string, message: string): Error {
+  return new Error(
+    `Unable to resolve frameId for iframe with URL: ${frameUrl} Full error: ${message}`,
+  );
 }
 
 /** Resolve an XPath to a Runtime remoteObjectId in the given CDP session. */

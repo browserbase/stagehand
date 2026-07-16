@@ -19,7 +19,7 @@ import { createPageController } from "./controllers/pageController.js";
 import { createRuntimeController } from "./controllers/runtimeController.js";
 import { createStagehandController } from "./controllers/stagehandController.js";
 import type { StagehandLogger } from "./logger.js";
-import { StagehandRuntimeError, type StagehandRuntime } from "./runtime.js";
+import type { StagehandRuntime } from "./runtime.js";
 
 const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 
@@ -72,16 +72,7 @@ export class RPCRouter {
     try {
       return await otelContext.with(requestContext, () => this.route(request, handlerContext));
     } catch (error) {
-      if (error instanceof StagehandRuntimeError) {
-        setRPCErrorOnSpan(span, error.code, error.type, error.message);
-      } else {
-        setRPCErrorOnSpan(
-          span,
-          -32603,
-          "stagehand.internal_error",
-          error instanceof Error ? error.message : undefined,
-        );
-      }
+      setRPCErrorOnSpan(span, error);
       throw error;
     } finally {
       span.end();
@@ -264,8 +255,11 @@ function parseParams<Method extends RPCMethod>(
   return wireSchema(method.params, method.paramsWire).parse(params) as z.output<Method["params"]>;
 }
 
-function setRPCErrorOnSpan(span: Span, code: number, type: string, message?: string): void {
-  span.setStatus({ code: SpanStatusCode.ERROR, ...(message ? { message } : {}) });
-  span.setAttribute("rpc.response.status_code", String(code));
+function setRPCErrorOnSpan(span: Span, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const type = error instanceof Error ? error.name : "Error";
+  if (error instanceof Error) span.recordException(error);
+  span.setStatus({ code: SpanStatusCode.ERROR, message });
+  span.setAttribute("rpc.response.status_code", "-32603");
   span.setAttribute("error.type", type);
 }

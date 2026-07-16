@@ -214,8 +214,28 @@ describe("RPCClient", () => {
       id: 5,
       error: {
         code: JSONRPCErrorCodes.internalError,
-        message: "Internal error",
+        message: "Client handler failed",
+        data: { name: "Error" },
       },
+    });
+  });
+
+  it("rejects a failed request with a plain Error that preserves the JSON-RPC failure", async () => {
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp, 1_000);
+    const request = client.send(StagehandMethods.ping, {});
+    const rpcError = {
+      code: JSONRPCErrorCodes.internalError,
+      message: "Worker failed",
+      data: { name: "Error" },
+    };
+
+    await cdp.receive({ jsonrpc: "2.0", id: 1, error: rpcError });
+
+    await expect(request).rejects.toMatchObject({
+      constructor: Error,
+      message: "Worker failed",
+      cause: rpcError,
     });
   });
 

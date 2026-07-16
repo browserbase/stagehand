@@ -15,7 +15,7 @@ import type {
   Variables,
 } from "../../protocol/types.js";
 import { V3FunctionNameSchema } from "../../protocol/pending-schemas.js";
-import { ActTimeoutError } from "../errors.js";
+import { TimeoutError } from "../errors.js";
 import { captureHybridSnapshot, diffCombinedTrees } from "../understudy/a11y/snapshot/index.js";
 import { LLMClient } from "../llm/LLMClient.js";
 import { SupportedUnderstudyAction } from "../types/private/index.js";
@@ -143,7 +143,7 @@ export class ActHandler {
     const { instruction, page, variables, timeout, model, logger } = params;
 
     const llmClient = this.resolveLlmClient(model);
-    const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new ActTimeoutError(ms));
+    const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new TimeoutError("act()", ms));
 
     ensureTimeRemaining();
     await waitForDomNetworkQuiet(page.mainFrame(), logger, this.defaultDomSettleTimeoutMs);
@@ -325,7 +325,7 @@ export class ActHandler {
         ],
       };
     } catch (err) {
-      if (err instanceof ActTimeoutError) {
+      if (err instanceof TimeoutError) {
         throw err;
       }
       const msg = err instanceof Error ? err.message : String(err);
@@ -414,7 +414,7 @@ export class ActHandler {
             ],
           };
         } catch (retryErr) {
-          if (retryErr instanceof ActTimeoutError) {
+          if (retryErr instanceof TimeoutError) {
             throw retryErr;
           }
           const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);

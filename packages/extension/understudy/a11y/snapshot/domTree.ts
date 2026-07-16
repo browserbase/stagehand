@@ -1,6 +1,5 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
-import { StagehandDomProcessError } from "../../../errors.js";
 import type { SessionDomIndex } from "../../../types/private/snapshot.js";
 import { buildChildXPathSegments, joinXPath, normalizeXPath } from "./xpathUtils.js";
 
@@ -43,7 +42,7 @@ export function collectDomTraversalTargets(node: Protocol.DOM.Node): Protocol.DO
 
 /**
  * Rehydrate a truncated DOM tree by repeatedly calling DOM.describeNode with
- * decreasing depths. Any non-CBOR failure is surfaced as a StagehandDomProcessError.
+ * decreasing depths. Any non-CBOR failure is surfaced directly.
  */
 export async function hydrateDomTree(
   session: CDPSessionLike,
@@ -72,6 +71,7 @@ export async function hydrateDomTree(
     if (needsExpansion && (nodeId || backendId)) {
       const describeParamsBase = nodeId ? { nodeId } : { backendNodeId: backendId! };
       let expanded = false;
+      let lastRetryError: unknown;
       for (const depth of DESCRIBE_DEPTH_ATTEMPTS) {
         try {
           const described = await session.send<Protocol.DOM.DescribeNodeResponse>(
@@ -92,19 +92,15 @@ export async function hydrateDomTree(
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           if (isCborStackError(message)) {
+            lastRetryError = err;
             continue;
           }
-          const identifier = nodeId ?? backendId ?? "unknown";
-          throw new StagehandDomProcessError(
-            `Failed to expand DOM node ${identifier}: ${String(err)}`,
-          );
+          throw err;
         }
       }
       if (!expanded) {
-        const identifier = nodeId ?? backendId ?? "unknown";
-        throw new StagehandDomProcessError(
-          `Unable to expand DOM node ${identifier} after describeNode depth retries`,
-        );
+        if (lastRetryError !== undefined) throw lastRetryError;
+        throw new Error("Unable to expand DOM node after describeNode depth retries");
       }
     }
 
@@ -123,7 +119,7 @@ export async function getDomTreeWithFallback(
   session: CDPSessionLike,
   pierce: boolean,
 ): Promise<Protocol.DOM.Node> {
-  let lastCborMessage = "";
+  let lastRetryError: unknown;
 
   for (const depth of DOM_DEPTH_ATTEMPTS) {
     try {
@@ -140,18 +136,15 @@ export async function getDomTreeWithFallback(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (isCborStackError(message)) {
-        lastCborMessage = message;
+        lastRetryError = err;
         continue;
       }
       throw err;
     }
   }
 
-  throw new StagehandDomProcessError(
-    lastCborMessage
-      ? `CDP DOM.getDocument failed after adaptive depth retries: ${lastCborMessage}`
-      : "CDP DOM.getDocument failed after adaptive depth retries.",
-  );
+  if (lastRetryError !== undefined) throw lastRetryError;
+  throw new Error("CDP DOM.getDocument failed after adaptive depth retries");
 }
 
 /**

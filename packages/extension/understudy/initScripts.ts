@@ -1,5 +1,4 @@
 import type { InitScriptSource } from "../types/private/index.js";
-import { StagehandInvalidArgumentError } from "../errors.js";
 
 const DEFAULT_CALLER = "context.addInitScript";
 
@@ -14,9 +13,7 @@ export async function normalizeInitScriptSource<Arg>(
   }
 
   if (!Object.is(arg, undefined)) {
-    throw new StagehandInvalidArgumentError(
-      `${caller}: 'arg' is only supported when passing a function.`,
-    );
+    throw new TypeError(`${caller}: 'arg' is only supported when passing a function.`);
   }
 
   if (typeof script === "string") {
@@ -24,16 +21,12 @@ export async function normalizeInitScriptSource<Arg>(
   }
 
   if (!script || typeof script !== "object") {
-    throw new StagehandInvalidArgumentError(
-      `${caller}: provide a string, function, or an object with content.`,
-    );
+    throw new TypeError(`${caller}: provide a string, function, or an object with content.`);
   }
 
   if (typeof script.content === "string") {
     return script.content;
   }
 
-  throw new StagehandInvalidArgumentError(
-    `${caller}: provide a string, function, or an object with content.`,
-  );
+  throw new TypeError(`${caller}: provide a string, function, or an object with content.`);
 }

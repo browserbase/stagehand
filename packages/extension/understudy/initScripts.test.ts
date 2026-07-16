@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { InitScriptSource } from "../types/private/index.js";
-import { StagehandInvalidArgumentError } from "../errors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 
 describe("init script normalization", () => {
@@ -28,9 +27,7 @@ describe("init script normalization", () => {
   it("rejects filesystem path objects", async () => {
     const pathSource = { path: "./init.js" } as unknown as InitScriptSource<never>;
 
-    await expect(normalizeInitScriptSource(pathSource)).rejects.toBeInstanceOf(
-      StagehandInvalidArgumentError,
-    );
+    await expect(normalizeInitScriptSource(pathSource)).rejects.toBeInstanceOf(TypeError);
     await expect(normalizeInitScriptSource(pathSource)).rejects.toThrow("object with content");
   });
 });

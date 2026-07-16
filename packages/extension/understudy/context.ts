@@ -19,13 +19,7 @@ import type {
 import { InitScriptSource } from "../types/private/index.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { ContextClipboard } from "./clipboard.js";
-import {
-  TimeoutError,
-  CookieSetError,
-  PageNotFoundError,
-  StagehandSetExtraHTTPHeadersError,
-  StagehandSetDomainPolicyError,
-} from "../errors.js";
+import { TimeoutError } from "../errors.js";
 import {
   filterCookies,
   normalizeCookieParams,
@@ -376,14 +370,18 @@ export class V3Context {
         } => entry.result.status === "rejected",
       )
       .map((entry) => {
-        const reason = entry.result.reason as Error;
+        const reason: unknown = entry.result.reason;
         const sid = entry.session.id ?? "unknown";
-        const message = reason?.message ?? String(reason);
-        return `session=${sid} error=${message}`;
+        const message = reason instanceof Error ? reason.message : String(reason);
+        return { reason, sessionId: sid, message };
       });
 
     if (failures.length) {
-      throw new StagehandSetExtraHTTPHeadersError(failures);
+      this.logger.error("setExtraHTTPHeaders failed for one or more sessions", {
+        category: "ctx",
+        failures: failures.map(({ sessionId, message }) => ({ sessionId, message })),
+      });
+      throw failures[0]!.reason;
     }
   }
 
@@ -455,11 +453,15 @@ export class V3Context {
         const reason = failure?.error ?? entry.result.reason;
         const sid = entry.session.id ?? "unknown";
         const message = reason instanceof Error ? reason.message : String(reason);
-        return `session=${sid} error=${message}`;
+        return { reason, sessionId: sid, message };
       });
 
     if (failures.length) {
-      throw new StagehandSetDomainPolicyError(failures);
+      this.logger.error("setDomainPolicy failed for one or more sessions", {
+        category: "ctx",
+        failures: failures.map(({ sessionId, message }) => ({ sessionId, message })),
+      });
+      throw failures[0]!.reason;
     }
   }
 
@@ -524,7 +526,7 @@ export class V3Context {
       resolvePage: async (page) => {
         if (page) return page;
         const active = this.activePage();
-        if (!active) throw new PageNotFoundError("active page");
+        if (!active) throw new Error("No Page found for active page");
         return active;
       },
     }));
@@ -570,7 +572,7 @@ export class V3Context {
    */
   async getFullFrameTreeByMainFrameId(rootMainFrameId: string): Promise<Protocol.Page.FrameTree> {
     const owner = this.resolvePageByMainFrameId(rootMainFrameId);
-    if (!owner) throw new PageNotFoundError(`mainFrameId=${rootMainFrameId}`);
+    if (!owner) throw new Error(`No Page found for mainFrameId=${rootMainFrameId}`);
     return owner.asProtocolFrameTree(rootMainFrameId);
   }
 
@@ -896,9 +898,9 @@ export class V3Context {
       if (this.pendingCreatedTargetUrl.has(info.targetId)) {
         this.pageCreationFailures.set(
           info.targetId,
-          new StagehandSetDomainPolicyError([
-            `session=${sessionId} target=${info.targetId} error=${policyFailureMessage} cdpError=${fetchErrorMessage}`,
-          ]),
+          fetchError instanceof Error
+            ? fetchError
+            : new Error(`${policyFailureMessage}: ${fetchErrorMessage}`),
         );
       }
       this.logger.error("Closing target because domain policy could not be guaranteed", {
@@ -1269,7 +1271,7 @@ export class V3Context {
       await new Promise((r) => setTimeout(r, 25));
     }
     if (immediate) return immediate;
-    throw new PageNotFoundError("awaitActivePage: no page available");
+    throw new Error("No Page found for awaitActivePage: no page available");
   }
 
   /**
@@ -1314,17 +1316,7 @@ export class V3Context {
 
     const cdpCookies = normalized.map(toCdpCookieParam);
 
-    try {
-      await this.conn.send("Storage.setCookies", { cookies: cdpCookies });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      const names = normalized.map((c) => `"${c.name}"`).join(", ");
-      throw new CookieSetError(
-        `Failed to set cookies [${names}] — ` +
-          `the browser rejected the batch. Check that the domain, path, and secure/sameSite values are valid.` +
-          (detail ? ` (CDP error: ${detail})` : ""),
-      );
-    }
+    await this.conn.send("Storage.setCookies", { cookies: cdpCookies });
   }
 
   /**
@@ -1356,19 +1348,9 @@ export class V3Context {
     // Clear everything, then re-add only the cookies we're keeping.
     await this.conn.send("Storage.clearCookies");
     if (toKeep.length) {
-      try {
-        await this.conn.send("Storage.setCookies", {
-          cookies: toKeep.map(toCdpCookieParam),
-        });
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        const names = toKeep.map((c) => `"${c.name}"`).join(", ");
-        throw new CookieSetError(
-          `clearCookies: cookies were cleared but failed to re-add the ${toKeep.length} ` +
-            `non-matching cookie(s) [${names}]. The browser cookie jar is now empty. ` +
-            (detail ? `(CDP error: ${detail})` : ""),
-        );
-      }
+      await this.conn.send("Storage.setCookies", {
+        cookies: toKeep.map(toCdpCookieParam),
+      });
     }
   }
 }

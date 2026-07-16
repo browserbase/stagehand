@@ -145,6 +145,82 @@ export const CookieParamSchema = z
     sameSite: z.enum(["Strict", "Lax", "None"]).optional(),
   })
   .strict()
+  .superRefine((cookie, context) => {
+    let parsedUrl: URL | undefined;
+    let invalidUrl = false;
+
+    if (!cookie.url && !(cookie.domain && cookie.path)) {
+      context.addIssue({
+        code: "custom",
+        path: ["url"],
+        message: `Cookie "${cookie.name}" must have a url or a domain/path pair`,
+      });
+    }
+
+    if (cookie.url && cookie.domain) {
+      context.addIssue({
+        code: "custom",
+        path: ["url"],
+        message: `Cookie "${cookie.name}" should have either url or domain, not both`,
+      });
+    }
+
+    if (cookie.url && cookie.path) {
+      context.addIssue({
+        code: "custom",
+        path: ["url"],
+        message: `Cookie "${cookie.name}" should have either url or path, not both`,
+      });
+    }
+
+    if (cookie.expires !== undefined && cookie.expires < 0 && cookie.expires !== -1) {
+      context.addIssue({
+        code: "custom",
+        path: ["expires"],
+        message: `Cookie "${cookie.name}" has an invalid expires value; use -1 for session cookies or a positive unix timestamp`,
+      });
+    }
+
+    if (cookie.url === "about:blank") {
+      invalidUrl = true;
+      context.addIssue({
+        code: "custom",
+        path: ["url"],
+        message: `Blank page cannot have cookie "${cookie.name}"`,
+      });
+    } else if (cookie.url?.startsWith("data:")) {
+      invalidUrl = true;
+      context.addIssue({
+        code: "custom",
+        path: ["url"],
+        message: `Data URL page cannot have cookie "${cookie.name}"`,
+      });
+    } else if (cookie.url) {
+      try {
+        parsedUrl = new URL(cookie.url);
+      } catch {
+        invalidUrl = true;
+        context.addIssue({
+          code: "custom",
+          path: ["url"],
+          message: `Cookie "${cookie.name}" has an invalid url: "${cookie.url}"`,
+        });
+      }
+    }
+
+    const effectivelySecure = cookie.url
+      ? parsedUrl?.protocol === "https:"
+      : cookie.secure === true;
+    if (cookie.sameSite === "None" && !invalidUrl && !effectivelySecure) {
+      context.addIssue({
+        code: "custom",
+        path: ["secure"],
+        message:
+          `Cookie "${cookie.name}" has sameSite: "None" without secure: true. ` +
+          `Browsers require secure: true when sameSite is "None".`,
+      });
+    }
+  })
   .meta({ id: "CookieParam" });
 
 export const ClearCookieOptionsSchema = z
