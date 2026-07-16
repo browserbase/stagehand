@@ -56,16 +56,33 @@ export function sanitizeSlug(value: string): string {
   return /^\.+$/.test(slug) ? "" : slug;
 }
 
+/** Random bytes appended to a run token. See RUN_TOKEN_ENTROPY_BYTES rationale. */
+const RUN_TOKEN_ENTROPY_BYTES = 8;
+
 /**
- * A compact, sortable, filesystem-safe, collision-resistant token identifying
- * a single run, e.g. "20260715-110342-9f3a1c" (local time followed by random
- * entropy). Generate this EXACTLY ONCE per run in the entrypoint and reuse it —
- * calling it twice within one run would split that run's trajectories across
+ * A compact, sortable, filesystem-safe, collision-resistant token identifying a
+ * single run, e.g. "20260715-110342-9f3a1c2b4d6e8f01" (local time followed by
+ * random entropy). Generate this EXACTLY ONCE per run in the entrypoint and reuse
+ * it — calling it twice within one run would split that run's trajectories across
  * two group dirs.
+ *
+ * The timestamp alone is only second-granular, so the entropy is what actually
+ * separates two runs of the same experiment+model started in the same second.
+ * 8 bytes (2^64) keeps the birthday-collision probability negligible even at
+ * absurd concurrency (~3e-14 for 1000 simultaneous starts, vs ~3% for 3 bytes) —
+ * the width is essentially free here, so it is sized for the pathological case
+ * rather than the realistic one (2-8 concurrent runs).
+ *
+ * Note this is deliberately NOT an atomic group-dir reservation: reserving the
+ * group up front would require the entrypoint to create `<root>/<group>/` before
+ * any task runs, which would defeat `writeExperimentLink`'s "group dir exists =>
+ * something was recorded" backstop and bring empty group dirs back. Reservation
+ * stays where it can be atomic without that cost: the per-trajectory leaf dir
+ * (`reserveTrajectoryDir`).
  */
 export function generateRunToken(
   now: Date = new Date(),
-  entropy: string = randomBytes(3).toString("hex"),
+  entropy: string = randomBytes(RUN_TOKEN_ENTROPY_BYTES).toString("hex"),
 ): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;

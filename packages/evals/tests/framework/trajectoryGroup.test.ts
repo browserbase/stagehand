@@ -89,6 +89,21 @@ describe("generateRunToken", () => {
     const now = new Date(2026, 6, 15, 11, 3, 42);
     expect(generateRunToken(now)).not.toBe(generateRunToken(now));
   });
+
+  it("uses 64 bits of real entropy, not just enough to look random", () => {
+    // The tests above inject entropy, so they'd still pass if the DEFAULT width
+    // shrank. Assert the real default: the timestamp is only second-granular, so
+    // this width is the only thing separating same-second runs of one
+    // experiment+model. 8 bytes => 16 hex chars.
+    const now = new Date(2026, 6, 15, 11, 3, 42);
+    expect(generateRunToken(now)).toMatch(/^\d{8}-\d{6}-[a-f0-9]{16}$/);
+
+    // And it must actually be distributed, not a constant or a counter.
+    const tokens = new Set(
+      Array.from({ length: 200 }, () => generateRunToken(now)),
+    );
+    expect(tokens.size).toBe(200);
+  });
 });
 
 describe("buildTrajectoryGroupSlug", () => {
