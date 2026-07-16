@@ -208,7 +208,7 @@ function visitSchema(schema: unknown, path: string, visited: Set<object>): void 
   const record = schema as Record<string, unknown>;
   const properties = asRecord(record.properties);
   for (const [key, value] of Object.entries(properties)) {
-    expect(key, `${path}.${key} must use snake_case`).toMatch(snakeCaseKey);
+    expect(isWirePropertyName(key), `${path}.${key} must use snake_case`).toBe(true);
     visitSchema(value, `${path}.${key}`, visited);
   }
 
@@ -224,6 +224,10 @@ function visitSchema(schema: unknown, path: string, visited: Set<object>): void 
       visitSchema(value, `${path}.${key}`, visited);
     }
   }
+}
+
+function isWirePropertyName(key: string): boolean {
+  return key.startsWith("$") || key.startsWith("_") || snakeCaseKey.test(key);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

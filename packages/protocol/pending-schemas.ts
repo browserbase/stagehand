@@ -8,6 +8,9 @@ import {
   ExtractOptionsSchema,
   ExtractResultSchema,
   GoogleServiceAccountAuthSchema,
+  LLMGenerateParamsSchema,
+  LLMGenerateResultSchema,
+  ModelConfigurationSchema,
   ModelNameSchema,
   ModelProviderSchema,
   ObserveOptionsSchema,
@@ -556,12 +559,27 @@ const browserSourceOptionKeys = [
   "browserbaseConnectOptions",
 ] as const;
 
+/** An LLM callback implemented locally by the SDK consumer. It never crosses the wire. */
+export const ClientLLMSchema = z
+  .object({
+    modelName: ModelNameSchema,
+    generate: z.function({
+      input: [LLMGenerateParamsSchema],
+      output: z.promise(LLMGenerateResultSchema),
+    }),
+  })
+  .strict()
+  .meta({ id: "ClientLLM" });
+
+export const StagehandModelOptionSchema = z.union([ModelConfigurationSchema, ClientLLMSchema]);
+
 export const StagehandOptionsSchema = z
   .object({
     localBrowserLaunchOptions: LocalBrowserLaunchOptionsSchema.optional(),
     localBrowserConnectOptions: LocalBrowserConnectOptionsSchema.optional(),
     browserbaseSessionCreateParams: BrowserbaseSessionCreateParamsSchema.optional(),
     browserbaseConnectOptions: BrowserbaseConnectOptionsSchema.optional(),
+    model: StagehandModelOptionSchema.optional(),
     telemetry: StagehandTelemetryOptionsSchema,
     selfHeal: z.boolean().optional(),
   })

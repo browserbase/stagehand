@@ -44,6 +44,8 @@ import {
   LocatorTextContentResultSchema,
   LocatorTypeParamsSchema,
   LocatorTypeResultSchema,
+  LLMGenerateParamsSchema,
+  LLMGenerateResultSchema,
   ObserveResultSchema,
   PageCloseResultSchema,
   PageGotoParamsSchema,
@@ -115,6 +117,15 @@ export const StagehandMethods = {
     name: "stagehand.metrics",
     params: EmptyParamsSchema,
     result: StagehandMetricsSchema,
+  },
+  llmGenerate: {
+    name: "llm.generate",
+    params: LLMGenerateParamsSchema,
+    result: LLMGenerateResultSchema,
+    paramsWire: {
+      opaqueKeys: ["inputSchema", "outputSchema", "input", "structuredContent", "schema"],
+    },
+    resultWire: { opaqueKeys: ["structuredContent"] },
   },
   contextPages: {
     name: "context.pages",

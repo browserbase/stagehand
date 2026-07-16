@@ -58,6 +58,29 @@ import type {
   LocatorTextContentResultSchema,
   LocatorTypeParamsSchema,
   LocatorTypeResultSchema,
+  LLMGenerateParamsSchema,
+  LLMGenerateResultSchema,
+  LLMAnnotationsSchema,
+  LLMClientToolSchema,
+  LLMImageContentSchema,
+  LLMJsonSchemaResponseFormatSchema,
+  LLMMessageSchema,
+  LLMMessageContentBlockSchema,
+  LLMMessageGenerateParamsSchema,
+  LLMMessageGenerateResultSchema,
+  LLMResponseFormatSchema,
+  LLMRoleSchema,
+  LLMStructuredGenerateParamsSchema,
+  LLMStructuredGenerateResultSchema,
+  LLMTextContentSchema,
+  LLMTextResponseFormatSchema,
+  LLMToolAnnotationsSchema,
+  LLMToolChoiceSchema,
+  LLMToolExecutionSchema,
+  LLMToolIconSchema,
+  LLMToolResultContentSchema,
+  LLMToolUseContentSchema,
+  LLMUsageSchema,
   MouseButtonSchema,
   ModelConfigObjectSchema,
   ModelConfigurationSchema,
@@ -81,6 +104,8 @@ import type {
   StagehandExtractParamsSchema,
   StagehandInitParamsSchema,
   StagehandInitResultSchema,
+  StagehandInitModelSchema,
+  StagehandClientModelReferenceSchema,
   StagehandLogDataSchema,
   StagehandLogLevelSchema,
   StagehandLogSchema,
@@ -117,6 +142,7 @@ import type {
   BrowserbaseRegionSchema,
   BrowserbaseSessionCreateParamsSchema,
   BrowserbaseViewportSchema,
+  ClientLLMSchema,
   ClearCookieOptionsSchema,
   ClientOptionsBaseSchema,
   ClientOptionsSchema,
@@ -161,6 +187,7 @@ import type {
   SessionStartResultSchema,
   SnapshotResultSchema,
   StagehandOptionsSchema,
+  StagehandModelOptionSchema,
   StreamEventLogDataSchema,
   StreamEventSchema,
   StreamEventStatusSchema,
@@ -199,6 +226,31 @@ export type ModelConfigObject = z.infer<typeof ModelConfigObjectSchema>;
 export type ModelConfiguration = z.infer<typeof ModelConfigurationSchema>;
 export type ModelName = z.infer<typeof ModelNameSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;
+export type LLMAnnotations = z.infer<typeof LLMAnnotationsSchema>;
+export type LLMClientTool = z.infer<typeof LLMClientToolSchema>;
+export type LLMImageContent = z.infer<typeof LLMImageContentSchema>;
+export type LLMJsonSchemaResponseFormat = z.infer<typeof LLMJsonSchemaResponseFormatSchema>;
+export type LLMMessage = z.infer<typeof LLMMessageSchema>;
+export type LLMMessageContentBlock = z.infer<typeof LLMMessageContentBlockSchema>;
+export type LLMMessageGenerateParams = z.infer<typeof LLMMessageGenerateParamsSchema>;
+export type LLMMessageGenerateResult = z.infer<typeof LLMMessageGenerateResultSchema>;
+export type LLMResponseFormat = z.infer<typeof LLMResponseFormatSchema>;
+export type LLMRole = z.infer<typeof LLMRoleSchema>;
+export type LLMStructuredGenerateParams = z.infer<typeof LLMStructuredGenerateParamsSchema>;
+export type LLMStructuredGenerateResult = z.infer<typeof LLMStructuredGenerateResultSchema>;
+export type LLMTextContent = z.infer<typeof LLMTextContentSchema>;
+export type LLMTextResponseFormat = z.infer<typeof LLMTextResponseFormatSchema>;
+export type LLMToolAnnotations = z.infer<typeof LLMToolAnnotationsSchema>;
+export type LLMToolChoice = z.infer<typeof LLMToolChoiceSchema>;
+export type LLMToolExecution = z.infer<typeof LLMToolExecutionSchema>;
+export type LLMToolIcon = z.infer<typeof LLMToolIconSchema>;
+export type LLMToolResultContent = z.infer<typeof LLMToolResultContentSchema>;
+export type LLMToolUseContent = z.infer<typeof LLMToolUseContentSchema>;
+export type LLMUsage = z.infer<typeof LLMUsageSchema>;
+export type LLMGenerateParams = z.infer<typeof LLMGenerateParamsSchema>;
+export type LLMGenerateResult = z.infer<typeof LLMGenerateResultSchema>;
+export type StagehandClientModelReference = z.infer<typeof StagehandClientModelReferenceSchema>;
+export type StagehandInitModel = z.infer<typeof StagehandInitModelSchema>;
 export type Action = z.infer<typeof ActionSchema>;
 export type ActOptions = z.infer<typeof ActOptionsSchema>;
 export type ActResultData = z.infer<typeof ActResultDataSchema>;
@@ -286,6 +338,7 @@ export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCr
 export type ClearCookieOptions = z.infer<typeof ClearCookieOptionsSchema>;
 export type ClientOptions = z.infer<typeof ClientOptionsSchema>;
 export type ClientOptionsBase = z.infer<typeof ClientOptionsBaseSchema>;
+export type ClientLLM = z.infer<typeof ClientLLMSchema>;
 export type ClipboardOptions = z.infer<typeof ClipboardOptionsSchema>;
 export type ClipboardPasteOptions = z.infer<typeof ClipboardPasteOptionsSchema>;
 export type Cookie = z.infer<typeof CookieSchema>;
@@ -307,6 +360,7 @@ export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
 export type ResolvedProviderClientOptions = z.infer<typeof ResolvedProviderClientOptionsSchema>;
 export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
 export type StagehandOptions = z.input<typeof StagehandOptionsSchema>;
+export type StagehandModelOption = z.infer<typeof StagehandModelOptionSchema>;
 export type ThinkingEffort = z.infer<typeof ThinkingEffortSchema>;
 export type V3FunctionName = z.infer<typeof V3FunctionNameSchema>;
 export type VertexClientOptions = z.infer<typeof VertexClientOptionsSchema>;

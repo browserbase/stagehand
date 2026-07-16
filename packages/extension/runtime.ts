@@ -2,6 +2,8 @@ import type {
   BrowserGetVersionResult,
   ContextNewPageParams,
   ContextPagesResult,
+  LLMGenerateParams,
+  LLMGenerateResult,
   LocatorClickParams,
   LocatorClickResult,
   LocatorCentroidParams,
@@ -42,9 +44,12 @@ import type {
   RuntimeConfigureParams,
   RuntimeConfigureResult,
   RuntimeLoopbackStatusResult,
+  StagehandInitParams,
+  StagehandInitResult,
 } from "../protocol/types.js";
 import type { StagehandLogEmitter } from "./logger.js";
 import { StagehandLogger } from "./logger.js";
+import { RemoteLLMClient } from "./llm/remoteLlmClient.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 
 export type UnderstudyRuntimePage = {
@@ -92,6 +97,7 @@ export type StagehandBrowserSessionFactory = (
 export type StagehandRuntimeAdapters = {
   browserSessionFactory?: StagehandBrowserSessionFactory;
   emitLog?: StagehandLogEmitter;
+  clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
 };
 
 type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
@@ -100,6 +106,13 @@ const defaultBrowserSessionFactory: StagehandBrowserSessionFactory = async () =>
   throw new Error("Stagehand browser session factory is not configured");
 };
 const discardLog: StagehandLogEmitter = () => {};
+const unavailableClientLLM = async (): Promise<never> => {
+  throw new StagehandRuntimeError(
+    "The connected SDK did not register a client-side LLM",
+    -32000,
+    "stagehand.client_llm_unavailable",
+  );
+};
 
 export function createStagehandRuntime(
   adapters: StagehandRuntimeAdapters = {},
@@ -109,6 +122,7 @@ export function createStagehandRuntime(
     {
       browserSessionFactory: adapters.browserSessionFactory ?? defaultBrowserSessionFactory,
       emitLog: adapters.emitLog ?? discardLog,
+      clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
     },
     tracing,
   );
@@ -117,6 +131,7 @@ export function createStagehandRuntime(
 export class StagehandRuntime {
   readonly logger: StagehandLogger;
   browserSession?: StagehandBrowserSession;
+  clientLLM?: RemoteLLMClient;
   pagesById = new Map<string, UnderstudyRuntimePage>();
 
   constructor(
@@ -153,6 +168,18 @@ export class StagehandRuntime {
     }
 
     return { configured: true };
+  }
+
+  async initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
+    this.clientLLM =
+      params.model && "source" in params.model
+        ? new RemoteLLMClient(params.model.modelName, this.adapters.clientLLMGenerate)
+        : undefined;
+
+    return {
+      initialized: true,
+      pages: await this.contextPages(),
+    };
   }
 
   async browserGetVersion(): Promise<BrowserGetVersionResult> {

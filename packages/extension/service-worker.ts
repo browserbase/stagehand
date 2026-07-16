@@ -1,5 +1,6 @@
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
+  StagehandMethods,
   StagehandNotifications,
 } from "../protocol/schema-registry.js";
 import { ChromeRuntimeClient } from "./clients/chromeRuntimeClient.js";
@@ -36,6 +37,10 @@ export function startStagehandServiceWorker(
           // oxlint-disable-next-line no-console
           console.error("[stagehand] Failed to emit log notification", error);
         });
+      },
+      clientLLMGenerate: async (params) => {
+        if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
+        return await rpcClient.send(StagehandMethods.llmGenerate, params);
       },
     });
 

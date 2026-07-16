@@ -9,13 +9,9 @@ import type { HandlerContext } from "../rpcRouter.js";
 import { StagehandRuntimeError, type StagehandRuntime } from "../runtime.js";
 
 export function createStagehandController(runtime: StagehandRuntime) {
-  async function init(_params: StagehandInitParams, { logger }: HandlerContext): Promise<never> {
+  async function init(params: StagehandInitParams, { logger }: HandlerContext) {
     logger.info("[stagehand] stagehand.init", {});
-    throw new StagehandRuntimeError(
-      "Method not implemented by the smoke runtime",
-      -32601,
-      "stagehand.unknown_command",
-    );
+    return await runtime.initialize(params);
   }
 
   async function close(_params: EmptyParams, { logger }: HandlerContext) {

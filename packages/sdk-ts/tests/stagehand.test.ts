@@ -176,6 +176,47 @@ describe("Stagehand", () => {
     } satisfies RPCClientOptions);
   });
 
+  it("registers a client LLM and sends its serializable model reference during initialization", async () => {
+    const rpcClient = new FakeRPCClient();
+    rpcClient.queueResponse(StagehandMethods.stagehandInit, { initialized: true, pages: [] });
+    const stagehand = createStagehandWithDependenciesForTest(
+      {
+        localBrowserConnectOptions: {
+          cdpUrl: "http://127.0.0.1:9222",
+        },
+        model: {
+          modelName: "openai/gpt-5",
+          generate: async () => ({
+            role: "assistant",
+            content: { type: "text", text: "Hello" },
+            model: "openai/gpt-5",
+            outputFormat: "text",
+          }),
+        },
+      },
+      {
+        resolveBrowserSource: async () => ({
+          cdpUrl: "http://127.0.0.1:9222",
+          keepAlive: true,
+        }),
+        connectRpcClient: async () => rpcClient,
+      },
+    );
+
+    await stagehand.init();
+
+    expect(rpcClient.requestHandlers.has("llm.generate")).toBe(true);
+    expect(rpcClient.calls).toStrictEqual([
+      {
+        method: "stagehand.init",
+        params: {
+          cdpUrl: "http://127.0.0.1:9222",
+          model: { source: "client", modelName: "openai/gpt-5" },
+        },
+      },
+    ]);
+  });
+
   it("closes the runtime, rpcClient, and owned browser source", async () => {
     const closeBrowser = vi.fn();
     const rpcClient = new FakeRPCClient();

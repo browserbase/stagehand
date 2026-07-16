@@ -27,6 +27,228 @@ export const ModelNameSchema = z
     description: "Model name with a required provider prefix (for example, 'openai/gpt-5')",
   });
 
+// These schemas follow the MCP createMessage message and content shapes, with
+// Stagehand's structured-output contract layered on top.
+export const LLMRoleSchema = z.enum(["user", "assistant"]);
+
+export const LLMAnnotationsSchema = z
+  .object({
+    audience: z.array(LLMRoleSchema).optional(),
+    priority: z.number().min(0).max(1).optional(),
+    lastModified: z.string().optional(),
+  })
+  .strict();
+
+export const LLMTextContentSchema = z
+  .object({
+    type: z.literal("text"),
+    text: z.string(),
+    annotations: LLMAnnotationsSchema.optional(),
+  })
+  .strict();
+
+export const LLMImageContentSchema = z
+  .object({
+    type: z.literal("image"),
+    data: z.base64().meta({ format: "byte" }),
+    mimeType: z.string(),
+    annotations: LLMAnnotationsSchema.optional(),
+  })
+  .strict();
+
+export const LLMToolUseContentSchema = z
+  .object({
+    type: z.literal("tool_use"),
+    id: z.string(),
+    name: z.string(),
+    input: z.record(z.string(), z.json()),
+  })
+  .strict();
+
+const LLMToolResultContentBlockSchema = z.discriminatedUnion("type", [
+  LLMTextContentSchema,
+  LLMImageContentSchema,
+]);
+
+export const LLMToolResultContentSchema = z
+  .object({
+    type: z.literal("tool_result"),
+    toolUseId: z.string(),
+    content: z.array(LLMToolResultContentBlockSchema),
+    structuredContent: z.record(z.string(), z.json()).optional(),
+    isError: z.boolean().optional(),
+  })
+  .strict();
+
+export const LLMMessageContentBlockSchema = z.discriminatedUnion("type", [
+  LLMTextContentSchema,
+  LLMImageContentSchema,
+  LLMToolUseContentSchema,
+  LLMToolResultContentSchema,
+]);
+
+export const LLMMessageSchema = z
+  .object({
+    role: LLMRoleSchema,
+    content: z.union([LLMMessageContentBlockSchema, z.array(LLMMessageContentBlockSchema)]),
+  })
+  .strict();
+
+export const LLMToolAnnotationsSchema = z
+  .object({
+    title: z.string().optional(),
+    readOnlyHint: z.boolean().optional(),
+    destructiveHint: z.boolean().optional(),
+    idempotentHint: z.boolean().optional(),
+    openWorldHint: z.boolean().optional(),
+  })
+  .strict();
+
+export const LLMToolExecutionSchema = z
+  .object({
+    taskSupport: z.enum(["forbidden", "optional", "required"]).optional(),
+  })
+  .strict();
+
+export const LLMToolIconSchema = z
+  .object({
+    src: z.url(),
+    mimeType: z.string().optional(),
+    sizes: z.array(z.string()).optional(),
+    theme: z.enum(["light", "dark"]).optional(),
+  })
+  .strict();
+
+const LLMToolJsonSchema = z
+  .object({
+    $schema: z.string().optional(),
+    type: z.literal("object"),
+    properties: z.record(z.string(), z.record(z.string(), z.json())).optional(),
+    required: z.array(z.string()).optional(),
+  })
+  .strict();
+
+export const LLMClientToolSchema = z
+  .object({
+    name: z.string(),
+    title: z.string().optional(),
+    icons: z.array(LLMToolIconSchema).optional(),
+    description: z.string().optional(),
+    inputSchema: LLMToolJsonSchema,
+    execution: LLMToolExecutionSchema.optional(),
+    outputSchema: LLMToolJsonSchema.optional(),
+    annotations: LLMToolAnnotationsSchema.optional(),
+  })
+  .strict();
+
+export const LLMToolChoiceSchema = z
+  .object({
+    mode: z.enum(["auto", "required", "none"]).optional(),
+  })
+  .strict();
+
+export const LLMTextResponseFormatSchema = z
+  .object({
+    type: z.literal("text"),
+  })
+  .strict();
+
+export const LLMJsonSchemaResponseFormatSchema = z
+  .object({
+    type: z.literal("json_schema"),
+    name: z.string(),
+    description: z.string().optional(),
+    schema: z.json(),
+  })
+  .strict();
+
+export const LLMResponseFormatSchema = z.discriminatedUnion("type", [
+  LLMTextResponseFormatSchema,
+  LLMJsonSchemaResponseFormatSchema,
+]);
+
+const LLMGenerateBaseParamsSchema = z
+  .object({
+    messages: z.array(LLMMessageSchema),
+    systemPrompt: z.string().optional(),
+    temperature: z.number().optional(),
+    stopSequences: z.array(z.string()).optional(),
+  })
+  .strict();
+
+export const LLMMessageGenerateParamsSchema = LLMGenerateBaseParamsSchema.extend({
+  tools: z.array(LLMClientToolSchema).optional(),
+  toolChoice: LLMToolChoiceSchema.optional(),
+  responseFormat: LLMTextResponseFormatSchema.optional(),
+}).strict();
+
+export const LLMStructuredGenerateParamsSchema = LLMGenerateBaseParamsSchema.extend({
+  responseFormat: LLMJsonSchemaResponseFormatSchema,
+}).strict();
+
+export const LLMGenerateParamsSchema = z.union([
+  LLMStructuredGenerateParamsSchema,
+  LLMMessageGenerateParamsSchema,
+]);
+
+export const LLMUsageSchema = z
+  .object({
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    totalTokens: z.number().int().nonnegative(),
+    reasoningTokens: z.number().int().nonnegative().optional(),
+    cachedInputTokens: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+const LLMGenerateBaseResultSchema = z
+  .object({
+    role: LLMRoleSchema,
+    content: z.union([LLMMessageContentBlockSchema, z.array(LLMMessageContentBlockSchema)]),
+    model: ModelNameSchema,
+    stopReason: z.string().optional(),
+    usage: LLMUsageSchema.optional(),
+  })
+  .catchall(z.json());
+
+export const LLMMessageGenerateResultSchema = LLMGenerateBaseResultSchema.extend({
+  outputFormat: z.literal("text"),
+});
+
+export const LLMStructuredGenerateResultSchema = LLMGenerateBaseResultSchema.extend({
+  outputFormat: z.literal("json_schema"),
+  structuredContent: z.json(),
+});
+
+export const LLMGenerateResultSchema = z.discriminatedUnion("outputFormat", [
+  LLMMessageGenerateResultSchema,
+  LLMStructuredGenerateResultSchema,
+]);
+
+/**
+ * Builds the result validator for a particular llm.generate request.
+ *
+ * Prefer the original in-memory Zod schema. When only the wire JSON Schema is
+ * available, Zod can recreate an equivalent validator.
+ */
+export function createLLMGenerateResultSchema(
+  params: z.output<typeof LLMGenerateParamsSchema>,
+  originalStructuredContentSchema?: z.ZodType,
+) {
+  if (params.responseFormat?.type !== "json_schema") {
+    return LLMMessageGenerateResultSchema;
+  }
+
+  const structuredContentSchema =
+    originalStructuredContentSchema ??
+    z.fromJSONSchema(params.responseFormat.schema as Parameters<typeof z.fromJSONSchema>[0]);
+
+  return LLMGenerateBaseResultSchema.extend({
+    outputFormat: z.literal("json_schema"),
+    structuredContent: structuredContentSchema,
+  });
+}
+
 export const VariablePrimitiveSchema = z
   .union([z.string(), z.number(), z.boolean()])
   .meta({ id: "VariablePrimitive" });
@@ -327,6 +549,19 @@ export const ModelConfigurationSchema = ModelConfigObjectSchema.meta({
   id: "ModelConfiguration",
 });
 
+/** Serializable reference to an LLM implemented by the connected Stagehand client. */
+export const StagehandClientModelReferenceSchema = z
+  .object({
+    source: z.literal("client"),
+    modelName: ModelNameSchema,
+  })
+  .strict()
+  .meta({ id: "StagehandClientModelReference" });
+
+export const StagehandInitModelSchema = z
+  .union([ModelConfigurationSchema, StagehandClientModelReferenceSchema])
+  .meta({ id: "StagehandInitModel" });
+
 /** Action object returned by observe and used by act */
 export const ActionSchema = z
   .object({
@@ -556,7 +791,7 @@ export const LocatorDescriptorSchema = z
 export const StagehandInitParamsSchema = z
   .object({
     cdpUrl: z.string().min(1),
-    model: ModelConfigurationSchema.optional(),
+    model: StagehandInitModelSchema.optional(),
     sessionId: z.string().optional(),
     systemPrompt: z.string().optional(),
     logInferenceToFile: z.boolean().optional(),

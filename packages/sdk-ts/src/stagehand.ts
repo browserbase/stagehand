@@ -17,6 +17,7 @@ export class Stagehand {
   isInitialized = false;
   rpcClient: RPCClient | undefined;
   removeNotificationListener: (() => void) | undefined;
+  removeClientLLMHandler: (() => void) | undefined;
   browser: ResolvedBrowserSource | undefined;
 
   constructor(readonly options: StagehandOptions) {}
@@ -52,8 +53,35 @@ export class Stagehand {
       });
       this.rpcClient = rpcClient;
       this.removeNotificationListener = rpcClient.onNotification(renderStagehandNotification);
+      if (parsedOptions.model) {
+        const model =
+          "generate" in parsedOptions.model
+            ? {
+                source: "client" as const,
+                modelName: parsedOptions.model.modelName,
+              }
+            : parsedOptions.model;
+
+        if ("generate" in parsedOptions.model) {
+          this.removeClientLLMHandler = rpcClient.onRequest(
+            StagehandMethods.llmGenerate,
+            parsedOptions.model.generate,
+          );
+        }
+
+        await rpcClient.send(StagehandMethods.stagehandInit, {
+          cdpUrl: browser.cdpUrl,
+          model,
+        });
+      }
       this.browserContext = new BrowserContext(rpcClient);
     } catch (error) {
+      this.removeClientLLMHandler?.();
+      this.removeClientLLMHandler = undefined;
+      this.removeNotificationListener?.();
+      this.removeNotificationListener = undefined;
+      this.rpcClient?.close();
+      this.rpcClient = undefined;
       await this.closeBrowserSource();
       throw error;
     }
@@ -68,6 +96,8 @@ export class Stagehand {
         await this.rpcClient?.send(StagehandMethods.stagehandClose, {});
       }
     } finally {
+      this.removeClientLLMHandler?.();
+      this.removeClientLLMHandler = undefined;
       this.removeNotificationListener?.();
       this.removeNotificationListener = undefined;
       this.rpcClient?.close();

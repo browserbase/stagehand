@@ -49,23 +49,26 @@ export function renameJsonSchemaProperties(value: unknown): unknown {
   const properties = value.properties;
 
   if (isRecord(properties)) {
-    renamed.properties = snakecaseKeys(
-      Object.fromEntries(
-        Object.entries(properties).map(([key, entry]) => [key, renameJsonSchemaProperties(entry)]),
-      ),
+    renamed.properties = Object.fromEntries(
+      Object.entries(properties).map(([key, entry]) => [
+        toWirePropertyName(key),
+        renameJsonSchemaProperties(entry),
+      ]),
     );
   }
 
   if (Array.isArray(value.required)) {
-    const required = Object.fromEntries(
-      value.required
-        .filter((key): key is string => typeof key === "string")
-        .map((key) => [key, null]),
-    );
-    renamed.required = Object.keys(snakecaseKeys(required));
+    renamed.required = value.required
+      .filter((key): key is string => typeof key === "string")
+      .map(toWirePropertyName);
   }
 
   return renamed;
+}
+
+function toWirePropertyName(key: string): string {
+  if (key.startsWith("$") || key.startsWith("_")) return key;
+  return Object.keys(snakecaseKeys({ [key]: null }, { deep: false }))[0] ?? key;
 }
 
 function findOpaquePaths(value: unknown, additionalOpaqueKeys: readonly string[] = []): string[] {
