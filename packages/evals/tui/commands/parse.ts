@@ -489,11 +489,10 @@ export function resolveRunOptions(
 }
 
 /**
- * Env vars an eval run stamps directly onto `process.env` from inside the run
- * (see `framework/trajectoryGroup.ts`). They can't be passed in as `overrides`
- * because their values are only derived once the run has generated its testcases
- * — but the REPL still must not leak them into the next command, so they are
- * always snapshotted and restored even though they are never set here.
+ * Env vars a run stamps onto `process.env` from the inside (see
+ * `framework/trajectoryGroup.ts`). Their values are only known once the run has
+ * generated its testcases, so they can't be passed as `overrides` — but the REPL
+ * still must not leak them, so they are restored even though we never set them.
  */
 const RUN_STAMPED_ENV_KEYS = [
   "EVAL_TRAJECTORY_GROUP",

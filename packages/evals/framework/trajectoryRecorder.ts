@@ -63,20 +63,15 @@ export class TrajectoryRecorder {
   private readonly taskSpec: TaskSpec;
   private readonly runId: string;
   private readonly outputRoot: string;
-  // Captured at construction: the runner restamps EVAL_TRAJECTORY_GROUP per
-  // experiment, so a recorder must write under the group it was created for
-  // even if it finishes after the env moves on.
+  // Captured at construction: the env group is restamped per run, so a recorder
+  // must write under the group it was created for even if it finishes later.
   private readonly group: string;
-  // The on-disk reservation, made once (idempotently) by ensureReserved().
-  // Single-flight: this caches the in-flight PROMISE, not the resolved value.
-  // Caching only the result would leave a check-then-await window in which two
-  // overlapping callers both observe `undefined`, both reserve, and land in two
-  // different dirs (the second taking a `-2` suffix) — splitting one recorder's
-  // artifacts across two run dirs.
+  // Caches the in-flight PROMISE, not the resolved value: caching the result would
+  // leave a check-then-await window where two overlapping callers each reserve, and
+  // one recorder's artifacts split across two run dirs.
   private reservation?: Promise<{ directory: string; attempt: number }>;
-  // Reassigned by ensureReserved(): the constructor computes the un-reserved
-  // path for the `directory` getter; the reservation replaces it with the dir
-  // actually created on disk (which may carry a -2/-3 collision suffix).
+  // Starts as the un-reserved path for the `directory` getter; ensureReserved()
+  // replaces it with the dir actually created (which may carry a -2/-3 suffix).
   private outputDir: string;
   private readonly persistEnabled: boolean;
 
@@ -250,22 +245,17 @@ export class TrajectoryRecorder {
   }
 
   /**
-   * Persist evaluator result next to the trajectory. No-op when trajectory
-   * persistence is disabled.
-   */
-  /**
-   * Reserve this recorder's on-disk directory exactly once. Reservation
-   * happens at first persistence (not construction) so collision resolution
-   * sees dirs concurrent recorders have actually created; the cached result
-   * keeps finish() idempotent and makes finish()/persistResult() order-free.
+   * Reserve this recorder's on-disk directory exactly once. Reserved at first
+   * persistence rather than construction, so collision resolution sees dirs
+   * concurrent recorders have actually created; caching keeps finish() idempotent
+   * and makes finish()/persistResult() order-free.
    */
   private ensureReserved(): Promise<{
     directory: string;
     attempt: number;
   }> {
-    // Assign the promise synchronously, before any await, so concurrent callers
-    // observe it and share the single reservation rather than racing to make
-    // two. (Do not `await` inside the `if` — that reintroduces the window.)
+    // Assigned synchronously, before any await, so concurrent callers share the one
+    // reservation. Do not `await` inside the `if` — that reopens the race.
     if (!this.reservation) {
       this.reservation = reserveTrajectoryDir(
         this.outputRoot,
@@ -278,8 +268,7 @@ export class TrajectoryRecorder {
           return reserved;
         })
         .catch((err) => {
-          // Don't cache a rejection: a later persist attempt should be able to
-          // retry rather than inherit this failure forever.
+          // Don't cache a rejection; a later attempt should be able to retry.
           this.reservation = undefined;
           throw err;
         });
@@ -287,6 +276,10 @@ export class TrajectoryRecorder {
     return this.reservation;
   }
 
+  /**
+   * Persist evaluator result next to the trajectory. No-op when trajectory
+   * persistence is disabled.
+   */
   async persistResult(
     result: EvaluationResult,
     filename = "result.json",

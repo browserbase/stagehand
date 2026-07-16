@@ -10,17 +10,15 @@ describe("previousMonthFirstDayLabel", () => {
   });
 
   it("rolls back to December of the PRIOR year in January", () => {
-    // The bug this guards: a year-less "Dec 1" would read as ~11 months in the
-    // future. The year must roll back with the month.
+    // A year-less "Dec 1" would read as ~11 months in the future.
     expect(previousMonthFirstDayLabel(new Date(2026, 0, 10))).toBe(
       "Dec 1, 2025",
     );
   });
 
   it("does not overflow when the current day exceeds the previous month's length", () => {
-    // The classic setMonth() trap: shifting the month on Mar 31 asks for
-    // "Feb 31" and overflows forward into March. Pinning the day to 1 first
-    // (or building from parts) must yield Feb, not Mar.
+    // The setMonth() trap: shifting the month on Mar 31 asks for "Feb 31" and
+    // overflows into March.
     expect(previousMonthFirstDayLabel(new Date(2026, 2, 31))).toBe(
       "Feb 1, 2026",
     );
@@ -37,8 +35,7 @@ describe("previousMonthFirstDayLabel", () => {
   });
 
   it("is always in the past and within WebMD's ~90-day accepted window", () => {
-    // The whole reason the hardcoded date was replaced: the generated date must
-    // stay inside the site's rolling window no matter when the eval runs.
+    // The date must stay in the site's window no matter when the eval runs.
     for (let month = 0; month < 12; month++) {
       for (const day of [1, 15, 28, 31]) {
         const now = new Date(2026, month, day);

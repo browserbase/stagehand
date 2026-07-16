@@ -50,9 +50,7 @@ describe("sanitizeSlug", () => {
   });
 
   it("rejects path-special pure-dot values so a group can't escape the root", () => {
-    // ".." would make <root>/../<task> write a level ABOVE the trajectory root,
-    // and "." would collapse the group into the root itself (re-scattering
-    // trajectories and sharing one experiment.json across every run).
+    // ".." writes above the root; "." collapses the group into it.
     for (const raw of ["..", ".", "...", "__..__", " .. "]) {
       expect(sanitizeSlug(raw)).toBe("");
     }
@@ -91,10 +89,7 @@ describe("generateRunToken", () => {
   });
 
   it("uses 64 bits of real entropy, not just enough to look random", () => {
-    // The tests above inject entropy, so they'd still pass if the DEFAULT width
-    // shrank. Assert the real default: the timestamp is only second-granular, so
-    // this width is the only thing separating same-second runs of one
-    // experiment+model. 8 bytes => 16 hex chars.
+    // The tests above inject entropy, so they'd pass even if the default shrank.
     const now = new Date(2026, 6, 15, 11, 3, 42);
     expect(generateRunToken(now)).toMatch(/^\d{8}-\d{6}-[a-f0-9]{16}$/);
 
@@ -168,10 +163,9 @@ describe("resolveUnambiguousModel", () => {
   });
 
   it("omits a core-only model list", () => {
-    // A single "none" is the real core-only shape (runner.ts stamps exactly
-    // `modelName: "none"` on every core testcase). It is also the ONLY input that
-    // proves the sentinel filter exists: a 2+ element list would return undefined
-    // from the size check alone, whether or not "none" is filtered.
+    // A single "none" is the real core-only shape, and the only input that proves
+    // the sentinel filter exists: 2+ elements return undefined from the size check
+    // alone, filtered or not.
     expect(resolveUnambiguousModel(["none"])).toBeUndefined();
     expect(resolveUnambiguousModel(["none", "NONE", " none "])).toBeUndefined();
   });
@@ -195,10 +189,9 @@ describe("resolveUnambiguousModel", () => {
 
 describe("writeExperimentLink", () => {
   /**
-   * Simulate a task having persisted a trajectory into `group`. The link is only
-   * written into a group that actually recorded something, so every positive
-   * case has to establish that precondition the way a real run would: the first
-   * trajectory reservation creates `<root>/<group>/<task>/<runId>`.
+   * Simulate a task having persisted a trajectory into `group`. The link only lands
+   * in a group that recorded something, so positive cases must establish that
+   * precondition the way a real reservation does.
    */
   async function recordTrajectory(
     root: string,
@@ -265,9 +258,8 @@ describe("writeExperimentLink", () => {
   });
 
   it("skips a group that recorded no trajectory instead of leaving an empty tree", async () => {
-    // The core-only / non-agent-category case: persistence is on, the run
-    // completed, but nothing was ever recorded — so there is no group dir and the
-    // link must not create one just to hold an orphan experiment.json.
+    // Core-only / non-agent categories: persistence on, but nothing recorded — so
+    // no group dir, and the link must not create one to hold an orphan.
     process.env.VERIFIER_PERSIST_TRAJECTORIES = "1";
     const root = await makeTempDir();
 

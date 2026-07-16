@@ -354,12 +354,8 @@ export async function runEvals(
     testcases.map((testcase) => testcase.input?.modelName),
   );
 
-  // Stamp the run-scoped trajectory group + run metadata so every task in this
-  // run lands under one folder (`<root>/<experiment>[__<model>]__<runToken>/...`)
-  // with a metadata.json, instead of scattered per-task timestamps. The run token
-  // is generated ONCE here and reused for the completion-time experiment link, so
-  // a re-run of the same suite can't clobber the previous run's experiment.json.
-  // Local persistence only — does not affect Braintrust experiment naming.
+  // Stamp the run-scoped trajectory group; the token is generated once here and
+  // reused for the completion-time experiment link. Local persistence only.
   const trajectoryGroup = buildTrajectoryGroupSlug({
     experimentName,
     model: runModel,

@@ -333,10 +333,8 @@ describe("TrajectoryRecorder", () => {
     });
     recordSimpleStep(recorder, Buffer.from("only"));
 
-    // Kick both off WITHOUT awaiting in between. If ensureReserved() cached the
-    // resolved value instead of the in-flight promise, both calls would observe
-    // no reservation, both would reserve, and this one recorder's artifacts
-    // would split across `run-1` and `run-1-2`.
+    // No await in between: if ensureReserved() cached the resolved value rather
+    // than the in-flight promise, these would split across run-1 and run-1-2.
     await Promise.all([
       recorder.finish({ status: "complete" }),
       recorder.persistResult({
@@ -368,9 +366,8 @@ describe("TrajectoryRecorder", () => {
     });
     recordSimpleStep(recorder, Buffer.from("only"));
 
-    // Deliberately REVERSED vs the adapter's order: score first, then finish.
-    // finish() writes task_data.json/trajectory.json/screenshots; persistResult()
-    // writes scores/result.json. They must not clobber each other in either order.
+    // Reversed vs the adapter's order: score first, then finish. Neither write
+    // may clobber the other.
     await recorder.persistResult({
       outcomeSuccess: true,
       explanation: "The task was completed.",

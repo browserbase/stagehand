@@ -352,27 +352,19 @@ const generateFilteredTestcases = (): Testcase[] => {
     process.env.CI === "true" ? "stagehand" : "stagehand-dev";
 
   try {
-    // Materialize the testcases before Eval() rather than letting Eval() call
-    // the generator lazily: the trajectory group has to be stamped into the env
-    // before any task (and therefore any TrajectoryRecorder) is constructed, and
-    // the group's model can only be derived from the testcases that will run.
-    // This stays INSIDE the try so a dataset-loading failure (the suite builders
-    // read .jsonl files from disk) is still reported by the catch below instead
-    // of escaping as an unhandled rejection.
+    // Materialized rather than passed to Eval() as a lazy generator: the group must
+    // be stamped before any TrajectoryRecorder is constructed, and its model can
+    // only come from the testcases that will run. Stays inside the try so a
+    // dataset-load failure is still reported by the catch below.
     const testcases = generateFilteredTestcases();
-    // The model is only recorded when it is unambiguous for the whole run. A
-    // run-global EVAL_MODEL_OVERRIDE does NOT drive the model matrix, so it
-    // cannot stand in for the model that actually ran.
+    // EVAL_MODEL_OVERRIDE does not drive the model matrix, so it can't stand in for
+    // the model that actually ran.
     const runModel = resolveUnambiguousModel(
       testcases.map((testcase) => testcase.input?.modelName),
     );
 
-    // Stamp the run-scoped trajectory group so every task in this run lands under
-    // one folder (`<root>/<experiment>[__<model>]__<runToken>/...`) instead of
-    // scattered per-task timestamps. The run token is generated ONCE here and
-    // reused at completion time, so re-running the same suite can't clobber the
-    // previous run's experiment.json. Local persistence only — does not affect
-    // Braintrust.
+    // Stamp the run-scoped trajectory group; the token is generated once here and
+    // reused at completion time. Local persistence only.
     const trajectoryGroup = buildTrajectoryGroupSlug({
       experimentName,
       model: runModel,
@@ -380,8 +372,7 @@ const generateFilteredTestcases = (): Testcase[] => {
     });
     process.env.EVAL_EXPERIMENT_NAME = experimentName;
     process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
-    // Absent beats wrong: on a multi-model run there is no single model to
-    // report, so clear any value a previous run left behind.
+    // Absent beats wrong: clear any model a previous run left behind.
     if (runModel) process.env.EVAL_TRAJECTORY_MODEL = runModel;
     else delete process.env.EVAL_TRAJECTORY_MODEL;
 

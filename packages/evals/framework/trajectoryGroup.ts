@@ -4,27 +4,16 @@ import path from "node:path";
 import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
 
 /**
- * Local-persistence grouping for trajectories.
- *
- * Trajectories used to be written at `<root>/<per-task-timestamp>/<task.id>/`,
- * which meant a single eval run's tasks were scattered across timestamp dirs
- * and — when two models ran the same suite concurrently — interleaved into the
- * same root with no on-disk marker of which run they belonged to. Recovering
- * the grouping after the fact required guessing by timestamp.
- *
- * This module lets the eval entrypoint stamp a run-scoped group (the experiment
- * name, the model when it is unambiguous, plus a run token) into the env once,
- * so every task in that run lands under
+ * Local-persistence grouping for trajectories. The entrypoint stamps a run-scoped
+ * group into the env once, so every task in a run lands under
  * `<root>/<experiment>[__<model>]__<runToken>/<task.id>/<run-timestamp>/`.
  *
- * The run token is what makes the group *run-unique*: the experiment name is
- * deterministic (e.g. "agent" or "all"), so without it a re-run of the same
- * suite would land in the same group dir and clobber its `experiment.json`,
- * silently relabelling the earlier run's trajectories with the newer run's
- * Braintrust provenance.
+ * The run token is what makes the group run-unique: `generateExperimentName` is
+ * deterministic ("agent", "all"), so without it a re-run would reuse the group dir
+ * and clobber its `experiment.json`, relabelling the earlier run's trajectories
+ * with the newer run's Braintrust provenance.
  *
- * This is purely a local on-disk concern; it does not affect Braintrust
- * experiment naming or metadata.
+ * Local on-disk concern only; does not affect Braintrust naming or metadata.
  */
 
 const GROUP_ENV = "EVAL_TRAJECTORY_GROUP";
@@ -36,17 +25,9 @@ const ENVIRONMENT_ENV = "EVAL_ENV";
 /**
  * Filesystem-safe slug: collapse anything outside [A-Za-z0-9._-] to "_".
  *
- * Path separators are already collapsed to "_" by the whitelist, but a value of
- * pure dots survives it (".", ".." are all whitelisted characters) and would be
- * interpreted by `path.join` as a path component rather than a name:
- *   - ".."  escapes the trajectory root entirely (`<root>/../<task>` writes a
- *     level ABOVE the root, and the best-effort `catch` would hide it), and
- *   - "."   collapses the group into the root, re-scattering trajectories at the
- *     top level and sharing one `experiment.json` across every run — exactly the
- *     two states this module exists to prevent.
- * `EVAL_TRAJECTORY_GROUP` is caller-supplied (integrations may set any value), so
- * reject those here. Returning "" lets callers fall through to the "default"
- * floor in `resolveTrajectoryGroup`.
+ * Dots are whitelisted, so a pure-dot value survives as a path component: ".."
+ * escapes the root, "." collapses the group into it. The group is caller-supplied,
+ * so reject those; "" falls through to the "default" floor.
  */
 export function sanitizeSlug(value: string): string {
   const slug = value
@@ -56,29 +37,18 @@ export function sanitizeSlug(value: string): string {
   return /^\.+$/.test(slug) ? "" : slug;
 }
 
-/** Random bytes appended to a run token. See RUN_TOKEN_ENTROPY_BYTES rationale. */
+/** 2^64 — the timestamp is only second-granular, so this separates same-second runs. */
 const RUN_TOKEN_ENTROPY_BYTES = 8;
 
 /**
- * A compact, sortable, filesystem-safe, collision-resistant token identifying a
- * single run, e.g. "20260715-110342-9f3a1c2b4d6e8f01" (local time followed by
- * random entropy). Generate this EXACTLY ONCE per run in the entrypoint and reuse
- * it — calling it twice within one run would split that run's trajectories across
- * two group dirs.
+ * Sortable, collision-resistant token identifying one run, e.g.
+ * "20260715-110342-9f3a1c2b4d6e8f01". Generate EXACTLY ONCE per run and reuse it;
+ * calling it twice would split the run across two group dirs.
  *
- * The timestamp alone is only second-granular, so the entropy is what actually
- * separates two runs of the same experiment+model started in the same second.
- * 8 bytes (2^64) keeps the birthday-collision probability negligible even at
- * absurd concurrency (~3e-14 for 1000 simultaneous starts, vs ~3% for 3 bytes) —
- * the width is essentially free here, so it is sized for the pathological case
- * rather than the realistic one (2-8 concurrent runs).
- *
- * Note this is deliberately NOT an atomic group-dir reservation: reserving the
- * group up front would require the entrypoint to create `<root>/<group>/` before
- * any task runs, which would defeat `writeExperimentLink`'s "group dir exists =>
- * something was recorded" backstop and bring empty group dirs back. Reservation
- * stays where it can be atomic without that cost: the per-trajectory leaf dir
- * (`reserveTrajectoryDir`).
+ * Not an atomic group-dir reservation: reserving up front means creating
+ * `<root>/<group>/` before any task runs, which would defeat writeExperimentLink's
+ * "dir exists => something was recorded" check. Atomic reservation stays on the
+ * per-trajectory leaf (`reserveTrajectoryDir`).
  */
 export function generateRunToken(
   now: Date = new Date(),
@@ -213,27 +183,15 @@ async function isDirectory(dir: string): Promise<boolean> {
 }
 
 /**
- * Write `<root>/<group>/experiment.json`, cross-linking the local trajectories
- * to the resolved Braintrust experiment (name + hash, id, URLs). The resolved
- * name is only known after `Eval()` finishes, so this is a one-time write from
- * the entrypoint — not per task. Best-effort.
+ * Write `<root>/<group>/experiment.json`, cross-linking local trajectories to the
+ * resolved Braintrust experiment — known only after `Eval()` finishes, so this is a
+ * one-time best-effort write from the entrypoint. `group` is explicit rather than
+ * re-read from env, so the link lands on the group the caller recorded into.
  *
- * The `group` is passed explicitly (same discipline as `reserveTrajectoryDir`)
- * rather than re-derived from env at completion time, so the link always lands
- * on the group the caller actually recorded into.
- *
- * Never leaves behind a `.trajectories/<group>/` tree containing nothing but an
- * `experiment.json`. Two independent guards, because they answer different
- * questions:
- *  - persistence off (or explicitly disabled by the caller, e.g. a core-only
- *    run): nothing will be recorded, so skip without even touching the disk.
- *  - the group dir does not exist: nothing WAS recorded. The dir is created by
- *    the first trajectory reservation, so its absence means no task in this run
- *    persisted one — a core-only run, a legacy run of non-agent categories
- *    (act/extract/combination never construct a TrajectoryRecorder), or a run
- *    whose tasks all failed before persisting. This is the universal backstop:
- *    it holds for any entrypoint without needing a tier signal.
- * Both gates live here — the single choke point — so a caller can't forget them.
+ * Skipped when persistence is off (nothing will be recorded) or the group dir is
+ * missing (nothing was — covers core-only runs, non-agent categories and
+ * all-failed runs without needing a tier signal), so no group is left holding
+ * nothing but an experiment.json.
  */
 export async function writeExperimentLink(
   root: string,
@@ -246,8 +204,7 @@ export async function writeExperimentLink(
   const payload = { ...trajectoryRunMetadata(), ...link };
   if (Object.keys(payload).length === 0) return;
   try {
-    // Deliberately NOT mkdir: the dir must already exist (i.e. a trajectory
-    // landed in it) for the link to be meaningful.
+    // Deliberately NOT mkdir — see the doc comment.
     if (!(await isDirectory(dir))) return;
     await fs.writeFile(
       path.join(dir, "experiment.json"),
@@ -262,8 +219,7 @@ export async function writeExperimentLink(
 export function trajectoryRunMetadata(): Record<string, string> {
   const fields: Record<string, string | undefined> = {
     experiment: process.env[EXPERIMENT_ENV],
-    // EVAL_MODEL_OVERRIDE is a request; this is the actual model resolved for
-    // the run and is stamped by an entrypoint only when it is unambiguous.
+    // Not EVAL_MODEL_OVERRIDE: that's a request. This is stamped only when resolved.
     model: process.env[TRAJECTORY_MODEL_ENV],
     provider: process.env[PROVIDER_ENV],
     environment: process.env[ENVIRONMENT_ENV],
