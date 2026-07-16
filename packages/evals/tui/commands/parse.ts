@@ -490,6 +490,18 @@ export function resolveRunOptions(
 }
 
 /**
+ * Env vars a run stamps onto `process.env` from the inside (see
+ * `framework/trajectoryGroup.ts`). Their values are only known once the run has
+ * generated its testcases, so they can't be passed as `overrides` — but the REPL
+ * still must not leak them, so they are restored even though we never set them.
+ */
+const RUN_STAMPED_ENV_KEYS = [
+  "EVAL_TRAJECTORY_GROUP",
+  "EVAL_EXPERIMENT_NAME",
+  "EVAL_TRAJECTORY_MODEL",
+];
+
+/**
  * Set env overrides for the duration of `fn` and restore prior values in
  * a `finally` block. Needed because the REPL is a long-lived process and
  * suites/*.ts read env vars directly — unscoped mutations would leak
@@ -499,11 +511,15 @@ export async function withEnvOverrides<T>(
   overrides: Record<string, string>,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const keys = Object.keys(overrides);
+  // Restore the run-stamped keys too, not just the ones we set: otherwise a run's
+  // trajectory group survives the command that created it.
+  const keys = [
+    ...new Set([...Object.keys(overrides), ...RUN_STAMPED_ENV_KEYS]),
+  ];
   const previous: Record<string, string | undefined> = {};
   for (const key of keys) {
     previous[key] = process.env[key];
-    process.env[key] = overrides[key];
+    if (key in overrides) process.env[key] = overrides[key];
   }
   try {
     return await fn();

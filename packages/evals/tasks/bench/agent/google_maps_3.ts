@@ -23,7 +23,7 @@ export default defineBenchTask(
         instruction,
         initUrl,
         precomputedRubric: adHocRubric(
-          "Does the page show a locksmiths open now but not open 24 hours in Texas City?",
+          "Did the agent identify locksmiths in Texas City that are open now but not open 24 hours? Full credit if the agent applies an 'Open now' filter (or equivalent) on Google Maps and reports the locksmiths that are open now while explicitly excluding those marked 'Open 24 hours'. Google Maps has no filter to exclude 24-hour businesses, so the results page may still list some; the agent satisfies the task by correctly distinguishing and reporting the non-24-hour subset. Partial credit for applying the 'Open now' filter but not separating out the 24-hour businesses.",
         ),
       };
 

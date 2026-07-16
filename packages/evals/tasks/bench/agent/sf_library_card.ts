@@ -11,7 +11,12 @@ export default defineBenchTask(
   { name: "agent/sf_library_card" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
-      const initUrl = "https://sflib1.sfpl.org/selfreg";
+      // SFPL migrated self-registration off sflib1.sfpl.org/selfreg — that URL
+      // now 301s to the card-application form on the main site. Point initUrl at
+      // the live form directly so the agent starts there AND the verifier's
+      // "Starting URL" matches the final URL (the stale redirect target was read
+      // as off-site drift and produced a false-negative on this URL-agnostic task).
+      const initUrl = "https://sfpl.org/welcome-new-cardholders/application";
       const page = v3.context.pages()[0];
       await page.goto(initUrl);
 
@@ -33,7 +38,7 @@ export default defineBenchTask(
         taskSpec,
         dataset: "agent-custom",
         agentOptions: {
-          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 1,
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,
         },
       });
 

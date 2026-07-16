@@ -4,6 +4,12 @@ import {
   shouldPersistTrajectory,
   writeTrajectoryDir,
 } from "@browserbasehq/stagehand";
+import {
+  reserveTrajectoryDir,
+  resolveTrajectoryDir,
+  resolveTrajectoryRoot,
+  writeTrajectoryMetadata,
+} from "../trajectoryGroup.js";
 import type {
   EvaluationResult,
   TaskSpec,
@@ -16,7 +22,10 @@ export interface PersistAdapterTrajectoryOptions {
   /** EvaluationResult from V3Evaluator.verify(). Written to scores/result.json. */
   evaluationResult?: EvaluationResult;
   /**
-   * Output directory root. Final layout lives at `<outputRoot>/<runId>/<task.id>/`.
+   * Output directory root. Final layout lives at
+   * `<outputRoot>/<group>/<task.id>/<runId>/`. Entrypoints normally generate
+   * `<experiment>[__<model>]__<runToken>` (model only when unambiguous), but
+   * integrations may set EVAL_TRAJECTORY_GROUP to any value.
    * Defaults to `<cwd>/.trajectories`.
    */
   outputRoot?: string;
@@ -47,15 +56,35 @@ export async function persistAdapterTrajectory(
   opts: PersistAdapterTrajectoryOptions,
 ): Promise<PersistAdapterTrajectoryResult> {
   const runId = opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
-  const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
-  const directory = path.join(root, runId, opts.taskSpec.id);
+  // Same env-aware resolution as TrajectoryRecorder, so EVAL_TRAJECTORY_ROOT
+  // cannot split recorder- and adapter-persisted trajectories across roots.
+  const root = opts.outputRoot ?? resolveTrajectoryRoot();
   const persisted = shouldPersistTrajectory(opts.persist);
 
   if (!persisted) {
-    return { directory, persisted: false };
+    // Report the would-be path without reserving (nothing is written).
+    return {
+      directory: resolveTrajectoryDir(root, opts.taskSpec.id, runId),
+      persisted: false,
+    };
   }
 
+  // Reserve atomically so a re-run or a concurrent same-timestamp run lands
+  // beside the previous trajectory rather than overwriting it.
+  const { directory, attempt } = await reserveTrajectoryDir(
+    root,
+    opts.taskSpec.id,
+    runId,
+  );
+
   await writeTrajectoryDir(directory, opts.trajectory);
+  await writeTrajectoryMetadata(directory, {
+    task: opts.taskSpec.id,
+    runId,
+    runDir: path.basename(directory),
+    attempt,
+    status: opts.trajectory.status,
+  });
 
   if (opts.evaluationResult) {
     await fs.writeFile(
