@@ -185,6 +185,8 @@ const result = await stagehand.extract("extract the page title");
 console.log(result.cacheStatus); // "HIT" or "MISS"
 ```
 
+For how the cache works, tuning the validation threshold, and best practices, see the [Server Caching](/v3/best-practices/server-caching) guide.
+
 ### Targeted Extract
 
 Pass a selector to `extract` to target a specific element on the page.

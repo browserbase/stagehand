@@ -72,7 +72,7 @@ const stagehand = new Stagehand({
 - **Market-price tokens** — We charge the same price as going direct to the provider. No markup.
 - **Built-in reliability** — Retries, backoff, and rate limit handling are managed for you.
 - **No tier-gating** — Access new models immediately without hitting provider spend thresholds.
-- **Action caching** — Model Gateway works with Stagehand's [managed action caching](/v3/best-practices/caching), so repeated steps are reused instead of re-run.
+- **Action caching** — Model Gateway works with Stagehand's [managed action caching](/v3/best-practices/server-caching), so repeated steps are reused instead of re-run.
 
 ### Supported providers
 
@@ -878,7 +878,7 @@ class CustomRetryClient extends LLMClient {
 
 <Tip>
   Need custom caching? Consider using built-in [caching
-  feature](/v3/best-practices/caching).
+  feature](/v3/best-practices/server-caching).
 </Tip>
 
 ---
@@ -1004,7 +1004,7 @@ The following models work without the `provider/` prefix in the model parameter 
 
 - Switch to cost-effective models (check [evals](https://www.stagehand.dev/evals) for comparisons)
 - Use faster models for simple tasks, powerful ones for complex tasks
-- Implement [caching](/v3/best-practices/caching) for repeated patterns
+- Implement [caching](/v3/best-practices/server-caching) for repeated patterns
 </Accordion>
 <Accordion title="Python SDK or custom models">
 Python is now supported in Stagehand v3! The Python SDK uses a BYOB (Bring Your Own Browser) architecture.
@@ -1040,7 +1040,7 @@ Can't find a solution? Have a question? Reach out to our support team:
   Test which models work best for your specific use case
 </Card>
 
-<Card title="Caching Guide" href="/v3/best-practices/caching" icon="database">
+<Card title="Caching Guide" href="/v3/best-practices/server-caching" icon="database">
   Cache responses to reduce costs and improve speed
 </Card>
 <Card

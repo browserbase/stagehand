@@ -25,7 +25,7 @@ await stagehand.observe("find the login button");
   <Card title="Plan" icon="map" href="#plan-then-execute">
     Map out multi-step workflows by discovering all required actions upfront
   </Card>
-  <Card title="Cache" icon="database" href="/v3/best-practices/caching">
+  <Card title="Cache" icon="database" href="/v3/best-practices/server-caching">
     Store discovered actions to skip LLM calls and speed up repeated workflows
   </Card>
   <Card title="Validate" icon="check" href="#validate-before-acting">
@@ -173,6 +173,8 @@ const stagehand = new Stagehand({
 const actions = await stagehand.observe("find the login button", { serverCache: false });
 ```
 
+For how the cache works, tuning the validation threshold, and best practices, see the [Server Caching](/v3/best-practices/server-caching) guide.
+
 <Note>
   `observe()` does not currently expose a `cacheStatus` field. To check whether an `observe()` call was served from cache, use the [Browserbase session replay dashboard](https://docs.browserbase.com/features/observability#stagehand) or inspect the session logs.
 </Note>
@@ -289,7 +291,7 @@ async function cachedObserve(instruction: string) {
 }
 ```
 
-<Card title="Complete caching guide" icon="database" href="/v3/best-practices/caching">
+<Card title="Complete caching guide" icon="database" href="/v3/best-practices/server-caching">
   Learn advanced caching techniques and patterns for optimal performance.
 </Card>
 
@@ -372,7 +374,7 @@ if (action && validMethods.includes(action.method || "")) {
     Combine `observe()` with `extract()` for precise data extraction.
   </Card>
 
-  <Card title="Caching actions" icon="bolt" href="/v3/best-practices/caching">
+  <Card title="Caching actions" icon="bolt" href="/v3/best-practices/server-caching">
     Build action caches to eliminate redundant LLM calls.
   </Card>
 

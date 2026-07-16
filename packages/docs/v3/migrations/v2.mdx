@@ -36,7 +36,7 @@ Stagehand v3 introduces significant improvements to the API design and functiona
 - **Improved Type Safety**: Better TypeScript inference and type checking.
 - **Enhanced Multi-Page Support**: New Context API for managing multiple pages.
 - **Streamlined Timeouts**: Consistent timeout naming across all methods.
-- **Auto-caching**: Stagehand v3 now automatically caches actions and agent steps using the [file system cache](/best-practices/caching).
+- **Auto-caching**: Stagehand v3 now automatically caches actions and agent steps using the [file system cache](/v3/best-practices/local-caching).
 - **Agent Improvements**: Renamed parameters (`instructions` → `systemPrompt`), unified model configuration, and new `executionModel` option for cost optimization.
 
 
@@ -1019,7 +1019,7 @@ await agent.execute({
 
 - [Stagehand v3 Documentation](/v3/first-steps/introduction)
 - [API Reference](/v3/references/stagehand)
-- [Best Practices](/v3/best-practices/caching)
+- [Best Practices](/v3/best-practices/server-caching)
 - [GitHub Issues](https://github.com/browserbase/stagehand/issues)
 
 If you encounter any issues during migration, please [open an issue](https://github.com/browserbase/stagehand/issues) on our GitHub repository.
