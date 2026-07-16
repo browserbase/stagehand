@@ -50,7 +50,17 @@ if (actResult.cacheStatus === "MISS") {
 }
 ```
 
-Possible reasons include `threshold` (a cache entry exists but hasn't been seen enough times to be served yet — see [Tune the cache threshold](#tune-the-cache-threshold)), `empty_array`, `timeout`, and `error`. A first-time miss with no prior entry has no `cacheMissReason`. The field is available on `act()`, `extract()`, and `observe()` results.
+The field is available on `act()`, `extract()`, and `observe()` results. Possible reasons:
+
+| Reason | Why it happens |
+| ------ | -------------- |
+| `not_found` | No cache entry exists for this action yet. This is the normal first-time miss — the result is recorded so future identical requests can be served from cache. |
+| `threshold` | A cache entry exists but the action hasn't been seen enough times to be served yet. Entries are only replayed once they've been validated by repeat executions — see [Tune the cache threshold](#tune-the-cache-threshold) to control this. |
+| `empty_array` | The cached value was an empty array (for example, an `observe()` call that found no elements). Empty results are never served from cache, so the action runs again. |
+| `timeout` | The cache lookup didn't complete within its time budget, so the server skipped the cache and executed the action normally. |
+| `error` | The cache lookup failed unexpectedly. The action still executes normally — the cache fails open. |
+| `disabled` | Caching is turned off for this method or project, so the lookup was skipped. |
+| `no_cache_key` | The server couldn't build a stable cache key for the request, so the result can't be cached or looked up. |
 
 <Note>
 Cache status for your sessions in the Browserbase dashboard is coming soon.
@@ -118,16 +128,12 @@ Small differences in runtime state produce different accessibility trees and the
 
 - **Fixed viewport size** — `await page.setViewportSize({ width: 1280, height: 720 })`
 - **Consistent user agent and locale** — set these in your browser launch options if your stack supports it
-- **Block noisy third-party requests** — analytics, A/B testing scripts, and ad trackers can inject DOM nodes that shift the cache key on every load
 
 ```typescript
 const page = stagehand.context.pages()[0];
 
 // Lock the viewport so the layout is identical across runs
 await page.setViewportSize({ width: 1280, height: 720 });
-
-// Block third-party noise that pollutes the accessibility tree
-await page.route("**/*.{png,jpg,gif,svg,woff,woff2}", (route) => route.abort());
 ```
 
 ### Keep prompts deterministic
