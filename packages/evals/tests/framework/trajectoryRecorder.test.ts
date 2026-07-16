@@ -357,6 +357,51 @@ describe("TrajectoryRecorder", () => {
     ]);
   });
 
+  it("persistResult() before finish() keeps the score (result persistence is order-free)", async () => {
+    const outputRoot = await makeTempDir();
+    process.env.EVAL_TRAJECTORY_GROUP = "test-group";
+    const recorder = new TrajectoryRecorder({
+      taskSpec: makeTaskSpec(),
+      outputRoot,
+      runId: "run-1",
+      persist: true,
+    });
+    recordSimpleStep(recorder, Buffer.from("only"));
+
+    // Deliberately REVERSED vs the adapter's order: score first, then finish.
+    // finish() writes task_data.json/trajectory.json/screenshots; persistResult()
+    // writes scores/result.json. They must not clobber each other in either order.
+    await recorder.persistResult({
+      outcomeSuccess: true,
+      explanation: "The task was completed.",
+    });
+    await recorder.finish({ status: "complete" });
+
+    const runDir = path.join(
+      outputRoot,
+      "test-group",
+      "recorder-task",
+      "run-1",
+    );
+    // The score written BEFORE finish() must survive finish().
+    await expect(
+      fs.readFile(path.join(runDir, "scores", "result.json"), "utf8"),
+    ).resolves.toContain('"outcomeSuccess": true');
+    // ...and the trajectory files must still all be there.
+    await expect(fs.readdir(runDir)).resolves.toEqual(
+      expect.arrayContaining([
+        "metadata.json",
+        "scores",
+        "task_data.json",
+        "trajectory.json",
+      ]),
+    );
+    // Exactly one run dir: the reversed order must not split the reservation.
+    await expect(
+      fs.readdir(path.join(outputRoot, "test-group", "recorder-task")),
+    ).resolves.toEqual(["run-1"]);
+  });
+
   it("two concurrent recorders with the same runId reserve distinct dirs", async () => {
     const outputRoot = await makeTempDir();
     process.env.EVAL_TRAJECTORY_GROUP = "test-group";
