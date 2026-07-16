@@ -1,5 +1,8 @@
 import {
+  ROOT_CONTEXT,
   context as otelContext,
+  defaultTextMapGetter,
+  defaultTextMapSetter,
   SpanKind,
   SpanStatusCode,
   trace,
@@ -14,10 +17,15 @@ import {
   JSONRPCRequestIdSchema,
   JSONRPCRequestSchema,
   JSONRPCResponseSchema,
+  JSONRPCSuccessResponseSchema,
   JSONRPCWireInputSchema,
   type RPCMethod,
 } from "../../protocol/json-rpc/schemas.js";
-import type { JSONRPCMessage, JSONRPCResponse } from "../../protocol/json-rpc/types.js";
+import type {
+  JSONRPCMessage,
+  JSONRPCRequest,
+  JSONRPCResponse,
+} from "../../protocol/json-rpc/types.js";
 import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing.js";
 import {
   StagehandNotifications,
@@ -34,6 +42,11 @@ type PendingRequest = {
   resolve(value: unknown): void;
   reject(error: Error): void;
   timeout: ReturnType<typeof setTimeout>;
+};
+
+type RegisteredRequestHandler = {
+  method: RPCMethod;
+  handle(params: unknown): Promise<unknown>;
 };
 
 const TRACER = trace.getTracer("@browserbasehq/stagehand");
@@ -88,6 +101,7 @@ export class RPCClient {
   readonly serviceWorker: ServiceWorkerInfo;
   nextRequestId = 1;
   pending = new Map<number, PendingRequest>();
+  requestHandlers = new Map<string, RegisteredRequestHandler>();
   notificationListeners = new Set<(notification: StagehandRpcNotification) => void>();
   pendingNotifications: StagehandRpcNotification[] = [];
   closed = false;
@@ -146,11 +160,32 @@ export class RPCClient {
         return result as z.output<Method["result"]>;
       });
     } catch (error) {
-      markClientSpanError(span, error);
+      markSpanError(span, error);
       throw error;
     } finally {
       span.end();
     }
+  }
+
+  onRequest<Method extends RPCMethod>(
+    method: Method,
+    handler: (
+      params: z.output<Method["params"]>,
+    ) => z.input<Method["result"]> | Promise<z.input<Method["result"]>>,
+  ): () => void {
+    if (this.closed) throw new RPCClientError("RPC client is closed");
+
+    const registeredHandler: RegisteredRequestHandler = {
+      method,
+      handle: async (params) => await handler(params as z.output<Method["params"]>),
+    };
+    this.requestHandlers.set(method.name, registeredHandler);
+
+    return () => {
+      if (this.requestHandlers.get(method.name) === registeredHandler) {
+        this.requestHandlers.delete(method.name);
+      }
+    };
   }
 
   onNotification(listener: (notification: StagehandRpcNotification) => void): () => void {
@@ -165,6 +200,7 @@ export class RPCClient {
   close(reason: Error = new RPCClientError("RPC client closed")): void {
     if (this.closed) return;
     this.closed = true;
+    this.requestHandlers.clear();
     this.notificationListeners.clear();
     this.pendingNotifications = [];
     for (const [id] of this.pending) this.rejectPending(id, reason);
@@ -186,6 +222,8 @@ export class RPCClient {
   }
 
   async receive(raw: unknown): Promise<void> {
+    if (this.closed) return;
+
     const wireInput = JSONRPCWireInputSchema.safeParse(raw);
     if (!wireInput.success) {
       await this.sendError(null, JSONRPCErrorCodes.parseError, "Parse error");
@@ -218,7 +256,7 @@ export class RPCClient {
 
     const request = JSONRPCRequestSchema.safeParse(message);
     if (request.success) {
-      await this.sendError(request.data.id, JSONRPCErrorCodes.methodNotFound, "Method not found");
+      await this.handleRequest(request.data);
       return;
     }
 
@@ -228,6 +266,69 @@ export class RPCClient {
       JSONRPCErrorCodes.invalidRequest,
       "Invalid request",
     );
+  }
+
+  async handleRequest(request: JSONRPCRequest): Promise<void> {
+    const registeredHandler = this.requestHandlers.get(request.method);
+    if (!registeredHandler) {
+      await this.sendError(request.id, JSONRPCErrorCodes.methodNotFound, "Method not found");
+      return;
+    }
+
+    const params = wireSchema(
+      registeredHandler.method.params,
+      registeredHandler.method.paramsWire,
+    ).safeParse(request.params);
+    if (!params.success) {
+      await this.sendError(request.id, JSONRPCErrorCodes.invalidParams, "Invalid params");
+      return;
+    }
+
+    const parentContext = W3C_TRACE_CONTEXT_PROPAGATOR.extract(
+      ROOT_CONTEXT,
+      request,
+      defaultTextMapGetter,
+    );
+    const span = TRACER.startSpan(
+      request.method,
+      {
+        kind: SpanKind.SERVER,
+        attributes: {
+          "rpc.system.name": "jsonrpc",
+          "rpc.method": request.method,
+          "jsonrpc.request.id": String(request.id),
+        },
+      },
+      parentContext,
+    );
+    const requestContext = trace.setSpan(parentContext, span);
+
+    try {
+      const result = await otelContext.with(requestContext, () =>
+        registeredHandler.handle(params.data),
+      );
+      const parsedResult = registeredHandler.method.result.safeParse(result);
+      if (!parsedResult.success) {
+        span.setAttribute("rpc.response.status_code", String(JSONRPCErrorCodes.internalError));
+        span.setAttribute("error.type", String(JSONRPCErrorCodes.internalError));
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        await this.sendError(request.id, JSONRPCErrorCodes.internalError, "Internal error");
+        return;
+      }
+
+      await this.cdp.send(
+        JSONRPCSuccessResponseSchema.parse({
+          jsonrpc: "2.0",
+          id: request.id,
+          result: encodeWireValue(parsedResult.data, registeredHandler.method.resultWire),
+        }),
+      );
+    } catch (error) {
+      markSpanError(span, error);
+      await this.sendError(request.id, JSONRPCErrorCodes.internalError, "Internal error");
+    } finally {
+      span.end();
+    }
   }
 
   receiveResponse(response: JSONRPCResponse): void {
@@ -321,16 +422,12 @@ export function getTraceContextFields(requestContext: Context): {
 } {
   const fields: { traceparent?: string; tracestate?: string } = {};
 
-  W3C_TRACE_CONTEXT_PROPAGATOR.inject(requestContext, fields, {
-    set(carrier, key, value) {
-      if (key === "traceparent" || key === "tracestate") carrier[key] = value;
-    },
-  });
+  W3C_TRACE_CONTEXT_PROPAGATOR.inject(requestContext, fields, defaultTextMapSetter);
 
   return fields;
 }
 
-function markClientSpanError(span: Span, error: unknown): void {
+function markSpanError(span: Span, error: unknown): void {
   if (error instanceof RPCClientError) {
     span.setAttribute("rpc.response.status_code", String(error.code));
     span.setAttribute("error.type", String(error.code));

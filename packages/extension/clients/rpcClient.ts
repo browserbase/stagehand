@@ -1,4 +1,14 @@
 import {
+  context as otelContext,
+  defaultTextMapSetter,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+  type Context,
+  type Span,
+} from "@opentelemetry/api";
+import { W3CTraceContextPropagator } from "@opentelemetry/core";
+import {
   JSONRPCEnvelopeSchema,
   JSONRPCErrorCodes,
   JSONRPCErrorResponseSchema,
@@ -32,6 +42,7 @@ const ERROR_DATA = {
   invalidResult: { type: "stagehand.invalid_result" },
   internalError: { type: "stagehand.internal_error" },
 } as const;
+const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 
 export class RPCClient {
   nextRequestId = 1;
@@ -54,23 +65,49 @@ export class RPCClient {
   ): Promise<z.output<Method["result"]>> {
     if (this.closed) throw new Error("RPC client is closed");
 
+    const parentContext = otelContext.active();
+    const span = this.router.runtime.tracing.tracer.startSpan(
+      method.name,
+      {
+        kind: SpanKind.CLIENT,
+        attributes: {
+          "rpc.system.name": "jsonrpc",
+          "rpc.method": method.name,
+        },
+      },
+      parentContext,
+    );
+    const requestContext = trace.setSpan(parentContext, span);
     const id = this.nextRequestId++;
-    const parsedParams = method.params.parse(params);
-    const request = JSONRPCRequestSchema.parse({
-      jsonrpc: "2.0",
-      id,
-      method: method.name,
-      params: encodeWireValue(parsedParams, method.paramsWire),
-    });
-    const response = this.waitForResponse(id, method);
-    const [, result] = await Promise.all([
-      this.runtime.send(request).catch((error: unknown) => {
-        this.rejectPending(id, asError(error));
-      }),
-      response,
-    ]);
 
-    return result as z.output<Method["result"]>;
+    try {
+      return await otelContext.with(requestContext, async () => {
+        const parsedParams = method.params.parse(params);
+        const request = JSONRPCRequestSchema.parse({
+          jsonrpc: "2.0",
+          id,
+          method: method.name,
+          params: encodeWireValue(parsedParams, method.paramsWire),
+          ...getTraceContextFields(requestContext),
+        });
+        span.setAttribute("jsonrpc.request.id", String(request.id));
+
+        const response = this.waitForResponse(id, method);
+        const [, result] = await Promise.all([
+          this.runtime.send(request).catch((error: unknown) => {
+            this.rejectPending(id, asError(error));
+          }),
+          response,
+        ]);
+
+        return result as z.output<Method["result"]>;
+      });
+    } catch (error) {
+      markSpanError(span, error);
+      throw error;
+    } finally {
+      span.end();
+    }
   }
 
   async notify<Notification extends RPCNotification>(
@@ -258,6 +295,22 @@ export class RPCClient {
       }),
     );
   }
+}
+
+function getTraceContextFields(requestContext: Context): {
+  traceparent?: string;
+  tracestate?: string;
+} {
+  const fields: { traceparent?: string; tracestate?: string } = {};
+
+  W3C_TRACE_CONTEXT_PROPAGATOR.inject(requestContext, fields, defaultTextMapSetter);
+
+  return fields;
+}
+
+function markSpanError(span: Span, error: unknown): void {
+  if (error instanceof Error) span.setAttribute("error.type", error.name);
+  span.setStatus({ code: SpanStatusCode.ERROR });
 }
 
 function asError(error: unknown): Error {
