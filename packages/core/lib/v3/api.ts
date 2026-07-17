@@ -315,12 +315,9 @@ export class StagehandAPIClient {
       } else if (this.defaultModelConfig) {
         restOptions.model = this.getDefaultModelConfig();
       }
-      // serverCacheThreshold is SDK-named; the API expects options.cacheThreshold
       const mappedOptions = {
         ...restOptions,
-        ...(serverCacheThreshold !== undefined && {
-          cacheThreshold: serverCacheThreshold,
-        }),
+        ...(serverCacheThreshold !== undefined && { serverCacheThreshold }),
       };
       if (Object.keys(mappedOptions).length > 0) {
         wireOptions = mappedOptions as unknown as Api.ActRequest["options"];
@@ -371,12 +368,9 @@ export class StagehandAPIClient {
       } else if (this.defaultModelConfig) {
         restOptions.model = this.getDefaultModelConfig();
       }
-      // serverCacheThreshold is SDK-named; the API expects options.cacheThreshold
       const mappedOptions = {
         ...restOptions,
-        ...(serverCacheThreshold !== undefined && {
-          cacheThreshold: serverCacheThreshold,
-        }),
+        ...(serverCacheThreshold !== undefined && { serverCacheThreshold }),
       };
       if (Object.keys(mappedOptions).length > 0) {
         wireOptions = mappedOptions as unknown as Api.ExtractRequest["options"];
@@ -424,12 +418,9 @@ export class StagehandAPIClient {
       } else if (this.defaultModelConfig) {
         restOptions.model = this.getDefaultModelConfig();
       }
-      // serverCacheThreshold is SDK-named; the API expects options.cacheThreshold
       const mappedOptions = {
         ...restOptions,
-        ...(serverCacheThreshold !== undefined && {
-          cacheThreshold: serverCacheThreshold,
-        }),
+        ...(serverCacheThreshold !== undefined && { serverCacheThreshold }),
       };
       if (Object.keys(mappedOptions).length > 0) {
         wireOptions = mappedOptions as unknown as Api.ObserveRequest["options"];

@@ -133,7 +133,7 @@ describe("StagehandAPIClient variable serialization", () => {
     });
   });
 
-  it("maps serverCacheThreshold to wire options.cacheThreshold", async () => {
+  it("sends serverCacheThreshold in the wire options for act", async () => {
     const client = new StagehandAPIClient({
       apiKey: "bb-test",
       logger: vi.fn(),
@@ -165,7 +165,7 @@ describe("StagehandAPIClient variable serialization", () => {
         input: "click the submit button",
         options: {
           timeout: 30000,
-          cacheThreshold: 5,
+          serverCacheThreshold: 5,
         },
         frameId: undefined,
       },
@@ -173,7 +173,7 @@ describe("StagehandAPIClient variable serialization", () => {
     });
   });
 
-  it("maps serverCacheThreshold for observe and extract requests", async () => {
+  it("sends serverCacheThreshold in the wire options for observe and extract", async () => {
     const client = new StagehandAPIClient({
       apiKey: "bb-test",
       logger: vi.fn(),
@@ -195,7 +195,7 @@ describe("StagehandAPIClient variable serialization", () => {
       method: "observe",
       args: {
         instruction: "find the submit button",
-        options: { cacheThreshold: 0 },
+        options: { serverCacheThreshold: 0 },
         frameId: undefined,
       },
       serverCache: undefined,
@@ -212,7 +212,7 @@ describe("StagehandAPIClient variable serialization", () => {
       args: {
         instruction: "extract the title",
         schema: undefined,
-        options: { cacheThreshold: 10 },
+        options: { serverCacheThreshold: 10 },
         frameId: undefined,
       },
       serverCache: true,
