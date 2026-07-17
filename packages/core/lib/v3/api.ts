@@ -872,11 +872,12 @@ export class StagehandAPIClient {
               eventData.type === "system" &&
               eventData.data.status === "finished"
             ) {
+              const cacheEnabled = this.shouldUseCache(serverCache);
               return this.attachCacheStatus(
                 eventData.data.result as T,
                 method,
-                cacheStatus,
-                eventData,
+                cacheEnabled ? cacheStatus : null,
+                cacheEnabled ? eventData : { data: {} },
               );
             }
           } catch {

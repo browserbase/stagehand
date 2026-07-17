@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { StagehandAPIClient } from "../../lib/v3/api.js";
+import type { ActResult } from "../../lib/v3/types/public/index.js";
 
 describe("StagehandAPIClient variable serialization", () => {
   it("preserves rich variables when sending the act request", async () => {
@@ -275,5 +276,94 @@ describe("StagehandAPIClient variable serialization", () => {
         shouldCache: undefined,
       },
     });
+  });
+});
+
+describe("StagehandAPIClient cache metadata", () => {
+  const runAct = async ({
+    cacheHit,
+    cacheMissReason,
+    serverCache = true,
+    finalEventBuffered = false,
+  }: {
+    cacheHit: boolean;
+    cacheMissReason?: string;
+    serverCache?: boolean;
+    finalEventBuffered?: boolean;
+  }) => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-test",
+      logger: vi.fn(),
+    });
+    const event = {
+      type: "system",
+      data: {
+        status: "finished",
+        result: {
+          success: true,
+          message: "ok",
+          actionDescription: "clicked",
+          actions: [] as ActResult["actions"],
+        },
+        cacheHit,
+        ...(cacheMissReason !== undefined && { cacheMissReason }),
+      },
+    };
+    const cacheStatus = cacheHit ? "HIT" : "MISS";
+    const eventTerminator = finalEventBuffered ? "" : "\n\n";
+
+    (
+      client as unknown as {
+        request: () => Promise<Response>;
+      }
+    ).request = vi.fn().mockResolvedValue(
+      new Response(`data: ${JSON.stringify(event)}${eventTerminator}`, {
+        headers: { "browserbase-cache-status": cacheStatus },
+      }),
+    );
+
+    return client.act({
+      input: "click the submit button",
+      options: { serverCache },
+    });
+  };
+
+  it("attaches the reason when a cache miss provides one", async () => {
+    const result = await runAct({
+      cacheHit: false,
+      cacheMissReason: "threshold",
+    });
+
+    expect(result.cacheStatus).toBe("MISS");
+    expect(result.cacheMissReason).toBe("threshold");
+  });
+
+  it("does not attach a miss reason to a cache hit", async () => {
+    const result = await runAct({
+      cacheHit: true,
+      cacheMissReason: "threshold",
+    });
+
+    expect(result.cacheStatus).toBe("HIT");
+    expect(result.cacheMissReason).toBeUndefined();
+  });
+
+  it("does not attach a miss reason when none is provided", async () => {
+    const result = await runAct({ cacheHit: false });
+
+    expect(result.cacheStatus).toBe("MISS");
+    expect(result.cacheMissReason).toBeUndefined();
+  });
+
+  it("suppresses cache metadata from a final buffered event when caching is disabled", async () => {
+    const result = await runAct({
+      cacheHit: false,
+      cacheMissReason: "threshold",
+      serverCache: false,
+      finalEventBuffered: true,
+    });
+
+    expect(result.cacheStatus).toBeUndefined();
+    expect(result.cacheMissReason).toBeUndefined();
   });
 });
