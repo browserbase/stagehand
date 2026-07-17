@@ -240,26 +240,6 @@ export const DomainPolicySchema = z
   .strict()
   .meta({ id: "DomainPolicy" });
 
-export const LoadStateSchema = z
-  .enum(["load", "domcontentloaded", "networkidle"])
-  .meta({ id: "LoadState" });
-
-export const SnapshotResultSchema = z
-  .object({
-    formattedTree: z.string(),
-    xpathMap: z.record(z.string(), z.string()),
-    urlMap: z.record(z.string(), z.string()),
-  })
-  .strict()
-  .meta({ id: "SnapshotResult" });
-
-export const PageSnapshotOptionsSchema = z
-  .object({
-    includeIframes: z.boolean().optional(),
-  })
-  .strict()
-  .meta({ id: "PageSnapshotOptions" });
-
 // =============================================================================
 // Shared Components
 // =============================================================================

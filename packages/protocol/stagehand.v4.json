@@ -1634,19 +1634,7 @@
                       "minLength": 1
                     },
                     "options": {
-                      "type": "object",
-                      "properties": {
-                        "wait_until": {
-                          "type": "string",
-                          "enum": ["load", "domcontentloaded", "networkidle"]
-                        },
-                        "timeout_ms": {
-                          "type": "integer",
-                          "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991
-                        }
-                      },
-                      "additionalProperties": false
+                      "$ref": "#/$defs/PageNavigationOptions"
                     }
                   },
                   "required": ["page_id", "url"],
@@ -1758,6 +1746,877 @@
                     }
                   },
                   "required": ["page_id"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.reload"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "wait_until": {
+                          "$ref": "#/$defs/LoadState"
+                        },
+                        "timeout_ms": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "ignore_cache": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["page_id"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.go_back"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "$ref": "#/$defs/PageNavigationOptions"
+                    }
+                  },
+                  "required": ["page_id"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.go_forward"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "$ref": "#/$defs/PageNavigationOptions"
+                    }
+                  },
+                  "required": ["page_id"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.click"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "button": {
+                          "type": "string",
+                          "enum": ["left", "right", "middle"]
+                        },
+                        "click_count": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "return_xpath": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["page_id", "x", "y"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.hover"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "return_xpath": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["page_id", "x", "y"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.scroll"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "delta_x": {
+                      "type": "number"
+                    },
+                    "delta_y": {
+                      "type": "number"
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "return_xpath": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["page_id", "x", "y", "delta_x", "delta_y"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.drag_and_drop"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "from_x": {
+                      "type": "number"
+                    },
+                    "from_y": {
+                      "type": "number"
+                    },
+                    "to_x": {
+                      "type": "number"
+                    },
+                    "to_y": {
+                      "type": "number"
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "button": {
+                          "type": "string",
+                          "enum": ["left", "right", "middle"]
+                        },
+                        "steps": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "delay": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "return_xpath": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["page_id", "from_x", "from_y", "to_x", "to_y"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.type"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "delay": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "with_mistakes": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["page_id", "text"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.key_press"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "delay": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["page_id", "key"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.evaluate"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "expression": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["page_id", "expression"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.add_init_script"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["page_id", "source"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.set_extra_http_headers"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "headers": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["page_id", "headers"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.screenshot"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "$ref": "#/$defs/PageScreenshotOptions"
+                    }
+                  },
+                  "required": ["page_id"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.snapshot"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "$ref": "#/$defs/PageSnapshotOptions"
+                    }
+                  },
+                  "required": ["page_id"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.set_viewport_size"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "width": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "device_scale_factor": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["page_id", "width", "height"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.wait_for_load_state"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "$ref": "#/$defs/LoadState"
+                    },
+                    "timeout_ms": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["page_id", "state"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.wait_for_timeout"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "ms": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["page_id", "ms"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "page.wait_for_selector"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "selector": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "options": {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": ["attached", "detached", "visible", "hidden"]
+                        },
+                        "timeout": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "pierce_shadow": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["page_id", "selector"],
                   "additionalProperties": false
                 },
                 "traceparent": {
@@ -3597,6 +4456,122 @@
                   }
                 }
               ]
+            },
+            "PageNavigationOptions": {
+              "type": "object",
+              "properties": {
+                "wait_until": {
+                  "$ref": "#/$defs/LoadState"
+                },
+                "timeout_ms": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "additionalProperties": false
+            },
+            "LoadState": {
+              "type": "string",
+              "enum": ["load", "domcontentloaded", "networkidle"]
+            },
+            "PageScreenshotOptions": {
+              "type": "object",
+              "properties": {
+                "animations": {
+                  "type": "string",
+                  "enum": ["disabled", "allow"]
+                },
+                "caret": {
+                  "type": "string",
+                  "enum": ["hide", "initial"]
+                },
+                "clip": {
+                  "$ref": "#/$defs/PageScreenshotClip"
+                },
+                "full_page": {
+                  "type": "boolean"
+                },
+                "mask": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "page_id": {
+                        "type": "string"
+                      },
+                      "selector": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "nth": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["page_id", "selector"],
+                    "additionalProperties": false
+                  }
+                },
+                "mask_color": {
+                  "type": "string"
+                },
+                "omit_background": {
+                  "type": "boolean"
+                },
+                "quality": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "scale": {
+                  "type": "string",
+                  "enum": ["css", "device"]
+                },
+                "style": {
+                  "type": "string"
+                },
+                "timeout": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["png", "jpeg"]
+                }
+              },
+              "additionalProperties": false
+            },
+            "PageScreenshotClip": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                },
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": ["x", "y", "width", "height"],
+              "additionalProperties": false
+            },
+            "PageSnapshotOptions": {
+              "type": "object",
+              "properties": {
+                "include_iframes": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
             }
           }
         },
@@ -9412,11 +10387,17 @@
                   "minLength": 1
                 },
                 "options": {
+                  "$ref": "#/$defs/PageNavigationOptions"
+                }
+              },
+              "required": ["page_id", "url"],
+              "additionalProperties": false,
+              "$defs": {
+                "PageNavigationOptions": {
                   "type": "object",
                   "properties": {
                     "wait_until": {
-                      "type": "string",
-                      "enum": ["load", "domcontentloaded", "networkidle"]
+                      "$ref": "#/$defs/LoadState"
                     },
                     "timeout_ms": {
                       "type": "integer",
@@ -9425,10 +10406,12 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "LoadState": {
+                  "type": "string",
+                  "enum": ["load", "domcontentloaded", "networkidle"]
                 }
-              },
-              "required": ["page_id", "url"],
-              "additionalProperties": false
+              }
             },
             "result": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -9533,6 +10516,991 @@
                 }
               },
               "required": ["closed"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.reload": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "wait_until": {
+                      "$ref": "#/$defs/LoadState"
+                    },
+                    "timeout_ms": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "ignore_cache": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false,
+              "$defs": {
+                "LoadState": {
+                  "type": "string",
+                  "enum": ["load", "domcontentloaded", "networkidle"]
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.go_back": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "options": {
+                  "$ref": "#/$defs/PageNavigationOptions"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false,
+              "$defs": {
+                "PageNavigationOptions": {
+                  "type": "object",
+                  "properties": {
+                    "wait_until": {
+                      "$ref": "#/$defs/LoadState"
+                    },
+                    "timeout_ms": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "LoadState": {
+                  "type": "string",
+                  "enum": ["load", "domcontentloaded", "networkidle"]
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.go_forward": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "options": {
+                  "$ref": "#/$defs/PageNavigationOptions"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false,
+              "$defs": {
+                "PageNavigationOptions": {
+                  "type": "object",
+                  "properties": {
+                    "wait_until": {
+                      "$ref": "#/$defs/LoadState"
+                    },
+                    "timeout_ms": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "LoadState": {
+                  "type": "string",
+                  "enum": ["load", "domcontentloaded", "networkidle"]
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.click": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "button": {
+                      "type": "string",
+                      "enum": ["left", "right", "middle"]
+                    },
+                    "click_count": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "return_xpath": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["page_id", "x", "y"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "xpath": {
+                  "type": "string"
+                }
+              },
+              "required": ["xpath"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.hover": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "return_xpath": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["page_id", "x", "y"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "xpath": {
+                  "type": "string"
+                }
+              },
+              "required": ["xpath"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.scroll": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                },
+                "delta_x": {
+                  "type": "number"
+                },
+                "delta_y": {
+                  "type": "number"
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "return_xpath": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["page_id", "x", "y", "delta_x", "delta_y"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "xpath": {
+                  "type": "string"
+                }
+              },
+              "required": ["xpath"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.drag_and_drop": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "from_x": {
+                  "type": "number"
+                },
+                "from_y": {
+                  "type": "number"
+                },
+                "to_x": {
+                  "type": "number"
+                },
+                "to_y": {
+                  "type": "number"
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "button": {
+                      "type": "string",
+                      "enum": ["left", "right", "middle"]
+                    },
+                    "steps": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "delay": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "return_xpath": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["page_id", "from_x", "from_y", "to_x", "to_y"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "from_xpath": {
+                  "type": "string"
+                },
+                "to_xpath": {
+                  "type": "string"
+                }
+              },
+              "required": ["from_xpath", "to_xpath"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.type": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "delay": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "with_mistakes": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["page_id", "text"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.key_press": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "delay": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["page_id", "key"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.evaluate": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "expression": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id", "expression"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              "required": ["value"],
+              "additionalProperties": false,
+              "$defs": {
+                "__schema0": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema0"
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema0"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.add_init_script": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id", "source"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.set_extra_http_headers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "headers": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["page_id", "headers"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.screenshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "options": {
+                  "$ref": "#/$defs/PageScreenshotOptions"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false,
+              "$defs": {
+                "PageScreenshotOptions": {
+                  "type": "object",
+                  "properties": {
+                    "animations": {
+                      "type": "string",
+                      "enum": ["disabled", "allow"]
+                    },
+                    "caret": {
+                      "type": "string",
+                      "enum": ["hide", "initial"]
+                    },
+                    "clip": {
+                      "$ref": "#/$defs/PageScreenshotClip"
+                    },
+                    "full_page": {
+                      "type": "boolean"
+                    },
+                    "mask": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "page_id": {
+                            "type": "string"
+                          },
+                          "selector": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "nth": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": ["page_id", "selector"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "mask_color": {
+                      "type": "string"
+                    },
+                    "omit_background": {
+                      "type": "boolean"
+                    },
+                    "quality": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "scale": {
+                      "type": "string",
+                      "enum": ["css", "device"]
+                    },
+                    "style": {
+                      "type": "string"
+                    },
+                    "timeout": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": ["png", "jpeg"]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "PageScreenshotClip": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "width": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "height": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": ["x", "y", "width", "height"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "data": {
+                  "type": "string",
+                  "format": "byte",
+                  "contentEncoding": "base64",
+                  "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["png", "jpeg"]
+                }
+              },
+              "required": ["data", "type"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.snapshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "options": {
+                  "$ref": "#/$defs/PageSnapshotOptions"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false,
+              "$defs": {
+                "PageSnapshotOptions": {
+                  "type": "object",
+                  "properties": {
+                    "include_iframes": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "formatted_tree": {
+                  "type": "string"
+                },
+                "xpath_map": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "url_map": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["formatted_tree", "xpath_map", "url_map"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.set_viewport_size": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "width": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "height": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "device_scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["page_id", "width", "height"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.wait_for_load_state": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "state": {
+                  "$ref": "#/$defs/LoadState"
+                },
+                "timeout_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["page_id", "state"],
+              "additionalProperties": false,
+              "$defs": {
+                "LoadState": {
+                  "type": "string",
+                  "enum": ["load", "domcontentloaded", "networkidle"]
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.wait_for_timeout": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["page_id", "ms"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "page.wait_for_selector": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": ["attached", "detached", "visible", "hidden"]
+                    },
+                    "timeout": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "pierce_shadow": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["page_id", "selector"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "matched": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["matched"],
               "additionalProperties": false
             }
           },
@@ -10301,6 +12269,24 @@
         "page.url",
         "page.title",
         "page.close",
+        "page.reload",
+        "page.go_back",
+        "page.go_forward",
+        "page.click",
+        "page.hover",
+        "page.scroll",
+        "page.drag_and_drop",
+        "page.type",
+        "page.key_press",
+        "page.evaluate",
+        "page.add_init_script",
+        "page.set_extra_http_headers",
+        "page.screenshot",
+        "page.snapshot",
+        "page.set_viewport_size",
+        "page.wait_for_load_state",
+        "page.wait_for_timeout",
+        "page.wait_for_selector",
         "locator.click",
         "locator.fill",
         "locator.hover",

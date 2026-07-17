@@ -103,6 +103,68 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(schema).parse(wireValue)).toStrictEqual(apiValue);
   });
 
+  it("encodes page parity params with snake_case wire fields", () => {
+    const definition = StagehandMethods.pageDragAndDrop;
+    const apiValue = {
+      pageId: "page_1",
+      fromX: 10,
+      fromY: 20,
+      toX: 30,
+      toY: 40,
+      options: { returnXpath: true },
+    };
+    const wireValue = {
+      page_id: "page_1",
+      from_x: 10,
+      from_y: 20,
+      to_x: 30,
+      to_y: 40,
+      options: { return_xpath: true },
+    };
+
+    expect(encodeWireValue(apiValue)).toStrictEqual(wireValue);
+    expect(wireSchema(definition.params).parse(wireValue)).toStrictEqual(apiValue);
+  });
+
+  it("preserves opaque page payload keys", () => {
+    const evaluate = StagehandMethods.pageEvaluate;
+    const evaluation = { value: { camelCase: true, nestedValue: { staysCamelCase: true } } };
+    expect(encodeWireValue(evaluation, evaluate.resultWire)).toStrictEqual(evaluation);
+    expect(wireSchema(evaluate.result, evaluate.resultWire).parse(evaluation)).toStrictEqual(
+      evaluation,
+    );
+
+    const headers = StagehandMethods.pageSetExtraHTTPHeaders;
+    const headerParams = {
+      pageId: "page_1",
+      headers: { "X-Request-ID": "request-1", doNotRenameMe: "value" },
+    };
+    const headerWireParams = {
+      page_id: "page_1",
+      headers: { "X-Request-ID": "request-1", doNotRenameMe: "value" },
+    };
+    expect(encodeWireValue(headerParams, headers.paramsWire)).toStrictEqual(headerWireParams);
+    expect(wireSchema(headers.params, headers.paramsWire).parse(headerWireParams)).toStrictEqual(
+      headerParams,
+    );
+
+    const snapshot = StagehandMethods.pageSnapshot;
+    const snapshotResult = {
+      formattedTree: "root",
+      xpathMap: { frameOne: "/html/body" },
+      urlMap: { frameOne: "https://example.com" },
+    };
+    const snapshotWireResult = {
+      formatted_tree: "root",
+      xpath_map: { frameOne: "/html/body" },
+      url_map: { frameOne: "https://example.com" },
+    };
+    expect(encodeWireValue(snapshotResult, snapshot.resultWire)).toStrictEqual(snapshotWireResult);
+    expect(
+      wireSchema(snapshot.result, snapshot.resultWire).parse(snapshotWireResult),
+    ).toStrictEqual(snapshotResult);
+  });
+
   it("preserves arbitrary map keys while encoding nested configuration", () => {
     const definition = StagehandMethods.stagehandInit;
     const apiValue = {

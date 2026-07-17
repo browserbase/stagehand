@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, expectTypeOf, it } from "vite-plus/test";
 import { z } from "zod/v4";
 import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
@@ -58,6 +58,30 @@ class ManualCDPTransport implements CDPTransport {
 }
 
 describe("RPCClient", () => {
+  it("accepts page methods without SDK wrapper methods", async () => {
+    const cdp = new FakeCDPTransport({ matched: true });
+    const client = new RPCClient(cdp, 1_000);
+
+    const request = client.send(StagehandMethods.pageWaitForSelector, {
+      pageId: "page-1",
+      selector: "button.submit",
+      options: { state: "visible", timeout: 1_000, pierceShadow: true },
+    });
+
+    expectTypeOf(request).toEqualTypeOf<Promise<{ matched: boolean }>>();
+    await expect(request).resolves.toStrictEqual({ matched: true });
+    expect(cdp.sent).toContainEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "page.wait_for_selector",
+      params: {
+        page_id: "page-1",
+        selector: "button.submit",
+        options: { state: "visible", timeout: 1_000, pierce_shadow: true },
+      },
+    });
+  });
+
   it("registers the pending request before CDP can return its response", async () => {
     const cdp = new FakeCDPTransport({
       page_id: "page-1",

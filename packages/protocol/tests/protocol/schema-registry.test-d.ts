@@ -23,6 +23,29 @@ expectTypeOf<z.input<typeof StagehandMethods.pageGoto.params>>().toEqualTypeOf<{
     timeoutMs?: number;
   };
 }>();
+expectTypeOf(StagehandMethods.pageReload.name).toEqualTypeOf<"page.reload">();
+expectTypeOf<z.input<typeof StagehandMethods.pageReload.params>>().toEqualTypeOf<{
+  pageId: string;
+  options?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeoutMs?: number;
+    ignoreCache?: boolean;
+  };
+}>();
+expectTypeOf(StagehandMethods.pageDragAndDrop.name).toEqualTypeOf<"page.drag_and_drop">();
+expectTypeOf<z.output<typeof StagehandMethods.pageDragAndDrop.result>>().toEqualTypeOf<{
+  fromXpath: string;
+  toXpath: string;
+}>();
+expectTypeOf(StagehandMethods.pageScreenshot.name).toEqualTypeOf<"page.screenshot">();
+expectTypeOf<z.output<typeof StagehandMethods.pageScreenshot.result>>().toEqualTypeOf<{
+  data: string;
+  type: "png" | "jpeg";
+}>();
+expectTypeOf(StagehandMethods.pageWaitForSelector.name).toEqualTypeOf<"page.wait_for_selector">();
+expectTypeOf<z.output<typeof StagehandMethods.pageWaitForSelector.result>>().toEqualTypeOf<{
+  matched: boolean;
+}>();
 expectTypeOf(StagehandMethods.browserGetVersion.name).toEqualTypeOf<"browser.get_version">();
 expectTypeOf<z.input<typeof StagehandMethods.browserGetVersion.params>>().toEqualTypeOf<
   Record<string, never>

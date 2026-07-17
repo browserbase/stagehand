@@ -772,6 +772,58 @@ export const ObserveResultSchema = z
 
 export const EmptyParamsSchema = z.object({}).strict();
 
+export const LoadStateSchema = z
+  .enum(["load", "domcontentloaded", "networkidle"])
+  .meta({ id: "LoadState" });
+
+export const PageNavigationOptionsSchema = z
+  .object({
+    waitUntil: LoadStateSchema.optional(),
+    timeoutMs: z.number().int().positive().optional(),
+  })
+  .strict()
+  .meta({ id: "PageNavigationOptions" });
+
+export const PageVoidResultSchema = z
+  .object({
+    ok: z.literal(true),
+  })
+  .strict()
+  .meta({ id: "PageVoidResult" });
+
+export const PageCoordinateResultSchema = z
+  .object({
+    xpath: z.string(),
+  })
+  .strict()
+  .meta({ id: "PageCoordinateResult" });
+
+export const PageScreenshotClipSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+    width: z.number().positive(),
+    height: z.number().positive(),
+  })
+  .strict()
+  .meta({ id: "PageScreenshotClip" });
+
+export const SnapshotResultSchema = z
+  .object({
+    formattedTree: z.string(),
+    xpathMap: z.record(z.string(), z.string()),
+    urlMap: z.record(z.string(), z.string()),
+  })
+  .strict()
+  .meta({ id: "SnapshotResult" });
+
+export const PageSnapshotOptionsSchema = z
+  .object({
+    includeIframes: z.boolean().optional(),
+  })
+  .strict()
+  .meta({ id: "PageSnapshotOptions" });
+
 export const PageRefSchema = z
   .object({
     pageId: z.string(),
@@ -856,13 +908,7 @@ export const PageGotoParamsSchema = z
   .object({
     pageId: z.string(),
     url: z.string().min(1),
-    options: z
-      .object({
-        waitUntil: z.enum(["load", "domcontentloaded", "networkidle"]).optional(),
-        timeoutMs: z.number().int().positive().optional(),
-      })
-      .strict()
-      .optional(),
+    options: PageNavigationOptionsSchema.optional(),
   })
   .strict();
 
@@ -873,6 +919,174 @@ export const PageIdParamsSchema = z
   .strict();
 
 export const MouseButtonSchema = z.enum(["left", "right", "middle"]);
+
+export const PageReloadParamsSchema = PageIdParamsSchema.extend({
+  options: PageNavigationOptionsSchema.extend({
+    ignoreCache: z.boolean().optional(),
+  })
+    .strict()
+    .optional(),
+}).strict();
+
+export const PageGoBackParamsSchema = PageIdParamsSchema.extend({
+  options: PageNavigationOptionsSchema.optional(),
+}).strict();
+
+export const PageGoForwardParamsSchema = PageIdParamsSchema.extend({
+  options: PageNavigationOptionsSchema.optional(),
+}).strict();
+
+export const PageClickParamsSchema = PageIdParamsSchema.extend({
+  x: z.number(),
+  y: z.number(),
+  options: z
+    .object({
+      button: MouseButtonSchema.optional(),
+      clickCount: z.number().int().positive().optional(),
+      returnXpath: z.boolean().optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
+
+export const PageHoverParamsSchema = PageIdParamsSchema.extend({
+  x: z.number(),
+  y: z.number(),
+  options: z
+    .object({
+      returnXpath: z.boolean().optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
+
+export const PageScrollParamsSchema = PageIdParamsSchema.extend({
+  x: z.number(),
+  y: z.number(),
+  deltaX: z.number(),
+  deltaY: z.number(),
+  options: z
+    .object({
+      returnXpath: z.boolean().optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
+
+export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
+  fromX: z.number(),
+  fromY: z.number(),
+  toX: z.number(),
+  toY: z.number(),
+  options: z
+    .object({
+      button: MouseButtonSchema.optional(),
+      steps: z.number().int().positive().optional(),
+      delay: z.number().nonnegative().optional(),
+      returnXpath: z.boolean().optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
+
+export const PageTypeParamsSchema = PageIdParamsSchema.extend({
+  text: z.string(),
+  options: z
+    .object({
+      delay: z.number().nonnegative().optional(),
+      withMistakes: z.boolean().optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
+
+export const PageKeyPressParamsSchema = PageIdParamsSchema.extend({
+  key: z.string().min(1),
+  options: z
+    .object({
+      delay: z.number().nonnegative().optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
+
+export const PageEvaluateParamsSchema = PageIdParamsSchema.extend({
+  expression: z.string(),
+}).strict();
+
+export const PageAddInitScriptParamsSchema = PageIdParamsSchema.extend({
+  source: z.string(),
+}).strict();
+
+export const PageSetExtraHTTPHeadersParamsSchema = PageIdParamsSchema.extend({
+  headers: z.record(z.string(), z.string()),
+}).strict();
+
+export const PageScreenshotOptionsSchema = z
+  .object({
+    animations: z.enum(["disabled", "allow"]).optional(),
+    caret: z.enum(["hide", "initial"]).optional(),
+    clip: PageScreenshotClipSchema.optional(),
+    fullPage: z.boolean().optional(),
+    mask: z.array(LocatorDescriptorSchema).optional(),
+    maskColor: z.string().optional(),
+    omitBackground: z.boolean().optional(),
+    quality: z.number().int().min(0).max(100).optional(),
+    scale: z.enum(["css", "device"]).optional(),
+    style: z.string().optional(),
+    timeout: z.number().nonnegative().optional(),
+    type: z.enum(["png", "jpeg"]).optional(),
+  })
+  .strict()
+  .refine((options) => !(options.fullPage && options.clip), {
+    message: "fullPage and clip cannot be used together",
+    path: ["clip"],
+  })
+  .refine((options) => options.type === "jpeg" || options.quality === undefined, {
+    message: 'quality is only valid when type is "jpeg"',
+    path: ["quality"],
+  })
+  .meta({ id: "PageScreenshotOptions" });
+
+export const PageScreenshotParamsSchema = PageIdParamsSchema.extend({
+  options: PageScreenshotOptionsSchema.optional(),
+}).strict();
+
+export const PageSnapshotParamsSchema = PageIdParamsSchema.extend({
+  options: PageSnapshotOptionsSchema.optional(),
+}).strict();
+
+export const PageSetViewportSizeParamsSchema = PageIdParamsSchema.extend({
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  options: z
+    .object({
+      deviceScaleFactor: z.number().positive().optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
+
+export const PageWaitForLoadStateParamsSchema = PageIdParamsSchema.extend({
+  state: LoadStateSchema,
+  timeoutMs: z.number().int().nonnegative().optional(),
+}).strict();
+
+export const PageWaitForTimeoutParamsSchema = PageIdParamsSchema.extend({
+  ms: z.number().int().nonnegative(),
+}).strict();
+
+export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
+  selector: z.string().min(1),
+  options: z
+    .object({
+      state: z.enum(["attached", "detached", "visible", "hidden"]).optional(),
+      timeout: z.number().int().nonnegative().optional(),
+      pierceShadow: z.boolean().optional(),
+    })
+    .strict()
+    .optional(),
+}).strict();
 
 export const LocatorClickParamsSchema = LocatorDescriptorSchema.extend({
   options: z
@@ -1010,6 +1224,32 @@ export const PageTitleResultSchema = z
 export const PageCloseResultSchema = z
   .object({
     closed: z.literal(true),
+  })
+  .strict();
+
+export const PageDragAndDropResultSchema = z
+  .object({
+    fromXpath: z.string(),
+    toXpath: z.string(),
+  })
+  .strict();
+
+export const PageEvaluateResultSchema = z
+  .object({
+    value: z.json(),
+  })
+  .strict();
+
+export const PageScreenshotResultSchema = z
+  .object({
+    data: z.base64().meta({ format: "byte" }),
+    type: z.enum(["png", "jpeg"]),
+  })
+  .strict();
+
+export const PageWaitForSelectorResultSchema = z
+  .object({
+    matched: z.boolean(),
   })
   .strict();
 

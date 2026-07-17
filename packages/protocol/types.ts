@@ -58,6 +58,7 @@ import type {
   LocatorTextContentResultSchema,
   LocatorTypeParamsSchema,
   LocatorTypeResultSchema,
+  LoadStateSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
   LLMAnnotationsSchema,
@@ -88,13 +89,41 @@ import type {
   ModelProviderSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
+  PageAddInitScriptParamsSchema,
+  PageClickParamsSchema,
   PageCloseResultSchema,
+  PageCoordinateResultSchema,
+  PageDragAndDropParamsSchema,
+  PageDragAndDropResultSchema,
+  PageEvaluateParamsSchema,
+  PageEvaluateResultSchema,
+  PageGoBackParamsSchema,
+  PageGoForwardParamsSchema,
   PageGotoParamsSchema,
+  PageHoverParamsSchema,
   PageIdParamsSchema,
+  PageKeyPressParamsSchema,
   PageLocatorSchema,
+  PageNavigationOptionsSchema,
   PageRefSchema,
+  PageReloadParamsSchema,
+  PageScreenshotOptionsSchema,
+  PageScreenshotParamsSchema,
+  PageScreenshotClipSchema,
+  PageScreenshotResultSchema,
+  PageScrollParamsSchema,
+  PageSetExtraHTTPHeadersParamsSchema,
+  PageSetViewportSizeParamsSchema,
+  PageSnapshotParamsSchema,
+  PageSnapshotOptionsSchema,
   PageTitleResultSchema,
+  PageTypeParamsSchema,
   PageUrlResultSchema,
+  PageVoidResultSchema,
+  PageWaitForLoadStateParamsSchema,
+  PageWaitForSelectorParamsSchema,
+  PageWaitForSelectorResultSchema,
+  PageWaitForTimeoutParamsSchema,
   RuntimeConfigureParamsSchema,
   RuntimeConfigureResultSchema,
   RuntimeLoopbackStatusResultSchema,
@@ -113,6 +142,7 @@ import type {
   StagehandObserveParamsSchema,
   StagehandPingResultSchema,
   StagehandTelemetryOptionsSchema,
+  SnapshotResultSchema,
   VariablePrimitiveSchema,
   VariablesSchema,
   VariableValueSchema,
@@ -157,7 +187,6 @@ import type {
   ExtractResponseSchema,
   HistoryEntrySchema,
   LLMToolSchema,
-  LoadStateSchema,
   LocalBrowserConnectOptionsSchema,
   LocalBrowserLaunchOptionsSchema,
   ModelAuthSchema,
@@ -170,7 +199,6 @@ import type {
   ObserveResponseSchema,
   OllamaResolvedProviderClientOptionsSchema,
   OpenAIClientOptionsSchema,
-  PageSnapshotOptionsSchema,
   ProxyConfigSchema,
   ReplayActionSchema,
   ReplayPageSchema,
@@ -185,7 +213,6 @@ import type {
   SessionStartRequestSchema,
   SessionStartResponseSchema,
   SessionStartResultSchema,
-  SnapshotResultSchema,
   StagehandOptionsSchema,
   StagehandModelOptionSchema,
   StreamEventLogDataSchema,
@@ -261,6 +288,12 @@ export type ObserveOptions = z.infer<typeof ObserveOptionsSchema>;
 export type ObserveResult = z.infer<typeof ObserveResultSchema>;
 export type EmptyParams = z.infer<typeof EmptyParamsSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
+export type PageNavigationOptions = z.infer<typeof PageNavigationOptionsSchema>;
+export type PageVoidResult = z.infer<typeof PageVoidResultSchema>;
+export type PageCoordinateResult = z.infer<typeof PageCoordinateResultSchema>;
+export type PageScreenshotClip = z.infer<typeof PageScreenshotClipSchema>;
+export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
+export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
 export type LocatorDescriptor = z.infer<typeof LocatorDescriptorSchema>;
 export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
 export type StagehandTelemetryOptions = z.infer<typeof StagehandTelemetryOptionsSchema>;
@@ -271,6 +304,25 @@ export type StagehandExtractParams = z.infer<typeof StagehandExtractParamsSchema
 export type ContextNewPageParams = z.infer<typeof ContextNewPageParamsSchema>;
 export type PageGotoParams = z.infer<typeof PageGotoParamsSchema>;
 export type PageIdParams = z.infer<typeof PageIdParamsSchema>;
+export type PageReloadParams = z.infer<typeof PageReloadParamsSchema>;
+export type PageGoBackParams = z.infer<typeof PageGoBackParamsSchema>;
+export type PageGoForwardParams = z.infer<typeof PageGoForwardParamsSchema>;
+export type PageClickParams = z.infer<typeof PageClickParamsSchema>;
+export type PageHoverParams = z.infer<typeof PageHoverParamsSchema>;
+export type PageScrollParams = z.infer<typeof PageScrollParamsSchema>;
+export type PageDragAndDropParams = z.infer<typeof PageDragAndDropParamsSchema>;
+export type PageTypeParams = z.infer<typeof PageTypeParamsSchema>;
+export type PageKeyPressParams = z.infer<typeof PageKeyPressParamsSchema>;
+export type PageEvaluateParams = z.infer<typeof PageEvaluateParamsSchema>;
+export type PageAddInitScriptParams = z.infer<typeof PageAddInitScriptParamsSchema>;
+export type PageSetExtraHTTPHeadersParams = z.infer<typeof PageSetExtraHTTPHeadersParamsSchema>;
+export type PageScreenshotOptions = z.infer<typeof PageScreenshotOptionsSchema>;
+export type PageScreenshotParams = z.infer<typeof PageScreenshotParamsSchema>;
+export type PageSnapshotParams = z.infer<typeof PageSnapshotParamsSchema>;
+export type PageSetViewportSizeParams = z.infer<typeof PageSetViewportSizeParamsSchema>;
+export type PageWaitForLoadStateParams = z.infer<typeof PageWaitForLoadStateParamsSchema>;
+export type PageWaitForTimeoutParams = z.infer<typeof PageWaitForTimeoutParamsSchema>;
+export type PageWaitForSelectorParams = z.infer<typeof PageWaitForSelectorParamsSchema>;
 export type LocatorClickParams = z.infer<typeof LocatorClickParamsSchema>;
 export type LocatorFillParams = z.infer<typeof LocatorFillParamsSchema>;
 export type LocatorHoverParams = z.infer<typeof LocatorHoverParamsSchema>;
@@ -296,6 +348,10 @@ export type ContextPagesResult = z.infer<typeof ContextPagesResultSchema>;
 export type PageUrlResult = z.infer<typeof PageUrlResultSchema>;
 export type PageTitleResult = z.infer<typeof PageTitleResultSchema>;
 export type PageCloseResult = z.infer<typeof PageCloseResultSchema>;
+export type PageDragAndDropResult = z.infer<typeof PageDragAndDropResultSchema>;
+export type PageEvaluateResult = z.infer<typeof PageEvaluateResultSchema>;
+export type PageScreenshotResult = z.infer<typeof PageScreenshotResultSchema>;
+export type PageWaitForSelectorResult = z.infer<typeof PageWaitForSelectorResultSchema>;
 export type LocatorClickResult = z.infer<typeof LocatorClickResultSchema>;
 export type LocatorFillResult = z.infer<typeof LocatorFillResultSchema>;
 export type LocatorHoverResult = z.infer<typeof LocatorHoverResultSchema>;
@@ -356,9 +412,7 @@ export type OllamaResolvedProviderClientOptions = z.infer<
   typeof OllamaResolvedProviderClientOptionsSchema
 >;
 export type OpenAIClientOptions = z.infer<typeof OpenAIClientOptionsSchema>;
-export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
 export type ResolvedProviderClientOptions = z.infer<typeof ResolvedProviderClientOptionsSchema>;
-export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
 export type StagehandOptions = z.input<typeof StagehandOptionsSchema>;
 export type StagehandModelOption = z.infer<typeof StagehandModelOptionSchema>;
 export type ThinkingEffort = z.infer<typeof ThinkingEffortSchema>;

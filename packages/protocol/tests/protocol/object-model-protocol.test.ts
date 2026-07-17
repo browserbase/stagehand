@@ -56,6 +56,37 @@ describe("Stagehand object-model protocol", () => {
     });
   });
 
+  it("registers page methods", () => {
+    expect(
+      Object.values(StagehandMethods)
+        .map((method) => method.name)
+        .filter((name) => name.startsWith("page.")),
+    ).toStrictEqual([
+      "page.goto",
+      "page.url",
+      "page.title",
+      "page.close",
+      "page.reload",
+      "page.go_back",
+      "page.go_forward",
+      "page.click",
+      "page.hover",
+      "page.scroll",
+      "page.drag_and_drop",
+      "page.type",
+      "page.key_press",
+      "page.evaluate",
+      "page.add_init_script",
+      "page.set_extra_http_headers",
+      "page.screenshot",
+      "page.snapshot",
+      "page.set_viewport_size",
+      "page.wait_for_load_state",
+      "page.wait_for_timeout",
+      "page.wait_for_selector",
+    ]);
+  });
+
   it("keeps locators as page-scoped descriptors", () => {
     expect(
       StagehandMethods.locatorTextContent.params.parse({
