@@ -344,7 +344,7 @@ describe("StagehandAPIClient cache metadata", () => {
 
     expect(result.cacheStatus).toBe("MISS");
     expect(result.cacheMissReason).toBe("threshold");
-    expect(result.cacheCount).toBe(3);
+    expect(result.cacheHitCount).toBe(3);
     expect(result.tokensSaved).toEqual({ input: 0, output: 0, total: 0 });
   });
 
@@ -358,7 +358,7 @@ describe("StagehandAPIClient cache metadata", () => {
 
     expect(result.cacheStatus).toBe("HIT");
     expect(result.cacheMissReason).toBeUndefined();
-    expect(result.cacheCount).toBe(8);
+    expect(result.cacheHitCount).toBe(8);
     expect(result.tokensSaved).toEqual({
       input: 120,
       output: 30,
@@ -385,7 +385,7 @@ describe("StagehandAPIClient cache metadata", () => {
 
     expect(result.cacheStatus).toBeUndefined();
     expect(result.cacheMissReason).toBeUndefined();
-    expect(result.cacheCount).toBeUndefined();
+    expect(result.cacheHitCount).toBeUndefined();
     expect(result.tokensSaved).toBeUndefined();
   });
 });

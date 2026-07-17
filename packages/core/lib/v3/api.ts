@@ -943,7 +943,7 @@ export class StagehandAPIClient {
         | ObserveResult;
       cacheAwareResult.cacheStatus = finalCacheStatus;
       if (typeof eventData.data.cacheCount === "number") {
-        cacheAwareResult.cacheCount = eventData.data.cacheCount;
+        cacheAwareResult.cacheHitCount = eventData.data.cacheCount;
       }
       const tokensSaved = eventData.data.tokensSaved;
       if (

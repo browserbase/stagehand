@@ -152,7 +152,7 @@ describe("Stagehand public API types", () => {
       actionDescription: string;
       actions: Stagehand.Action[];
       cacheStatus?: "HIT" | "MISS";
-      cacheCount?: number;
+      cacheHitCount?: number;
       tokensSaved?: Stagehand.TokenSavings;
       cacheMissReason?: string;
     };
@@ -202,7 +202,7 @@ describe("Stagehand public API types", () => {
       expectTypeOf<Stagehand.ObserveResult["cacheStatus"]>().toEqualTypeOf<
         "HIT" | "MISS" | undefined
       >();
-      expectTypeOf<Stagehand.ObserveResult["cacheCount"]>().toEqualTypeOf<
+      expectTypeOf<Stagehand.ObserveResult["cacheHitCount"]>().toEqualTypeOf<
         number | undefined
       >();
       expectTypeOf<Stagehand.ObserveResult["tokensSaved"]>().toEqualTypeOf<
