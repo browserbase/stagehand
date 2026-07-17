@@ -51,6 +51,7 @@ export async function launchLocalChrome(
     opts.ignoreHTTPSErrors ? "--ignore-certificate-errors" : undefined,
     opts.proxy?.server ? `--proxy-server=${opts.proxy.server}` : undefined,
     opts.proxy?.bypass ? `--proxy-bypass-list=${opts.proxy.bypass}` : undefined,
+    opts.userDataDir ? `--user-data-dir=${opts.userDataDir}` : undefined,
     ...(opts.args ?? []),
   ].filter((f): f is string => typeof f === "string");
 
@@ -76,7 +77,6 @@ export async function launchLocalChrome(
     chromePath: opts.executablePath,
     chromeFlags,
     port: opts.port,
-    userDataDir: opts.userDataDir,
     handleSIGINT: opts.handleSIGINT,
     ignoreDefaultFlags,
     connectionPollInterval,

@@ -71,9 +71,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function getLaunchArgs(
-  opts: Record<string, unknown>,
-): Promise<{ chromeFlags: string[]; ignoreDefaultFlags: boolean }> {
+async function getLaunchArgs(opts: Record<string, unknown>): Promise<{
+  chromeFlags: string[];
+  ignoreDefaultFlags: boolean;
+  userDataDir?: string;
+}> {
   const { launchLocalChrome } = await import("../../lib/v3/launch/local.js");
   await launchLocalChrome(opts);
   return launchMock.mock.calls[0][0];
@@ -213,5 +215,16 @@ describe("launchLocalChrome ignoreDefaultArgs", () => {
     );
     expect(args.chromeFlags).toContain("--renderer-process-limit=6");
     expect(args.chromeFlags).toContain("--remote-allow-origins=*");
+  });
+
+  it("passes userDataDir as a Chrome flag instead of a chrome-launcher option", async () => {
+    const args = await getLaunchArgs({
+      userDataDir: "/home/user/project/chrome-profile",
+    });
+
+    expect(args.userDataDir).toBeUndefined();
+    expect(args.chromeFlags).toContain(
+      "--user-data-dir=/home/user/project/chrome-profile",
+    );
   });
 });
