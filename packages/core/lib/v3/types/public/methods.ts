@@ -28,6 +28,12 @@ export interface ActOptions {
    * keep honoring it; passing a new value updates it. Non-negative integer.
    */
   serverCacheThreshold?: number;
+  /**
+   * When true, attaches detailed cache metadata (`cacheHitCount`,
+   * `tokensSaved`, `cacheMissReason`) to the result. `cacheStatus` is always
+   * attached when server caching is used, regardless of this flag.
+   */
+  includeCacheMetadata?: boolean;
 }
 
 export interface TokenSavings {
@@ -42,14 +48,21 @@ export interface ActResult {
   actionDescription: string;
   actions: Action[];
   cacheStatus?: "HIT" | "MISS";
-  /** Cache entry count after this request, when server caching was used. */
+  /**
+   * Cache entry count after this request. Only attached when
+   * `includeCacheMetadata: true` is set on the request options.
+   */
   cacheHitCount?: number;
-  /** Input, output, and total LLM tokens avoided by a server cache hit. */
+  /**
+   * Input, output, and total LLM tokens avoided by a server cache hit.
+   * Only attached when `includeCacheMetadata: true` is set on the request
+   * options.
+   */
   tokensSaved?: TokenSavings;
   /**
    * Why the server cache missed, when it reports a reason (e.g. "threshold",
-   * "empty_array", "timeout", "error"). Absent on hits and on first-time
-   * misses with no prior cache entry.
+   * "empty_array", "timeout", "error"). Only attached when
+   * `includeCacheMetadata: true` is set on the request options.
    */
   cacheMissReason?: string;
 }
@@ -96,6 +109,12 @@ export interface ExtractOptions {
    * keep honoring it; passing a new value updates it. Non-negative integer.
    */
   serverCacheThreshold?: number;
+  /**
+   * When true, attaches detailed cache metadata (`cacheHitCount`,
+   * `tokensSaved`, `cacheMissReason`) to the result. `cacheStatus` is always
+   * attached when server caching is used, regardless of this flag.
+   */
+  includeCacheMetadata?: boolean;
 }
 
 export const defaultExtractSchema = z.object({
@@ -126,15 +145,21 @@ export interface ObserveOptions {
    * keep honoring it; passing a new value updates it. Non-negative integer.
    */
   serverCacheThreshold?: number;
+  /**
+   * When true, attaches detailed cache metadata (`cacheHitCount`,
+   * `tokensSaved`, `cacheMissReason`) to the result. `cacheStatus` is always
+   * attached when server caching is used, regardless of this flag.
+   */
+  includeCacheMetadata?: boolean;
 }
 
 /**
  * Observe returns an array of candidate actions. The optional `cacheStatus`
  * property is attached when the server responds with a
  * `browserbase-cache-status` header so callers can tell whether the result
- * was served from the server-side cache. `cacheHitCount` reports the entry
- * count after the request, `tokensSaved` reports avoided LLM usage, and
- * `cacheMissReason` explains a miss when available.
+ * was served from the server-side cache. Detailed fields (`cacheHitCount`,
+ * `tokensSaved`, `cacheMissReason`) are only attached when
+ * `includeCacheMetadata: true` is set on the request options.
  */
 export type ObserveResult = Action[] & {
   cacheStatus?: "HIT" | "MISS";

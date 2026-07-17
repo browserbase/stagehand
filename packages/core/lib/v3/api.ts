@@ -151,6 +151,11 @@ interface ExecuteActionParams {
    * When false, disables server-side caching.
    */
   serverCache?: boolean;
+  /**
+   * When true, attaches detailed cache metadata to the result.
+   * `cacheStatus` is always attached when caching is used.
+   */
+  includeCacheMetadata?: boolean;
 }
 
 /**
@@ -302,15 +307,18 @@ export class StagehandAPIClient {
     // Strip non-serializable `page` and SDK-only fields from options before wire serialization
     let wireOptions: Api.ActRequest["options"];
     let serverCache: boolean | undefined;
+    let includeCacheMetadata: boolean | undefined;
     if (options) {
       const {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         page: _,
         serverCache: enableCache,
         serverCacheThreshold,
+        includeCacheMetadata: includeMetadata,
         ...restOptions
       } = options;
       serverCache = enableCache;
+      includeCacheMetadata = includeMetadata;
       if (restOptions.model) {
         restOptions.model = this.prepareModelConfig(restOptions.model);
       } else if (this.defaultModelConfig) {
@@ -340,6 +348,7 @@ export class StagehandAPIClient {
       method: "act",
       args: requestBody,
       serverCache,
+      includeCacheMetadata,
     });
   }
 
@@ -355,15 +364,18 @@ export class StagehandAPIClient {
     // Strip non-serializable `page` and SDK-only fields from options before wire serialization
     let wireOptions: Api.ExtractRequest["options"];
     let serverCache: boolean | undefined;
+    let includeCacheMetadata: boolean | undefined;
     if (options) {
       const {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         page: _,
         serverCache: enableCache,
         serverCacheThreshold,
+        includeCacheMetadata: includeMetadata,
         ...restOptions
       } = options;
       serverCache = enableCache;
+      includeCacheMetadata = includeMetadata;
       if (restOptions.model) {
         restOptions.model = this.prepareModelConfig(restOptions.model);
       } else if (this.defaultModelConfig) {
@@ -394,6 +406,7 @@ export class StagehandAPIClient {
       method: "extract",
       args: requestBody,
       serverCache,
+      includeCacheMetadata,
     });
   }
 
@@ -405,15 +418,18 @@ export class StagehandAPIClient {
     // Strip non-serializable `page` and SDK-only fields from options before wire serialization
     let wireOptions: Api.ObserveRequest["options"];
     let serverCache: boolean | undefined;
+    let includeCacheMetadata: boolean | undefined;
     if (options) {
       const {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         page: _,
         serverCache: enableCache,
         serverCacheThreshold,
+        includeCacheMetadata: includeMetadata,
         ...restOptions
       } = options;
       serverCache = enableCache;
+      includeCacheMetadata = includeMetadata;
       if (restOptions.model) {
         restOptions.model = this.prepareModelConfig(restOptions.model);
       } else if (this.defaultModelConfig) {
@@ -443,6 +459,7 @@ export class StagehandAPIClient {
       method: "observe",
       args: requestBody,
       serverCache,
+      includeCacheMetadata,
     });
   }
 
@@ -763,6 +780,7 @@ export class StagehandAPIClient {
     args,
     params,
     serverCache,
+    includeCacheMetadata,
   }: ExecuteActionParams): Promise<T> {
     this.lastFinishedEventData = null;
     const urlParams = new URLSearchParams(params as Record<string, string>);
@@ -835,6 +853,7 @@ export class StagehandAPIClient {
                 method,
                 cacheEnabled ? cacheStatus : null,
                 cacheEnabled ? eventData : { data: {} },
+                includeCacheMetadata === true,
               );
             }
           } else if (eventData.type === "log") {
@@ -879,6 +898,7 @@ export class StagehandAPIClient {
                 method,
                 cacheEnabled ? cacheStatus : null,
                 cacheEnabled ? eventData : { data: {} },
+                includeCacheMetadata === true,
               );
             }
           } catch {
@@ -899,6 +919,7 @@ export class StagehandAPIClient {
   /**
    * Resolves the final cache status from the response header or SSE event data,
    * logs it, and attaches it to act/extract results before returning.
+   * Detailed metadata is only attached when `includeCacheMetadata` is true.
    */
   private attachCacheStatus<T>(
     result: T,
@@ -912,6 +933,7 @@ export class StagehandAPIClient {
         tokensSaved?: TokenSavings;
       };
     },
+    includeCacheMetadata: boolean,
   ): T {
     const finalCacheStatus =
       cacheStatus ||
@@ -942,23 +964,25 @@ export class StagehandAPIClient {
         | ExtractResult<any>
         | ObserveResult;
       cacheAwareResult.cacheStatus = finalCacheStatus;
-      if (typeof eventData.data.cacheCount === "number") {
-        cacheAwareResult.cacheHitCount = eventData.data.cacheCount;
-      }
-      const tokensSaved = eventData.data.tokensSaved;
-      if (
-        tokensSaved &&
-        typeof tokensSaved.input === "number" &&
-        typeof tokensSaved.output === "number" &&
-        typeof tokensSaved.total === "number"
-      ) {
-        cacheAwareResult.tokensSaved = tokensSaved;
-      }
-      if (
-        finalCacheStatus === "MISS" &&
-        typeof eventData.data.cacheMissReason === "string"
-      ) {
-        cacheAwareResult.cacheMissReason = eventData.data.cacheMissReason;
+      if (includeCacheMetadata) {
+        if (typeof eventData.data.cacheCount === "number") {
+          cacheAwareResult.cacheHitCount = eventData.data.cacheCount;
+        }
+        const tokensSaved = eventData.data.tokensSaved;
+        if (
+          tokensSaved &&
+          typeof tokensSaved.input === "number" &&
+          typeof tokensSaved.output === "number" &&
+          typeof tokensSaved.total === "number"
+        ) {
+          cacheAwareResult.tokensSaved = tokensSaved;
+        }
+        if (
+          finalCacheStatus === "MISS" &&
+          typeof eventData.data.cacheMissReason === "string"
+        ) {
+          cacheAwareResult.cacheMissReason = eventData.data.cacheMissReason;
+        }
       }
     }
     return result;

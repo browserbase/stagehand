@@ -138,6 +138,7 @@ describe("Stagehand public API types", () => {
       page?: Stagehand.AnyPage;
       serverCache?: boolean;
       serverCacheThreshold?: number;
+      includeCacheMetadata?: boolean;
     };
 
     it("matches expected type shape", () => {
@@ -172,6 +173,7 @@ describe("Stagehand public API types", () => {
       page?: Stagehand.AnyPage;
       serverCache?: boolean;
       serverCacheThreshold?: number;
+      includeCacheMetadata?: boolean;
     };
 
     it("matches expected type shape", () => {
@@ -189,6 +191,7 @@ describe("Stagehand public API types", () => {
       page?: Stagehand.AnyPage;
       serverCache?: boolean;
       serverCacheThreshold?: number;
+      includeCacheMetadata?: boolean;
     };
 
     it("matches expected type shape", () => {

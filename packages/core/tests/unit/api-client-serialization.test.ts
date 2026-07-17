@@ -50,6 +50,7 @@ describe("StagehandAPIClient variable serialization", () => {
         frameId: undefined,
       },
       serverCache: undefined,
+      includeCacheMetadata: undefined,
     });
   });
 
@@ -84,6 +85,7 @@ describe("StagehandAPIClient variable serialization", () => {
         frameId: undefined,
       },
       serverCache: undefined,
+      includeCacheMetadata: undefined,
     });
   });
 
@@ -131,6 +133,7 @@ describe("StagehandAPIClient variable serialization", () => {
         frameId: undefined,
       },
       serverCache: undefined,
+      includeCacheMetadata: undefined,
     });
   });
 
@@ -171,6 +174,7 @@ describe("StagehandAPIClient variable serialization", () => {
         frameId: undefined,
       },
       serverCache: undefined,
+      includeCacheMetadata: undefined,
     });
   });
 
@@ -200,6 +204,7 @@ describe("StagehandAPIClient variable serialization", () => {
         frameId: undefined,
       },
       serverCache: undefined,
+      includeCacheMetadata: undefined,
     });
 
     executeMock.mockResolvedValue({ title: "ok" });
@@ -217,6 +222,7 @@ describe("StagehandAPIClient variable serialization", () => {
         frameId: undefined,
       },
       serverCache: true,
+      includeCacheMetadata: undefined,
     });
   });
 
@@ -286,6 +292,7 @@ describe("StagehandAPIClient cache metadata", () => {
     cacheCount,
     tokensSaved,
     serverCache = true,
+    includeCacheMetadata,
     finalEventBuffered = false,
   }: {
     cacheHit: boolean;
@@ -293,6 +300,7 @@ describe("StagehandAPIClient cache metadata", () => {
     cacheCount?: number;
     tokensSaved?: { input: number; output: number; total: number };
     serverCache?: boolean;
+    includeCacheMetadata?: boolean;
     finalEventBuffered?: boolean;
   }) => {
     const client = new StagehandAPIClient({
@@ -330,16 +338,31 @@ describe("StagehandAPIClient cache metadata", () => {
 
     return client.act({
       input: "click the submit button",
-      options: { serverCache },
+      options: { serverCache, includeCacheMetadata },
     });
   };
 
-  it("attaches the reason when a cache miss provides one", async () => {
+  it("always attaches cacheStatus when caching is enabled", async () => {
     const result = await runAct({
       cacheHit: false,
       cacheMissReason: "threshold",
       cacheCount: 3,
       tokensSaved: { input: 0, output: 0, total: 0 },
+    });
+
+    expect(result.cacheStatus).toBe("MISS");
+    expect(result.cacheMissReason).toBeUndefined();
+    expect(result.cacheHitCount).toBeUndefined();
+    expect(result.tokensSaved).toBeUndefined();
+  });
+
+  it("attaches detailed metadata only when includeCacheMetadata is true", async () => {
+    const result = await runAct({
+      cacheHit: false,
+      cacheMissReason: "threshold",
+      cacheCount: 3,
+      tokensSaved: { input: 0, output: 0, total: 0 },
+      includeCacheMetadata: true,
     });
 
     expect(result.cacheStatus).toBe("MISS");
@@ -354,6 +377,7 @@ describe("StagehandAPIClient cache metadata", () => {
       cacheMissReason: "threshold",
       cacheCount: 8,
       tokensSaved: { input: 120, output: 30, total: 150 },
+      includeCacheMetadata: true,
     });
 
     expect(result.cacheStatus).toBe("HIT");
@@ -367,7 +391,10 @@ describe("StagehandAPIClient cache metadata", () => {
   });
 
   it("does not attach a miss reason when none is provided", async () => {
-    const result = await runAct({ cacheHit: false });
+    const result = await runAct({
+      cacheHit: false,
+      includeCacheMetadata: true,
+    });
 
     expect(result.cacheStatus).toBe("MISS");
     expect(result.cacheMissReason).toBeUndefined();
@@ -380,6 +407,7 @@ describe("StagehandAPIClient cache metadata", () => {
       cacheCount: 3,
       tokensSaved: { input: 0, output: 0, total: 0 },
       serverCache: false,
+      includeCacheMetadata: true,
       finalEventBuffered: true,
     });
 
@@ -387,5 +415,45 @@ describe("StagehandAPIClient cache metadata", () => {
     expect(result.cacheMissReason).toBeUndefined();
     expect(result.cacheHitCount).toBeUndefined();
     expect(result.tokensSaved).toBeUndefined();
+  });
+
+  it("strips includeCacheMetadata from the wire options", async () => {
+    const client = new StagehandAPIClient({
+      apiKey: "bb-test",
+      logger: vi.fn(),
+    });
+    const executeMock = vi.fn().mockResolvedValue({
+      success: true,
+      message: "ok",
+      actionDescription: "clicked",
+      actions: [],
+    });
+
+    (
+      client as unknown as {
+        execute: typeof executeMock;
+      }
+    ).execute = executeMock;
+
+    await client.act({
+      input: "click the submit button",
+      options: {
+        includeCacheMetadata: true,
+        serverCacheThreshold: 5,
+      },
+    });
+
+    expect(executeMock).toHaveBeenCalledWith({
+      method: "act",
+      args: {
+        input: "click the submit button",
+        options: {
+          serverCacheThreshold: 5,
+        },
+        frameId: undefined,
+      },
+      serverCache: undefined,
+      includeCacheMetadata: true,
+    });
   });
 });
