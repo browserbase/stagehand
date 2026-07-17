@@ -30,12 +30,22 @@ export interface ActOptions {
   serverCacheThreshold?: number;
 }
 
+export interface TokenSavings {
+  input: number;
+  output: number;
+  total: number;
+}
+
 export interface ActResult {
   success: boolean;
   message: string;
   actionDescription: string;
   actions: Action[];
   cacheStatus?: "HIT" | "MISS";
+  /** Cache entry count after this request, when server caching was used. */
+  cacheCount?: number;
+  /** Input, output, and total LLM tokens avoided by a server cache hit. */
+  tokensSaved?: TokenSavings;
   /**
    * Why the server cache missed, when it reports a reason (e.g. "threshold",
    * "empty_array", "timeout", "error"). Absent on hits and on first-time
@@ -47,6 +57,8 @@ export interface ActResult {
 export type ExtractResult<T extends StagehandZodSchema> =
   InferStagehandSchema<T> & {
     cacheStatus?: "HIT" | "MISS";
+    cacheCount?: number;
+    tokensSaved?: TokenSavings;
     cacheMissReason?: string;
   };
 
@@ -120,11 +132,14 @@ export interface ObserveOptions {
  * Observe returns an array of candidate actions. The optional `cacheStatus`
  * property is attached when the server responds with a
  * `browserbase-cache-status` header so callers can tell whether the result
- * was served from the server-side cache. `cacheMissReason` is attached when
- * the server reports why a result missed the cache.
+ * was served from the server-side cache. `cacheCount` reports the entry count
+ * after the request, `tokensSaved` reports avoided LLM usage, and
+ * `cacheMissReason` explains a miss when available.
  */
 export type ObserveResult = Action[] & {
   cacheStatus?: "HIT" | "MISS";
+  cacheCount?: number;
+  tokensSaved?: TokenSavings;
   cacheMissReason?: string;
 };
 

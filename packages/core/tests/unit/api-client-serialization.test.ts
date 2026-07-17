@@ -283,11 +283,15 @@ describe("StagehandAPIClient cache metadata", () => {
   const runAct = async ({
     cacheHit,
     cacheMissReason,
+    cacheCount,
+    tokensSaved,
     serverCache = true,
     finalEventBuffered = false,
   }: {
     cacheHit: boolean;
     cacheMissReason?: string;
+    cacheCount?: number;
+    tokensSaved?: { input: number; output: number; total: number };
     serverCache?: boolean;
     finalEventBuffered?: boolean;
   }) => {
@@ -307,6 +311,8 @@ describe("StagehandAPIClient cache metadata", () => {
         },
         cacheHit,
         ...(cacheMissReason !== undefined && { cacheMissReason }),
+        ...(cacheCount !== undefined && { cacheCount }),
+        ...(tokensSaved !== undefined && { tokensSaved }),
       },
     };
     const cacheStatus = cacheHit ? "HIT" : "MISS";
@@ -332,20 +338,32 @@ describe("StagehandAPIClient cache metadata", () => {
     const result = await runAct({
       cacheHit: false,
       cacheMissReason: "threshold",
+      cacheCount: 3,
+      tokensSaved: { input: 0, output: 0, total: 0 },
     });
 
     expect(result.cacheStatus).toBe("MISS");
     expect(result.cacheMissReason).toBe("threshold");
+    expect(result.cacheCount).toBe(3);
+    expect(result.tokensSaved).toEqual({ input: 0, output: 0, total: 0 });
   });
 
   it("does not attach a miss reason to a cache hit", async () => {
     const result = await runAct({
       cacheHit: true,
       cacheMissReason: "threshold",
+      cacheCount: 8,
+      tokensSaved: { input: 120, output: 30, total: 150 },
     });
 
     expect(result.cacheStatus).toBe("HIT");
     expect(result.cacheMissReason).toBeUndefined();
+    expect(result.cacheCount).toBe(8);
+    expect(result.tokensSaved).toEqual({
+      input: 120,
+      output: 30,
+      total: 150,
+    });
   });
 
   it("does not attach a miss reason when none is provided", async () => {
@@ -359,11 +377,15 @@ describe("StagehandAPIClient cache metadata", () => {
     const result = await runAct({
       cacheHit: false,
       cacheMissReason: "threshold",
+      cacheCount: 3,
+      tokensSaved: { input: 0, output: 0, total: 0 },
       serverCache: false,
       finalEventBuffered: true,
     });
 
     expect(result.cacheStatus).toBeUndefined();
     expect(result.cacheMissReason).toBeUndefined();
+    expect(result.cacheCount).toBeUndefined();
+    expect(result.tokensSaved).toBeUndefined();
   });
 });

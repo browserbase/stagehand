@@ -22,6 +22,7 @@ import type {
   AgentResult,
   ExtractResult,
   ObserveResult,
+  TokenSavings,
   LogLine,
   StagehandMetrics,
   BrowserbaseRegion,
@@ -903,7 +904,14 @@ export class StagehandAPIClient {
     result: T,
     method: string,
     cacheStatus: "HIT" | "MISS" | null,
-    eventData: { data: { cacheHit?: boolean; cacheMissReason?: string } },
+    eventData: {
+      data: {
+        cacheHit?: boolean;
+        cacheMissReason?: string;
+        cacheCount?: number;
+        tokensSaved?: TokenSavings;
+      };
+    },
   ): T {
     const finalCacheStatus =
       cacheStatus ||
@@ -934,6 +942,18 @@ export class StagehandAPIClient {
         | ExtractResult<any>
         | ObserveResult;
       cacheAwareResult.cacheStatus = finalCacheStatus;
+      if (typeof eventData.data.cacheCount === "number") {
+        cacheAwareResult.cacheCount = eventData.data.cacheCount;
+      }
+      const tokensSaved = eventData.data.tokensSaved;
+      if (
+        tokensSaved &&
+        typeof tokensSaved.input === "number" &&
+        typeof tokensSaved.output === "number" &&
+        typeof tokensSaved.total === "number"
+      ) {
+        cacheAwareResult.tokensSaved = tokensSaved;
+      }
       if (
         finalCacheStatus === "MISS" &&
         typeof eventData.data.cacheMissReason === "string"

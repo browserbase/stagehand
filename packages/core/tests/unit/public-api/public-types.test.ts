@@ -20,6 +20,7 @@ type ExpectedExportedTypes = {
   // Types from methods.ts
   ActOptions: Stagehand.ActOptions;
   ActResult: Stagehand.ActResult;
+  TokenSavings: Stagehand.TokenSavings;
   ExtractResult: Stagehand.ExtractResult<Stagehand.StagehandZodSchema>;
   Action: Stagehand.Action;
   HistoryEntry: Stagehand.HistoryEntry;
@@ -151,6 +152,8 @@ describe("Stagehand public API types", () => {
       actionDescription: string;
       actions: Stagehand.Action[];
       cacheStatus?: "HIT" | "MISS";
+      cacheCount?: number;
+      tokensSaved?: Stagehand.TokenSavings;
       cacheMissReason?: string;
     };
 
@@ -198,6 +201,12 @@ describe("Stagehand public API types", () => {
       expectTypeOf<Stagehand.ObserveResult>().toExtend<Stagehand.Action[]>();
       expectTypeOf<Stagehand.ObserveResult["cacheStatus"]>().toEqualTypeOf<
         "HIT" | "MISS" | undefined
+      >();
+      expectTypeOf<Stagehand.ObserveResult["cacheCount"]>().toEqualTypeOf<
+        number | undefined
+      >();
+      expectTypeOf<Stagehand.ObserveResult["tokensSaved"]>().toEqualTypeOf<
+        Stagehand.TokenSavings | undefined
       >();
       expectTypeOf<Stagehand.ObserveResult["cacheMissReason"]>().toEqualTypeOf<
         string | undefined
