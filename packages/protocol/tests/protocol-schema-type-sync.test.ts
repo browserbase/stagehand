@@ -38,7 +38,6 @@ describe("protocol schemas must stay in sync with protocol types", () => {
         .map((match) => {
           const typeName = match[1]!;
           const inference = match[2]!.match(/^z\.(infer|input)<\s*typeof\s+(\w+Schema)\s*>$/s);
-          const expectedInference = typeName === "StagehandOptions" ? "input" : "infer";
 
           expect(
             inference,
@@ -46,8 +45,8 @@ describe("protocol schemas must stay in sync with protocol types", () => {
           ).not.toBeNull();
           expect(
             inference![1],
-            `${typeName} must use z.${expectedInference} for its canonical protocol type`,
-          ).toBe(expectedInference);
+            `${typeName} must use z.infer for its canonical protocol type`,
+          ).toBe("infer");
 
           return [typeName, inference![2]!] as const;
         })

@@ -39,16 +39,19 @@ describe("client-side LLM protocol", () => {
   it("selects a serializable client model during Stagehand initialization", () => {
     expect(
       StagehandInitParamsSchema.parse({
-        cdpUrl: "ws://browser.example",
         model: {
           source: "client",
-          modelName: "anthropic/claude-sonnet-4-6",
         },
       }),
     ).toMatchObject({
       model: {
         source: "client",
-        modelName: "anthropic/claude-sonnet-4-6",
+      },
+      telemetry: {
+        traces: {
+          endpoint: "https://example.com/v1/traces",
+          headers: {},
+        },
       },
     });
   });
@@ -57,7 +60,6 @@ describe("client-side LLM protocol", () => {
     const baseResult = {
       role: "assistant" as const,
       content: { type: "text" as const, text: '{"finalAnswer":"four"}' },
-      model: "openai/gpt-5" as const,
       outputFormat: "json_schema" as const,
     };
 

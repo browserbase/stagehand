@@ -4,7 +4,14 @@ import { z } from "zod/v4";
 
 // Values under these keys are user-controlled maps or JSON, so casing conversion
 // must rename the container but preserve every key inside it.
-const defaultOpaqueKeys = new Set(["headers", "variables", "attributes", "body", "data"]);
+const defaultOpaqueKeys = new Set([
+  "headers",
+  "variables",
+  "attributes",
+  "body",
+  "data",
+  "userMetadata",
+]);
 
 export type WireCasingOptions = {
   /** API-side container keys whose nested, user-controlled keys must retain their casing. */

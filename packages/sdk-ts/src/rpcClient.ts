@@ -1,6 +1,6 @@
 import {
   ROOT_CONTEXT,
-  context as otelContext,
+  context,
   defaultTextMapGetter,
   defaultTextMapSetter,
   SpanKind,
@@ -33,7 +33,7 @@ import {
   StagehandMethods,
   StagehandRpcNotificationSchema,
 } from "../../protocol/schema-registry.js";
-import { StagehandTelemetryOptionsSchema } from "../../protocol/schemas.js";
+import { TelemetryConfigSchema } from "../../protocol/schemas.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
@@ -61,7 +61,7 @@ const RPCClientOptionsBaseSchema = z
     discoveryTimeoutMs: z.number().int().positive().optional(),
     commandTimeoutMs: z.number().int().positive().optional(),
     cdpConnectTimeoutMs: z.number().int().positive().optional(),
-    telemetry: StagehandTelemetryOptionsSchema,
+    telemetry: TelemetryConfigSchema,
   })
   .strict();
 
@@ -113,7 +113,7 @@ export class RPCClient {
   ): Promise<z.output<Method["result"]>> {
     if (this.closed) throw new Error("RPC client is closed");
 
-    const parentContext = otelContext.active();
+    const parentContext = context.active();
     const span = TRACER.startSpan(
       method.name,
       {
@@ -129,7 +129,7 @@ export class RPCClient {
     const requestId = this.nextRequestId++;
 
     try {
-      return await otelContext.with(requestContext, async () => {
+      return await context.with(requestContext, async () => {
         const parsedParams = method.params.parse(params);
         const request = JSONRPCRequestSchema.parse({
           jsonrpc: "2.0",
@@ -294,7 +294,7 @@ export class RPCClient {
     const requestContext = trace.setSpan(parentContext, span);
 
     try {
-      const result = await otelContext.with(requestContext, () =>
+      const result = await context.with(requestContext, () =>
         registeredHandler.handle(params.data),
       );
       const parsedResult = registeredHandler.method.result.safeParse(result);

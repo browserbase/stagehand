@@ -4,7 +4,7 @@ import { extract as runExtract } from "../inference.js";
 import { getZodType, injectUrls, transformSchema } from "../utils.js";
 import type {
   ClientOptions,
-  ModelConfiguration,
+  ModelConfig,
   ModelName,
   V3FunctionName,
 } from "../../protocol/types.js";
@@ -52,7 +52,7 @@ export class ExtractHandler {
   readonly llmClient: LLMClient;
   readonly defaultModelName: ModelName;
   readonly defaultClientOptions: ClientOptions;
-  readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
+  readonly resolveLlmClient: (model?: ModelConfig) => LLMClient;
   readonly systemPrompt: string;
   readonly logInferenceToFile: boolean;
   readonly experimental: boolean;
@@ -69,7 +69,7 @@ export class ExtractHandler {
     llmClient: LLMClient,
     defaultModelName: ModelName,
     defaultClientOptions: ClientOptions,
-    resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
+    resolveLlmClient: (model?: ModelConfig) => LLMClient,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,

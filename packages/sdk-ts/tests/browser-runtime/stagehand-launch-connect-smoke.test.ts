@@ -22,7 +22,8 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
 
     fixtureServer = await startFixtureServer();
     stagehand = new Stagehand({
-      localBrowserLaunchOptions: {
+      browser: {
+        type: "local",
         headless: true,
       },
     });

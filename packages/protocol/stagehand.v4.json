@@ -67,7 +67,7 @@
                       "minLength": 1
                     },
                     "telemetry": {
-                      "$ref": "#/$defs/StagehandTelemetryOptions"
+                      "$ref": "#/$defs/TelemetryConfig"
                     }
                   },
                   "required": ["cdp_url", "telemetry"],
@@ -162,38 +162,7 @@
                   "const": "stagehand.init"
                 },
                 "params": {
-                  "type": "object",
-                  "properties": {
-                    "cdp_url": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "model": {
-                      "$ref": "#/$defs/StagehandInitModel"
-                    },
-                    "session_id": {
-                      "type": "string"
-                    },
-                    "system_prompt": {
-                      "type": "string"
-                    },
-                    "log_inference_to_file": {
-                      "type": "boolean"
-                    },
-                    "experimental": {
-                      "type": "boolean"
-                    },
-                    "self_heal": {
-                      "type": "boolean"
-                    },
-                    "dom_settle_timeout_ms": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": ["cdp_url"],
-                  "additionalProperties": false
+                  "$ref": "#/$defs/StagehandInitParams"
                 },
                 "traceparent": {
                   "type": "string"
@@ -3472,7 +3441,7 @@
             }
           ],
           "$defs": {
-            "StagehandTelemetryOptions": {
+            "TelemetryConfig": {
               "default": {
                 "traces": {
                   "endpoint": "https://example.com/v1/traces",
@@ -3506,18 +3475,310 @@
               "required": ["traces"],
               "additionalProperties": false
             },
-            "StagehandInitModel": {
-              "anyOf": [
+            "StagehandInitParams": {
+              "type": "object",
+              "properties": {
+                "api_key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "browser": {
+                  "$ref": "#/$defs/BrowserbaseBrowserSource"
+                },
+                "model": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/ModelConfig"
+                    },
+                    {
+                      "$ref": "#/$defs/ClientModelReference"
+                    }
+                  ]
+                },
+                "telemetry": {
+                  "$ref": "#/$defs/TelemetryConfig"
+                },
+                "session_id": {
+                  "type": "string"
+                },
+                "system_prompt": {
+                  "type": "string"
+                },
+                "log_inference_to_file": {
+                  "type": "boolean"
+                },
+                "experimental": {
+                  "type": "boolean"
+                },
+                "self_heal": {
+                  "type": "boolean"
+                },
+                "dom_settle_timeout_ms": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["telemetry"],
+              "additionalProperties": false
+            },
+            "BrowserbaseBrowserSource": {
+              "type": "object",
+              "properties": {
+                "browser_settings": {
+                  "$ref": "#/$defs/BrowserbaseBrowserSettings"
+                },
+                "extension_id": {
+                  "type": "string"
+                },
+                "keep_alive": {
+                  "type": "boolean"
+                },
+                "proxies": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/ProxyConfig"
+                      }
+                    }
+                  ]
+                },
+                "region": {
+                  "$ref": "#/$defs/BrowserbaseRegion"
+                },
+                "timeout": {
+                  "type": "number"
+                },
+                "user_metadata": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "type": {
+                  "type": "string",
+                  "const": "browserbase"
+                }
+              },
+              "required": ["type"],
+              "additionalProperties": false
+            },
+            "BrowserbaseBrowserSettings": {
+              "type": "object",
+              "properties": {
+                "advanced_stealth": {
+                  "type": "boolean"
+                },
+                "block_ads": {
+                  "type": "boolean"
+                },
+                "captcha_image_selector": {
+                  "type": "string"
+                },
+                "captcha_input_selector": {
+                  "type": "string"
+                },
+                "context": {
+                  "$ref": "#/$defs/BrowserbaseContext"
+                },
+                "extension_id": {
+                  "type": "string"
+                },
+                "fingerprint": {
+                  "$ref": "#/$defs/BrowserbaseFingerprint"
+                },
+                "log_session": {
+                  "type": "boolean"
+                },
+                "os": {
+                  "type": "string",
+                  "enum": ["windows", "mac", "linux", "mobile", "tablet"]
+                },
+                "record_session": {
+                  "type": "boolean"
+                },
+                "solve_captchas": {
+                  "type": "boolean"
+                },
+                "verified": {
+                  "type": "boolean"
+                },
+                "viewport": {
+                  "$ref": "#/$defs/BrowserbaseViewport"
+                }
+              },
+              "additionalProperties": false
+            },
+            "BrowserbaseContext": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "persist": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["id"],
+              "additionalProperties": false
+            },
+            "BrowserbaseFingerprint": {
+              "type": "object",
+              "properties": {
+                "browsers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["chrome", "edge", "firefox", "safari"]
+                  }
+                },
+                "devices": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["desktop", "mobile"]
+                  }
+                },
+                "http_version": {
+                  "type": "string",
+                  "enum": ["1", "2"]
+                },
+                "locales": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "operating_systems": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["android", "ios", "linux", "macos", "windows"]
+                  }
+                },
+                "screen": {
+                  "$ref": "#/$defs/BrowserbaseFingerprintScreen"
+                }
+              },
+              "additionalProperties": false
+            },
+            "BrowserbaseFingerprintScreen": {
+              "type": "object",
+              "properties": {
+                "max_height": {
+                  "type": "number"
+                },
+                "max_width": {
+                  "type": "number"
+                },
+                "min_height": {
+                  "type": "number"
+                },
+                "min_width": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            },
+            "BrowserbaseViewport": {
+              "type": "object",
+              "properties": {
+                "width": {
+                  "type": "number"
+                },
+                "height": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": false
+            },
+            "ProxyConfig": {
+              "oneOf": [
                 {
-                  "$ref": "#/$defs/ModelConfiguration"
+                  "$ref": "#/$defs/BrowserbaseProxyConfig"
                 },
                 {
-                  "$ref": "#/$defs/StagehandClientModelReference"
+                  "$ref": "#/$defs/ExternalProxyConfig"
                 }
               ]
             },
-            "ModelConfiguration": {
-              "$ref": "#/$defs/ModelConfigObject"
+            "BrowserbaseProxyConfig": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "browserbase"
+                },
+                "domain_pattern": {
+                  "type": "string"
+                },
+                "geolocation": {
+                  "$ref": "#/$defs/BrowserbaseProxyGeolocation"
+                }
+              },
+              "required": ["type"],
+              "additionalProperties": false
+            },
+            "BrowserbaseProxyGeolocation": {
+              "type": "object",
+              "properties": {
+                "country": {
+                  "type": "string"
+                },
+                "city": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": ["country"],
+              "additionalProperties": false
+            },
+            "ExternalProxyConfig": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "external"
+                },
+                "server": {
+                  "type": "string"
+                },
+                "domain_pattern": {
+                  "type": "string"
+                },
+                "username": {
+                  "type": "string"
+                },
+                "password": {
+                  "type": "string"
+                }
+              },
+              "required": ["type", "server"],
+              "additionalProperties": false
+            },
+            "BrowserbaseRegion": {
+              "type": "string",
+              "enum": ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
+            },
+            "ModelConfig": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/VertexModelConfigObject"
+                },
+                {
+                  "$ref": "#/$defs/AzureModelConfigObject"
+                },
+                {
+                  "$ref": "#/$defs/GenericModelConfigObject"
+                }
+              ]
             },
             "VertexModelConfigObject": {
               "type": "object",
@@ -3899,39 +4160,23 @@
               "required": ["model_name"],
               "additionalProperties": false
             },
-            "ModelConfigObject": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/VertexModelConfigObject"
-                },
-                {
-                  "$ref": "#/$defs/AzureModelConfigObject"
-                },
-                {
-                  "$ref": "#/$defs/GenericModelConfigObject"
-                }
-              ]
-            },
-            "StagehandClientModelReference": {
+            "ClientModelReference": {
               "type": "object",
               "properties": {
                 "source": {
                   "type": "string",
                   "const": "client"
-                },
-                "model_name": {
-                  "$ref": "#/$defs/ModelName"
                 }
               },
-              "required": ["source", "model_name"],
+              "required": ["source"],
               "additionalProperties": false
             },
             "ActOptions": {
               "type": "object",
               "properties": {
                 "model": {
-                  "description": "Model configuration object",
-                  "$ref": "#/$defs/ModelConfiguration"
+                  "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+                  "$ref": "#/$defs/ModelConfig"
                 },
                 "variables": {
                   "description": "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
@@ -4249,8 +4494,8 @@
               "type": "object",
               "properties": {
                 "model": {
-                  "description": "Model configuration object",
-                  "$ref": "#/$defs/ModelConfiguration"
+                  "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+                  "$ref": "#/$defs/ModelConfig"
                 },
                 "variables": {
                   "description": "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
@@ -4296,8 +4541,8 @@
               "type": "object",
               "properties": {
                 "model": {
-                  "description": "Model configuration object",
-                  "$ref": "#/$defs/ModelConfiguration"
+                  "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+                  "$ref": "#/$defs/ModelConfig"
                 },
                 "timeout": {
                   "description": "Timeout in ms for the extraction",
@@ -4825,13 +5070,13 @@
                   "minLength": 1
                 },
                 "telemetry": {
-                  "$ref": "#/$defs/StagehandTelemetryOptions"
+                  "$ref": "#/$defs/TelemetryConfig"
                 }
               },
               "required": ["cdp_url", "telemetry"],
               "additionalProperties": false,
               "$defs": {
-                "StagehandTelemetryOptions": {
+                "TelemetryConfig": {
                   "default": {
                     "traces": {
                       "endpoint": "https://example.com/v1/traces",
@@ -4952,12 +5197,25 @@
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "type": "object",
               "properties": {
-                "cdp_url": {
+                "api_key": {
                   "type": "string",
                   "minLength": 1
                 },
+                "browser": {
+                  "$ref": "#/$defs/BrowserbaseBrowserSource"
+                },
                 "model": {
-                  "$ref": "#/$defs/StagehandInitModel"
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/ModelConfig"
+                    },
+                    {
+                      "$ref": "#/$defs/ClientModelReference"
+                    }
+                  ]
+                },
+                "telemetry": {
+                  "$ref": "#/$defs/TelemetryConfig"
                 },
                 "session_id": {
                   "type": "string"
@@ -4980,21 +5238,266 @@
                   "maximum": 9007199254740991
                 }
               },
-              "required": ["cdp_url"],
+              "required": ["telemetry"],
               "additionalProperties": false,
               "$defs": {
-                "StagehandInitModel": {
-                  "anyOf": [
+                "BrowserbaseBrowserSource": {
+                  "type": "object",
+                  "properties": {
+                    "browser_settings": {
+                      "$ref": "#/$defs/BrowserbaseBrowserSettings"
+                    },
+                    "extension_id": {
+                      "type": "string"
+                    },
+                    "keep_alive": {
+                      "type": "boolean"
+                    },
+                    "proxies": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/ProxyConfig"
+                          }
+                        }
+                      ]
+                    },
+                    "region": {
+                      "$ref": "#/$defs/BrowserbaseRegion"
+                    },
+                    "timeout": {
+                      "type": "number"
+                    },
+                    "user_metadata": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "browserbase"
+                    }
+                  },
+                  "required": ["type"],
+                  "additionalProperties": false
+                },
+                "BrowserbaseBrowserSettings": {
+                  "type": "object",
+                  "properties": {
+                    "advanced_stealth": {
+                      "type": "boolean"
+                    },
+                    "block_ads": {
+                      "type": "boolean"
+                    },
+                    "captcha_image_selector": {
+                      "type": "string"
+                    },
+                    "captcha_input_selector": {
+                      "type": "string"
+                    },
+                    "context": {
+                      "$ref": "#/$defs/BrowserbaseContext"
+                    },
+                    "extension_id": {
+                      "type": "string"
+                    },
+                    "fingerprint": {
+                      "$ref": "#/$defs/BrowserbaseFingerprint"
+                    },
+                    "log_session": {
+                      "type": "boolean"
+                    },
+                    "os": {
+                      "type": "string",
+                      "enum": ["windows", "mac", "linux", "mobile", "tablet"]
+                    },
+                    "record_session": {
+                      "type": "boolean"
+                    },
+                    "solve_captchas": {
+                      "type": "boolean"
+                    },
+                    "verified": {
+                      "type": "boolean"
+                    },
+                    "viewport": {
+                      "$ref": "#/$defs/BrowserbaseViewport"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "BrowserbaseContext": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "persist": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["id"],
+                  "additionalProperties": false
+                },
+                "BrowserbaseFingerprint": {
+                  "type": "object",
+                  "properties": {
+                    "browsers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": ["chrome", "edge", "firefox", "safari"]
+                      }
+                    },
+                    "devices": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": ["desktop", "mobile"]
+                      }
+                    },
+                    "http_version": {
+                      "type": "string",
+                      "enum": ["1", "2"]
+                    },
+                    "locales": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "operating_systems": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": ["android", "ios", "linux", "macos", "windows"]
+                      }
+                    },
+                    "screen": {
+                      "$ref": "#/$defs/BrowserbaseFingerprintScreen"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "BrowserbaseFingerprintScreen": {
+                  "type": "object",
+                  "properties": {
+                    "max_height": {
+                      "type": "number"
+                    },
+                    "max_width": {
+                      "type": "number"
+                    },
+                    "min_height": {
+                      "type": "number"
+                    },
+                    "min_width": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "BrowserbaseViewport": {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "number"
+                    },
+                    "height": {
+                      "type": "number"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "ProxyConfig": {
+                  "oneOf": [
                     {
-                      "$ref": "#/$defs/ModelConfiguration"
+                      "$ref": "#/$defs/BrowserbaseProxyConfig"
                     },
                     {
-                      "$ref": "#/$defs/StagehandClientModelReference"
+                      "$ref": "#/$defs/ExternalProxyConfig"
                     }
                   ]
                 },
-                "ModelConfiguration": {
-                  "$ref": "#/$defs/ModelConfigObject"
+                "BrowserbaseProxyConfig": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "browserbase"
+                    },
+                    "domain_pattern": {
+                      "type": "string"
+                    },
+                    "geolocation": {
+                      "$ref": "#/$defs/BrowserbaseProxyGeolocation"
+                    }
+                  },
+                  "required": ["type"],
+                  "additionalProperties": false
+                },
+                "BrowserbaseProxyGeolocation": {
+                  "type": "object",
+                  "properties": {
+                    "country": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["country"],
+                  "additionalProperties": false
+                },
+                "ExternalProxyConfig": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "external"
+                    },
+                    "server": {
+                      "type": "string"
+                    },
+                    "domain_pattern": {
+                      "type": "string"
+                    },
+                    "username": {
+                      "type": "string"
+                    },
+                    "password": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "server"],
+                  "additionalProperties": false
+                },
+                "BrowserbaseRegion": {
+                  "type": "string",
+                  "enum": ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
+                },
+                "ModelConfig": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/VertexModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/GenericModelConfigObject"
+                    }
+                  ]
                 },
                 "VertexModelConfigObject": {
                   "type": "object",
@@ -5376,31 +5879,49 @@
                   "required": ["model_name"],
                   "additionalProperties": false
                 },
-                "ModelConfigObject": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/$defs/VertexModelConfigObject"
-                    },
-                    {
-                      "$ref": "#/$defs/AzureModelConfigObject"
-                    },
-                    {
-                      "$ref": "#/$defs/GenericModelConfigObject"
-                    }
-                  ]
-                },
-                "StagehandClientModelReference": {
+                "ClientModelReference": {
                   "type": "object",
                   "properties": {
                     "source": {
                       "type": "string",
                       "const": "client"
-                    },
-                    "model_name": {
-                      "$ref": "#/$defs/ModelName"
                     }
                   },
-                  "required": ["source", "model_name"],
+                  "required": ["source"],
+                  "additionalProperties": false
+                },
+                "TelemetryConfig": {
+                  "default": {
+                    "traces": {
+                      "endpoint": "https://example.com/v1/traces",
+                      "headers": {}
+                    }
+                  },
+                  "type": "object",
+                  "properties": {
+                    "traces": {
+                      "type": "object",
+                      "properties": {
+                        "endpoint": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "headers": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["endpoint", "headers"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["traces"],
                   "additionalProperties": false
                 }
               }
@@ -5487,8 +6008,8 @@
                   "type": "object",
                   "properties": {
                     "model": {
-                      "description": "Model configuration object",
-                      "$ref": "#/$defs/ModelConfiguration"
+                      "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+                      "$ref": "#/$defs/ModelConfig"
                     },
                     "variables": {
                       "description": "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
@@ -5517,8 +6038,18 @@
                   },
                   "additionalProperties": false
                 },
-                "ModelConfiguration": {
-                  "$ref": "#/$defs/ModelConfigObject"
+                "ModelConfig": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/VertexModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/GenericModelConfigObject"
+                    }
+                  ]
                 },
                 "VertexModelConfigObject": {
                   "type": "object",
@@ -5899,19 +6430,6 @@
                   },
                   "required": ["model_name"],
                   "additionalProperties": false
-                },
-                "ModelConfigObject": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/$defs/VertexModelConfigObject"
-                    },
-                    {
-                      "$ref": "#/$defs/AzureModelConfigObject"
-                    },
-                    {
-                      "$ref": "#/$defs/GenericModelConfigObject"
-                    }
-                  ]
                 },
                 "Variables": {
                   "type": "object",
@@ -6306,8 +6824,8 @@
                   "type": "object",
                   "properties": {
                     "model": {
-                      "description": "Model configuration object",
-                      "$ref": "#/$defs/ModelConfiguration"
+                      "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+                      "$ref": "#/$defs/ModelConfig"
                     },
                     "variables": {
                       "description": "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
@@ -6349,8 +6867,18 @@
                   },
                   "additionalProperties": false
                 },
-                "ModelConfiguration": {
-                  "$ref": "#/$defs/ModelConfigObject"
+                "ModelConfig": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/VertexModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/GenericModelConfigObject"
+                    }
+                  ]
                 },
                 "VertexModelConfigObject": {
                   "type": "object",
@@ -6731,19 +7259,6 @@
                   },
                   "required": ["model_name"],
                   "additionalProperties": false
-                },
-                "ModelConfigObject": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/$defs/VertexModelConfigObject"
-                    },
-                    {
-                      "$ref": "#/$defs/AzureModelConfigObject"
-                    },
-                    {
-                      "$ref": "#/$defs/GenericModelConfigObject"
-                    }
-                  ]
                 },
                 "Variables": {
                   "type": "object",
@@ -7112,8 +7627,8 @@
                   "type": "object",
                   "properties": {
                     "model": {
-                      "description": "Model configuration object",
-                      "$ref": "#/$defs/ModelConfiguration"
+                      "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+                      "$ref": "#/$defs/ModelConfig"
                     },
                     "timeout": {
                       "description": "Timeout in ms for the extraction",
@@ -7149,8 +7664,18 @@
                   },
                   "additionalProperties": false
                 },
-                "ModelConfiguration": {
-                  "$ref": "#/$defs/ModelConfigObject"
+                "ModelConfig": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/VertexModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/AzureModelConfigObject"
+                    },
+                    {
+                      "$ref": "#/$defs/GenericModelConfigObject"
+                    }
+                  ]
                 },
                 "VertexModelConfigObject": {
                   "type": "object",
@@ -7531,19 +8056,6 @@
                   },
                   "required": ["model_name"],
                   "additionalProperties": false
-                },
-                "ModelConfigObject": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/$defs/VertexModelConfigObject"
-                    },
-                    {
-                      "$ref": "#/$defs/AzureModelConfigObject"
-                    },
-                    {
-                      "$ref": "#/$defs/GenericModelConfigObject"
-                    }
-                  ]
                 },
                 "Locator": {
                   "type": "object",
@@ -9625,9 +10137,6 @@
                         }
                       ]
                     },
-                    "model": {
-                      "$ref": "#/$defs/ModelName"
-                    },
                     "stop_reason": {
                       "type": "string"
                     },
@@ -9668,7 +10177,7 @@
                       "const": "text"
                     }
                   },
-                  "required": ["role", "content", "model", "output_format"],
+                  "required": ["role", "content", "output_format"],
                   "additionalProperties": {
                     "$ref": "#/$defs/__schema2"
                   }
@@ -10117,9 +10626,6 @@
                         }
                       ]
                     },
-                    "model": {
-                      "$ref": "#/$defs/ModelName"
-                    },
                     "stop_reason": {
                       "type": "string"
                     },
@@ -10163,7 +10669,7 @@
                       "$ref": "#/$defs/__schema3"
                     }
                   },
-                  "required": ["role", "content", "model", "output_format", "structured_content"],
+                  "required": ["role", "content", "output_format", "structured_content"],
                   "additionalProperties": {
                     "$ref": "#/$defs/__schema2"
                   }
@@ -10231,11 +10737,6 @@
                       }
                     }
                   ]
-                },
-                "ModelName": {
-                  "type": "string",
-                  "pattern": "^(openai|bedrock|anthropic|google|vertex|xai|azure|groq|cerebras|togetherai|mistral|deepseek|perplexity|ollama|gateway)\\/[\\s\\S]{1,}$",
-                  "description": "Model name with a required provider prefix (for example, 'openai/gpt-5')"
                 },
                 "__schema2": {
                   "anyOf": [

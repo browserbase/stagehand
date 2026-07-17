@@ -205,7 +205,6 @@ const LLMGenerateBaseResultSchema = z
   .object({
     role: LLMRoleSchema,
     content: z.union([LLMMessageContentBlockSchema, z.array(LLMMessageContentBlockSchema)]),
-    model: ModelNameSchema,
     stopReason: z.string().optional(),
     usage: LLMUsageSchema.optional(),
   })
@@ -536,31 +535,138 @@ export const AzureModelConfigObjectSchema = z
   .union([AzureEntraModelConfigObjectSchema, AzureApiKeyModelConfigObjectSchema])
   .meta({ id: "AzureModelConfigObject" });
 
-export const ModelConfigObjectSchema = z
+export const ModelConfigSchema = z
   .union([
     VertexModelConfigObjectSchema,
     AzureModelConfigObjectSchema,
     GenericModelConfigObjectSchema,
   ])
-  .meta({ id: "ModelConfigObject" });
-
-/** Model configuration */
-export const ModelConfigurationSchema = ModelConfigObjectSchema.meta({
-  id: "ModelConfiguration",
-});
+  .meta({ id: "ModelConfig" });
 
 /** Serializable reference to an LLM implemented by the connected Stagehand client. */
-export const StagehandClientModelReferenceSchema = z
+export const ClientModelReferenceSchema = z
   .object({
     source: z.literal("client"),
-    modelName: ModelNameSchema,
   })
   .strict()
-  .meta({ id: "StagehandClientModelReference" });
+  .meta({ id: "ClientModelReference" });
 
-export const StagehandInitModelSchema = z
-  .union([ModelConfigurationSchema, StagehandClientModelReferenceSchema])
-  .meta({ id: "StagehandInitModel" });
+/** Browserbase viewport configuration. */
+export const BrowserbaseViewportSchema = z
+  .object({
+    width: z.number().optional(),
+    height: z.number().optional(),
+  })
+  .meta({ id: "BrowserbaseViewport" });
+
+/** Browserbase fingerprint screen configuration. */
+export const BrowserbaseFingerprintScreenSchema = z
+  .object({
+    maxHeight: z.number().optional(),
+    maxWidth: z.number().optional(),
+    minHeight: z.number().optional(),
+    minWidth: z.number().optional(),
+  })
+  .meta({ id: "BrowserbaseFingerprintScreen" });
+
+/** Browserbase fingerprint configuration for stealth mode. */
+export const BrowserbaseFingerprintSchema = z
+  .object({
+    browsers: z.array(z.enum(["chrome", "edge", "firefox", "safari"])).optional(),
+    devices: z.array(z.enum(["desktop", "mobile"])).optional(),
+    httpVersion: z.enum(["1", "2"]).optional(),
+    locales: z.array(z.string()).optional(),
+    operatingSystems: z.array(z.enum(["android", "ios", "linux", "macos", "windows"])).optional(),
+    screen: BrowserbaseFingerprintScreenSchema.optional(),
+  })
+  .meta({ id: "BrowserbaseFingerprint" });
+
+/** Browserbase context configuration for session persistence. */
+export const BrowserbaseContextSchema = z
+  .object({
+    id: z.string(),
+    persist: z.boolean().optional(),
+  })
+  .meta({ id: "BrowserbaseContext" });
+
+/** Browserbase browser settings for session creation. */
+export const BrowserbaseBrowserSettingsSchema = z
+  .object({
+    advancedStealth: z.boolean().optional(),
+    blockAds: z.boolean().optional(),
+    captchaImageSelector: z.string().optional(),
+    captchaInputSelector: z.string().optional(),
+    context: BrowserbaseContextSchema.optional(),
+    extensionId: z.string().optional(),
+    fingerprint: BrowserbaseFingerprintSchema.optional(),
+    logSession: z.boolean().optional(),
+    os: z.enum(["windows", "mac", "linux", "mobile", "tablet"]).optional(),
+    recordSession: z.boolean().optional(),
+    solveCaptchas: z.boolean().optional(),
+    verified: z.boolean().optional(),
+    viewport: BrowserbaseViewportSchema.optional(),
+  })
+  .meta({ id: "BrowserbaseBrowserSettings" });
+
+/** Browserbase managed proxy geolocation configuration. */
+export const BrowserbaseProxyGeolocationSchema = z
+  .object({
+    country: z.string(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+  })
+  .meta({ id: "BrowserbaseProxyGeolocation" });
+
+/** Browserbase managed proxy configuration. */
+export const BrowserbaseProxyConfigSchema = z
+  .object({
+    type: z.literal("browserbase"),
+    domainPattern: z.string().optional(),
+    geolocation: BrowserbaseProxyGeolocationSchema.optional(),
+  })
+  .meta({ id: "BrowserbaseProxyConfig" });
+
+/** External proxy configuration. */
+export const ExternalProxyConfigSchema = z
+  .object({
+    type: z.literal("external"),
+    server: z.string(),
+    domainPattern: z.string().optional(),
+    username: z.string().optional(),
+    password: z.string().optional(),
+  })
+  .meta({ id: "ExternalProxyConfig" });
+
+/** Browserbase session proxy configuration. */
+export const ProxyConfigSchema = z
+  .discriminatedUnion("type", [BrowserbaseProxyConfigSchema, ExternalProxyConfigSchema])
+  .meta({ id: "ProxyConfig" });
+
+/** Browserbase region identifier for multi-region support. */
+export const BrowserbaseRegionSchema = z
+  .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
+  .meta({ id: "BrowserbaseRegion" });
+
+/** Browserbase session creation parameters. */
+export const BrowserbaseSessionCreateParamsSchema = z
+  .object({
+    browserSettings: BrowserbaseBrowserSettingsSchema.optional(),
+    extensionId: z.string().optional(),
+    keepAlive: z.boolean().optional(),
+    proxies: z.union([z.boolean(), z.array(ProxyConfigSchema)]).optional(),
+    region: BrowserbaseRegionSchema.optional(),
+    timeout: z.number().optional(),
+    userMetadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict()
+  .meta({ id: "BrowserbaseSessionCreateParams" });
+
+/** Browserbase configuration available to both the SDK and the service worker. */
+export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.extend({
+  type: z.literal("browserbase"),
+})
+  .strict()
+  .meta({ id: "BrowserbaseBrowserSource" });
 
 /** Action object returned by observe and used by act */
 export const ActionSchema = z
@@ -596,8 +702,9 @@ export const ActionSchema = z
 
 export const ActOptionsSchema = z
   .object({
-    model: ModelConfigurationSchema.optional().meta({
-      description: "Model configuration object",
+    model: ModelConfigSchema.optional().meta({
+      description:
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
     }),
     variables: VariablesSchema.optional().meta({
       description:
@@ -663,8 +770,9 @@ export const ActResultSchema = z
 
 export const ExtractOptionsSchema = z
   .object({
-    model: ModelConfigurationSchema.optional().meta({
-      description: "Model configuration object",
+    model: ModelConfigSchema.optional().meta({
+      description:
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
     }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the extraction",
@@ -719,8 +827,9 @@ export const ExtractResultSchema = z
 
 export const ObserveOptionsSchema = z
   .object({
-    model: ModelConfigurationSchema.optional().meta({
-      description: "Model configuration object",
+    model: ModelConfigSchema.optional().meta({
+      description:
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
     }),
     variables: VariablesSchema.optional().meta({
       description:
@@ -840,20 +949,7 @@ export const LocatorDescriptorSchema = z
   })
   .strict();
 
-export const StagehandInitParamsSchema = z
-  .object({
-    cdpUrl: z.string().min(1),
-    model: StagehandInitModelSchema.optional(),
-    sessionId: z.string().optional(),
-    systemPrompt: z.string().optional(),
-    logInferenceToFile: z.boolean().optional(),
-    experimental: z.boolean().optional(),
-    selfHeal: z.boolean().optional(),
-    domSettleTimeoutMs: z.number().int().positive().optional(),
-  })
-  .strict();
-
-export const StagehandTelemetryOptionsSchema = z
+export const TelemetryConfigSchema = z
   .strictObject({
     traces: z.strictObject({
       endpoint: z.url().refine((value) => new URL(value).pathname.endsWith("/v1/traces"), {
@@ -868,12 +964,28 @@ export const StagehandTelemetryOptionsSchema = z
       headers: {},
     },
   })
-  .meta({ id: "StagehandTelemetryOptions" });
+  .meta({ id: "TelemetryConfig" });
+
+export const StagehandInitParamsSchema = z
+  .object({
+    apiKey: z.string().min(1).optional(),
+    browser: BrowserbaseBrowserSourceSchema.optional(),
+    model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
+    telemetry: TelemetryConfigSchema,
+    sessionId: z.string().optional(),
+    systemPrompt: z.string().optional(),
+    logInferenceToFile: z.boolean().optional(),
+    experimental: z.boolean().optional(),
+    selfHeal: z.boolean().optional(),
+    domSettleTimeoutMs: z.number().int().positive().optional(),
+  })
+  .strict()
+  .meta({ id: "StagehandInitParams" });
 
 export const RuntimeConfigureParamsSchema = z
   .object({
     cdpUrl: z.string().min(1),
-    telemetry: StagehandTelemetryOptionsSchema,
+    telemetry: TelemetryConfigSchema,
   })
   .strict();
 

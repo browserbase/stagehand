@@ -234,7 +234,7 @@ export class StagehandRuntime {
   async initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
     this.clientLLM =
       params.model && "source" in params.model
-        ? new RemoteLLMClient(params.model.modelName, this.adapters.clientLLMGenerate)
+        ? new RemoteLLMClient(this.adapters.clientLLMGenerate)
         : undefined;
 
     return {

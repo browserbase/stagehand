@@ -1,14 +1,15 @@
-import { StagehandOptionsSchema } from "../../protocol/pending-schemas.js";
-import type { StagehandOptions } from "../../protocol/types.js";
+import { StagehandClientInitParamsSchema, type BrowserSource } from "./clientSchemas.js";
+import { BrowserbaseSessionCreateParamsSchema } from "../../protocol/schemas.js";
+import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
 
-type LocalBrowserLaunchOptions = NonNullable<StagehandOptions["localBrowserLaunchOptions"]>;
-type BrowserbaseSessionCreateParams = NonNullable<
-  StagehandOptions["browserbaseSessionCreateParams"]
->;
-type BrowserbaseConnectOptions = NonNullable<StagehandOptions["browserbaseConnectOptions"]>;
+type BrowserbaseBrowserSource = Extract<BrowserSource, { type: "browserbase" }>;
+type LocalBrowserSource = Extract<BrowserSource, { type: "local" }>;
+type LocalBrowserLaunchOptions = Omit<LocalBrowserSource, "type">;
+type BrowserbaseSessionCreateParams = Omit<BrowserbaseBrowserSource, "type">;
 
 export type ResolvedBrowserSource = {
   cdpUrl: string;
+  cdpHeaders?: Record<string, string>;
   keepAlive: boolean;
   close?: () => Promise<void> | void;
 };
@@ -21,76 +22,57 @@ export type BrowserbaseSessionClient = {
   createSession(
     params: BrowserbaseSessionCreateParams,
   ): Promise<{ cdpUrl: string; close?: () => Promise<void> | void }>;
-  connectToSession(
-    options: BrowserbaseConnectOptions & { sessionId: string },
-  ): Promise<{ cdpUrl: string; close?: () => Promise<void> | void }>;
 };
+
+export type BrowserbaseSessionClientFactory = (apiKey: string) => BrowserbaseSessionClient;
 
 export type BrowserSourceResolverDependencies = {
   launchLocalBrowser?: LocalBrowserLauncher;
   browserbase?: BrowserbaseSessionClient;
+  createBrowserbaseSessionClient?: BrowserbaseSessionClientFactory;
 };
 
 export async function resolveBrowserSource(
   input: unknown,
   dependencies: BrowserSourceResolverDependencies = {},
 ): Promise<ResolvedBrowserSource> {
-  const options = StagehandOptionsSchema.parse(input);
+  const initParams = StagehandClientInitParamsSchema.parse(input);
+  const browser = initParams.browser;
 
-  if (options.localBrowserLaunchOptions) {
-    const launched = await (dependencies.launchLocalBrowser ?? launchLocalBrowser)(
-      options.localBrowserLaunchOptions,
-    );
+  if (browser.type === "browserbase") {
+    const apiKey = initParams.apiKey;
+    if (apiKey === undefined) {
+      throw new Error("A Browserbase API key is required for the Browserbase browser source");
+    }
+    const sessionCreateParams = BrowserbaseSessionCreateParamsSchema.strip().parse(browser);
+    const browserbase =
+      dependencies.browserbase ??
+      (dependencies.createBrowserbaseSessionClient ?? createDefaultBrowserbaseSessionClient)(
+        apiKey,
+      );
+    const session = await browserbase.createSession(sessionCreateParams);
+    return {
+      cdpUrl: session.cdpUrl,
+      keepAlive: browser.keepAlive ?? false,
+      close: session.close,
+    };
+  }
+
+  if (browser.type === "local") {
+    const launchOptions = LocalBrowserLaunchOptionsSchema.strip().parse(browser);
+    const launched = await (dependencies.launchLocalBrowser ?? launchLocalBrowser)(launchOptions);
     return {
       cdpUrl: launched.cdpUrl,
-      keepAlive: options.localBrowserLaunchOptions.keepAlive ?? false,
+      keepAlive: launchOptions.keepAlive ?? false,
       close: launched.close,
     };
   }
 
-  if (options.localBrowserConnectOptions) {
-    return {
-      cdpUrl: options.localBrowserConnectOptions.cdpUrl,
-      keepAlive: options.localBrowserConnectOptions.keepAlive ?? true,
-    };
-  }
-
-  if (options.browserbaseSessionCreateParams) {
-    const browserbase = dependencies.browserbase ?? defaultBrowserbaseSessionClient;
-    const session = await browserbase.createSession(options.browserbaseSessionCreateParams);
-    return {
-      cdpUrl: session.cdpUrl,
-      keepAlive: options.browserbaseSessionCreateParams.keepAlive ?? false,
-      close: session.close,
-    };
-  }
-
-  if (options.browserbaseConnectOptions) {
-    if (options.browserbaseConnectOptions.cdpUrl) {
-      return {
-        cdpUrl: options.browserbaseConnectOptions.cdpUrl,
-        keepAlive: options.browserbaseConnectOptions.keepAlive ?? true,
-      };
-    }
-
-    const { sessionId } = options.browserbaseConnectOptions;
-    if (!sessionId) {
-      throw new Error("Browserbase connect options must include a session ID or CDP URL");
-    }
-
-    const browserbase = dependencies.browserbase ?? defaultBrowserbaseSessionClient;
-    const session = await browserbase.connectToSession({
-      ...options.browserbaseConnectOptions,
-      sessionId,
-    });
-    return {
-      cdpUrl: session.cdpUrl,
-      keepAlive: options.browserbaseConnectOptions.keepAlive ?? true,
-      close: session.close,
-    };
-  }
-
-  throw new Error("No browser source option was provided");
+  return {
+    cdpUrl: browser.cdpUrl,
+    ...(browser.headers === undefined ? {} : { cdpHeaders: browser.headers }),
+    keepAlive: true,
+  };
 }
 
 async function launchLocalBrowser(
@@ -121,11 +103,8 @@ async function launchLocalBrowser(
   };
 }
 
-const defaultBrowserbaseSessionClient: BrowserbaseSessionClient = {
+const createDefaultBrowserbaseSessionClient: BrowserbaseSessionClientFactory = () => ({
   async createSession() {
     throw new Error("Browserbase session creation is not implemented yet");
   },
-  async connectToSession() {
-    throw new Error("Browserbase session lookup is not implemented yet");
-  },
-};
+});

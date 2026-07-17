@@ -14,7 +14,7 @@ import {
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
 import { z } from "zod/v4";
-import type { StagehandTelemetryOptions } from "../protocol/types.js";
+import type { TelemetryConfig } from "../protocol/types.js";
 import { STAGEHAND_VERSION } from "./version.js";
 
 const STAGEHAND_TRACER_NAME = "@browserbasehq/stagehand";
@@ -34,7 +34,7 @@ type StagehandTracingRuntime = {
 };
 
 export type StagehandTracing = StagehandTracingRuntime & {
-  configure(telemetry: StagehandTelemetryOptions): void;
+  configure(telemetry: TelemetryConfig): void;
 };
 
 type StagehandTracingRuntimeDependencies = {
@@ -107,7 +107,7 @@ export function createStagehandTracing(
   };
 }
 
-function createOtlpSpanProcessor(traces: StagehandTelemetryOptions["traces"]): BatchSpanProcessor {
+function createOtlpSpanProcessor(traces: TelemetryConfig["traces"]): BatchSpanProcessor {
   // TODO: Decide whether a user OTLP endpoint should disable future Browserbase export for ZDR
   // sessions. Until then, span processors intentionally fan out to every destination.
   return new BatchSpanProcessor(

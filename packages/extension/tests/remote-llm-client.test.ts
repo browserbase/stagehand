@@ -7,10 +7,9 @@ describe("RemoteLLMClient", () => {
     const request = vi.fn(async () => ({
       role: "assistant" as const,
       content: { type: "text" as const, text: "Four" },
-      model: "openai/gpt-5" as const,
       outputFormat: "text" as const,
     }));
-    const client = new RemoteLLMClient("openai/gpt-5", request);
+    const client = new RemoteLLMClient(request);
 
     await expect(
       client.generate({
@@ -18,7 +17,6 @@ describe("RemoteLLMClient", () => {
       }),
     ).resolves.toMatchObject({
       content: { type: "text", text: "Four" },
-      model: "openai/gpt-5",
     });
     expect(request).toHaveBeenCalledWith({
       messages: [{ role: "user", content: { type: "text", text: "What is 2 + 2?" } }],
@@ -29,7 +27,6 @@ describe("RemoteLLMClient", () => {
     const request = vi.fn(async () => ({
       role: "assistant" as const,
       content: { type: "text" as const, text: "Four" },
-      model: "openai/gpt-5" as const,
       outputFormat: "text" as const,
     }));
     const runtime = createStagehandRuntime({
@@ -52,8 +49,10 @@ describe("RemoteLLMClient", () => {
       },
     });
     await runtime.initialize({
-      cdpUrl: "ws://browser.example",
-      model: { source: "client", modelName: "openai/gpt-5" },
+      model: { source: "client" },
+      telemetry: {
+        traces: { endpoint: "https://example.com/v1/traces", headers: {} },
+      },
     });
 
     await runtime.clientLLM?.generate({

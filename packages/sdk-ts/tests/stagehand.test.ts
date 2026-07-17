@@ -30,6 +30,7 @@ class FakeRPCClient extends RPCClient {
       },
       1_000,
     );
+    this.queueResponse(StagehandMethods.stagehandInit, { initialized: true, pages: [] });
   }
 
   queueResponse<Method extends RPCMethod>(
@@ -74,7 +75,8 @@ class FakeRPCClient extends RPCClient {
 describe("Stagehand", () => {
   it("throws a clear error when context is used before init", () => {
     const stagehand = new Stagehand({
-      localBrowserConnectOptions: {
+      browser: {
+        type: "cdp",
         cdpUrl: "http://127.0.0.1:9222",
       },
     });
@@ -97,7 +99,9 @@ describe("Stagehand", () => {
 
     const stagehand = createStagehandWithDependenciesForTest(
       {
-        localBrowserConnectOptions: {
+        apiKey: "bb_key",
+        browser: {
+          type: "cdp",
           cdpUrl: "http://127.0.0.1:9222",
         },
       },
@@ -112,7 +116,9 @@ describe("Stagehand", () => {
 
     expect(stagehand.initialized).toBe(true);
     expect(resolveBrowserSource).toHaveBeenCalledWith({
-      localBrowserConnectOptions: {
+      apiKey: "bb_key",
+      browser: {
+        type: "cdp",
         cdpUrl: "http://127.0.0.1:9222",
       },
       telemetry: {
@@ -134,7 +140,66 @@ describe("Stagehand", () => {
       },
     } satisfies RPCClientOptions);
     expect(pages[0]?.pageId).toBe("page-1");
-    expect(rpcClient.calls).toStrictEqual([{ method: "context.pages", params: {} }]);
+    expect(rpcClient.calls).toStrictEqual([
+      {
+        method: "stagehand.init",
+        params: {
+          apiKey: "bb_key",
+          telemetry: {
+            traces: {
+              endpoint: "https://example.com/v1/traces",
+              headers: {},
+            },
+          },
+        },
+      },
+      { method: "context.pages", params: {} },
+    ]);
+  });
+
+  it("passes Browserbase credentials and browser settings to the worker", async () => {
+    const rpcClient = new FakeRPCClient();
+    const stagehand = createStagehandWithDependenciesForTest(
+      {
+        apiKey: "bb_key",
+        browser: {
+          type: "browserbase",
+          keepAlive: true,
+          region: "eu-central-1",
+          userMetadata: { suite: "smoke" },
+        },
+      },
+      {
+        resolveBrowserSource: async () => ({
+          cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
+          keepAlive: true,
+        }),
+        connectRpcClient: async () => rpcClient,
+      },
+    );
+
+    await stagehand.init();
+
+    expect(rpcClient.calls).toStrictEqual([
+      {
+        method: "stagehand.init",
+        params: {
+          apiKey: "bb_key",
+          browser: {
+            type: "browserbase",
+            keepAlive: true,
+            region: "eu-central-1",
+            userMetadata: { suite: "smoke" },
+          },
+          telemetry: {
+            traces: {
+              endpoint: "https://example.com/v1/traces",
+              headers: {},
+            },
+          },
+        },
+      },
+    ]);
   });
 
   it("passes the configured OTLP traces destination to the worker RPC client", async () => {
@@ -142,7 +207,8 @@ describe("Stagehand", () => {
     const connectRpcClient = vi.fn(async () => rpcClient);
     const stagehand = createStagehandWithDependenciesForTest(
       {
-        localBrowserConnectOptions: {
+        browser: {
+          type: "cdp",
           cdpUrl: "http://127.0.0.1:9222",
         },
         telemetry: {
@@ -178,18 +244,16 @@ describe("Stagehand", () => {
 
   it("registers a client LLM and sends its serializable model reference during initialization", async () => {
     const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandMethods.stagehandInit, { initialized: true, pages: [] });
     const stagehand = createStagehandWithDependenciesForTest(
       {
-        localBrowserConnectOptions: {
+        browser: {
+          type: "cdp",
           cdpUrl: "http://127.0.0.1:9222",
         },
         model: {
-          modelName: "openai/gpt-5",
           generate: async () => ({
             role: "assistant",
             content: { type: "text", text: "Hello" },
-            model: "openai/gpt-5",
             outputFormat: "text",
           }),
         },
@@ -210,8 +274,13 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
-          cdpUrl: "http://127.0.0.1:9222",
-          model: { source: "client", modelName: "openai/gpt-5" },
+          model: { source: "client" },
+          telemetry: {
+            traces: {
+              endpoint: "https://example.com/v1/traces",
+              headers: {},
+            },
+          },
         },
       },
     ]);
@@ -223,7 +292,7 @@ describe("Stagehand", () => {
     rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
     const stagehand = createStagehandWithDependenciesForTest(
       {
-        localBrowserLaunchOptions: {},
+        browser: { type: "local" },
       },
       {
         resolveBrowserSource: async () => ({
@@ -239,7 +308,20 @@ describe("Stagehand", () => {
     await stagehand.close();
 
     expect(stagehand.initialized).toBe(false);
-    expect(rpcClient.calls).toStrictEqual([{ method: "stagehand.close", params: {} }]);
+    expect(rpcClient.calls).toStrictEqual([
+      {
+        method: "stagehand.init",
+        params: {
+          telemetry: {
+            traces: {
+              endpoint: "https://example.com/v1/traces",
+              headers: {},
+            },
+          },
+        },
+      },
+      { method: "stagehand.close", params: {} },
+    ]);
     expect(rpcClient.closed).toBe(true);
     expect(closeBrowser).toHaveBeenCalledOnce();
     expect(() => stagehand.context).toThrow("Call stagehand.init() before using context");
@@ -251,7 +333,8 @@ describe("Stagehand", () => {
     rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
     const stagehand = createStagehandWithDependenciesForTest(
       {
-        localBrowserConnectOptions: {
+        browser: {
+          type: "cdp",
           cdpUrl: "http://127.0.0.1:9222",
         },
       },
@@ -290,7 +373,8 @@ describe("Stagehand", () => {
     rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
     const stagehand = createStagehandWithDependenciesForTest(
       {
-        localBrowserLaunchOptions: {
+        browser: {
+          type: "local",
           keepAlive: true,
         },
       },
@@ -315,7 +399,7 @@ describe("Stagehand", () => {
     const closeBrowser = vi.fn();
     const stagehand = createStagehandWithDependenciesForTest(
       {
-        localBrowserLaunchOptions: {},
+        browser: { type: "local" },
       },
       {
         resolveBrowserSource: async () => ({

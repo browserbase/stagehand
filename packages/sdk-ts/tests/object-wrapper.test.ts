@@ -29,6 +29,7 @@ class FakeProtocolClient extends RPCClient {
       },
       1_000,
     );
+    this.queueResponse(StagehandMethods.stagehandInit, { initialized: true, pages: [] });
   }
 
   queueResponse<Method extends RPCMethod>(
@@ -66,8 +67,17 @@ function requestCall<Method extends RPCMethod>(
   return { method: method.name, params };
 }
 
+const stagehandInitCall = requestCall(StagehandMethods.stagehandInit, {
+  telemetry: {
+    traces: {
+      endpoint: "https://example.com/v1/traces",
+      headers: {},
+    },
+  },
+});
+
 describe("Stagehand TS object wrapper", () => {
-  it("initializes locally without sending stagehand.init", async () => {
+  it("initializes the remote Stagehand configuration", async () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);
 
@@ -76,7 +86,7 @@ describe("Stagehand TS object wrapper", () => {
 
     expect(stagehand.initialized).toBe(true);
     expect(stagehand.context).toBeInstanceOf(BrowserContext);
-    expect(client.calls).toStrictEqual([]);
+    expect(client.calls).toStrictEqual([stagehandInitCall]);
   });
 
   it("closes the remote runtime", async () => {
@@ -88,7 +98,10 @@ describe("Stagehand TS object wrapper", () => {
     await stagehand.close();
 
     expect(stagehand.initialized).toBe(false);
-    expect(client.calls).toStrictEqual([requestCall(StagehandMethods.stagehandClose, {})]);
+    expect(client.calls).toStrictEqual([
+      stagehandInitCall,
+      requestCall(StagehandMethods.stagehandClose, {}),
+    ]);
   });
 
   it("wraps context.pages results as Page objects", async () => {
@@ -102,7 +115,10 @@ describe("Stagehand TS object wrapper", () => {
 
     const pages = await stagehand.context.pages();
 
-    expect(client.calls).toStrictEqual([requestCall(StagehandMethods.contextPages, {})]);
+    expect(client.calls).toStrictEqual([
+      stagehandInitCall,
+      requestCall(StagehandMethods.contextPages, {}),
+    ]);
     expect(pages).toHaveLength(2);
     expect(pages[0]).toBeInstanceOf(Page);
     expect(pages[0]?.pageId).toBe("page-1");
@@ -126,6 +142,7 @@ describe("Stagehand TS object wrapper", () => {
     const page = await stagehand.context.newPage({ url: "https://browserbase.com" });
 
     expect(client.calls).toStrictEqual([
+      stagehandInitCall,
       requestCall(StagehandMethods.contextNewPage, { url: "https://browserbase.com" }),
     ]);
     expect(page).toBeInstanceOf(Page);

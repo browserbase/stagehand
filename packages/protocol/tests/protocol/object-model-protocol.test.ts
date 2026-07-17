@@ -16,21 +16,75 @@ describe("Stagehand object-model protocol", () => {
 
   it("defines stagehand init as a JSON-RPC method", () => {
     const params = StagehandMethods.stagehandInit.params.parse({
-      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+      apiKey: "bb_key",
+      browser: {
+        type: "browserbase",
+        region: "eu-central-1",
+        userMetadata: { suite: "smoke" },
+      },
       model: { provider: "openai", modelName: "openai/gpt-5-mini" },
     });
 
     expect(params).toStrictEqual({
-      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+      apiKey: "bb_key",
+      browser: {
+        type: "browserbase",
+        region: "eu-central-1",
+        userMetadata: { suite: "smoke" },
+      },
       model: { provider: "openai", modelName: "openai/gpt-5-mini" },
+      telemetry: {
+        traces: {
+          endpoint: "https://example.com/v1/traces",
+          headers: {},
+        },
+      },
     });
+  });
+
+  it("rejects SDK-only browser connection settings during Stagehand initialization", () => {
+    for (const browser of [
+      { type: "local" },
+      { type: "cdp", cdpUrl: "wss://browser.example/devtools/browser/session" },
+    ]) {
+      expect(() => StagehandMethods.stagehandInit.params.parse({ browser })).toThrow();
+    }
   });
 
   it("rejects model names without a provider prefix", () => {
     expect(() =>
       StagehandMethods.stagehandInit.params.parse({
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         model: { provider: "openai", modelName: "gpt-5-mini" },
+      }),
+    ).toThrow();
+  });
+
+  it("requires a per-call model override to be a complete model configuration", () => {
+    expect(
+      StagehandMethods.stagehandAct.params.parse({
+        input: "Click the submit button",
+        options: {
+          model: {
+            provider: "anthropic",
+            modelName: "anthropic/claude-sonnet-4-6",
+            apiKey: "test-key",
+          },
+        },
+      }),
+    ).toMatchObject({
+      options: {
+        model: {
+          provider: "anthropic",
+          modelName: "anthropic/claude-sonnet-4-6",
+          apiKey: "test-key",
+        },
+      },
+    });
+
+    expect(() =>
+      StagehandMethods.stagehandAct.params.parse({
+        input: "Click the submit button",
+        options: { model: { apiKey: "test-key" } },
       }),
     ).toThrow();
   });

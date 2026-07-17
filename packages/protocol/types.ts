@@ -17,9 +17,21 @@ import type {
   AzureModelProviderOptionsSchema,
   AzureProviderOptionsSchema,
   BrowserGetVersionResultSchema,
+  BrowserbaseBrowserSettingsSchema,
+  BrowserbaseBrowserSourceSchema,
+  BrowserbaseContextSchema,
+  BrowserbaseFingerprintSchema,
+  BrowserbaseFingerprintScreenSchema,
+  BrowserbaseProxyConfigSchema,
+  BrowserbaseProxyGeolocationSchema,
+  BrowserbaseRegionSchema,
+  BrowserbaseSessionCreateParamsSchema,
+  BrowserbaseViewportSchema,
+  ClientModelReferenceSchema,
   ContextNewPageParamsSchema,
   ContextPagesResultSchema,
   EmptyParamsSchema,
+  ExternalProxyConfigSchema,
   ExtractOptionsSchema,
   ExtractResultSchema,
   GenericModelConfigObjectSchema,
@@ -83,8 +95,7 @@ import type {
   LLMToolUseContentSchema,
   LLMUsageSchema,
   MouseButtonSchema,
-  ModelConfigObjectSchema,
-  ModelConfigurationSchema,
+  ModelConfigSchema,
   ModelNameSchema,
   ModelProviderSchema,
   ObserveOptionsSchema,
@@ -124,6 +135,7 @@ import type {
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
   PageWaitForTimeoutParamsSchema,
+  ProxyConfigSchema,
   RuntimeConfigureParamsSchema,
   RuntimeConfigureResultSchema,
   RuntimeLoopbackStatusResultSchema,
@@ -133,16 +145,14 @@ import type {
   StagehandExtractParamsSchema,
   StagehandInitParamsSchema,
   StagehandInitResultSchema,
-  StagehandInitModelSchema,
-  StagehandClientModelReferenceSchema,
   StagehandLogDataSchema,
   StagehandLogLevelSchema,
   StagehandLogSchema,
   StagehandMetricsSchema,
   StagehandObserveParamsSchema,
   StagehandPingResultSchema,
-  StagehandTelemetryOptionsSchema,
   SnapshotResultSchema,
+  TelemetryConfigSchema,
   VariablePrimitiveSchema,
   VariablesSchema,
   VariableValueSchema,
@@ -162,17 +172,6 @@ import type {
   AzureEntraClientOptionsSchema,
   AzureResolvedProviderClientOptionsSchema,
   BrowserConfigSchema,
-  BrowserbaseBrowserSettingsSchema,
-  BrowserbaseConnectOptionsSchema,
-  BrowserbaseContextSchema,
-  BrowserbaseFingerprintSchema,
-  BrowserbaseFingerprintScreenSchema,
-  BrowserbaseProxyConfigSchema,
-  BrowserbaseProxyGeolocationSchema,
-  BrowserbaseRegionSchema,
-  BrowserbaseSessionCreateParamsSchema,
-  BrowserbaseViewportSchema,
-  ClientLLMSchema,
   ClearCookieOptionsSchema,
   ClientOptionsBaseSchema,
   ClientOptionsSchema,
@@ -182,12 +181,10 @@ import type {
   CookieSchema,
   DomainPolicySchema,
   ErrorResponseSchema,
-  ExternalProxyConfigSchema,
   ExtractRequestSchema,
   ExtractResponseSchema,
   HistoryEntrySchema,
   LLMToolSchema,
-  LocalBrowserConnectOptionsSchema,
   LocalBrowserLaunchOptionsSchema,
   ModelAuthSchema,
   ModelProviderOptionsSchema,
@@ -199,7 +196,6 @@ import type {
   ObserveResponseSchema,
   OllamaResolvedProviderClientOptionsSchema,
   OpenAIClientOptionsSchema,
-  ProxyConfigSchema,
   ReplayActionSchema,
   ReplayPageSchema,
   ReplayResponseSchema,
@@ -213,8 +209,6 @@ import type {
   SessionStartRequestSchema,
   SessionStartResponseSchema,
   SessionStartResultSchema,
-  StagehandOptionsSchema,
-  StagehandModelOptionSchema,
   StreamEventLogDataSchema,
   StreamEventSchema,
   StreamEventStatusSchema,
@@ -249,8 +243,7 @@ export type VertexModelConfigObject = z.infer<typeof VertexModelConfigObjectSche
 export type AzureEntraModelConfigObject = z.infer<typeof AzureEntraModelConfigObjectSchema>;
 export type AzureApiKeyModelConfigObject = z.infer<typeof AzureApiKeyModelConfigObjectSchema>;
 export type AzureModelConfigObject = z.infer<typeof AzureModelConfigObjectSchema>;
-export type ModelConfigObject = z.infer<typeof ModelConfigObjectSchema>;
-export type ModelConfiguration = z.infer<typeof ModelConfigurationSchema>;
+export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type ModelName = z.infer<typeof ModelNameSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;
 export type LLMAnnotations = z.infer<typeof LLMAnnotationsSchema>;
@@ -276,8 +269,7 @@ export type LLMToolUseContent = z.infer<typeof LLMToolUseContentSchema>;
 export type LLMUsage = z.infer<typeof LLMUsageSchema>;
 export type LLMGenerateParams = z.infer<typeof LLMGenerateParamsSchema>;
 export type LLMGenerateResult = z.infer<typeof LLMGenerateResultSchema>;
-export type StagehandClientModelReference = z.infer<typeof StagehandClientModelReferenceSchema>;
-export type StagehandInitModel = z.infer<typeof StagehandInitModelSchema>;
+export type ClientModelReference = z.infer<typeof ClientModelReferenceSchema>;
 export type Action = z.infer<typeof ActionSchema>;
 export type ActOptions = z.infer<typeof ActOptionsSchema>;
 export type ActResultData = z.infer<typeof ActResultDataSchema>;
@@ -296,7 +288,7 @@ export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
 export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
 export type LocatorDescriptor = z.infer<typeof LocatorDescriptorSchema>;
 export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
-export type StagehandTelemetryOptions = z.infer<typeof StagehandTelemetryOptionsSchema>;
+export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;
 export type RuntimeConfigureParams = z.infer<typeof RuntimeConfigureParamsSchema>;
 export type StagehandActParams = z.infer<typeof StagehandActParamsSchema>;
 export type StagehandObserveParams = z.infer<typeof StagehandObserveParamsSchema>;
@@ -388,13 +380,12 @@ export type AzureEntraClientOptions = z.infer<typeof AzureEntraClientOptionsSche
 export type AzureResolvedProviderClientOptions = z.infer<
   typeof AzureResolvedProviderClientOptionsSchema
 >;
-export type BrowserbaseConnectOptions = z.infer<typeof BrowserbaseConnectOptionsSchema>;
+export type BrowserbaseBrowserSource = z.infer<typeof BrowserbaseBrowserSourceSchema>;
 export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCreateParamsSchema>;
 export type ClearCookieOptions = z.infer<typeof ClearCookieOptionsSchema>;
 export type ClientOptions = z.infer<typeof ClientOptionsSchema>;
 export type ClientOptionsBase = z.infer<typeof ClientOptionsBaseSchema>;
-export type ClientLLM = z.infer<typeof ClientLLMSchema>;
 export type ClipboardOptions = z.infer<typeof ClipboardOptionsSchema>;
 export type ClipboardPasteOptions = z.infer<typeof ClipboardPasteOptionsSchema>;
 export type Cookie = z.infer<typeof CookieSchema>;
@@ -404,7 +395,6 @@ export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
 export type LLMTool = z.infer<typeof LLMToolSchema>;
 export type LoadState = z.infer<typeof LoadStateSchema>;
-export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
 export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptionsSchema>;
 export type ModelAuth = z.infer<typeof ModelAuthSchema>;
 export type ModelProviderOptions = z.infer<typeof ModelProviderOptionsSchema>;
@@ -413,8 +403,6 @@ export type OllamaResolvedProviderClientOptions = z.infer<
 >;
 export type OpenAIClientOptions = z.infer<typeof OpenAIClientOptionsSchema>;
 export type ResolvedProviderClientOptions = z.infer<typeof ResolvedProviderClientOptionsSchema>;
-export type StagehandOptions = z.input<typeof StagehandOptionsSchema>;
-export type StagehandModelOption = z.infer<typeof StagehandModelOptionSchema>;
 export type ThinkingEffort = z.infer<typeof ThinkingEffortSchema>;
 export type V3FunctionName = z.infer<typeof V3FunctionNameSchema>;
 export type VertexClientOptions = z.infer<typeof VertexClientOptionsSchema>;

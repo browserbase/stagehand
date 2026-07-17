@@ -168,20 +168,42 @@ describe("JSON-RPC wire casing", () => {
   it("preserves arbitrary map keys while encoding nested configuration", () => {
     const definition = StagehandMethods.stagehandInit;
     const apiValue = {
-      cdpUrl: "ws://localhost/devtools/browser/1",
+      apiKey: "bb_key",
+      browser: {
+        type: "browserbase" as const,
+        browserSettings: { advancedStealth: true },
+        userMetadata: { doNotRenameMe: "value" },
+      },
       model: {
         modelName: "openai/gpt-5-mini",
         provider: "openai" as const,
         headers: { doNotRenameMe: "value" },
       },
+      telemetry: {
+        traces: {
+          endpoint: "https://example.com/v1/traces",
+          headers: { doNotRenameMe: "value" },
+        },
+      },
     };
 
     const wireValue = {
-      cdp_url: "ws://localhost/devtools/browser/1",
+      api_key: "bb_key",
+      browser: {
+        type: "browserbase",
+        browser_settings: { advanced_stealth: true },
+        user_metadata: { doNotRenameMe: "value" },
+      },
       model: {
         model_name: "openai/gpt-5-mini",
         provider: "openai",
         headers: { doNotRenameMe: "value" },
+      },
+      telemetry: {
+        traces: {
+          endpoint: "https://example.com/v1/traces",
+          headers: { doNotRenameMe: "value" },
+        },
       },
     };
 

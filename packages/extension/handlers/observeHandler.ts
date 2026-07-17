@@ -4,7 +4,7 @@ import { trimTrailingTextNode } from "../utils.js";
 import type {
   Action,
   ClientOptions,
-  ModelConfiguration,
+  ModelConfig,
   ModelName,
   V3FunctionName,
 } from "../../protocol/types.js";
@@ -20,7 +20,7 @@ export class ObserveHandler {
   readonly llmClient: LLMClient;
   readonly defaultModelName: ModelName;
   readonly defaultClientOptions: ClientOptions;
-  readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
+  readonly resolveLlmClient: (model?: ModelConfig) => LLMClient;
   readonly systemPrompt: string;
   readonly logInferenceToFile: boolean;
   readonly experimental: boolean;
@@ -37,7 +37,7 @@ export class ObserveHandler {
     llmClient: LLMClient,
     defaultModelName: ModelName,
     defaultClientOptions: ClientOptions,
-    resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
+    resolveLlmClient: (model?: ModelConfig) => LLMClient,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,

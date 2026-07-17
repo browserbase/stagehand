@@ -9,7 +9,7 @@ import type {
   ActResultData,
   Action,
   ClientOptions,
-  ModelConfiguration,
+  ModelConfig,
   ModelName,
   V3FunctionName,
   Variables,
@@ -42,7 +42,7 @@ export class ActHandler {
   readonly llmClient: LLMClient;
   readonly defaultModelName: ModelName;
   readonly defaultClientOptions: ClientOptions;
-  readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
+  readonly resolveLlmClient: (model?: ModelConfig) => LLMClient;
   readonly systemPrompt: string;
   readonly logInferenceToFile: boolean;
   readonly selfHeal: boolean;
@@ -60,7 +60,7 @@ export class ActHandler {
     llmClient: LLMClient,
     defaultModelName: ModelName,
     defaultClientOptions: ClientOptions,
-    resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
+    resolveLlmClient: (model?: ModelConfig) => LLMClient,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     selfHeal?: boolean,

@@ -3,6 +3,16 @@ export { Locator } from "./locator.js";
 export { Page, type ScreenshotOptions } from "./page.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand } from "./stagehand.js";
-export type { ClientLLM, StagehandOptions } from "../../protocol/types.js";
-export { ClientLLMSchema, StagehandOptionsSchema } from "../../protocol/pending-schemas.js";
+export {
+  BrowserSourceSchema,
+  BrowserbaseBrowserSourceSchema,
+  CdpBrowserSourceSchema,
+  ClientLLMSchema,
+  LocalBrowserSourceSchema,
+  StagehandClientInitParamsSchema,
+  type BrowserSource,
+  type ClientLLM,
+  type ResolvedStagehandClientInitParams,
+  type StagehandClientInitParams,
+} from "./clientSchemas.js";
 export { RPCClient } from "./rpcClient.js";

@@ -5,18 +5,15 @@ import {
   ActionSchema,
   AzureEntraIdAuthSchema,
   AzureModelProviderOptionsSchema,
+  BrowserbaseSessionCreateParamsSchema,
   ExtractOptionsSchema,
   ExtractResultSchema,
   GoogleServiceAccountAuthSchema,
-  LLMGenerateParamsSchema,
-  LLMGenerateResultSchema,
-  ModelConfigurationSchema,
   ModelNameSchema,
   ModelProviderSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageLocatorSchema,
-  StagehandTelemetryOptionsSchema,
   VertexModelProviderOptionsSchema,
 } from "./schemas.ts";
 
@@ -31,20 +28,30 @@ export {
   AzureModelConfigObjectSchema,
   AzureModelProviderOptionsSchema,
   AzureProviderOptionsSchema,
+  BrowserbaseBrowserSettingsSchema,
+  BrowserbaseContextSchema,
+  BrowserbaseFingerprintSchema,
+  BrowserbaseFingerprintScreenSchema,
+  BrowserbaseProxyConfigSchema,
+  BrowserbaseProxyGeolocationSchema,
+  BrowserbaseRegionSchema,
+  BrowserbaseSessionCreateParamsSchema,
+  BrowserbaseViewportSchema,
   ExtractOptionsSchema,
   ExtractResultSchema,
+  ExternalProxyConfigSchema,
   GenericModelConfigObjectSchema,
   GoogleServiceAccountAuthSchema,
   GoogleServiceAccountCredentialsSchema,
   LocatorCoordinatesSchema,
   LocatorSchema,
-  ModelConfigObjectSchema,
-  ModelConfigurationSchema,
+  ModelConfigSchema,
   ModelNameSchema,
   ModelProviderSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageLocatorSchema,
+  ProxyConfigSchema,
   StagehandMetricsSchema,
   VariablePrimitiveSchema,
   VariableValueSchema,
@@ -277,14 +284,6 @@ export const LocalBrowserLaunchOptionsSchema = z
   .strict()
   .meta({ id: "LocalBrowserLaunchOptions" });
 
-export const LocalBrowserConnectOptionsSchema = z
-  .object({
-    cdpUrl: z.string().min(1),
-    keepAlive: z.boolean().optional(),
-  })
-  .strict()
-  .meta({ id: "LocalBrowserConnectOptions" });
-
 export const ModelAuthSchema = z
   .discriminatedUnion("type", [
     ApiKeyAuthSchema,
@@ -473,184 +472,6 @@ export const ErrorResponseSchema = z
   })
   .strict()
   .meta({ id: "ErrorResponse" });
-
-// =============================================================================
-// Browserbase Session Create Params  (zod+hints duplicated version of Browserbase.Sessions.SessionCreateParams)
-// =============================================================================
-
-/** Browserbase viewport configuration */
-export const BrowserbaseViewportSchema = z
-  .object({
-    width: z.number().optional(),
-    height: z.number().optional(),
-  })
-  .meta({ id: "BrowserbaseViewport" });
-
-/** Browserbase fingerprint screen configuration */
-export const BrowserbaseFingerprintScreenSchema = z
-  .object({
-    maxHeight: z.number().optional(),
-    maxWidth: z.number().optional(),
-    minHeight: z.number().optional(),
-    minWidth: z.number().optional(),
-  })
-  .meta({ id: "BrowserbaseFingerprintScreen" });
-
-/** Browserbase fingerprint configuration for stealth mode */
-export const BrowserbaseFingerprintSchema = z
-  .object({
-    browsers: z.array(z.enum(["chrome", "edge", "firefox", "safari"])).optional(),
-    devices: z.array(z.enum(["desktop", "mobile"])).optional(),
-    httpVersion: z.enum(["1", "2"]).optional(),
-    locales: z.array(z.string()).optional(),
-    operatingSystems: z.array(z.enum(["android", "ios", "linux", "macos", "windows"])).optional(),
-    screen: BrowserbaseFingerprintScreenSchema.optional(),
-  })
-  .meta({ id: "BrowserbaseFingerprint" });
-
-/** Browserbase context configuration for session persistence */
-export const BrowserbaseContextSchema = z
-  .object({
-    id: z.string(),
-    persist: z.boolean().optional(),
-  })
-  .meta({ id: "BrowserbaseContext" });
-
-/** Browserbase browser settings for session creation */
-export const BrowserbaseBrowserSettingsSchema = z
-  .object({
-    advancedStealth: z.boolean().optional(),
-    blockAds: z.boolean().optional(),
-    captchaImageSelector: z.string().optional(),
-    captchaInputSelector: z.string().optional(),
-    context: BrowserbaseContextSchema.optional(),
-    extensionId: z.string().optional(),
-    fingerprint: BrowserbaseFingerprintSchema.optional(),
-    logSession: z.boolean().optional(),
-    os: z.enum(["windows", "mac", "linux", "mobile", "tablet"]).optional(),
-    recordSession: z.boolean().optional(),
-    solveCaptchas: z.boolean().optional(),
-    verified: z.boolean().optional(),
-    viewport: BrowserbaseViewportSchema.optional(),
-  })
-  .meta({ id: "BrowserbaseBrowserSettings" });
-
-/** Browserbase managed proxy geolocation configuration */
-export const BrowserbaseProxyGeolocationSchema = z
-  .object({
-    country: z.string(),
-    city: z.string().optional(),
-    state: z.string().optional(),
-  })
-  .meta({ id: "BrowserbaseProxyGeolocation" });
-
-/** Browserbase managed proxy configuration */
-export const BrowserbaseProxyConfigSchema = z
-  .object({
-    type: z.literal("browserbase"),
-    domainPattern: z.string().optional(),
-    geolocation: BrowserbaseProxyGeolocationSchema.optional(),
-  })
-  .meta({ id: "BrowserbaseProxyConfig" });
-
-/** External proxy configuration */
-export const ExternalProxyConfigSchema = z
-  .object({
-    type: z.literal("external"),
-    server: z.string(),
-    domainPattern: z.string().optional(),
-    username: z.string().optional(),
-    password: z.string().optional(),
-  })
-  .meta({ id: "ExternalProxyConfig" });
-
-/** Union of proxy configuration types */
-export const ProxyConfigSchema = z
-  .discriminatedUnion("type", [BrowserbaseProxyConfigSchema, ExternalProxyConfigSchema])
-  .meta({ id: "ProxyConfig" });
-
-/** Browserbase region identifier for multi-region support */
-export const BrowserbaseRegionSchema = z
-  .enum(["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"])
-  .meta({ id: "BrowserbaseRegion" });
-/** Browserbase session creation parameters */
-export const BrowserbaseSessionCreateParamsSchema = z
-  .object({
-    apiKey: z.string().min(1).optional(),
-    browserSettings: BrowserbaseBrowserSettingsSchema.optional(),
-    extensionId: z.string().optional(),
-    keepAlive: z.boolean().optional(),
-    proxies: z.union([z.boolean(), z.array(ProxyConfigSchema)]).optional(),
-    region: BrowserbaseRegionSchema.optional(),
-    timeout: z.number().optional(),
-    userMetadata: z.record(z.string(), z.unknown()).optional(),
-  })
-  .meta({ id: "BrowserbaseSessionCreateParams" });
-export const BrowserbaseConnectOptionsSchema = z
-  .object({
-    cdpUrl: z.string().min(1).optional(),
-    sessionId: z.string().min(1).optional(),
-    apiKey: z.string().min(1).optional(),
-    keepAlive: z.boolean().optional(),
-  })
-  .strict()
-  .superRefine((options, context) => {
-    const selectedTargets = [options.cdpUrl, options.sessionId].filter(
-      (value) => value !== undefined,
-    );
-    if (selectedTargets.length === 1) return;
-
-    context.addIssue({
-      code: "custom",
-      path: [],
-      message: "Provide exactly one of cdpUrl or sessionId",
-    });
-  })
-  .meta({ id: "BrowserbaseConnectOptions" });
-
-const browserSourceOptionKeys = [
-  "localBrowserLaunchOptions",
-  "localBrowserConnectOptions",
-  "browserbaseSessionCreateParams",
-  "browserbaseConnectOptions",
-] as const;
-
-/** An LLM callback implemented locally by the SDK consumer. It never crosses the wire. */
-export const ClientLLMSchema = z
-  .object({
-    modelName: ModelNameSchema,
-    generate: z.function({
-      input: [LLMGenerateParamsSchema],
-      output: z.promise(LLMGenerateResultSchema),
-    }),
-  })
-  .strict()
-  .meta({ id: "ClientLLM" });
-
-export const StagehandModelOptionSchema = z.union([ModelConfigurationSchema, ClientLLMSchema]);
-
-export const StagehandOptionsSchema = z
-  .object({
-    localBrowserLaunchOptions: LocalBrowserLaunchOptionsSchema.optional(),
-    localBrowserConnectOptions: LocalBrowserConnectOptionsSchema.optional(),
-    browserbaseSessionCreateParams: BrowserbaseSessionCreateParamsSchema.optional(),
-    browserbaseConnectOptions: BrowserbaseConnectOptionsSchema.optional(),
-    model: StagehandModelOptionSchema.optional(),
-    telemetry: StagehandTelemetryOptionsSchema,
-    selfHeal: z.boolean().optional(),
-  })
-  .strict()
-  .superRefine((options, context) => {
-    const selectedKeys = browserSourceOptionKeys.filter((key) => options[key] !== undefined);
-    if (selectedKeys.length === 1) return;
-
-    context.addIssue({
-      code: "custom",
-      path: [],
-      message: "Provide exactly one browser source option",
-    });
-  })
-  .meta({ id: "StagehandOptions" });
 
 // =============================================================================
 // Session Start
