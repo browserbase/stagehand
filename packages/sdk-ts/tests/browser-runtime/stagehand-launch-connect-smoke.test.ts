@@ -66,6 +66,95 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       "clicked:user@example.com",
     );
   });
+
+  it("navigates and runs scripts through the page wrapper", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const page = await activeStagehand.context.newPage();
+    const secondUrl = new URL("/second", activeFixtureServer.url).href;
+
+    await page.addInitScript({
+      content: "globalThis.__stagehandSmokeInit = 'ready';",
+    });
+    await page.goto(activeFixtureServer.url, { waitUntil: "load" });
+
+    await expect(
+      page.evaluate(
+        (arg: { suffix: string }) => ({
+          title: document.title + arg.suffix,
+          init: (
+            globalThis as typeof globalThis & {
+              __stagehandSmokeInit?: string;
+            }
+          ).__stagehandSmokeInit,
+        }),
+        { suffix: "!" },
+      ),
+    ).resolves.toStrictEqual({ title: "Stagehand SDK Smoke!", init: "ready" });
+
+    await page.goto(secondUrl, { waitUntil: "load" });
+    await expect(page.url()).resolves.toBe(secondUrl);
+    await expect(page.evaluate("globalThis.__stagehandSmokeInit")).resolves.toBe("ready");
+
+    await page.goBack({ waitUntil: "load" });
+    await expect(page.url()).resolves.toBe(activeFixtureServer.url);
+    await page.goForward({ waitUntil: "load" });
+    await expect(page.url()).resolves.toBe(secondUrl);
+    await page.reload({ waitUntil: "load" });
+    await expect(page.title()).resolves.toBe("Stagehand SDK Smoke Second");
+  });
+
+  it("uses page-level interactions and waits", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const page = await activeStagehand.context.newPage({ url: activeFixtureServer.url });
+
+    await page.waitForLoadState("load");
+    await expect(
+      page.waitForSelector("#locator-button", { state: "visible", timeout: 5_000 }),
+    ).resolves.toBe(true);
+
+    const buttonCenter = await page.evaluate<{ x: number; y: number }>(`(() => {
+      const rect = document.querySelector("#locator-button").getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    })()`);
+    await expect(
+      page.click(buttonCenter.x, buttonCenter.y, { returnXpath: true }),
+    ).resolves.not.toBe("");
+    await expect(page.locator("#locator-output").textContent()).resolves.toBe("clicked:");
+
+    await page.evaluate(`document.querySelector("#locator-input").focus()`);
+    await page.type("smoke");
+    await page.keyPress("!");
+    await expect(page.locator("#locator-input").inputValue()).resolves.toBe("smoke!");
+    await page.waitForTimeout(1);
+  });
+
+  it("applies page configuration and captures browser state", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const page = await activeStagehand.context.newPage();
+    const headersUrl = new URL("/headers", activeFixtureServer.url).href;
+
+    await page.setExtraHTTPHeaders({ "X-Stagehand-Smoke": "header-value" });
+    await page.setViewportSize(800, 600, { deviceScaleFactor: 1 });
+    await page.goto(headersUrl, { waitUntil: "load" });
+
+    await expect(page.locator("#request-header").textContent()).resolves.toBe("header-value");
+    await expect(
+      page.evaluate("({ width: globalThis.innerWidth, height: globalThis.innerHeight })"),
+    ).resolves.toStrictEqual({ width: 800, height: 600 });
+
+    const screenshot = await page.screenshot();
+    expect([...screenshot.subarray(0, 8)]).toStrictEqual([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ]);
+
+    const snapshot = await page.snapshot();
+    expect(snapshot.formattedTree.length).toBeGreaterThan(0);
+    expect(snapshot.xpathMap).toBeTypeOf("object");
+    expect(snapshot.urlMap).toBeTypeOf("object");
+  });
 });
 
 function requireStagehand(value: Stagehand | undefined): Stagehand {
@@ -86,14 +175,9 @@ function requireFixtureServer(value: FixtureServer | undefined): FixtureServer {
 
 async function startFixtureServer(): Promise<FixtureServer> {
   const server = createServer((request, response) => {
-    if (request.url !== "/") {
-      response.writeHead(404);
-      response.end("not found");
-      return;
-    }
-
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end(`<!doctype html>
+    if (request.url === "/") {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end(`<!doctype html>
 <html>
   <head>
     <title>Stagehand SDK Smoke</title>
@@ -123,6 +207,40 @@ async function startFixtureServer(): Promise<FixtureServer> {
     <p id="locator-output">waiting</p>
   </body>
 </html>`);
+      return;
+    }
+
+    if (request.url === "/second") {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end(`<!doctype html>
+<html>
+  <head>
+    <title>Stagehand SDK Smoke Second</title>
+  </head>
+  <body>
+    <p id="second-page">second page</p>
+  </body>
+</html>`);
+      return;
+    }
+
+    if (request.url === "/headers") {
+      const header = String(request.headers["x-stagehand-smoke"] ?? "missing");
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end(`<!doctype html>
+<html>
+  <head>
+    <title>Stagehand SDK Smoke Headers</title>
+  </head>
+  <body>
+    <p id="request-header">${escapeHtml(header)}</p>
+  </body>
+</html>`);
+      return;
+    }
+
+    response.writeHead(404);
+    response.end("not found");
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -143,6 +261,10 @@ async function startFixtureServer(): Promise<FixtureServer> {
     url: `http://127.0.0.1:${address.port}/`,
     close: () => closeServer(server),
   };
+}
+
+function escapeHtml(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 function closeServer(server: Server): Promise<void> {

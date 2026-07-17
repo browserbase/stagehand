@@ -12,6 +12,7 @@ import type {
   StagehandBrowserSession,
   UnderstudyRuntimeLocator,
   UnderstudyRuntimePage,
+  UnderstudyRuntimeScreenshotOptions,
 } from "../runtime.ts";
 import { createStagehandRuntime, type StagehandRuntimeAdapters } from "../runtime.ts";
 import type { StagehandTracing } from "../tracing.ts";
@@ -24,6 +25,24 @@ import type {
   LocatorSelectOptionParams,
   LocatorSendClickEventParams,
   LocatorTypeParams,
+  PageAddInitScriptParams,
+  PageClickParams,
+  PageDragAndDropParams,
+  PageEvaluateParams,
+  PageGoBackParams,
+  PageGoForwardParams,
+  PageHoverParams,
+  PageKeyPressParams,
+  PageReloadParams,
+  PageScrollParams,
+  PageSnapshotOptions,
+  PageSetExtraHTTPHeadersParams,
+  PageSetViewportSizeParams,
+  SnapshotResult,
+  PageTypeParams,
+  PageWaitForLoadStateParams,
+  PageWaitForSelectorParams,
+  PageWaitForTimeoutParams,
 } from "../../protocol/types.ts";
 
 vi.mock("../understudy/context.js", () => ({
@@ -80,10 +99,64 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
       timeoutMs?: number;
     };
   }> = [];
+  readonly reloadCalls: Array<PageReloadParams["options"]> = [];
+  readonly goBackCalls: Array<PageGoBackParams["options"]> = [];
+  readonly goForwardCalls: Array<PageGoForwardParams["options"]> = [];
+  readonly clickCalls: Array<{ x: number; y: number; options?: PageClickParams["options"] }> = [];
+  readonly hoverCalls: Array<{ x: number; y: number; options?: PageHoverParams["options"] }> = [];
+  readonly scrollCalls: Array<{
+    x: number;
+    y: number;
+    deltaX: number;
+    deltaY: number;
+    options?: PageScrollParams["options"];
+  }> = [];
+  readonly dragAndDropCalls: Array<{
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
+    options?: PageDragAndDropParams["options"];
+  }> = [];
+  readonly pageTypeCalls: Array<{ text: string; options?: PageTypeParams["options"] }> = [];
+  readonly keyPressCalls: Array<{ key: string; options?: PageKeyPressParams["options"] }> = [];
+  readonly evaluateCalls: string[] = [];
+  readonly addInitScriptCalls: string[] = [];
+  readonly setExtraHTTPHeadersCalls: Array<PageSetExtraHTTPHeadersParams["headers"]> = [];
+  readonly setViewportSizeCalls: Array<{
+    width: number;
+    height: number;
+    options?: PageSetViewportSizeParams["options"];
+  }> = [];
+  readonly waitForLoadStateCalls: Array<{
+    state: PageWaitForLoadStateParams["state"];
+    timeoutMs?: number;
+  }> = [];
+  readonly waitForTimeoutCalls: Array<PageWaitForTimeoutParams["ms"]> = [];
+  readonly waitForSelectorCalls: Array<{
+    selector: string;
+    options?: PageWaitForSelectorParams["options"];
+  }> = [];
+  readonly screenshotCalls: Array<UnderstudyRuntimeScreenshotOptions | undefined> = [];
+  readonly snapshotCalls: Array<PageSnapshotOptions | undefined> = [];
   readonly locatorRefs: FakeUnderstudyRuntimeLocator[] = [];
   readonly locatorsBySelector = new Map<string, FakeUnderstudyRuntimeLocator>();
   closed = false;
   currentUrl: string;
+  backUrl?: string;
+  forwardUrl?: string;
+  clickXpath = "/html/body/button";
+  hoverXpath = "/html/body/a";
+  scrollXpath = "/html/body/main";
+  dragXpaths: [string, string] = ["/html/body/div[1]", "/html/body/div[2]"];
+  evaluationResult: unknown = null;
+  waitForSelectorResult = true;
+  screenshotBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  snapshotResult: SnapshotResult = {
+    formattedTree: "root",
+    xpathMap: { frameOne: "/html/body" },
+    urlMap: { frameOne: "https://example.test" },
+  };
 
   constructor(
     readonly id: string,
@@ -99,6 +172,110 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   ): Promise<void> {
     this.gotoCalls.push({ url, options });
     this.currentUrl = url;
+  }
+
+  async reload(options?: PageReloadParams["options"]): Promise<void> {
+    this.reloadCalls.push(options);
+  }
+
+  async goBack(options?: PageGoBackParams["options"]): Promise<void> {
+    this.goBackCalls.push(options);
+    if (this.backUrl) this.currentUrl = this.backUrl;
+  }
+
+  async goForward(options?: PageGoForwardParams["options"]): Promise<void> {
+    this.goForwardCalls.push(options);
+    if (this.forwardUrl) this.currentUrl = this.forwardUrl;
+  }
+
+  async click(x: number, y: number, options?: PageClickParams["options"]): Promise<string> {
+    this.clickCalls.push({ x, y, options });
+    return this.clickXpath;
+  }
+
+  async hover(x: number, y: number, options?: PageHoverParams["options"]): Promise<string> {
+    this.hoverCalls.push({ x, y, options });
+    return this.hoverXpath;
+  }
+
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    options?: PageScrollParams["options"],
+  ): Promise<string> {
+    this.scrollCalls.push({ x, y, deltaX, deltaY, options });
+    return this.scrollXpath;
+  }
+
+  async dragAndDrop(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    options?: PageDragAndDropParams["options"],
+  ): Promise<[string, string]> {
+    this.dragAndDropCalls.push({ fromX, fromY, toX, toY, options });
+    return this.dragXpaths;
+  }
+
+  async type(text: string, options?: PageTypeParams["options"]): Promise<void> {
+    this.pageTypeCalls.push({ text, options });
+  }
+
+  async keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void> {
+    this.keyPressCalls.push({ key, options });
+  }
+
+  async evaluate(expression: PageEvaluateParams["expression"]): Promise<unknown> {
+    this.evaluateCalls.push(expression);
+    return this.evaluationResult;
+  }
+
+  async addInitScript(source: PageAddInitScriptParams["source"]): Promise<void> {
+    this.addInitScriptCalls.push(source);
+  }
+
+  async setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void> {
+    this.setExtraHTTPHeadersCalls.push(headers);
+  }
+
+  async setViewportSize(
+    width: number,
+    height: number,
+    options?: PageSetViewportSizeParams["options"],
+  ): Promise<void> {
+    this.setViewportSizeCalls.push({ width, height, options });
+  }
+
+  async waitForLoadState(
+    state: PageWaitForLoadStateParams["state"],
+    timeoutMs?: number,
+  ): Promise<void> {
+    this.waitForLoadStateCalls.push({ state, timeoutMs });
+  }
+
+  async waitForTimeout(ms: PageWaitForTimeoutParams["ms"]): Promise<void> {
+    this.waitForTimeoutCalls.push(ms);
+  }
+
+  async waitForSelector(
+    selector: string,
+    options?: PageWaitForSelectorParams["options"],
+  ): Promise<boolean> {
+    this.waitForSelectorCalls.push({ selector, options });
+    return this.waitForSelectorResult;
+  }
+
+  async screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array> {
+    this.screenshotCalls.push(options);
+    return this.screenshotBytes;
+  }
+
+  async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
+    this.snapshotCalls.push(options);
+    return this.snapshotResult;
   }
 
   targetId(): string {
@@ -762,6 +939,383 @@ describe("Stagehand worker clients", () => {
         },
       },
     ]);
+  });
+
+  it("routes page navigation commands and returns refreshed page refs", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    page.backUrl = "https://example.test/back";
+    page.forwardUrl = "https://example.test/forward";
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 13,
+        method: "page.reload",
+        params: {
+          page_id: "page-a",
+          options: { wait_until: "load", timeout_ms: 5_000, ignore_cache: true },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 13,
+      result: { page_id: "page-a", url: "https://example.test/current" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 14,
+        method: "page.go_back",
+        params: { page_id: "page-a", options: { wait_until: "domcontentloaded" } },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 14,
+      result: { page_id: "page-a", url: "https://example.test/back" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 15,
+        method: "page.go_forward",
+        params: { page_id: "page-a", options: { timeout_ms: 2_500 } },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 15,
+      result: { page_id: "page-a", url: "https://example.test/forward" },
+    });
+
+    expect(page.reloadCalls).toStrictEqual([
+      { waitUntil: "load", timeoutMs: 5_000, ignoreCache: true },
+    ]);
+    expect(page.goBackCalls).toStrictEqual([{ waitUntil: "domcontentloaded" }]);
+    expect(page.goForwardCalls).toStrictEqual([{ timeoutMs: 2_500 }]);
+  });
+
+  it("routes page coordinate interactions and adapts their results", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 16,
+        method: "page.click",
+        params: {
+          page_id: "page-a",
+          x: 10,
+          y: 20,
+          options: { button: "right", click_count: 2, return_xpath: true },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 16,
+      result: { xpath: "/html/body/button" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 17,
+        method: "page.hover",
+        params: { page_id: "page-a", x: 30, y: 40, options: { return_xpath: true } },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 17,
+      result: { xpath: "/html/body/a" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 18,
+        method: "page.scroll",
+        params: {
+          page_id: "page-a",
+          x: 50,
+          y: 60,
+          delta_x: -25,
+          delta_y: 400,
+          options: { return_xpath: true },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 18,
+      result: { xpath: "/html/body/main" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 19,
+        method: "page.drag_and_drop",
+        params: {
+          page_id: "page-a",
+          from_x: 1,
+          from_y: 2,
+          to_x: 3,
+          to_y: 4,
+          options: { button: "left", steps: 5, delay: 10, return_xpath: true },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 19,
+      result: {
+        from_xpath: "/html/body/div[1]",
+        to_xpath: "/html/body/div[2]",
+      },
+    });
+
+    expect(page.clickCalls).toStrictEqual([
+      { x: 10, y: 20, options: { button: "right", clickCount: 2, returnXpath: true } },
+    ]);
+    expect(page.hoverCalls).toStrictEqual([{ x: 30, y: 40, options: { returnXpath: true } }]);
+    expect(page.scrollCalls).toStrictEqual([
+      { x: 50, y: 60, deltaX: -25, deltaY: 400, options: { returnXpath: true } },
+    ]);
+    expect(page.dragAndDropCalls).toStrictEqual([
+      {
+        fromX: 1,
+        fromY: 2,
+        toX: 3,
+        toY: 4,
+        options: { button: "left", steps: 5, delay: 10, returnXpath: true },
+      },
+    ]);
+  });
+
+  it("routes page keyboard interactions", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 20,
+        method: "page.type",
+        params: {
+          page_id: "page-a",
+          text: "hello",
+          options: { delay: 25, with_mistakes: true },
+        },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 20, result: { ok: true } });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 21,
+        method: "page.key_press",
+        params: { page_id: "page-a", key: "Control+A", options: { delay: 10 } },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 21, result: { ok: true } });
+
+    expect(page.pageTypeCalls).toStrictEqual([
+      { text: "hello", options: { delay: 25, withMistakes: true } },
+    ]);
+    expect(page.keyPressCalls).toStrictEqual([{ key: "Control+A", options: { delay: 10 } }]);
+  });
+
+  it("routes page evaluation and init scripts with JSON-safe results", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    page.evaluationResult = { camelCase: true, nestedValue: { staysCamelCase: true } };
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 22,
+        method: "page.evaluate",
+        params: { page_id: "page-a", expression: "({ camelCase: true })" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 22,
+      result: { value: { camelCase: true, nestedValue: { staysCamelCase: true } } },
+    });
+
+    page.evaluationResult = undefined;
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 23,
+        method: "page.evaluate",
+        params: { page_id: "page-a", expression: "undefined" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 23,
+      result: { value: null },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 24,
+        method: "page.add_init_script",
+        params: { page_id: "page-a", source: "globalThis.ready = true" },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 24, result: { ok: true } });
+
+    expect(page.evaluateCalls).toStrictEqual(["({ camelCase: true })", "undefined"]);
+    expect(page.addInitScriptCalls).toStrictEqual(["globalThis.ready = true"]);
+  });
+
+  it("routes page headers and viewport configuration", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 25,
+        method: "page.set_extra_http_headers",
+        params: {
+          page_id: "page-a",
+          headers: { "X-Request-ID": "request-1", doNotRenameMe: "value" },
+        },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 25, result: { ok: true } });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 26,
+        method: "page.set_viewport_size",
+        params: {
+          page_id: "page-a",
+          width: 1280,
+          height: 720,
+          options: { device_scale_factor: 2 },
+        },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 26, result: { ok: true } });
+
+    expect(page.setExtraHTTPHeadersCalls).toStrictEqual([
+      { "X-Request-ID": "request-1", doNotRenameMe: "value" },
+    ]);
+    expect(page.setViewportSizeCalls).toStrictEqual([
+      { width: 1280, height: 720, options: { deviceScaleFactor: 2 } },
+    ]);
+  });
+
+  it("routes page wait methods and adapts selector results", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    page.waitForSelectorResult = false;
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 27,
+        method: "page.wait_for_load_state",
+        params: { page_id: "page-a", state: "networkidle", timeout_ms: 0 },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 27, result: { ok: true } });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 28,
+        method: "page.wait_for_timeout",
+        params: { page_id: "page-a", ms: 250 },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 28, result: { ok: true } });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 29,
+        method: "page.wait_for_selector",
+        params: {
+          page_id: "page-a",
+          selector: "button.submit",
+          options: { state: "visible", timeout: 1_000, pierce_shadow: false },
+        },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 29, result: { matched: false } });
+
+    expect(page.waitForLoadStateCalls).toStrictEqual([{ state: "networkidle", timeoutMs: 0 }]);
+    expect(page.waitForTimeoutCalls).toStrictEqual([250]);
+    expect(page.waitForSelectorCalls).toStrictEqual([
+      {
+        selector: "button.submit",
+        options: { state: "visible", timeout: 1_000, pierceShadow: false },
+      },
+    ]);
+  });
+
+  it("routes page screenshots and snapshots", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 30,
+        method: "page.screenshot",
+        params: {
+          page_id: "page-a",
+          options: {
+            full_page: true,
+            mask: [{ page_id: "page-a", selector: "[data-secret]" }],
+            mask_color: "#000000",
+          },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 30,
+      result: { data: "iVBORw0KGgo=", type: "png" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 31,
+        method: "page.snapshot",
+        params: { page_id: "page-a", options: { include_iframes: true } },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 31,
+      result: {
+        formatted_tree: "root",
+        xpath_map: { frameOne: "/html/body" },
+        url_map: { frameOne: "https://example.test" },
+      },
+    });
+
+    expect(page.screenshotCalls).toStrictEqual([
+      {
+        fullPage: true,
+        mask: [page.locatorRefs[0]],
+        maskColor: "#000000",
+      },
+    ]);
+    expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);
+  });
+
+  it("rejects screenshot masks from another page", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const otherPage = new FakeUnderstudyRuntimePage("page-b", "https://example.test/other");
+    const runtime = await createConfiguredRuntime(new FakeBrowserSession([page, otherPage]));
+
+    await expect(
+      runtime.pageScreenshot({
+        pageId: "page-a",
+        options: { mask: [{ pageId: "page-b", selector: "[data-secret]" }] },
+      }),
+    ).rejects.toThrow("mask locators must belong to the target page");
+    expect(page.screenshotCalls).toStrictEqual([]);
   });
 
   it("returns page.url from the resolved understudy page", async () => {

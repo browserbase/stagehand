@@ -35,18 +35,46 @@ import type {
   LocatorTextContentResult,
   LocatorTypeParams,
   LocatorTypeResult,
+  PageClickParams,
   PageCloseResult,
+  PageCoordinateResult,
+  PageAddInitScriptParams,
+  PageDragAndDropParams,
+  PageDragAndDropResult,
+  PageEvaluateParams,
+  PageEvaluateResult,
+  PageGoBackParams,
+  PageGoForwardParams,
   PageGotoParams,
+  PageHoverParams,
   PageIdParams,
+  PageKeyPressParams,
   PageRef,
+  PageReloadParams,
+  PageScrollParams,
+  PageScreenshotOptions,
+  PageScreenshotParams,
+  PageScreenshotResult,
+  PageSetExtraHTTPHeadersParams,
+  PageSetViewportSizeParams,
+  PageSnapshotParams,
+  PageSnapshotOptions,
   PageTitleResult,
+  PageTypeParams,
   PageUrlResult,
+  PageVoidResult,
+  PageWaitForLoadStateParams,
+  PageWaitForSelectorParams,
+  PageWaitForSelectorResult,
+  PageWaitForTimeoutParams,
   RuntimeConfigureParams,
   RuntimeConfigureResult,
   RuntimeLoopbackStatusResult,
   StagehandInitParams,
   StagehandInitResult,
+  SnapshotResult,
 } from "../protocol/types.js";
+import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
 import type { StagehandLogEmitter } from "./logger.js";
 import { StagehandLogger } from "./logger.js";
 import { RemoteLLMClient } from "./llm/remoteLlmClient.js";
@@ -56,9 +84,50 @@ export type UnderstudyRuntimePage = {
   targetId(): string;
   url(): string;
   goto(url: string, options?: PageGotoParams["options"]): Promise<unknown>;
+  reload(options?: PageReloadParams["options"]): Promise<unknown>;
+  goBack(options?: PageGoBackParams["options"]): Promise<unknown>;
+  goForward(options?: PageGoForwardParams["options"]): Promise<unknown>;
+  click(x: number, y: number, options?: PageClickParams["options"]): Promise<string>;
+  hover(x: number, y: number, options?: PageHoverParams["options"]): Promise<string>;
+  scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    options?: PageScrollParams["options"],
+  ): Promise<string>;
+  dragAndDrop(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    options?: PageDragAndDropParams["options"],
+  ): Promise<[string, string]>;
+  type(text: string, options?: PageTypeParams["options"]): Promise<void>;
+  keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
+  evaluate(expression: string): Promise<unknown>;
+  addInitScript(source: string): Promise<void>;
+  setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void>;
+  setViewportSize(
+    width: number,
+    height: number,
+    options?: PageSetViewportSizeParams["options"],
+  ): Promise<void>;
+  waitForLoadState(state: PageWaitForLoadStateParams["state"], timeoutMs?: number): Promise<void>;
+  waitForTimeout(ms: number): Promise<void>;
+  waitForSelector(
+    selector: string,
+    options?: PageWaitForSelectorParams["options"],
+  ): Promise<boolean>;
+  screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array>;
+  snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
   title(): Promise<string>;
   close(): Promise<void> | void;
   deepLocator(selector: string): UnderstudyRuntimeLocator;
+};
+
+export type UnderstudyRuntimeScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
+  mask?: UnderstudyRuntimeLocator[];
 };
 
 export type UnderstudyRuntimeLocator = {
@@ -194,6 +263,136 @@ export class StagehandRuntime {
     const page = this.resolvePage(params.pageId);
     await page.goto(params.url, params.options);
     return pageRefFromUnderstudyPage(page);
+  }
+
+  async pageReload(params: PageReloadParams): Promise<PageRef> {
+    const page = this.resolvePage(params.pageId);
+    await page.reload(params.options);
+    return pageRefFromUnderstudyPage(page);
+  }
+
+  async pageGoBack(params: PageGoBackParams): Promise<PageRef> {
+    const page = this.resolvePage(params.pageId);
+    await page.goBack(params.options);
+    return pageRefFromUnderstudyPage(page);
+  }
+
+  async pageGoForward(params: PageGoForwardParams): Promise<PageRef> {
+    const page = this.resolvePage(params.pageId);
+    await page.goForward(params.options);
+    return pageRefFromUnderstudyPage(page);
+  }
+
+  async pageClick(params: PageClickParams): Promise<PageCoordinateResult> {
+    const { pageId, x, y, options } = params;
+    return { xpath: await this.resolvePage(pageId).click(x, y, options) };
+  }
+
+  async pageHover(params: PageHoverParams): Promise<PageCoordinateResult> {
+    const { pageId, x, y, options } = params;
+    return { xpath: await this.resolvePage(pageId).hover(x, y, options) };
+  }
+
+  async pageScroll(params: PageScrollParams): Promise<PageCoordinateResult> {
+    const { pageId, x, y, deltaX, deltaY, options } = params;
+    return {
+      xpath: await this.resolvePage(pageId).scroll(x, y, deltaX, deltaY, options),
+    };
+  }
+
+  async pageDragAndDrop(params: PageDragAndDropParams): Promise<PageDragAndDropResult> {
+    const { pageId, fromX, fromY, toX, toY, options } = params;
+    const [fromXpath, toXpath] = await this.resolvePage(pageId).dragAndDrop(
+      fromX,
+      fromY,
+      toX,
+      toY,
+      options,
+    );
+    return { fromXpath, toXpath };
+  }
+
+  async pageType(params: PageTypeParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).type(params.text, params.options);
+    return { ok: true };
+  }
+
+  async pageKeyPress(params: PageKeyPressParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).keyPress(params.key, params.options);
+    return { ok: true };
+  }
+
+  async pageEvaluate(params: PageEvaluateParams): Promise<PageEvaluateResult> {
+    const value = await this.resolvePage(params.pageId).evaluate(params.expression);
+    return {
+      value: value === undefined ? null : (value as PageEvaluateResult["value"]),
+    };
+  }
+
+  async pageAddInitScript(params: PageAddInitScriptParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).addInitScript(params.source);
+    return { ok: true };
+  }
+
+  async pageSetExtraHTTPHeaders(params: PageSetExtraHTTPHeadersParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).setExtraHTTPHeaders(params.headers);
+    return { ok: true };
+  }
+
+  async pageSetViewportSize(params: PageSetViewportSizeParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).setViewportSize(
+      params.width,
+      params.height,
+      params.options,
+    );
+    return { ok: true };
+  }
+
+  async pageWaitForLoadState(params: PageWaitForLoadStateParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).waitForLoadState(params.state, params.timeoutMs);
+    return { ok: true };
+  }
+
+  async pageWaitForTimeout(params: PageWaitForTimeoutParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).waitForTimeout(params.ms);
+    return { ok: true };
+  }
+
+  async pageWaitForSelector(params: PageWaitForSelectorParams): Promise<PageWaitForSelectorResult> {
+    const matched = await this.resolvePage(params.pageId).waitForSelector(
+      params.selector,
+      params.options,
+    );
+    return { matched };
+  }
+
+  async pageScreenshot(params: PageScreenshotParams): Promise<PageScreenshotResult> {
+    const page = this.resolvePage(params.pageId);
+    let options: UnderstudyRuntimeScreenshotOptions | undefined;
+
+    if (params.options) {
+      const { mask, ...screenshotOptions } = params.options;
+      const resolvedMask = mask?.map((descriptor) => {
+        if (descriptor.pageId !== params.pageId) {
+          throw new TypeError("page.screenshot: mask locators must belong to the target page");
+        }
+        return this.resolveLocator(descriptor);
+      });
+      options = {
+        ...screenshotOptions,
+        ...(resolvedMask ? { mask: resolvedMask } : {}),
+      };
+    }
+
+    const bytes = await page.screenshot(options);
+    return {
+      data: bytesToBase64(bytes),
+      type: params.options?.type ?? "png",
+    };
+  }
+
+  async pageSnapshot(params: PageSnapshotParams): Promise<SnapshotResult> {
+    return await this.resolvePage(params.pageId).snapshot(params.options);
   }
 
   pageUrl(params: PageIdParams): PageUrlResult {

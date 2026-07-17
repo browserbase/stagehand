@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
@@ -163,6 +166,280 @@ describe("Stagehand TS object wrapper", () => {
       url: "https://example.com/next",
       title: "Next",
     });
+  });
+
+  it("routes page navigation methods and updates the page ref", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageReload, {
+      pageId: "page-1",
+      url: "https://example.com/reloaded",
+    });
+    client.queueResponse(StagehandMethods.pageGoBack, {
+      pageId: "page-1",
+      url: "https://example.com/back",
+    });
+    client.queueResponse(StagehandMethods.pageGoForward, {
+      pageId: "page-1",
+      url: "https://example.com/forward",
+    });
+    const page = new Page(client, { pageId: "page-1", url: "https://example.com/current" });
+
+    await expect(
+      page.reload({ waitUntil: "load", timeoutMs: 5_000, ignoreCache: true }),
+    ).resolves.toBe(page);
+    expect(page.ref.url).toBe("https://example.com/reloaded");
+
+    await expect(page.goBack({ waitUntil: "domcontentloaded" })).resolves.toBe(page);
+    expect(page.ref.url).toBe("https://example.com/back");
+
+    await expect(page.goForward()).resolves.toBe(page);
+    expect(page.ref.url).toBe("https://example.com/forward");
+
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageReload, {
+        pageId: "page-1",
+        options: { waitUntil: "load", timeoutMs: 5_000, ignoreCache: true },
+      }),
+      requestCall(StagehandMethods.pageGoBack, {
+        pageId: "page-1",
+        options: { waitUntil: "domcontentloaded" },
+      }),
+      requestCall(StagehandMethods.pageGoForward, { pageId: "page-1" }),
+    ]);
+  });
+
+  it("routes page coordinate interactions and unwraps xpath results", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageClick, { xpath: "/html/body/button" });
+    client.queueResponse(StagehandMethods.pageHover, { xpath: "/html/body/a" });
+    client.queueResponse(StagehandMethods.pageScroll, { xpath: "/html/body/main" });
+    client.queueResponse(StagehandMethods.pageDragAndDrop, {
+      fromXpath: "/html/body/div[1]",
+      toXpath: "/html/body/div[2]",
+    });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(
+      page.click(10, 20, { button: "right", clickCount: 2, returnXpath: true }),
+    ).resolves.toBe("/html/body/button");
+    await expect(page.hover(30, 40, { returnXpath: true })).resolves.toBe("/html/body/a");
+    await expect(page.scroll(50, 60, -25, 400, { returnXpath: true })).resolves.toBe(
+      "/html/body/main",
+    );
+    await expect(
+      page.dragAndDrop(1, 2, 3, 4, {
+        button: "left",
+        steps: 5,
+        delay: 10,
+        returnXpath: true,
+      }),
+    ).resolves.toStrictEqual(["/html/body/div[1]", "/html/body/div[2]"]);
+
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageClick, {
+        pageId: "page-1",
+        x: 10,
+        y: 20,
+        options: { button: "right", clickCount: 2, returnXpath: true },
+      }),
+      requestCall(StagehandMethods.pageHover, {
+        pageId: "page-1",
+        x: 30,
+        y: 40,
+        options: { returnXpath: true },
+      }),
+      requestCall(StagehandMethods.pageScroll, {
+        pageId: "page-1",
+        x: 50,
+        y: 60,
+        deltaX: -25,
+        deltaY: 400,
+        options: { returnXpath: true },
+      }),
+      requestCall(StagehandMethods.pageDragAndDrop, {
+        pageId: "page-1",
+        fromX: 1,
+        fromY: 2,
+        toX: 3,
+        toY: 4,
+        options: { button: "left", steps: 5, delay: 10, returnXpath: true },
+      }),
+    ]);
+  });
+
+  it("routes page keyboard interactions", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageType, { ok: true });
+    client.queueResponse(StagehandMethods.pageKeyPress, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await page.type("hello", { delay: 25, withMistakes: true });
+    await page.keyPress("Control+A", { delay: 10 });
+
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageType, {
+        pageId: "page-1",
+        text: "hello",
+        options: { delay: 25, withMistakes: true },
+      }),
+      requestCall(StagehandMethods.pageKeyPress, {
+        pageId: "page-1",
+        key: "Control+A",
+        options: { delay: 10 },
+      }),
+    ]);
+  });
+
+  it("normalizes page evaluation functions and preserves result keys", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageEvaluate, {
+      value: { camelCase: "kept", nestedValue: { staysCamelCase: true } },
+    });
+    const page = new Page(client, { pageId: "page-1" });
+    const expression = (arg: { camelCase: string }) => ({ camelCase: arg.camelCase });
+
+    await expect(page.evaluate(expression, { camelCase: "kept" })).resolves.toStrictEqual({
+      camelCase: "kept",
+      nestedValue: { staysCamelCase: true },
+    });
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageEvaluate, {
+        pageId: "page-1",
+        expression: `(${expression.toString()})({"camelCase":"kept"})`,
+      }),
+    ]);
+  });
+
+  it("normalizes page init script content and functions", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageAddInitScript, { ok: true });
+    client.queueResponse(StagehandMethods.pageAddInitScript, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+    const script = (arg: { ready: boolean }) => {
+      globalThis.document.title = String(arg.ready);
+    };
+
+    await page.addInitScript({ content: "globalThis.fromContent = true" });
+    await page.addInitScript(script, { ready: true });
+
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageAddInitScript, {
+        pageId: "page-1",
+        source: "globalThis.fromContent = true",
+      }),
+      requestCall(StagehandMethods.pageAddInitScript, {
+        pageId: "page-1",
+        source: `(${script.toString()})({"ready":true})`,
+      }),
+    ]);
+  });
+
+  it("routes page headers and viewport configuration", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageSetExtraHTTPHeaders, { ok: true });
+    client.queueResponse(StagehandMethods.pageSetViewportSize, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await page.setExtraHTTPHeaders({ "X-Request-ID": "request-1", doNotRenameMe: "value" });
+    await page.setViewportSize(1280, 720, { deviceScaleFactor: 2 });
+
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageSetExtraHTTPHeaders, {
+        pageId: "page-1",
+        headers: { "X-Request-ID": "request-1", doNotRenameMe: "value" },
+      }),
+      requestCall(StagehandMethods.pageSetViewportSize, {
+        pageId: "page-1",
+        width: 1280,
+        height: 720,
+        options: { deviceScaleFactor: 2 },
+      }),
+    ]);
+  });
+
+  it("routes page wait methods and unwraps selector results", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageWaitForLoadState, { ok: true });
+    client.queueResponse(StagehandMethods.pageWaitForTimeout, { ok: true });
+    client.queueResponse(StagehandMethods.pageWaitForSelector, { matched: false });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await page.waitForLoadState("networkidle", 0);
+    await page.waitForTimeout(250);
+    await expect(
+      page.waitForSelector("button.submit", {
+        state: "visible",
+        timeout: 1_000,
+        pierceShadow: false,
+      }),
+    ).resolves.toBe(false);
+
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageWaitForLoadState, {
+        pageId: "page-1",
+        state: "networkidle",
+        timeoutMs: 0,
+      }),
+      requestCall(StagehandMethods.pageWaitForTimeout, { pageId: "page-1", ms: 250 }),
+      requestCall(StagehandMethods.pageWaitForSelector, {
+        pageId: "page-1",
+        selector: "button.submit",
+        options: { state: "visible", timeout: 1_000, pierceShadow: false },
+      }),
+    ]);
+  });
+
+  it("returns screenshot bytes, writes paths locally, and serializes masks", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageScreenshot, {
+      data: "iVBORw0KGgo=",
+      type: "png",
+    });
+    const page = new Page(client, { pageId: "page-1" });
+    const mask = page.locator("[data-secret]");
+    const directory = await mkdtemp(path.join(tmpdir(), "stagehand-screenshot-"));
+    const screenshotPath = path.join(directory, "screenshot.png");
+
+    try {
+      const bytes = await page.screenshot({
+        fullPage: true,
+        mask: [mask],
+        path: screenshotPath,
+      });
+
+      expect(bytes).toStrictEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      expect(await readFile(screenshotPath)).toStrictEqual(bytes);
+      expect(client.calls).toStrictEqual([
+        requestCall(StagehandMethods.pageScreenshot, {
+          pageId: "page-1",
+          options: {
+            fullPage: true,
+            mask: [{ pageId: "page-1", selector: "[data-secret]" }],
+          },
+        }),
+      ]);
+    } finally {
+      await rm(directory, { recursive: true });
+    }
+  });
+
+  it("routes page snapshots and preserves opaque map keys", async () => {
+    const client = new FakeProtocolClient();
+    const snapshot = {
+      formattedTree: "root",
+      xpathMap: { frameOne: "/html/body" },
+      urlMap: { frameOne: "https://example.test" },
+    };
+    client.queueResponse(StagehandMethods.pageSnapshot, snapshot);
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(page.snapshot({ includeIframes: true })).resolves.toStrictEqual(snapshot);
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageSnapshot, {
+        pageId: "page-1",
+        options: { includeIframes: true },
+      }),
+    ]);
   });
 
   it("routes page.url and unwraps the result", async () => {

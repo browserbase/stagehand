@@ -149,6 +149,96 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageGoto, request.params),
           context,
         );
+      case "page.reload":
+        return this.pageController.reload(
+          parseParams(StagehandMethods.pageReload, request.params),
+          context,
+        );
+      case "page.go_back":
+        return this.pageController.goBack(
+          parseParams(StagehandMethods.pageGoBack, request.params),
+          context,
+        );
+      case "page.go_forward":
+        return this.pageController.goForward(
+          parseParams(StagehandMethods.pageGoForward, request.params),
+          context,
+        );
+      case "page.click":
+        return this.pageController.click(
+          parseParams(StagehandMethods.pageClick, request.params),
+          context,
+        );
+      case "page.hover":
+        return this.pageController.hover(
+          parseParams(StagehandMethods.pageHover, request.params),
+          context,
+        );
+      case "page.scroll":
+        return this.pageController.scroll(
+          parseParams(StagehandMethods.pageScroll, request.params),
+          context,
+        );
+      case "page.drag_and_drop":
+        return this.pageController.dragAndDrop(
+          parseParams(StagehandMethods.pageDragAndDrop, request.params),
+          context,
+        );
+      case "page.type":
+        return this.pageController.type(
+          parseParams(StagehandMethods.pageType, request.params),
+          context,
+        );
+      case "page.key_press":
+        return this.pageController.keyPress(
+          parseParams(StagehandMethods.pageKeyPress, request.params),
+          context,
+        );
+      case "page.evaluate":
+        return this.pageController.evaluate(
+          parseParams(StagehandMethods.pageEvaluate, request.params),
+          context,
+        );
+      case "page.add_init_script":
+        return this.pageController.addInitScript(
+          parseParams(StagehandMethods.pageAddInitScript, request.params),
+          context,
+        );
+      case "page.set_extra_http_headers":
+        return this.pageController.setExtraHTTPHeaders(
+          parseParams(StagehandMethods.pageSetExtraHTTPHeaders, request.params),
+          context,
+        );
+      case "page.set_viewport_size":
+        return this.pageController.setViewportSize(
+          parseParams(StagehandMethods.pageSetViewportSize, request.params),
+          context,
+        );
+      case "page.wait_for_load_state":
+        return this.pageController.waitForLoadState(
+          parseParams(StagehandMethods.pageWaitForLoadState, request.params),
+          context,
+        );
+      case "page.wait_for_timeout":
+        return this.pageController.waitForTimeout(
+          parseParams(StagehandMethods.pageWaitForTimeout, request.params),
+          context,
+        );
+      case "page.wait_for_selector":
+        return this.pageController.waitForSelector(
+          parseParams(StagehandMethods.pageWaitForSelector, request.params),
+          context,
+        );
+      case "page.screenshot":
+        return this.pageController.screenshot(
+          parseParams(StagehandMethods.pageScreenshot, request.params),
+          context,
+        );
+      case "page.snapshot":
+        return this.pageController.snapshot(
+          parseParams(StagehandMethods.pageSnapshot, request.params),
+          context,
+        );
       case "page.url":
         return this.pageController.url(
           parseParams(StagehandMethods.pageUrl, request.params),
