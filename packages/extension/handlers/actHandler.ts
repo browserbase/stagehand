@@ -1,5 +1,5 @@
 // lib/v3/handlers/actHandler.ts
-import { act as actInference } from "../inference.js";
+import * as inference from "../inference.js";
 import { buildActPrompt, buildStepTwoPrompt } from "../prompt.js";
 import { trimTrailingTextNode } from "../utils.js";
 import type { StagehandLogger } from "../logger.js";
@@ -32,7 +32,7 @@ type ActInferenceElement = {
   arguments?: string[];
 };
 
-type ActInferenceResponse = Awaited<ReturnType<typeof actInference>>;
+type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
 
 function actResult(result: ActResultData): ActResult {
   return { result };
@@ -111,7 +111,7 @@ export class ActHandler {
     logger: StagehandLogger;
     requireMethodAndArguments?: boolean;
   }): Promise<{ action?: Action; response: ActInferenceResponse }> {
-    const response = await actInference({
+    const response = await inference.act({
       instruction,
       domElements,
       llmClient,

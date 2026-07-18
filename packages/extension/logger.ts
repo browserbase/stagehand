@@ -1,4 +1,4 @@
-import { context as otelContext, SpanStatusCode, trace, type Context } from "@opentelemetry/api";
+import { context, SpanStatusCode, trace, type Context } from "@opentelemetry/api";
 import { z } from "zod/v4";
 import { StagehandLogDataSchema, StagehandLogSchema } from "../protocol/schemas.js";
 import type { StagehandLog, StagehandLogData, StagehandLogLevel } from "../protocol/types.js";
@@ -44,7 +44,7 @@ export class StagehandLogger {
     run: (logger: StagehandLogger) => Result | Promise<Result>,
   ): Promise<Result> {
     const input = StagehandSpanSchema.parse({ name, data });
-    const parentContext = this.parentContext ?? otelContext.active();
+    const parentContext = this.parentContext ?? context.active();
     const span = this.tracing.tracer.startSpan(
       input.name,
       {
@@ -58,7 +58,7 @@ export class StagehandLogger {
     const spanContext = trace.setSpan(parentContext, span);
 
     try {
-      return await otelContext.with(spanContext, () => run(this.withContext(spanContext)));
+      return await context.with(spanContext, () => run(this.withContext(spanContext)));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Stagehand span failed";
       span.setStatus({ code: SpanStatusCode.ERROR, message });
@@ -81,7 +81,7 @@ export class StagehandLogger {
           "stagehand.log.data": JSON.stringify(log.data),
         },
       },
-      this.parentContext ?? otelContext.active(),
+      this.parentContext ?? context.active(),
     );
 
     span.end();

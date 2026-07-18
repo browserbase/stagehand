@@ -1,4 +1,4 @@
-import { ROOT_CONTEXT, TraceFlags, context as otelContext, trace } from "@opentelemetry/api";
+import { ROOT_CONTEXT, TraceFlags, context, trace } from "@opentelemetry/api";
 import { StackContextManager } from "@opentelemetry/sdk-trace-web";
 import { describe, expect, it } from "vite-plus/test";
 import { JSONRPCRequestSchema } from "../../protocol/json-rpc/schemas.ts";
@@ -47,7 +47,7 @@ describe("worker RPCClient", () => {
 
   it("continues the active worker trace when requesting SDK work", async () => {
     const contextManager = new StackContextManager().enable();
-    otelContext.setGlobalContextManager(contextManager);
+    context.setGlobalContextManager(contextManager);
     let requestTraceparent: string | undefined;
     let runtimeClient: ChromeRuntimeClient | undefined;
     const runtime = createStagehandRuntime(
@@ -85,12 +85,12 @@ describe("worker RPCClient", () => {
     });
 
     try {
-      await otelContext.with(parentContext, () => client.send(StagehandMethods.ping, {}));
+      await context.with(parentContext, () => client.send(StagehandMethods.ping, {}));
 
       expect(requestTraceparent).toMatch(/^00-4bf92f3577b34da6a3ce929d0e0e4736-[0-9a-f]{16}-01$/);
     } finally {
       client.close();
-      otelContext.disable();
+      context.disable();
     }
   });
 });

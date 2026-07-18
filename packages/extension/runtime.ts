@@ -75,9 +75,11 @@ import type {
   SnapshotResult,
 } from "../protocol/types.js";
 import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
+import { createStore } from "zustand/vanilla";
 import type { StagehandLogEmitter } from "./logger.js";
 import { StagehandLogger } from "./logger.js";
-import { RemoteLLMClient } from "./llm/remoteLlmClient.js";
+import * as llmService from "./services/llmService.js";
+import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runtimeState.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 
 export type UnderstudyRuntimePage = {
@@ -195,8 +197,10 @@ export function createStagehandRuntime(
 
 export class StagehandRuntime {
   readonly logger: StagehandLogger;
+  readonly state = createStore<StagehandRuntimeState>()(() =>
+    StagehandRuntimeStateSchema.parse({ status: "created" }),
+  );
   browserSession?: StagehandBrowserSession;
-  clientLLM?: RemoteLLMClient;
   pagesById = new Map<string, UnderstudyRuntimePage>();
 
   constructor(
@@ -232,19 +236,40 @@ export class StagehandRuntime {
   }
 
   async initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
-    this.clientLLM =
-      params.model && "source" in params.model
-        ? new RemoteLLMClient(this.adapters.clientLLMGenerate)
-        : undefined;
+    if (this.state.getState().status !== "created") {
+      throw new Error("Stagehand has already been initialized");
+    }
+
+    const pages = await this.contextPages();
+    this.state.setState(
+      StagehandRuntimeStateSchema.parse({
+        status: "initialized",
+        initParams: params,
+      }),
+      true,
+    );
 
     return {
       initialized: true,
-      pages: await this.contextPages(),
+      pages,
     };
   }
 
   async browserGetVersion(): Promise<BrowserGetVersionResult> {
     return await this.requireBrowserSession().getVersion();
+  }
+
+  async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {
+    const state = this.state.getState();
+    const model = state.status === "initialized" ? state.initParams.model : undefined;
+    if (!model || !("source" in model)) {
+      throw new Error("A client-side LLM was not configured during Stagehand initialization");
+    }
+
+    return await llmService.generate(
+      { source: "client", request: this.adapters.clientLLMGenerate },
+      input,
+    );
   }
 
   async contextPages(): Promise<ContextPagesResult> {
@@ -507,7 +532,11 @@ export class StagehandRuntime {
     const session = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
-    await session?.close();
+    try {
+      await session?.close();
+    } finally {
+      this.state.setState(StagehandRuntimeStateSchema.parse({ status: "closed" }), true);
+    }
   }
 
   pageRefForId(pageId: string): PageRef {

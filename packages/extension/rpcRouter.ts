@@ -1,6 +1,6 @@
 import {
   ROOT_CONTEXT,
-  context as otelContext,
+  context,
   SpanKind,
   SpanStatusCode,
   trace,
@@ -70,7 +70,7 @@ export class RPCRouter {
     const handlerContext = { logger: this.runtime.logger.withContext(requestContext) };
 
     try {
-      return await otelContext.with(requestContext, () => this.route(request, handlerContext));
+      return await context.with(requestContext, () => this.route(request, handlerContext));
     } catch (error) {
       setRPCErrorOnSpan(span, error);
       throw error;

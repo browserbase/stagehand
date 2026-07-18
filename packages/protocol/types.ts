@@ -10,10 +10,9 @@ import type {
   ActOptionsSchema,
   ActResultDataSchema,
   ActResultSchema,
-  AzureApiKeyModelConfigObjectSchema,
+  AnthropicModelIdSchema,
+  AnthropicModelNameSchema,
   AzureEntraIdAuthSchema,
-  AzureEntraModelConfigObjectSchema,
-  AzureModelConfigObjectSchema,
   AzureModelProviderOptionsSchema,
   AzureProviderOptionsSchema,
   BrowserGetVersionResultSchema,
@@ -27,6 +26,8 @@ import type {
   BrowserbaseRegionSchema,
   BrowserbaseSessionCreateParamsSchema,
   BrowserbaseViewportSchema,
+  CerebrasModelIdSchema,
+  CerebrasModelNameSchema,
   ClientModelReferenceSchema,
   ContextNewPageParamsSchema,
   ContextPagesResultSchema,
@@ -34,7 +35,9 @@ import type {
   ExternalProxyConfigSchema,
   ExtractOptionsSchema,
   ExtractResultSchema,
-  GenericModelConfigObjectSchema,
+  CustomModelConfigSchema,
+  GoogleModelIdSchema,
+  GoogleModelNameSchema,
   GoogleServiceAccountAuthSchema,
   GoogleServiceAccountCredentialsSchema,
   LocatorClickParamsSchema,
@@ -98,6 +101,9 @@ import type {
   ModelConfigSchema,
   ModelNameSchema,
   ModelProviderSchema,
+  GroqModelIdSchema,
+  GroqModelNameSchema,
+  KnownModelConfigSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
@@ -153,10 +159,11 @@ import type {
   StagehandPingResultSchema,
   SnapshotResultSchema,
   TelemetryConfigSchema,
+  OpenAIModelIdSchema,
+  OpenAIModelNameSchema,
   VariablePrimitiveSchema,
   VariablesSchema,
   VariableValueSchema,
-  VertexModelConfigObjectSchema,
   VertexModelProviderOptionsSchema,
   VertexProviderOptionsSchema,
 } from "./schemas.js";
@@ -238,11 +245,18 @@ export type VertexProviderOptions = z.infer<typeof VertexProviderOptionsSchema>;
 export type AzureProviderOptions = z.infer<typeof AzureProviderOptionsSchema>;
 export type VertexModelProviderOptions = z.infer<typeof VertexModelProviderOptionsSchema>;
 export type AzureModelProviderOptions = z.infer<typeof AzureModelProviderOptionsSchema>;
-export type GenericModelConfigObject = z.infer<typeof GenericModelConfigObjectSchema>;
-export type VertexModelConfigObject = z.infer<typeof VertexModelConfigObjectSchema>;
-export type AzureEntraModelConfigObject = z.infer<typeof AzureEntraModelConfigObjectSchema>;
-export type AzureApiKeyModelConfigObject = z.infer<typeof AzureApiKeyModelConfigObjectSchema>;
-export type AzureModelConfigObject = z.infer<typeof AzureModelConfigObjectSchema>;
+export type OpenAIModelId = z.infer<typeof OpenAIModelIdSchema>;
+export type AnthropicModelId = z.infer<typeof AnthropicModelIdSchema>;
+export type GoogleModelId = z.infer<typeof GoogleModelIdSchema>;
+export type GroqModelId = z.infer<typeof GroqModelIdSchema>;
+export type CerebrasModelId = z.infer<typeof CerebrasModelIdSchema>;
+export type OpenAIModelName = z.infer<typeof OpenAIModelNameSchema>;
+export type AnthropicModelName = z.infer<typeof AnthropicModelNameSchema>;
+export type GoogleModelName = z.infer<typeof GoogleModelNameSchema>;
+export type GroqModelName = z.infer<typeof GroqModelNameSchema>;
+export type CerebrasModelName = z.infer<typeof CerebrasModelNameSchema>;
+export type KnownModelConfig = z.infer<typeof KnownModelConfigSchema>;
+export type CustomModelConfig = z.infer<typeof CustomModelConfigSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type ModelName = z.infer<typeof ModelNameSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;

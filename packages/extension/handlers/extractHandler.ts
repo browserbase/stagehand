@@ -1,6 +1,6 @@
 // lib/v3/handlers/extractHandler.ts
 import { z } from "zod/v4";
-import { extract as runExtract } from "../inference.js";
+import * as inference from "../inference.js";
 import { getZodType, injectUrls, transformSchema } from "../utils.js";
 import type {
   ClientOptions,
@@ -197,16 +197,17 @@ export class ExtractHandler {
       throw new TypeError("extract() requires an instruction.");
     }
 
-    const extractionResponse: ExtractionResponse<z.ZodObject> = await runExtract<z.ZodObject>({
-      instruction,
-      domElements: combinedTree,
-      schema: transformedSchema as z.ZodObject,
-      llmClient,
-      userProvidedInstructions: this.systemPrompt,
-      logger,
-      logInferenceToFile: this.logInferenceToFile,
-      screenshot: screenshotBuffer,
-    });
+    const extractionResponse: ExtractionResponse<z.ZodObject> =
+      await inference.extract<z.ZodObject>({
+        instruction,
+        domElements: combinedTree,
+        schema: transformedSchema as z.ZodObject,
+        llmClient,
+        userProvidedInstructions: this.systemPrompt,
+        logger,
+        logInferenceToFile: this.logInferenceToFile,
+        screenshot: screenshotBuffer,
+      });
 
     const {
       metadata: { completed },

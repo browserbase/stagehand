@@ -8,20 +8,12 @@
     "test": "pnpm run build && vp test run --root ../.. packages/server/tests"
   },
   "dependencies": {
-    "@ai-sdk/amazon-bedrock": "catalog:",
     "@ai-sdk/anthropic": "catalog:",
-    "@ai-sdk/azure": "catalog:",
     "@ai-sdk/cerebras": "catalog:",
-    "@ai-sdk/deepseek": "catalog:",
     "@ai-sdk/google": "catalog:",
-    "@ai-sdk/google-vertex": "catalog:",
     "@ai-sdk/groq": "catalog:",
-    "@ai-sdk/mistral": "catalog:",
     "@ai-sdk/openai": "catalog:",
-    "@ai-sdk/perplexity": "catalog:",
     "@ai-sdk/provider": "catalog:",
-    "@ai-sdk/togetherai": "catalog:",
-    "@ai-sdk/xai": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/core": "catalog:",
     "@opentelemetry/exporter-trace-otlp-http": "catalog:",
@@ -30,8 +22,8 @@
     "@opentelemetry/semantic-conventions": "catalog:",
     "ai": "catalog:",
     "devtools-protocol": "catalog:",
-    "ollama-ai-provider-v2": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "zustand": "catalog:"
   },
   "devDependencies": {
     "@types/chrome": "catalog:",

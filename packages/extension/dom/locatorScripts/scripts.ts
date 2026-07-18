@@ -456,7 +456,7 @@ export function readElementInputValue(this: Element): string {
       return String((element as HTMLInputElement | HTMLTextAreaElement).value ?? "");
     }
     if (tag === "select") {
-      return String((element as HTMLSelectElement).value ?? "");
+      return String((element as unknown as HTMLSelectElement).value ?? "");
     }
     if (element.isContentEditable) {
       return String(element.textContent ?? "");

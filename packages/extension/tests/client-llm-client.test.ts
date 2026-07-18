@@ -1,18 +1,17 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { RemoteLLMClient } from "../llm/remoteLlmClient.js";
+import { generateWithClientLlm } from "../llm/clientLlmClient.js";
+import * as llmService from "../services/llmService.js";
 import { createStagehandRuntime } from "../runtime.js";
 
-describe("RemoteLLMClient", () => {
+describe("client LLM generation", () => {
   it("forwards a worker LLM request to the connected SDK", async () => {
     const request = vi.fn(async () => ({
       role: "assistant" as const,
       content: { type: "text" as const, text: "Four" },
       outputFormat: "text" as const,
     }));
-    const client = new RemoteLLMClient(request);
-
     await expect(
-      client.generate({
+      generateWithClientLlm(request, {
         messages: [{ role: "user", content: { type: "text", text: "What is 2 + 2?" } }],
       }),
     ).resolves.toMatchObject({
@@ -21,6 +20,26 @@ describe("RemoteLLMClient", () => {
     expect(request).toHaveBeenCalledWith({
       messages: [{ role: "user", content: { type: "text", text: "What is 2 + 2?" } }],
     });
+  });
+
+  it("routes client-side generation through the LLM service", async () => {
+    const request = vi.fn(async () => ({
+      role: "assistant" as const,
+      content: { type: "text" as const, text: "Four" },
+      outputFormat: "text" as const,
+    }));
+
+    await expect(
+      llmService.generate(
+        { source: "client", request },
+        {
+          messages: [{ role: "user", content: { type: "text", text: "What is 2 + 2?" } }],
+        },
+      ),
+    ).resolves.toMatchObject({
+      content: { type: "text", text: "Four" },
+    });
+    expect(request).toHaveBeenCalledOnce();
   });
 
   it("uses the connected SDK callback for an initialized client model", async () => {
@@ -51,11 +70,11 @@ describe("RemoteLLMClient", () => {
     await runtime.initialize({
       model: { source: "client" },
       telemetry: {
-        traces: { endpoint: "https://example.com/v1/traces", headers: {} },
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
       },
     });
 
-    await runtime.clientLLM?.generate({
+    await runtime.generateLlm({
       messages: [{ role: "user", content: { type: "text", text: "What is 2 + 2?" } }],
     });
 

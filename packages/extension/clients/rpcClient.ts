@@ -1,5 +1,5 @@
 import {
-  context as otelContext,
+  context,
   defaultTextMapSetter,
   SpanKind,
   SpanStatusCode,
@@ -61,7 +61,7 @@ export class RPCClient {
   ): Promise<z.output<Method["result"]>> {
     if (this.closed) throw new Error("RPC client is closed");
 
-    const parentContext = otelContext.active();
+    const parentContext = context.active();
     const span = this.router.runtime.tracing.tracer.startSpan(
       method.name,
       {
@@ -77,7 +77,7 @@ export class RPCClient {
     const id = this.nextRequestId++;
 
     try {
-      return await otelContext.with(requestContext, async () => {
+      return await context.with(requestContext, async () => {
         const parsedParams = method.params.parse(params);
         const request = JSONRPCRequestSchema.parse({
           jsonrpc: "2.0",

@@ -22,7 +22,7 @@ describe("Stagehand object-model protocol", () => {
         region: "eu-central-1",
         userMetadata: { suite: "smoke" },
       },
-      model: { provider: "openai", modelName: "openai/gpt-5-mini" },
+      model: { modelName: "openai/gpt-5-mini" },
     });
 
     expect(params).toStrictEqual({
@@ -32,7 +32,7 @@ describe("Stagehand object-model protocol", () => {
         region: "eu-central-1",
         userMetadata: { suite: "smoke" },
       },
-      model: { provider: "openai", modelName: "openai/gpt-5-mini" },
+      model: { modelName: "openai/gpt-5-mini" },
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
@@ -54,7 +54,7 @@ describe("Stagehand object-model protocol", () => {
   it("rejects model names without a provider prefix", () => {
     expect(() =>
       StagehandMethods.stagehandInit.params.parse({
-        model: { provider: "openai", modelName: "gpt-5-mini" },
+        model: { modelName: "gpt-5-mini" },
       }),
     ).toThrow();
   });
@@ -65,7 +65,6 @@ describe("Stagehand object-model protocol", () => {
         input: "Click the submit button",
         options: {
           model: {
-            provider: "anthropic",
             modelName: "anthropic/claude-sonnet-4-6",
             apiKey: "test-key",
           },
@@ -74,7 +73,6 @@ describe("Stagehand object-model protocol", () => {
     ).toMatchObject({
       options: {
         model: {
-          provider: "anthropic",
           modelName: "anthropic/claude-sonnet-4-6",
           apiKey: "test-key",
         },

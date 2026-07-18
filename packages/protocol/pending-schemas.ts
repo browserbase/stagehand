@@ -22,10 +22,7 @@ export {
   ActResultDataSchema,
   ActResultSchema,
   ActionSchema,
-  AzureApiKeyModelConfigObjectSchema,
   AzureEntraIdAuthSchema,
-  AzureEntraModelConfigObjectSchema,
-  AzureModelConfigObjectSchema,
   AzureModelProviderOptionsSchema,
   AzureProviderOptionsSchema,
   BrowserbaseBrowserSettingsSchema,
@@ -37,10 +34,10 @@ export {
   BrowserbaseRegionSchema,
   BrowserbaseSessionCreateParamsSchema,
   BrowserbaseViewportSchema,
+  CustomModelConfigSchema,
   ExtractOptionsSchema,
   ExtractResultSchema,
   ExternalProxyConfigSchema,
-  GenericModelConfigObjectSchema,
   GoogleServiceAccountAuthSchema,
   GoogleServiceAccountCredentialsSchema,
   LocatorCoordinatesSchema,
@@ -48,6 +45,7 @@ export {
   ModelConfigSchema,
   ModelNameSchema,
   ModelProviderSchema,
+  KnownModelConfigSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageLocatorSchema,
@@ -56,7 +54,6 @@ export {
   VariablePrimitiveSchema,
   VariableValueSchema,
   VariablesSchema,
-  VertexModelConfigObjectSchema,
   VertexModelProviderOptionsSchema,
   VertexProviderOptionsSchema,
 } from "./schemas.ts";
@@ -352,20 +349,7 @@ export const AzureEntraClientOptionsSchema = ClientOptionsBaseSchema.extend({
   .strict()
   .meta({ id: "AzureEntraClientOptions" });
 
-export const AISDKApiKeyProviderSchema = z.enum([
-  "openai",
-  "bedrock",
-  "anthropic",
-  "google",
-  "xai",
-  "groq",
-  "cerebras",
-  "togetherai",
-  "mistral",
-  "deepseek",
-  "perplexity",
-  "gateway",
-]);
+export const AISDKApiKeyProviderSchema = ModelProviderSchema;
 
 export const ApiKeyResolvedProviderClientOptionsSchema = z
   .object({

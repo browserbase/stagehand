@@ -1,5 +1,5 @@
 // lib/v3/handlers/observeHandler.ts
-import { observe as runObserve } from "../inference.js";
+import * as inference from "../inference.js";
 import { trimTrailingTextNode } from "../utils.js";
 import type {
   Action,
@@ -102,7 +102,7 @@ export class ObserveHandler {
 
     // Call the LLM to propose actionable elements
     ensureTimeRemaining();
-    const observationResponse = await runObserve({
+    const observationResponse = await inference.observe({
       instruction: effectiveInstruction,
       domElements: combinedTree,
       llmClient,

@@ -1,27 +1,14 @@
 import type { LanguageModel, LanguageModelMiddleware } from "ai";
 import type { ClientOptions, ModelName, ModelProvider } from "../../protocol/types.js";
-import {
-  ClientOptionsSchema,
-  ModelNameSchema,
-  ResolvedProviderClientOptionsSchema,
-} from "../../protocol/pending-schemas.js";
+import { ClientOptionsSchema, ModelNameSchema } from "../../protocol/pending-schemas.js";
 import { AISdkClient } from "./aisdk.js";
 import { LLMClient } from "./LLMClient.js";
 import { createOpenAI } from "@ai-sdk/openai";
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { createVertex } from "@ai-sdk/google-vertex/edge";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createXai } from "@ai-sdk/xai";
-import { createAzure } from "@ai-sdk/azure";
 import { createGroq } from "@ai-sdk/groq";
 import { createCerebras } from "@ai-sdk/cerebras";
-import { createTogetherAI } from "@ai-sdk/togetherai";
-import { createMistral } from "@ai-sdk/mistral";
-import { createDeepSeek } from "@ai-sdk/deepseek";
-import { createPerplexity } from "@ai-sdk/perplexity";
-import { createOllama } from "ollama-ai-provider-v2";
-import { createGateway, wrapLanguageModel } from "ai";
+import { wrapLanguageModel } from "ai";
 
 // Compile-only bridge: current AI SDK providers return mixed v2/v3/v4 model
 // types, while copied V3 code assumed a single provider model type.
@@ -30,20 +17,10 @@ type AISDKProviderFactory = (options: Record<string, unknown>) => AISDKProvider;
 
 const AISDKProviderFactories: Record<ModelProvider, AISDKProviderFactory> = {
   openai: createOpenAI as AISDKProviderFactory,
-  bedrock: createAmazonBedrock as AISDKProviderFactory,
   anthropic: createAnthropic as AISDKProviderFactory,
   google: createGoogleGenerativeAI as AISDKProviderFactory,
-  vertex: createVertex as AISDKProviderFactory,
-  xai: createXai as AISDKProviderFactory,
-  azure: createAzure as AISDKProviderFactory,
   groq: createGroq as AISDKProviderFactory,
   cerebras: createCerebras as AISDKProviderFactory,
-  togetherai: createTogetherAI as AISDKProviderFactory,
-  mistral: createMistral as AISDKProviderFactory,
-  deepseek: createDeepSeek as AISDKProviderFactory,
-  perplexity: createPerplexity as AISDKProviderFactory,
-  ollama: createOllama as AISDKProviderFactory,
-  gateway: createGateway as AISDKProviderFactory,
 };
 
 type AISDKProviderClientOptions = ClientOptions & Record<string, unknown>;
@@ -53,59 +30,20 @@ function parseClientOptions(clientOptions?: ClientOptions): ClientOptions {
 }
 
 export function toAISDKClientOptions(
-  subProvider: ModelProvider,
+  _subProvider: ModelProvider,
   clientOptions?: ClientOptions,
 ): AISDKProviderClientOptions | undefined {
-  const resolvedProviderConfig = ResolvedProviderClientOptionsSchema.parse({
-    provider: subProvider,
-    clientOptions: parseClientOptions(clientOptions),
-  });
-
-  const { auth, providerOptions, ...rest } = resolvedProviderConfig.clientOptions;
+  const { auth, providerOptions: _providerOptions, ...rest } = parseClientOptions(clientOptions);
   delete rest.provider;
   const apiKeyOption = auth?.type === "apiKey" ? { apiKey: auth.apiKey } : {};
-
-  if (subProvider === "azure") {
-    const azureOptions = providerOptions?.type === "azure" ? providerOptions.options : undefined;
-
-    return {
-      ...rest,
-      ...apiKeyOption,
-      ...azureOptions,
-      ...(auth?.type === "azureEntraId" ? { tokenProvider: async () => auth.token } : {}),
-    };
-  }
-
-  if (subProvider !== "vertex") {
-    const options = {
-      ...rest,
-      ...apiKeyOption,
-    };
-
-    return Object.values(options).some((value) => value !== undefined && value !== null)
-      ? options
-      : undefined;
-  }
-
-  const vertexOptions = providerOptions?.type === "vertex" ? providerOptions.options : undefined;
-
-  return {
+  const options = {
     ...rest,
     ...apiKeyOption,
-    ...vertexOptions,
-    ...(auth?.type === "googleServiceAccount"
-      ? {
-          googleCredentials: {
-            clientEmail: auth.credentials.clientEmail,
-            privateKey: auth.credentials.privateKey,
-            ...(auth.credentials.privateKeyId
-              ? { privateKeyId: auth.credentials.privateKeyId }
-              : {}),
-          },
-          ...(auth.projectId && !vertexOptions?.project ? { project: auth.projectId } : {}),
-        }
-      : {}),
   };
+
+  return Object.values(options).some((value) => value !== undefined && value !== null)
+    ? options
+    : undefined;
 }
 
 export function getAISDKLanguageModel(
