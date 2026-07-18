@@ -1356,18 +1356,6 @@ export const LocatorFillParamsSchema = LocatorDescriptorSchema.extend({
   value: z.string(),
 }).strict();
 
-export const LocatorHoverParamsSchema = LocatorDescriptorSchema;
-
-export const LocatorCountParamsSchema = LocatorDescriptorSchema;
-
-export const LocatorIsCheckedParamsSchema = LocatorDescriptorSchema;
-
-export const LocatorInputValueParamsSchema = LocatorDescriptorSchema;
-
-export const LocatorInnerTextParamsSchema = LocatorDescriptorSchema;
-
-export const LocatorInnerHtmlParamsSchema = LocatorDescriptorSchema;
-
 export const LocatorScrollToParamsSchema = LocatorDescriptorSchema.extend({
   percent: z.union([z.number(), z.string()]),
 }).strict();
@@ -1572,8 +1560,6 @@ export const LocatorScrollToResultSchema = z
     scrolled: z.literal(true),
   })
   .strict();
-
-export const LocatorCentroidParamsSchema = LocatorDescriptorSchema;
 
 export const LocatorCentroidResultSchema = z
   .object({

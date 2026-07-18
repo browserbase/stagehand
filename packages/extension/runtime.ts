@@ -6,24 +6,17 @@ import type {
   LLMGenerateResult,
   LocatorClickParams,
   LocatorClickResult,
-  LocatorCentroidParams,
   LocatorCentroidResult,
-  LocatorCountParams,
   LocatorCountResult,
   LocatorDescriptor,
   LocatorFillParams,
   LocatorFillResult,
   LocatorHighlightParams,
   LocatorHighlightResult,
-  LocatorHoverParams,
   LocatorHoverResult,
-  LocatorInnerHtmlParams,
   LocatorInnerHtmlResult,
-  LocatorInnerTextParams,
   LocatorInnerTextResult,
-  LocatorInputValueParams,
   LocatorInputValueResult,
-  LocatorIsCheckedParams,
   LocatorIsCheckedResult,
   LocatorIsVisibleResult,
   LocatorScrollToParams,
@@ -444,7 +437,7 @@ export class StagehandRuntime {
     return { clicked: true };
   }
 
-  async locatorHover(params: LocatorHoverParams): Promise<LocatorHoverResult> {
+  async locatorHover(params: LocatorDescriptor): Promise<LocatorHoverResult> {
     await this.resolveLocator(params).hover();
     return { hovered: true };
   }
@@ -454,19 +447,19 @@ export class StagehandRuntime {
     return { filled: true };
   }
 
-  async locatorCount(params: LocatorCountParams): Promise<LocatorCountResult> {
+  async locatorCount(params: LocatorDescriptor): Promise<LocatorCountResult> {
     return {
       count: await this.resolveLocator(params).count(),
     };
   }
 
-  async locatorIsChecked(params: LocatorIsCheckedParams): Promise<LocatorIsCheckedResult> {
+  async locatorIsChecked(params: LocatorDescriptor): Promise<LocatorIsCheckedResult> {
     return {
       checked: await this.resolveLocator(params).isChecked(),
     };
   }
 
-  async locatorInputValue(params: LocatorInputValueParams): Promise<LocatorInputValueResult> {
+  async locatorInputValue(params: LocatorDescriptor): Promise<LocatorInputValueResult> {
     return {
       value: await this.resolveLocator(params).inputValue(),
     };
@@ -478,13 +471,13 @@ export class StagehandRuntime {
     };
   }
 
-  async locatorInnerText(params: LocatorInnerTextParams): Promise<LocatorInnerTextResult> {
+  async locatorInnerText(params: LocatorDescriptor): Promise<LocatorInnerTextResult> {
     return {
       text: await this.resolveLocator(params).innerText(),
     };
   }
 
-  async locatorInnerHtml(params: LocatorInnerHtmlParams): Promise<LocatorInnerHtmlResult> {
+  async locatorInnerHtml(params: LocatorDescriptor): Promise<LocatorInnerHtmlResult> {
     return {
       html: await this.resolveLocator(params).innerHtml(),
     };
@@ -501,7 +494,7 @@ export class StagehandRuntime {
     return { scrolled: true };
   }
 
-  async locatorCentroid(params: LocatorCentroidParams): Promise<LocatorCentroidResult> {
+  async locatorCentroid(params: LocatorDescriptor): Promise<LocatorCentroidResult> {
     return await this.resolveLocator(params).centroid();
   }
 
