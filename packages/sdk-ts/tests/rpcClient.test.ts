@@ -82,6 +82,63 @@ describe("RPCClient", () => {
     });
   });
 
+  it("accepts context methods without SDK wrapper methods", async () => {
+    const cdp = new FakeCDPTransport({
+      cookies: [
+        {
+          name: "session",
+          value: "abc123",
+          domain: "example.com",
+          path: "/",
+          expires: -1,
+          http_only: true,
+          secure: true,
+          same_site: "Lax",
+        },
+      ],
+    });
+    const client = new RPCClient(cdp, 1_000);
+
+    const request = client.send(StagehandMethods.contextCookies, {
+      urls: ["https://example.com/account"],
+    });
+
+    expectTypeOf(request).toEqualTypeOf<
+      Promise<{
+        cookies: Array<{
+          name: string;
+          value: string;
+          domain: string;
+          path: string;
+          expires: number;
+          httpOnly: boolean;
+          secure: boolean;
+          sameSite: "Strict" | "Lax" | "None";
+        }>;
+      }>
+    >();
+    await expect(request).resolves.toStrictEqual({
+      cookies: [
+        {
+          name: "session",
+          value: "abc123",
+          domain: "example.com",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: true,
+          sameSite: "Lax",
+        },
+      ],
+    });
+    expect(cdp.sent).toContainEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "context.cookies",
+      params: { urls: ["https://example.com/account"] },
+    });
+  });
+
   it("registers the pending request before CDP can return its response", async () => {
     const cdp = new FakeCDPTransport({
       page_id: "page-1",

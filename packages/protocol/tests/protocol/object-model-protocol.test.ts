@@ -108,6 +108,33 @@ describe("Stagehand object-model protocol", () => {
     });
   });
 
+  it("registers context methods", () => {
+    expect(
+      Object.values(StagehandMethods)
+        .map((method) => method.name)
+        .filter((name) => name.startsWith("context.")),
+    ).toStrictEqual([
+      "context.pages",
+      "context.new_page",
+      "context.active_page",
+      "context.set_active_page",
+      "context.close",
+      "context.add_init_script",
+      "context.set_extra_http_headers",
+      "context.get_domain_policy",
+      "context.set_domain_policy",
+      "context.cookies",
+      "context.add_cookies",
+      "context.clear_cookies",
+      "context.clipboard_read_text",
+      "context.clipboard_write_text",
+      "context.clipboard_clear",
+      "context.clipboard_paste",
+      "context.clipboard_copy",
+      "context.clipboard_cut",
+    ]);
+  });
+
   it("registers page methods", () => {
     expect(
       Object.values(StagehandMethods)

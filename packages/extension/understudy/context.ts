@@ -10,7 +10,6 @@ import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandAPIClient } from "../api.js";
 import type {
   BrowserGetVersionResult,
-  ClearCookieOptions,
   Cookie,
   CookieParam,
   DomainPolicy,
@@ -26,6 +25,7 @@ import {
   cookieMatchesFilter,
   toCdpCookieParam,
 } from "./cookies.js";
+import type { UnderstudyClearCookieOptions } from "./cookies.js";
 import { getDomainPolicyDecision, normalizeDomainPolicy } from "./domainPolicy.js";
 import type { NormalizedDomainPolicy } from "./domainPolicy.js";
 
@@ -1329,7 +1329,7 @@ export class V3Context {
    *   `Storage.setCookies`. This is necessary on the browser endpoint because
    *   the Storage domain does not support targeted deletes.
    */
-  async clearCookies(options?: ClearCookieOptions): Promise<void> {
+  async clearCookies(options?: UnderstudyClearCookieOptions): Promise<void> {
     const hasFilter =
       options?.name !== undefined || options?.domain !== undefined || options?.path !== undefined;
 

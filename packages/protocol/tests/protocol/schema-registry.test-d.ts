@@ -14,6 +14,36 @@ type StagehandNotification = z.output<typeof StagehandRpcNotificationSchema>;
 type LogNotification = Extract<StagehandNotification, { method: "stagehand.log" }>;
 type RegisteredStagehandMethod = (typeof StagehandMethods)[keyof typeof StagehandMethods]["name"];
 
+expectTypeOf(StagehandMethods.contextActivePage.name).toEqualTypeOf<"context.active_page">();
+expectTypeOf<z.output<typeof StagehandMethods.contextActivePage.result>>().toEqualTypeOf<{
+  pageId: string;
+  url?: string;
+  title?: string;
+} | null>();
+expectTypeOf(
+  StagehandMethods.contextSetDomainPolicy.name,
+).toEqualTypeOf<"context.set_domain_policy">();
+expectTypeOf<z.input<typeof StagehandMethods.contextSetDomainPolicy.params>>().toEqualTypeOf<{
+  policy: {
+    allowedDomains?: string[];
+    blockedDomains?: string[];
+  } | null;
+}>();
+expectTypeOf(StagehandMethods.contextClearCookies.name).toEqualTypeOf<"context.clear_cookies">();
+expectTypeOf<z.input<typeof StagehandMethods.contextClearCookies.params>>().toEqualTypeOf<{
+  options?: {
+    name?: string | { source: string; flags?: string };
+    domain?: string | { source: string; flags?: string };
+    path?: string | { source: string; flags?: string };
+  };
+}>();
+expectTypeOf(
+  StagehandMethods.contextClipboardWriteText.name,
+).toEqualTypeOf<"context.clipboard_write_text">();
+expectTypeOf<z.input<typeof StagehandMethods.contextClipboardWriteText.params>>().toEqualTypeOf<{
+  pageId?: string;
+  text: string;
+}>();
 expectTypeOf(StagehandMethods.pageGoto.name).toEqualTypeOf<"page.goto">();
 expectTypeOf<z.input<typeof StagehandMethods.pageGoto.params>>().toEqualTypeOf<{
   pageId: string;

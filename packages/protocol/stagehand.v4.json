@@ -1590,6 +1590,569 @@
                 },
                 "method": {
                   "type": "string",
+                  "const": "context.active_page"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.set_active_page"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["page_id"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.close"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.add_init_script"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["source"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.set_extra_http_headers"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "headers": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["headers"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.get_domain_policy"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.set_domain_policy"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "policy": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/DomainPolicy"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["policy"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.cookies"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "urls": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.add_cookies"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "cookies": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/CookieParam"
+                      }
+                    }
+                  },
+                  "required": ["cookies"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.clear_cookies"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "options": {
+                      "$ref": "#/$defs/ClearCookieOptions"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.clipboard_read_text"
+                },
+                "params": {
+                  "$ref": "#/$defs/ContextClipboardTarget"
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.clipboard_write_text"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["text"],
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.clipboard_clear"
+                },
+                "params": {
+                  "$ref": "#/$defs/ContextClipboardTarget"
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.clipboard_paste"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "shortcut": {
+                      "type": "string",
+                      "enum": ["ControlOrMeta+V", "Meta+V", "Control+V"]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.clipboard_copy"
+                },
+                "params": {
+                  "$ref": "#/$defs/ContextClipboardTarget"
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
+                  "const": "context.clipboard_cut"
+                },
+                "params": {
+                  "$ref": "#/$defs/ContextClipboardTarget"
+                },
+                "traceparent": {
+                  "type": "string"
+                },
+                "tracestate": {
+                  "type": "string"
+                }
+              },
+              "required": ["jsonrpc", "id", "method", "params"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "jsonrpc": {
+                  "type": "string",
+                  "const": "2.0"
+                },
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "method": {
+                  "type": "string",
                   "const": "page.goto"
                 },
                 "params": {
@@ -4420,6 +4983,107 @@
                   }
                 }
               ]
+            },
+            "DomainPolicy": {
+              "type": "object",
+              "properties": {
+                "allowed_domains": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "blocked_domains": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "CookieParam": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "domain": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "expires": {
+                  "type": "number"
+                },
+                "http_only": {
+                  "type": "boolean"
+                },
+                "secure": {
+                  "type": "boolean"
+                },
+                "same_site": {
+                  "type": "string",
+                  "enum": ["Strict", "Lax", "None"]
+                }
+              },
+              "required": ["name", "value"],
+              "additionalProperties": false
+            },
+            "ClearCookieOptions": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "$ref": "#/$defs/CookieFilter"
+                },
+                "domain": {
+                  "$ref": "#/$defs/CookieFilter"
+                },
+                "path": {
+                  "$ref": "#/$defs/CookieFilter"
+                }
+              },
+              "additionalProperties": false
+            },
+            "CookieFilter": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/CookieRegex"
+                }
+              ]
+            },
+            "CookieRegex": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                },
+                "flags": {
+                  "type": "string",
+                  "pattern": "^[dgimsuvy]*$"
+                }
+              },
+              "required": ["source"],
+              "additionalProperties": false
+            },
+            "ContextClipboardTarget": {
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             },
             "PageNavigationOptions": {
               "type": "object",
@@ -9467,6 +10131,677 @@
           },
           "required": ["params", "result"]
         },
+        "context.active_page": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "page_id": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["page_id"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.set_active_page": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                }
+              },
+              "required": ["page_id"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.close": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "closed": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["closed"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.add_init_script": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": ["source"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.set_extra_http_headers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "headers": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["headers"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.get_domain_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "policy": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/DomainPolicy"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["policy"],
+              "additionalProperties": false,
+              "$defs": {
+                "DomainPolicy": {
+                  "type": "object",
+                  "properties": {
+                    "allowed_domains": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "blocked_domains": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.set_domain_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "policy": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/DomainPolicy"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["policy"],
+              "additionalProperties": false,
+              "$defs": {
+                "DomainPolicy": {
+                  "type": "object",
+                  "properties": {
+                    "allowed_domains": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "blocked_domains": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.cookies": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "urls": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "cookies": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Cookie"
+                  }
+                }
+              },
+              "required": ["cookies"],
+              "additionalProperties": false,
+              "$defs": {
+                "Cookie": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "expires": {
+                      "type": "number"
+                    },
+                    "http_only": {
+                      "type": "boolean"
+                    },
+                    "secure": {
+                      "type": "boolean"
+                    },
+                    "same_site": {
+                      "type": "string",
+                      "enum": ["Strict", "Lax", "None"]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value",
+                    "domain",
+                    "path",
+                    "expires",
+                    "http_only",
+                    "secure",
+                    "same_site"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.add_cookies": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "cookies": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/CookieParam"
+                  }
+                }
+              },
+              "required": ["cookies"],
+              "additionalProperties": false,
+              "$defs": {
+                "CookieParam": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "expires": {
+                      "type": "number"
+                    },
+                    "http_only": {
+                      "type": "boolean"
+                    },
+                    "secure": {
+                      "type": "boolean"
+                    },
+                    "same_site": {
+                      "type": "string",
+                      "enum": ["Strict", "Lax", "None"]
+                    }
+                  },
+                  "required": ["name", "value"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.clear_cookies": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "options": {
+                  "$ref": "#/$defs/ClearCookieOptions"
+                }
+              },
+              "additionalProperties": false,
+              "$defs": {
+                "ClearCookieOptions": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "$ref": "#/$defs/CookieFilter"
+                    },
+                    "domain": {
+                      "$ref": "#/$defs/CookieFilter"
+                    },
+                    "path": {
+                      "$ref": "#/$defs/CookieFilter"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "CookieFilter": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/CookieRegex"
+                    }
+                  ]
+                },
+                "CookieRegex": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string"
+                    },
+                    "flags": {
+                      "type": "string",
+                      "pattern": "^[dgimsuvy]*$"
+                    }
+                  },
+                  "required": ["source"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.clipboard_read_text": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": ["text"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.clipboard_write_text": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": ["text"],
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.clipboard_clear": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.clipboard_paste": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                },
+                "shortcut": {
+                  "type": "string",
+                  "enum": ["ControlOrMeta+V", "Meta+V", "Control+V"]
+                }
+              },
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.clipboard_copy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
+        "context.clipboard_cut": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "page_id": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "result": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["ok"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["params", "result"]
+        },
         "page.goto": {
           "type": "object",
           "additionalProperties": false,
@@ -11361,6 +12696,22 @@
         "llm.generate",
         "context.pages",
         "context.new_page",
+        "context.active_page",
+        "context.set_active_page",
+        "context.close",
+        "context.add_init_script",
+        "context.set_extra_http_headers",
+        "context.get_domain_policy",
+        "context.set_domain_policy",
+        "context.cookies",
+        "context.add_cookies",
+        "context.clear_cookies",
+        "context.clipboard_read_text",
+        "context.clipboard_write_text",
+        "context.clipboard_clear",
+        "context.clipboard_paste",
+        "context.clipboard_copy",
+        "context.clipboard_cut",
         "page.goto",
         "page.url",
         "page.title",

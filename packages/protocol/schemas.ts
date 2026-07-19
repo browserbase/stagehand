@@ -208,6 +208,153 @@ export const ModelNameSchema = z
     description: "An explicitly supported model name with its provider prefix",
   });
 
+export const CookieSchema = z
+  .object({
+    name: z.string(),
+    value: z.string(),
+    domain: z.string(),
+    path: z.string(),
+    expires: z.number(),
+    httpOnly: z.boolean(),
+    secure: z.boolean(),
+    sameSite: z.enum(["Strict", "Lax", "None"]),
+  })
+  .strict()
+  .meta({ id: "Cookie" });
+
+export const CookieParamSchema = z
+  .object({
+    name: z.string(),
+    value: z.string(),
+    url: z.string().optional(),
+    domain: z.string().optional(),
+    path: z.string().optional(),
+    expires: z.number().optional(),
+    httpOnly: z.boolean().optional(),
+    secure: z.boolean().optional(),
+    sameSite: z.enum(["Strict", "Lax", "None"]).optional(),
+  })
+  .strict()
+  .superRefine((cookie, context) => {
+    let parsedUrl: URL | undefined;
+    let invalidUrl = false;
+
+    if (!cookie.url && !(cookie.domain && cookie.path)) {
+      context.addIssue({
+        code: "custom",
+        path: ["url"],
+        message: `Cookie "${cookie.name}" must have a url or a domain/path pair`,
+      });
+    }
+
+    if (cookie.url && cookie.domain) {
+      context.addIssue({
+        code: "custom",
+        path: ["url"],
+        message: `Cookie "${cookie.name}" should have either url or domain, not both`,
+      });
+    }
+
+    if (cookie.url && cookie.path) {
+      context.addIssue({
+        code: "custom",
+        path: ["url"],
+        message: `Cookie "${cookie.name}" should have either url or path, not both`,
+      });
+    }
+
+    if (cookie.expires !== undefined && cookie.expires < 0 && cookie.expires !== -1) {
+      context.addIssue({
+        code: "custom",
+        path: ["expires"],
+        message: `Cookie "${cookie.name}" has an invalid expires value; use -1 for session cookies or a positive unix timestamp`,
+      });
+    }
+
+    if (cookie.url === "about:blank") {
+      invalidUrl = true;
+      context.addIssue({
+        code: "custom",
+        path: ["url"],
+        message: `Blank page cannot have cookie "${cookie.name}"`,
+      });
+    } else if (cookie.url?.startsWith("data:")) {
+      invalidUrl = true;
+      context.addIssue({
+        code: "custom",
+        path: ["url"],
+        message: `Data URL page cannot have cookie "${cookie.name}"`,
+      });
+    } else if (cookie.url) {
+      try {
+        parsedUrl = new URL(cookie.url);
+      } catch {
+        invalidUrl = true;
+        context.addIssue({
+          code: "custom",
+          path: ["url"],
+          message: `Cookie "${cookie.name}" has an invalid url: "${cookie.url}"`,
+        });
+      }
+    }
+
+    const effectivelySecure = cookie.url
+      ? parsedUrl?.protocol === "https:"
+      : cookie.secure === true;
+    if (cookie.sameSite === "None" && !invalidUrl && !effectivelySecure) {
+      context.addIssue({
+        code: "custom",
+        path: ["secure"],
+        message:
+          `Cookie "${cookie.name}" has sameSite: "None" without secure: true. ` +
+          `Browsers require secure: true when sameSite is "None".`,
+      });
+    }
+  })
+  .meta({ id: "CookieParam" });
+
+export const CookieRegexSchema = z
+  .object({
+    source: z.string(),
+    flags: z
+      .string()
+      .regex(/^[dgimsuvy]*$/)
+      .optional(),
+  })
+  .strict()
+  .superRefine(({ source, flags }, context) => {
+    try {
+      new RegExp(source, flags);
+    } catch {
+      context.addIssue({
+        code: "custom",
+        message: "Invalid cookie filter regular expression",
+      });
+    }
+  })
+  .meta({ id: "CookieRegex" });
+
+export const CookieFilterSchema = z
+  .union([z.string(), CookieRegexSchema])
+  .meta({ id: "CookieFilter" });
+
+export const ClearCookieOptionsSchema = z
+  .object({
+    name: CookieFilterSchema.optional(),
+    domain: CookieFilterSchema.optional(),
+    path: CookieFilterSchema.optional(),
+  })
+  .strict()
+  .meta({ id: "ClearCookieOptions" });
+
+export const DomainPolicySchema = z
+  .object({
+    allowedDomains: z.array(z.string()).optional(),
+    blockedDomains: z.array(z.string()).optional(),
+  })
+  .strict()
+  .meta({ id: "DomainPolicy" });
+
 // These schemas follow the MCP createMessage message and content shapes, with
 // Stagehand's structured-output contract layered on top.
 export const LLMRoleSchema = z.enum(["user", "assistant"]);
@@ -1042,6 +1189,20 @@ export const PageVoidResultSchema = z
   .strict()
   .meta({ id: "PageVoidResult" });
 
+export const ContextVoidResultSchema = z
+  .object({
+    ok: z.literal(true),
+  })
+  .strict()
+  .meta({ id: "ContextVoidResult" });
+
+export const ContextCloseResultSchema = z
+  .object({
+    closed: z.literal(true),
+  })
+  .strict()
+  .meta({ id: "ContextCloseResult" });
+
 export const PageCoordinateResultSchema = z
   .object({
     xpath: z.string(),
@@ -1157,6 +1318,71 @@ export const ContextNewPageParamsSchema = z
     url: z.string().optional(),
   })
   .strict();
+
+export const ContextSetActivePageParamsSchema = z
+  .object({
+    pageId: z.string(),
+  })
+  .strict();
+
+export const ContextAddInitScriptParamsSchema = z
+  .object({
+    source: z.string(),
+  })
+  .strict();
+
+export const ContextSetExtraHTTPHeadersParamsSchema = z
+  .object({
+    headers: z.record(z.string(), z.string()),
+  })
+  .strict();
+
+export const ContextSetDomainPolicyParamsSchema = z
+  .object({
+    policy: DomainPolicySchema.nullable(),
+  })
+  .strict();
+
+export const ContextCookiesParamsSchema = z
+  .object({
+    urls: z.union([z.string(), z.array(z.string())]).optional(),
+  })
+  .strict();
+
+export const ContextAddCookiesParamsSchema = z
+  .object({
+    cookies: z.array(CookieParamSchema),
+  })
+  .strict();
+
+export const ContextClearCookiesParamsSchema = z
+  .object({
+    options: ClearCookieOptionsSchema.optional(),
+  })
+  .strict();
+
+export const ContextClipboardTargetSchema = z
+  .object({
+    pageId: z.string().optional(),
+  })
+  .strict()
+  .meta({ id: "ContextClipboardTarget" });
+
+export const ContextClipboardReadTextParamsSchema = ContextClipboardTargetSchema;
+
+export const ContextClipboardWriteTextParamsSchema = ContextClipboardTargetSchema.extend({
+  text: z.string(),
+}).strict();
+
+export const ContextClipboardClearParamsSchema = ContextClipboardTargetSchema;
+
+export const ContextClipboardPasteParamsSchema = ContextClipboardTargetSchema.extend({
+  shortcut: z.enum(["ControlOrMeta+V", "Meta+V", "Control+V"]).optional(),
+}).strict();
+
+export const ContextClipboardCopyParamsSchema = ContextClipboardTargetSchema;
+
+export const ContextClipboardCutParamsSchema = ContextClipboardTargetSchema;
 
 export const PageGotoParamsSchema = z
   .object({
@@ -1450,6 +1676,31 @@ export const StagehandCloseResultSchema = z
   .strict();
 
 export const ContextPagesResultSchema = z.array(PageRefSchema);
+
+export const ContextActivePageResultSchema = PageRefSchema.nullable().meta({
+  id: "ContextActivePageResult",
+});
+
+export const ContextGetDomainPolicyResultSchema = z
+  .object({
+    policy: DomainPolicySchema.nullable(),
+  })
+  .strict()
+  .meta({ id: "ContextGetDomainPolicyResult" });
+
+export const ContextCookiesResultSchema = z
+  .object({
+    cookies: z.array(CookieSchema),
+  })
+  .strict()
+  .meta({ id: "ContextCookiesResult" });
+
+export const ContextClipboardReadTextResultSchema = z
+  .object({
+    text: z.string(),
+  })
+  .strict()
+  .meta({ id: "ContextClipboardReadTextResult" });
 
 export const PageUrlResultSchema = z
   .object({

@@ -1,6 +1,12 @@
-import type { ClearCookieOptions, Cookie, CookieParam } from "../../protocol/types.js";
-import { CookieParamSchema } from "../../protocol/pending-schemas.js";
+import type { Cookie, CookieParam } from "../../protocol/types.js";
+import { CookieParamSchema } from "../../protocol/schemas.js";
 import { z } from "zod/v4";
+
+export type UnderstudyClearCookieOptions = {
+  name?: string | RegExp;
+  domain?: string | RegExp;
+  path?: string | RegExp;
+};
 
 const CookieUrlsSchema = z.array(z.string()).superRefine((urls, context) => {
   for (const [index, url] of urls.entries()) {
@@ -98,7 +104,10 @@ export function toCdpCookieParam(c: Cookie | CookieParam): Record<string, unknow
  * Returns true if a cookie matches all supplied filter criteria.
  * Undefined filters are treated as "match anything".
  */
-export function cookieMatchesFilter(cookie: Cookie, options: ClearCookieOptions): boolean {
+export function cookieMatchesFilter(
+  cookie: Cookie,
+  options: UnderstudyClearCookieOptions,
+): boolean {
   const check = (prop: "name" | "domain" | "path", value: string | RegExp | undefined): boolean => {
     if (value === undefined) return true;
     if (value instanceof RegExp) {

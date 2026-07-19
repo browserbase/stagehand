@@ -29,8 +29,34 @@ import type {
   CerebrasModelIdSchema,
   CerebrasModelNameSchema,
   ClientModelReferenceSchema,
+  ClearCookieOptionsSchema,
+  ContextActivePageResultSchema,
+  ContextAddCookiesParamsSchema,
+  ContextAddInitScriptParamsSchema,
+  ContextClearCookiesParamsSchema,
+  ContextClipboardClearParamsSchema,
+  ContextClipboardCopyParamsSchema,
+  ContextClipboardCutParamsSchema,
+  ContextClipboardPasteParamsSchema,
+  ContextClipboardReadTextParamsSchema,
+  ContextClipboardReadTextResultSchema,
+  ContextClipboardTargetSchema,
+  ContextClipboardWriteTextParamsSchema,
+  ContextCloseResultSchema,
+  ContextCookiesParamsSchema,
+  ContextCookiesResultSchema,
+  ContextGetDomainPolicyResultSchema,
   ContextNewPageParamsSchema,
   ContextPagesResultSchema,
+  ContextSetActivePageParamsSchema,
+  ContextSetDomainPolicyParamsSchema,
+  ContextSetExtraHTTPHeadersParamsSchema,
+  ContextVoidResultSchema,
+  CookieFilterSchema,
+  CookieParamSchema,
+  CookieRegexSchema,
+  CookieSchema,
+  DomainPolicySchema,
   EmptyParamsSchema,
   ExternalProxyConfigSchema,
   ExtractOptionsSchema,
@@ -172,14 +198,10 @@ import type {
   AzureEntraClientOptionsSchema,
   AzureResolvedProviderClientOptionsSchema,
   BrowserConfigSchema,
-  ClearCookieOptionsSchema,
   ClientOptionsBaseSchema,
   ClientOptionsSchema,
   ClipboardOptionsSchema,
   ClipboardPasteOptionsSchema,
-  CookieParamSchema,
-  CookieSchema,
-  DomainPolicySchema,
   ErrorResponseSchema,
   ExtractRequestSchema,
   ExtractResponseSchema,
@@ -286,6 +308,8 @@ export type ExtractResult = z.infer<typeof ExtractResultSchema>;
 export type ObserveOptions = z.infer<typeof ObserveOptionsSchema>;
 export type ObserveResult = z.infer<typeof ObserveResultSchema>;
 export type EmptyParams = z.infer<typeof EmptyParamsSchema>;
+export type ContextVoidResult = z.infer<typeof ContextVoidResultSchema>;
+export type ContextCloseResult = z.infer<typeof ContextCloseResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
 export type PageNavigationOptions = z.infer<typeof PageNavigationOptionsSchema>;
 export type PageVoidResult = z.infer<typeof PageVoidResultSchema>;
@@ -301,6 +325,22 @@ export type StagehandActParams = z.infer<typeof StagehandActParamsSchema>;
 export type StagehandObserveParams = z.infer<typeof StagehandObserveParamsSchema>;
 export type StagehandExtractParams = z.infer<typeof StagehandExtractParamsSchema>;
 export type ContextNewPageParams = z.infer<typeof ContextNewPageParamsSchema>;
+export type ContextCookiesParams = z.infer<typeof ContextCookiesParamsSchema>;
+export type ContextAddCookiesParams = z.infer<typeof ContextAddCookiesParamsSchema>;
+export type ContextClearCookiesParams = z.infer<typeof ContextClearCookiesParamsSchema>;
+export type ContextClipboardTarget = z.infer<typeof ContextClipboardTargetSchema>;
+export type ContextClipboardReadTextParams = z.infer<typeof ContextClipboardReadTextParamsSchema>;
+export type ContextClipboardWriteTextParams = z.infer<typeof ContextClipboardWriteTextParamsSchema>;
+export type ContextClipboardClearParams = z.infer<typeof ContextClipboardClearParamsSchema>;
+export type ContextClipboardPasteParams = z.infer<typeof ContextClipboardPasteParamsSchema>;
+export type ContextClipboardCopyParams = z.infer<typeof ContextClipboardCopyParamsSchema>;
+export type ContextClipboardCutParams = z.infer<typeof ContextClipboardCutParamsSchema>;
+export type ContextSetActivePageParams = z.infer<typeof ContextSetActivePageParamsSchema>;
+export type ContextAddInitScriptParams = z.infer<typeof ContextAddInitScriptParamsSchema>;
+export type ContextSetExtraHTTPHeadersParams = z.infer<
+  typeof ContextSetExtraHTTPHeadersParamsSchema
+>;
+export type ContextSetDomainPolicyParams = z.infer<typeof ContextSetDomainPolicyParamsSchema>;
 export type PageGotoParams = z.infer<typeof PageGotoParamsSchema>;
 export type PageIdParams = z.infer<typeof PageIdParamsSchema>;
 export type PageReloadParams = z.infer<typeof PageReloadParamsSchema>;
@@ -337,6 +377,10 @@ export type BrowserGetVersionResult = z.infer<typeof BrowserGetVersionResultSche
 export type StagehandInitResult = z.infer<typeof StagehandInitResultSchema>;
 export type StagehandCloseResult = z.infer<typeof StagehandCloseResultSchema>;
 export type ContextPagesResult = z.infer<typeof ContextPagesResultSchema>;
+export type ContextCookiesResult = z.infer<typeof ContextCookiesResultSchema>;
+export type ContextClipboardReadTextResult = z.infer<typeof ContextClipboardReadTextResultSchema>;
+export type ContextActivePageResult = z.infer<typeof ContextActivePageResultSchema>;
+export type ContextGetDomainPolicyResult = z.infer<typeof ContextGetDomainPolicyResultSchema>;
 export type PageUrlResult = z.infer<typeof PageUrlResultSchema>;
 export type PageTitleResult = z.infer<typeof PageTitleResultSchema>;
 export type PageCloseResult = z.infer<typeof PageCloseResultSchema>;
@@ -389,7 +433,9 @@ export type ClientOptionsBase = z.infer<typeof ClientOptionsBaseSchema>;
 export type ClipboardOptions = z.infer<typeof ClipboardOptionsSchema>;
 export type ClipboardPasteOptions = z.infer<typeof ClipboardPasteOptionsSchema>;
 export type Cookie = z.infer<typeof CookieSchema>;
+export type CookieFilter = z.infer<typeof CookieFilterSchema>;
 export type CookieParam = z.infer<typeof CookieParamSchema>;
+export type CookieRegex = z.infer<typeof CookieRegexSchema>;
 export type DomainPolicy = z.infer<typeof DomainPolicySchema>;
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;

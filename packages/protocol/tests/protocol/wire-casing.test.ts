@@ -126,6 +126,84 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(definition.params).parse(wireValue)).toStrictEqual(apiValue);
   });
 
+  it("encodes context params and results with snake_case wire fields", () => {
+    const domainPolicy = StagehandMethods.contextSetDomainPolicy;
+    const domainPolicyParams = {
+      policy: {
+        allowedDomains: ["example.com"],
+        blockedDomains: ["ads.example.com"],
+      },
+    };
+    const domainPolicyWireParams = {
+      policy: {
+        allowed_domains: ["example.com"],
+        blocked_domains: ["ads.example.com"],
+      },
+    };
+    expect(encodeWireValue(domainPolicyParams)).toStrictEqual(domainPolicyWireParams);
+    expect(wireSchema(domainPolicy.params).parse(domainPolicyWireParams)).toStrictEqual(
+      domainPolicyParams,
+    );
+
+    const clearCookies = StagehandMethods.contextClearCookies;
+    const clearCookiesParams = {
+      options: { name: { source: "^session-", flags: "i" }, domain: "example.com" },
+    };
+    expect(wireSchema(clearCookies.params).parse(clearCookiesParams)).toStrictEqual(
+      clearCookiesParams,
+    );
+
+    const clipboard = StagehandMethods.contextClipboardPaste;
+    const clipboardParams = { pageId: "page_1", shortcut: "ControlOrMeta+V" as const };
+    const clipboardWireParams = { page_id: "page_1", shortcut: "ControlOrMeta+V" as const };
+    expect(encodeWireValue(clipboardParams)).toStrictEqual(clipboardWireParams);
+    expect(wireSchema(clipboard.params).parse(clipboardWireParams)).toStrictEqual(clipboardParams);
+
+    const cookies = StagehandMethods.contextCookies;
+    const cookiesResult = {
+      cookies: [
+        {
+          name: "session",
+          value: "abc123",
+          domain: "example.com",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: true,
+          sameSite: "Lax" as const,
+        },
+      ],
+    };
+    const cookiesWireResult = {
+      cookies: [
+        {
+          name: "session",
+          value: "abc123",
+          domain: "example.com",
+          path: "/",
+          expires: -1,
+          http_only: true,
+          secure: true,
+          same_site: "Lax" as const,
+        },
+      ],
+    };
+    expect(encodeWireValue(cookiesResult)).toStrictEqual(cookiesWireResult);
+    expect(wireSchema(cookies.result).parse(cookiesWireResult)).toStrictEqual(cookiesResult);
+  });
+
+  it("preserves opaque context header keys", () => {
+    const definition = StagehandMethods.contextSetExtraHTTPHeaders;
+    const apiValue = {
+      headers: { "X-Request-ID": "request-1", doNotRenameMe: "value" },
+    };
+
+    expect(encodeWireValue(apiValue, definition.paramsWire)).toStrictEqual(apiValue);
+    expect(wireSchema(definition.params, definition.paramsWire).parse(apiValue)).toStrictEqual(
+      apiValue,
+    );
+  });
+
   it("preserves opaque page payload keys", () => {
     const evaluate = StagehandMethods.pageEvaluate;
     const evaluation = { value: { camelCase: true, nestedValue: { staysCamelCase: true } } };
