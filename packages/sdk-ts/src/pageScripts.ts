@@ -18,29 +18,28 @@ export function normalizeEvaluationExpression<R, Arg>(
 export async function normalizeInitScriptSource<Arg>(
   script: InitScriptSource<Arg>,
   arg?: Arg,
+  caller = "page.addInitScript",
 ): Promise<string> {
   if (typeof script === "function") {
-    return `(${script.toString()})(${serializeArgument(arg, "page.addInitScript")})`;
+    return `(${script.toString()})(${serializeArgument(arg, caller)})`;
   }
 
   if (arg !== undefined) {
-    throw new TypeError("page.addInitScript: 'arg' is only supported when passing a function.");
+    throw new TypeError(`${caller}: 'arg' is only supported when passing a function.`);
   }
 
   if (typeof script === "string") return script;
 
   if (!script || typeof script !== "object") {
     throw new TypeError(
-      "page.addInitScript: provide a string, function, or an object with exactly one of path or content.",
+      `${caller}: provide a string, function, or an object with exactly one of path or content.`,
     );
   }
 
   const hasContent = typeof script.content === "string";
   const hasPath = typeof script.path === "string" && script.path.trim().length > 0;
   if (hasContent === hasPath) {
-    throw new TypeError(
-      "page.addInitScript: provide an object with exactly one of path or content.",
-    );
+    throw new TypeError(`${caller}: provide an object with exactly one of path or content.`);
   }
 
   if (hasContent) return script.content as string;

@@ -1,24 +1,28 @@
 import type { Protocol } from "devtools-protocol";
 import type { V3Context } from "./context.js";
 import type { Page } from "./page.js";
-import type { ClipboardOptions, ClipboardPasteOptions } from "../../protocol/types.js";
+
+export type UnderstudyClipboardOptions = {
+  page?: Page;
+};
+
+export type UnderstudyClipboardPasteOptions = UnderstudyClipboardOptions & {
+  shortcut?: "ControlOrMeta+V" | "Meta+V" | "Control+V";
+};
 
 type ContextClipboardParams = {
   context: V3Context;
   resolvePage: (page?: Page) => Promise<Page>;
 };
 
-// TODO(runtime-cleanup): Hydrate ClipboardOptions.locator instead of always
-// resolving the active Understudy page.
 export class ContextClipboard {
   constructor(readonly params: ContextClipboardParams) {}
-  async writeText(text: string, options?: ClipboardOptions): Promise<void> {
+  async writeText(text: string, options?: UnderstudyClipboardOptions): Promise<void> {
     await this.writeTextInternal(text, options);
   }
 
-  async writeTextInternal(text: string, options?: ClipboardOptions): Promise<void> {
-    void options;
-    const page = await this.resolvePage();
+  async writeTextInternal(text: string, options?: UnderstudyClipboardOptions): Promise<void> {
+    const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
     await this.grantClipboardPermissions(page);
     await page.sendInternalCDP("Runtime.enable").catch(() => {});
@@ -33,9 +37,8 @@ export class ContextClipboard {
     );
     this.throwIfEvaluationFailed("write clipboard text", response);
   }
-  async readText(options?: ClipboardOptions): Promise<string> {
-    void options;
-    const page = await this.resolvePage();
+  async readText(options?: UnderstudyClipboardOptions): Promise<string> {
+    const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
     await this.grantClipboardPermissions(page);
     await page.sendInternalCDP("Runtime.enable").catch(() => {});
@@ -52,23 +55,21 @@ export class ContextClipboard {
 
     return String(response.result?.value ?? "");
   }
-  async clear(options?: ClipboardOptions): Promise<void> {
+  async clear(options?: UnderstudyClipboardOptions): Promise<void> {
     await this.writeTextInternal("", options);
   }
-  async paste(options?: ClipboardPasteOptions): Promise<void> {
-    const page = await this.resolvePage();
+  async paste(options?: UnderstudyClipboardPasteOptions): Promise<void> {
+    const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
     await page.keyPress(options?.shortcut ?? "ControlOrMeta+V");
   }
-  async copy(options?: ClipboardOptions): Promise<void> {
-    void options;
-    const page = await this.resolvePage();
+  async copy(options?: UnderstudyClipboardOptions): Promise<void> {
+    const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
     await page.keyPress("ControlOrMeta+C");
   }
-  async cut(options?: ClipboardOptions): Promise<void> {
-    void options;
-    const page = await this.resolvePage();
+  async cut(options?: UnderstudyClipboardOptions): Promise<void> {
+    const page = await this.resolvePage(options?.page);
     await this.ensurePageFocused(page);
     await page.keyPress("ControlOrMeta+X");
   }

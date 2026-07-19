@@ -61,4 +61,10 @@ describe("page script normalization", () => {
       "'arg' must be JSON-serializable",
     );
   });
+
+  it("uses the provided init script caller in validation errors", async () => {
+    await expect(
+      normalizeInitScriptSource((arg: unknown) => arg, { value: 1n }, "context.addInitScript"),
+    ).rejects.toThrow("context.addInitScript: 'arg' must be JSON-serializable");
+  });
 });

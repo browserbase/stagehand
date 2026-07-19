@@ -10,6 +10,9 @@ import {
 import { startStagehandServiceWorker } from "../service-worker.ts";
 import type {
   StagehandBrowserSession,
+  UnderstudyRuntimeClipboardOptions,
+  UnderstudyRuntimeClipboardPasteOptions,
+  UnderstudyRuntimeClearCookieOptions,
   UnderstudyRuntimeLocator,
   UnderstudyRuntimePage,
   UnderstudyRuntimeScreenshotOptions,
@@ -17,6 +20,10 @@ import type {
 import { createStagehandRuntime, type StagehandRuntimeAdapters } from "../runtime.ts";
 import type { StagehandTracing } from "../tracing.ts";
 import type {
+  ContextSetExtraHTTPHeadersParams,
+  Cookie,
+  CookieParam,
+  DomainPolicy,
   LocatorCentroidResult,
   LocatorClickParams,
   LocatorHighlightParams,
@@ -51,11 +58,60 @@ vi.mock("../understudy/context.js", () => ({
   },
 }));
 
+class FakeRuntimeClipboard {
+  readTextResult = "clipboard text";
+  readonly readTextCalls: Array<UnderstudyRuntimeClipboardOptions | undefined> = [];
+  readonly writeTextCalls: Array<{
+    text: string;
+    options?: UnderstudyRuntimeClipboardOptions;
+  }> = [];
+  readonly clearCalls: Array<UnderstudyRuntimeClipboardOptions | undefined> = [];
+  readonly pasteCalls: Array<UnderstudyRuntimeClipboardPasteOptions | undefined> = [];
+  readonly copyCalls: Array<UnderstudyRuntimeClipboardOptions | undefined> = [];
+  readonly cutCalls: Array<UnderstudyRuntimeClipboardOptions | undefined> = [];
+
+  async readText(options?: UnderstudyRuntimeClipboardOptions): Promise<string> {
+    this.readTextCalls.push(options);
+    return this.readTextResult;
+  }
+
+  async writeText(text: string, options?: UnderstudyRuntimeClipboardOptions): Promise<void> {
+    this.writeTextCalls.push({ text, options });
+  }
+
+  async clear(options?: UnderstudyRuntimeClipboardOptions): Promise<void> {
+    this.clearCalls.push(options);
+  }
+
+  async paste(options?: UnderstudyRuntimeClipboardPasteOptions): Promise<void> {
+    this.pasteCalls.push(options);
+  }
+
+  async copy(options?: UnderstudyRuntimeClipboardOptions): Promise<void> {
+    this.copyCalls.push(options);
+  }
+
+  async cut(options?: UnderstudyRuntimeClipboardOptions): Promise<void> {
+    this.cutCalls.push(options);
+  }
+}
+
 class FakeBrowserSession implements StagehandBrowserSession {
   closed = false;
   connected = true;
   getVersionCalls = 0;
   readonly pageRefs: FakeUnderstudyRuntimePage[];
+  activePageRef: UnderstudyRuntimePage | undefined;
+  readonly setActivePageCalls: UnderstudyRuntimePage[] = [];
+  readonly contextAddInitScriptCalls: string[] = [];
+  readonly contextSetExtraHTTPHeadersCalls: ContextSetExtraHTTPHeadersParams["headers"][] = [];
+  domainPolicy: DomainPolicy | null = null;
+  readonly setDomainPolicyCalls: Array<DomainPolicy | null> = [];
+  cookieValues: Cookie[] = [];
+  readonly cookiesCalls: Array<string | string[] | undefined> = [];
+  readonly addCookiesCalls: CookieParam[][] = [];
+  readonly clearCookiesCalls: Array<UnderstudyRuntimeClearCookieOptions | undefined> = [];
+  readonly clipboard = new FakeRuntimeClipboard();
 
   constructor(
     pages: FakeUnderstudyRuntimePage[] = [],
@@ -68,6 +124,7 @@ class FakeBrowserSession implements StagehandBrowserSession {
     },
   ) {
     this.pageRefs = pages;
+    this.activePageRef = pages.at(-1);
   }
 
   async getVersion() {
@@ -82,7 +139,47 @@ class FakeBrowserSession implements StagehandBrowserSession {
   async newPage(url = "about:blank"): Promise<UnderstudyRuntimePage> {
     const page = new FakeUnderstudyRuntimePage(`page-${this.pageRefs.length + 1}`, url);
     this.pageRefs.push(page);
+    this.activePageRef = page;
     return page;
+  }
+
+  activePage(): UnderstudyRuntimePage | undefined {
+    return this.activePageRef;
+  }
+
+  setActivePage(page: UnderstudyRuntimePage): void {
+    this.setActivePageCalls.push(page);
+    this.activePageRef = page;
+  }
+
+  async addInitScript(source: string): Promise<void> {
+    this.contextAddInitScriptCalls.push(source);
+  }
+
+  async setExtraHTTPHeaders(headers: ContextSetExtraHTTPHeadersParams["headers"]): Promise<void> {
+    this.contextSetExtraHTTPHeadersCalls.push(headers);
+  }
+
+  getDomainPolicy(): DomainPolicy | null {
+    return this.domainPolicy;
+  }
+
+  async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
+    this.setDomainPolicyCalls.push(policy);
+    this.domainPolicy = policy;
+  }
+
+  async cookies(urls?: string | string[]): Promise<Cookie[]> {
+    this.cookiesCalls.push(urls);
+    return this.cookieValues;
+  }
+
+  async addCookies(cookies: CookieParam[]): Promise<void> {
+    this.addCookiesCalls.push(cookies);
+  }
+
+  async clearCookies(options?: UnderstudyRuntimeClearCookieOptions): Promise<void> {
+    this.clearCookiesCalls.push(options);
   }
 
   close(): void {
@@ -901,6 +998,375 @@ describe("Stagehand worker clients", () => {
     });
 
     expect(context.pages().map((page) => page.targetId())).toStrictEqual(["page-1"]);
+  });
+
+  it("returns and updates the active understudy page", async () => {
+    const pageA = new FakeUnderstudyRuntimePage("page-a", "https://example.test/a");
+    const pageB = new FakeUnderstudyRuntimePage("page-b", "https://example.test/b");
+    const context = new FakeBrowserSession([pageA, pageB]);
+    const handle = await createConfiguredHandler(context);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 9,
+        method: "context.active_page",
+        params: {},
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 9,
+      result: {
+        page_id: "page-b",
+        url: "https://example.test/b",
+      },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 10,
+        method: "context.set_active_page",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 10,
+      result: { ok: true },
+    });
+
+    expect(context.setActivePageCalls).toStrictEqual([pageA]);
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 11,
+        method: "context.active_page",
+        params: {},
+      }),
+    ).resolves.toMatchObject({
+      result: { page_id: "page-a" },
+    });
+  });
+
+  it("returns null when the context has no active page", async () => {
+    const handle = await createConfiguredHandler(new FakeBrowserSession());
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 9,
+        method: "context.active_page",
+        params: {},
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 9,
+      result: null,
+    });
+  });
+
+  it("closes the configured context", async () => {
+    const context = new FakeBrowserSession();
+    const handle = await createConfiguredHandler(context);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 9,
+        method: "context.close",
+        params: {},
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 9,
+      result: { closed: true },
+    });
+    expect(context.closed).toBe(true);
+  });
+
+  it("routes context scripts, headers, and domain policy", async () => {
+    const context = new FakeBrowserSession();
+    const handle = await createConfiguredHandler(context);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 12,
+        method: "context.add_init_script",
+        params: { source: "globalThis.ready = true" },
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 13,
+        method: "context.set_extra_http_headers",
+        params: {
+          headers: { "X-Request-ID": "request-1", doNotRenameMe: "value" },
+        },
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 14,
+        method: "context.set_domain_policy",
+        params: {
+          policy: {
+            allowed_domains: ["example.test"],
+            blocked_domains: ["blocked.example.test"],
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 15,
+        method: "context.get_domain_policy",
+        params: {},
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 15,
+      result: {
+        policy: {
+          allowed_domains: ["example.test"],
+          blocked_domains: ["blocked.example.test"],
+        },
+      },
+    });
+
+    expect(context.contextAddInitScriptCalls).toStrictEqual(["globalThis.ready = true"]);
+    expect(context.contextSetExtraHTTPHeadersCalls).toStrictEqual([
+      { "X-Request-ID": "request-1", doNotRenameMe: "value" },
+    ]);
+    expect(context.setDomainPolicyCalls).toStrictEqual([
+      {
+        allowedDomains: ["example.test"],
+        blockedDomains: ["blocked.example.test"],
+      },
+    ]);
+  });
+
+  it("forwards an explicit null domain policy", async () => {
+    const context = new FakeBrowserSession();
+    const handle = await createConfiguredHandler(context);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 16,
+        method: "context.set_domain_policy",
+        params: { policy: null },
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 17,
+        method: "context.get_domain_policy",
+        params: {},
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 17,
+      result: { policy: null },
+    });
+
+    expect(context.setDomainPolicyCalls).toStrictEqual([null]);
+  });
+
+  it("routes context cookie reads, writes, and clears", async () => {
+    const context = new FakeBrowserSession();
+    context.cookieValues = [
+      {
+        name: "session-id",
+        value: "abc123",
+        domain: "example.test",
+        path: "/",
+        expires: -1,
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax",
+      },
+    ];
+    const handle = await createConfiguredHandler(context);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 18,
+        method: "context.cookies",
+        params: { urls: ["https://example.test/account"] },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 18,
+      result: {
+        cookies: [
+          {
+            name: "session-id",
+            value: "abc123",
+            domain: "example.test",
+            path: "/",
+            expires: -1,
+            http_only: true,
+            secure: true,
+            same_site: "Lax",
+          },
+        ],
+      },
+    });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 19,
+        method: "context.add_cookies",
+        params: {
+          cookies: [
+            {
+              name: "preference",
+              value: "compact",
+              url: "https://example.test/account",
+              http_only: false,
+              same_site: "Lax",
+            },
+          ],
+        },
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 20,
+        method: "context.clear_cookies",
+        params: {
+          options: {
+            name: { source: "^session-", flags: "i" },
+            domain: "example.test",
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 21,
+        method: "context.clear_cookies",
+        params: {},
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+
+    expect(context.cookiesCalls).toStrictEqual([["https://example.test/account"]]);
+    expect(context.addCookiesCalls).toStrictEqual([
+      [
+        {
+          name: "preference",
+          value: "compact",
+          url: "https://example.test/account",
+          httpOnly: false,
+          sameSite: "Lax",
+        },
+      ],
+    ]);
+    expect(context.clearCookiesCalls).toHaveLength(2);
+    expect(context.clearCookiesCalls[0]).toStrictEqual({
+      name: /^session-/i,
+      domain: "example.test",
+    });
+    expect(context.clearCookiesCalls[1]).toBeUndefined();
+  });
+
+  it("routes clipboard operations with resolved and active-page targets", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test");
+    const context = new FakeBrowserSession([page]);
+    const handle = await createConfiguredHandler(context);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 22,
+        method: "context.clipboard_read_text",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 22,
+      result: { text: "clipboard text" },
+    });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 23,
+        method: "context.clipboard_write_text",
+        params: { text: "new clipboard text" },
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 24,
+        method: "context.clipboard_clear",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 25,
+        method: "context.clipboard_paste",
+        params: { page_id: "page-a", shortcut: "Meta+V" },
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 26,
+        method: "context.clipboard_copy",
+        params: {},
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 27,
+        method: "context.clipboard_cut",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toMatchObject({ result: { ok: true } });
+
+    expect(context.clipboard.readTextCalls).toStrictEqual([{ page }]);
+    expect(context.clipboard.writeTextCalls).toStrictEqual([
+      { text: "new clipboard text", options: undefined },
+    ]);
+    expect(context.clipboard.clearCalls).toStrictEqual([{ page }]);
+    expect(context.clipboard.pasteCalls).toStrictEqual([{ page, shortcut: "Meta+V" }]);
+    expect(context.clipboard.copyCalls).toStrictEqual([undefined]);
+    expect(context.clipboard.cutCalls).toStrictEqual([{ page }]);
+  });
+
+  it("returns page resolution errors for clipboard targets", async () => {
+    const context = new FakeBrowserSession();
+    const handle = await createConfiguredHandler(context);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 28,
+        method: "context.clipboard_read_text",
+        params: { page_id: "missing-page" },
+      }),
+    ).resolves.toMatchObject({
+      jsonrpc: "2.0",
+      id: 28,
+      error: {
+        code: -32603,
+        message: 'Stagehand page "missing-page" was not found; call context.pages and retry',
+        data: { name: "Error" },
+      },
+    });
+    expect(context.clipboard.readTextCalls).toStrictEqual([]);
   });
 
   it("routes page.goto to the resolved understudy page", async () => {

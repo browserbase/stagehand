@@ -5,7 +5,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { BrowserContext, Locator, Page } from "../src/index.js";
+import { BrowserClipboard, BrowserContext, Locator, Page } from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
 import { createStagehandWithClientForTest } from "../src/stagehand.js";
 
@@ -151,6 +151,210 @@ describe("Stagehand TS object wrapper", () => {
       pageId: "new-page",
       url: "https://browserbase.com",
     });
+  });
+
+  it("wraps the active page and maps a missing active page to undefined", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.contextActivePage, {
+      pageId: "active-page",
+      url: "https://example.com/active",
+    });
+    client.queueResponse(StagehandMethods.contextActivePage, null);
+    const stagehand = createStagehandWithClientForTest(client);
+    await stagehand.init();
+
+    const activePage = await stagehand.context.activePage();
+    const missingActivePage = await stagehand.context.activePage();
+
+    expect(activePage).toBeInstanceOf(Page);
+    expect(activePage?.ref).toStrictEqual({
+      pageId: "active-page",
+      url: "https://example.com/active",
+    });
+    expect(missingActivePage).toBeUndefined();
+    expect(client.calls).toStrictEqual([
+      stagehandInitCall,
+      requestCall(StagehandMethods.contextActivePage, {}),
+      requestCall(StagehandMethods.contextActivePage, {}),
+    ]);
+  });
+
+  it("routes context.setActivePage and context.close", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.contextSetActivePage, { ok: true });
+    client.queueResponse(StagehandMethods.contextClose, { closed: true });
+    const stagehand = createStagehandWithClientForTest(client);
+    await stagehand.init();
+    const page = new Page(client, { pageId: "page-1" });
+
+    await stagehand.context.setActivePage(page);
+    await stagehand.context.close();
+
+    expect(client.calls).toStrictEqual([
+      stagehandInitCall,
+      requestCall(StagehandMethods.contextSetActivePage, { pageId: "page-1" }),
+      requestCall(StagehandMethods.contextClose, {}),
+    ]);
+  });
+
+  it("normalizes context init script content and functions", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.contextAddInitScript, { ok: true });
+    client.queueResponse(StagehandMethods.contextAddInitScript, { ok: true });
+    const stagehand = createStagehandWithClientForTest(client);
+    await stagehand.init();
+    const script = (arg: { ready: boolean }) => {
+      globalThis.document.title = String(arg.ready);
+    };
+
+    await stagehand.context.addInitScript({ content: "globalThis.fromContent = true" });
+    await stagehand.context.addInitScript(script, { ready: true });
+
+    expect(client.calls).toStrictEqual([
+      stagehandInitCall,
+      requestCall(StagehandMethods.contextAddInitScript, {
+        source: "globalThis.fromContent = true",
+      }),
+      requestCall(StagehandMethods.contextAddInitScript, {
+        source: `(${script.toString()})({"ready":true})`,
+      }),
+    ]);
+  });
+
+  it("routes context headers and adapts domain policy results", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.contextSetExtraHTTPHeaders, { ok: true });
+    client.queueResponse(StagehandMethods.contextGetDomainPolicy, {
+      policy: {
+        allowedDomains: ["example.com"],
+        blockedDomains: ["blocked.example.com"],
+      },
+    });
+    client.queueResponse(StagehandMethods.contextGetDomainPolicy, { policy: null });
+    client.queueResponse(StagehandMethods.contextSetDomainPolicy, { ok: true });
+    client.queueResponse(StagehandMethods.contextSetDomainPolicy, { ok: true });
+    const stagehand = createStagehandWithClientForTest(client);
+    await stagehand.init();
+
+    await stagehand.context.setExtraHTTPHeaders({
+      "X-Request-ID": "request-1",
+      doNotRenameMe: "value",
+    });
+    await expect(stagehand.context.getDomainPolicy()).resolves.toStrictEqual({
+      allowedDomains: ["example.com"],
+      blockedDomains: ["blocked.example.com"],
+    });
+    await expect(stagehand.context.getDomainPolicy()).resolves.toBeNull();
+    await stagehand.context.setDomainPolicy({ allowedDomains: ["example.test"] });
+    await stagehand.context.setDomainPolicy(null);
+
+    expect(client.calls).toStrictEqual([
+      stagehandInitCall,
+      requestCall(StagehandMethods.contextSetExtraHTTPHeaders, {
+        headers: { "X-Request-ID": "request-1", doNotRenameMe: "value" },
+      }),
+      requestCall(StagehandMethods.contextGetDomainPolicy, {}),
+      requestCall(StagehandMethods.contextGetDomainPolicy, {}),
+      requestCall(StagehandMethods.contextSetDomainPolicy, {
+        policy: { allowedDomains: ["example.test"] },
+      }),
+      requestCall(StagehandMethods.contextSetDomainPolicy, { policy: null }),
+    ]);
+  });
+
+  it("routes context cookies and serializes regular-expression filters", async () => {
+    const client = new FakeProtocolClient();
+    const cookie = {
+      name: "session-id",
+      value: "abc123",
+      domain: "example.test",
+      path: "/",
+      expires: -1,
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax" as const,
+    };
+    client.queueResponse(StagehandMethods.contextCookies, { cookies: [cookie] });
+    client.queueResponse(StagehandMethods.contextCookies, { cookies: [] });
+    client.queueResponse(StagehandMethods.contextAddCookies, { ok: true });
+    client.queueResponse(StagehandMethods.contextClearCookies, { ok: true });
+    client.queueResponse(StagehandMethods.contextClearCookies, { ok: true });
+    const stagehand = createStagehandWithClientForTest(client);
+    await stagehand.init();
+    const cookieParam = {
+      name: "preference",
+      value: "compact",
+      url: "https://example.test/account",
+      httpOnly: false,
+      sameSite: "Lax" as const,
+    };
+
+    await expect(stagehand.context.cookies("https://example.test/account")).resolves.toStrictEqual([
+      cookie,
+    ]);
+    await expect(stagehand.context.cookies()).resolves.toStrictEqual([]);
+    await stagehand.context.addCookies([cookieParam]);
+    await stagehand.context.clearCookies({
+      name: /^session-/gi,
+      domain: "example.test",
+      path: /^\/account/,
+    });
+    await stagehand.context.clearCookies();
+
+    expect(client.calls).toStrictEqual([
+      stagehandInitCall,
+      requestCall(StagehandMethods.contextCookies, {
+        urls: "https://example.test/account",
+      }),
+      requestCall(StagehandMethods.contextCookies, {}),
+      requestCall(StagehandMethods.contextAddCookies, { cookies: [cookieParam] }),
+      requestCall(StagehandMethods.contextClearCookies, {
+        options: {
+          name: { source: "^session-", flags: "gi" },
+          domain: "example.test",
+          path: { source: "^\\/account", flags: "" },
+        },
+      }),
+      requestCall(StagehandMethods.contextClearCookies, {}),
+    ]);
+  });
+
+  it("lazily exposes a clipboard facade and routes all clipboard operations", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.contextClipboardReadText, { text: "clipboard text" });
+    client.queueResponse(StagehandMethods.contextClipboardWriteText, { ok: true });
+    client.queueResponse(StagehandMethods.contextClipboardClear, { ok: true });
+    client.queueResponse(StagehandMethods.contextClipboardPaste, { ok: true });
+    client.queueResponse(StagehandMethods.contextClipboardCopy, { ok: true });
+    client.queueResponse(StagehandMethods.contextClipboardCut, { ok: true });
+    const stagehand = createStagehandWithClientForTest(client);
+    await stagehand.init();
+    const page = new Page(client, { pageId: "page-1" });
+
+    const clipboard = stagehand.context.clipboard;
+    expect(clipboard).toBeInstanceOf(BrowserClipboard);
+    expect(stagehand.context.clipboard).toBe(clipboard);
+    expect(client.calls).toStrictEqual([stagehandInitCall]);
+
+    await expect(clipboard.readText({ page })).resolves.toBe("clipboard text");
+    await clipboard.writeText("new clipboard text");
+    await clipboard.clear({ page });
+    await clipboard.paste({ page, shortcut: "Control+V" });
+    await clipboard.copy();
+    await clipboard.cut({ page });
+
+    expect(client.calls).toStrictEqual([
+      stagehandInitCall,
+      requestCall(StagehandMethods.contextClipboardReadText, { pageId: "page-1" }),
+      requestCall(StagehandMethods.contextClipboardWriteText, { text: "new clipboard text" }),
+      requestCall(StagehandMethods.contextClipboardClear, { pageId: "page-1" }),
+      requestCall(StagehandMethods.contextClipboardPaste, {
+        pageId: "page-1",
+        shortcut: "Control+V",
+      }),
+      requestCall(StagehandMethods.contextClipboardCopy, {}),
+      requestCall(StagehandMethods.contextClipboardCut, { pageId: "page-1" }),
+    ]);
   });
 
   it("routes page.goto and updates the page ref", async () => {

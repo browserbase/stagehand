@@ -1,18 +1,43 @@
 import { describe, expect, it, vi } from "vite-plus/test";
+import type { StagehandBrowserSession } from "../runtime.js";
 import { createStagehandRuntime } from "../runtime.js";
+
+function createBrowserSession(
+  overrides: Partial<StagehandBrowserSession> = {},
+): StagehandBrowserSession {
+  return {
+    connected: true,
+    getVersion: async () => ({}),
+    pages: () => [],
+    newPage: async () => {
+      throw new Error("Not used by this test");
+    },
+    activePage: () => undefined,
+    setActivePage: () => {},
+    addInitScript: async () => {},
+    setExtraHTTPHeaders: async () => {},
+    getDomainPolicy: () => null,
+    setDomainPolicy: async () => {},
+    cookies: async () => [],
+    addCookies: async () => {},
+    clearCookies: async () => {},
+    clipboard: {
+      readText: async () => "",
+      writeText: async () => {},
+      clear: async () => {},
+      paste: async () => {},
+      copy: async () => {},
+      cut: async () => {},
+    },
+    close: async () => {},
+    ...overrides,
+  };
+}
 
 describe("Stagehand runtime state", () => {
   it("stores the exact validated Stagehand init params after initialization", async () => {
     const runtime = createStagehandRuntime({
-      browserSessionFactory: async () => ({
-        connected: true,
-        getVersion: async () => ({}),
-        pages: () => [],
-        newPage: async () => {
-          throw new Error("Not used by this test");
-        },
-        close: async () => {},
-      }),
+      browserSessionFactory: async () => createBrowserSession(),
     });
 
     await runtime.configureLoopback({
@@ -49,17 +74,12 @@ describe("Stagehand runtime state", () => {
 
   it("leaves server state unchanged when initialization fails", async () => {
     const runtime = createStagehandRuntime({
-      browserSessionFactory: async () => ({
-        connected: true,
-        getVersion: async () => ({}),
-        pages: () => {
-          throw new Error("Could not read pages");
-        },
-        newPage: async () => {
-          throw new Error("Not used by this test");
-        },
-        close: async () => {},
-      }),
+      browserSessionFactory: async () =>
+        createBrowserSession({
+          pages: () => {
+            throw new Error("Could not read pages");
+          },
+        }),
     });
 
     await runtime.configureLoopback({
@@ -82,15 +102,7 @@ describe("Stagehand runtime state", () => {
   it("clears initialized configuration when Stagehand closes", async () => {
     const close = vi.fn();
     const runtime = createStagehandRuntime({
-      browserSessionFactory: async () => ({
-        connected: true,
-        getVersion: async () => ({}),
-        pages: () => [],
-        newPage: async () => {
-          throw new Error("Not used by this test");
-        },
-        close,
-      }),
+      browserSessionFactory: async () => createBrowserSession({ close }),
     });
 
     await runtime.configureLoopback({

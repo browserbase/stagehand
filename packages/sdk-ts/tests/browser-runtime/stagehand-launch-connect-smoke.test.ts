@@ -156,6 +156,96 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     expect(snapshot.xpathMap).toBeTypeOf("object");
     expect(snapshot.urlMap).toBeTypeOf("object");
   });
+
+  it("selects and reads the active context page", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const firstPage = await activeStagehand.context.newPage({ url: activeFixtureServer.url });
+    await activeStagehand.context.newPage({
+      url: new URL("/second", activeFixtureServer.url).href,
+    });
+
+    await activeStagehand.context.setActivePage(firstPage);
+
+    const activePage = await activeStagehand.context.activePage();
+    expect(activePage?.pageId).toBe(firstPage.pageId);
+    await expect(activePage?.url()).resolves.toBe(activeFixtureServer.url);
+  });
+
+  it("applies context scripts and headers to a new page", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const headersUrl = new URL("/headers", activeFixtureServer.url).href;
+
+    await activeStagehand.context.addInitScript({
+      content: "globalThis.__stagehandContextSmokeInit = 'context-ready';",
+    });
+    await activeStagehand.context.setExtraHTTPHeaders({
+      "X-Stagehand-Context-Smoke": "context-header-value",
+    });
+    const page = await activeStagehand.context.newPage();
+    await page.goto(headersUrl, { waitUntil: "load" });
+
+    await expect(page.evaluate("globalThis.__stagehandContextSmokeInit")).resolves.toBe(
+      "context-ready",
+    );
+    await expect(page.locator("#context-request-header").textContent()).resolves.toBe(
+      "context-header-value",
+    );
+  });
+
+  it("adds, filters, and clears context cookies", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const keepCookieName = "stagehand-context-keep";
+    const removeCookieName = "stagehand-context-remove";
+    const cookieNames = [keepCookieName, removeCookieName];
+
+    await activeStagehand.context.addCookies([
+      {
+        name: keepCookieName,
+        value: "keep",
+        url: activeFixtureServer.url,
+        sameSite: "Lax",
+      },
+      {
+        name: removeCookieName,
+        value: "remove",
+        url: activeFixtureServer.url,
+        sameSite: "Lax",
+      },
+    ]);
+
+    const addedCookies = await activeStagehand.context.cookies(activeFixtureServer.url);
+    expect(
+      addedCookies
+        .filter((cookie) => cookieNames.includes(cookie.name))
+        .map((cookie) => cookie.name)
+        .sort(),
+    ).toStrictEqual([...cookieNames].sort());
+
+    await activeStagehand.context.clearCookies({ name: /-remove$/ });
+    const filteredCookies = await activeStagehand.context.cookies(activeFixtureServer.url);
+    expect(filteredCookies.find((cookie) => cookie.name === keepCookieName)?.value).toBe("keep");
+    expect(filteredCookies.some((cookie) => cookie.name === removeCookieName)).toBe(false);
+
+    await activeStagehand.context.clearCookies({ name: /^stagehand-context-/ });
+    const clearedCookies = await activeStagehand.context.cookies(activeFixtureServer.url);
+    expect(clearedCookies.some((cookie) => cookieNames.includes(cookie.name))).toBe(false);
+  });
+
+  it("reads, writes, and clears clipboard text against an explicit page", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const page = await activeStagehand.context.newPage({ url: activeFixtureServer.url });
+
+    await activeStagehand.context.clipboard.writeText("stagehand clipboard smoke", { page });
+    await expect(activeStagehand.context.clipboard.readText({ page })).resolves.toBe(
+      "stagehand clipboard smoke",
+    );
+    await activeStagehand.context.clipboard.clear({ page });
+    await expect(activeStagehand.context.clipboard.readText({ page })).resolves.toBe("");
+  });
 });
 
 function requireStagehand(value: Stagehand | undefined): Stagehand {
@@ -227,6 +317,7 @@ async function startFixtureServer(): Promise<FixtureServer> {
 
     if (request.url === "/headers") {
       const header = String(request.headers["x-stagehand-smoke"] ?? "missing");
+      const contextHeader = String(request.headers["x-stagehand-context-smoke"] ?? "missing");
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       response.end(`<!doctype html>
 <html>
@@ -235,6 +326,7 @@ async function startFixtureServer(): Promise<FixtureServer> {
   </head>
   <body>
     <p id="request-header">${escapeHtml(header)}</p>
+    <p id="context-request-header">${escapeHtml(contextHeader)}</p>
   </body>
 </html>`);
       return;

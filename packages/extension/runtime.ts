@@ -1,7 +1,29 @@
 import type {
   BrowserGetVersionResult,
+  ContextActivePageResult,
+  ContextAddCookiesParams,
+  ContextAddInitScriptParams,
+  ContextClearCookiesParams,
+  ContextClipboardClearParams,
+  ContextClipboardCopyParams,
+  ContextClipboardCutParams,
+  ContextClipboardPasteParams,
+  ContextClipboardReadTextParams,
+  ContextClipboardReadTextResult,
+  ContextClipboardWriteTextParams,
+  ContextCloseResult,
+  ContextCookiesParams,
+  ContextCookiesResult,
+  ContextGetDomainPolicyResult,
   ContextNewPageParams,
   ContextPagesResult,
+  ContextSetActivePageParams,
+  ContextSetDomainPolicyParams,
+  ContextSetExtraHTTPHeadersParams,
+  ContextVoidResult,
+  Cookie,
+  CookieParam,
+  DomainPolicy,
   LLMGenerateParams,
   LLMGenerateResult,
   LocatorClickParams,
@@ -125,6 +147,29 @@ export type UnderstudyRuntimeScreenshotOptions = Omit<PageScreenshotOptions, "ma
   mask?: UnderstudyRuntimeLocator[];
 };
 
+export type UnderstudyRuntimeClearCookieOptions = {
+  name?: string | RegExp;
+  domain?: string | RegExp;
+  path?: string | RegExp;
+};
+
+export type UnderstudyRuntimeClipboardOptions = {
+  page?: UnderstudyRuntimePage;
+};
+
+export type UnderstudyRuntimeClipboardPasteOptions = UnderstudyRuntimeClipboardOptions & {
+  shortcut?: ContextClipboardPasteParams["shortcut"];
+};
+
+export type UnderstudyRuntimeClipboard = {
+  readText(options?: UnderstudyRuntimeClipboardOptions): Promise<string>;
+  writeText(text: string, options?: UnderstudyRuntimeClipboardOptions): Promise<void>;
+  clear(options?: UnderstudyRuntimeClipboardOptions): Promise<void>;
+  paste(options?: UnderstudyRuntimeClipboardPasteOptions): Promise<void>;
+  copy(options?: UnderstudyRuntimeClipboardOptions): Promise<void>;
+  cut(options?: UnderstudyRuntimeClipboardOptions): Promise<void>;
+};
+
 export type UnderstudyRuntimeLocator = {
   click(options?: LocatorClickParams["options"]): Promise<void> | void;
   hover(): Promise<void> | void;
@@ -150,6 +195,16 @@ export type StagehandBrowserSession = {
   getVersion(): Promise<BrowserGetVersionResult>;
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
+  activePage(): UnderstudyRuntimePage | undefined;
+  setActivePage(page: UnderstudyRuntimePage): void;
+  addInitScript(source: string): Promise<void>;
+  setExtraHTTPHeaders(headers: ContextSetExtraHTTPHeadersParams["headers"]): Promise<void>;
+  getDomainPolicy(): DomainPolicy | null;
+  setDomainPolicy(policy: DomainPolicy | null): Promise<void>;
+  cookies(urls?: string | string[]): Promise<Cookie[]>;
+  addCookies(cookies: CookieParam[]): Promise<void>;
+  clearCookies(options?: UnderstudyRuntimeClearCookieOptions): Promise<void>;
+  readonly clipboard: UnderstudyRuntimeClipboard;
   close(): Promise<void> | void;
 };
 
@@ -275,6 +330,106 @@ export class StagehandRuntime {
     const page = await this.requireBrowserSession().newPage(params.url);
     this.registerPage(page);
     return this.pageRefForId(page.targetId());
+  }
+
+  contextActivePage(): ContextActivePageResult {
+    const page = this.requireBrowserSession().activePage();
+    if (!page) return null;
+    this.registerPage(page);
+    return pageRefFromUnderstudyPage(page);
+  }
+
+  contextSetActivePage(params: ContextSetActivePageParams): ContextVoidResult {
+    const page = this.resolvePage(params.pageId);
+    this.requireBrowserSession().setActivePage(page);
+    return { ok: true };
+  }
+
+  async contextClose(): Promise<ContextCloseResult> {
+    await this.close();
+    return { closed: true };
+  }
+
+  async contextAddInitScript(params: ContextAddInitScriptParams): Promise<ContextVoidResult> {
+    await this.requireBrowserSession().addInitScript(params.source);
+    return { ok: true };
+  }
+
+  async contextSetExtraHTTPHeaders(
+    params: ContextSetExtraHTTPHeadersParams,
+  ): Promise<ContextVoidResult> {
+    await this.requireBrowserSession().setExtraHTTPHeaders(params.headers);
+    return { ok: true };
+  }
+
+  contextGetDomainPolicy(): ContextGetDomainPolicyResult {
+    return { policy: this.requireBrowserSession().getDomainPolicy() };
+  }
+
+  async contextSetDomainPolicy(params: ContextSetDomainPolicyParams): Promise<ContextVoidResult> {
+    await this.requireBrowserSession().setDomainPolicy(params.policy);
+    return { ok: true };
+  }
+
+  async contextCookies(params: ContextCookiesParams): Promise<ContextCookiesResult> {
+    return { cookies: await this.requireBrowserSession().cookies(params.urls) };
+  }
+
+  async contextAddCookies(params: ContextAddCookiesParams): Promise<ContextVoidResult> {
+    await this.requireBrowserSession().addCookies(params.cookies);
+    return { ok: true };
+  }
+
+  async contextClearCookies(params: ContextClearCookiesParams): Promise<ContextVoidResult> {
+    await this.requireBrowserSession().clearCookies(hydrateClearCookieOptions(params.options));
+    return { ok: true };
+  }
+
+  async contextClipboardReadText(
+    params: ContextClipboardReadTextParams,
+  ): Promise<ContextClipboardReadTextResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    return { text: await clipboard.readText(this.clipboardOptions(params.pageId)) };
+  }
+
+  async contextClipboardWriteText(
+    params: ContextClipboardWriteTextParams,
+  ): Promise<ContextVoidResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    await clipboard.writeText(params.text, this.clipboardOptions(params.pageId));
+    return { ok: true };
+  }
+
+  async contextClipboardClear(params: ContextClipboardClearParams): Promise<ContextVoidResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    await clipboard.clear(this.clipboardOptions(params.pageId));
+    return { ok: true };
+  }
+
+  async contextClipboardPaste(params: ContextClipboardPasteParams): Promise<ContextVoidResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    const pageOptions = this.clipboardOptions(params.pageId);
+    const options =
+      pageOptions || params.shortcut !== undefined
+        ? {
+            ...pageOptions,
+            ...(params.shortcut === undefined ? {} : { shortcut: params.shortcut }),
+          }
+        : undefined;
+    await clipboard.paste(options);
+    return { ok: true };
+  }
+
+  async contextClipboardCopy(params: ContextClipboardCopyParams): Promise<ContextVoidResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    await clipboard.copy(this.clipboardOptions(params.pageId));
+    return { ok: true };
+  }
+
+  async contextClipboardCut(params: ContextClipboardCutParams): Promise<ContextVoidResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    await clipboard.cut(this.clipboardOptions(params.pageId));
+    return { ok: true };
   }
 
   async pageGoto(params: PageGotoParams): Promise<PageRef> {
@@ -552,6 +707,10 @@ export class StagehandRuntime {
     return params.nth === undefined ? locator : locator.nth(params.nth);
   }
 
+  clipboardOptions(pageId?: string): UnderstudyRuntimeClipboardOptions | undefined {
+    return pageId === undefined ? undefined : { page: this.resolvePage(pageId) };
+  }
+
   refreshPageRegistry(pages: UnderstudyRuntimePage[]): void {
     const currentPageIds = new Set<string>();
 
@@ -589,4 +748,22 @@ function pageRefFromUnderstudyPage(page: UnderstudyRuntimePage): PageRef {
     pageId: page.targetId(),
     url: page.url(),
   };
+}
+
+function hydrateClearCookieOptions(
+  options: ContextClearCookiesParams["options"],
+): UnderstudyRuntimeClearCookieOptions | undefined {
+  if (options === undefined) return undefined;
+  return {
+    ...(options.name === undefined ? {} : { name: hydrateCookieFilter(options.name) }),
+    ...(options.domain === undefined ? {} : { domain: hydrateCookieFilter(options.domain) }),
+    ...(options.path === undefined ? {} : { path: hydrateCookieFilter(options.path) }),
+  };
+}
+
+function hydrateCookieFilter(
+  filter: Exclude<NonNullable<ContextClearCookiesParams["options"]>["name"], undefined>,
+): string | RegExp {
+  if (typeof filter === "string") return filter;
+  return new RegExp(filter.source, filter.flags);
 }

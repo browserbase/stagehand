@@ -144,6 +144,86 @@ export class RPCRouter {
           parseParams(StagehandMethods.contextNewPage, request.params),
           context,
         );
+      case "context.active_page":
+        return this.contextController.activePage(
+          parseParams(StagehandMethods.contextActivePage, request.params),
+          context,
+        );
+      case "context.set_active_page":
+        return this.contextController.setActivePage(
+          parseParams(StagehandMethods.contextSetActivePage, request.params),
+          context,
+        );
+      case "context.close":
+        return this.contextController.close(
+          parseParams(StagehandMethods.contextClose, request.params),
+          context,
+        );
+      case "context.add_init_script":
+        return this.contextController.addInitScript(
+          parseParams(StagehandMethods.contextAddInitScript, request.params),
+          context,
+        );
+      case "context.set_extra_http_headers":
+        return this.contextController.setExtraHTTPHeaders(
+          parseParams(StagehandMethods.contextSetExtraHTTPHeaders, request.params),
+          context,
+        );
+      case "context.get_domain_policy":
+        return this.contextController.getDomainPolicy(
+          parseParams(StagehandMethods.contextGetDomainPolicy, request.params),
+          context,
+        );
+      case "context.set_domain_policy":
+        return this.contextController.setDomainPolicy(
+          parseParams(StagehandMethods.contextSetDomainPolicy, request.params),
+          context,
+        );
+      case "context.cookies":
+        return this.contextController.cookies(
+          parseParams(StagehandMethods.contextCookies, request.params),
+          context,
+        );
+      case "context.add_cookies":
+        return this.contextController.addCookies(
+          parseParams(StagehandMethods.contextAddCookies, request.params),
+          context,
+        );
+      case "context.clear_cookies":
+        return this.contextController.clearCookies(
+          parseParams(StagehandMethods.contextClearCookies, request.params),
+          context,
+        );
+      case "context.clipboard_read_text":
+        return this.contextController.clipboardReadText(
+          parseParams(StagehandMethods.contextClipboardReadText, request.params),
+          context,
+        );
+      case "context.clipboard_write_text":
+        return this.contextController.clipboardWriteText(
+          parseParams(StagehandMethods.contextClipboardWriteText, request.params),
+          context,
+        );
+      case "context.clipboard_clear":
+        return this.contextController.clipboardClear(
+          parseParams(StagehandMethods.contextClipboardClear, request.params),
+          context,
+        );
+      case "context.clipboard_paste":
+        return this.contextController.clipboardPaste(
+          parseParams(StagehandMethods.contextClipboardPaste, request.params),
+          context,
+        );
+      case "context.clipboard_copy":
+        return this.contextController.clipboardCopy(
+          parseParams(StagehandMethods.contextClipboardCopy, request.params),
+          context,
+        );
+      case "context.clipboard_cut":
+        return this.contextController.clipboardCut(
+          parseParams(StagehandMethods.contextClipboardCut, request.params),
+          context,
+        );
       case "page.goto":
         return this.pageController.goto(
           parseParams(StagehandMethods.pageGoto, request.params),

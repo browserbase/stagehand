@@ -53,6 +53,23 @@ describe("client LLM generation", () => {
         connected: true,
         getVersion: async () => ({}),
         pages: () => [],
+        activePage: () => undefined,
+        setActivePage: () => {},
+        addInitScript: async () => {},
+        setExtraHTTPHeaders: async () => {},
+        getDomainPolicy: () => null,
+        setDomainPolicy: async () => {},
+        cookies: async () => [],
+        addCookies: async () => {},
+        clearCookies: async () => {},
+        clipboard: {
+          readText: async () => "",
+          writeText: async () => {},
+          clear: async () => {},
+          paste: async () => {},
+          copy: async () => {},
+          cut: async () => {},
+        },
         newPage: async () => {
           throw new Error("Not used by this test");
         },
