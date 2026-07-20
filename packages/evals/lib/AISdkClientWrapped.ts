@@ -21,24 +21,27 @@ import {
   toJsonSchema,
 } from "@browserbasehq/stagehand";
 
-type WrappedAI = ReturnType<(typeof import("braintrust"))["wrapAISDK"]>;
+type WrappedAI = Pick<
+  typeof ai,
+  "generateText" | "generateObject" | "streamText" | "streamObject"
+>;
 
 let wrappedAiPromise: Promise<WrappedAI> | undefined;
 
 async function loadWrappedAISDK(): Promise<WrappedAI> {
   wrappedAiPromise ??= (async () => {
     if (!process.env.BRAINTRUST_API_KEY) {
-      return ai as unknown as WrappedAI;
+      return ai;
     }
     const { wrapAISDK } = await import("braintrust");
-    return wrapAISDK(ai);
+    return wrapAISDK(ai) as WrappedAI;
   })();
   return wrappedAiPromise;
 }
 
 async function loadAISDK(): Promise<WrappedAI> {
   if (process.env.EVAL_TRACE_TRANSPORT === "otel") {
-    return ai as unknown as WrappedAI;
+    return ai;
   }
   return loadWrappedAISDK();
 }
