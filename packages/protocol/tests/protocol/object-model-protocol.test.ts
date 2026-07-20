@@ -144,6 +144,49 @@ describe("Stagehand object-model protocol", () => {
     ).toThrow();
   });
 
+  it("defines observation with an explicit page and optional instruction", () => {
+    expect(
+      StagehandMethods.stagehandObserve.params.parse({
+        pageId: "target-1",
+        instruction: "Find the submit button",
+        options: {
+          selector: "main",
+          locator: { css: "main" },
+          variables: {
+            accountEmail: {
+              value: "user@example.com",
+              description: "The account email",
+            },
+          },
+        },
+      }),
+    ).toStrictEqual({
+      pageId: "target-1",
+      instruction: "Find the submit button",
+      options: {
+        selector: "main",
+        locator: { css: "main" },
+        variables: {
+          accountEmail: {
+            value: "user@example.com",
+            description: "The account email",
+          },
+        },
+      },
+    });
+    expect(StagehandMethods.stagehandObserve.params.parse({ pageId: "target-1" })).toStrictEqual({
+      pageId: "target-1",
+    });
+  });
+
+  it("rejects observation without a page identity", () => {
+    expect(() =>
+      StagehandMethods.stagehandObserve.params.parse({
+        instruction: "Find the submit button",
+      }),
+    ).toThrow();
+  });
+
   it("requires page ids for page methods", () => {
     expect(() =>
       StagehandMethods.pageGoto.params.parse({

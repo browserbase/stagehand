@@ -697,6 +697,68 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("routes page.observe with the page identity and options", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.stagehandObserve, {
+      result: [
+        {
+          selector: "xpath=/html/body/button",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        },
+      ],
+    });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(
+      page.observe("Find the submit button", {
+        selector: "main",
+        locator: { css: "main" },
+        variables: {
+          accountEmail: {
+            value: "user@example.com",
+            description: "The account email",
+          },
+        },
+      }),
+    ).resolves.toStrictEqual([
+      {
+        selector: "xpath=/html/body/button",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      },
+    ]);
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.stagehandObserve, {
+        pageId: "page-1",
+        instruction: "Find the submit button",
+        options: {
+          selector: "main",
+          locator: { css: "main" },
+          variables: {
+            accountEmail: {
+              value: "user@example.com",
+              description: "The account email",
+            },
+          },
+        },
+      }),
+    ]);
+  });
+
+  it("supports page.observe without an instruction", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.stagehandObserve, { result: [] });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(page.observe()).resolves.toStrictEqual([]);
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.stagehandObserve, { pageId: "page-1" }),
+    ]);
+  });
+
   it("sends the caller's Zod schema as JSON Schema when extracting", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {

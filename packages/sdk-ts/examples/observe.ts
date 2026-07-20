@@ -1,5 +1,4 @@
 import "dotenv/config";
-import { z } from "zod/v4";
 import { Stagehand } from "../src/index.js";
 
 const stagehand = new Stagehand({
@@ -19,15 +18,16 @@ try {
   const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
   await page.goto("https://example.com");
 
-  const pageInfo = await page.extract(
-    "Extract the page heading and description",
-    z.object({
-      heading: z.string(),
-      description: z.string(),
-    }),
+  const actions = await page.observe(
+    "Find the link that provides more information about Example Domain",
   );
 
-  void pageInfo;
+  // oxlint-disable-next-line no-console -- This example intentionally displays the SDK result.
+  console.log(JSON.stringify(actions, null, 2));
+
+  if (actions.length === 0) {
+    throw new Error("observe() returned no matching actions");
+  }
 } finally {
   await stagehand.close();
 }

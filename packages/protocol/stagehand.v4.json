@@ -264,6 +264,10 @@
                 "params": {
                   "type": "object",
                   "properties": {
+                    "page_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "instruction": {
                       "type": "string"
                     },
@@ -271,6 +275,7 @@
                       "$ref": "#/$defs/ObserveOptions"
                     }
                   },
+                  "required": ["page_id"],
                   "additionalProperties": false
                 },
                 "traceparent": {
@@ -6672,6 +6677,10 @@
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "type": "object",
               "properties": {
+                "page_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "instruction": {
                   "type": "string"
                 },
@@ -6679,6 +6688,7 @@
                   "$ref": "#/$defs/ObserveOptions"
                 }
               },
+              "required": ["page_id"],
               "additionalProperties": false,
               "$defs": {
                 "ObserveOptions": {

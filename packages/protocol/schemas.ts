@@ -1301,6 +1301,7 @@ export const StagehandActParamsSchema = z
 
 export const StagehandObserveParamsSchema = z
   .object({
+    pageId: z.string().min(1),
     instruction: z.string().optional(),
     options: ObserveOptionsSchema,
   })

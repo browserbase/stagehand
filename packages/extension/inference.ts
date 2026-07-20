@@ -1,5 +1,10 @@
 import { z } from "zod/v4";
-import type { LLMGenerateParams, LLMGenerateResult, LLMUsage } from "../protocol/types.js";
+import type {
+  LLMGenerateParams,
+  LLMGenerateResult,
+  LLMUsage,
+  Variables,
+} from "../protocol/types.js";
 import type { LLMClient } from "./llm/LLMClient.js";
 import type { StagehandLogger } from "./logger.js";
 import {
@@ -7,7 +12,10 @@ import {
   buildExtractUserPrompt,
   buildMetadataPrompt,
   buildMetadataSystemPrompt,
+  buildObserveSystemPrompt,
+  buildObserveUserMessage,
 } from "./prompt.js";
+import { SupportedUnderstudyAction } from "./types/private/handlers.js";
 
 type GenerateLlm = (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
 
@@ -22,9 +30,35 @@ const ExtractMetadataSchema = z.object({
     ),
 });
 
+const ObservationSchema = z
+  .object({
+    elements: z.array(
+      z
+        .object({
+          elementId: z
+            .string()
+            .regex(/^\d+-\d+$/)
+            .describe(
+              "The complete frame ordinal and backend node ID copied from the accessibility tree, without square brackets.",
+            ),
+          description: z
+            .string()
+            .describe("A description of the accessible element and its purpose."),
+          method: z
+            .enum(SupportedUnderstudyAction)
+            .describe("The supported browser interaction method for this element."),
+          arguments: z
+            .array(z.string())
+            .describe("The arguments to pass to the selected interaction method."),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
 function promptText(prompt: { content: unknown }): string {
   if (typeof prompt.content !== "string") {
-    throw new TypeError("Extract prompts must contain text until screenshot extraction is added");
+    throw new TypeError("Structured LLM prompts must contain text");
   }
   return prompt.content;
 }
@@ -118,25 +152,45 @@ export async function extract<T extends z.ZodObject>(params: {
   };
 }
 
-export async function observe(
-  _params: LlmInferenceParams & {
-    supportedActions?: string[];
-    variables?: Record<string, unknown>;
-  },
-): Promise<{
-  elements: Array<{
-    elementId?: string;
-    description: string;
-    method?: string;
-    arguments?: string[];
-  }>;
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  reasoning_tokens?: number;
-  cached_input_tokens?: number;
-  inference_time_ms?: number;
+export async function observe(params: {
+  instruction: string;
+  domElements: string;
+  generate: GenerateLlm;
+  userProvidedInstructions?: string;
+  supportedActions?: string[];
+  variables?: Variables;
+}): Promise<{
+  elements: z.output<typeof ObservationSchema>["elements"];
+  prompt_tokens: number;
+  completion_tokens: number;
+  reasoning_tokens: number;
+  cached_input_tokens: number;
+  inference_time_ms: number;
 }> {
-  return inferenceNotPorted("observe");
+  const {
+    instruction,
+    domElements,
+    generate,
+    userProvidedInstructions,
+    supportedActions,
+    variables,
+  } = params;
+  const observation = await generateStructured(
+    generate,
+    "Observation",
+    ObservationSchema,
+    promptText(buildObserveSystemPrompt(userProvidedInstructions, supportedActions, variables)),
+    promptText(buildObserveUserMessage(instruction, domElements)),
+  );
+
+  return {
+    elements: observation.data.elements,
+    prompt_tokens: observation.usage?.inputTokens ?? 0,
+    completion_tokens: observation.usage?.outputTokens ?? 0,
+    reasoning_tokens: observation.usage?.reasoningTokens ?? 0,
+    cached_input_tokens: observation.usage?.cachedInputTokens ?? 0,
+    inference_time_ms: observation.durationMs,
+  };
 }
 
 export async function act(_params: LlmInferenceParams): Promise<{

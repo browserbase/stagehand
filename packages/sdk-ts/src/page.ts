@@ -15,7 +15,9 @@ import type {
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
   PageSnapshotOptions,
+  Action,
   StagehandExtractParams,
+  StagehandObserveParams,
   SnapshotResult,
   PageTypeParams,
   PageWaitForLoadStateParams,
@@ -265,6 +267,19 @@ export class Page {
 
   async close(): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageClose, { pageId: this.pageId });
+  }
+
+  async observe(
+    instruction?: string,
+    options?: StagehandObserveParams["options"],
+  ): Promise<Action[]> {
+    const response = await this.rpcClient.send(StagehandMethods.stagehandObserve, {
+      pageId: this.pageId,
+      ...(instruction === undefined ? {} : { instruction }),
+      ...(options === undefined ? {} : { options }),
+    });
+
+    return response.result;
   }
 
   async extract<Schema extends z.ZodType>(

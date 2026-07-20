@@ -11,17 +11,6 @@ export interface ActHandlerParams {
   logger: StagehandLogger;
 }
 
-export interface ObserveHandlerParams {
-  instruction?: string;
-  model?: ModelConfig;
-  variables?: Variables;
-  timeout?: number;
-  selector?: string;
-  ignoreSelectors?: string[];
-  page: Page;
-  logger: StagehandLogger;
-}
-
 // We can use this enum to list the actions supported in performUnderstudyMethod
 export enum SupportedUnderstudyAction {
   CLICK = "click",

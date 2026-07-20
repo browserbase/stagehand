@@ -46,6 +46,39 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
             };
           }
 
+          if (params.responseFormat.name === "Observation") {
+            const promptText = params.messages
+              .flatMap((message) =>
+                Array.isArray(message.content) ? message.content : [message.content],
+              )
+              .filter((content) => content.type === "text")
+              .map((content) => content.text)
+              .join("\n");
+            const submitLine = promptText
+              .split("\n")
+              .find((line) => line.includes("Submit") && line.includes("["));
+            const elementId = submitLine?.match(/\[(\d+-\d+)\]/)?.[1];
+            if (!elementId) {
+              throw new Error("The smoke observation prompt did not contain the Submit button ID");
+            }
+
+            return {
+              role: "assistant",
+              content: { type: "text", text: "structured observation" },
+              outputFormat: "json_schema",
+              structuredContent: {
+                elements: [
+                  {
+                    elementId,
+                    description: "Submit button",
+                    method: "click",
+                    arguments: [],
+                  },
+                ],
+              },
+            };
+          }
+
           return {
             role: "assistant",
             content: { type: "text", text: "structured extraction" },
@@ -195,6 +228,24 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await expect(
       page.extract("Extract the page heading", z.object({ heading: z.string() })),
     ).resolves.toStrictEqual({ heading: "Stagehand SDK Smoke" });
+  });
+
+  it("observes actionable elements on a real page through the connected SDK", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const page =
+      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+    await page.goto(activeFixtureServer.url);
+
+    const actions = await page.observe("Find the Submit button");
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      selector: expect.stringMatching(/^xpath=/),
+      description: "Submit button",
+      method: "click",
+      arguments: [],
+    });
   });
 
   it("selects and reads the active context page", async () => {
