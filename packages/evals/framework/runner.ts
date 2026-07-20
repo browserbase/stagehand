@@ -271,6 +271,58 @@ export interface RunEvalsResult {
   }>;
 }
 
+/**
+ * Upper bound on the JSON size of a span payload. Measured against the live
+ * LangSmith OTLP endpoint: 300KB/700KB/1MB/3MB payloads all round-trip intact
+ * (it offloads large values to S3), and real agent runs land around 600KB. 2MB
+ * keeps ~3x headroom over observed runs while staying under the proven ceiling
+ * — a single oversized span can fail its whole OTLP export batch and silently
+ * take every other span in that batch with it.
+ */
+const MAX_SPAN_PAYLOAD_BYTES = 2_000_000;
+
+/**
+ * Keep `value` whole when it serializes small enough. Otherwise progressively
+ * drop the oldest `logs` entries (the only unbounded field) until it fits, so a
+ * huge run still yields a useful tail rather than nothing, and record what was
+ * dropped. `.trajectories` remains the complete record either way.
+ */
+function capForSpan(value: Record<string, unknown>): Record<string, unknown> {
+  const sizeOf = (v: unknown): number | undefined => {
+    try {
+      return JSON.stringify(v)?.length;
+    } catch {
+      return undefined;
+    }
+  };
+  const size = sizeOf(value);
+  if (size === undefined) return { _truncated: "payload not serializable" };
+  if (size <= MAX_SPAN_PAYLOAD_BYTES) return value;
+
+  const logs = value.logs;
+  if (!Array.isArray(logs)) {
+    const rest = { ...value };
+    delete rest.logs;
+    return {
+      ...rest,
+      _truncated: `payload ${size}B exceeded cap; logs omitted`,
+    };
+  }
+
+  // Halve the retained tail until the payload fits (or nothing is left).
+  let kept = logs;
+  while (kept.length > 0) {
+    kept = kept.slice(Math.ceil(kept.length / 2));
+    const probe = sizeOf({ ...value, logs: kept });
+    if (probe !== undefined && probe <= MAX_SPAN_PAYLOAD_BYTES) break;
+  }
+  return {
+    ...value,
+    logs: kept,
+    _truncated: `kept the last ${kept.length} of ${logs.length} log entries: full payload was ${size}B (cap ${MAX_SPAN_PAYLOAD_BYTES}B) — see .trajectories for the complete record`,
+  };
+}
+
 function formatProgressError(error: unknown): string | undefined {
   if (error === undefined || error === null) return undefined;
   if (typeof error === "string") return error;
@@ -344,6 +396,18 @@ export async function runEvals(
       toolSurface: effectiveCoreToolSurface,
       startupProfile: effectiveCoreStartupProfile,
     });
+
+    // LangSmith addresses threads by URL path segment (/v2/threads/<id>/...),
+    // and its gateway rejects percent-encoded slashes with a 403 HTML page —
+    // which the browser reports as a CORS preflight failure, breaking the whole
+    // thread/peek view. Experiment names contain "/" (e.g. "agent/onlineMind2Web"),
+    // so the id must be sanitized to a path-safe form. The timestamp suffix scopes
+    // the thread to this invocation, so one eval run groups as one thread instead
+    // of every run of the same eval piling into a single thread forever.
+    const traceThreadId = `${experimentName.replace(
+      /[^A-Za-z0-9._-]+/g,
+      "__",
+    )}-${Date.now().toString(36)}`;
 
     const scores = hasCoreOnly
       ? [passRate, errorMatch]
@@ -420,7 +484,59 @@ export async function runEvals(
           modelName: input.modelName,
         });
 
-        const result = await executeTask(input, resolvedTask, options);
+        // Task-root span for the OTEL transport only: it gives LangSmith a
+        // per-task trace root (agent/verifier spans nest beneath) and carries
+        // the thread_id that groups one eval run in the Threads view. Gated
+        // off in native mode so the Braintrust span tree stays byte-identical.
+        const result =
+          traceTransport === "otel"
+            ? await tracedSpan(
+                async (span) => {
+                  const taskResult = await executeTask(
+                    input,
+                    resolvedTask,
+                    options,
+                  );
+                  // Mirror the whole TaskResult onto the root span so the
+                  // trace carries the agent's trajectory. Braintrust gets this
+                  // for free: its Eval() framework hands the TaskResult to the
+                  // scorers, so the logs show up in the scorer spans (~400KB).
+                  // OTEL has no equivalent, so we attach it explicitly here.
+                  // `logs` is the Stagehand logger output — i.e. what the
+                  // agent actually did — and is already screenshot-redacted by
+                  // EvalLogger. Capped so a pathological run can't blow up the
+                  // OTLP payload.
+                  span?.log({
+                    output: capForSpan({
+                      _success: taskResult._success,
+                      ...(taskResult.error !== undefined && {
+                        error: taskResult.error,
+                      }),
+                      ...(taskResult.metrics !== undefined && {
+                        metrics: taskResult.metrics,
+                      }),
+                      ...(taskResult.logs !== undefined && {
+                        logs: taskResult.logs,
+                      }),
+                    }),
+                    metadata: {
+                      experiment_name: experimentName,
+                      thread_id: traceThreadId,
+                      model: input.modelName,
+                      task: input.name,
+                    },
+                  });
+                  return taskResult;
+                },
+                {
+                  name: input.name,
+                  type: "task",
+                  event: {
+                    input: { task: input.name, model: input.modelName },
+                  },
+                },
+              )
+            : await executeTask(input, resolvedTask, options);
 
         options.onProgress?.({
           type: result._success ? "passed" : "failed",
