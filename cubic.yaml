@@ -4,8 +4,8 @@ version: 1
 
 reviews:
   custom_rules:
-    - name: Docs style guide
-      description: Enforce docs writing, terminology, tagline, structure, SEO, and product-description rules. Treat violations as blocking bugs on docs and Markdown changes.
+    - name: Stagehand docs prose guide
+      description: Enforce prose style, voice, clarity, and structure for changed Stagehand documentation.
       file_paths:
         - .cubic/docs-style-guide.md
       include:

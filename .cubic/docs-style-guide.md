@@ -1,73 +1,64 @@
-# Docs style guide
+# Stagehand docs prose guide
 
-Severity: blocking. Every rule in this file is mandatory. Flag violations as bugs, not suggestions. Do not approve a PR that violates any of these rules.
+Severity: blocking. Every rule in this file is mandatory for prose added or modified by the PR. Flag violations as bugs, not suggestions. Do not block a focused PR for untouched legacy violations.
 
-Apply these rules to public-facing documentation, docs navigation, README content, changelog prose, examples, and product copy.
+Apply these rules only to public-facing prose under `packages/docs/**`, including frontmatter descriptions, headings, navigation labels, paragraphs, tables, callouts, and authored code comments.
 
-Stagehand is a product/framework from Browserbase. The main focus of this documentation is Stagehand, NOT the Browserbase Platform.
+Do not apply prose rules to code identifiers, executable code, URLs, copied prompts, sample task strings, configuration examples, or logs. Do not request direct edits to generated SDK pages under `packages/docs/v3/sdk/`; report source-content problems against the owning SDK repository or `packages/docs/scripts/sync-sdk-docs.js`.
+
+## Scope boundary
+
+Review prose quality only. Stagehand docs are generally developer-facing, demand-capture content, but that default does not authorize this rule to make brand decisions.
+
+Apply the narrow Stagehand positioning rules below. Other messaging decisions, claims, proof points, competitor references, restricted use cases, and sensitive terminology require a dedicated positioning-copy review that fetches the live Browserbase Messaging House. Do not treat frozen examples or remembered rules as the source of truth.
+
+If a PR materially adds or changes a hero, tagline, product description, quantitative claim, customer proof point, competitor reference, or sensitive access terminology, leave one concise review-level note requesting live positioning review. Do not issue multiple inline comments, invent replacement messaging, or block the PR under this prose rule.
+
+## Stagehand positioning
+
+- Position Stagehand as Browserbase's SDK and AI browser driver for building browser agents. Do not position it as a general-purpose agent platform or as a browser automation framework.
+- Keep the browser at the center. Explain how Stagehand combines deterministic code and AI-powered browser primitives instead of making broad claims about agent intelligence.
+- Treat `act()`, `extract()`, `observe()`, and `agent()` as Stagehand primitives. Describe the user outcome before listing primitives or implementation details.
+- Keep Stagehand distinct from Browserbase Agents. Stagehand is the SDK and browser driver; Agents is Browserbase's managed API product. Do not use the names interchangeably.
+- Position computer use as one Stagehand capability, not Stagehand's identity.
+- Connect top-level positioning to the Browserbase narrative that the web was not built for agents, but Browserbase is. Keep Stagehand copy focused on the developer's browser-agent workflow rather than the entire Browserbase platform.
+- Lead with one primary idea per page or section. Do not compress every Browserbase product pillar into Stagehand copy.
+- Do not lead Stagehand positioning with Search, Fetch, or other supporting Browserbase products.
+- Do not use commodity-infrastructure metaphors such as pipes, roads, or raw compute. Explain the browser outcome directly.
+- Do not recommend Director in new or modified copy. Director is sunset.
 
 ## Writing style
 
-Flag every violation, even minor ones.
-
-- Brevity is mandatory. Every sentence must earn its place. Cut filler words: "just," "simply," "basically," "actually," "in order to," and "it should be noted that." If a sentence can be shorter without losing meaning, it must be.
-- Use sentence case for all titles and headings. Only capitalize the first word and proper nouns.
+- Brevity is mandatory. Every sentence must earn its place. Cut filler words such as "just," "simply," "basically," "actually," "in order to," and "it should be noted that." If a sentence can be shorter without losing meaning, shorten it.
+- Use sentence case in frontmatter `title` and `sidebarTitle` fields, Markdown headings, navigation groups, cards, tabs, accordions, and callout titles. Preserve the official casing of products, APIs, model names, and code identifiers.
 - Use a conversational tone, not a casual one. Text should sound natural if spoken aloud. Contractions are encouraged. Do not use slang or filler phrases like "let's dive in" or "as you can see."
-- Use active voice only. Flag passive voice. For example, replace "the session is created" with "Browserbase creates the session" or "you create the session."
-- Use second person ("you") for the reader. Always address the reader as "you," never as "we." Flag any use of "we" to mean the reader.
-- Require the Oxford comma. Always use a comma before "and" or "or" in a list of three or more items. Flag missing Oxford commas.
-- Do not use em dashes. Replace them with commas, colons, parentheses, or shorter sentences.
-- Capitalize product names, including Browserbase, Stagehand, Playwright, Functions, Search, and Identity. Default to lowercase for everything else. Flag inconsistent capitalization.
-- Never use "we," "us," or "our" for Browserbase. Always refer to the company by name. This applies to first-person plural in any form: subject ("we"), object ("us"), possessive ("our"), and contractions ("we're," "we've," "we'll"). Flag every instance.
-- Exception: direct quotes from customers or team members in case studies may use first-person plural.
+- Use active voice. For example, replace "the session is created" with "Browserbase creates the session" or "you create the session."
+- Address the reader as "you," not "we."
+- Require the Oxford comma before "and" or "or" in a list of three or more items.
+- Do not use em dashes in prose, frontmatter, tables, or authored code comments. Use a period, colon, comma, parentheses, or a shorter sentence.
+- Capitalize proper nouns and official product names consistently, including Browserbase, Stagehand, and Playwright. Default to lowercase for generic terms.
+- Never use "we," "us," or "our" for Browserbase. Write "Browserbase recommends" or "Browserbase provides." Direct quotes from customers or team members may use first-person plural.
 
-## Tagline
+## Voice
 
-- Current tagline: "Agents can now browse and interact with the web like humans."
-- Deprecated tagline: "Autonomously read, write, and perform tasks on the web with a headless browser." Flag this if you see it.
+- Lead with the outcome or main information, then add details.
+- Prefer explicit language over clever phrasing. Write like an engineer stating a fact, not a keynote speaker.
+- Remove hollow introductions such as "in today's fast-paced world."
+- Avoid artificial rule-of-three padding and constructions such as "it's not just X, it's Y."
+- Describe documented behavior and outcomes precisely. Do not imply reliability, autonomy, intelligence, or certainty beyond what the documented feature supports.
+- For MCP and integration descriptions, lead with what the reader can do rather than broad company positioning.
 
 ## Structure and formatting
 
-- Make content easy to skim. Use bullet points, break up text, and include images, videos, or tables where helpful.
-- Headlines should outline a clear structure and make sense on their own.
-- Lead with the main information. Get to the point fast, then add details. Front-load keywords for scanning.
-- Make customer choices and next steps obvious.
+- Make content easy to skim. Use short sections, bullets, images, videos, or tables when they materially improve comprehension.
+- Headings should outline a clear structure and make sense on their own.
+- Front-load keywords for scanning.
+- Make user choices and next steps obvious.
 
-## Code examples
+## Review comments
 
-- Default to SDK code examples over raw API calls whenever possible.
-- Highlight the pieces that change and link to related docs.
-
-## SEO
-
-- Write with new users, search terms, and AI consumption in mind.
-
-## Terminology
-
-Use these terms consistently:
-
-| Use this                             | Not this                          |
-| ------------------------------------ | --------------------------------- |
-| browser agent                        | web agent                         |
-| agents                               | AI, in most external copy         |
-| headless browsers                    | serverless browsers               |
-| agent identity                       | stealth                           |
-| SDK for browser agents (Stagehand)   | browser automation framework      |
-| agents                               | agentic workflows                 |
-| browser agent platform (Browserbase) | browser automation infrastructure |
-
-- Do not reference automation or scraping in public-facing positioning.
-- Do not reference competitors by name in public-facing docs.
-
-## Product descriptions
-
-Use these canonical descriptions when referring to Browserbase products:
-
-- Browserbase: the complete platform to build and deploy agents that browse and interact with the web like humans.
-- Browsers: programmatic access to fleets of headless browsers with globally distributed infrastructure, isolated sessions, and built-in observability.
-- Stagehand: the SDK for browser agents, combining Playwright-level control with AI primitives (act, extract, observe).
-- Agent Identity: strategic partnerships and secure credential management that get agents past anti-bot systems, CAPTCHAs, and authentication walls.
-- Functions: deploy and run agents on Browserbase with sub-5ms latency to the browser, zero infrastructure.
-- Fetch and Search APIs: quick, token-efficient web context for agents. Treat these as supporting primitives, not headline products.
-- Model Gateway: access to major models via a single Browserbase API key with unified billing.
-- Browse CLI: lightweight entry point for giving agents browsing capabilities without writing integration code.
+- Comment only on an actionable prose violation introduced or modified by the PR.
+- Quote the exact text, name the rule it violates, and provide a concrete rewrite.
+- Lead with the most important issue. Do not invent minor nits when the prose already satisfies the guide.
+- Keep comments concise and decisive. Do not hedge with phrases such as "you might consider."
+- If no actionable prose violation exists, approve the prose without manufacturing feedback.
