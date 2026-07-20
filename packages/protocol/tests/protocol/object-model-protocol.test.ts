@@ -87,6 +87,63 @@ describe("Stagehand object-model protocol", () => {
     ).toThrow();
   });
 
+  it("defines extraction with a page, instruction, JSON Schema, and optional call settings", () => {
+    const params = StagehandMethods.stagehandExtract.params.parse({
+      pageId: "target-1",
+      instruction: "Extract the page heading",
+      schema: {
+        type: "object",
+        properties: { heading: { type: "string" } },
+        required: ["heading"],
+        additionalProperties: false,
+      },
+      options: {
+        selector: "main",
+        model: {
+          modelName: "anthropic/claude-sonnet-4-6",
+          apiKey: "test-key",
+        },
+      },
+    });
+
+    expect(params).toMatchObject({
+      pageId: "target-1",
+      instruction: "Extract the page heading",
+      schema: {
+        type: "object",
+        properties: { heading: { type: "string" } },
+      },
+      options: {
+        selector: "main",
+        model: {
+          modelName: "anthropic/claude-sonnet-4-6",
+          apiKey: "test-key",
+        },
+      },
+    });
+  });
+
+  it("rejects extraction without a page, instruction, or schema", () => {
+    expect(() =>
+      StagehandMethods.stagehandExtract.params.parse({
+        instruction: "Extract the page heading",
+        schema: { type: "object" },
+      }),
+    ).toThrow();
+    expect(() =>
+      StagehandMethods.stagehandExtract.params.parse({
+        pageId: "target-1",
+        schema: { type: "object" },
+      }),
+    ).toThrow();
+    expect(() =>
+      StagehandMethods.stagehandExtract.params.parse({
+        pageId: "target-1",
+        instruction: "Extract the page heading",
+      }),
+    ).toThrow();
+  });
+
   it("requires page ids for page methods", () => {
     expect(() =>
       StagehandMethods.pageGoto.params.parse({

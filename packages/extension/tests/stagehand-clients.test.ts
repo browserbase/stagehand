@@ -387,6 +387,14 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return this.currentTitle;
   }
 
+  async captureSnapshot() {
+    return {
+      combinedTree: `[0-1] heading: ${this.currentTitle || "Example Domain"}`,
+      combinedXpathMap: { "0-1": "/html/body/h1" },
+      combinedUrlMap: {},
+    };
+  }
+
   close(): void {
     this.closed = true;
   }

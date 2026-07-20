@@ -1,13 +1,28 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createCerebras } from "@ai-sdk/cerebras";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
+import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, Output } from "ai";
 import type { LanguageModel, ModelMessage } from "ai";
 import { z } from "zod/v4";
 import {
+  AnthropicModelIdSchema,
+  CerebrasModelIdSchema,
   createLLMGenerateResultSchema,
+  GoogleModelIdSchema,
+  GroqModelIdSchema,
   LLMGenerateParamsSchema,
   LLMMessageSchema,
   LLMGenerateResultSchema,
+  ModelProviderSchema,
+  OpenAIModelIdSchema,
 } from "../../protocol/schemas.js";
-import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+import type {
+  KnownModelConfig,
+  LLMGenerateParams,
+  LLMGenerateResult,
+} from "../../protocol/types.js";
 
 const AiSdkMessagesSchema = z.array(LLMMessageSchema).transform((messages): ModelMessage[] => {
   const toolNames = new Map<string, string>();
@@ -112,12 +127,37 @@ const AiSdkGenerationSchema = z
   })
   .strip();
 
+/** Creates a direct AI SDK model from a validated Stagehand model configuration. */
+export function createAiSdkLanguageModel(config: KnownModelConfig): LanguageModel {
+  const separator = config.modelName.indexOf("/");
+  const provider = ModelProviderSchema.parse(config.modelName.slice(0, separator));
+  const modelId = config.modelName.slice(separator + 1);
+  const connection = {
+    apiKey: config.apiKey,
+    headers: config.headers,
+  };
+
+  switch (provider) {
+    case "openai":
+      return createOpenAI(connection).responses(OpenAIModelIdSchema.parse(modelId));
+    case "anthropic":
+      return createAnthropic(connection)(AnthropicModelIdSchema.parse(modelId));
+    case "google":
+      return createGoogleGenerativeAI(connection)(GoogleModelIdSchema.parse(modelId));
+    case "groq":
+      return createGroq(connection)(GroqModelIdSchema.parse(modelId));
+    case "cerebras":
+      return createCerebras(connection)(CerebrasModelIdSchema.parse(modelId));
+  }
+}
+
 /** Generates a Stagehand LLM response through a configured AI SDK language model. */
 export async function generateWithAiSdk(
   model: LanguageModel,
   input: LLMGenerateParams,
 ): Promise<LLMGenerateResult> {
   const params = LLMGenerateParamsSchema.parse(input);
+  // TODO: Forward params.tools and params.toolChoice when tool-driven inference is implemented.
   const response = await generateText({
     model,
     instructions: params.systemPrompt,

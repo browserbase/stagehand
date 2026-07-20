@@ -31,10 +31,11 @@ describe("client LLM generation", () => {
 
     await expect(
       llmService.generate(
-        { source: "client", request },
+        { source: "client" },
         {
           messages: [{ role: "user", content: { type: "text", text: "What is 2 + 2?" } }],
         },
+        request,
       ),
     ).resolves.toMatchObject({
       content: { type: "text", text: "Four" },

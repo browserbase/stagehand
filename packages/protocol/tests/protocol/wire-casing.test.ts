@@ -322,6 +322,33 @@ describe("JSON-RPC wire casing", () => {
     );
   });
 
+  it("preserves JSON Schema keys in extraction requests", () => {
+    const definition = StagehandMethods.stagehandExtract;
+    const apiValue = {
+      pageId: "page_1",
+      instruction: "Extract the heading",
+      schema: {
+        type: "object",
+        properties: { headingText: { type: "string" } },
+        additionalProperties: false,
+      },
+    };
+    const wireValue = {
+      page_id: "page_1",
+      instruction: "Extract the heading",
+      schema: {
+        type: "object",
+        properties: { headingText: { type: "string" } },
+        additionalProperties: false,
+      },
+    };
+
+    expect(encodeWireValue(apiValue, definition.paramsWire)).toStrictEqual(wireValue);
+    expect(wireSchema(definition.params, definition.paramsWire).parse(wireValue)).toStrictEqual(
+      apiValue,
+    );
+  });
+
   it("keeps every generated method and notification shape snake_case", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as Record<string, unknown>;
     const properties = asRecord(protocol.properties);

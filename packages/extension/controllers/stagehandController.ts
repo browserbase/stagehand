@@ -7,6 +7,7 @@ import type {
 } from "../../protocol/types.js";
 import type { HandlerContext } from "../rpcRouter.js";
 import type { StagehandRuntime } from "../runtime.js";
+import * as extractService from "../services/extractService.js";
 
 export function createStagehandController(runtime: StagehandRuntime) {
   async function init(params: StagehandInitParams, { logger }: HandlerContext) {
@@ -33,12 +34,27 @@ export function createStagehandController(runtime: StagehandRuntime) {
     throw new Error("Method not implemented by the smoke runtime");
   }
 
-  async function extract(
-    _params: StagehandExtractParams,
-    { logger }: HandlerContext,
-  ): Promise<never> {
+  async function extract(params: StagehandExtractParams, { logger }: HandlerContext) {
     logger.info("[stagehand] stagehand.extract", {});
-    throw new Error("Method not implemented by the smoke runtime");
+    const state = runtime.state.getState();
+    if (state.status !== "initialized") {
+      throw new Error("Stagehand must be initialized before extracting");
+    }
+
+    const model = params.options?.model ?? state.initParams.model;
+    if (!model) {
+      throw new Error("An LLM was not configured during Stagehand initialization");
+    }
+
+    return await extractService.extract({
+      params,
+      page: runtime.resolvePage(params.pageId),
+      model,
+      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+      logger,
+      systemPrompt: state.initParams.systemPrompt,
+      experimental: state.initParams.experimental,
+    });
   }
 
   async function metrics(_params: EmptyParams, { logger }: HandlerContext): Promise<never> {

@@ -1,5 +1,4 @@
 import { Page } from "../../understudy/page.js";
-import type { z } from "zod/v4";
 import type { ModelConfig, Variables } from "../../../protocol/types.js";
 import type { StagehandLogger } from "../../logger.js";
 
@@ -8,18 +7,6 @@ export interface ActHandlerParams {
   model?: ModelConfig;
   variables?: Variables;
   timeout?: number;
-  page: Page;
-  logger: StagehandLogger;
-}
-
-export interface ExtractHandlerParams<T extends z.ZodType> {
-  instruction?: string;
-  schema?: T;
-  model?: ModelConfig;
-  timeout?: number;
-  selector?: string;
-  ignoreSelectors?: string[];
-  screenshot?: boolean;
   page: Page;
   logger: StagehandLogger;
 }

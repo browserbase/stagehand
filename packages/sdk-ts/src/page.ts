@@ -1,4 +1,5 @@
 import { writeFile } from "node:fs/promises";
+import { z } from "zod/v4";
 import type {
   PageClickParams,
   PageDragAndDropParams,
@@ -14,6 +15,7 @@ import type {
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
   PageSnapshotOptions,
+  StagehandExtractParams,
   SnapshotResult,
   PageTypeParams,
   PageWaitForLoadStateParams,
@@ -263,6 +265,22 @@ export class Page {
 
   async close(): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageClose, { pageId: this.pageId });
+  }
+
+  async extract<Schema extends z.ZodType>(
+    instruction: string,
+    schema: Schema,
+    options?: StagehandExtractParams["options"],
+  ): Promise<z.output<Schema>> {
+    const jsonSchema = z.json().parse(z.toJSONSchema(schema));
+    const response = await this.rpcClient.send(StagehandMethods.stagehandExtract, {
+      pageId: this.pageId,
+      instruction,
+      schema: jsonSchema,
+      ...(options === undefined ? {} : { options }),
+    });
+
+    return schema.parse(response.result);
   }
 
   locator(selector: string): Locator {

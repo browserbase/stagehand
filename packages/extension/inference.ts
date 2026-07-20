@@ -1,8 +1,62 @@
-// Compile-only shim: copied handlers depend on these V3 inference entry points.
-// Replace this file with the real V3 inference implementation in a dedicated port slice.
-import type { z } from "zod/v4";
+import { z } from "zod/v4";
+import type { LLMGenerateParams, LLMGenerateResult, LLMUsage } from "../protocol/types.js";
 import type { LLMClient } from "./llm/LLMClient.js";
 import type { StagehandLogger } from "./logger.js";
+import {
+  buildExtractSystemPrompt,
+  buildExtractUserPrompt,
+  buildMetadataPrompt,
+  buildMetadataSystemPrompt,
+} from "./prompt.js";
+
+type GenerateLlm = (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
+
+const ExtractMetadataSchema = z.object({
+  progress: z
+    .string()
+    .describe("progress of what has been extracted so far, as concise as possible"),
+  completed: z
+    .boolean()
+    .describe(
+      "true if the goal is now accomplished. Use this conservatively, only when sure that the goal has been completed.",
+    ),
+});
+
+function promptText(prompt: { content: unknown }): string {
+  if (typeof prompt.content !== "string") {
+    throw new TypeError("Extract prompts must contain text until screenshot extraction is added");
+  }
+  return prompt.content;
+}
+
+async function generateStructured<Schema extends z.ZodType>(
+  generate: GenerateLlm,
+  name: string,
+  schema: Schema,
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<{ data: z.output<Schema>; usage?: LLMUsage; durationMs: number }> {
+  const startedAt = Date.now();
+  const response = await generate({
+    systemPrompt,
+    messages: [{ role: "user", content: { type: "text", text: userPrompt } }],
+    responseFormat: {
+      type: "json_schema",
+      name,
+      schema: z.json().parse(z.toJSONSchema(schema)),
+    },
+  });
+
+  if (response.outputFormat !== "json_schema") {
+    throw new TypeError(`${name} generation returned text instead of structured content`);
+  }
+
+  return {
+    data: schema.parse(response.structuredContent),
+    usage: response.usage,
+    durationMs: Date.now() - startedAt,
+  };
+}
 
 type LlmInferenceParams = {
   instruction: string;
@@ -19,14 +73,15 @@ function inferenceNotPorted(operation: string): never {
   );
 }
 
-export async function extract<T extends z.ZodObject>(
-  _params: LlmInferenceParams & {
-    schema: T;
-    screenshot?: Uint8Array;
-  },
-): Promise<
+export async function extract<T extends z.ZodObject>(params: {
+  instruction: string;
+  domElements: string;
+  schema: T;
+  generate: GenerateLlm;
+  userProvidedInstructions?: string;
+}): Promise<
   z.infer<T> & {
-    metadata: { completed: boolean };
+    metadata: z.infer<typeof ExtractMetadataSchema>;
     prompt_tokens: number;
     completion_tokens: number;
     reasoning_tokens: number;
@@ -34,7 +89,33 @@ export async function extract<T extends z.ZodObject>(
     inference_time_ms: number;
   }
 > {
-  return inferenceNotPorted("extract");
+  const { instruction, domElements, schema, generate, userProvidedInstructions } = params;
+  const extraction = await generateStructured(
+    generate,
+    "Extraction",
+    schema,
+    promptText(buildExtractSystemPrompt(false, userProvidedInstructions, false)),
+    promptText(buildExtractUserPrompt(instruction, domElements)),
+  );
+  const metadata = await generateStructured(
+    generate,
+    "Metadata",
+    ExtractMetadataSchema,
+    promptText(buildMetadataSystemPrompt()),
+    promptText(buildMetadataPrompt(instruction, extraction.data)),
+  );
+
+  return {
+    ...extraction.data,
+    metadata: metadata.data,
+    prompt_tokens: (extraction.usage?.inputTokens ?? 0) + (metadata.usage?.inputTokens ?? 0),
+    completion_tokens: (extraction.usage?.outputTokens ?? 0) + (metadata.usage?.outputTokens ?? 0),
+    reasoning_tokens:
+      (extraction.usage?.reasoningTokens ?? 0) + (metadata.usage?.reasoningTokens ?? 0),
+    cached_input_tokens:
+      (extraction.usage?.cachedInputTokens ?? 0) + (metadata.usage?.cachedInputTokens ?? 0),
+    inference_time_ms: extraction.durationMs + metadata.durationMs,
+  };
 }
 
 export async function observe(

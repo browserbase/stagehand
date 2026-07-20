@@ -14,6 +14,7 @@ import type {
   PageSnapshotOptions,
   SnapshotResult,
 } from "../../protocol/types.js";
+import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
@@ -1578,15 +1579,15 @@ export class Page {
       throw error;
     }
   }
+  async captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot> {
+    return await captureHybridSnapshot(this, options, this.logger);
+  }
+
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
-    const { combinedTree, combinedXpathMap, combinedUrlMap } = await captureHybridSnapshot(
-      this,
-      {
-        pierceShadow: true,
-        includeIframes: options?.includeIframes,
-      },
-      this.logger,
-    );
+    const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot({
+      pierceShadow: true,
+      includeIframes: options?.includeIframes,
+    });
 
     return {
       formattedTree: combinedTree,

@@ -1,31 +1,33 @@
-import type { LanguageModel } from "ai";
-import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+import type {
+  ClientModelReference,
+  LLMGenerateParams,
+  LLMGenerateResult,
+  ModelConfig,
+} from "../../protocol/types.js";
 import { LLMGenerateParamsSchema } from "../../protocol/schemas.js";
-import { generateWithAiSdk } from "../llm/aiSdkClient.js";
+import { createAiSdkLanguageModel, generateWithAiSdk } from "../llm/aiSdkClient.js";
 import { generateWithClientLlm, type ClientLlmRequest } from "../llm/clientLlmClient.js";
-
-type AiSdkLlmSource = {
-  source: "ai-sdk";
-  model: LanguageModel;
-};
-
-type ClientLlmSource = {
-  source: "client";
-  request: ClientLlmRequest;
-};
-
-type LlmSource = AiSdkLlmSource | ClientLlmSource;
 
 /** Generates a Stagehand LLM result using the configured local or connected client. */
 export async function generate(
-  source: LlmSource,
+  model: ModelConfig | ClientModelReference,
   input: LLMGenerateParams,
+  clientRequest: ClientLlmRequest,
 ): Promise<LLMGenerateResult> {
   const params = LLMGenerateParamsSchema.parse(input);
 
-  if (source.source === "client") {
-    return await generateWithClientLlm(source.request, params);
+  if ("source" in model) {
+    return await generateWithClientLlm(clientRequest, params);
   }
 
-  return await generateWithAiSdk(source.model, params);
+  if ("baseURL" in model) {
+    throw new Error("Custom OpenAI-compatible inference is not implemented yet");
+  }
+
+  if (!model.apiKey) {
+    // TODO: Send configurations without direct credentials through Browserbase Model Gateway.
+    throw new Error("Direct model inference requires an API key");
+  }
+
+  return await generateWithAiSdk(createAiSdkLanguageModel(model), params);
 }

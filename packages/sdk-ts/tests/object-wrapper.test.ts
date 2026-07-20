@@ -697,6 +697,39 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("sends the caller's Zod schema as JSON Schema when extracting", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.stagehandExtract, {
+      result: { heading: "Example Domain" },
+    });
+    const page = new Page(client, { pageId: "page-1" });
+    const schema = z.object({ heading: z.string() });
+
+    await expect(
+      page.extract("Extract the page heading", schema, { selector: "main" }),
+    ).resolves.toStrictEqual({ heading: "Example Domain" });
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.stagehandExtract, {
+        pageId: "page-1",
+        instruction: "Extract the page heading",
+        schema: z.json().parse(z.toJSONSchema(schema)),
+        options: { selector: "main" },
+      }),
+    ]);
+  });
+
+  it("validates extracted data with the caller's original Zod schema", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.stagehandExtract, {
+      result: { heading: 42 },
+    });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(
+      page.extract("Extract the page heading", z.object({ heading: z.string() })),
+    ).rejects.toThrow();
+  });
+
   it("creates descriptor-backed locators without sending protocol calls", () => {
     const client = new FakeProtocolClient();
     const page = new Page(client, { pageId: "page-1" });

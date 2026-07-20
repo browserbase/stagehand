@@ -302,13 +302,22 @@
                 "params": {
                   "type": "object",
                   "properties": {
+                    "page_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "instruction": {
-                      "type": "string"
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "schema": {
+                      "$ref": "#/$defs/__schema0"
                     },
                     "options": {
                       "$ref": "#/$defs/ExtractOptions"
                     }
                   },
+                  "required": ["page_id", "instruction", "schema"],
                   "additionalProperties": false
                 },
                 "traceparent": {
@@ -481,7 +490,7 @@
                                               "type": "string"
                                             },
                                             "additionalProperties": {
-                                              "$ref": "#/$defs/__schema0"
+                                              "$ref": "#/$defs/__schema1"
                                             }
                                           }
                                         },
@@ -587,7 +596,7 @@
                                               "type": "string"
                                             },
                                             "additionalProperties": {
-                                              "$ref": "#/$defs/__schema1"
+                                              "$ref": "#/$defs/__schema2"
                                             }
                                           },
                                           "is_error": {
@@ -698,7 +707,7 @@
                                                 "type": "string"
                                               },
                                               "additionalProperties": {
-                                                "$ref": "#/$defs/__schema0"
+                                                "$ref": "#/$defs/__schema1"
                                               }
                                             }
                                           },
@@ -804,7 +813,7 @@
                                                 "type": "string"
                                               },
                                               "additionalProperties": {
-                                                "$ref": "#/$defs/__schema1"
+                                                "$ref": "#/$defs/__schema2"
                                               }
                                             },
                                             "is_error": {
@@ -850,7 +859,7 @@
                               "type": "string"
                             },
                             "schema": {
-                              "$ref": "#/$defs/__schema2"
+                              "$ref": "#/$defs/__schema3"
                             }
                           },
                           "required": ["type", "name", "schema"],
@@ -971,7 +980,7 @@
                                               "type": "string"
                                             },
                                             "additionalProperties": {
-                                              "$ref": "#/$defs/__schema0"
+                                              "$ref": "#/$defs/__schema1"
                                             }
                                           }
                                         },
@@ -1077,7 +1086,7 @@
                                               "type": "string"
                                             },
                                             "additionalProperties": {
-                                              "$ref": "#/$defs/__schema1"
+                                              "$ref": "#/$defs/__schema2"
                                             }
                                           },
                                           "is_error": {
@@ -1188,7 +1197,7 @@
                                                 "type": "string"
                                               },
                                               "additionalProperties": {
-                                                "$ref": "#/$defs/__schema0"
+                                                "$ref": "#/$defs/__schema1"
                                               }
                                             }
                                           },
@@ -1294,7 +1303,7 @@
                                                 "type": "string"
                                               },
                                               "additionalProperties": {
-                                                "$ref": "#/$defs/__schema1"
+                                                "$ref": "#/$defs/__schema2"
                                               }
                                             },
                                             "is_error": {
@@ -1388,7 +1397,7 @@
                                         "type": "string"
                                       },
                                       "additionalProperties": {
-                                        "$ref": "#/$defs/__schema3"
+                                        "$ref": "#/$defs/__schema4"
                                       }
                                     }
                                   },
@@ -1433,7 +1442,7 @@
                                         "type": "string"
                                       },
                                       "additionalProperties": {
-                                        "$ref": "#/$defs/__schema3"
+                                        "$ref": "#/$defs/__schema4"
                                       }
                                     }
                                   },
@@ -4819,6 +4828,37 @@
               },
               "additionalProperties": false
             },
+            "__schema0": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  }
+                }
+              ]
+            },
             "ExtractOptions": {
               "type": "object",
               "properties": {
@@ -4859,37 +4899,6 @@
                 }
               },
               "additionalProperties": false
-            },
-            "__schema0": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/$defs/__schema0"
-                  }
-                },
-                {
-                  "type": "object",
-                  "propertyNames": {
-                    "type": "string"
-                  },
-                  "additionalProperties": {
-                    "$ref": "#/$defs/__schema0"
-                  }
-                }
-              ]
             },
             "__schema1": {
               "anyOf": [
@@ -4980,6 +4989,37 @@
                   },
                   "additionalProperties": {
                     "$ref": "#/$defs/__schema3"
+                  }
+                }
+              ]
+            },
+            "__schema4": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema4"
+                  }
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema4"
                   }
                 }
               ]
@@ -7154,15 +7194,55 @@
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "type": "object",
               "properties": {
+                "page_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "instruction": {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1
+                },
+                "schema": {
+                  "$ref": "#/$defs/__schema0"
                 },
                 "options": {
                   "$ref": "#/$defs/ExtractOptions"
                 }
               },
+              "required": ["page_id", "instruction", "schema"],
               "additionalProperties": false,
               "$defs": {
+                "__schema0": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema0"
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema0"
+                      }
+                    }
+                  ]
+                },
                 "ExtractOptions": {
                   "type": "object",
                   "properties": {

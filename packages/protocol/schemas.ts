@@ -1308,7 +1308,9 @@ export const StagehandObserveParamsSchema = z
 
 export const StagehandExtractParamsSchema = z
   .object({
-    instruction: z.string().optional(),
+    pageId: z.string().min(1),
+    instruction: z.string().min(1),
+    schema: z.json(),
     options: ExtractOptionsSchema,
   })
   .strict();

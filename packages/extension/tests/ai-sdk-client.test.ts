@@ -1,6 +1,7 @@
 import { Output, generateText } from "ai";
-import { describe, expect, it, vi } from "vite-plus/test";
-import { generateWithAiSdk } from "../llm/aiSdkClient.js";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { createAiSdkLanguageModel, generateWithAiSdk } from "../llm/aiSdkClient.js";
+import * as llmService from "../services/llmService.js";
 
 vi.mock("ai", () => ({
   generateText: vi.fn(),
@@ -8,6 +9,89 @@ vi.mock("ai", () => ({
     object: vi.fn((options: unknown) => options),
   },
 }));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("AI SDK language models", () => {
+  it.each([
+    {
+      name: "OpenAI",
+      modelName: "openai/gpt-5.4-mini" as const,
+      modelId: "gpt-5.4-mini",
+      provider: "openai.responses",
+    },
+    {
+      name: "Anthropic",
+      modelName: "anthropic/claude-sonnet-4-6" as const,
+      modelId: "claude-sonnet-4-6",
+      provider: "anthropic.messages",
+    },
+    {
+      name: "Google",
+      modelName: "google/gemini-3-flash-preview" as const,
+      modelId: "gemini-3-flash-preview",
+      provider: "google.generative-ai",
+    },
+    {
+      name: "Groq",
+      modelName: "groq/openai/gpt-oss-120b" as const,
+      modelId: "openai/gpt-oss-120b",
+      provider: "groq.chat",
+    },
+    {
+      name: "Cerebras",
+      modelName: "cerebras/gpt-oss-120b" as const,
+      modelId: "gpt-oss-120b",
+      provider: "cerebras.chat",
+    },
+  ])("creates a direct $name model from its validated configuration", (testCase) => {
+    const model = createAiSdkLanguageModel({
+      modelName: testCase.modelName,
+      apiKey: "provider-secret",
+      headers: { "x-tenant-id": "tenant-123" },
+    });
+
+    expect(model).toMatchObject({
+      provider: testCase.provider,
+      modelId: testCase.modelId,
+    });
+  });
+
+  it("routes a configured provider model through the AI SDK client", async () => {
+    vi.mocked(generateText).mockResolvedValue({
+      text: "Four",
+      output: undefined,
+      finishReason: "stop",
+      usage: {
+        inputTokens: 12,
+        outputTokens: 3,
+        totalTokens: 15,
+      },
+    } as never);
+
+    await llmService.generate(
+      {
+        modelName: "openai/gpt-5.4-mini",
+        apiKey: "provider-secret",
+      },
+      {
+        messages: [{ role: "user", content: { type: "text", text: "What is 2 + 2?" } }],
+      },
+      vi.fn(),
+    );
+
+    expect(generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({
+          provider: "openai.responses",
+          modelId: "gpt-5.4-mini",
+        }),
+      }),
+    );
+  });
+});
 
 describe("generateWithAiSdk", () => {
   it("converts a text AI SDK result into the Stagehand LLM result schema", async () => {

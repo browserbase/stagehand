@@ -1,5 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
+import { z } from "zod/v4";
+import type { LLMGenerateResult } from "../../../protocol/types.js";
 import { Stagehand } from "../../src/index.js";
 
 type FixtureServer = {
@@ -25,6 +27,32 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       browser: {
         type: "local",
         headless: true,
+      },
+      model: {
+        generate: async (params): Promise<LLMGenerateResult> => {
+          if (params.responseFormat?.type !== "json_schema") {
+            throw new Error("The smoke LLM only supports structured generation");
+          }
+
+          if (params.responseFormat.name === "Metadata") {
+            return {
+              role: "assistant",
+              content: { type: "text", text: "complete" },
+              outputFormat: "json_schema",
+              structuredContent: {
+                progress: "The requested heading was extracted",
+                completed: true,
+              },
+            };
+          }
+
+          return {
+            role: "assistant",
+            content: { type: "text", text: "structured extraction" },
+            outputFormat: "json_schema",
+            structuredContent: { heading: "Stagehand SDK Smoke" },
+          };
+        },
       },
     });
     await stagehand.init();
@@ -155,6 +183,18 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     expect(snapshot.formattedTree.length).toBeGreaterThan(0);
     expect(snapshot.xpathMap).toBeTypeOf("object");
     expect(snapshot.urlMap).toBeTypeOf("object");
+  });
+
+  it("extracts structured data from a real page through the connected SDK", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const page =
+      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+    await page.goto(activeFixtureServer.url);
+
+    await expect(
+      page.extract("Extract the page heading", z.object({ heading: z.string() })),
+    ).resolves.toStrictEqual({ heading: "Stagehand SDK Smoke" });
   });
 
   it("selects and reads the active context page", async () => {

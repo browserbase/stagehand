@@ -96,6 +96,7 @@ import { StagehandLogger } from "./logger.js";
 import * as llmService from "./services/llmService.js";
 import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runtimeState.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
+import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 
 export type UnderstudyRuntimePage = {
   targetId(): string;
@@ -140,6 +141,7 @@ export type UnderstudyRuntimePage = {
   snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
   title(): Promise<string>;
   close(): Promise<void> | void;
+  captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
   deepLocator(selector: string): UnderstudyRuntimeLocator;
 };
 
@@ -310,14 +312,11 @@ export class StagehandRuntime {
   async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {
     const state = this.state.getState();
     const model = state.status === "initialized" ? state.initParams.model : undefined;
-    if (!model || !("source" in model)) {
-      throw new Error("A client-side LLM was not configured during Stagehand initialization");
+    if (!model) {
+      throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
-    return await llmService.generate(
-      { source: "client", request: this.adapters.clientLLMGenerate },
-      input,
-    );
+    return await llmService.generate(model, input, this.adapters.clientLLMGenerate);
   }
 
   async contextPages(): Promise<ContextPagesResult> {
