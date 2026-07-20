@@ -36,6 +36,13 @@ async function loadWrappedAISDK(): Promise<WrappedAI> {
   return wrappedAiPromise;
 }
 
+async function loadAISDK(): Promise<WrappedAI> {
+  if (process.env.EVAL_TRACE_TRANSPORT === "otel") {
+    return ai as unknown as WrappedAI;
+  }
+  return loadWrappedAISDK();
+}
+
 export class AISdkClientWrapped extends LLMClient {
   public type = "aisdk" as const;
   private model: LanguageModelV2;
@@ -149,7 +156,7 @@ export class AISdkClientWrapped extends LLMClient {
       },
     );
 
-    const { generateObject, generateText } = await loadWrappedAISDK();
+    const { generateObject, generateText } = await loadAISDK();
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
     const isCodex = this.model.modelId.includes("codex");
@@ -182,6 +189,17 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           messages: formattedMessages,
           schema: options.response_model.schema,
           temperature,
+          ...(process.env.EVAL_TRACE_TRANSPORT === "otel" && {
+            experimental_telemetry: {
+              isEnabled: true,
+              functionId: "AISdkClientWrapped.createChatCompletion",
+              metadata: {
+                phase: "generateObject",
+                model: this.model.modelId,
+                task: options.requestId,
+              },
+            },
+          }),
           providerOptions: resolvedReasoningEffort
             ? {
                 openai: {
@@ -281,6 +299,17 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       await generateText({
         model: this.model,
         messages: formattedMessages,
+        ...(process.env.EVAL_TRACE_TRANSPORT === "otel" && {
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: "AISdkClientWrapped.createChatCompletion",
+            metadata: {
+              phase: "generateText",
+              model: this.model.modelId,
+              task: options.requestId,
+            },
+          },
+        }),
         tools: Object.keys(tools).length > 0 ? tools : undefined,
         toolChoice:
           Object.keys(tools).length > 0

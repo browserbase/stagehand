@@ -29,6 +29,8 @@ import {
 } from "./braintrust.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
+import { resolveTraceTransport } from "./langsmith.js";
+import { buildTracerProvider, shutdownTracing } from "./otel.js";
 
 export { discoverTasks, resolveTarget } from "./discovery.js";
 export {
@@ -303,46 +305,10 @@ function formatProgressError(error: unknown): string | undefined {
 export async function runEvals(
   options: RunEvalsOptions,
 ): Promise<RunEvalsResult> {
-  const concurrency = options.concurrency ?? 3;
-  const trials = options.trials ?? 3;
-  const environment = options.environment ?? "LOCAL";
-
-  const testcases = generateTestcases(options.tasks, options);
-  options.onProgress?.({
-    type: "planned",
-    total: testcases.length,
-  });
-  if (testcases.length === 0) {
-    console.log("No testcases to run.");
-    return {
-      experimentName: "empty",
-      summary: { passed: 0, failed: 0, total: 0 },
-      results: [],
-    };
-  }
-
+  const traceTransport = resolveTraceTransport();
   const hasCoreOnly = options.tasks.every(
     (t: DiscoveredTask) => t.tier === "core",
   );
-  const effectiveCoreToolSurface = hasCoreOnly
-    ? (options.coreToolSurface ?? "understudy_code")
-    : undefined;
-  const effectiveCoreStartupProfile =
-    hasCoreOnly && effectiveCoreToolSurface
-      ? (options.coreStartupProfile ??
-        resolveDefaultCoreStartupProfile(effectiveCoreToolSurface, environment))
-      : undefined;
-  const effectiveBenchHarness = hasCoreOnly
-    ? undefined
-    : (options.harness ?? DEFAULT_BENCH_HARNESS);
-  const experimentName = generateExperimentName({
-    evalName: options.tasks.length === 1 ? options.tasks[0].name : undefined,
-    category: options.categoryFilter ?? undefined,
-    environment,
-    toolSurface: effectiveCoreToolSurface,
-    startupProfile: effectiveCoreStartupProfile,
-  });
-
   const braintrustProjectName = hasCoreOnly
     ? process.env.CI === "true"
       ? "stagehand-core"
@@ -351,145 +317,203 @@ export async function runEvals(
       ? "stagehand"
       : "stagehand-dev";
 
-  const scores = hasCoreOnly
-    ? [passRate, errorMatch]
-    : [exactMatch, errorMatch];
-
-  const { Eval, flush } = await loadBraintrust();
-  const sendLogs = hasBraintrustApiKey();
-
-  // Aggressive abort: when the caller flips signal.reason to "aggressive",
-  // close every active session so any in-flight task throws on its next
-  // page operation. The cleanup path inside executeBenchTask handles the
-  // throw; finished tasks' cleanup is a no-op via onceAsync.
-  const onAggressiveAbort = async (): Promise<void> => {
-    if (readAbortMode(options.signal) !== "aggressive") return;
-    const { cleanupActiveRunResources } = await import("./activeRunCleanup.js");
-    await cleanupActiveRunResources();
-  };
-  options.signal?.addEventListener("abort", () => {
-    void onAggressiveAbort();
-  });
-
-  const evalResult = await Eval(
-    braintrustProjectName,
-    {
-      experimentName,
-      metadata: {
-        environment,
-        tier: hasCoreOnly ? "core" : "bench",
-        ...(effectiveCoreToolSurface && {
-          toolSurface: effectiveCoreToolSurface,
-        }),
-        ...(effectiveCoreStartupProfile && {
-          startupProfile: effectiveCoreStartupProfile,
-        }),
-        ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
-        ...(options.provider && { provider: options.provider }),
-        ...(options.modelOverride && { model: options.modelOverride }),
-        ...(options.useApi && { api: true }),
-      },
-      data: () => testcases,
-      task: async (input: EvalInput): Promise<TaskResult> => {
-        // Cooperative abort: skip any testcase that hasn't started yet
-        // when the signal has flipped. The in-flight task at the moment of
-        // abort still finishes its current step; this stops the next one
-        // from spinning up.
-        if (options.signal?.aborted) {
-          options.onProgress?.({
-            type: "failed",
-            taskName: input.name,
-            modelName: input.modelName,
-            error: "aborted",
-          });
-          return {
-            _success: false,
-            error: "aborted by user",
-            logs: [],
-          };
-        }
-
-        const resolvedTask =
-          options.registry.byName.get(input.name) ??
-          (input.name.includes("/")
-            ? undefined
-            : options.registry.byName.get(`agent/${input.name}`));
-
-        if (!resolvedTask) {
-          throw new EvalsError(`Task "${input.name}" not found in registry.`);
-        }
-
-        options.onProgress?.({
-          type: "started",
-          taskName: input.name,
-          modelName: input.modelName,
-        });
-
-        const result = await executeTask(input, resolvedTask, options);
-
-        options.onProgress?.({
-          type: result._success ? "passed" : "failed",
-          taskName: input.name,
-          modelName: input.modelName,
-          error: result._success
-            ? undefined
-            : formatProgressError(result.error),
-        });
-
-        return result;
-      },
-      scores: scores as unknown as never,
-      maxConcurrency: concurrency,
-      trialCount: trials,
-    },
-    {
-      progress: silentBraintrustProgress,
-      reporter: silentBraintrustReporter,
-      ...(sendLogs ? {} : { noSendLogs: true }),
-    },
-  );
-
-  if (sendLogs) {
-    await flush();
+  if (traceTransport === "otel") {
+    await buildTracerProvider({
+      braintrustParent: `project_name:${braintrustProjectName}`,
+    });
   }
 
-  const summaryResults = evalResult.results.map((result) => {
-    const output =
-      typeof result.output === "boolean"
-        ? { _success: result.output }
-        : result.output;
-    const categories = Array.isArray(result.metadata?.categories)
-      ? result.metadata.categories.filter(
-          (category): category is string => typeof category === "string",
-        )
+  try {
+    const concurrency = options.concurrency ?? 3;
+    const trials = options.trials ?? 3;
+    const environment = options.environment ?? "LOCAL";
+
+    const testcases = generateTestcases(options.tasks, options);
+    options.onProgress?.({
+      type: "planned",
+      total: testcases.length,
+    });
+    if (testcases.length === 0) {
+      console.log("No testcases to run.");
+      return {
+        experimentName: "empty",
+        summary: { passed: 0, failed: 0, total: 0 },
+        results: [],
+      };
+    }
+
+    const effectiveCoreToolSurface = hasCoreOnly
+      ? (options.coreToolSurface ?? "understudy_code")
       : undefined;
+    const effectiveCoreStartupProfile =
+      hasCoreOnly && effectiveCoreToolSurface
+        ? (options.coreStartupProfile ??
+          resolveDefaultCoreStartupProfile(
+            effectiveCoreToolSurface,
+            environment,
+          ))
+        : undefined;
+    const effectiveBenchHarness = hasCoreOnly
+      ? undefined
+      : (options.harness ?? DEFAULT_BENCH_HARNESS);
+    const experimentName = generateExperimentName({
+      evalName: options.tasks.length === 1 ? options.tasks[0].name : undefined,
+      category: options.categoryFilter ?? undefined,
+      environment,
+      toolSurface: effectiveCoreToolSurface,
+      startupProfile: effectiveCoreStartupProfile,
+    });
+
+    const scores = hasCoreOnly
+      ? [passRate, errorMatch]
+      : [exactMatch, errorMatch];
+
+    const { Eval, flush } = await loadBraintrust();
+    const sendLogs = hasBraintrustApiKey();
+
+    // Aggressive abort: when the caller flips signal.reason to "aggressive",
+    // close every active session so any in-flight task throws on its next
+    // page operation. The cleanup path inside executeBenchTask handles the
+    // throw; finished tasks' cleanup is a no-op via onceAsync.
+    const onAggressiveAbort = async (): Promise<void> => {
+      if (readAbortMode(options.signal) !== "aggressive") return;
+      const { cleanupActiveRunResources } = await import(
+        "./activeRunCleanup.js"
+      );
+      await cleanupActiveRunResources();
+    };
+    options.signal?.addEventListener("abort", () => {
+      void onAggressiveAbort();
+    });
+
+    const evalResult = await Eval(
+      braintrustProjectName,
+      {
+        experimentName,
+        metadata: {
+          environment,
+          tier: hasCoreOnly ? "core" : "bench",
+          ...(effectiveCoreToolSurface && {
+            toolSurface: effectiveCoreToolSurface,
+          }),
+          ...(effectiveCoreStartupProfile && {
+            startupProfile: effectiveCoreStartupProfile,
+          }),
+          ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
+          ...(options.provider && { provider: options.provider }),
+          ...(options.modelOverride && { model: options.modelOverride }),
+          ...(options.useApi && { api: true }),
+        },
+        data: () => testcases,
+        task: async (input: EvalInput): Promise<TaskResult> => {
+          // Cooperative abort: skip any testcase that hasn't started yet
+          // when the signal has flipped. The in-flight task at the moment of
+          // abort still finishes its current step; this stops the next one
+          // from spinning up.
+          if (options.signal?.aborted) {
+            options.onProgress?.({
+              type: "failed",
+              taskName: input.name,
+              modelName: input.modelName,
+              error: "aborted",
+            });
+            return {
+              _success: false,
+              error: "aborted by user",
+              logs: [],
+            };
+          }
+
+          const resolvedTask =
+            options.registry.byName.get(input.name) ??
+            (input.name.includes("/")
+              ? undefined
+              : options.registry.byName.get(`agent/${input.name}`));
+
+          if (!resolvedTask) {
+            throw new EvalsError(`Task "${input.name}" not found in registry.`);
+          }
+
+          options.onProgress?.({
+            type: "started",
+            taskName: input.name,
+            modelName: input.modelName,
+          });
+
+          const result = await executeTask(input, resolvedTask, options);
+
+          options.onProgress?.({
+            type: result._success ? "passed" : "failed",
+            taskName: input.name,
+            modelName: input.modelName,
+            error: result._success
+              ? undefined
+              : formatProgressError(result.error),
+          });
+
+          return result;
+        },
+        scores: scores as unknown as never,
+        maxConcurrency: concurrency,
+        trialCount: trials,
+      },
+      {
+        progress: silentBraintrustProgress,
+        reporter: silentBraintrustReporter,
+        ...(sendLogs ? {} : { noSendLogs: true }),
+      },
+    );
+
+    if (sendLogs) {
+      await flush();
+    }
+
+    const summaryResults = evalResult.results.map((result) => {
+      const output =
+        typeof result.output === "boolean"
+          ? { _success: result.output }
+          : result.output;
+      const categories = Array.isArray(result.metadata?.categories)
+        ? result.metadata.categories.filter(
+            (category): category is string => typeof category === "string",
+          )
+        : undefined;
+
+      return {
+        input: result.input,
+        output,
+        name: result.input.name,
+        score: output._success ? 1 : 0,
+        ...(categories && { categories }),
+      };
+    });
+
+    const resolvedExperimentName =
+      evalResult.summary?.experimentName ?? experimentName;
+    const resolvedExperimentUrl = evalResult.summary?.experimentUrl;
+
+    await generateSummary(
+      summaryResults,
+      resolvedExperimentName,
+      resolvedExperimentUrl,
+      evalResult.summary?.scores,
+    );
+
+    const passed = summaryResults.filter((r) => r.output._success).length;
+    const failed = summaryResults.filter((r) => !r.output._success).length;
 
     return {
-      input: result.input,
-      output,
-      name: result.input.name,
-      score: output._success ? 1 : 0,
-      ...(categories && { categories }),
+      experimentName: resolvedExperimentName,
+      summary: { passed, failed, total: summaryResults.length },
+      results: summaryResults,
     };
-  });
-
-  const resolvedExperimentName =
-    evalResult.summary?.experimentName ?? experimentName;
-  const resolvedExperimentUrl = evalResult.summary?.experimentUrl;
-
-  await generateSummary(
-    summaryResults,
-    resolvedExperimentName,
-    resolvedExperimentUrl,
-    evalResult.summary?.scores,
-  );
-
-  const passed = summaryResults.filter((r) => r.output._success).length;
-  const failed = summaryResults.filter((r) => !r.output._success).length;
-
-  return {
-    experimentName: resolvedExperimentName,
-    summary: { passed, failed, total: summaryResults.length },
-    results: summaryResults,
-  };
+  } finally {
+    if (traceTransport === "otel") {
+      try {
+        await shutdownTracing();
+      } catch {
+        // Tracing shutdown must not mask the eval result or its exception.
+      }
+    }
+  }
 }
