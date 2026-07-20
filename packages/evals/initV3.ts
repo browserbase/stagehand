@@ -111,7 +111,7 @@ export async function initV3({
     experimental:
       typeof configOverrides?.experimental === "boolean"
         ? configOverrides.experimental && process.env.USE_API !== "true" // experimental only when not using API
-        : false,
+        : process.env.USE_API !== "true", // default ON for SDK-path runs: hybrid mode + verifier agent callbacks require it
     verbose: verbose ? 2 : 0,
     browserbaseSessionCreateParams:
       configOverrides?.browserbaseSessionCreateParams,
