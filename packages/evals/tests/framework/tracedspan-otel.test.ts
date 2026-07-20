@@ -59,8 +59,10 @@ describe("tracedSpan OTEL transport", () => {
       "test-span",
       expect.any(Function),
     );
+    // metadata rides the `langsmith.metadata.*` namespace — the only metadata
+    // carrier LangSmith honors for OTLP-native ingestion.
     expect(mocks.span.setAttribute).toHaveBeenCalledWith(
-      "metadata.task",
+      "langsmith.metadata.task",
       "example",
     );
     expect(mocks.span.setAttribute).toHaveBeenCalledWith(
@@ -70,9 +72,17 @@ describe("tracedSpan OTEL transport", () => {
     expect(mocks.span.addEvent).toHaveBeenCalledWith("scores", {
       "scores.accuracy": 1,
     });
-    expect(mocks.span.addEvent).toHaveBeenCalledWith("output", {
-      answer: "done",
-    });
+    // Output must be an ATTRIBUTE, not an event: verified against the live
+    // LangSmith API — `output.value` populates a run's outputs, whereas a
+    // span event named "output" is ignored (that was the "No outputs" bug).
+    expect(mocks.span.setAttribute).toHaveBeenCalledWith(
+      "output.value",
+      JSON.stringify({ answer: "done" }),
+    );
+    expect(mocks.span.setAttribute).toHaveBeenCalledWith(
+      "braintrust.output_json",
+      JSON.stringify({ answer: "done" }),
+    );
     expect(mocks.span.end).toHaveBeenCalledOnce();
   });
 

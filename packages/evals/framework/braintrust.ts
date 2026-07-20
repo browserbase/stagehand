@@ -76,12 +76,21 @@ function toAttributes(
   return attributes;
 }
 
-function outputAttributes(output: unknown): Attributes {
-  if (output && typeof output === "object" && !Array.isArray(output)) {
-    return toAttributes(output as Record<string, unknown>);
+function jsonStringify(value: unknown): string | undefined {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return undefined;
   }
-  const value = toAttributeValue(output);
-  return value === undefined ? {} : { output: value };
+}
+
+function outputAttributes(output: unknown): Attributes {
+  const json = jsonStringify(output);
+  if (json === undefined) return {};
+  return {
+    "output.value": typeof output === "string" ? output : json,
+    "braintrust.output_json": json,
+  };
 }
 
 function setSpanAttributes(span: OtelSpan, attributes: Attributes): void {
@@ -99,6 +108,14 @@ export async function tracedSpan<T>(
   if (resolveTraceTransport() === "otel") {
     const { getTracer } = await import("./otel.js");
     return getTracer().startActiveSpan(options.name, async (span) => {
+      span.setAttribute(
+        "langsmith.span.kind",
+        options.type === "llm"
+          ? "LLM"
+          : options.type === "tool"
+            ? "TOOL"
+            : "CHAIN",
+      );
       if (options.type !== undefined) {
         span.setAttribute("type", options.type);
       }
@@ -114,11 +131,24 @@ export async function tracedSpan<T>(
           span.setAttribute("input", value);
         }
       }
+      if (input !== undefined) {
+        const json = jsonStringify(input);
+        if (json !== undefined) {
+          span.setAttribute(
+            "input.value",
+            typeof input === "string" ? input : json,
+          );
+          span.setAttribute("braintrust.input_json", json);
+        }
+      }
 
       const adapter: SpanLike = {
         log: ({ output, scores, metrics, metadata, ...fields }) => {
           if (metadata) {
-            setSpanAttributes(span, toAttributes(metadata, "metadata"));
+            setSpanAttributes(
+              span,
+              toAttributes(metadata, "langsmith.metadata"),
+            );
           }
           if (metrics) {
             setSpanAttributes(span, toAttributes(metrics, "metrics"));
@@ -126,10 +156,24 @@ export async function tracedSpan<T>(
           if (scores) {
             const attributes = toAttributes(scores, "scores");
             span.addEvent("scores", attributes);
+            setSpanAttributes(
+              span,
+              toAttributes(
+                Object.fromEntries(
+                  Object.entries(scores)
+                    .filter(
+                      (entry): entry is [string, number] =>
+                        typeof entry[1] === "number",
+                    )
+                    .map(([key, value]) => [`score_${key}`, value]),
+                ),
+                "langsmith.metadata",
+              ),
+            );
           }
           setSpanAttributes(span, toAttributes(fields));
           if (output !== undefined) {
-            span.addEvent("output", outputAttributes(output));
+            setSpanAttributes(span, outputAttributes(output));
           }
         },
       };
