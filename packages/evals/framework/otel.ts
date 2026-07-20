@@ -11,8 +11,26 @@ const TRACER_NAME = "stagehand-evals";
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 const NOOP_TRACER = new ProxyTracerProvider().getTracer(TRACER_NAME);
 
-let provider: NodeTracerProvider | null = null;
-let providerPromise: Promise<NodeTracerProvider | null> | null = null;
+// Provider state lives on globalThis, NOT in module scope: the CLI bundle
+// (esbuild --bundle) inlines this module once per import site, so module-level
+// variables would give each importer its own copy — the runner would register
+// the provider in one copy while tracedSpan reads NOOP from another, silently
+// dropping every span. A Symbol.for-keyed global is shared across all copies.
+type TracingState = {
+  provider: NodeTracerProvider | null;
+  providerPromise: Promise<NodeTracerProvider | null> | null;
+};
+const STATE_KEY = Symbol.for("stagehand.evals.otel.state");
+function state(): TracingState {
+  const g = globalThis as { [STATE_KEY]?: TracingState };
+  return (g[STATE_KEY] ??= { provider: null, providerPromise: null });
+}
+
+/** Test-only: clear shared provider state between vitest module resets. */
+export function resetTracingStateForTests(): void {
+  const g = globalThis as { [STATE_KEY]?: TracingState };
+  delete g[STATE_KEY];
+}
 
 export async function buildTracerProvider(options?: {
   braintrustParent?: string;
@@ -21,19 +39,21 @@ export async function buildTracerProvider(options?: {
     return null;
   }
 
-  if (provider) {
-    return provider;
+  const s = state();
+  if (s.provider) {
+    return s.provider;
   }
 
   // The provider is initialized once per process, so the first call's options win.
   const pendingProvider =
-    providerPromise ?? (providerPromise = initializeTracerProvider(options));
+    s.providerPromise ??
+    (s.providerPromise = initializeTracerProvider(options));
 
   try {
     return await pendingProvider;
   } finally {
-    if (providerPromise === pendingProvider) {
-      providerPromise = null;
+    if (s.providerPromise === pendingProvider) {
+      s.providerPromise = null;
     }
   }
 }
@@ -84,21 +104,22 @@ async function initializeTracerProvider(options?: {
 
   const nextProvider = new NodeTracerProvider({ spanProcessors });
   nextProvider.register();
-  provider = nextProvider;
+  state().provider = nextProvider;
   return nextProvider;
 }
 
 export function getTracer(): Tracer {
-  return provider?.getTracer(TRACER_NAME) ?? NOOP_TRACER;
+  return state().provider?.getTracer(TRACER_NAME) ?? NOOP_TRACER;
 }
 
 export async function shutdownTracing(): Promise<void> {
-  if (resolveTraceTransport() !== "otel" || !provider) {
+  const s = state();
+  if (resolveTraceTransport() !== "otel" || !s.provider) {
     return;
   }
 
-  const activeProvider = provider;
-  provider = null;
+  const activeProvider = s.provider;
+  s.provider = null;
 
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {

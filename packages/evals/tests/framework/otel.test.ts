@@ -63,6 +63,11 @@ describe("buildTracerProvider", () => {
     delete process.env.LANGSMITH_TRACING;
     vi.clearAllMocks();
     vi.resetModules();
+    // Provider state is globalThis-backed (bundle-duplication proof), so a
+    // module reset alone no longer isolates tests — clear the shared slot.
+    delete (globalThis as Record<symbol, unknown>)[
+      Symbol.for("stagehand.evals.otel.state")
+    ];
   });
 
   afterAll(() => {
