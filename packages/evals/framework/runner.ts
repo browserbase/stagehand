@@ -22,11 +22,8 @@ import type { Testcase, EvalInput } from "../types/evals.js";
 import { generateBenchTestcases } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS, type Harness } from "./benchTypes.js";
 import { executeBenchTask } from "./benchRunner.js";
-import {
-  hasBraintrustApiKey,
-  loadBraintrust,
-  tracedSpan,
-} from "./braintrust.js";
+import { hasBraintrustApiKey, tracedSpan } from "./braintrust.js";
+import { BraintrustEvalRunner, type EvalRunner } from "./evalRunner.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
 import { resolveTraceTransport } from "./langsmith.js";
@@ -87,22 +84,6 @@ function readAbortMode(signal?: AbortSignal): AbortMode {
   const reason = signal.reason;
   return reason === "aggressive" ? "aggressive" : "cooperative";
 }
-
-const silentBraintrustProgress = {
-  start: (): void => {},
-  increment: (): void => {},
-  stop: (): void => {},
-};
-
-const silentBraintrustReporter = {
-  name: "stagehand-evals-silent-reporter",
-  async reportEval(): Promise<boolean> {
-    return true;
-  },
-  async reportRun(): Promise<boolean> {
-    return true;
-  },
-};
 
 function generateTestcases(
   tasks: DiscoveredTask[],
@@ -368,7 +349,6 @@ export async function runEvals(
       ? [passRate, errorMatch]
       : [exactMatch, errorMatch];
 
-    const { Eval, flush } = await loadBraintrust();
     const sendLogs = hasBraintrustApiKey();
 
     // Aggressive abort: when the caller flips signal.reason to "aggressive",
@@ -386,87 +366,78 @@ export async function runEvals(
       void onAggressiveAbort();
     });
 
-    const evalResult = await Eval(
-      braintrustProjectName,
-      {
-        experimentName,
-        metadata: {
-          environment,
-          tier: hasCoreOnly ? "core" : "bench",
-          ...(effectiveCoreToolSurface && {
-            toolSurface: effectiveCoreToolSurface,
-          }),
-          ...(effectiveCoreStartupProfile && {
-            startupProfile: effectiveCoreStartupProfile,
-          }),
-          ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
-          ...(options.provider && { provider: options.provider }),
-          ...(options.modelOverride && { model: options.modelOverride }),
-          ...(options.useApi && { api: true }),
-        },
-        data: () => testcases,
-        task: async (input: EvalInput): Promise<TaskResult> => {
-          // Cooperative abort: skip any testcase that hasn't started yet
-          // when the signal has flipped. The in-flight task at the moment of
-          // abort still finishes its current step; this stops the next one
-          // from spinning up.
-          if (options.signal?.aborted) {
-            options.onProgress?.({
-              type: "failed",
-              taskName: input.name,
-              modelName: input.modelName,
-              error: "aborted",
-            });
-            return {
-              _success: false,
-              error: "aborted by user",
-              logs: [],
-            };
-          }
-
-          const resolvedTask =
-            options.registry.byName.get(input.name) ??
-            (input.name.includes("/")
-              ? undefined
-              : options.registry.byName.get(`agent/${input.name}`));
-
-          if (!resolvedTask) {
-            throw new EvalsError(`Task "${input.name}" not found in registry.`);
-          }
-
+    const evalRunner: EvalRunner = new BraintrustEvalRunner();
+    const evalResult = await evalRunner.run({
+      projectName: braintrustProjectName,
+      experimentName,
+      metadata: {
+        environment,
+        tier: hasCoreOnly ? "core" : "bench",
+        ...(effectiveCoreToolSurface && {
+          toolSurface: effectiveCoreToolSurface,
+        }),
+        ...(effectiveCoreStartupProfile && {
+          startupProfile: effectiveCoreStartupProfile,
+        }),
+        ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
+        ...(options.provider && { provider: options.provider }),
+        ...(options.modelOverride && { model: options.modelOverride }),
+        ...(options.useApi && { api: true }),
+      },
+      data: () => testcases,
+      task: async (input: EvalInput): Promise<TaskResult> => {
+        // Cooperative abort: skip any testcase that hasn't started yet
+        // when the signal has flipped. The in-flight task at the moment of
+        // abort still finishes its current step; this stops the next one
+        // from spinning up.
+        if (options.signal?.aborted) {
           options.onProgress?.({
-            type: "started",
+            type: "failed",
             taskName: input.name,
             modelName: input.modelName,
+            error: "aborted",
           });
+          return {
+            _success: false,
+            error: "aborted by user",
+            logs: [],
+          };
+        }
 
-          const result = await executeTask(input, resolvedTask, options);
+        const resolvedTask =
+          options.registry.byName.get(input.name) ??
+          (input.name.includes("/")
+            ? undefined
+            : options.registry.byName.get(`agent/${input.name}`));
 
-          options.onProgress?.({
-            type: result._success ? "passed" : "failed",
-            taskName: input.name,
-            modelName: input.modelName,
-            error: result._success
-              ? undefined
-              : formatProgressError(result.error),
-          });
+        if (!resolvedTask) {
+          throw new EvalsError(`Task "${input.name}" not found in registry.`);
+        }
 
-          return result;
-        },
-        scores: scores as unknown as never,
-        maxConcurrency: concurrency,
-        trialCount: trials,
+        options.onProgress?.({
+          type: "started",
+          taskName: input.name,
+          modelName: input.modelName,
+        });
+
+        const result = await executeTask(input, resolvedTask, options);
+
+        options.onProgress?.({
+          type: result._success ? "passed" : "failed",
+          taskName: input.name,
+          modelName: input.modelName,
+          error: result._success
+            ? undefined
+            : formatProgressError(result.error),
+        });
+
+        return result;
       },
-      {
-        progress: silentBraintrustProgress,
-        reporter: silentBraintrustReporter,
-        ...(sendLogs ? {} : { noSendLogs: true }),
-      },
-    );
-
-    if (sendLogs) {
-      await flush();
-    }
+      scores,
+      maxConcurrency: concurrency,
+      trialCount: trials,
+      sendLogs,
+    });
 
     const summaryResults = evalResult.results.map((result) => {
       const output =
