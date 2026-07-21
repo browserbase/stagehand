@@ -46,7 +46,10 @@ describe("getRequestModelConfig", () => {
       },
     });
 
-    assert.deepEqual(assertSuccess(getRequestModelConfig(request)).model, model);
+    assert.deepEqual(
+      assertSuccess(getRequestModelConfig(request)).model,
+      model,
+    );
     assert.deepEqual(
       assertSuccess(getStagehandInitModelConfig(request)).model,
       model,
