@@ -62,6 +62,7 @@ describe("Stagehand object-model protocol", () => {
   it("requires a per-call model override to be a complete model configuration", () => {
     expect(
       StagehandMethods.stagehandAct.params.parse({
+        pageId: "target-1",
         input: "Click the submit button",
         options: {
           model: {
@@ -81,6 +82,7 @@ describe("Stagehand object-model protocol", () => {
 
     expect(() =>
       StagehandMethods.stagehandAct.params.parse({
+        pageId: "target-1",
         input: "Click the submit button",
         options: { model: { apiKey: "test-key" } },
       }),
@@ -187,6 +189,33 @@ describe("Stagehand object-model protocol", () => {
     ).toThrow();
   });
 
+  it("defines actions with an explicit page and optional call settings", () => {
+    expect(
+      StagehandMethods.stagehandAct.params.parse({
+        pageId: "target-1",
+        input: "Click the submit button",
+        options: {
+          timeout: 1_000,
+          variables: { accountEmail: "user@example.com" },
+        },
+      }),
+    ).toStrictEqual({
+      pageId: "target-1",
+      input: "Click the submit button",
+      options: {
+        timeout: 1_000,
+        variables: { accountEmail: "user@example.com" },
+      },
+    });
+  });
+
+  it("rejects actions without a page identity", () => {
+    expect(() =>
+      StagehandMethods.stagehandAct.params.parse({
+        input: "Click the submit button",
+      }),
+    ).toThrow();
+  });
   it("requires page ids for page methods", () => {
     expect(() =>
       StagehandMethods.pageGoto.params.parse({

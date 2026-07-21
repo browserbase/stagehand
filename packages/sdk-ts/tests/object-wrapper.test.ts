@@ -697,6 +697,55 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("routes page.act with the page identity and returns the action result", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.stagehandAct, {
+      result: {
+        success: true,
+        message: "Clicked the submit button",
+        actionDescription: "Click the submit button",
+        actions: [
+          {
+            selector: "xpath=/html/body/button",
+            description: "Submit button",
+            method: "click",
+            arguments: [],
+          },
+        ],
+      },
+    });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(
+      page.act("Click the submit button", {
+        timeout: 5_000,
+        variables: { accountEmail: "user@example.com" },
+      }),
+    ).resolves.toStrictEqual({
+      success: true,
+      message: "Clicked the submit button",
+      actionDescription: "Click the submit button",
+      actions: [
+        {
+          selector: "xpath=/html/body/button",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        },
+      ],
+    });
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.stagehandAct, {
+        pageId: "page-1",
+        input: "Click the submit button",
+        options: {
+          timeout: 5_000,
+          variables: { accountEmail: "user@example.com" },
+        },
+      }),
+    ]);
+  });
+
   it("routes page.observe with the page identity and options", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandObserve, {

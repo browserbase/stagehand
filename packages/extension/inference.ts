@@ -5,9 +5,8 @@ import type {
   LLMUsage,
   Variables,
 } from "../protocol/types.js";
-import type { LLMClient } from "./llm/LLMClient.js";
-import type { StagehandLogger } from "./logger.js";
 import {
+  buildActSystemPrompt,
   buildExtractSystemPrompt,
   buildExtractUserPrompt,
   buildMetadataPrompt,
@@ -56,6 +55,33 @@ const ObservationSchema = z
   })
   .strict();
 
+const ActInferenceSchema = z
+  .object({
+    action: z
+      .object({
+        elementId: z
+          .string()
+          .regex(/^\d+-\d+$/)
+          .describe(
+            "The complete frame ordinal and backend node ID copied from the accessibility tree, without square brackets.",
+          ),
+        description: z.string().describe("A description of the element and its purpose."),
+        method: z
+          .enum(SupportedUnderstudyAction)
+          .describe("The supported browser interaction method to execute."),
+        arguments: z
+          .array(z.string())
+          .describe("The arguments to pass to the selected interaction method."),
+      })
+      .strict()
+      .nullable()
+      .describe("The element to act on, or null when no matching element exists."),
+    twoStep: z
+      .boolean()
+      .describe("Whether the selected interaction requires a second action to finish the request."),
+  })
+  .strict();
+
 function promptText(prompt: { content: unknown }): string {
   if (typeof prompt.content !== "string") {
     throw new TypeError("Structured LLM prompts must contain text");
@@ -90,21 +116,6 @@ async function generateStructured<Schema extends z.ZodType>(
     usage: response.usage,
     durationMs: Date.now() - startedAt,
   };
-}
-
-type LlmInferenceParams = {
-  instruction: string;
-  domElements: string;
-  llmClient: LLMClient;
-  userProvidedInstructions?: string;
-  logger: StagehandLogger;
-  logInferenceToFile?: boolean;
-};
-
-function inferenceNotPorted(operation: string): never {
-  throw new Error(
-    `${operation} inference is not ported yet. This compile stub will be replaced by the V3 inference implementation.`,
-  );
 }
 
 export async function extract<T extends z.ZodObject>(params: {
@@ -193,19 +204,36 @@ export async function observe(params: {
   };
 }
 
-export async function act(_params: LlmInferenceParams): Promise<{
-  element?: {
-    elementId?: string;
-    description: string;
-    method?: string;
-    arguments?: string[];
-  } | null;
-  twoStep?: boolean;
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  reasoning_tokens?: number;
-  cached_input_tokens?: number;
-  inference_time_ms?: number;
+export async function act(params: {
+  instruction: string;
+  domElements: string;
+  generate: GenerateLlm;
+  userProvidedInstructions?: string;
+}): Promise<{
+  element: z.output<typeof ActInferenceSchema>["action"];
+  twoStep: boolean;
+  prompt_tokens: number;
+  completion_tokens: number;
+  reasoning_tokens: number;
+  cached_input_tokens: number;
+  inference_time_ms: number;
 }> {
-  return inferenceNotPorted("act");
+  const { instruction, domElements, generate, userProvidedInstructions } = params;
+  const result = await generateStructured(
+    generate,
+    "Act",
+    ActInferenceSchema,
+    promptText(buildActSystemPrompt(userProvidedInstructions)),
+    promptText(buildObserveUserMessage(instruction, domElements)),
+  );
+
+  return {
+    element: result.data.action,
+    twoStep: result.data.twoStep,
+    prompt_tokens: result.usage?.inputTokens ?? 0,
+    completion_tokens: result.usage?.outputTokens ?? 0,
+    reasoning_tokens: result.usage?.reasoningTokens ?? 0,
+    cached_input_tokens: result.usage?.cachedInputTokens ?? 0,
+    inference_time_ms: result.durationMs,
+  };
 }

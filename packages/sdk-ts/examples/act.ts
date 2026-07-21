@@ -8,7 +8,7 @@ const stagehand = new Stagehand({
   },
   model: {
     modelName: "openai/gpt-5.4-mini",
-    apiKey: requireEnvironmentVariable("OPENAI_API_KEY"),
+    apiKey: process.env.OPENAI_API_KEY,
   },
 });
 
@@ -21,21 +21,15 @@ try {
   }
   await page.goto("https://example.com");
 
-  const actions = await page.observe(
-    "Find the link that provides more information about Example Domain",
+  const result = await page.act(
+    "Click the link that provides more information about Example Domain",
   );
 
-  console.log(JSON.stringify(actions, null, 2));
+  console.log(JSON.stringify(result, null, 2));
 
-  if (actions.length === 0) {
-    throw new Error("observe() returned no matching actions");
+  if (!result.success) {
+    throw new Error(`act() failed: ${result.message}`);
   }
 } finally {
   await stagehand.close();
-}
-
-function requireEnvironmentVariable(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required`);
-  return value;
 }

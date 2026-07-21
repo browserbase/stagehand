@@ -1,16 +1,3 @@
-import { Page } from "../../understudy/page.js";
-import type { ModelConfig, Variables } from "../../../protocol/types.js";
-import type { StagehandLogger } from "../../logger.js";
-
-export interface ActHandlerParams {
-  instruction: string;
-  model?: ModelConfig;
-  variables?: Variables;
-  timeout?: number;
-  page: Page;
-  logger: StagehandLogger;
-}
-
 // We can use this enum to list the actions supported in performUnderstudyMethod
 export enum SupportedUnderstudyAction {
   CLICK = "click",

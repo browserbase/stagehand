@@ -7,6 +7,7 @@ import type {
 } from "../../protocol/types.js";
 import type { HandlerContext } from "../rpcRouter.js";
 import type { StagehandRuntime } from "../runtime.js";
+import * as actService from "../services/actService.js";
 import * as extractService from "../services/extractService.js";
 import * as observeService from "../services/observeService.js";
 
@@ -22,9 +23,29 @@ export function createStagehandController(runtime: StagehandRuntime) {
     return { closed: true as const };
   }
 
-  async function act(_params: StagehandActParams, { logger }: HandlerContext): Promise<never> {
+  async function act(params: StagehandActParams, { logger }: HandlerContext) {
     logger.info("[stagehand] stagehand.act", {});
-    throw new Error("Method not implemented by the smoke runtime");
+    const state = runtime.state.getState();
+    if (state.status !== "initialized") {
+      throw new Error("Stagehand must be initialized before acting");
+    }
+
+    const model = params.options?.model ?? state.initParams.model;
+    if (!model) {
+      throw new Error("An LLM was not configured during Stagehand initialization");
+    }
+
+    return await actService.act({
+      params,
+      page: runtime.resolveUnderstudyPage(params.pageId),
+      model,
+      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+      logger,
+      systemPrompt: state.initParams.systemPrompt,
+      selfHeal: state.initParams.selfHeal,
+      domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
+      experimental: state.initParams.experimental,
+    });
   }
 
   async function observe(params: StagehandObserveParams, { logger }: HandlerContext) {

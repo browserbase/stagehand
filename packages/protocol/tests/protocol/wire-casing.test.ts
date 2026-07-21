@@ -159,6 +159,39 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(definition.params).parse(wireValue)).toStrictEqual(apiValue);
   });
 
+  it("encodes act fields while preserving variable names", () => {
+    const definition = StagehandMethods.stagehandAct;
+    const apiValue = {
+      pageId: "page_1",
+      input: "Fill the email field",
+      options: {
+        timeout: 5_000,
+        variables: {
+          accountEmail: {
+            value: "user@example.com",
+            description: "The account email",
+          },
+        },
+      },
+    };
+    const wireValue = {
+      page_id: "page_1",
+      input: "Fill the email field",
+      options: {
+        timeout: 5_000,
+        variables: {
+          accountEmail: {
+            value: "user@example.com",
+            description: "The account email",
+          },
+        },
+      },
+    };
+
+    expect(encodeWireValue(apiValue)).toStrictEqual(wireValue);
+    expect(wireSchema(definition.params).parse(wireValue)).toStrictEqual(apiValue);
+  });
+
   it("encodes context params and results with snake_case wire fields", () => {
     const domainPolicy = StagehandMethods.contextSetDomainPolicy;
     const domainPolicyParams = {

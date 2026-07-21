@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { z } from "zod/v4";
 import type {
+  ActResultData,
   PageClickParams,
   PageDragAndDropParams,
   PageGoBackParams,
@@ -16,6 +17,7 @@ import type {
   PageSetViewportSizeParams,
   PageSnapshotOptions,
   Action,
+  StagehandActParams,
   StagehandExtractParams,
   StagehandObserveParams,
   SnapshotResult,
@@ -267,6 +269,16 @@ export class Page {
 
   async close(): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageClose, { pageId: this.pageId });
+  }
+
+  async act(input: string, options?: StagehandActParams["options"]): Promise<ActResultData> {
+    const response = await this.rpcClient.send(StagehandMethods.stagehandAct, {
+      pageId: this.pageId,
+      input,
+      ...(options === undefined ? {} : { options }),
+    });
+
+    return response.result;
   }
 
   async observe(

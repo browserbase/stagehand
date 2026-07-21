@@ -224,6 +224,10 @@
                 "params": {
                   "type": "object",
                   "properties": {
+                    "page_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "input": {
                       "type": "string",
                       "minLength": 1
@@ -232,7 +236,7 @@
                       "$ref": "#/$defs/ActOptions"
                     }
                   },
-                  "required": ["input"],
+                  "required": ["page_id", "input"],
                   "additionalProperties": false
                 },
                 "traceparent": {
@@ -6140,6 +6144,10 @@
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "type": "object",
               "properties": {
+                "page_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "input": {
                   "type": "string",
                   "minLength": 1
@@ -6148,7 +6156,7 @@
                   "$ref": "#/$defs/ActOptions"
                 }
               },
-              "required": ["input"],
+              "required": ["page_id", "input"],
               "additionalProperties": false,
               "$defs": {
                 "ActOptions": {

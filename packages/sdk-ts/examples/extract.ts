@@ -16,7 +16,10 @@ const stagehand = new Stagehand({
 try {
   await stagehand.init();
 
-  const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
+  const page = await stagehand.context.activePage();
+  if (!page) {
+    throw new Error("Stagehand initialized without an active page");
+  }
   await page.goto("https://example.com");
 
   const pageInfo = await page.extract(
@@ -27,7 +30,6 @@ try {
     }),
   );
 
-  // oxlint-disable-next-line no-console -- This example intentionally displays the SDK result.
   console.log(JSON.stringify(pageInfo, null, 2));
 } finally {
   await stagehand.close();

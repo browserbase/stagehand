@@ -23,7 +23,10 @@ const stagehand = new Stagehand({
 try {
   await stagehand.init();
 
-  const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
+  const page = await stagehand.context.activePage();
+  if (!page) {
+    throw new Error("Stagehand initialized without an active page");
+  }
   await page.goto("https://example.com");
 
   const pageInfo = await page.extract(
@@ -36,12 +39,17 @@ try {
   const actions = await page.observe(
     "Find the link that provides more information about Example Domain",
   );
+  const actionResult = await page.act(
+    "Click the link that provides more information about Example Domain",
+  );
 
-  // oxlint-disable-next-line no-console -- This example intentionally displays the SDK results.
-  console.log(JSON.stringify({ pageInfo, actions, generationNames }, null, 2));
+  console.log(JSON.stringify({ pageInfo, actions, actionResult, generationNames }, null, 2));
 
   if (actions.length === 0) {
     throw new Error("observe() returned no matching actions");
+  }
+  if (!actionResult.success) {
+    throw new Error(`act() failed: ${actionResult.message}`);
   }
 } finally {
   await stagehand.close();
@@ -50,7 +58,7 @@ try {
 async function generateWithOpenAI(params: LLMGenerateParams): Promise<LLMGenerateResult> {
   if (params.responseFormat?.type !== "json_schema") {
     throw new TypeError(
-      "This example supports the structured generation used by extract and observe",
+      "This example supports the structured generation used by act, extract, and observe",
     );
   }
 

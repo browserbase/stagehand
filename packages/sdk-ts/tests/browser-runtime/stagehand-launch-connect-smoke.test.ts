@@ -79,6 +79,38 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
             };
           }
 
+          if (params.responseFormat.name === "Act") {
+            const promptText = params.messages
+              .flatMap((message) =>
+                Array.isArray(message.content) ? message.content : [message.content],
+              )
+              .filter((content) => content.type === "text")
+              .map((content) => content.text)
+              .join("\n");
+            const submitLine = promptText
+              .split("\n")
+              .find((line) => line.includes("Submit") && line.includes("["));
+            const elementId = submitLine?.match(/\[(\d+-\d+)\]/)?.[1];
+            if (!elementId) {
+              throw new Error("The smoke action prompt did not contain the Submit button ID");
+            }
+
+            return {
+              role: "assistant",
+              content: { type: "text", text: "structured action" },
+              outputFormat: "json_schema",
+              structuredContent: {
+                action: {
+                  elementId,
+                  description: "Submit button",
+                  method: "click",
+                  arguments: [],
+                },
+                twoStep: false,
+              },
+            };
+          }
+
           return {
             role: "assistant",
             content: { type: "text", text: "structured extraction" },
@@ -336,6 +368,30 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     );
     await activeStagehand.context.clipboard.clear({ page });
     await expect(activeStagehand.context.clipboard.readText({ page })).resolves.toBe("");
+  });
+
+  it("acts on a real page through the connected SDK", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const page =
+      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+    await page.goto(activeFixtureServer.url);
+
+    const result = await page.act("Click the Submit button");
+
+    expect(result).toMatchObject({
+      success: true,
+      actionDescription: "Submit button",
+      actions: [
+        {
+          selector: expect.stringMatching(/^xpath=/),
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        },
+      ],
+    });
+    await expect(page.locator("#locator-output").textContent()).resolves.toBe("clicked:");
   });
 });
 

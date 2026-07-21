@@ -97,6 +97,7 @@ import * as llmService from "./services/llmService.js";
 import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runtimeState.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
+import { Page } from "./understudy/page.js";
 
 export type UnderstudyRuntimePage = {
   targetId(): string;
@@ -699,6 +700,14 @@ export class StagehandRuntime {
     if (refreshedPage) return refreshedPage;
 
     throw new Error(`Stagehand page "${pageId}" was not found; call context.pages and retry`);
+  }
+
+  resolveUnderstudyPage(pageId: string): Page {
+    const page = this.resolvePage(pageId);
+    if (!(page instanceof Page)) {
+      throw new TypeError(`Stagehand page "${pageId}" is not backed by an Understudy page`);
+    }
+    return page;
   }
 
   resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
