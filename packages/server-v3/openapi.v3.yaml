@@ -338,6 +338,14 @@ components:
             type: string
           additionalProperties:
             type: string
+        openaiEndpointFormat:
+          description: Wire format used by an OpenAI-compatible endpoint. Defaults to the
+            Responses API; use chat for Chat Completions-only endpoints.
+          example: chat
+          type: string
+          enum:
+            - responses
+            - chat
         provider:
           description: AI provider for the model (or provide a baseURL endpoint instead)
           example: openai

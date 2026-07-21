@@ -34,6 +34,25 @@ function assertSuccess(
 }
 
 describe("getRequestModelConfig", () => {
+  it("preserves the OpenAI endpoint format through session initialization", () => {
+    const model = {
+      modelName: "openai/gpt-4.1-mini",
+      baseURL: "https://example.com/v1",
+      openaiEndpointFormat: "chat",
+    } as const;
+    const request = createRequest({
+      body: {
+        options: { model },
+      },
+    });
+
+    assert.deepEqual(assertSuccess(getRequestModelConfig(request)).model, model);
+    assert.deepEqual(
+      assertSuccess(getStagehandInitModelConfig(request)).model,
+      model,
+    );
+  });
+
   it("preserves a Vertex model config from an action request so auth fields reach session initialization", () => {
     const model = {
       provider: "vertex",
