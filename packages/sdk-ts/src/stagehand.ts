@@ -52,8 +52,9 @@ export class Stagehand {
       const rpcClient = await (adapters.connectRpcClient ?? connectRPCClient)({
         cdpUrl: browser.cdpUrl,
         // TODO: Thread browser.cdpHeaders through CDP discovery and the WebSocket handshake.
-        // TODO: Move extension provisioning into browser-source initialization.
-        extensionDir: new URL("../../server/dist", import.meta.url).pathname,
+        ...(browser.preloadedExtension
+          ? { preloadedExtension: true as const }
+          : { extensionDir: new URL("../../server/dist", import.meta.url).pathname }),
         serviceWorkerUrlIncludes: "service-worker.js",
         telemetry: clientInitParams.telemetry,
       });
@@ -68,7 +69,7 @@ export class Stagehand {
 
       await rpcClient.send(
         StagehandMethods.stagehandInit,
-        stagehandInitParamsForWorker(clientInitParams),
+        stagehandInitParamsForWorker(clientInitParams, browser),
       );
       this.browserContext = new BrowserContext(rpcClient);
     } catch (error) {
@@ -78,7 +79,15 @@ export class Stagehand {
       this.removeNotificationListener = undefined;
       this.rpcClient?.close();
       this.rpcClient = undefined;
-      await this.closeBrowserSource();
+      try {
+        await this.closeBrowserSource();
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
+          "Stagehand initialization failed and browser cleanup also failed",
+          { cause: error },
+        );
+      }
       throw error;
     }
 
@@ -114,13 +123,27 @@ export class Stagehand {
   }
 }
 
-function stagehandInitParamsForWorker(initParams: ResolvedStagehandClientInitParams) {
+function stagehandInitParamsForWorker(
+  initParams: ResolvedStagehandClientInitParams,
+  resolvedBrowser: ResolvedBrowserSource,
+) {
   const { browser, model, ...protocolParams } = initParams;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
+  if (browser.type === "browserbase" && !resolvedBrowser.browserbaseSessionId) {
+    throw new Error("Resolved Browserbase source is missing its session ID");
+  }
+
   return StagehandInitParamsSchema.parse({
     ...protocolParams,
-    ...(browser.type === "browserbase" ? { browser } : {}),
+    ...(browser.type === "browserbase"
+      ? {
+          browser: {
+            ...browser,
+            sessionId: resolvedBrowser.browserbaseSessionId,
+          },
+        }
+      : {}),
     ...(protocolModel === undefined ? {} : { model: protocolModel }),
   });
 }

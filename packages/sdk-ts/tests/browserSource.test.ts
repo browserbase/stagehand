@@ -5,6 +5,7 @@ describe("resolveBrowserSource", () => {
   it("creates a Browserbase session from the default browser source", async () => {
     const close = vi.fn();
     const createSession = vi.fn(async () => ({
+      sessionId: "new-session",
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/new-session",
       close,
     }));
@@ -21,6 +22,8 @@ describe("resolveBrowserSource", () => {
       ),
     ).resolves.toStrictEqual({
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/new-session",
+      browserbaseSessionId: "new-session",
+      preloadedExtension: true,
       keepAlive: false,
       close,
     });
@@ -29,6 +32,7 @@ describe("resolveBrowserSource", () => {
 
   it("passes flattened Browserbase settings without passing the API key", async () => {
     const createSession = vi.fn(async () => ({
+      sessionId: "new-session",
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/new-session",
     }));
     const browserbase: BrowserbaseSessionClient = {
@@ -55,6 +59,7 @@ describe("resolveBrowserSource", () => {
 
   it("uses the root API key to create the Browserbase client", async () => {
     const createSession = vi.fn(async () => ({
+      sessionId: "new-session",
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/new-session",
     }));
     const createBrowserbaseSessionClient = vi.fn(() => ({ createSession }));

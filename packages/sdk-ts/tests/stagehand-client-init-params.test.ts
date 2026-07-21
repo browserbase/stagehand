@@ -57,6 +57,35 @@ describe("Stagehand client browser sources", () => {
     ).toThrow();
   });
 
+  it("rejects Browserbase extension IDs because the SDK provisions its own extension", () => {
+    const browserSources = [
+      {
+        type: "browserbase",
+        extensionId: "ext_caller",
+      },
+      {
+        type: "browserbase",
+        browserSettings: { extensionId: "ext_caller" },
+      },
+    ];
+
+    for (const browser of browserSources) {
+      expect(() => StagehandClientInitParamsSchema.parse({ apiKey: "bb_key", browser })).toThrow();
+    }
+  });
+
+  it("rejects a caller-provided Browserbase session ID", () => {
+    expect(() =>
+      StagehandClientInitParamsSchema.parse({
+        apiKey: "bb_key",
+        browser: {
+          type: "browserbase",
+          sessionId: "session_123",
+        },
+      }),
+    ).toThrow();
+  });
+
   it("launches a local browser from flattened launch settings", () => {
     expect(
       StagehandClientInitParamsSchema.parse({
@@ -190,7 +219,7 @@ describe("Stagehand client browser sources", () => {
     ).toThrow();
   });
 
-  it("keeps Browserbase credentials and settings in worker initialization", () => {
+  it("requires the resolved Browserbase session ID in worker initialization", () => {
     const clientInitParams = StagehandClientInitParamsSchema.parse({
       apiKey: "bb_key",
       browser: {
@@ -200,11 +229,21 @@ describe("Stagehand client browser sources", () => {
       selfHeal: true,
     });
 
-    expect(StagehandInitParamsSchema.parse(clientInitParams)).toStrictEqual({
+    expect(() => StagehandInitParamsSchema.parse(clientInitParams)).toThrow();
+    expect(
+      StagehandInitParamsSchema.parse({
+        ...clientInitParams,
+        browser: {
+          ...clientInitParams.browser,
+          sessionId: "session_123",
+        },
+      }),
+    ).toStrictEqual({
       apiKey: "bb_key",
       browser: {
         type: "browserbase",
         region: "eu-central-1",
+        sessionId: "session_123",
       },
       telemetry: defaultTelemetry,
       selfHeal: true,

@@ -6,7 +6,8 @@
 
 import { z } from "zod/v4";
 import {
-  BrowserbaseBrowserSourceSchema,
+  BrowserbaseBrowserSettingsSchema,
+  BrowserbaseSessionCreateParamsSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
   ModelConfigSchema,
@@ -14,7 +15,21 @@ import {
 } from "../../protocol/schemas.js";
 import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
 
-export { BrowserbaseBrowserSourceSchema };
+const BrowserbaseClientBrowserSettingsSchema = BrowserbaseBrowserSettingsSchema.omit({
+  extensionId: true,
+}).strict();
+
+/** Browserbase source fields exposed by the TS SDK. Stagehand provisions its own extension. */
+export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.omit({
+  browserSettings: true,
+  extensionId: true,
+})
+  .extend({
+    type: z.literal("browserbase"),
+    browserSettings: BrowserbaseClientBrowserSettingsSchema.optional(),
+  })
+  .strict()
+  .meta({ id: "BrowserbaseClientBrowserSource" });
 
 export const LocalBrowserSourceSchema = LocalBrowserLaunchOptionsSchema.extend({
   type: z.literal("local"),

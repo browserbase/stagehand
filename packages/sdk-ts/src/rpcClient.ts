@@ -69,10 +69,17 @@ export const RPCClientOptionsSchema = z.union([
   RPCClientOptionsBaseSchema.extend({
     extensionDir: z.string().min(1),
     extensionId: z.never().optional(),
+    preloadedExtension: z.never().optional(),
   }).strict(),
   RPCClientOptionsBaseSchema.extend({
     extensionId: z.string().min(1),
     extensionDir: z.never().optional(),
+    preloadedExtension: z.never().optional(),
+  }).strict(),
+  RPCClientOptionsBaseSchema.extend({
+    preloadedExtension: z.literal(true),
+    extensionDir: z.never().optional(),
+    extensionId: z.never().optional(),
   }).strict(),
 ]);
 
@@ -388,6 +395,7 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
     cdpUrl: options.cdpUrl,
     ...(options.extensionDir ? { extensionDir: options.extensionDir } : {}),
     ...(options.extensionId ? { extensionId: options.extensionId } : {}),
+    ...(options.preloadedExtension ? { preloadedExtension: true as const } : {}),
     ...(options.serviceWorkerUrlIncludes
       ? { serviceWorkerUrlIncludes: options.serviceWorkerUrlIncludes }
       : {}),

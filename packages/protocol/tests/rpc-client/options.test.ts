@@ -38,6 +38,24 @@ describe("RPCClientOptionsSchema", () => {
     });
   });
 
+  it("accepts preloaded Stagehand discovery without loading an extension", () => {
+    expect(
+      RPCClientOptionsSchema.parse({
+        cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
+        preloadedExtension: true,
+      }),
+    ).toStrictEqual({
+      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
+      preloadedExtension: true,
+      telemetry: {
+        traces: {
+          endpoint: "https://example.com/v1/traces",
+          headers: {},
+        },
+      },
+    });
+  });
+
   it("accepts a custom OTLP traces destination", () => {
     expect(
       RPCClientOptionsSchema.parse({
@@ -74,6 +92,16 @@ describe("RPCClientOptionsSchema", () => {
         cdpUrl: "http://127.0.0.1:9222",
         extensionDir: "/tmp/stagehand-extension",
         extensionId: "abcdefghijklmnopabcdefghijklmnop",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects preloaded discovery combined with another extension mode", () => {
+    expect(() =>
+      RPCClientOptionsSchema.parse({
+        cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
+        extensionDir: "/tmp/stagehand-extension",
+        preloadedExtension: true,
       }),
     ).toThrow();
   });

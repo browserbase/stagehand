@@ -19,6 +19,7 @@ describe("Stagehand object-model protocol", () => {
       apiKey: "bb_key",
       browser: {
         type: "browserbase",
+        sessionId: "session_123",
         region: "eu-central-1",
         userMetadata: { suite: "smoke" },
       },
@@ -29,6 +30,7 @@ describe("Stagehand object-model protocol", () => {
       apiKey: "bb_key",
       browser: {
         type: "browserbase",
+        sessionId: "session_123",
         region: "eu-central-1",
         userMetadata: { suite: "smoke" },
       },

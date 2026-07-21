@@ -25,6 +25,7 @@ export type CDPClientOptions = {
   cdpUrl: string;
   extensionDir?: string;
   extensionId?: string;
+  preloadedExtension?: true;
   serviceWorkerUrlIncludes?: string;
   discoveryTimeoutMs: number;
   commandTimeoutMs: number;
@@ -179,18 +180,32 @@ export class CDPClient {
     const client = new CDPClient(socket, webSocketDebuggerUrl, options.commandTimeoutMs);
 
     try {
-      const extensionId = options.extensionDir
-        ? await loadUnpackedExtension(client, options.extensionDir)
-        : options.extensionId;
-      const serviceWorker = await waitForServiceWorker(client, {
-        extensionId,
-        urlIncludes: options.serviceWorkerUrlIncludes,
-        timeoutMs: options.discoveryTimeoutMs,
-      });
-      const attached = await client.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
-        targetId: serviceWorker.targetId,
-        flatten: true,
-      });
+      let serviceWorker: TargetInfo;
+      let attached: { sessionId: string };
+      let extensionId: string | undefined;
+
+      if (options.preloadedExtension) {
+        const discovered = await waitForPreloadedStagehandServiceWorker(client, {
+          urlIncludes: options.serviceWorkerUrlIncludes,
+          timeoutMs: options.discoveryTimeoutMs,
+        });
+        serviceWorker = discovered.serviceWorker;
+        attached = { sessionId: discovered.sessionId };
+        extensionId = extensionIdFromUrl(serviceWorker.url);
+      } else {
+        extensionId = options.extensionDir
+          ? await loadUnpackedExtension(client, options.extensionDir)
+          : options.extensionId;
+        serviceWorker = await waitForServiceWorker(client, {
+          extensionId,
+          urlIncludes: options.serviceWorkerUrlIncludes,
+          timeoutMs: options.discoveryTimeoutMs,
+        });
+        attached = await client.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
+          targetId: serviceWorker.targetId,
+          flatten: true,
+        });
+      }
 
       client.sessionId = attached.sessionId;
       client.attachedServiceWorker = {
@@ -360,26 +375,7 @@ export async function waitForRuntimeReady(
 
   while (nowFn() - startedAt < options.timeoutMs) {
     try {
-      const evaluated = await cdp.sendCommand<RuntimeEvaluateResult>(
-        "Runtime.evaluate",
-        {
-          expression: `(() => {
-            const runtime = globalThis.__stagehand_runtime;
-            const hasStagehandReceiveFromHost =
-              typeof globalThis.__stagehandReceiveFromHost === "function";
-            return {
-              ok: runtime?.name === ${JSON.stringify(RUNTIME_NAME)} &&
-                runtime?.version === ${JSON.stringify(RUNTIME_VERSION)} &&
-                hasStagehandReceiveFromHost,
-              runtimeName: runtime?.name,
-              runtimeVersion: runtime?.version,
-              hasStagehandReceiveFromHost,
-            };
-          })()`,
-          returnByValue: true,
-        },
-        sessionId,
-      );
+      const evaluated = await evaluateRuntimeReadiness(cdp, sessionId);
 
       if (evaluated.exceptionDetails) {
         lastError =
@@ -409,6 +405,95 @@ export async function waitForRuntimeReady(
     }`,
     { cause: lastReadiness },
   );
+}
+
+export async function waitForPreloadedStagehandServiceWorker(
+  cdp: CDPCommandSender,
+  options: {
+    urlIncludes?: string;
+    timeoutMs: number;
+    pollIntervalMs?: number;
+    delayFn?: (ms: number) => Promise<void>;
+    nowFn?: () => number;
+  },
+): Promise<{ serviceWorker: TargetInfo; sessionId: string }> {
+  const pollIntervalMs = options.pollIntervalMs ?? 100;
+  const delayFn = options.delayFn ?? delay;
+  const nowFn = options.nowFn ?? Date.now;
+  const startedAt = nowFn();
+  const workerUrlIncludes = options.urlIncludes ?? "service-worker.js";
+  let lastTargets: TargetInfo[] = [];
+
+  while (nowFn() - startedAt < options.timeoutMs) {
+    const targets = await cdp.sendCommand<{ targetInfos: TargetInfo[] }>("Target.getTargets");
+    lastTargets = targets.targetInfos;
+    const candidates = targets.targetInfos.filter(
+      (target) =>
+        target.type === "service_worker" &&
+        target.url.startsWith("chrome-extension://") &&
+        target.url.includes(workerUrlIncludes),
+    );
+
+    for (const serviceWorker of candidates) {
+      let sessionId: string | undefined;
+      try {
+        const attached = await cdp.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
+          targetId: serviceWorker.targetId,
+          flatten: true,
+        });
+        sessionId = attached.sessionId;
+        const evaluated = await evaluateRuntimeReadiness(cdp, sessionId);
+        if (!evaluated.exceptionDetails && parseRuntimeReadiness(evaluated.result?.value).ok) {
+          return { serviceWorker, sessionId };
+        }
+      } catch {
+        // The worker may still be starting. Detach and retry until discovery times out.
+      }
+
+      if (sessionId) {
+        await cdp.sendCommand("Target.detachFromTarget", { sessionId }).catch(() => undefined);
+      }
+    }
+
+    await delayFn(pollIntervalMs);
+  }
+
+  throw new Error(
+    `Timed out discovering the preloaded Stagehand service worker. Observed targets: ${lastTargets
+      .map((target) => `${target.type}:${target.url}`)
+      .join(", ")}`,
+  );
+}
+
+async function evaluateRuntimeReadiness(
+  cdp: CDPCommandSender,
+  sessionId: string,
+): Promise<RuntimeEvaluateResult> {
+  return await cdp.sendCommand<RuntimeEvaluateResult>(
+    "Runtime.evaluate",
+    {
+      expression: `(() => {
+        const runtime = globalThis.__stagehand_runtime;
+        const hasStagehandReceiveFromHost =
+          typeof globalThis.__stagehandReceiveFromHost === "function";
+        return {
+          ok: runtime?.name === ${JSON.stringify(RUNTIME_NAME)} &&
+            runtime?.version === ${JSON.stringify(RUNTIME_VERSION)} &&
+            hasStagehandReceiveFromHost,
+          runtimeName: runtime?.name,
+          runtimeVersion: runtime?.version,
+          hasStagehandReceiveFromHost,
+        };
+      })()`,
+      returnByValue: true,
+    },
+    sessionId,
+  );
+}
+
+function extensionIdFromUrl(url: string): string | undefined {
+  const match = /^chrome-extension:\/\/([^/]+)\//u.exec(url);
+  return match?.[1];
 }
 
 export async function waitForServiceWorker(

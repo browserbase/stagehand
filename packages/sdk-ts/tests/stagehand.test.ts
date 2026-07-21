@@ -159,6 +159,7 @@ describe("Stagehand", () => {
 
   it("passes Browserbase credentials and browser settings to the worker", async () => {
     const rpcClient = new FakeRPCClient();
+    const connectRpcClient = vi.fn(async () => rpcClient);
     const stagehand = createStagehandWithDependenciesForTest(
       {
         apiKey: "bb_key",
@@ -172,13 +173,27 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
+          browserbaseSessionId: "session_123",
+          preloadedExtension: true,
           keepAlive: true,
         }),
-        connectRpcClient: async () => rpcClient,
+        connectRpcClient,
       },
     );
 
     await stagehand.init();
+
+    expect(connectRpcClient).toHaveBeenCalledWith({
+      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
+      preloadedExtension: true,
+      serviceWorkerUrlIncludes: "service-worker.js",
+      telemetry: {
+        traces: {
+          endpoint: "https://example.com/v1/traces",
+          headers: {},
+        },
+      },
+    } satisfies RPCClientOptions);
 
     expect(rpcClient.calls).toStrictEqual([
       {
@@ -187,6 +202,7 @@ describe("Stagehand", () => {
           apiKey: "bb_key",
           browser: {
             type: "browserbase",
+            sessionId: "session_123",
             keepAlive: true,
             region: "eu-central-1",
             userMetadata: { suite: "smoke" },
@@ -416,5 +432,32 @@ describe("Stagehand", () => {
     await expect(stagehand.init()).rejects.toThrow("RPC client failed");
     expect(stagehand.initialized).toBe(false);
     expect(closeBrowser).toHaveBeenCalledOnce();
+  });
+
+  it("preserves initialization and cleanup failures without masking either error", async () => {
+    const initError = new Error("RPC client failed");
+    const cleanupError = new Error("Browserbase cleanup failed");
+    const stagehand = createStagehandWithDependenciesForTest(
+      {
+        browser: { type: "local" },
+      },
+      {
+        resolveBrowserSource: async () => ({
+          cdpUrl: "http://127.0.0.1:9222",
+          keepAlive: false,
+          close: async () => {
+            throw cleanupError;
+          },
+        }),
+        connectRpcClient: async () => {
+          throw initError;
+        },
+      },
+    );
+
+    const error = await stagehand.init().catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors).toStrictEqual([initError, cleanupError]);
+    expect((error as Error).cause).toBe(initError);
   });
 });

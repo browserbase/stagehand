@@ -315,6 +315,7 @@ describe("JSON-RPC wire casing", () => {
       apiKey: "bb_key",
       browser: {
         type: "browserbase" as const,
+        sessionId: "session_123",
         browserSettings: { advancedStealth: true },
         userMetadata: { doNotRenameMe: "value" },
       },
@@ -334,6 +335,7 @@ describe("JSON-RPC wire casing", () => {
       api_key: "bb_key",
       browser: {
         type: "browserbase",
+        session_id: "session_123",
         browser_settings: { advanced_stealth: true },
         user_metadata: { doNotRenameMe: "value" },
       },

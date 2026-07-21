@@ -4135,9 +4135,13 @@
                 "type": {
                   "type": "string",
                   "const": "browserbase"
+                },
+                "session_id": {
+                  "type": "string",
+                  "minLength": 1
                 }
               },
-              "required": ["type"],
+              "required": ["type", "session_id"],
               "additionalProperties": false
             },
             "BrowserbaseBrowserSettings": {
@@ -5684,9 +5688,13 @@
                     "type": {
                       "type": "string",
                       "const": "browserbase"
+                    },
+                    "session_id": {
+                      "type": "string",
+                      "minLength": 1
                     }
                   },
-                  "required": ["type"],
+                  "required": ["type", "session_id"],
                   "additionalProperties": false
                 },
                 "BrowserbaseBrowserSettings": {

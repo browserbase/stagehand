@@ -10,9 +10,11 @@
     "test": "vp test run --root ../.. packages/sdk-ts/tests"
   },
   "dependencies": {
+    "@browserbasehq/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/core": "catalog:",
     "chrome-launcher": "catalog:",
+    "fflate": "catalog:",
     "zod": "catalog:"
   }
 }

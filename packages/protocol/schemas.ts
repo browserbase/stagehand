@@ -953,6 +953,7 @@ export const BrowserbaseSessionCreateParamsSchema = z
 /** Browserbase configuration available to both the SDK and the service worker. */
 export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.extend({
   type: z.literal("browserbase"),
+  sessionId: z.string().min(1),
 })
   .strict()
   .meta({ id: "BrowserbaseBrowserSource" });

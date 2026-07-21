@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
+  waitForPreloadedStagehandServiceWorker,
   waitForRuntimeReady,
   waitForServiceWorker,
 } from "../../../sdk-ts/src/cdpClient.ts";
@@ -218,6 +219,49 @@ describe("waitForServiceWorker", () => {
         params: { targetId: "activation-page" },
       }),
     );
+  });
+});
+
+describe("waitForPreloadedStagehandServiceWorker", () => {
+  it("probes candidate workers and returns the one with the Stagehand runtime", async () => {
+    const wrongWorker = target("wrong-worker", "chrome-extension://otherext/service-worker.js");
+    const stagehandWorker = target(
+      "stagehand-worker",
+      "chrome-extension://stagehandext/service-worker.js",
+    );
+    const attachedSessions = ["wrong-session", "stagehand-session"];
+    const readiness = [
+      {
+        ok: false,
+        runtimeName: "other",
+        runtimeVersion: "1",
+        hasStagehandReceiveFromHost: false,
+      },
+      readyRuntime(),
+    ];
+    const cdp = new FakeCdp()
+      .on("Target.getTargets", () => ({ targetInfos: [wrongWorker, stagehandWorker] }))
+      .on("Target.attachToTarget", () => ({ sessionId: attachedSessions.shift() }))
+      .on("Runtime.evaluate", () => ({ result: { value: readiness.shift() } }))
+      .on("Target.detachFromTarget", () => ({}));
+
+    await expect(
+      waitForPreloadedStagehandServiceWorker(cdp, {
+        timeoutMs: 1_000,
+        nowFn: () => 0,
+        delayFn: async () => {},
+      }),
+    ).resolves.toStrictEqual({
+      serviceWorker: stagehandWorker,
+      sessionId: "stagehand-session",
+    });
+
+    expect(cdp.calls).toContainEqual({
+      method: "Target.detachFromTarget",
+      params: { sessionId: "wrong-session" },
+      sessionId: undefined,
+    });
+    expect(cdp.calls.some((call) => call.method === "Extensions.loadUnpacked")).toBe(false);
   });
 });
 

@@ -1,15 +1,22 @@
 import { StagehandClientInitParamsSchema, type BrowserSource } from "./clientSchemas.js";
 import { BrowserbaseSessionCreateParamsSchema } from "../../protocol/schemas.js";
 import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
+import {
+  createBrowserbaseSessionClient,
+  type BrowserbaseSessionClient,
+  type BrowserbaseSessionClientFactory,
+} from "./browserbaseSession.js";
 
-type BrowserbaseBrowserSource = Extract<BrowserSource, { type: "browserbase" }>;
+export type { BrowserbaseSessionClient, BrowserbaseSessionClientFactory };
+
 type LocalBrowserSource = Extract<BrowserSource, { type: "local" }>;
 type LocalBrowserLaunchOptions = Omit<LocalBrowserSource, "type">;
-type BrowserbaseSessionCreateParams = Omit<BrowserbaseBrowserSource, "type">;
 
 export type ResolvedBrowserSource = {
   cdpUrl: string;
   cdpHeaders?: Record<string, string>;
+  browserbaseSessionId?: string;
+  preloadedExtension?: boolean;
   keepAlive: boolean;
   close?: () => Promise<void> | void;
 };
@@ -17,14 +24,6 @@ export type ResolvedBrowserSource = {
 export type LocalBrowserLauncher = (
   options: LocalBrowserLaunchOptions,
 ) => Promise<{ cdpUrl: string; close: () => Promise<void> | void }>;
-
-export type BrowserbaseSessionClient = {
-  createSession(
-    params: BrowserbaseSessionCreateParams,
-  ): Promise<{ cdpUrl: string; close?: () => Promise<void> | void }>;
-};
-
-export type BrowserbaseSessionClientFactory = (apiKey: string) => BrowserbaseSessionClient;
 
 export type BrowserSourceResolverDependencies = {
   launchLocalBrowser?: LocalBrowserLauncher;
@@ -47,12 +46,12 @@ export async function resolveBrowserSource(
     const sessionCreateParams = BrowserbaseSessionCreateParamsSchema.strip().parse(browser);
     const browserbase =
       dependencies.browserbase ??
-      (dependencies.createBrowserbaseSessionClient ?? createDefaultBrowserbaseSessionClient)(
-        apiKey,
-      );
+      (dependencies.createBrowserbaseSessionClient ?? createBrowserbaseSessionClient)(apiKey);
     const session = await browserbase.createSession(sessionCreateParams);
     return {
       cdpUrl: session.cdpUrl,
+      browserbaseSessionId: session.sessionId,
+      preloadedExtension: true,
       keepAlive: browser.keepAlive ?? false,
       close: session.close,
     };
@@ -102,9 +101,3 @@ async function launchLocalBrowser(
     close: () => chrome.kill(),
   };
 }
-
-const createDefaultBrowserbaseSessionClient: BrowserbaseSessionClientFactory = () => ({
-  async createSession() {
-    throw new Error("Browserbase session creation is not implemented yet");
-  },
-});
