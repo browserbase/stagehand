@@ -62,6 +62,7 @@ import {
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
 import { withTimeout } from "../timeoutConfig.js";
+import { waitForInputEventsToSettleInSessions } from "./inputSettling.js";
 
 /**
  * Page
@@ -2222,6 +2223,13 @@ export class Page {
       }
 
       if (delay) await sleep(delay);
+    }
+
+    if (text.length > 0) {
+      await waitForInputEventsToSettleInSessions([
+        this.mainSession,
+        ...this.sessions.values(),
+      ]);
     }
   }
 
