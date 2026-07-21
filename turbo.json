@@ -9,7 +9,8 @@
     "packages/*/package.json",
     "tsconfig.json",
     "tsconfig.base.json",
-    "eslint.config.mjs",
+    ".oxlintrc.json",
+    "packages/cli/.oxlintrc.json",
     ".prettierrc",
     ".prettierignore"
   ],

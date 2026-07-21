@@ -11,7 +11,7 @@
     "build:server:dist": "pnpm -w --dir ../.. exec tsc -p packages/server-v3/tsconfig.json && pnpm -w --dir ../.. exec tsc-alias -p packages/server-v3/tsconfig.json",
     "build:sea:esm": "tsx scripts/build-sea.ts --mode=esm",
     "build:sea:cjs": "tsx scripts/build-sea.ts --mode=cjs",
-    "lint": "cd ../.. && prettier --check packages/server-v3 && cd packages/server-v3 && eslint . && pnpm run typecheck",
+    "lint": "cd ../.. && prettier --check packages/server-v3 && cd packages/server-v3 && oxlint . && pnpm run typecheck",
     "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/server-v3/tsconfig.json --noEmit",
     "test": "pnpm -w --dir ../.. exec turbo run test:server --filter=@browserbasehq/stagehand-server-v3 --",
     "test:server": "tsx scripts/test-server.ts",
@@ -41,8 +41,6 @@
   },
   "devDependencies": {
     "@types/node": "22.13.1",
-    "eslint": "10.0.2",
-    "eslint-plugin-security": "^3.0.1",
     "openai": "4.87.1",
     "postject": "1.0.0-alpha.6",
     "prettier": "^3.2.5",
