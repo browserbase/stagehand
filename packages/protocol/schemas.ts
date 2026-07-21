@@ -1013,9 +1013,6 @@ export const ActOptionsSchema = z
     locator: LocatorSchema.optional().meta({
       description: "Serializable page or element locator for the action target",
     }),
-    serverCache: z.boolean().optional().meta({
-      description: "Override the instance-level serverCache setting for this request",
-    }),
   })
   .optional()
   .meta({ id: "ActOptions" });
@@ -1086,9 +1083,6 @@ export const ExtractOptionsSchema = z
     locator: LocatorSchema.optional().meta({
       description: "Serializable page or element locator for the extraction target",
     }),
-    serverCache: z.boolean().optional().meta({
-      description: "Override the instance-level serverCache setting for this request",
-    }),
   })
   .optional()
   .meta({ id: "ExtractOptions" });
@@ -1148,9 +1142,6 @@ export const ObserveOptionsSchema = z
       }),
     locator: LocatorSchema.optional().meta({
       description: "Serializable page or element locator for the observation target",
-    }),
-    serverCache: z.boolean().optional().meta({
-      description: "Override the instance-level serverCache setting for this request",
     }),
   })
   .optional()
@@ -1275,10 +1266,7 @@ export const StagehandInitParamsSchema = z
     browser: BrowserbaseBrowserSourceSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
     telemetry: TelemetryConfigSchema,
-    sessionId: z.string().optional(),
     systemPrompt: z.string().optional(),
-    logInferenceToFile: z.boolean().optional(),
-    experimental: z.boolean().optional(),
     selfHeal: z.boolean().optional(),
     domSettleTimeoutMs: z.number().int().positive().optional(),
   })

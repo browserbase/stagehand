@@ -4079,17 +4079,8 @@
                 "telemetry": {
                   "$ref": "#/$defs/TelemetryConfig"
                 },
-                "session_id": {
-                  "type": "string"
-                },
                 "system_prompt": {
                   "type": "string"
-                },
-                "log_inference_to_file": {
-                  "type": "boolean"
-                },
-                "experimental": {
-                  "type": "boolean"
                 },
                 "self_heal": {
                   "type": "boolean"
@@ -4497,10 +4488,6 @@
                 "locator": {
                   "description": "Serializable page or element locator for the action target",
                   "$ref": "#/$defs/Locator"
-                },
-                "server_cache": {
-                  "description": "Override the instance-level serverCache setting for this request",
-                  "type": "boolean"
                 }
               },
               "additionalProperties": false
@@ -4829,10 +4816,6 @@
                 "locator": {
                   "description": "Serializable page or element locator for the observation target",
                   "$ref": "#/$defs/Locator"
-                },
-                "server_cache": {
-                  "description": "Override the instance-level serverCache setting for this request",
-                  "type": "boolean"
                 }
               },
               "additionalProperties": false
@@ -4901,10 +4884,6 @@
                 "locator": {
                   "description": "Serializable page or element locator for the extraction target",
                   "$ref": "#/$defs/Locator"
-                },
-                "server_cache": {
-                  "description": "Override the instance-level serverCache setting for this request",
-                  "type": "boolean"
                 }
               },
               "additionalProperties": false
@@ -5649,17 +5628,8 @@
                 "telemetry": {
                   "$ref": "#/$defs/TelemetryConfig"
                 },
-                "session_id": {
-                  "type": "string"
-                },
                 "system_prompt": {
                   "type": "string"
-                },
-                "log_inference_to_file": {
-                  "type": "boolean"
-                },
-                "experimental": {
-                  "type": "boolean"
                 },
                 "self_heal": {
                   "type": "boolean"
@@ -6185,10 +6155,6 @@
                     "locator": {
                       "description": "Serializable page or element locator for the action target",
                       "$ref": "#/$defs/Locator"
-                    },
-                    "server_cache": {
-                      "description": "Override the instance-level serverCache setting for this request",
-                      "type": "boolean"
                     }
                   },
                   "additionalProperties": false
@@ -6738,10 +6704,6 @@
                     "locator": {
                       "description": "Serializable page or element locator for the observation target",
                       "$ref": "#/$defs/Locator"
-                    },
-                    "server_cache": {
-                      "description": "Override the instance-level serverCache setting for this request",
-                      "type": "boolean"
                     }
                   },
                   "additionalProperties": false
@@ -7294,10 +7256,6 @@
                     "locator": {
                       "description": "Serializable page or element locator for the extraction target",
                       "$ref": "#/$defs/Locator"
-                    },
-                    "server_cache": {
-                      "description": "Override the instance-level serverCache setting for this request",
-                      "type": "boolean"
                     }
                   },
                   "additionalProperties": false

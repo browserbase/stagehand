@@ -41,7 +41,6 @@ export async function extract({
   clientLLMGenerate,
   logger,
   systemPrompt = "",
-  experimental = false,
 }: {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot">;
@@ -49,7 +48,6 @@ export async function extract({
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt?: string;
-  experimental?: boolean;
 }): Promise<ExtractResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -65,7 +63,6 @@ export async function extract({
   const focusSelector = options?.selector?.replace(/^xpath=/i, "") ?? "";
   ensureTimeRemaining();
   const { combinedTree, combinedUrlMap } = await page.captureSnapshot({
-    experimental,
     focusSelector: focusSelector || undefined,
     ignoreSelectors: options?.ignoreSelectors,
   });

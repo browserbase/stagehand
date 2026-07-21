@@ -51,6 +51,16 @@ describe("Stagehand object-model protocol", () => {
     }
   });
 
+  it("rejects removed Stagehand initialization fields", () => {
+    for (const params of [
+      { experimental: true },
+      { logInferenceToFile: true },
+      { sessionId: "caller-provided-session" },
+    ]) {
+      expect(() => StagehandMethods.stagehandInit.params.parse(params)).toThrow();
+    }
+  });
+
   it("rejects model names without a provider prefix", () => {
     expect(() =>
       StagehandMethods.stagehandInit.params.parse({
@@ -87,6 +97,35 @@ describe("Stagehand object-model protocol", () => {
         options: { model: { apiKey: "test-key" } },
       }),
     ).toThrow();
+  });
+
+  it("strips the removed serverCache call option", () => {
+    expect(
+      StagehandMethods.stagehandAct.params.parse({
+        pageId: "target-1",
+        input: "Click the submit button",
+        options: { serverCache: true },
+      }),
+    ).toStrictEqual({ pageId: "target-1", input: "Click the submit button", options: {} });
+    expect(
+      StagehandMethods.stagehandObserve.params.parse({
+        pageId: "target-1",
+        options: { serverCache: true },
+      }),
+    ).toStrictEqual({ pageId: "target-1", options: {} });
+    expect(
+      StagehandMethods.stagehandExtract.params.parse({
+        pageId: "target-1",
+        instruction: "Extract the page heading",
+        schema: { type: "object" },
+        options: { serverCache: true },
+      }),
+    ).toStrictEqual({
+      pageId: "target-1",
+      instruction: "Extract the page heading",
+      schema: { type: "object" },
+      options: {},
+    });
   });
 
   it("defines extraction with a page, instruction, JSON Schema, and optional call settings", () => {

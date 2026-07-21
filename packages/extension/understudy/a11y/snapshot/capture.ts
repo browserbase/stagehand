@@ -224,7 +224,6 @@ export async function tryScopedSnapshot(
         exclusionIntervalsByFrame,
       ),
       tagNameMap,
-      experimental: options?.experimental ?? false,
       scrollableMap,
       encode: (backendNodeId) => `${page.getOrdinal(targetFrameId)}-${backendNodeId}`,
     });
@@ -367,7 +366,6 @@ export async function collectPerFrameMaps(
 
     const { outline, urlMap } = await a11yForFrame(sess, frameId, {
       isIgnoredBackendNode,
-      experimental: options?.experimental ?? false,
       tagNameMap,
       scrollableMap,
       encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,

@@ -44,7 +44,6 @@ export function createStagehandController(runtime: StagehandRuntime) {
       systemPrompt: state.initParams.systemPrompt,
       selfHeal: state.initParams.selfHeal,
       domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
-      experimental: state.initParams.experimental,
     });
   }
 
@@ -67,7 +66,6 @@ export function createStagehandController(runtime: StagehandRuntime) {
       clientLLMGenerate: runtime.adapters.clientLLMGenerate,
       logger,
       systemPrompt: state.initParams.systemPrompt,
-      experimental: state.initParams.experimental,
     });
   }
 
@@ -90,7 +88,6 @@ export function createStagehandController(runtime: StagehandRuntime) {
       clientLLMGenerate: runtime.adapters.clientLLMGenerate,
       logger,
       systemPrompt: state.initParams.systemPrompt,
-      experimental: state.initParams.experimental,
     });
   }
 

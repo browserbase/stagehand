@@ -26,7 +26,6 @@ export async function observe({
   clientLLMGenerate,
   logger,
   systemPrompt = "",
-  experimental = false,
 }: {
   params: StagehandObserveParams;
   page: Pick<Page, "captureSnapshot">;
@@ -34,7 +33,6 @@ export async function observe({
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt?: string;
-  experimental?: boolean;
 }): Promise<ObserveResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -51,7 +49,6 @@ export async function observe({
 
   ensureTimeRemaining();
   const { combinedTree, combinedXpathMap } = await page.captureSnapshot({
-    experimental,
     focusSelector: focusSelector || undefined,
     ignoreSelectors: options?.ignoreSelectors,
   });

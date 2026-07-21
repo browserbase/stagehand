@@ -144,11 +144,9 @@ describe("observe service", () => {
       clientLLMGenerate,
       logger,
       systemPrompt: "Prefer visible controls",
-      experimental: true,
     });
 
     expect(captureSnapshot).toHaveBeenCalledWith({
-      experimental: true,
       focusSelector: "//main",
       ignoreSelectors: ["nav"],
     });

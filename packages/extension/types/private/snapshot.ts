@@ -21,10 +21,6 @@ export type SnapshotOptions = {
    * Toggle whether iframe subtrees are included in the merged snapshot. Defaults to true.
    */
   includeIframes?: boolean;
-  /**
-   * Optional feature flag that surfaces experimental traversal tweaks in the Accessibility layer.
-   */
-  experimental?: boolean;
 };
 
 /**
@@ -114,7 +110,6 @@ export type A11yNode = {
 export type A11yOptions = {
   focusSelector?: string;
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
-  experimental: boolean;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   encode: (backendNodeId: number) => string;

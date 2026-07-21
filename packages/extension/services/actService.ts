@@ -36,7 +36,6 @@ type ActContext = {
   systemPrompt: string;
   selfHeal: boolean;
   domSettleTimeoutMs?: number;
-  experimental: boolean;
   ensureTimeRemaining: () => void;
 };
 
@@ -49,7 +48,6 @@ export async function act({
   systemPrompt = "",
   selfHeal = false,
   domSettleTimeoutMs,
-  experimental = false,
 }: {
   params: StagehandActParams;
   page: Page;
@@ -59,7 +57,6 @@ export async function act({
   systemPrompt?: string;
   selfHeal?: boolean;
   domSettleTimeoutMs?: number;
-  experimental?: boolean;
 }): Promise<ActResult> {
   const { input, options } = params;
   const variables = options?.variables;
@@ -73,14 +70,13 @@ export async function act({
     systemPrompt,
     selfHeal,
     domSettleTimeoutMs,
-    experimental,
     ensureTimeRemaining,
   };
 
   ensureTimeRemaining();
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
   ensureTimeRemaining();
-  const { combinedTree, combinedXpathMap } = await page.captureSnapshot({ experimental });
+  const { combinedTree, combinedXpathMap } = await page.captureSnapshot({});
 
   const instruction = buildActPrompt(input, Object.values(SupportedUnderstudyAction), variables);
 
@@ -116,9 +112,7 @@ export async function act({
   }
 
   ensureTimeRemaining();
-  const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } = await page.captureSnapshot({
-    experimental,
-  });
+  const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } = await page.captureSnapshot({});
   const changedTree = diffCombinedTrees(combinedTree, nextTree);
   const secondInstruction = buildStepTwoPrompt(
     input,
@@ -282,9 +276,7 @@ async function selfHealAction({
 
   try {
     context.ensureTimeRemaining();
-    const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot({
-      experimental: context.experimental,
-    });
+    const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot({});
     const inferenceResult = await getActionFromLLM({
       instruction: buildActPrompt(actionInstruction, Object.values(SupportedUnderstudyAction), {}),
       domElements: combinedTree,
