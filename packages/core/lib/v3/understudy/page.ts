@@ -39,6 +39,7 @@ import {
   StagehandInvalidArgumentError,
   StagehandEvalError,
   StagehandUnsupportedBrowserFeatureError,
+  CdpConnectionClosedError,
 } from "../types/public/sdkErrors.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
@@ -2667,6 +2668,14 @@ export class Page {
     state: LoadState,
     timeoutMs = 15000,
   ): Promise<void> {
+    // A dead transport can never deliver the lifecycle event we are about to
+    // wait for. Without this check the wait burns its whole timeout and then
+    // blames the page for loading slowly, which hides the real failure.
+    const alreadyClosed = this.conn.transportClosedReason;
+    if (alreadyClosed) {
+      throw new CdpConnectionClosedError(alreadyClosed);
+    }
+
     await this.mainSession
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
@@ -2690,6 +2699,7 @@ export class Page {
         this.mainSession.off("Page.lifecycleEvent", onLifecycle);
         this.mainSession.off("Page.domContentEventFired", onDomContent);
         this.mainSession.off("Page.loadEventFired", onLoad);
+        this.conn.offTransportClosed(onTransportClosed);
       };
       const clearPollTimer = () => {
         if (pollTimer) {
@@ -2724,6 +2734,31 @@ export class Page {
         if (state === "load") finish();
       };
 
+      // If the browser goes away mid-wait the lifecycle listeners fall silent
+      // and every readyState poll fails, which isMainLoadStateReady reports as
+      // "not ready". Fail fast with the real reason instead of timing out.
+      const onTransportClosed = (why: string) => {
+        if (done) return;
+        done = true;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        clearPollTimer();
+        off();
+        reject(new CdpConnectionClosedError(why));
+      };
+      this.conn.onTransportClosed(onTransportClosed);
+      // The transport can die between the pre-flight check above and this
+      // subscription (an await sits in between). In that window the close event
+      // has already been emitted and will never fire again, so re-check now
+      // rather than waiting out the full timeout.
+      const closedDuringSetup = this.conn.transportClosedReason;
+      if (closedDuringSetup) {
+        onTransportClosed(closedDuringSetup);
+        return;
+      }
+
       this.mainSession.on("Page.lifecycleEvent", onLifecycle);
       // Backups for sites that don't emit lifecycle consistently
       this.mainSession.on("Page.domContentEventFired", onDomContent);
@@ -2733,6 +2768,14 @@ export class Page {
       // where readyState has advanced but the corresponding event was missed.
       const pollReadyState = async () => {
         if (done || pollInFlight) return;
+        // The poll is what masks a dead browser: isMainLoadStateReady catches
+        // the failed CDP send and reports "not ready". Check the transport
+        // explicitly so the death cannot hide behind a falsy readyState.
+        const closedNow = this.conn.transportClosedReason;
+        if (closedNow) {
+          onTransportClosed(closedNow);
+          return;
+        }
         pollInFlight = true;
         try {
           if (done) return;
