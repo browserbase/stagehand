@@ -207,6 +207,11 @@ const ModelConfigBaseSchema = z
   .strict();
 
 export const GenericModelConfigObjectSchema = ModelConfigBaseSchema.extend({
+  openaiEndpointFormat: z.enum(["responses", "chat"]).optional().meta({
+    description:
+      "Wire format used by an OpenAI-compatible endpoint. Defaults to the Responses API; use chat for Chat Completions-only endpoints.",
+    example: "chat",
+  }),
   provider: z
     .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
     .optional()
