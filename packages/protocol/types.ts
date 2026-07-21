@@ -26,6 +26,7 @@ import type {
   BrowserbaseRegionSchema,
   BrowserbaseSessionCreateParamsSchema,
   BrowserbaseViewportSchema,
+  CachingSchema,
   CerebrasModelIdSchema,
   CerebrasModelNameSchema,
   ClientModelReferenceSchema,
@@ -427,6 +428,7 @@ export type AzureResolvedProviderClientOptions = z.infer<
 export type BrowserbaseBrowserSource = z.infer<typeof BrowserbaseBrowserSourceSchema>;
 export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCreateParamsSchema>;
+export type Caching = z.infer<typeof CachingSchema>;
 export type ClearCookieOptions = z.infer<typeof ClearCookieOptionsSchema>;
 export type ClientOptions = z.infer<typeof ClientOptionsSchema>;
 export type ClientOptionsBase = z.infer<typeof ClientOptionsBaseSchema>;

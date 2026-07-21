@@ -4089,6 +4089,10 @@
                   "type": "integer",
                   "exclusiveMinimum": 0,
                   "maximum": 9007199254740991
+                },
+                "cache": {
+                  "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
+                  "$ref": "#/$defs/Caching"
                 }
               },
               "required": ["telemetry"],
@@ -4466,6 +4470,24 @@
               "required": ["source"],
               "additionalProperties": false
             },
+            "Caching": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "threshold": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
             "ActOptions": {
               "type": "object",
               "properties": {
@@ -4492,6 +4514,10 @@
                 "locator": {
                   "description": "Serializable page or element locator for the action target",
                   "$ref": "#/$defs/Locator"
+                },
+                "cache": {
+                  "description": "Override the instance-level cache setting for this request",
+                  "$ref": "#/$defs/Caching"
                 }
               },
               "additionalProperties": false
@@ -4820,6 +4846,10 @@
                 "locator": {
                   "description": "Serializable page or element locator for the observation target",
                   "$ref": "#/$defs/Locator"
+                },
+                "cache": {
+                  "description": "Override the instance-level cache setting for this request",
+                  "$ref": "#/$defs/Caching"
                 }
               },
               "additionalProperties": false
@@ -4888,6 +4918,10 @@
                 "locator": {
                   "description": "Serializable page or element locator for the extraction target",
                   "$ref": "#/$defs/Locator"
+                },
+                "cache": {
+                  "description": "Override the instance-level cache setting for this request",
+                  "$ref": "#/$defs/Caching"
                 }
               },
               "additionalProperties": false
@@ -5642,6 +5676,10 @@
                   "type": "integer",
                   "exclusiveMinimum": 0,
                   "maximum": 9007199254740991
+                },
+                "cache": {
+                  "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
+                  "$ref": "#/$defs/Caching"
                 }
               },
               "required": ["telemetry"],
@@ -6052,6 +6090,24 @@
                   },
                   "required": ["traces"],
                   "additionalProperties": false
+                },
+                "Caching": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "threshold": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
                 }
               }
             },
@@ -6163,6 +6219,10 @@
                     "locator": {
                       "description": "Serializable page or element locator for the action target",
                       "$ref": "#/$defs/Locator"
+                    },
+                    "cache": {
+                      "description": "Override the instance-level cache setting for this request",
+                      "$ref": "#/$defs/Caching"
                     }
                   },
                   "additionalProperties": false
@@ -6563,6 +6623,24 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "Caching": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "threshold": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
                 }
               }
             },
@@ -6712,6 +6790,10 @@
                     "locator": {
                       "description": "Serializable page or element locator for the observation target",
                       "$ref": "#/$defs/Locator"
+                    },
+                    "cache": {
+                      "description": "Override the instance-level cache setting for this request",
+                      "$ref": "#/$defs/Caching"
                     }
                   },
                   "additionalProperties": false
@@ -7112,6 +7194,24 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "Caching": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "threshold": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
                 }
               }
             },
@@ -7264,6 +7364,10 @@
                     "locator": {
                       "description": "Serializable page or element locator for the extraction target",
                       "$ref": "#/$defs/Locator"
+                    },
+                    "cache": {
+                      "description": "Override the instance-level cache setting for this request",
+                      "$ref": "#/$defs/Caching"
                     }
                   },
                   "additionalProperties": false
@@ -7622,6 +7726,24 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "Caching": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "threshold": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
                 }
               }
             },

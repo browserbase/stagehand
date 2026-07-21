@@ -13,6 +13,7 @@ import type { Page } from "../understudy/page.js";
 import type { EncodedId, ZodPathSegments } from "../types/private/internal.js";
 import { injectUrls, transformSchema } from "../utils.js";
 import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
+import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
 
 /** Replaces URL strings with numeric DOM IDs until extraction has resolved the page's URL map. */
@@ -41,6 +42,7 @@ export async function extract({
   clientLLMGenerate,
   logger,
   systemPrompt = "",
+  cache,
 }: {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot">;
@@ -48,6 +50,7 @@ export async function extract({
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt?: string;
+  cache?: cacheService.CacheContext;
 }): Promise<ExtractResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -61,77 +64,101 @@ export async function extract({
   }
 
   const focusSelector = options?.selector?.replace(/^xpath=/i, "") ?? "";
-  ensureTimeRemaining();
-  const { combinedTree, combinedUrlMap } = await page.captureSnapshot({
-    focusSelector: focusSelector || undefined,
-    ignoreSelectors: options?.ignoreSelectors,
+
+  return await cacheService.withCache<ExtractResult>({
+    method: "extract",
+    page,
+    data: cacheService.buildExtractCacheData(params),
+    selector: options?.selector,
+    caching: options?.cache,
+    context: cache,
+    logger,
+    onHit: (value) => ({ result: value }),
+    execute: () => runExtraction(),
   });
-  ensureTimeRemaining();
 
-  logger.info("Starting extraction using an accessibility snapshot", {
-    category: "extraction",
-    instruction,
-  });
+  async function runExtraction(): Promise<cacheService.CacheExecuteOutcome<ExtractResult>> {
+    ensureTimeRemaining();
+    const { combinedTree, combinedUrlMap } = await page.captureSnapshot({
+      focusSelector: focusSelector || undefined,
+      ignoreSelectors: options?.ignoreSelectors,
+    });
+    ensureTimeRemaining();
 
-  const schema = z.fromJSONSchema(params.schema as Parameters<typeof z.fromJSONSchema>[0]);
-  const isObjectSchema = schema instanceof z.ZodObject;
-  const wrapKey = "value" as const;
-  const objectSchema: z.ZodObject = isObjectSchema
-    ? schema
-    : z.object({
-        [wrapKey]: schema,
-      });
-  const [transformedSchema, urlFieldPaths] = transformUrlStringsToNumericIds(objectSchema);
-
-  ensureTimeRemaining();
-  const extractionResponse: ExtractionResponse<z.ZodObject> = await inference.extract<z.ZodObject>({
-    instruction,
-    domElements: combinedTree,
-    schema: transformedSchema as z.ZodObject,
-    generate: (input) => llmService.generate(model, input, clientLLMGenerate),
-    userProvidedInstructions: systemPrompt,
-  });
-  ensureTimeRemaining();
-
-  const {
-    metadata: { completed },
-    prompt_tokens,
-    completion_tokens,
-    reasoning_tokens: _reasoningTokens,
-    cached_input_tokens: _cachedInputTokens,
-    inference_time_ms,
-    ...rest
-  } = extractionResponse;
-  let output = rest as z.infer<z.ZodObject>;
-
-  const idToUrl: Record<EncodedId, string> = (combinedUrlMap ?? {}) as Record<EncodedId, string>;
-  for (const { segments } of urlFieldPaths) {
-    injectUrls(
-      output as Record<string, unknown>,
-      segments,
-      idToUrl as unknown as Record<string, string>,
-    );
-  }
-  if (!isObjectSchema && output && typeof output === "object") {
-    output = (output as Record<string, unknown>)[wrapKey] as z.infer<z.ZodObject>;
-  }
-
-  const resultString = JSON.stringify(output) ?? "undefined";
-  const resultPreview =
-    resultString.length > 200 ? resultString.slice(0, 200) + "..." : resultString;
-
-  logger.info(
-    completed
-      ? "Extraction completed successfully"
-      : "Extraction incomplete after processing all data",
-    {
+    logger.info("Starting extraction using an accessibility snapshot", {
       category: "extraction",
-      promptTokens: prompt_tokens,
-      completionTokens: completion_tokens,
-      inferenceTimeMs: inference_time_ms,
-      result: resultPreview,
-    },
-  );
+      instruction,
+    });
 
-  return { result: output };
+    const schema = z.fromJSONSchema(params.schema as Parameters<typeof z.fromJSONSchema>[0]);
+    const isObjectSchema = schema instanceof z.ZodObject;
+    const wrapKey = "value" as const;
+    const objectSchema: z.ZodObject = isObjectSchema
+      ? schema
+      : z.object({
+          [wrapKey]: schema,
+        });
+    const [transformedSchema, urlFieldPaths] = transformUrlStringsToNumericIds(objectSchema);
+
+    ensureTimeRemaining();
+    const extractionResponse: ExtractionResponse<z.ZodObject> =
+      await inference.extract<z.ZodObject>({
+        instruction,
+        domElements: combinedTree,
+        schema: transformedSchema as z.ZodObject,
+        generate: (input) => llmService.generate(model, input, clientLLMGenerate),
+        userProvidedInstructions: systemPrompt,
+      });
+    ensureTimeRemaining();
+
+    const {
+      metadata: { completed },
+      prompt_tokens,
+      completion_tokens,
+      reasoning_tokens: _reasoningTokens,
+      cached_input_tokens: _cachedInputTokens,
+      inference_time_ms,
+      ...rest
+    } = extractionResponse;
+    let output = rest as z.infer<z.ZodObject>;
+
+    const idToUrl: Record<EncodedId, string> = (combinedUrlMap ?? {}) as Record<EncodedId, string>;
+    for (const { segments } of urlFieldPaths) {
+      injectUrls(
+        output as Record<string, unknown>,
+        segments,
+        idToUrl as unknown as Record<string, string>,
+      );
+    }
+    if (!isObjectSchema && output && typeof output === "object") {
+      output = (output as Record<string, unknown>)[wrapKey] as z.infer<z.ZodObject>;
+    }
+
+    const resultString = JSON.stringify(output) ?? "undefined";
+    const resultPreview =
+      resultString.length > 200 ? resultString.slice(0, 200) + "..." : resultString;
+
+    logger.info(
+      completed
+        ? "Extraction completed successfully"
+        : "Extraction incomplete after processing all data",
+      {
+        category: "extraction",
+        promptTokens: prompt_tokens,
+        completionTokens: completion_tokens,
+        inferenceTimeMs: inference_time_ms,
+        result: resultPreview,
+      },
+    );
+
+    return {
+      result: { result: output },
+      cacheValue: output,
+      llmUsage: {
+        inputTokens: prompt_tokens,
+        outputTokens: completion_tokens,
+        llmDurationMs: inference_time_ms,
+      },
+    };
+  }
 }

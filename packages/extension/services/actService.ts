@@ -23,6 +23,7 @@ import { SupportedUnderstudyAction } from "../types/private/handlers.js";
 import { diffCombinedTrees } from "../understudy/a11y/snapshot/index.js";
 import type { Page } from "../understudy/page.js";
 import { trimTrailingTextNode } from "../utils.js";
+import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
 
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
@@ -48,6 +49,7 @@ export async function act({
   systemPrompt = "",
   selfHeal = false,
   domSettleTimeoutMs,
+  cache,
 }: {
   params: StagehandActParams;
   page: Page;
@@ -57,6 +59,7 @@ export async function act({
   systemPrompt?: string;
   selfHeal?: boolean;
   domSettleTimeoutMs?: number;
+  cache?: cacheService.CacheContext;
 }): Promise<ActResult> {
   const { input, options } = params;
   const variables = options?.variables;
@@ -76,82 +79,144 @@ export async function act({
   ensureTimeRemaining();
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
   ensureTimeRemaining();
-  const { combinedTree, combinedXpathMap } = await page.captureSnapshot({});
 
-  const instruction = buildActPrompt(input, Object.values(SupportedUnderstudyAction), variables);
-
-  ensureTimeRemaining();
-  const firstInference = await getActionFromLLM({
-    instruction,
-    domElements: combinedTree,
-    xpathMap: combinedXpathMap,
-    context,
+  return await cacheService.withCache<ActResult>({
+    method: "act",
+    page,
+    data: cacheService.buildActCacheData(params),
+    caching: options?.cache,
+    context: cache,
+    logger,
+    onHit: (value) => replayCachedActions(value, input, variables, context),
+    execute: async () => {
+      const result = await runActPipeline();
+      return {
+        result,
+        cacheValue:
+          result.result.success && result.result.actions.length > 0
+            ? result.result.actions
+            : undefined,
+      };
+    },
   });
 
-  if (!firstInference.action) {
-    logger.info("No actionable element returned by the LLM", {
-      category: "action",
+  async function runActPipeline(): Promise<ActResult> {
+    const { combinedTree, combinedXpathMap } = await page.captureSnapshot({});
+
+    const instruction = buildActPrompt(input, Object.values(SupportedUnderstudyAction), variables);
+
+    ensureTimeRemaining();
+    const firstInference = await getActionFromLLM({
+      instruction,
+      domElements: combinedTree,
+      xpathMap: combinedXpathMap,
+      context,
     });
+
+    if (!firstInference.action) {
+      logger.info("No actionable element returned by the LLM", {
+        category: "action",
+      });
+      return actResult({
+        success: false,
+        message: "Failed to perform act: No action found",
+        actionDescription: input,
+        actions: [],
+      });
+    }
+
+    ensureTimeRemaining();
+    const firstResult = await takeDeterministicAction({
+      action: firstInference.action,
+      variables,
+      context,
+    });
+
+    if (!firstInference.response.twoStep) {
+      return actResult(firstResult);
+    }
+
+    ensureTimeRemaining();
+    const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } = await page.captureSnapshot(
+      {},
+    );
+    const changedTree = diffCombinedTrees(combinedTree, nextTree);
+    const secondInstruction = buildStepTwoPrompt(
+      input,
+      describeAction(firstInference.action),
+      Object.values(SupportedUnderstudyAction).filter(
+        (
+          action,
+        ): action is Exclude<
+          SupportedUnderstudyAction,
+          SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN
+        > => action !== SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN,
+      ),
+      variables,
+    );
+
+    ensureTimeRemaining();
+    const secondInference = await getActionFromLLM({
+      instruction: secondInstruction,
+      domElements: changedTree.trim() ? changedTree : nextTree,
+      xpathMap: nextXpathMap,
+      context,
+    });
+
+    if (!secondInference.action) {
+      return actResult(firstResult);
+    }
+
+    ensureTimeRemaining();
+    const secondResult = await takeDeterministicAction({
+      action: secondInference.action,
+      variables,
+      context,
+    });
+
     return actResult({
-      success: false,
-      message: "Failed to perform act: No action found",
-      actionDescription: input,
-      actions: [],
+      success: firstResult.success && secondResult.success,
+      message: `${firstResult.message} → ${secondResult.message}`,
+      actionDescription: firstResult.actionDescription,
+      actions: [...firstResult.actions, ...secondResult.actions],
     });
   }
+}
 
-  ensureTimeRemaining();
-  const firstResult = await takeDeterministicAction({
-    action: firstInference.action,
-    variables,
-    context,
-  });
-
-  if (!firstInference.response.twoStep) {
-    return actResult(firstResult);
+/**
+ * Replays cached actions deterministically — no LLM involved. Any failure
+ * throws so the cache intercept falls back to the full inference pipeline,
+ * which doubles as the self-heal path for stale cached selectors.
+ */
+async function replayCachedActions(
+  value: unknown,
+  input: string,
+  variables: Variables | undefined,
+  context: ActContext,
+): Promise<ActResult> {
+  const actions = cacheService.normalizeCachedActions(value);
+  if (actions.length === 0) {
+    throw new Error("Cached act value contained no usable actions");
   }
 
-  ensureTimeRemaining();
-  const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } = await page.captureSnapshot({});
-  const changedTree = diffCombinedTrees(combinedTree, nextTree);
-  const secondInstruction = buildStepTwoPrompt(
-    input,
-    describeAction(firstInference.action),
-    Object.values(SupportedUnderstudyAction).filter(
-      (
-        action,
-      ): action is Exclude<
-        SupportedUnderstudyAction,
-        SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN
-      > => action !== SupportedUnderstudyAction.SELECT_OPTION_FROM_DROPDOWN,
-    ),
-    variables,
-  );
-
-  ensureTimeRemaining();
-  const secondInference = await getActionFromLLM({
-    instruction: secondInstruction,
-    domElements: changedTree.trim() ? changedTree : nextTree,
-    xpathMap: nextXpathMap,
-    context,
-  });
-
-  if (!secondInference.action) {
-    return actResult(firstResult);
+  const results: ActResultData[] = [];
+  for (const action of actions) {
+    const result = await takeDeterministicAction({
+      action,
+      variables,
+      context: { ...context, selfHeal: false },
+    });
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+    results.push(result);
   }
-
-  ensureTimeRemaining();
-  const secondResult = await takeDeterministicAction({
-    action: secondInference.action,
-    variables,
-    context,
-  });
 
   return actResult({
-    success: firstResult.success && secondResult.success,
-    message: `${firstResult.message} → ${secondResult.message}`,
-    actionDescription: firstResult.actionDescription,
-    actions: [...firstResult.actions, ...secondResult.actions],
+    success: true,
+    message: results.map((result) => result.message).join(" → "),
+    actionDescription: input,
+    actions: results.flatMap((result) => result.actions),
   });
 }
 

@@ -101,32 +101,36 @@ describe("Stagehand object-model protocol", () => {
     ).toThrow();
   });
 
-  it("strips the removed serverCache call option", () => {
+  it("preserves the cache call options", () => {
     expect(
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
         input: "Click the submit button",
-        options: { serverCache: true },
+        options: { cache: { threshold: 2 } },
       }),
-    ).toStrictEqual({ pageId: "target-1", input: "Click the submit button", options: {} });
+    ).toStrictEqual({
+      pageId: "target-1",
+      input: "Click the submit button",
+      options: { cache: { threshold: 2 } },
+    });
     expect(
       StagehandMethods.stagehandObserve.params.parse({
         pageId: "target-1",
-        options: { serverCache: true },
+        options: { cache: true },
       }),
-    ).toStrictEqual({ pageId: "target-1", options: {} });
+    ).toStrictEqual({ pageId: "target-1", options: { cache: true } });
     expect(
       StagehandMethods.stagehandExtract.params.parse({
         pageId: "target-1",
         instruction: "Extract the page heading",
         schema: { type: "object" },
-        options: { serverCache: true },
+        options: { cache: true },
       }),
     ).toStrictEqual({
       pageId: "target-1",
       instruction: "Extract the page heading",
       schema: { type: "object" },
-      options: {},
+      options: { cache: true },
     });
   });
 

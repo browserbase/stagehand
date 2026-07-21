@@ -676,6 +676,19 @@ export const StagehandMetricsSchema = z
 
 const CacheStatusSchema = z.enum(["HIT", "MISS"]);
 
+/** Server-side caching configuration: a boolean toggle, or an object enabling
+ * caching with an optional hit-count threshold (how many identical results
+ * must be seen before the cache serves a hit; overrides the project's
+ * configured threshold). */
+export const CachingSchema = z
+  .union([
+    z.boolean(),
+    z.strictObject({
+      threshold: z.number().int().positive().optional(),
+    }),
+  ])
+  .meta({ id: "Caching" });
+
 /** Detailed model configuration object */
 export const GoogleServiceAccountCredentialsSchema = z
   .object({
@@ -1014,6 +1027,9 @@ export const ActOptionsSchema = z
     locator: LocatorSchema.optional().meta({
       description: "Serializable page or element locator for the action target",
     }),
+    cache: CachingSchema.optional().meta({
+      description: "Override the instance-level cache setting for this request",
+    }),
   })
   .optional()
   .meta({ id: "ActOptions" });
@@ -1084,6 +1100,9 @@ export const ExtractOptionsSchema = z
     locator: LocatorSchema.optional().meta({
       description: "Serializable page or element locator for the extraction target",
     }),
+    cache: CachingSchema.optional().meta({
+      description: "Override the instance-level cache setting for this request",
+    }),
   })
   .optional()
   .meta({ id: "ExtractOptions" });
@@ -1143,6 +1162,9 @@ export const ObserveOptionsSchema = z
       }),
     locator: LocatorSchema.optional().meta({
       description: "Serializable page or element locator for the observation target",
+    }),
+    cache: CachingSchema.optional().meta({
+      description: "Override the instance-level cache setting for this request",
     }),
   })
   .optional()
@@ -1270,6 +1292,10 @@ export const StagehandInitParamsSchema = z
     systemPrompt: z.string().optional(),
     selfHeal: z.boolean().optional(),
     domSettleTimeoutMs: z.number().int().positive().optional(),
+    cache: CachingSchema.optional().meta({
+      description:
+        "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
+    }),
   })
   .strict()
   .meta({ id: "StagehandInitParams" });

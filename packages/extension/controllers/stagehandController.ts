@@ -8,6 +8,7 @@ import type {
 import type { HandlerContext } from "../rpcRouter.js";
 import type { StagehandRuntime } from "../runtime.js";
 import * as actService from "../services/actService.js";
+import * as cacheService from "../services/cacheService.js";
 import * as extractService from "../services/extractService.js";
 import * as observeService from "../services/observeService.js";
 
@@ -44,6 +45,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
       systemPrompt: state.initParams.systemPrompt,
       selfHeal: state.initParams.selfHeal,
       domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
+      cache: cacheService.buildCacheContext(state.initParams),
     });
   }
 
@@ -66,6 +68,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
       clientLLMGenerate: runtime.adapters.clientLLMGenerate,
       logger,
       systemPrompt: state.initParams.systemPrompt,
+      cache: cacheService.buildCacheContext(state.initParams),
     });
   }
 
@@ -88,6 +91,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
       clientLLMGenerate: runtime.adapters.clientLLMGenerate,
       logger,
       systemPrompt: state.initParams.systemPrompt,
+      cache: cacheService.buildCacheContext(state.initParams),
     });
   }
 
