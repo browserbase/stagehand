@@ -9,6 +9,7 @@ import {
 import { StagehandZodObject } from "../../zodCompat.js";
 import { getZFactory } from "../../../utils.js";
 import type { StagehandZodSchema } from "../../zodCompat.js";
+import { openAIStoreProviderOptions } from "../../llm/providerOptions.js";
 
 interface DoneResult {
   reasoning: string;
@@ -146,6 +147,7 @@ Call the "done" tool with:
   };
 
   const modelId = typeof model === "string" ? model : model.modelId;
+  const modelProvider = typeof model === "string" ? undefined : model.provider;
   const fallbacks = anthropicFallbacksOptions(modelId);
 
   // Models whose always-on thinking rejects forced tool use go straight to
@@ -161,7 +163,7 @@ Call the "done" tool with:
       : { type: "tool", toolName: "done" },
     providerOptions: {
       google: { mediaResolution: "MEDIA_RESOLUTION_HIGH" },
-      openai: { store: false },
+      ...openAIStoreProviderOptions(modelProvider),
       ...(fallbacks ? { anthropic: fallbacks } : {}),
     },
   });
