@@ -1,7 +1,13 @@
 import { connectRPCClient, type RPCClient, type RPCClientOptions } from "./rpcClient.js";
 import { StagehandInitParamsSchema } from "../../protocol/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
-import type { StagehandRpcNotification } from "../../protocol/types.js";
+import type {
+  BrowserGetVersionResult,
+  RuntimeLoopbackStatusResult,
+  StagehandMetrics,
+  StagehandPingResult,
+  StagehandRpcNotification,
+} from "../../protocol/types.js";
 import { BrowserContext } from "./browserContext.js";
 import { resolveBrowserSource, type ResolvedBrowserSource } from "./browserSource.js";
 import {
@@ -36,6 +42,22 @@ export class Stagehand {
 
   get initialized(): boolean {
     return this.isInitialized;
+  }
+
+  async ping(): Promise<StagehandPingResult> {
+    return this.connectedRpcClient.send(StagehandMethods.ping, {});
+  }
+
+  async runtimeLoopbackStatus(): Promise<RuntimeLoopbackStatusResult> {
+    return this.connectedRpcClient.send(StagehandMethods.runtimeLoopbackStatus, {});
+  }
+
+  async browserGetVersion(): Promise<BrowserGetVersionResult> {
+    return this.connectedRpcClient.send(StagehandMethods.browserGetVersion, {});
+  }
+
+  async metrics(): Promise<StagehandMetrics> {
+    return this.connectedRpcClient.send(StagehandMethods.stagehandMetrics, {});
   }
 
   async init(): Promise<void> {
@@ -113,7 +135,14 @@ export class Stagehand {
     }
   }
 
-  async closeBrowserSource(): Promise<void> {
+  private get connectedRpcClient(): RPCClient {
+    if (!this.isInitialized || !this.rpcClient) {
+      throw new Error("Stagehand is not initialized. Call stagehand.init() before using it.");
+    }
+    return this.rpcClient;
+  }
+
+  private async closeBrowserSource(): Promise<void> {
     const browser = this.browser;
     this.browser = undefined;
     if (!browser || browser.keepAlive) {

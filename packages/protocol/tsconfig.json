@@ -23,6 +23,7 @@
     "../server/version.ts",
     "../sdk-ts/src/**/*.ts",
     "../sdk-ts/tests/**/*.ts",
+    "../docs/tests/**/*.ts",
     "../../rules/ast-grep/**/*.ts"
   ]
 }

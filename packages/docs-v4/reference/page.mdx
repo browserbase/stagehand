@@ -1,0 +1,2271 @@
+---
+title: "page"
+description: "Navigate, inspect, and interact with a browser page."
+icon: "page"
+---
+
+A `Page` combines deterministic browser controls with Stagehand's natural-language `act`, `observe`, and `extract` methods.
+
+<View title="TypeScript" icon="js">
+
+## Quick start
+
+```typescript
+const page = await stagehand.context.newPage();
+await page.goto("https://example.com");
+```
+
+## goto()
+
+Navigate the page to a URL.
+
+```typescript
+await page.goto("https://example.com");
+```
+
+<ParamField path="url" type="string">
+  The destination URL.
+</ParamField>
+
+<ParamField path="options" type="PageNavigationOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.timeoutMs" type="number" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+  <ParamField path="options.waitUntil" type="LoadState" optional>
+    The target load state.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<Page>">
+  The operation result.
+</ResponseField>
+
+## reload()
+
+Reload the current page.
+
+```typescript
+await page.reload();
+```
+
+<ParamField path="options" type="PageReloadOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.ignoreCache" type="boolean" optional>
+  Whether to bypass the browser cache.
+</ParamField>
+
+<ParamField path="options.timeoutMs" type="number" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+  <ParamField path="options.waitUntil" type="LoadState" optional>
+    The target load state.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<Page>">
+  The operation result.
+</ResponseField>
+
+## goBack()
+
+Navigate backward in the page history.
+
+```typescript
+await page.goBack();
+```
+
+<ParamField path="options" type="PageNavigationOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.timeoutMs" type="number" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+  <ParamField path="options.waitUntil" type="LoadState" optional>
+    The target load state.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<Page>">
+  The operation result.
+</ResponseField>
+
+## goForward()
+
+Navigate forward in the page history.
+
+```typescript
+await page.goForward();
+```
+
+<ParamField path="options" type="PageNavigationOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.timeoutMs" type="number" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+  <ParamField path="options.waitUntil" type="LoadState" optional>
+    The target load state.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<Page>">
+  The operation result.
+</ResponseField>
+
+## click()
+
+Click at page coordinates.
+
+```typescript
+const xpath = await page.click(240, 320);
+```
+
+<ParamField path="x" type="number">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="number">
+  The vertical page coordinate.
+</ParamField>
+
+<ParamField path="options" type="PageClickOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.button" type="MouseButton" optional>
+  The mouse button to use.
+</ParamField>
+
+<ParamField path="options.clickCount" type="number" optional>
+  The number of clicks to dispatch.
+</ParamField>
+
+  <ParamField path="options.returnXpath" type="boolean" optional>
+    Whether to return the affected element's XPath.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<string>">
+  The operation result.
+</ResponseField>
+
+## hover()
+
+Move the pointer to page coordinates.
+
+```typescript
+const xpath = await page.hover(240, 320);
+```
+
+<ParamField path="x" type="number">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="number">
+  The vertical page coordinate.
+</ParamField>
+
+<ParamField path="options" type="PageHoverOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.returnXpath" type="boolean" optional>
+    Whether to return the affected element's XPath.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<string>">
+  The operation result.
+</ResponseField>
+
+## scroll()
+
+Scroll from page coordinates by the supplied deltas.
+
+```typescript
+const xpath = await page.scroll(240, 320, 0, 600);
+```
+
+<ParamField path="x" type="number">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="number">
+  The vertical page coordinate.
+</ParamField>
+
+<ParamField path="deltaX" type="number">
+  Horizontal scroll distance.
+</ParamField>
+
+<ParamField path="deltaY" type="number">
+  Vertical scroll distance.
+</ParamField>
+
+<ParamField path="options" type="PageScrollOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.returnXpath" type="boolean" optional>
+    Whether to return the affected element's XPath.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<string>">
+  The operation result.
+</ResponseField>
+
+## dragAndDrop()
+
+Drag from one page coordinate to another.
+
+```typescript
+const [from, to] = await page.dragAndDrop(100, 100, 400, 400);
+```
+
+<ParamField path="fromX" type="number">
+  The drag origin's horizontal coordinate.
+</ParamField>
+
+<ParamField path="fromY" type="number">
+  The drag origin's vertical coordinate.
+</ParamField>
+
+<ParamField path="toX" type="number">
+  The drop target's horizontal coordinate.
+</ParamField>
+
+<ParamField path="toY" type="number">
+  The drop target's vertical coordinate.
+</ParamField>
+
+<ParamField path="options" type="PageDragAndDropOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.button" type="MouseButton" optional>
+  The mouse button to use.
+</ParamField>
+
+<ParamField path="options.delay" type="number" optional>
+  The input delay in milliseconds.
+</ParamField>
+
+<ParamField path="options.returnXpath" type="boolean" optional>
+  Whether to return the affected element's XPath.
+</ParamField>
+
+  <ParamField path="options.steps" type="number" optional>
+    The number of intermediate pointer moves.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<[string, string]>">
+  The operation result.
+</ResponseField>
+
+## type()
+
+Type text at the current input target.
+
+```typescript
+await page.type("Browserbase");
+```
+
+<ParamField path="text" type="string">
+  The text to type.
+</ParamField>
+
+<ParamField path="options" type="PageTypeOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.delay" type="number" optional>
+  The input delay in milliseconds.
+</ParamField>
+
+  <ParamField path="options.withMistakes" type="boolean" optional>
+    Whether to simulate occasional typing mistakes.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## keyPress()
+
+Send a keyboard key press to the page.
+
+```typescript
+await page.keyPress("Enter");
+```
+
+<ParamField path="key" type="string">
+  The keyboard key to send.
+</ParamField>
+
+<ParamField path="options" type="PageKeyPressOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.delay" type="number" optional>
+    The input delay in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## evaluate()
+
+Evaluate JavaScript in the page and return its result.
+
+```typescript
+const title = await page.evaluate(() => document.title);
+```
+
+<ParamField path="expression" type="string | function">
+  JavaScript source or a function to evaluate.
+</ParamField>
+
+<ParamField path="arg" type="Arg" optional>
+  An optional argument passed to the function.
+</ParamField>
+
+<ResponseField name="result" type="Promise<R>">
+  The operation result.
+</ResponseField>
+
+## addInitScript()
+
+Run a script before other scripts whenever the page navigates.
+
+```typescript
+await page.addInitScript(() => {
+  window.localStorage.clear();
+});
+```
+
+<ParamField path="script" type="InitScriptSource">
+  A function or JavaScript source string.
+</ParamField>
+
+<ParamField path="arg" type="Arg" optional>
+  An optional argument passed to the function.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## setExtraHTTPHeaders()
+
+Set additional HTTP headers for this page.
+
+```typescript
+await page.setExtraHTTPHeaders({ "x-test": "true" });
+```
+
+<ParamField path="headers" type="Record<string, string>">
+  HTTP header names and values.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## setViewportSize()
+
+Set the page viewport dimensions.
+
+```typescript
+await page.setViewportSize(1440, 900);
+```
+
+<ParamField path="width" type="number">
+  Viewport width in CSS pixels.
+</ParamField>
+
+<ParamField path="height" type="number">
+  Viewport height in CSS pixels.
+</ParamField>
+
+<ParamField path="options" type="PageSetViewportSizeOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.deviceScaleFactor" type="number" optional>
+    The device scale factor.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## waitForLoadState()
+
+Wait until the page reaches a load state.
+
+```typescript
+await page.waitForLoadState("networkidle", 10_000);
+```
+
+<ParamField path="state" type="LoadState">
+  The state to wait for.
+</ParamField>
+
+<ParamField path="timeoutMs" type="number" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## waitForTimeout()
+
+Wait for a fixed number of milliseconds.
+
+```typescript
+await page.waitForTimeout(500);
+```
+
+<ParamField path="ms" type="number">
+  The number of milliseconds to wait.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## waitForSelector()
+
+Wait for a selector to reach the requested state.
+
+```typescript
+const matched = await page.waitForSelector("main");
+```
+
+<ParamField path="selector" type="string">
+  The selector to target.
+</ParamField>
+
+<ParamField path="options" type="PageWaitForSelectorOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.pierceShadow" type="boolean" optional>
+  Whether to traverse shadow roots.
+</ParamField>
+
+<ParamField path="options.state" type="string" optional>
+  The state to wait for.
+</ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    The operation timeout in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<boolean>">
+  The operation result.
+</ResponseField>
+
+## screenshot()
+
+Capture a screenshot of the page.
+
+```typescript
+const image = await page.screenshot({ fullPage: true });
+```
+
+<ParamField path="options" type="ScreenshotOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.animations" type="string" optional>
+  How to handle active animations.
+</ParamField>
+
+<ParamField path="options.caret" type="string" optional>
+  How to render the text caret.
+</ParamField>
+
+  <ParamField path="options.clip" type="PageScreenshotClip" optional>
+    The screenshot crop rectangle.
+
+    <ParamField path="options.clip.height" type="number">
+      The height in CSS pixels.
+    </ParamField>
+
+    <ParamField path="options.clip.width" type="number">
+      The width in CSS pixels.
+    </ParamField>
+
+    <ParamField path="options.clip.x" type="number">
+      The horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="options.clip.y" type="number">
+      The vertical coordinate.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.fullPage" type="boolean" optional>
+  Whether to capture the full scrollable page.
+</ParamField>
+
+  <ParamField path="options.mask" type="LocatorDescriptor[]" optional>
+    Elements to obscure in the screenshot.
+
+    <ParamField path="options.mask.nth" type="number" optional>
+      The zero-based match index.
+    </ParamField>
+
+    <ParamField path="options.mask.pageId" type="string">
+      The owning page identifier.
+    </ParamField>
+
+    <ParamField path="options.mask.selector" type="string">
+      The element selector.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.maskColor" type="string" optional>
+  The CSS mask color.
+</ParamField>
+
+<ParamField path="options.omitBackground" type="boolean" optional>
+  Whether to use a transparent background.
+</ParamField>
+
+<ParamField path="options.path" type="string" optional>
+  A file path where the image is also written.
+</ParamField>
+
+<ParamField path="options.quality" type="number" optional>
+  JPEG quality from 0 to 100.
+</ParamField>
+
+<ParamField path="options.scale" type="string" optional>
+  Whether to use CSS or device pixels.
+</ParamField>
+
+<ParamField path="options.style" type="string" optional>
+  CSS applied while taking the screenshot.
+</ParamField>
+
+<ParamField path="options.timeout" type="number" optional>
+  The operation timeout in milliseconds.
+</ParamField>
+
+  <ParamField path="options.type" type="string" optional>
+    The image format.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<Buffer>">
+  The operation result.
+</ResponseField>
+
+## snapshot()
+
+Capture the page's accessibility-oriented DOM snapshot.
+
+```typescript
+const snapshot = await page.snapshot();
+```
+
+<ParamField path="options" type="PageSnapshotOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.includeIframes" type="boolean" optional>
+    Whether to include iframe content.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<SnapshotResult>">
+  The operation result.
+
+<ResponseField name="result.formattedTree" type="string">
+  The formatted page tree.
+</ResponseField>
+
+<ResponseField name="result.urlMap" type="object">
+  The snapshot URL lookup.
+</ResponseField>
+
+  <ResponseField name="result.xpathMap" type="object">
+    The snapshot XPath lookup.
+  </ResponseField>
+</ResponseField>
+
+## url()
+
+Return the page's current URL.
+
+```typescript
+const url = await page.url();
+```
+
+<ResponseField name="result" type="Promise<string>">
+  The operation result.
+</ResponseField>
+
+## title()
+
+Return the page's current document title.
+
+```typescript
+const title = await page.title();
+```
+
+<ResponseField name="result" type="Promise<string>">
+  The operation result.
+</ResponseField>
+
+## close()
+
+Close the page.
+
+```typescript
+await page.close();
+```
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## act()
+
+Perform an action described in natural language.
+
+```typescript
+const result = await page.act("Click the sign in button");
+```
+
+<ParamField path="input" type="string">
+  The natural-language action to perform.
+</ParamField>
+
+<ParamField path="options" type="ActOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.cache" type="Caching" optional>
+    Override server-side caching for this request.
+
+    <ParamField path="options.cache.threshold" type="number" optional>
+      The identical-result threshold required before serving a cache hit.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.locator" type="Locator" optional>
+    The serialized page or element target.
+
+    <ParamField path="options.locator.active" type="boolean | null" optional>
+      Whether the locator is active.
+    </ParamField>
+
+    <ParamField path="options.locator.coordinates" type="LocatorCoordinates | null" optional>
+      The locator bounds.
+
+      <ParamField path="options.locator.coordinates.bottom" type="number | null" optional>
+        The bottom coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.left" type="number | null" optional>
+        The left coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.right" type="number | null" optional>
+        The right coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.top" type="number | null" optional>
+        The top coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.x" type="number | null" optional>
+        The horizontal coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.y" type="number | null" optional>
+        The vertical coordinate.
+      </ParamField>
+    </ParamField>
+
+    <ParamField path="options.locator.css" type="string | null" optional>
+      The resolved CSS selector.
+    </ParamField>
+
+    <ParamField path="options.locator.elementId" type="string | null" optional>
+      The snapshot element identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameId" type="string | null" optional>
+      The frame identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameIdx" type="number | null" optional>
+      The frame index.
+    </ParamField>
+
+    <ParamField path="options.locator.idx" type="number | null" optional>
+      The element index.
+    </ParamField>
+
+    <ParamField path="options.locator.pageIdx" type="number | null" optional>
+      The page index.
+    </ParamField>
+
+    <ParamField path="options.locator.reactElementName" type="string | null" optional>
+      The React element name.
+    </ParamField>
+
+    <ParamField path="options.locator.snapshotId" type="string | null" optional>
+      The snapshot identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.tabId" type="number | null" optional>
+      The browser tab identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.targetId" type="string | null" optional>
+      The browser target identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.text" type="string | null" optional>
+      The element text.
+    </ParamField>
+
+    <ParamField path="options.locator.title" type="string | null" optional>
+      The document or element title.
+    </ParamField>
+
+    <ParamField path="options.locator.url" type="string | null" optional>
+      The locator URL.
+    </ParamField>
+
+    <ParamField path="options.locator.xpath" type="string | null" optional>
+      The resolved XPath.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.model" type="ModelConfig" optional>
+    Model configuration for this call.
+
+    <ParamField path="options.model.apiKey" type="string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.model.baseUrl" type="string">
+      The model provider base URL.
+    </ParamField>
+
+    <ParamField path="options.model.headers" type="object" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.model.modelName" type="ModelName">
+      The model identifier.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.timeout" type="number" optional>
+  The operation timeout in milliseconds.
+</ParamField>
+
+  <ParamField path="options.variables" type="Variables" optional>
+    Variables available to the instruction.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<ActResultData>">
+  The operation result.
+
+<ResponseField name="result.actionDescription" type="string">
+  A summary of the completed action.
+</ResponseField>
+
+  <ResponseField name="result.actions" type="Action[]">
+    The actions that were performed.
+
+    <ResponseField name="result.actions.arguments" type="string[]" optional>
+      Arguments passed to the action.
+    </ResponseField>
+
+    <ResponseField name="result.actions.description" type="string">
+      A human-readable action description.
+    </ResponseField>
+
+    <ResponseField name="result.actions.method" type="string" optional>
+      The action method.
+    </ResponseField>
+
+    <ResponseField name="result.actions.selector" type="string">
+      The action target selector.
+    </ResponseField>
+
+  </ResponseField>
+
+<ResponseField name="result.message" type="string">
+  The operation message.
+</ResponseField>
+
+  <ResponseField name="result.success" type="boolean">
+    Whether the action succeeded.
+  </ResponseField>
+</ResponseField>
+
+## observe()
+
+Find candidate actions on the page from an optional instruction.
+
+```typescript
+const actions = await page.observe("Find the sign in button");
+```
+
+<ParamField path="instruction" type="string" optional>
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="options" type="ObserveOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.cache" type="Caching" optional>
+    Override server-side caching for this request.
+
+    <ParamField path="options.cache.threshold" type="number" optional>
+      The identical-result threshold required before serving a cache hit.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.ignoreSelectors" type="string[]" optional>
+  Selectors to exclude.
+</ParamField>
+
+  <ParamField path="options.locator" type="Locator" optional>
+    The serialized page or element target.
+
+    <ParamField path="options.locator.active" type="boolean | null" optional>
+      Whether the locator is active.
+    </ParamField>
+
+    <ParamField path="options.locator.coordinates" type="LocatorCoordinates | null" optional>
+      The locator bounds.
+
+      <ParamField path="options.locator.coordinates.bottom" type="number | null" optional>
+        The bottom coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.left" type="number | null" optional>
+        The left coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.right" type="number | null" optional>
+        The right coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.top" type="number | null" optional>
+        The top coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.x" type="number | null" optional>
+        The horizontal coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.y" type="number | null" optional>
+        The vertical coordinate.
+      </ParamField>
+    </ParamField>
+
+    <ParamField path="options.locator.css" type="string | null" optional>
+      The resolved CSS selector.
+    </ParamField>
+
+    <ParamField path="options.locator.elementId" type="string | null" optional>
+      The snapshot element identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameId" type="string | null" optional>
+      The frame identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameIdx" type="number | null" optional>
+      The frame index.
+    </ParamField>
+
+    <ParamField path="options.locator.idx" type="number | null" optional>
+      The element index.
+    </ParamField>
+
+    <ParamField path="options.locator.pageIdx" type="number | null" optional>
+      The page index.
+    </ParamField>
+
+    <ParamField path="options.locator.reactElementName" type="string | null" optional>
+      The React element name.
+    </ParamField>
+
+    <ParamField path="options.locator.snapshotId" type="string | null" optional>
+      The snapshot identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.tabId" type="number | null" optional>
+      The browser tab identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.targetId" type="string | null" optional>
+      The browser target identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.text" type="string | null" optional>
+      The element text.
+    </ParamField>
+
+    <ParamField path="options.locator.title" type="string | null" optional>
+      The document or element title.
+    </ParamField>
+
+    <ParamField path="options.locator.url" type="string | null" optional>
+      The locator URL.
+    </ParamField>
+
+    <ParamField path="options.locator.xpath" type="string | null" optional>
+      The resolved XPath.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.model" type="ModelConfig" optional>
+    Model configuration for this call.
+
+    <ParamField path="options.model.apiKey" type="string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.model.baseUrl" type="string">
+      The model provider base URL.
+    </ParamField>
+
+    <ParamField path="options.model.headers" type="object" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.model.modelName" type="ModelName">
+      The model identifier.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.selector" type="string" optional>
+  A selector that scopes the operation.
+</ParamField>
+
+<ParamField path="options.timeout" type="number" optional>
+  The operation timeout in milliseconds.
+</ParamField>
+
+  <ParamField path="options.variables" type="Variables" optional>
+    Variables available to the instruction.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<Action[]>">
+  The operation result.
+
+<ResponseField name="result.arguments" type="string[]" optional>
+  Arguments passed to the action.
+</ResponseField>
+
+<ResponseField name="result.description" type="string">
+  A human-readable action description.
+</ResponseField>
+
+<ResponseField name="result.method" type="string" optional>
+  The action method.
+</ResponseField>
+
+  <ResponseField name="result.selector" type="string">
+    The action target selector.
+  </ResponseField>
+</ResponseField>
+
+## extract()
+
+Extract structured data from the page.
+
+```typescript
+const product = await page.extract("Extract the product", ProductSchema);
+```
+
+<ParamField path="instruction" type="string">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="schema" type="Schema">
+  The schema used to validate extracted data.
+</ParamField>
+
+<ParamField path="options" type="ExtractOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.cache" type="Caching" optional>
+    Override server-side caching for this request.
+
+    <ParamField path="options.cache.threshold" type="number" optional>
+      The identical-result threshold required before serving a cache hit.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.ignoreSelectors" type="string[]" optional>
+  Selectors to exclude.
+</ParamField>
+
+  <ParamField path="options.locator" type="Locator" optional>
+    The serialized page or element target.
+
+    <ParamField path="options.locator.active" type="boolean | null" optional>
+      Whether the locator is active.
+    </ParamField>
+
+    <ParamField path="options.locator.coordinates" type="LocatorCoordinates | null" optional>
+      The locator bounds.
+
+      <ParamField path="options.locator.coordinates.bottom" type="number | null" optional>
+        The bottom coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.left" type="number | null" optional>
+        The left coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.right" type="number | null" optional>
+        The right coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.top" type="number | null" optional>
+        The top coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.x" type="number | null" optional>
+        The horizontal coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.y" type="number | null" optional>
+        The vertical coordinate.
+      </ParamField>
+    </ParamField>
+
+    <ParamField path="options.locator.css" type="string | null" optional>
+      The resolved CSS selector.
+    </ParamField>
+
+    <ParamField path="options.locator.elementId" type="string | null" optional>
+      The snapshot element identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameId" type="string | null" optional>
+      The frame identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameIdx" type="number | null" optional>
+      The frame index.
+    </ParamField>
+
+    <ParamField path="options.locator.idx" type="number | null" optional>
+      The element index.
+    </ParamField>
+
+    <ParamField path="options.locator.pageIdx" type="number | null" optional>
+      The page index.
+    </ParamField>
+
+    <ParamField path="options.locator.reactElementName" type="string | null" optional>
+      The React element name.
+    </ParamField>
+
+    <ParamField path="options.locator.snapshotId" type="string | null" optional>
+      The snapshot identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.tabId" type="number | null" optional>
+      The browser tab identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.targetId" type="string | null" optional>
+      The browser target identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.text" type="string | null" optional>
+      The element text.
+    </ParamField>
+
+    <ParamField path="options.locator.title" type="string | null" optional>
+      The document or element title.
+    </ParamField>
+
+    <ParamField path="options.locator.url" type="string | null" optional>
+      The locator URL.
+    </ParamField>
+
+    <ParamField path="options.locator.xpath" type="string | null" optional>
+      The resolved XPath.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.model" type="ModelConfig" optional>
+    Model configuration for this call.
+
+    <ParamField path="options.model.apiKey" type="string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.model.baseUrl" type="string">
+      The model provider base URL.
+    </ParamField>
+
+    <ParamField path="options.model.headers" type="object" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.model.modelName" type="ModelName">
+      The model identifier.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.screenshot" type="boolean" optional>
+  Whether the operation may use a screenshot.
+</ParamField>
+
+<ParamField path="options.selector" type="string" optional>
+  A selector that scopes the operation.
+</ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    The operation timeout in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<z.output<Schema>>">
+  The operation result.
+</ResponseField>
+
+## locator()
+
+Create a locator for a CSS selector on this page.
+
+```typescript
+const locator = page.locator("button[type=submit]");
+```
+
+<ParamField path="selector" type="string">
+  The selector to target.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  The operation result.
+</ResponseField>
+
+</View>
+
+<View title="Python" icon="python">
+
+## Quick start
+
+```python
+page = await stagehand.context.new_page()
+await page.goto("https://example.com")
+```
+
+## goto()
+
+Navigate the page to a URL.
+
+```python
+await page.goto("https://example.com")
+```
+
+<ParamField path="url" type="str">
+  The destination URL.
+</ParamField>
+
+<ParamField path="wait_until" type="LoadState | str | None" optional>
+  The load state to wait for.
+</ParamField>
+
+<ParamField path="timeout_ms" type="int | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  The operation result.
+</ResponseField>
+
+## reload()
+
+Reload the current page.
+
+```python
+await page.reload()
+```
+
+<ParamField path="wait_until" type="LoadState | str | None" optional>
+  The load state to wait for.
+</ParamField>
+
+<ParamField path="timeout_ms" type="int | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="ignore_cache" type="bool | None" optional>
+  Whether to bypass the browser cache.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  The operation result.
+</ResponseField>
+
+## go_back()
+
+Navigate backward in the page history.
+
+```python
+await page.go_back()
+```
+
+<ParamField path="wait_until" type="LoadState | str | None" optional>
+  The load state to wait for.
+</ParamField>
+
+<ParamField path="timeout_ms" type="int | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  The operation result.
+</ResponseField>
+
+## go_forward()
+
+Navigate forward in the page history.
+
+```python
+await page.go_forward()
+```
+
+<ParamField path="wait_until" type="LoadState | str | None" optional>
+  The load state to wait for.
+</ParamField>
+
+<ParamField path="timeout_ms" type="int | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  The operation result.
+</ResponseField>
+
+## click()
+
+Click at page coordinates.
+
+```python
+xpath = await page.click(240, 320)
+```
+
+<ParamField path="x" type="float">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="float">
+  The vertical page coordinate.
+</ParamField>
+
+<ParamField path="button" type="MouseButton | str | None" optional>
+  The mouse button to use.
+</ParamField>
+
+<ParamField path="click_count" type="int | None" optional>
+  The number of clicks to dispatch.
+</ParamField>
+
+<ParamField path="return_xpath" type="bool | None" optional>
+  Whether to return the affected element's XPath.
+</ParamField>
+
+<ResponseField name="result" type="str">
+  The operation result.
+</ResponseField>
+
+## hover()
+
+Move the pointer to page coordinates.
+
+```python
+xpath = await page.hover(240, 320)
+```
+
+<ParamField path="x" type="float">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="float">
+  The vertical page coordinate.
+</ParamField>
+
+<ParamField path="return_xpath" type="bool | None" optional>
+  Whether to return the affected element's XPath.
+</ParamField>
+
+<ResponseField name="result" type="str">
+  The operation result.
+</ResponseField>
+
+## scroll()
+
+Scroll from page coordinates by the supplied deltas.
+
+```python
+xpath = await page.scroll(240, 320, 0, 600)
+```
+
+<ParamField path="x" type="float">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="float">
+  The vertical page coordinate.
+</ParamField>
+
+<ParamField path="delta_x" type="float">
+  Horizontal scroll distance.
+</ParamField>
+
+<ParamField path="delta_y" type="float">
+  Vertical scroll distance.
+</ParamField>
+
+<ParamField path="return_xpath" type="bool | None" optional>
+  Whether to return the affected element's XPath.
+</ParamField>
+
+<ResponseField name="result" type="str">
+  The operation result.
+</ResponseField>
+
+## drag_and_drop()
+
+Drag from one page coordinate to another.
+
+```python
+from_xpath, to_xpath = await page.drag_and_drop(100, 100, 400, 400)
+```
+
+<ParamField path="from_x" type="float">
+  The drag origin's horizontal coordinate.
+</ParamField>
+
+<ParamField path="from_y" type="float">
+  The drag origin's vertical coordinate.
+</ParamField>
+
+<ParamField path="to_x" type="float">
+  The drop target's horizontal coordinate.
+</ParamField>
+
+<ParamField path="to_y" type="float">
+  The drop target's vertical coordinate.
+</ParamField>
+
+<ParamField path="button" type="MouseButton | str | None" optional>
+  The mouse button to use.
+</ParamField>
+
+<ParamField path="steps" type="int | None" optional>
+  The number of intermediate pointer moves.
+</ParamField>
+
+<ParamField path="delay" type="float | None" optional>
+  An optional input delay in milliseconds.
+</ParamField>
+
+<ParamField path="return_xpath" type="bool | None" optional>
+  Whether to return the affected element's XPath.
+</ParamField>
+
+<ResponseField name="result" type="tuple[str, str]">
+  The operation result.
+</ResponseField>
+
+## type()
+
+Type text at the current input target.
+
+```python
+await page.type("Browserbase")
+```
+
+<ParamField path="text" type="str">
+  The text to type.
+</ParamField>
+
+<ParamField path="delay" type="float | None" optional>
+  An optional input delay in milliseconds.
+</ParamField>
+
+<ParamField path="with_mistakes" type="bool | None" optional>
+  Whether to simulate occasional typing mistakes.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## key_press()
+
+Send a keyboard key press to the page.
+
+```python
+await page.key_press("Enter")
+```
+
+<ParamField path="key" type="str">
+  The keyboard key to send.
+</ParamField>
+
+<ParamField path="delay" type="float | None" optional>
+  An optional input delay in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## evaluate()
+
+Evaluate JavaScript in the page and return its result.
+
+```python
+title = await page.evaluate("document.title", result_type=str)
+```
+
+<ParamField path="expression" type="str">
+  JavaScript source or a function to evaluate.
+</ParamField>
+
+<ParamField path="result_type" type="type[EvaluateResult] | None" optional>
+  An optional Python type used to validate the result.
+</ParamField>
+
+<ResponseField name="result" type="JsonValue | EvaluateResult">
+  The operation result.
+</ResponseField>
+
+## add_init_script()
+
+Run a script before other scripts whenever the page navigates.
+
+```python
+await page.add_init_script("window.localStorage.clear()")
+```
+
+<ParamField path="source" type="str | Path">
+  JavaScript source or a path to a JavaScript file.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## set_extra_http_headers()
+
+Set additional HTTP headers for this page.
+
+```python
+await page.set_extra_http_headers({"x-test": "true"})
+```
+
+<ParamField path="headers" type="Mapping[str, str]">
+  HTTP header names and values.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## set_viewport_size()
+
+Set the page viewport dimensions.
+
+```python
+await page.set_viewport_size(1440, 900)
+```
+
+<ParamField path="width" type="int">
+  Viewport width in CSS pixels.
+</ParamField>
+
+<ParamField path="height" type="int">
+  Viewport height in CSS pixels.
+</ParamField>
+
+<ParamField path="device_scale_factor" type="float | None" optional>
+  The device scale factor.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## wait_for_load_state()
+
+Wait until the page reaches a load state.
+
+```python
+await page.wait_for_load_state("networkidle", timeout_ms=10_000)
+```
+
+<ParamField path="state" type="LoadState | str">
+  The state to wait for.
+</ParamField>
+
+<ParamField path="timeout_ms" type="int | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## wait_for_timeout()
+
+Wait for a fixed number of milliseconds.
+
+```python
+await page.wait_for_timeout(500)
+```
+
+<ParamField path="ms" type="int">
+  The number of milliseconds to wait.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## wait_for_selector()
+
+Wait for a selector to reach the requested state.
+
+```python
+matched = await page.wait_for_selector("main", state="visible")
+```
+
+<ParamField path="selector" type="str">
+  The selector to target.
+</ParamField>
+
+<ParamField path="state" type="State | str | None" optional>
+  The state to wait for.
+</ParamField>
+
+<ParamField path="timeout" type="int | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="pierce_shadow" type="bool | None" optional>
+  Whether to traverse shadow roots.
+</ParamField>
+
+<ResponseField name="result" type="bool">
+  The operation result.
+</ResponseField>
+
+## screenshot()
+
+Capture a screenshot of the page.
+
+```python
+image = await page.screenshot(full_page=True)
+```
+
+<ParamField path="animations" type="Animations | str | None" optional>
+  How to handle CSS animations.
+</ParamField>
+
+<ParamField path="caret" type="Caret | str | None" optional>
+  How to render the text caret.
+</ParamField>
+
+<ParamField path="clip" type="PageScreenshotClip | None" optional>
+  The region to capture.
+
+<ParamField path="clip.height" type="float">
+  The height in CSS pixels.
+</ParamField>
+
+<ParamField path="clip.width" type="float">
+  The width in CSS pixels.
+</ParamField>
+
+<ParamField path="clip.x" type="float">
+  The horizontal coordinate.
+</ParamField>
+
+  <ParamField path="clip.y" type="float">
+    The vertical coordinate.
+  </ParamField>
+</ParamField>
+
+<ParamField path="full_page" type="bool | None" optional>
+  Whether to capture the full scrollable page.
+</ParamField>
+
+<ParamField path="path" type="str | Path | None" optional>
+  A path where the image is also written.
+</ParamField>
+
+<ParamField path="mask" type="Sequence[Locator] | None" optional>
+  Locators to obscure in the screenshot.
+
+<ParamField path="mask.nth" type="int" optional>
+  The zero-based match index.
+</ParamField>
+
+<ParamField path="mask.page_id" type="str">
+  The owning page identifier.
+</ParamField>
+
+  <ParamField path="mask.selector" type="str">
+    The element selector.
+  </ParamField>
+</ParamField>
+
+<ParamField path="mask_color" type="str | None" optional>
+  The CSS color used for masks.
+</ParamField>
+
+<ParamField path="omit_background" type="bool | None" optional>
+  Whether to use a transparent background.
+</ParamField>
+
+<ParamField path="quality" type="int | None" optional>
+  JPEG quality from 0 to 100.
+</ParamField>
+
+<ParamField path="scale" type="Scale | str | None" optional>
+  Whether to use CSS or device pixel scale.
+</ParamField>
+
+<ParamField path="style" type="str | None" optional>
+  CSS applied while taking the screenshot.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="type" type="ScreenshotType | str | None" optional>
+  The image format.
+</ParamField>
+
+<ResponseField name="result" type="bytes">
+  The operation result.
+</ResponseField>
+
+## snapshot()
+
+Capture the page's accessibility-oriented DOM snapshot.
+
+```python
+snapshot = await page.snapshot()
+```
+
+<ParamField path="include_iframes" type="bool | None" optional>
+  Whether to include iframe content.
+</ParamField>
+
+<ResponseField name="result" type="SnapshotResult">
+  The operation result.
+
+<ResponseField name="result.formatted_tree" type="str">
+  The formatted page tree.
+</ResponseField>
+
+<ResponseField name="result.url_map" type="dict[str, object]">
+  The snapshot URL lookup.
+</ResponseField>
+
+  <ResponseField name="result.xpath_map" type="dict[str, object]">
+    The snapshot XPath lookup.
+  </ResponseField>
+</ResponseField>
+
+## url()
+
+Return the page's current URL.
+
+```python
+url = await page.url()
+```
+
+<ResponseField name="result" type="str">
+  The operation result.
+</ResponseField>
+
+## title()
+
+Return the page's current document title.
+
+```python
+title = await page.title()
+```
+
+<ResponseField name="result" type="str">
+  The operation result.
+</ResponseField>
+
+## close()
+
+Close the page.
+
+```python
+await page.close()
+```
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## act()
+
+Perform an action described in natural language.
+
+```python
+result = await page.act("Click the sign in button")
+```
+
+<ParamField path="input" type="str">
+  The natural-language action to perform.
+</ParamField>
+
+<ParamField path="model" type="ModelConfig" optional>
+  Model configuration for this call.
+
+<ParamField path="model.api_key" type="str" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.base_url" type="str">
+  The model provider base URL.
+</ParamField>
+
+<ParamField path="model.headers" type="dict[str, object]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="ModelName">
+    The model identifier.
+  </ParamField>
+</ParamField>
+
+<ParamField path="variables" type="Variables | None" optional>
+  Variables available to the instruction.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="locator" type="ProtocolLocator" optional>
+  The serialized page or element target.
+
+<ParamField path="locator.active" type="bool | None" optional>
+  Whether the locator is active.
+</ParamField>
+
+  <ParamField path="locator.coordinates" type="LocatorCoordinates | None" optional>
+    The locator bounds.
+
+    <ParamField path="locator.coordinates.bottom" type="float | None" optional>
+      The bottom coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.left" type="float | None" optional>
+      The left coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.right" type="float | None" optional>
+      The right coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.top" type="float | None" optional>
+      The top coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.x" type="float | None" optional>
+      The horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.y" type="float | None" optional>
+      The vertical coordinate.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="locator.css" type="str | None" optional>
+  The resolved CSS selector.
+</ParamField>
+
+<ParamField path="locator.element_id" type="str | None" optional>
+  The snapshot element identifier.
+</ParamField>
+
+<ParamField path="locator.frame_id" type="str | None" optional>
+  The frame identifier.
+</ParamField>
+
+<ParamField path="locator.frame_idx" type="int | None" optional>
+  The frame index.
+</ParamField>
+
+<ParamField path="locator.idx" type="int | None" optional>
+  The element index.
+</ParamField>
+
+<ParamField path="locator.page_idx" type="int | None" optional>
+  The page index.
+</ParamField>
+
+<ParamField path="locator.react_element_name" type="str | None" optional>
+  The React element name.
+</ParamField>
+
+<ParamField path="locator.snapshot_id" type="str | None" optional>
+  The snapshot identifier.
+</ParamField>
+
+<ParamField path="locator.tab_id" type="int | None" optional>
+  The browser tab identifier.
+</ParamField>
+
+<ParamField path="locator.target_id" type="str | None" optional>
+  The browser target identifier.
+</ParamField>
+
+<ParamField path="locator.text" type="str | None" optional>
+  The element text.
+</ParamField>
+
+<ParamField path="locator.title" type="str | None" optional>
+  The document or element title.
+</ParamField>
+
+<ParamField path="locator.url" type="str | None" optional>
+  The locator URL.
+</ParamField>
+
+  <ParamField path="locator.xpath" type="str | None" optional>
+    The resolved XPath.
+  </ParamField>
+</ParamField>
+
+<ParamField path="cache" type="bool | CacheOptions | None" optional>
+  Override server-side caching for this request.
+
+  <ParamField path="cache.threshold" type="int" optional>
+    The identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="ActResultData">
+  The operation result.
+
+<ResponseField name="result.action_description" type="str">
+  A summary of the completed action.
+</ResponseField>
+
+  <ResponseField name="result.actions" type="list[Action]">
+    The actions that were performed.
+
+    <ResponseField name="result.actions.arguments" type="list[str]" optional>
+      Arguments passed to the action.
+    </ResponseField>
+
+    <ResponseField name="result.actions.description" type="str">
+      A human-readable action description.
+    </ResponseField>
+
+    <ResponseField name="result.actions.method" type="str" optional>
+      The action method.
+    </ResponseField>
+
+    <ResponseField name="result.actions.selector" type="str">
+      The action target selector.
+    </ResponseField>
+
+  </ResponseField>
+
+<ResponseField name="result.message" type="str">
+  The operation message.
+</ResponseField>
+
+  <ResponseField name="result.success" type="bool">
+    Whether the action succeeded.
+  </ResponseField>
+</ResponseField>
+
+## observe()
+
+Find candidate actions on the page from an optional instruction.
+
+```python
+actions = await page.observe(instruction="Find the sign in button")
+```
+
+<ParamField path="instruction" type="str | None" optional>
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="model" type="ModelConfig" optional>
+  Model configuration for this call.
+
+<ParamField path="model.api_key" type="str" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.base_url" type="str">
+  The model provider base URL.
+</ParamField>
+
+<ParamField path="model.headers" type="dict[str, object]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="ModelName">
+    The model identifier.
+  </ParamField>
+</ParamField>
+
+<ParamField path="variables" type="Variables | None" optional>
+  Variables available to the instruction.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="selector" type="str | None" optional>
+  The selector to target.
+</ParamField>
+
+<ParamField path="ignore_selectors" type="list[str] | None" optional>
+  Selectors to exclude from consideration.
+</ParamField>
+
+<ParamField path="locator" type="ProtocolLocator" optional>
+  The serialized page or element target.
+
+<ParamField path="locator.active" type="bool | None" optional>
+  Whether the locator is active.
+</ParamField>
+
+  <ParamField path="locator.coordinates" type="LocatorCoordinates | None" optional>
+    The locator bounds.
+
+    <ParamField path="locator.coordinates.bottom" type="float | None" optional>
+      The bottom coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.left" type="float | None" optional>
+      The left coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.right" type="float | None" optional>
+      The right coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.top" type="float | None" optional>
+      The top coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.x" type="float | None" optional>
+      The horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.y" type="float | None" optional>
+      The vertical coordinate.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="locator.css" type="str | None" optional>
+  The resolved CSS selector.
+</ParamField>
+
+<ParamField path="locator.element_id" type="str | None" optional>
+  The snapshot element identifier.
+</ParamField>
+
+<ParamField path="locator.frame_id" type="str | None" optional>
+  The frame identifier.
+</ParamField>
+
+<ParamField path="locator.frame_idx" type="int | None" optional>
+  The frame index.
+</ParamField>
+
+<ParamField path="locator.idx" type="int | None" optional>
+  The element index.
+</ParamField>
+
+<ParamField path="locator.page_idx" type="int | None" optional>
+  The page index.
+</ParamField>
+
+<ParamField path="locator.react_element_name" type="str | None" optional>
+  The React element name.
+</ParamField>
+
+<ParamField path="locator.snapshot_id" type="str | None" optional>
+  The snapshot identifier.
+</ParamField>
+
+<ParamField path="locator.tab_id" type="int | None" optional>
+  The browser tab identifier.
+</ParamField>
+
+<ParamField path="locator.target_id" type="str | None" optional>
+  The browser target identifier.
+</ParamField>
+
+<ParamField path="locator.text" type="str | None" optional>
+  The element text.
+</ParamField>
+
+<ParamField path="locator.title" type="str | None" optional>
+  The document or element title.
+</ParamField>
+
+<ParamField path="locator.url" type="str | None" optional>
+  The locator URL.
+</ParamField>
+
+  <ParamField path="locator.xpath" type="str | None" optional>
+    The resolved XPath.
+  </ParamField>
+</ParamField>
+
+<ParamField path="cache" type="bool | CacheOptions | None" optional>
+  Override server-side caching for this request.
+
+  <ParamField path="cache.threshold" type="int" optional>
+    The identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="list[Action]">
+  The operation result.
+
+<ResponseField name="result.arguments" type="list[str]" optional>
+  Arguments passed to the action.
+</ResponseField>
+
+<ResponseField name="result.description" type="str">
+  A human-readable action description.
+</ResponseField>
+
+<ResponseField name="result.method" type="str" optional>
+  The action method.
+</ResponseField>
+
+  <ResponseField name="result.selector" type="str">
+    The action target selector.
+  </ResponseField>
+</ResponseField>
+
+## extract()
+
+Extract structured data from the page.
+
+```python
+product = await page.extract(instruction="Extract the product", schema=Product)
+```
+
+<ParamField path="instruction" type="str">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="schema" type="type[ResultModel]">
+  The schema used to validate extracted data.
+</ParamField>
+
+<ParamField path="model" type="ModelConfig" optional>
+  Model configuration for this call.
+
+<ParamField path="model.api_key" type="str" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.base_url" type="str">
+  The model provider base URL.
+</ParamField>
+
+<ParamField path="model.headers" type="dict[str, object]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="ModelName">
+    The model identifier.
+  </ParamField>
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="selector" type="str | None" optional>
+  The selector to target.
+</ParamField>
+
+<ParamField path="ignore_selectors" type="list[str] | None" optional>
+  Selectors to exclude from consideration.
+</ParamField>
+
+<ParamField path="screenshot" type="bool | None" optional>
+  Whether extraction may use a screenshot.
+</ParamField>
+
+<ParamField path="locator" type="ProtocolLocator" optional>
+  The serialized page or element target.
+
+<ParamField path="locator.active" type="bool | None" optional>
+  Whether the locator is active.
+</ParamField>
+
+  <ParamField path="locator.coordinates" type="LocatorCoordinates | None" optional>
+    The locator bounds.
+
+    <ParamField path="locator.coordinates.bottom" type="float | None" optional>
+      The bottom coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.left" type="float | None" optional>
+      The left coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.right" type="float | None" optional>
+      The right coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.top" type="float | None" optional>
+      The top coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.x" type="float | None" optional>
+      The horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.y" type="float | None" optional>
+      The vertical coordinate.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="locator.css" type="str | None" optional>
+  The resolved CSS selector.
+</ParamField>
+
+<ParamField path="locator.element_id" type="str | None" optional>
+  The snapshot element identifier.
+</ParamField>
+
+<ParamField path="locator.frame_id" type="str | None" optional>
+  The frame identifier.
+</ParamField>
+
+<ParamField path="locator.frame_idx" type="int | None" optional>
+  The frame index.
+</ParamField>
+
+<ParamField path="locator.idx" type="int | None" optional>
+  The element index.
+</ParamField>
+
+<ParamField path="locator.page_idx" type="int | None" optional>
+  The page index.
+</ParamField>
+
+<ParamField path="locator.react_element_name" type="str | None" optional>
+  The React element name.
+</ParamField>
+
+<ParamField path="locator.snapshot_id" type="str | None" optional>
+  The snapshot identifier.
+</ParamField>
+
+<ParamField path="locator.tab_id" type="int | None" optional>
+  The browser tab identifier.
+</ParamField>
+
+<ParamField path="locator.target_id" type="str | None" optional>
+  The browser target identifier.
+</ParamField>
+
+<ParamField path="locator.text" type="str | None" optional>
+  The element text.
+</ParamField>
+
+<ParamField path="locator.title" type="str | None" optional>
+  The document or element title.
+</ParamField>
+
+<ParamField path="locator.url" type="str | None" optional>
+  The locator URL.
+</ParamField>
+
+  <ParamField path="locator.xpath" type="str | None" optional>
+    The resolved XPath.
+  </ParamField>
+</ParamField>
+
+<ParamField path="cache" type="bool | CacheOptions | None" optional>
+  Override server-side caching for this request.
+
+  <ParamField path="cache.threshold" type="int" optional>
+    The identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="ResultModel">
+  The operation result.
+</ResponseField>
+
+## locator()
+
+Create a locator for a CSS selector on this page.
+
+```python
+locator = page.locator("button[type=submit]")
+```
+
+<ParamField path="selector" type="str">
+  The selector to target.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  The operation result.
+</ResponseField>
+
+</View>

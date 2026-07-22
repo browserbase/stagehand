@@ -1,0 +1,261 @@
+---
+title: "clipboard"
+description: "Read, write, and dispatch clipboard operations in the browser."
+icon: "clipboard"
+---
+
+Access `BrowserClipboard` from the browser context. Clipboard operations target the active page unless you provide another page.
+
+<View title="TypeScript" icon="js">
+
+## Quick start
+
+```typescript
+const clipboard = stagehand.context.clipboard;
+await clipboard.writeText("Hello");
+```
+
+## readText()
+
+Read plain text from the browser clipboard.
+
+```typescript
+const text = await stagehand.context.clipboard.readText();
+```
+
+<ParamField path="options" type="ClipboardOptions" optional>
+  Options that select a target page and configure the operation.
+
+  <ParamField path="options.page" type="Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<string>">
+  The clipboard text.
+</ResponseField>
+
+## writeText()
+
+Write plain text to the browser clipboard.
+
+```typescript
+await stagehand.context.clipboard.writeText("Hello");
+```
+
+<ParamField path="text" type="string">
+  The plain text to write.
+</ParamField>
+
+<ParamField path="options" type="ClipboardOptions" optional>
+  Options that select a target page and configure the operation.
+
+  <ParamField path="options.page" type="Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the clipboard operation completes.
+</ResponseField>
+
+## clear()
+
+Clear the browser clipboard.
+
+```typescript
+await stagehand.context.clipboard.clear();
+```
+
+<ParamField path="options" type="ClipboardOptions" optional>
+  Options that select a target page and configure the operation.
+
+  <ParamField path="options.page" type="Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the clipboard operation completes.
+</ResponseField>
+
+## paste()
+
+Paste the clipboard contents into the active element.
+
+```typescript
+await stagehand.context.clipboard.paste();
+```
+
+<ParamField path="options" type="ClipboardPasteOptions" optional>
+  Options that select a target page and configure the operation.
+
+<ParamField path="options.page" type="Page" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+  <ParamField path="options.shortcut" type="Shortcut" optional>
+    The keyboard shortcut to dispatch.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the clipboard operation completes.
+</ResponseField>
+
+## copy()
+
+Copy the current selection to the browser clipboard.
+
+```typescript
+await stagehand.context.clipboard.copy();
+```
+
+<ParamField path="options" type="ClipboardOptions" optional>
+  Options that select a target page and configure the operation.
+
+  <ParamField path="options.page" type="Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the clipboard operation completes.
+</ResponseField>
+
+## cut()
+
+Cut the current selection to the browser clipboard.
+
+```typescript
+await stagehand.context.clipboard.cut();
+```
+
+<ParamField path="options" type="ClipboardOptions" optional>
+  Options that select a target page and configure the operation.
+
+  <ParamField path="options.page" type="Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the clipboard operation completes.
+</ResponseField>
+
+</View>
+
+<View title="Python" icon="python">
+
+## Quick start
+
+```python
+clipboard = stagehand.context.clipboard
+await clipboard.write_text("Hello")
+```
+
+## read_text()
+
+Read plain text from the browser clipboard.
+
+```python
+text = await stagehand.context.clipboard.read_text()
+```
+
+<ParamField path="page" type="Page | None" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ResponseField name="result" type="str">
+  The clipboard text.
+</ResponseField>
+
+## write_text()
+
+Write plain text to the browser clipboard.
+
+```python
+await stagehand.context.clipboard.write_text("Hello")
+```
+
+<ParamField path="text" type="str">
+  The plain text to write.
+</ParamField>
+
+<ParamField path="page" type="Page | None" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the clipboard operation completes.
+</ResponseField>
+
+## clear()
+
+Clear the browser clipboard.
+
+```python
+await stagehand.context.clipboard.clear()
+```
+
+<ParamField path="page" type="Page | None" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the clipboard operation completes.
+</ResponseField>
+
+## paste()
+
+Paste the clipboard contents into the active element.
+
+```python
+await stagehand.context.clipboard.paste()
+```
+
+<ParamField path="page" type="Page | None" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ParamField path="shortcut" type="Shortcut | str | None" optional>
+  The keyboard shortcut used to paste.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the clipboard operation completes.
+</ResponseField>
+
+## copy()
+
+Copy the current selection to the browser clipboard.
+
+```python
+await stagehand.context.clipboard.copy()
+```
+
+<ParamField path="page" type="Page | None" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the clipboard operation completes.
+</ResponseField>
+
+## cut()
+
+Cut the current selection to the browser clipboard.
+
+```python
+await stagehand.context.clipboard.cut()
+```
+
+<ParamField path="page" type="Page | None" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the clipboard operation completes.
+</ResponseField>
+
+</View>

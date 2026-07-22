@@ -1,0 +1,409 @@
+---
+title: "Stagehand"
+description: "Initialize, inspect, and close a Stagehand browser session."
+icon: "hand-horns"
+---
+
+`Stagehand` owns the browser connection and exposes the session's top-level lifecycle and diagnostics.
+
+<View title="TypeScript" icon="js">
+
+## Quick start
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ browser: { type: "local" } });
+await stagehand.init();
+```
+
+## init()
+
+Initialize Stagehand and connect to the configured browser.
+
+```typescript
+await stagehand.init();
+```
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## close()
+
+Close the Stagehand session and release browser resources.
+
+```typescript
+await stagehand.close();
+```
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## ping()
+
+Check that the Stagehand runtime is responding.
+
+```typescript
+const status = await stagehand.ping();
+```
+
+<ResponseField name="result" type="Promise<StagehandPingResult>">
+  The operation result.
+
+<ResponseField name="result.ok" type="boolean">
+  Whether the runtime responded successfully.
+</ResponseField>
+
+  <ResponseField name="result.runtime" type="string">
+    The responding runtime.
+  </ResponseField>
+</ResponseField>
+
+## runtimeLoopbackStatus()
+
+Inspect the runtime loopback connection status.
+
+```typescript
+const status = await stagehand.runtimeLoopbackStatus();
+```
+
+<ResponseField name="result" type="Promise<RuntimeLoopbackStatusResult>">
+  The operation result.
+
+<ResponseField name="result.configured" type="boolean">
+  Whether loopback is configured.
+</ResponseField>
+
+  <ResponseField name="result.connected" type="boolean">
+    Whether loopback is connected.
+  </ResponseField>
+</ResponseField>
+
+## browserGetVersion()
+
+Read version information from the connected browser.
+
+```typescript
+const version = await stagehand.browserGetVersion();
+```
+
+<ResponseField name="result" type="Promise<BrowserGetVersionResult>">
+  The operation result.
+
+<ResponseField name="result.protocolVersion" type="string" optional>
+  The browser protocol version.
+</ResponseField>
+
+<ResponseField name="result.product" type="string" optional>
+  The browser product string.
+</ResponseField>
+
+<ResponseField name="result.revision" type="string" optional>
+  The browser revision.
+</ResponseField>
+
+<ResponseField name="result.userAgent" type="string" optional>
+  The browser user agent.
+</ResponseField>
+
+  <ResponseField name="result.jsVersion" type="string" optional>
+    The JavaScript engine version.
+  </ResponseField>
+</ResponseField>
+
+## metrics()
+
+Return token usage and inference timing metrics for this session.
+
+```typescript
+const metrics = await stagehand.metrics();
+```
+
+<ResponseField name="result" type="Promise<StagehandMetrics>">
+  The operation result.
+
+<ResponseField name="result.actPromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.actCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.actReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.actCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.actInferenceTimeMs" type="number">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.extractPromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractInferenceTimeMs" type="number">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.observePromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeInferenceTimeMs" type="number">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.totalPromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.totalCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.totalReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.totalCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+  <ResponseField name="result.totalInferenceTimeMs" type="number">
+    Inference time in milliseconds.
+  </ResponseField>
+</ResponseField>
+
+</View>
+
+<View title="Python" icon="python">
+
+## Quick start
+
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(browser="local")
+await stagehand.init()
+```
+
+## init()
+
+Initialize Stagehand and connect to the configured browser.
+
+```python
+await stagehand.init()
+```
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## close()
+
+Close the Stagehand session and release browser resources.
+
+```python
+await stagehand.close()
+```
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## ping()
+
+Check that the Stagehand runtime is responding.
+
+```python
+status = await stagehand.ping()
+```
+
+<ResponseField name="result" type="StagehandPingResult">
+  The operation result.
+
+<ResponseField name="result.ok" type="bool">
+  Whether the runtime responded successfully.
+</ResponseField>
+
+  <ResponseField name="result.runtime" type="str">
+    The responding runtime.
+  </ResponseField>
+</ResponseField>
+
+## runtime_loopback_status()
+
+Inspect the runtime loopback connection status.
+
+```python
+status = await stagehand.runtime_loopback_status()
+```
+
+<ResponseField name="result" type="RuntimeLoopbackStatusResult">
+  The operation result.
+
+<ResponseField name="result.configured" type="bool">
+  Whether loopback is configured.
+</ResponseField>
+
+  <ResponseField name="result.connected" type="bool">
+    Whether loopback is connected.
+  </ResponseField>
+</ResponseField>
+
+## browser_get_version()
+
+Read version information from the connected browser.
+
+```python
+version = await stagehand.browser_get_version()
+```
+
+<ResponseField name="result" type="BrowserGetVersionResult">
+  The operation result.
+
+<ResponseField name="result.protocol_version" type="str" optional>
+  The browser protocol version.
+</ResponseField>
+
+<ResponseField name="result.product" type="str" optional>
+  The browser product string.
+</ResponseField>
+
+<ResponseField name="result.revision" type="str" optional>
+  The browser revision.
+</ResponseField>
+
+<ResponseField name="result.user_agent" type="str" optional>
+  The browser user agent.
+</ResponseField>
+
+  <ResponseField name="result.js_version" type="str" optional>
+    The JavaScript engine version.
+  </ResponseField>
+</ResponseField>
+
+## metrics()
+
+Return token usage and inference timing metrics for this session.
+
+```python
+metrics = await stagehand.metrics()
+```
+
+<ResponseField name="result" type="StagehandMetrics">
+  The operation result.
+
+<ResponseField name="result.act_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_inference_time_ms" type="float">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.extract_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_inference_time_ms" type="float">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.observe_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_inference_time_ms" type="float">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.total_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+  <ResponseField name="result.total_inference_time_ms" type="float">
+    Inference time in milliseconds.
+  </ResponseField>
+</ResponseField>
+
+</View>

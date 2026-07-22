@@ -18,6 +18,7 @@ from ._generated.models import (
     ExtractOptions,
     ExtractResult,
     LoadState,
+    ModelConfig,
     MouseButton,
     ObserveOptions,
     ObserveResult,
@@ -73,9 +74,12 @@ from ._generated.models import (
     Variables,
 )
 from ._generated.models import (
+    Locator as ProtocolLocator,
+)
+from ._generated.models import (
     Type as ScreenshotType,
 )
-from .client_models import Cache, _cache_config, _model_config
+from .client_models import Cache, _cache_config
 from .locator import Locator
 from .rpc_client import RPCClient
 
@@ -480,34 +484,19 @@ class Page:
         self,
         input: str,
         *,
-        model: str | None = None,
-        model_api_key: str | None = None,
-        model_base_url: str | None = None,
-        model_headers: Mapping[str, str] | None = None,
+        model: ModelConfig | None = None,
         variables: Variables | None = None,
         timeout: float | None = None,
+        locator: ProtocolLocator | None = None,
         cache: Cache | None = None,
     ) -> ActResultData:
-        if model is None and any(
-            value is not None for value in (model_api_key, model_base_url, model_headers)
-        ):
-            raise TypeError("model connection options require a model name")
         options = ActOptions.model_validate({
             name: value
             for name, value in (
-                (
-                    "model",
-                    _model_config(
-                        model,
-                        api_key=model_api_key,
-                        base_url=model_base_url,
-                        headers=dict(model_headers) if model_headers is not None else None,
-                    )
-                    if model is not None
-                    else None,
-                ),
+                ("model", model),
                 ("variables", variables),
                 ("timeout", timeout),
+                ("locator", locator),
                 ("cache", _cache_config(cache) if cache is not None else None),
             )
             if value is not None
@@ -522,38 +511,23 @@ class Page:
         self,
         *,
         instruction: str | None = None,
-        model: str | None = None,
-        model_api_key: str | None = None,
-        model_base_url: str | None = None,
-        model_headers: Mapping[str, str] | None = None,
+        model: ModelConfig | None = None,
         variables: Variables | None = None,
         timeout: float | None = None,
         selector: str | None = None,
         ignore_selectors: list[str] | None = None,
+        locator: ProtocolLocator | None = None,
         cache: Cache | None = None,
     ) -> list[Action]:
-        if model is None and any(
-            value is not None for value in (model_api_key, model_base_url, model_headers)
-        ):
-            raise TypeError("model connection options require a model name")
         options = ObserveOptions.model_validate({
             name: value
             for name, value in (
-                (
-                    "model",
-                    _model_config(
-                        model,
-                        api_key=model_api_key,
-                        base_url=model_base_url,
-                        headers=dict(model_headers) if model_headers is not None else None,
-                    )
-                    if model is not None
-                    else None,
-                ),
+                ("model", model),
                 ("variables", variables),
                 ("timeout", timeout),
                 ("selector", selector),
                 ("ignore_selectors", ignore_selectors),
+                ("locator", locator),
                 ("cache", _cache_config(cache) if cache is not None else None),
             )
             if value is not None
@@ -569,38 +543,23 @@ class Page:
         *,
         instruction: str,
         schema: builtins.type[ResultModel],
-        model: str | None = None,
-        model_api_key: str | None = None,
-        model_base_url: str | None = None,
-        model_headers: Mapping[str, str] | None = None,
+        model: ModelConfig | None = None,
         timeout: float | None = None,
         selector: str | None = None,
         ignore_selectors: list[str] | None = None,
         screenshot: bool | None = None,
+        locator: ProtocolLocator | None = None,
         cache: Cache | None = None,
     ) -> ResultModel:
-        if model is None and any(
-            value is not None for value in (model_api_key, model_base_url, model_headers)
-        ):
-            raise TypeError("model connection options require a model name")
         options = ExtractOptions.model_validate({
             name: value
             for name, value in (
-                (
-                    "model",
-                    _model_config(
-                        model,
-                        api_key=model_api_key,
-                        base_url=model_base_url,
-                        headers=dict(model_headers) if model_headers is not None else None,
-                    )
-                    if model is not None
-                    else None,
-                ),
+                ("model", model),
                 ("timeout", timeout),
                 ("selector", selector),
                 ("ignore_selectors", ignore_selectors),
                 ("screenshot", screenshot),
+                ("locator", locator),
                 ("cache", _cache_config(cache) if cache is not None else None),
             )
             if value is not None

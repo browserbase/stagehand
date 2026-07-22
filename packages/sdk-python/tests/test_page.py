@@ -5,6 +5,7 @@ from typing import cast
 import pytest
 from pydantic import BaseModel
 
+from stagehand import ModelConfig, ProtocolLocator
 from stagehand._generated.models import (
     Action,
     ActResult,
@@ -77,12 +78,23 @@ async def test_page_ai_methods_validate_their_wire_results_and_public_output() -
         "stagehand.extract": ExtractResult(result={"heading": "Example Domain"}),
     })
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
+    locator = ProtocolLocator(css="main")
 
     action_result = await page.act(
-        "Click the link", timeout=30_000, cache=CacheOptions(threshold=1)
+        "Click the link",
+        model=model,
+        timeout=30_000,
+        locator=locator,
+        cache=CacheOptions(threshold=1),
     )
-    actions = await page.observe(instruction="Find the link")
-    page_info = await page.extract(instruction="Extract the heading", schema=PageInfo)
+    actions = await page.observe(instruction="Find the link", model=model, locator=locator)
+    page_info = await page.extract(
+        instruction="Extract the heading",
+        schema=PageInfo,
+        model=model,
+        locator=locator,
+    )
 
     assert action_result == act_result
     assert actions == [action]
@@ -93,7 +105,9 @@ async def test_page_ai_methods_validate_their_wire_results_and_public_output() -
     assert act_params.page_id == "page-1"
     assert act_params.input == "Click the link"
     assert act_params.options is not None
+    assert act_params.options.model == model
     assert act_params.options.timeout == 30_000
+    assert act_params.options.locator == locator
     assert act_params.options.cache is not None
     assert act_params.options.cache.model_dump() == {"threshold": 1}
     assert act_result_model is ActResult
@@ -102,10 +116,16 @@ async def test_page_ai_methods_validate_their_wire_results_and_public_output() -
     assert isinstance(observe_params, StagehandObserveParams)
     assert observe_params.page_id == "page-1"
     assert observe_params.instruction == "Find the link"
+    assert observe_params.options is not None
+    assert observe_params.options.model == model
+    assert observe_params.options.locator == locator
     assert observe_result is ObserveResult
     extract_method, extract_params, extract_result = recording.calls[2]
     assert extract_method == "stagehand.extract"
     assert isinstance(extract_params, StagehandExtractParams)
+    assert extract_params.options is not None
+    assert extract_params.options.model == model
+    assert extract_params.options.locator == locator
     assert extract_params.schema_ is not None
     schema = extract_params.schema_.model_dump()
     assert isinstance(schema, dict)

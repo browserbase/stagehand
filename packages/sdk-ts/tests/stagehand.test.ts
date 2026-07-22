@@ -258,6 +258,77 @@ describe("Stagehand", () => {
     } satisfies RPCClientOptions);
   });
 
+  it("routes public runtime status and metrics methods through the protocol", async () => {
+    const rpcClient = new FakeRPCClient();
+    rpcClient.queueResponse(StagehandMethods.ping, {
+      ok: true,
+      runtime: "service_worker",
+    });
+    rpcClient.queueResponse(StagehandMethods.runtimeLoopbackStatus, {
+      configured: true,
+      connected: true,
+    });
+    rpcClient.queueResponse(StagehandMethods.browserGetVersion, {
+      protocolVersion: "1.3",
+      product: "Chrome/1",
+    });
+    const metrics = {
+      actPromptTokens: 1,
+      actCompletionTokens: 2,
+      actReasoningTokens: 3,
+      actCachedInputTokens: 4,
+      actInferenceTimeMs: 5,
+      extractPromptTokens: 6,
+      extractCompletionTokens: 7,
+      extractReasoningTokens: 8,
+      extractCachedInputTokens: 9,
+      extractInferenceTimeMs: 10,
+      observePromptTokens: 11,
+      observeCompletionTokens: 12,
+      observeReasoningTokens: 13,
+      observeCachedInputTokens: 14,
+      observeInferenceTimeMs: 15,
+      totalPromptTokens: 18,
+      totalCompletionTokens: 21,
+      totalReasoningTokens: 24,
+      totalCachedInputTokens: 27,
+      totalInferenceTimeMs: 30,
+    };
+    rpcClient.queueResponse(StagehandMethods.stagehandMetrics, metrics);
+    const stagehand = createStagehandWithDependenciesForTest(
+      { browser: { type: "cdp", cdpUrl: "http://127.0.0.1:9222" } },
+      {
+        resolveBrowserSource: async () => ({
+          cdpUrl: "http://127.0.0.1:9222",
+          keepAlive: true,
+        }),
+        connectRpcClient: async () => rpcClient,
+      },
+    );
+
+    await stagehand.init();
+
+    await expect(stagehand.ping()).resolves.toStrictEqual({
+      ok: true,
+      runtime: "service_worker",
+    });
+    await expect(stagehand.runtimeLoopbackStatus()).resolves.toStrictEqual({
+      configured: true,
+      connected: true,
+    });
+    await expect(stagehand.browserGetVersion()).resolves.toStrictEqual({
+      protocolVersion: "1.3",
+      product: "Chrome/1",
+    });
+    await expect(stagehand.metrics()).resolves.toStrictEqual(metrics);
+    expect(rpcClient.calls.slice(1)).toStrictEqual([
+      { method: "ping", params: {} },
+      { method: "runtime.loopback_status", params: {} },
+      { method: "browser.get_version", params: {} },
+      { method: "stagehand.metrics", params: {} },
+    ]);
+  });
+
   it("registers a client LLM and sends its serializable model reference during initialization", async () => {
     const rpcClient = new FakeRPCClient();
     const stagehand = createStagehandWithDependenciesForTest(

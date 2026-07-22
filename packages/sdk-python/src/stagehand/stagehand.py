@@ -11,6 +11,7 @@ from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
+    BrowserGetVersionResult,
     ClientModelReference,
     EmptyParams,
     ExternalProxyConfig,
@@ -18,10 +19,13 @@ from ._generated.models import (
     LLMGenerateResult,
     ModelConfig,
     ProxyConfig,
+    RuntimeLoopbackStatusResult,
     StagehandCloseResult,
     StagehandInitParams,
     StagehandInitResult,
     StagehandLog,
+    StagehandMetrics,
+    StagehandPingResult,
     TelemetryConfig,
 )
 from .browser_context import BrowserContext
@@ -343,6 +347,34 @@ class Stagehand:
     def initialized(self) -> bool:
         return self._initialized
 
+    async def ping(self) -> StagehandPingResult:
+        return await self._connected_rpc_client.send(
+            "ping",
+            EmptyParams(),
+            StagehandPingResult,
+        )
+
+    async def runtime_loopback_status(self) -> RuntimeLoopbackStatusResult:
+        return await self._connected_rpc_client.send(
+            "runtime.loopback_status",
+            EmptyParams(),
+            RuntimeLoopbackStatusResult,
+        )
+
+    async def browser_get_version(self) -> BrowserGetVersionResult:
+        return await self._connected_rpc_client.send(
+            "browser.get_version",
+            EmptyParams(),
+            BrowserGetVersionResult,
+        )
+
+    async def metrics(self) -> StagehandMetrics:
+        return await self._connected_rpc_client.send(
+            "stagehand.metrics",
+            EmptyParams(),
+            StagehandMetrics,
+        )
+
     async def init(self) -> None:
         async with self._lifecycle_lock:
             if self._initialized:
@@ -416,6 +448,14 @@ class Stagehand:
         traceback: TracebackType | None,
     ) -> None:
         await self.close()
+
+    @property
+    def _connected_rpc_client(self) -> RPCClient:
+        if not self._initialized or self._rpc_client is None:
+            raise RuntimeError(
+                "Stagehand is not initialized. Call stagehand.init() before using it."
+            )
+        return self._rpc_client
 
     def _worker_init_params(self) -> StagehandInitParams:
         values = self.init_params.model_dump(

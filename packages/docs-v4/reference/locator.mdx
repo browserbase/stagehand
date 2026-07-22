@@ -1,0 +1,679 @@
+---
+title: "locator"
+description: "Target elements and perform focused DOM interactions."
+icon: "crosshairs"
+---
+
+Create a `Locator` from a page selector, then reuse it for element interactions and state queries. `first()` and `nth()` refine the local locator descriptor; the resulting descriptor is sent with later operations.
+
+<View title="TypeScript" icon="js">
+
+## Quick start
+
+```typescript
+const locator = page.locator("button[type=submit]");
+await locator.click();
+```
+
+## click()
+
+Click the element matched by this locator.
+
+```typescript
+await locator.click();
+```
+
+<ParamField path="options" type="LocatorClickOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.button" type="MouseButton" optional>
+  The mouse button to use.
+</ParamField>
+
+  <ParamField path="options.clickCount" type="number" optional>
+    The number of clicks to dispatch.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## hover()
+
+Move the pointer over the matched element.
+
+```typescript
+await locator.hover();
+```
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## fill()
+
+Replace the matched input's value.
+
+```typescript
+await locator.fill("Browserbase");
+```
+
+<ParamField path="value" type="string">
+  The value to set.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## count()
+
+Count the elements matched by this locator.
+
+```typescript
+const count = await locator.count();
+```
+
+<ResponseField name="result" type="Promise<number>">
+  The operation result.
+</ResponseField>
+
+## isChecked()
+
+Check whether the matched control is checked.
+
+```typescript
+const checked = await locator.isChecked();
+```
+
+<ResponseField name="result" type="Promise<boolean>">
+  The operation result.
+</ResponseField>
+
+## inputValue()
+
+Return the current value of the matched input.
+
+```typescript
+const value = await locator.inputValue();
+```
+
+<ResponseField name="result" type="Promise<string>">
+  The operation result.
+</ResponseField>
+
+## isVisible()
+
+Check whether the matched element is visible.
+
+```typescript
+const visible = await locator.isVisible();
+```
+
+<ResponseField name="result" type="Promise<boolean>">
+  The operation result.
+</ResponseField>
+
+## innerText()
+
+Return the rendered text inside the matched element.
+
+```typescript
+const text = await locator.innerText();
+```
+
+<ResponseField name="result" type="Promise<string>">
+  The operation result.
+</ResponseField>
+
+## innerHtml()
+
+Return the HTML inside the matched element.
+
+```typescript
+const html = await locator.innerHtml();
+```
+
+<ResponseField name="result" type="Promise<string>">
+  The operation result.
+</ResponseField>
+
+## textContent()
+
+Return the text content of the matched element.
+
+```typescript
+const text = await locator.textContent();
+```
+
+<ResponseField name="result" type="Promise<string>">
+  The operation result.
+</ResponseField>
+
+## scrollTo()
+
+Scroll the matched element to a percentage of its range.
+
+```typescript
+await locator.scrollTo(50);
+```
+
+<ParamField path="percent" type="number | string">
+  A percentage from 0 to 100, optionally expressed as a percentage string.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## centroid()
+
+Return the center point of the matched element.
+
+```typescript
+const point = await locator.centroid();
+```
+
+<ResponseField name="result" type="Promise<LocatorCentroidResult>">
+  The operation result.
+
+<ResponseField name="result.x" type="number">
+  The horizontal center coordinate.
+</ResponseField>
+
+  <ResponseField name="result.y" type="number">
+    The vertical center coordinate.
+  </ResponseField>
+</ResponseField>
+
+## highlight()
+
+Temporarily highlight the matched element.
+
+```typescript
+await locator.highlight();
+```
+
+<ParamField path="options" type="LocatorHighlightOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.borderColor" type="RgbaColor" optional>
+    The highlight border color.
+
+    <ParamField path="options.borderColor.a" type="number" optional>
+      The alpha channel.
+    </ParamField>
+
+    <ParamField path="options.borderColor.b" type="number">
+      The blue channel.
+    </ParamField>
+
+    <ParamField path="options.borderColor.g" type="number">
+      The green channel.
+    </ParamField>
+
+    <ParamField path="options.borderColor.r" type="number">
+      The red channel.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.contentColor" type="RgbaColor" optional>
+    The highlight fill color.
+
+    <ParamField path="options.contentColor.a" type="number" optional>
+      The alpha channel.
+    </ParamField>
+
+    <ParamField path="options.contentColor.b" type="number">
+      The blue channel.
+    </ParamField>
+
+    <ParamField path="options.contentColor.g" type="number">
+      The green channel.
+    </ParamField>
+
+    <ParamField path="options.contentColor.r" type="number">
+      The red channel.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.durationMs" type="number" optional>
+    How long to display the highlight.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## sendClickEvent()
+
+Dispatch a DOM click event on the matched element.
+
+```typescript
+await locator.sendClickEvent();
+```
+
+<ParamField path="options" type="LocatorSendClickEventOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.bubbles" type="boolean" optional>
+  Whether the event bubbles.
+</ParamField>
+
+<ParamField path="options.cancelable" type="boolean" optional>
+  Whether the event can be canceled.
+</ParamField>
+
+<ParamField path="options.composed" type="boolean" optional>
+  Whether the event crosses shadow DOM boundaries.
+</ParamField>
+
+  <ParamField path="options.detail" type="number" optional>
+    The event-specific click detail.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## type()
+
+Type text into the matched element.
+
+```typescript
+await locator.type("Browserbase");
+```
+
+<ParamField path="text" type="string">
+  The text to type.
+</ParamField>
+
+<ParamField path="options" type="LocatorTypeOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.delay" type="number" optional>
+    The input delay in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## selectOption()
+
+Select one or more values in the matched select element.
+
+```typescript
+const values = await locator.selectOption("us");
+```
+
+<ParamField path="values" type="string | string[]">
+  The value or values to select.
+</ParamField>
+
+<ResponseField name="result" type="Promise<string[]>">
+  The operation result.
+</ResponseField>
+
+## first()
+
+Create a locator for the first matching element.
+
+```typescript
+const first = locator.first();
+```
+
+<ResponseField name="result" type="Locator">
+  The operation result.
+</ResponseField>
+
+## nth()
+
+Create a locator for a matching element at a zero-based index.
+
+```typescript
+const third = locator.nth(2);
+```
+
+<ParamField path="index" type="number">
+  The zero-based match index.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  The operation result.
+</ResponseField>
+
+</View>
+
+<View title="Python" icon="python">
+
+## Quick start
+
+```python
+locator = page.locator("button[type=submit]")
+await locator.click()
+```
+
+## click()
+
+Click the element matched by this locator.
+
+```python
+await locator.click()
+```
+
+<ParamField path="button" type="MouseButton | str | None" optional>
+  The mouse button to use.
+</ParamField>
+
+<ParamField path="click_count" type="int | None" optional>
+  The number of clicks to dispatch.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## hover()
+
+Move the pointer over the matched element.
+
+```python
+await locator.hover()
+```
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## fill()
+
+Replace the matched input's value.
+
+```python
+await locator.fill("Browserbase")
+```
+
+<ParamField path="value" type="str">
+  The value to set.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## count()
+
+Count the elements matched by this locator.
+
+```python
+count = await locator.count()
+```
+
+<ResponseField name="result" type="int">
+  The operation result.
+</ResponseField>
+
+## is_checked()
+
+Check whether the matched control is checked.
+
+```python
+checked = await locator.is_checked()
+```
+
+<ResponseField name="result" type="bool">
+  The operation result.
+</ResponseField>
+
+## input_value()
+
+Return the current value of the matched input.
+
+```python
+value = await locator.input_value()
+```
+
+<ResponseField name="result" type="str">
+  The operation result.
+</ResponseField>
+
+## is_visible()
+
+Check whether the matched element is visible.
+
+```python
+visible = await locator.is_visible()
+```
+
+<ResponseField name="result" type="bool">
+  The operation result.
+</ResponseField>
+
+## inner_text()
+
+Return the rendered text inside the matched element.
+
+```python
+text = await locator.inner_text()
+```
+
+<ResponseField name="result" type="str">
+  The operation result.
+</ResponseField>
+
+## inner_html()
+
+Return the HTML inside the matched element.
+
+```python
+html = await locator.inner_html()
+```
+
+<ResponseField name="result" type="str">
+  The operation result.
+</ResponseField>
+
+## text_content()
+
+Return the text content of the matched element.
+
+```python
+text = await locator.text_content()
+```
+
+<ResponseField name="result" type="str">
+  The operation result.
+</ResponseField>
+
+## scroll_to()
+
+Scroll the matched element to a percentage of its range.
+
+```python
+await locator.scroll_to(50)
+```
+
+<ParamField path="percent" type="float | str">
+  A percentage from 0 to 100, optionally expressed as a percentage string.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## centroid()
+
+Return the center point of the matched element.
+
+```python
+point = await locator.centroid()
+```
+
+<ResponseField name="result" type="LocatorCentroidResult">
+  The operation result.
+
+<ResponseField name="result.x" type="float">
+  The horizontal center coordinate.
+</ResponseField>
+
+  <ResponseField name="result.y" type="float">
+    The vertical center coordinate.
+  </ResponseField>
+</ResponseField>
+
+## highlight()
+
+Temporarily highlight the matched element.
+
+```python
+await locator.highlight(duration_ms=1000)
+```
+
+<ParamField path="duration_ms" type="int | None" optional>
+  How long to display the highlight.
+</ParamField>
+
+<ParamField path="border_color" type="RgbaColor | None" optional>
+  The highlight border color.
+
+<ParamField path="border_color.a" type="float" optional>
+  The alpha channel.
+</ParamField>
+
+<ParamField path="border_color.b" type="float">
+  The blue channel.
+</ParamField>
+
+<ParamField path="border_color.g" type="float">
+  The green channel.
+</ParamField>
+
+  <ParamField path="border_color.r" type="float">
+    The red channel.
+  </ParamField>
+</ParamField>
+
+<ParamField path="content_color" type="RgbaColor | None" optional>
+  The highlight fill color.
+
+<ParamField path="content_color.a" type="float" optional>
+  The alpha channel.
+</ParamField>
+
+<ParamField path="content_color.b" type="float">
+  The blue channel.
+</ParamField>
+
+<ParamField path="content_color.g" type="float">
+  The green channel.
+</ParamField>
+
+  <ParamField path="content_color.r" type="float">
+    The red channel.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## send_click_event()
+
+Dispatch a DOM click event on the matched element.
+
+```python
+await locator.send_click_event()
+```
+
+<ParamField path="bubbles" type="bool | None" optional>
+  Whether the event bubbles.
+</ParamField>
+
+<ParamField path="cancelable" type="bool | None" optional>
+  Whether the event can be canceled.
+</ParamField>
+
+<ParamField path="composed" type="bool | None" optional>
+  Whether the event crosses shadow DOM boundaries.
+</ParamField>
+
+<ParamField path="detail" type="float | None" optional>
+  Event-specific click detail.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## type()
+
+Type text into the matched element.
+
+```python
+await locator.type("Browserbase")
+```
+
+<ParamField path="text" type="str">
+  The text to type.
+</ParamField>
+
+<ParamField path="delay" type="float | None" optional>
+  Delay between keystrokes, in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## select_option()
+
+Select one or more values in the matched select element.
+
+```python
+values = await locator.select_option("us")
+```
+
+<ParamField path="values" type="str | Sequence[str]">
+  The value or values to select.
+</ParamField>
+
+<ResponseField name="result" type="list[str]">
+  The operation result.
+</ResponseField>
+
+## first()
+
+Create a locator for the first matching element.
+
+```python
+first = locator.first()
+```
+
+<ResponseField name="result" type="Self">
+  The operation result.
+</ResponseField>
+
+## nth()
+
+Create a locator for a matching element at a zero-based index.
+
+```python
+third = locator.nth(2)
+```
+
+<ParamField path="index" type="int">
+  The zero-based match index.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  The operation result.
+</ResponseField>
+
+</View>

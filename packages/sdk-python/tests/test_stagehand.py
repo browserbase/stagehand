@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from stagehand import LLMGenerateInput, LLMGenerateOutput, Stagehand
 from stagehand._generated.models import (
+    BrowserGetVersionResult,
     ClientModelReference,
     KnownModelConfig,
     LLMGenerateParams,
@@ -19,9 +20,12 @@ from stagehand._generated.models import (
     LLMStructuredGenerateResult,
     LLMTextContent,
     ModelConfig,
+    RuntimeLoopbackStatusResult,
     StagehandCloseResult,
     StagehandInitParams,
     StagehandInitResult,
+    StagehandMetrics,
+    StagehandPingResult,
 )
 from stagehand.browser_source import ResolvedBrowserSource
 from stagehand.client_models import CdpBrowserSource, LocalBrowserSource, StagehandClientInitParams
@@ -72,6 +76,56 @@ def test_stagehand_constructor_rejects_incomplete_flattened_options() -> None:
         Stagehand(browser="local", proxy_username="user")
     with pytest.raises(TypeError, match="model connection options"):
         Stagehand(browser="local", model_api_key="model-key")
+
+
+@pytest.mark.asyncio
+async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metrics = StagehandMetrics.model_validate({
+        field: float(index) for index, field in enumerate(StagehandMetrics.model_fields, start=1)
+    })
+    recording = RecordingRPCClient({
+        "ping": StagehandPingResult(ok=True, runtime="service_worker"),
+        "runtime.loopback_status": RuntimeLoopbackStatusResult(
+            configured=True,
+            connected=True,
+        ),
+        "browser.get_version": BrowserGetVersionResult(
+            protocol_version="1.3",
+            product="Chrome/1",
+        ),
+        "stagehand.metrics": metrics,
+    })
+    recording.responses["stagehand.init"] = StagehandInitResult(initialized=True, pages=[])
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
+
+    async def connect(**_: object) -> RPCClient:
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+    await stagehand.init()
+
+    assert await stagehand.ping() == StagehandPingResult(ok=True, runtime="service_worker")
+    assert await stagehand.runtime_loopback_status() == RuntimeLoopbackStatusResult(
+        configured=True,
+        connected=True,
+    )
+    assert await stagehand.browser_get_version() == BrowserGetVersionResult(
+        protocol_version="1.3",
+        product="Chrome/1",
+    )
+    assert await stagehand.metrics() == metrics
+    assert [method for method, _, _ in recording.calls[1:]] == [
+        "ping",
+        "runtime.loopback_status",
+        "browser.get_version",
+        "stagehand.metrics",
+    ]
 
 
 @pytest.mark.asyncio
