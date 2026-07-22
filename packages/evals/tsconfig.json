@@ -7,7 +7,10 @@
     "noEmit": false,
     "types": ["node"],
     "paths": {
-      "@browserbasehq/stagehand": ["../core/dist/esm/index.d.ts"]
+      "@browserbasehq/stagehand": ["../core/dist/esm/index.d.ts"],
+      "@browserbasehq/stagehand-v4-spike-sdk-ts": [
+        ".v4-sdk-types/sdk-ts/src/index.d.ts"
+      ]
     }
   },
   "include": ["**/*.ts"],

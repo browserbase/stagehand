@@ -15,6 +15,7 @@ import { endBrowserbaseSession } from "../browserbaseCleanup.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { V3InitResult } from "../initV3.js";
+import type { V4InitResult } from "../initV4.js";
 import type { EvalInput } from "../types/evals.js";
 import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
 import {
@@ -51,6 +52,10 @@ export interface BenchHarnessContext {
   v3?: V3;
   agent?: AgentInstance;
   page?: Page;
+  /** Stagehand v4 client (set only when the row runs with sdk: "v4"). */
+  stagehand?: V4InitResult["stagehand"];
+  /** v4 page object (set only when the row runs with sdk: "v4"). */
+  v4Page?: V4InitResult["page"];
   debugUrl: string;
   sessionUrl: string;
 }
@@ -153,6 +158,47 @@ export const stagehandHarness: BenchHarness = {
     const config = row.config;
     const agentMode = config.agentMode ?? input.agentMode;
     const isCUA = config.isCUA ?? input.isCUA;
+
+    if (config.sdk === "v4") {
+      // The v4 SDK has no agent surface, and agent tasks are deliberately
+      // not ported (the Stagehand agent is deprecated). Fail loudly rather
+      // than fall back to v3 behavior.
+      if (createAgent || agentMode || isCUA) {
+        throw new EvalsError(
+          "--sdk v4 does not support agent tasks or agent modes.",
+        );
+      }
+      if (config.useApi) {
+        throw new EvalsError("--api is not supported with --sdk v4.");
+      }
+      const { initV4 } = await import("../initV4.js");
+      const v4Result = await initV4({
+        logger,
+        modelName: input.modelName,
+        configOverrides: { env: config.environment },
+      });
+      return {
+        ctx: {
+          harness: "stagehand",
+          row,
+          logger,
+          stagehand: v4Result.stagehand,
+          v4Page: v4Result.page,
+          debugUrl: v4Result.debugUrl ?? "",
+          sessionUrl: v4Result.sessionUrl ?? "",
+        },
+        cleanup: async () => {
+          try {
+            await v4Result.stagehand.close();
+          } catch (closeError) {
+            console.error(
+              `Warning: Error closing v4 Stagehand for ${input.name}:`,
+              closeError,
+            );
+          }
+        },
+      };
+    }
 
     if (config.useApi) {
       const provider = resolveProvider(input.modelName);

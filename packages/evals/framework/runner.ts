@@ -8,6 +8,10 @@
  * This module replaces the monolithic task execution logic in index.eval.ts
  * while preserving backward compatibility with legacy EvalFunction tasks.
  */
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import type { AgentToolMode } from "@browserbasehq/stagehand";
 import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
@@ -47,6 +51,111 @@ export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
 import { resolveDefaultCoreStartupProfile } from "./context.js";
 
+/**
+ * Experiment name for SDK-comparison runs:
+ *   <target>__<sdk>__<env>__<model>__<YYYY-MM-DD>
+ * e.g. act__v4__local__gpt-5.4-mini__2026-07-22. Matched pairs differ only
+ * in the sdk segment; never diff across environments.
+ */
+function buildSdkComparisonExperimentName(input: {
+  base: string;
+  sdk: "v3" | "v4";
+  environment: string;
+  model?: string;
+}): string {
+  const model = input.model
+    ? input.model.includes("/")
+      ? input.model.split("/").slice(1).join("/")
+      : input.model
+    : "multi";
+  const date = new Date().toISOString().slice(0, 10);
+  return [
+    input.base,
+    input.sdk,
+    input.environment.toLowerCase(),
+    model,
+    date,
+  ].join("__");
+}
+
+/** Braintrust project for SDK-comparison runs (--sdk v3|v4). */
+const SDK_COMPARISON_PROJECT = "stagehand-v4";
+
+/**
+ * Fail fast before spending money: verify the configured Braintrust key can
+ * see the target project. An org-less or wrong-org key still authenticates
+ * (HTTP 200) but sees no projects — Eval() would then run the whole matrix
+ * and silently drop every log batch.
+ *
+ * This guard exists so that every SDK-comparison eval run is verifiable and
+ * traceable in Braintrust: a run whose logs silently drop leaves no record
+ * and its claimed results can't be audited. Blocking un-loggable runs up
+ * front guarantees that any reported v3/v4 score has a corresponding
+ * Braintrust experiment backing its plausibility.
+ */
+async function assertBraintrustProjectReachable(
+  projectName: string,
+): Promise<void> {
+  const apiUrl =
+    process.env.BRAINTRUST_API_URL ?? "https://api.braintrust.dev";
+  let body: { objects?: unknown[] };
+  try {
+    const response = await fetch(
+      `${apiUrl}/v1/project?project_name=${encodeURIComponent(projectName)}&limit=1`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.BRAINTRUST_API_KEY}`,
+        },
+      },
+    );
+    if (!response.ok) {
+      throw new EvalsError(
+        `Braintrust preflight failed (HTTP ${response.status}). ` +
+          `Check BRAINTRUST_API_KEY before running an SDK comparison.`,
+      );
+    }
+    body = (await response.json()) as { objects?: unknown[] };
+  } catch (error) {
+    if (error instanceof EvalsError) throw error;
+    throw new EvalsError(
+      `Braintrust preflight request failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+  if (!body.objects?.length) {
+    throw new EvalsError(
+      `Braintrust preflight: the configured BRAINTRUST_API_KEY cannot see ` +
+        `project "${projectName}" (the key may belong to the wrong org). ` +
+        `Aborting before any tasks run.`,
+    );
+  }
+}
+
+/**
+ * Resolve the commit SHA of the linked v4-spike checkout so v4 experiments
+ * stay reproducible against a moving SDK. Follows the pnpm link symlink to
+ * the real checkout. Best-effort: returns "unknown" on any failure.
+ */
+function resolveV4SpikeSha(): string {
+  try {
+    const sdkEntry = fileURLToPath(
+      import.meta.resolve("@browserbasehq/stagehand-v4-spike-sdk-ts"),
+    );
+    // src/index.ts → package root → (realpath) v4-spike/packages/sdk-ts → repo root
+    const sdkPackageRoot = fs.realpathSync(
+      path.dirname(path.dirname(sdkEntry)),
+    );
+    const repoRoot = path.dirname(path.dirname(sdkPackageRoot));
+    return execSync("git rev-parse --short HEAD", {
+      cwd: repoRoot,
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return "unknown";
+  }
+}
+
 export interface RunProgressEvent {
   type: "planned" | "started" | "passed" | "failed" | "error";
   taskName?: string;
@@ -70,6 +179,14 @@ export interface RunEvalsOptions {
   agentMode?: AgentToolMode;
   agentModes?: AgentToolMode[];
   harness?: Harness;
+  /**
+   * Which Stagehand SDK drives bench tasks. When set explicitly (v3 or v4),
+   * the run is treated as part of an SDK comparison: the Braintrust
+   * experiment name gains sdk/env/model/date segments and metadata carries
+   * `sdk` (plus the v4-spike commit SHA for v4 runs) so matched pairs can
+   * be diffed per task.
+   */
+  sdk?: "v3" | "v4";
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;
   onProgress?: (event: RunProgressEvent) => void;
@@ -343,16 +460,27 @@ export async function runEvals(
   const effectiveBenchHarness = hasCoreOnly
     ? undefined
     : (options.harness ?? DEFAULT_BENCH_HARNESS);
-  const experimentName = generateExperimentName({
+  const runModel = resolveUnambiguousModel(
+    testcases.map((testcase) => testcase.input?.modelName),
+  );
+  const baseExperimentName = generateExperimentName({
     evalName: options.tasks.length === 1 ? options.tasks[0].name : undefined,
     category: options.categoryFilter ?? undefined,
     environment,
     toolSurface: effectiveCoreToolSurface,
     startupProfile: effectiveCoreStartupProfile,
   });
-  const runModel = resolveUnambiguousModel(
-    testcases.map((testcase) => testcase.input?.modelName),
-  );
+  // SDK-comparison runs (--sdk passed explicitly) get self-describing names
+  // so matched v3/v4 pairs are unmistakable in the Braintrust experiment
+  // list; default runs keep the plain target-label naming.
+  const experimentName = options.sdk
+    ? buildSdkComparisonExperimentName({
+        base: baseExperimentName,
+        sdk: options.sdk,
+        environment,
+        model: runModel ?? options.modelOverride,
+      })
+    : baseExperimentName;
 
   // Stamp the run-scoped trajectory group; the token is generated once here and
   // reused for the completion-time experiment link. Local persistence only.
@@ -369,13 +497,18 @@ export async function runEvals(
     process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
   if (options.provider) process.env.EVAL_PROVIDER = options.provider;
 
-  const braintrustProjectName = hasCoreOnly
-    ? process.env.CI === "true"
-      ? "stagehand-core"
-      : "stagehand-core-dev"
-    : process.env.CI === "true"
-      ? "stagehand"
-      : "stagehand-dev";
+  // SDK-comparison runs (--sdk passed) land in the dedicated project so
+  // v3/v4 experiments are diffable in one place; default runs keep the
+  // existing project routing.
+  const braintrustProjectName = options.sdk
+    ? SDK_COMPARISON_PROJECT
+    : hasCoreOnly
+      ? process.env.CI === "true"
+        ? "stagehand-core"
+        : "stagehand-core-dev"
+      : process.env.CI === "true"
+        ? "stagehand"
+        : "stagehand-dev";
 
   const scores = hasCoreOnly
     ? [passRate, errorMatch]
@@ -383,6 +516,14 @@ export async function runEvals(
 
   const { Eval, flush } = await loadBraintrust();
   const sendLogs = hasBraintrustApiKey();
+
+  // Comparison runs cost real money; verify Braintrust is reachable before
+  // any task starts rather than discovering dropped log batches afterwards.
+  // Every comparison run must be verifiable and traceable in Braintrust —
+  // results without a backing experiment record can't be audited.
+  if (options.sdk && sendLogs) {
+    await assertBraintrustProjectReachable(braintrustProjectName);
+  }
 
   // Aggressive abort: when the caller flips signal.reason to "aggressive",
   // close every active session so any in-flight task throws on its next
@@ -403,6 +544,8 @@ export async function runEvals(
       experimentName,
       metadata: {
         environment,
+        sdk: options.sdk ?? "v3",
+        ...(options.sdk === "v4" && { v4Sha: resolveV4SpikeSha() }),
         tier: hasCoreOnly ? "core" : "bench",
         ...(effectiveCoreToolSurface && {
           toolSurface: effectiveCoreToolSurface,
