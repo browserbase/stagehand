@@ -1,0 +1,135 @@
+---
+title: "Introducing Stagehand"
+sidebarTitle: "Introduction"
+description: "Developers use Stagehand to reliably automate the web."
+---
+
+Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
+
+## The problem with browser automation
+
+Traditional frameworks like Playwright and Puppeteer force you to write brittle scripts that break with every UI change. Web agents promise to solve this with AI, but leave you at the mercy of unpredictable behavior.
+
+**You're stuck between two bad options:**
+
+- **Too brittle:** Traditional selectors break when websites change
+- **Too agentic:** AI agents are unpredictable and impossible to debug
+
+## Enter Stagehand
+
+Stagehand gives you three composable primitives, so you decide exactly how much AI to use on any given step and drop down to deterministic browser controls whenever you want.
+
+<CardGroup cols={3}>
+  <Card title="Act" icon="arrow-pointer" href="#">
+    Perform a single action described in natural language.
+  </Card>
+  <Card title="Extract" icon="download" href="#">
+    Pull structured, schema-typed data from a page.
+  </Card>
+  <Card title="Observe" icon="eye" href="#">
+    Discover the actions available on a page before acting.
+  </Card>
+</CardGroup>
+
+<View title="TypeScript" icon="js">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod";
+
+const stagehand = new Stagehand({ browser: { type: "local" } });
+await stagehand.init();
+const page = await stagehand.context.newPage();
+await page.goto("https://example.com");
+
+// Observe: discover the available actions
+const actions = await stagehand.observe("Find the primary call-to-action");
+
+// Act: perform a natural-language action
+await stagehand.act("Click the primary call-to-action");
+
+// Extract: pull structured data
+const { heading } = await stagehand.extract(
+  "Extract the page heading",
+  z.object({ heading: z.string() }),
+);
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+from pydantic import BaseModel
+from stagehand import Stagehand
+
+
+class PageInfo(BaseModel):
+    heading: str
+
+
+stagehand = Stagehand(browser="local")
+await stagehand.init()
+page = await stagehand.context.new_page()
+await page.goto("https://example.com")
+
+# Observe: discover the available actions
+actions = await stagehand.observe(instruction="Find the primary call-to-action")
+
+# Act: perform a natural-language action
+await stagehand.act("Click the primary call-to-action")
+
+# Extract: pull structured data
+page_info = await stagehand.extract(
+    instruction="Extract the page heading",
+    schema=PageInfo,
+)
+```
+
+</View>
+
+## What's new in V4
+
+- **The engine runs inside the browser:** Act, extract, and observe execute in an in-browser runtime instead of a Node process wrapping Playwright, and clients talk to it over a typed, bidirectional JSON-RPC protocol.
+- **First-class TypeScript, Python, and Go SDKs:** Each client is generated from the same protocol, so every method and option matches across supported languages.
+- **The AI primitives live on Stagehand:** `act`, `extract`, and `observe` are methods on [`stagehand`](/reference/stagehand). They run on the browser's active page by default, or on a page you pass. Deterministic controls like `goto`, `click`, and `type` stay on [`page`](/reference/page).
+- **Extraction is typed:** [`extract`](#) validates results against a schema you define and hands back fully typed data.
+- **Models are flexible:** Use a hosted provider by name, a custom OpenAI-compatible endpoint, or your own client-side LLM callback. See [Models](#).
+- **Metrics and diagnostics are built in:** Read per-method token usage and inference timing with [`metrics()`](/reference/stagehand), and check connectivity with `ping()`.
+
+## Why developers choose Stagehand
+
+- **Precise Control:** Mix AI-powered actions with deterministic code. You decide exactly how much AI to use.
+- **Actually Repeatable:** Save and replay actions exactly. No more “it worked on my machine” with browser automations.
+- **Maintainable at Scale:** One script can automate multiple websites. When sites change, your automations adapt.
+- **Composable Tools:** Plan with `observe`, act with `act`, and read data with `extract`.
+
+## Built for modern development
+
+Stagehand works whether you run locally or on [Browserbase](https://www.browserbase.com).
+
+<AccordionGroup>
+  <Accordion title="Works Everywhere">
+    Compatible with all Chromium-based browsers: Chrome, Edge, Arc, Brave, and more.
+  </Accordion>
+  <Accordion title="Built by Browserbase">
+    Created and maintained by the team behind enterprise browser infrastructure.
+  </Accordion>
+</AccordionGroup>
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/first-steps/quickstart">
+    Build your first automation end to end.
+  </Card>
+  <Card title="Installation" icon="download" href="/first-steps/installation">
+    Add Stagehand to an existing project.
+  </Card>
+  <Card title="SDK reference" icon="book" href="/reference/stagehand">
+    Explore the full API surface.
+  </Card>
+  <Card title="Join Discord" icon="discord" href="https://stagehand.dev/discord">
+    Get help from the community.
+  </Card>
+</CardGroup>

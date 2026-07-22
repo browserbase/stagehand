@@ -27,6 +27,15 @@
         "pages": ["index"]
       },
       {
+        "group": "First Steps",
+        "pages": [
+          "first-steps/introduction",
+          "first-steps/quickstart",
+          "first-steps/installation",
+          "first-steps/ai-rules"
+        ]
+      },
+      {
         "group": "SDK reference",
         "pages": [
           "reference/stagehand",
