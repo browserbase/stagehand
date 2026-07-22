@@ -87,6 +87,39 @@ into a scoped `z.registry()` instead of `globalRegistry`, so the SDK can
 coexist with v3-based code in one process regardless of the consumer's zod
 version.
 
+### 14. extract() mangles snake_case schema keys (wire-casing bug)
+Extract schemas whose property names are snake_case fail on v4 with an
+OpenAI structured-outputs rejection. Reproduced standalone with the
+`extract_aigrant_targeted` schema (`{ company_name: z.string() }`):
+
+    Invalid schema for response_format 'Extraction': In context=(),
+    'required' is required to be supplied and to be an array including
+    every key in properties. Missing 'companyName'.
+
+The protocol's wire-casing layer (`packages/protocol/json-rpc/
+wire-casing.ts`, camelcase-keys/snakecase-keys) re-cases JSON crossing the
+RPC boundary and appears to rename the user schema's `properties` keys
+without updating the `required` array (or vice versa), producing an
+internally inconsistent JSON schema. User-supplied schema keys are data,
+not protocol fields — they must be exempt from wire re-casing.
+**Impact:** every extract task with snake_case keys fails on v4 in both
+LOCAL and BROWSERBASE (`extract_aigrant_targeted`,
+`extract_github_commits` in the smoke slice; many more in the full suite
+use snake_case). Schemas with single-word keys (`extract_apartments`)
+pass through unharmed, which can mask the bug in casual testing.
+
+### 15. observe() element choice diverges from v3 on container-selection tasks
+`observe_yc_startup` (find the container holding all company entries):
+v3's observation matches the known-good container in both environments;
+v4 consistently returns a *plausible but different* element
+(`xpath=/html[1]/body[1]/div[1]/div[3]/div[1]/div[1]/div[2]/div[2]/div[4]`)
+that is not the results container. 1-trial evidence from both LOCAL and
+BROWSERBASE; needs trials to quantify, but the consistency across envs
+suggests a systematic difference in how v4's observe ranks container
+candidates rather than sampling noise. Also note v4 returns indexed
+absolute XPaths (`/html[1]/body[1]/...`) where v3 returned other selector
+forms — any consumer code pattern-matching selectors will notice.
+
 ## Ergonomic friction (non-blocking)
 
 ### 7. Result/param types are not exported
