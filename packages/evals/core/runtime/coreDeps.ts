@@ -11,6 +11,12 @@ type BrowserbaseConstructor = new (options: { apiKey: string }) => {
     ) => Promise<unknown>;
     debug?: (sessionId: string) => Promise<unknown>;
   };
+  extensions: {
+    delete: (
+      extensionId: string,
+      options?: { headers?: Record<string, string | null> },
+    ) => Promise<unknown>;
+  };
 };
 
 type WsModule = {

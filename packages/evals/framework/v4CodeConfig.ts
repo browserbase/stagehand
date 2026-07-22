@@ -6,6 +6,25 @@ export const ANTHROPIC_DIRECT_BROWSER_ACCESS_HEADER =
   "anthropic-dangerous-direct-browser-access";
 
 export type V4CodeMode = "deterministic" | "ai";
+export type V4CodeBrowserbaseRegion =
+  | "us-west-2"
+  | "us-east-1"
+  | "eu-central-1"
+  | "ap-southeast-1";
+
+export type V4CodeBrowserConfig =
+  | { type: "local"; userDataDir?: string }
+  | {
+      type: "browserbase";
+      apiKey: string;
+      projectId?: string;
+      region?: V4CodeBrowserbaseRegion;
+    };
+
+export interface V4CodeBrowserbaseResources {
+  sessionId?: string;
+  extensionId?: string;
+}
 
 export interface V4CodeModelConfig {
   modelName: string;
@@ -38,6 +57,36 @@ export function resolveV4SdkPath(env: NodeJS.ProcessEnv = process.env): string {
     );
   }
   return resolved;
+}
+
+export function resolveV4BrowserbaseConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): Extract<V4CodeBrowserConfig, { type: "browserbase" }> {
+  const apiKey = firstNonEmpty(env.BROWSERBASE_API_KEY, env.BB_API_KEY);
+  if (!apiKey) {
+    throw new Error(
+      "v4_code in BROWSERBASE requires BROWSERBASE_API_KEY or BB_API_KEY.",
+    );
+  }
+
+  const projectId = firstNonEmpty(
+    env.BROWSERBASE_PROJECT_ID,
+    env.BB_PROJECT_ID,
+  );
+  const region = firstNonEmpty(env.BROWSERBASE_REGION);
+  if (region && !isBrowserbaseRegion(region)) {
+    throw new Error(
+      `BROWSERBASE_REGION must be one of us-west-2, us-east-1, eu-central-1, or ap-southeast-1; received "${region}".`,
+    );
+  }
+  const resolvedRegion = region as V4CodeBrowserbaseRegion | undefined;
+
+  return {
+    type: "browserbase",
+    apiKey,
+    ...(projectId && { projectId }),
+    ...(resolvedRegion && { region: resolvedRegion }),
+  };
 }
 
 export function normalizeV4ModelName(modelName: string): string {
@@ -115,5 +164,20 @@ function requireV4ModelProvider(
   }
   throw new Error(
     `v4_code does not support provider "${provider}" from harness model "${modelName}". Supported providers: ${Object.keys(PROVIDER_API_KEY_ENV).join(", ")}.`,
+  );
+}
+
+function firstNonEmpty(
+  ...values: Array<string | undefined>
+): string | undefined {
+  return values.map((value) => value?.trim()).find(Boolean);
+}
+
+function isBrowserbaseRegion(value: string): value is V4CodeBrowserbaseRegion {
+  return (
+    value === "us-west-2" ||
+    value === "us-east-1" ||
+    value === "eu-central-1" ||
+    value === "ap-southeast-1"
   );
 }

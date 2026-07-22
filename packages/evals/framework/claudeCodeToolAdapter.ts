@@ -17,10 +17,12 @@ import {
   type V4CodeController,
 } from "./v4CodeController.js";
 import {
+  resolveV4BrowserbaseConfig,
   resolveV4CodeModelConfig,
   resolveV4SdkPath,
   STAGEHAND_V4_SDK_PATH_ENV,
   type V4CodeMode,
+  type V4CodeBrowserConfig,
   type V4CodeModelConfig,
 } from "./v4CodeConfig.js";
 
@@ -275,17 +277,16 @@ export function resolveClaudeCodeStartupProfile(
   requested?: StartupProfile,
 ): StartupProfile {
   if (toolSurface === "v4_code" || toolSurface === "v4_code_deterministic") {
-    if (environment !== "LOCAL") {
+    const required =
+      environment === "BROWSERBASE"
+        ? "tool_create_browserbase"
+        : "tool_launch_local";
+    if (requested && requested !== required) {
       throw new EvalsError(
-        `${toolSurface} currently supports only the LOCAL environment.`,
+        `${toolSurface} requires startup profile "${required}" in ${environment}; received "${requested}".`,
       );
     }
-    if (requested && requested !== "tool_launch_local") {
-      throw new EvalsError(
-        `${toolSurface} requires startup profile "tool_launch_local"; received "${requested}".`,
-      );
-    }
-    return "tool_launch_local";
+    return required;
   }
 
   if (requested) return requested;
@@ -671,12 +672,13 @@ async function prepareV4CodeAdapter(
     startupProfile: StartupProfile;
   },
 ): Promise<PreparedClaudeCodeToolAdapter> {
-  if (
-    input.environment !== "LOCAL" ||
-    input.startupProfile !== "tool_launch_local"
-  ) {
+  const expectedStartupProfile =
+    input.environment === "BROWSERBASE"
+      ? "tool_create_browserbase"
+      : "tool_launch_local";
+  if (input.startupProfile !== expectedStartupProfile) {
     throw new EvalsError(
-      `${input.toolSurface} requires LOCAL with startup profile tool_launch_local.`,
+      `${input.toolSurface} requires ${expectedStartupProfile} in ${input.environment}.`,
     );
   }
 
@@ -685,6 +687,7 @@ async function prepareV4CodeAdapter(
 
   let sdkPath: string;
   let modelConfig: V4CodeModelConfig | undefined;
+  let browserConfig: V4CodeBrowserConfig;
   try {
     if (mode === "ai") {
       if (!input.model) {
@@ -695,6 +698,10 @@ async function prepareV4CodeAdapter(
       modelConfig = resolveV4CodeModelConfig(input.model);
     }
     sdkPath = resolveV4SdkPath();
+    browserConfig =
+      input.environment === "BROWSERBASE"
+        ? resolveV4BrowserbaseConfig()
+        : { type: "local" };
   } catch (error) {
     throw new EvalsError(
       error instanceof Error ? error.message : String(error),
@@ -706,11 +713,16 @@ async function prepareV4CodeAdapter(
   );
   const env = { ...process.env } as Record<string, string>;
   delete env[STAGEHAND_V4_SDK_PATH_ENV];
+  delete env.BROWSERBASE_API_KEY;
+  delete env.BROWSERBASE_PROJECT_ID;
+  delete env.BB_API_KEY;
+  delete env.BB_PROJECT_ID;
   let controller: V4CodeController | undefined;
 
   try {
     controller = await startV4CodeController({
       mode,
+      browser: browserConfig,
       ...(modelConfig && { model: modelConfig }),
       sdkPath,
       inheritChildLogs: process.env.EVAL_V4_CODE_DEBUG_LOGS === "1",
@@ -720,6 +732,14 @@ async function prepareV4CodeAdapter(
           category: "claude_code",
           message: `run console.${level}: ${message}`,
           level: 1,
+        });
+      },
+      onCleanupWarning: () => {
+        input.logger.warn({
+          category: "claude_code",
+          message:
+            "V4 Browserbase fallback cleanup did not fully complete; resource identifiers were intentionally omitted.",
+          level: 0,
         });
       },
       startupTimeoutMs: readPositiveIntEnv(
@@ -744,7 +764,7 @@ async function prepareV4CodeAdapter(
 
     input.logger.log({
       category: "claude_code",
-      message: `Initialized local ${input.toolSurface} runtime for Claude Code run tool.`,
+      message: `Initialized ${input.environment.toLowerCase()} ${input.toolSurface} runtime for Claude Code run tool.`,
       level: 1,
       auxiliary: {
         startupProfile: {

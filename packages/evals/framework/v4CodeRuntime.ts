@@ -1,7 +1,12 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod/v4";
-import type { V4CodeMode, V4CodeModelConfig } from "./v4CodeConfig.js";
+import type {
+  V4CodeBrowserbaseResources,
+  V4CodeBrowserConfig,
+  V4CodeMode,
+  V4CodeModelConfig,
+} from "./v4CodeConfig.js";
 export { STAGEHAND_V4_SDK_PATH_ENV, resolveV4SdkPath } from "./v4CodeConfig.js";
 
 type UnknownRecord = Record<string, unknown>;
@@ -122,6 +127,7 @@ export interface V4CodeRuntime {
   page: V4CodePageFacade;
   context: V4CodeContextFacade;
   stagehand?: V4AiStagehandFacade;
+  browserbaseResources?: V4CodeBrowserbaseResources;
   close(): Promise<void>;
 }
 
@@ -138,10 +144,57 @@ type V4StagehandInstance = {
   close(): Promise<unknown>;
 };
 
-type V4StagehandConstructor = new (options: {
-  browser: { type: "local"; headless: true; userDataDir?: string };
+type V4StagehandInitOptions = {
+  apiKey?: string;
+  browser:
+    | { type: "local"; headless: true; userDataDir?: string }
+    | {
+        type: "browserbase";
+        region?: Extract<
+          V4CodeBrowserConfig,
+          { type: "browserbase" }
+        >["region"];
+        userMetadata: Record<string, string>;
+      };
   model?: V4CodeModelConfig;
-}) => V4StagehandInstance;
+};
+
+type V4StagehandConstructor = new (
+  options: V4StagehandInitOptions,
+) => V4StagehandInstance;
+
+type V4BrowserbaseApiClient = {
+  uploadExtension(archivePath: string): Promise<{ id: string }>;
+  deleteExtension(extensionId: string): Promise<void>;
+  createSession(
+    params: Record<string, unknown>,
+  ): Promise<{ id: string; connectUrl: string }>;
+  releaseSession(sessionId: string): Promise<void>;
+};
+
+type V4InternalStagehandModule = {
+  createStagehandWithDependenciesForTest(
+    options: V4StagehandInitOptions,
+    adapters: {
+      resolveBrowserSource(input: unknown): Promise<unknown>;
+    },
+  ): V4StagehandInstance;
+};
+
+type V4InternalBrowserSourceModule = {
+  resolveBrowserSource(
+    input: unknown,
+    dependencies: { browserbase: unknown },
+  ): Promise<unknown>;
+};
+
+type V4InternalBrowserbaseSessionModule = {
+  createBrowserbaseApiClient(apiKey: string): V4BrowserbaseApiClient;
+  createBrowserbaseSessionClient(
+    apiKey: string,
+    dependencies: { browserbase: V4BrowserbaseApiClient },
+  ): unknown;
+};
 
 export async function loadV4StagehandConstructor(
   sdkPath: string,
@@ -160,6 +213,7 @@ export async function loadV4StagehandConstructor(
 export async function initializeV4DeterministicRuntime(input: {
   sdkPath: string;
   userDataDir?: string;
+  browser?: V4CodeBrowserConfig;
   importModule?: V4SdkModuleImporter;
 }): Promise<V4DeterministicRuntime> {
   const runtime = await initializeV4CodeRuntime({
@@ -176,23 +230,33 @@ export async function initializeV4DeterministicRuntime(input: {
 export async function initializeV4CodeRuntime(input: {
   sdkPath: string;
   userDataDir?: string;
+  browser?: V4CodeBrowserConfig;
   mode: V4CodeMode;
   model?: V4CodeModelConfig;
   importModule?: V4SdkModuleImporter;
+  onBrowserbaseResources?: (
+    resources: V4CodeBrowserbaseResources,
+  ) => Promise<void> | void;
 }): Promise<V4CodeRuntime> {
   const model = resolveRuntimeModel(input.mode, input.model);
-  const Stagehand = await loadV4StagehandConstructor(
-    input.sdkPath,
-    input.importModule,
-  );
-  const stagehand = new Stagehand({
-    browser: {
-      type: "local",
-      headless: true,
-      ...(input.userDataDir && { userDataDir: input.userDataDir }),
-    },
-    ...(model && { model }),
-  });
+  const browser = resolveRuntimeBrowser(input.browser, input.userDataDir);
+  const options = buildStagehandInitOptions(browser, model, input.mode);
+  const { stagehand, browserbaseResources } =
+    browser.type === "browserbase"
+      ? await createTrackedBrowserbaseStagehand({
+          sdkPath: input.sdkPath,
+          browser,
+          options,
+          importModule: input.importModule,
+          onBrowserbaseResources: input.onBrowserbaseResources,
+        })
+      : {
+          stagehand: new (await loadV4StagehandConstructor(
+            input.sdkPath,
+            input.importModule,
+          ))(options),
+          browserbaseResources: undefined,
+        };
   let closePromise: Promise<void> | undefined;
 
   const close = (): Promise<void> => {
@@ -218,6 +282,7 @@ export async function initializeV4CodeRuntime(input: {
       page,
       context,
       ...(stagehandFacade && { stagehand: stagehandFacade }),
+      ...(browserbaseResources && { browserbaseResources }),
       close,
     };
   } catch (error) {
@@ -232,6 +297,182 @@ export async function initializeV4CodeRuntime(input: {
     }
     throw error;
   }
+}
+
+function resolveRuntimeBrowser(
+  browser: V4CodeBrowserConfig | undefined,
+  userDataDir: string | undefined,
+): V4CodeBrowserConfig {
+  if (browser && userDataDir) {
+    throw new Error(
+      "V4 runtime browser configuration and legacy userDataDir cannot be provided together.",
+    );
+  }
+  return (
+    browser ?? {
+      type: "local",
+      ...(userDataDir && { userDataDir }),
+    }
+  );
+}
+
+function buildStagehandInitOptions(
+  browser: V4CodeBrowserConfig,
+  model: V4CodeModelConfig | undefined,
+  mode: V4CodeMode,
+): V4StagehandInitOptions {
+  return {
+    ...(browser.type === "browserbase" && { apiKey: browser.apiKey }),
+    browser:
+      browser.type === "local"
+        ? {
+            type: "local",
+            headless: true,
+            ...(browser.userDataDir && { userDataDir: browser.userDataDir }),
+          }
+        : {
+            type: "browserbase",
+            ...(browser.region && { region: browser.region }),
+            userMetadata: {
+              stagehand: "true",
+              evals: "true",
+              toolSurface: mode === "ai" ? "v4_code" : "v4_code_deterministic",
+            },
+          },
+    ...(model && { model }),
+  };
+}
+
+async function createTrackedBrowserbaseStagehand(input: {
+  sdkPath: string;
+  browser: Extract<V4CodeBrowserConfig, { type: "browserbase" }>;
+  options: V4StagehandInitOptions;
+  importModule?: V4SdkModuleImporter;
+  onBrowserbaseResources?: (
+    resources: V4CodeBrowserbaseResources,
+  ) => Promise<void> | void;
+}): Promise<{
+  stagehand: V4StagehandInstance;
+  browserbaseResources: V4CodeBrowserbaseResources;
+}> {
+  const importModule = input.importModule ?? defaultV4SdkImporter;
+  const [stagehandModule, browserSourceModule, browserbaseSessionModule] =
+    await Promise.all([
+      importV4SiblingModule(input.sdkPath, "stagehand", importModule),
+      importV4SiblingModule(input.sdkPath, "browserSource", importModule),
+      importV4SiblingModule(input.sdkPath, "browserbaseSession", importModule),
+    ]);
+  const createStagehandWithDependenciesForTest = requireFunction(
+    stagehandModule,
+    "createStagehandWithDependenciesForTest",
+  ) as V4InternalStagehandModule["createStagehandWithDependenciesForTest"];
+  const resolveBrowserSource = requireFunction(
+    browserSourceModule,
+    "resolveBrowserSource",
+  ) as V4InternalBrowserSourceModule["resolveBrowserSource"];
+  const createBrowserbaseApiClient = requireFunction(
+    browserbaseSessionModule,
+    "createBrowserbaseApiClient",
+  ) as V4InternalBrowserbaseSessionModule["createBrowserbaseApiClient"];
+  const createBrowserbaseSessionClient = requireFunction(
+    browserbaseSessionModule,
+    "createBrowserbaseSessionClient",
+  ) as V4InternalBrowserbaseSessionModule["createBrowserbaseSessionClient"];
+
+  const resources: V4CodeBrowserbaseResources = {};
+  const report = async (update: V4CodeBrowserbaseResources): Promise<void> => {
+    Object.assign(resources, update);
+    await input.onBrowserbaseResources?.({ ...resources });
+  };
+  const nativeApi = createBrowserbaseApiClient(input.browser.apiKey);
+  const trackingApi: V4BrowserbaseApiClient = {
+    async uploadExtension(archivePath) {
+      const uploaded = await nativeApi.uploadExtension(archivePath);
+      try {
+        await report({ extensionId: uploaded.id.trim() });
+      } catch (error) {
+        try {
+          await nativeApi.deleteExtension(uploaded.id);
+        } catch (cleanupError) {
+          throw new AggregateError(
+            [error, cleanupError],
+            "V4 Browserbase extension handoff failed and local cleanup also failed.",
+            { cause: cleanupError },
+          );
+        }
+        throw error;
+      }
+      return uploaded;
+    },
+    deleteExtension: (extensionId) => nativeApi.deleteExtension(extensionId),
+    async createSession(params) {
+      const created = await nativeApi.createSession({
+        ...params,
+        ...(input.browser.projectId && {
+          projectId: input.browser.projectId,
+        }),
+      });
+      try {
+        await report({ sessionId: created.id.trim() });
+      } catch (error) {
+        try {
+          await nativeApi.releaseSession(created.id);
+        } catch (cleanupError) {
+          throw new AggregateError(
+            [error, cleanupError],
+            "V4 Browserbase session handoff failed and local cleanup also failed.",
+            { cause: cleanupError },
+          );
+        }
+        throw error;
+      }
+      return created;
+    },
+    releaseSession: (sessionId) => nativeApi.releaseSession(sessionId),
+  };
+  const browserbase = createBrowserbaseSessionClient(input.browser.apiKey, {
+    browserbase: trackingApi,
+  });
+
+  // The unpublished V4 spike has no public resource lifecycle hook. This
+  // intentionally pinned internal adapter keeps native provisioning/cleanup
+  // intact while letting the parent bridge supervise abnormal termination.
+  const stagehand = createStagehandWithDependenciesForTest(input.options, {
+    resolveBrowserSource: (params) =>
+      resolveBrowserSource(params, { browserbase }),
+  });
+  return { stagehand, browserbaseResources: resources };
+}
+
+async function importV4SiblingModule(
+  sdkPath: string,
+  moduleName: string,
+  importModule: V4SdkModuleImporter,
+): Promise<Record<string, unknown>> {
+  const extension = path.extname(sdkPath);
+  if (extension !== ".ts" && extension !== ".js" && extension !== ".mjs") {
+    throw new Error(
+      `V4 Browserbase support requires a source or built SDK entry with a .ts, .js, or .mjs extension; received ${sdkPath}.`,
+    );
+  }
+  const siblingPath = path.join(
+    path.dirname(path.resolve(sdkPath)),
+    `${moduleName}${extension}`,
+  );
+  return importModule(pathToFileURL(siblingPath).href);
+}
+
+function requireFunction(
+  module: Record<string, unknown>,
+  name: string,
+): UnknownMethod {
+  const value = module[name];
+  if (typeof value !== "function") {
+    throw new Error(
+      `Pinned V4 Browserbase scaffolding requires internal export ${name}.`,
+    );
+  }
+  return value as UnknownMethod;
 }
 
 export function createV4DeterministicFacades(rawContext: unknown): {

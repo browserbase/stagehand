@@ -8,13 +8,17 @@ import {
 import {
   stringifyV4CodeConsoleValue,
   type V4CodeBridgeConsoleEvent,
+  type V4CodeBridgeLifecycleEvent,
   type V4CodeBridgeRequest,
   type V4CodeBridgeResponse,
 } from "./v4CodeController.js";
+import type { V4CodeBrowserConfig } from "./v4CodeConfig.js";
 
 let runtime: V4CodeRuntime | undefined;
+let initPromise: Promise<V4CodeRuntime> | undefined;
 let requestQueue = Promise.resolve();
 let shuttingDown = false;
+let shutdownPromise: Promise<void> | undefined;
 
 if (!process.send) {
   throw new Error("V4 code bridge requires a Node IPC channel.");
@@ -46,17 +50,38 @@ async function handleRequest(message: V4CodeBridgeRequest): Promise<void> {
   switch (message.type) {
     case "init": {
       if (runtime) throw new Error("V4 code bridge is already initialized.");
-      runtime = await initializeV4CodeRuntime({
+      if (initPromise) {
+        throw new Error(
+          "V4 code bridge initialization is already in progress.",
+        );
+      }
+      const pendingRuntime = initializeV4CodeRuntime({
         sdkPath: message.sdkPath,
-        userDataDir: message.userDataDir,
+        browser: message.browser,
         mode: message.mode,
         ...(message.mode === "ai" && { model: message.model }),
+        onBrowserbaseResources: (resources) =>
+          sendLifecycleEvent({
+            type: "browserbase_resources",
+            resources,
+          }),
       });
+      initPromise = pendingRuntime;
+      const initializedRuntime = await pendingRuntime;
+      if (shuttingDown) {
+        // shutdown() owns a runtime that settles after termination begins.
+        return;
+      }
+      runtime = initializedRuntime;
+      initPromise = undefined;
       sendResponse({
         id: message.id,
         ok: true,
         result: {
-          browserPid: readBrowserPid(message.userDataDir),
+          browserPid: readBrowserPid(message.browser),
+          ...(runtime.browserbaseResources && {
+            resources: runtime.browserbaseResources,
+          }),
         },
       });
       return;
@@ -118,7 +143,9 @@ function makeIpcSafeResult(value: unknown): unknown {
   }
 }
 
-function readBrowserPid(userDataDir: string | undefined): number | undefined {
+function readBrowserPid(browser: V4CodeBrowserConfig): number | undefined {
+  const userDataDir =
+    browser.type === "local" ? browser.userDataDir : undefined;
   if (!userDataDir) return undefined;
   const pidFile = path.join(userDataDir, "chrome.pid");
   if (!fs.existsSync(pidFile)) return undefined;
@@ -127,14 +154,27 @@ function readBrowserPid(userDataDir: string | undefined): number | undefined {
 }
 
 async function shutdown(): Promise<void> {
-  if (shuttingDown) return;
+  if (shutdownPromise) return shutdownPromise;
   shuttingDown = true;
-  try {
-    await closeRuntime();
-  } finally {
-    process.exitCode = 0;
-    if (process.connected) process.disconnect();
-  }
+  shutdownPromise = (async () => {
+    try {
+      const initializing = initPromise;
+      if (initializing) {
+        try {
+          const initializedRuntime = await initializing;
+          await initializedRuntime.close();
+        } catch {
+          // Runtime initialization owns cleanup for partial provisioning.
+        }
+      }
+      await closeRuntime();
+    } finally {
+      initPromise = undefined;
+      process.exitCode = 0;
+      if (process.connected) process.disconnect();
+    }
+  })();
+  return shutdownPromise;
 }
 
 async function closeRuntime(): Promise<void> {
@@ -154,6 +194,20 @@ function sendResponse(
 function sendConsoleEvent(event: V4CodeBridgeConsoleEvent): void {
   if (!process.send || !process.connected) return;
   process.send(event);
+}
+
+function sendLifecycleEvent(event: V4CodeBridgeLifecycleEvent): Promise<void> {
+  if (!process.send || !process.connected) {
+    return Promise.reject(
+      new Error("V4 code bridge resource lifecycle IPC channel is closed."),
+    );
+  }
+  return new Promise((resolve, reject) => {
+    process.send?.(event, (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
 }
 
 function serializeError(error: unknown): {
