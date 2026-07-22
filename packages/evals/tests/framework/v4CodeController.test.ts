@@ -132,6 +132,10 @@ describe("V4 code child controller", () => {
       "execute",
       "close",
     ]);
+    expect(child.sent[0]).toMatchObject({
+      type: "init",
+      mode: "deterministic",
+    });
     expect(new Set(child.sent.map((request) => request.id)).size).toBe(3);
     expect(child.disconnectCalls).toBe(1);
     expect(child.killCalls).toEqual([]);
@@ -189,6 +193,61 @@ describe("V4 code child controller", () => {
       "inherit",
       "ipc",
     ]);
+  });
+
+  it("sends AI mode and model configuration through typed init IPC", async () => {
+    const child = new FakeBridgeChild();
+    respondSuccessfully(child);
+    const { forkProcess } = makeFork(child);
+
+    const controller = await startV4CodeController({
+      mode: "ai",
+      model: {
+        modelName: "anthropic/claude-sonnet-5",
+        apiKey: "test-key",
+        headers: { "anthropic-dangerous-direct-browser-access": "true" },
+      },
+      sdkPath: "/synthetic/v4-sdk.ts",
+      bridgePath: "/synthetic/v4CodeBridge.ts",
+      forkProcess,
+      startupTimeoutMs: 100,
+      executeTimeoutMs: 100,
+      closeTimeoutMs: 100,
+    });
+    await controller.close();
+
+    expect(child.sent[0]).toEqual({
+      id: 1,
+      type: "init",
+      mode: "ai",
+      sdkPath: "/synthetic/v4-sdk.ts",
+      model: {
+        modelName: "anthropic/claude-sonnet-5",
+        apiKey: "test-key",
+        headers: { "anthropic-dangerous-direct-browser-access": "true" },
+      },
+    });
+  });
+
+  it("rejects missing AI configuration and model leakage into deterministic mode", async () => {
+    await expect(
+      startV4CodeController({
+        mode: "ai",
+        sdkPath: "/synthetic/v4-sdk.ts",
+        bridgePath: "/synthetic/v4CodeBridge.ts",
+      }),
+    ).rejects.toThrow(/requires a model name and provider API key/);
+    await expect(
+      startV4CodeController({
+        mode: "deterministic",
+        model: {
+          modelName: "anthropic/claude-sonnet-5",
+          apiKey: "test-key",
+        },
+        sdkPath: "/synthetic/v4-sdk.ts",
+        bridgePath: "/synthetic/v4CodeBridge.ts",
+      }),
+    ).rejects.toThrow(/must not receive model configuration/);
   });
 
   it("sets the bridge cwd and forwards typed snippet console events", async () => {

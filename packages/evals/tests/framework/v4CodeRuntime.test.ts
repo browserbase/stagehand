@@ -2,9 +2,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod/v4";
 import {
+  createV4CodeFacades,
   createV4DeterministicFacades,
+  executeV4CodeSnippet,
   executeV4DeterministicSnippet,
+  initializeV4CodeRuntime,
   initializeV4DeterministicRuntime,
   loadV4StagehandConstructor,
   resolveV4SdkPath,
@@ -80,9 +84,16 @@ function createRawRuntime() {
   class RawPage {
     readonly rpcClient = { secret: true };
     readonly pageId: string;
-    readonly act = vi.fn();
-    readonly extract = vi.fn();
-    readonly observe = vi.fn();
+    readonly act = vi.fn(async (instruction: string) => ({
+      success: true,
+      message: instruction,
+    }));
+    readonly extract = vi.fn(async (_instruction: string, schema: z.ZodType) =>
+      schema.parse({ heading: "Example Domain" }),
+    );
+    readonly observe = vi.fn(async (instruction: string) => [
+      { description: instruction },
+    ]);
     currentUrl = "about:blank";
 
     constructor(pageId: string) {
@@ -301,6 +312,52 @@ describe("deterministic V4 runtime", () => {
     ]);
   });
 
+  it("initializes AI mode with the selected model credentials and headers", async () => {
+    const raw = createRawRuntime();
+    const constructorOptions: unknown[] = [];
+    class FakeStagehand {
+      readonly context = raw.context;
+      constructor(options: unknown) {
+        constructorOptions.push(options);
+      }
+      async init() {}
+      async close() {}
+    }
+
+    const runtime = await initializeV4CodeRuntime({
+      sdkPath: makeSdkEntry(),
+      mode: "ai",
+      model: {
+        modelName: "anthropic/claude-sonnet-5",
+        apiKey: "test-key",
+        headers: { "anthropic-dangerous-direct-browser-access": "true" },
+      },
+      importModule: async () => ({ Stagehand: FakeStagehand }),
+    });
+    await runtime.close();
+
+    expect(constructorOptions).toEqual([
+      {
+        browser: { type: "local", headless: true },
+        model: {
+          modelName: "anthropic/claude-sonnet-5",
+          apiKey: "test-key",
+          headers: { "anthropic-dangerous-direct-browser-access": "true" },
+        },
+      },
+    ]);
+  });
+
+  it("rejects missing AI model configuration without affecting deterministic mode", async () => {
+    await expect(
+      initializeV4CodeRuntime({
+        sdkPath: makeSdkEntry(),
+        mode: "ai",
+        importModule: async () => ({ Stagehand: class {} }),
+      }),
+    ).rejects.toThrow(/requires a model name and provider API key/);
+  });
+
   it("executes snippets with wrapped pages and contexts", async () => {
     const raw = createRawRuntime();
     const { context, wrapPage } = createV4DeterministicFacades(raw.context);
@@ -354,6 +411,7 @@ describe("deterministic V4 runtime", () => {
         contextClose: typeof context.close,
         clipboardRpc: typeof context.clipboard.rpcClient,
         stagehand: typeof stagehand,
+        zod: typeof z,
         locatorRpc: typeof page.locator("button").rpcClient,
       };`,
       runtime: { page, context },
@@ -371,8 +429,63 @@ describe("deterministic V4 runtime", () => {
       contextClose: "undefined",
       clipboardRpc: "undefined",
       stagehand: "undefined",
+      zod: "undefined",
       locatorRpc: "undefined",
     });
+  });
+
+  it("exposes positional AI methods and z without exposing Stagehand internals", async () => {
+    const raw = createRawRuntime();
+    const { context, wrapPage } = createV4CodeFacades(raw.context, "ai");
+    const page = wrapPage(await raw.context.activePage());
+
+    const result = await executeV4CodeSnippet({
+      code: `
+        const extracted = await page.extract(
+          "Extract the heading",
+          z.object({ heading: z.string() }),
+        );
+        const observed = await page.observe("Find the more information link");
+        const acted = await page.act("Click the more information link");
+        return {
+          extracted,
+          observed,
+          acted,
+          stagehand: typeof stagehand,
+          pageRpc: typeof page.rpcClient,
+          contextRpc: typeof context.rpcClient,
+        };
+      `,
+      runtime: { page, context },
+      mode: "ai",
+      startUrl: "https://example.com",
+      task: {},
+      console,
+    });
+
+    expect(result).toEqual({
+      extracted: { heading: "Example Domain" },
+      observed: [{ description: "Find the more information link" }],
+      acted: {
+        success: true,
+        message: "Click the more information link",
+      },
+      stagehand: "undefined",
+      pageRpc: "undefined",
+      contextRpc: "undefined",
+    });
+    expect(raw.context.active.act).toHaveBeenCalledWith(
+      "Click the more information link",
+    );
+    expect(raw.context.active.act.mock.calls[0]).toHaveLength(1);
+    expect(raw.context.active.observe).toHaveBeenCalledWith(
+      "Find the more information link",
+    );
+    expect(raw.context.active.observe.mock.calls[0]).toHaveLength(1);
+    expect(raw.context.active.extract.mock.calls[0]).toHaveLength(2);
+    expect(raw.context.active.extract.mock.calls[0]?.[0]).toBe(
+      "Extract the heading",
+    );
   });
 
   it("cleans up when V4 initialization fails", async () => {

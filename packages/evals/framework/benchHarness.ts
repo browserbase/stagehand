@@ -252,6 +252,7 @@ export const claudeCodeHarness: BenchHarness = {
         toolSurface: row.config.toolSurface,
         startupProfile: row.config.startupProfile,
         environment: row.config.environment,
+        model: input.modelName,
         plan,
         logger,
       });

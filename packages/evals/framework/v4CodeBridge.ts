@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
-  executeV4DeterministicSnippet,
-  initializeV4DeterministicRuntime,
-  type V4DeterministicRuntime,
+  executeV4CodeSnippet,
+  initializeV4CodeRuntime,
+  type V4CodeRuntime,
 } from "./v4CodeRuntime.js";
 import {
   stringifyV4CodeConsoleValue,
@@ -12,7 +12,7 @@ import {
   type V4CodeBridgeResponse,
 } from "./v4CodeController.js";
 
-let runtime: V4DeterministicRuntime | undefined;
+let runtime: V4CodeRuntime | undefined;
 let requestQueue = Promise.resolve();
 let shuttingDown = false;
 
@@ -46,9 +46,11 @@ async function handleRequest(message: V4CodeBridgeRequest): Promise<void> {
   switch (message.type) {
     case "init": {
       if (runtime) throw new Error("V4 code bridge is already initialized.");
-      runtime = await initializeV4DeterministicRuntime({
+      runtime = await initializeV4CodeRuntime({
         sdkPath: message.sdkPath,
         userDataDir: message.userDataDir,
+        mode: message.mode,
+        ...(message.mode === "ai" && { model: message.model }),
       });
       sendResponse({
         id: message.id,
@@ -61,9 +63,10 @@ async function handleRequest(message: V4CodeBridgeRequest): Promise<void> {
     }
     case "execute": {
       if (!runtime) throw new Error("V4 code bridge is not initialized.");
-      const result = await executeV4DeterministicSnippet({
+      const result = await executeV4CodeSnippet({
         code: message.code,
         runtime,
+        mode: runtime.mode,
         startUrl: message.startUrl,
         task: message.task,
         console: buildSnippetConsole(message.id),

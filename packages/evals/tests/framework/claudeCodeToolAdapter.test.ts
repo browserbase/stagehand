@@ -56,7 +56,11 @@ describe("claude code tool adapter resolution", () => {
     );
   });
 
-  it("supports deterministic V4 only as a local tool-launched surface", () => {
+  it("supports both V4 modes only as local tool-launched surfaces", () => {
+    expect(resolveClaudeCodeToolSurface("v4_code")).toBe("v4_code");
+    expect(resolveClaudeCodeStartupProfile("v4_code", "LOCAL")).toBe(
+      "tool_launch_local",
+    );
     expect(resolveClaudeCodeToolSurface("v4_code_deterministic")).toBe(
       "v4_code_deterministic",
     );
@@ -73,11 +77,14 @@ describe("claude code tool adapter resolution", () => {
     expect(() =>
       resolveClaudeCodeStartupProfile("v4_code_deterministic", "BROWSERBASE"),
     ).toThrow(/supports only the LOCAL environment/);
+    expect(() =>
+      resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE"),
+    ).toThrow(/supports only the LOCAL environment/);
   });
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool .*v4_code_deterministic/,
+      /supports --tool .*v4_code.*v4_code_deterministic/,
     );
   });
 
