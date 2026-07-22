@@ -1,5 +1,16 @@
 # @browserbasehq/stagehand-server-v3
 
+## 3.7.3
+
+### Patch Changes
+
+- [#2347](https://github.com/browserbase/stagehand/pull/2347) [`84197d8`](https://github.com/browserbase/stagehand/commit/84197d8cbab2461956cecf3fad84a7107610c960) Thanks [@miguelg719](https://github.com/miguelg719)! - Allow OpenAI-compatible models to select the Chat Completions API with `openaiEndpointFormat: "chat"`
+
+- [#2367](https://github.com/browserbase/stagehand/pull/2367) [`a985943`](https://github.com/browserbase/stagehand/commit/a985943a0aa2370d5a50caa21137255047818b24) Thanks [@shrey150](https://github.com/shrey150)! - Cut a new stagehand-server-v3 SEA binary release to catch up with recent core changes, including Gemini 3.5 Flash computer-use support.
+
+- Updated dependencies [[`2cd1edf`](https://github.com/browserbase/stagehand/commit/2cd1edf49e5b726d817805e3258f2fa9b7fa17b0), [`84197d8`](https://github.com/browserbase/stagehand/commit/84197d8cbab2461956cecf3fad84a7107610c960)]:
+  - @browserbasehq/stagehand@3.7.1
+
 ## 3.7.2
 
 ### Patch Changes

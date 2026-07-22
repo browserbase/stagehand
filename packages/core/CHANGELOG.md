@@ -1,5 +1,13 @@
 # @browserbasehq/stagehand
 
+## 3.7.1
+
+### Patch Changes
+
+- [#2359](https://github.com/browserbase/stagehand/pull/2359) [`2cd1edf`](https://github.com/browserbase/stagehand/commit/2cd1edf49e5b726d817805e3258f2fa9b7fa17b0) Thanks [@shrey150](https://github.com/shrey150)! - Remove the noisy AI SDK "system message in messages" warning from `act()`, `extract()`, and `observe()` (including when the agent's own tools call them internally).
+
+- [#2347](https://github.com/browserbase/stagehand/pull/2347) [`84197d8`](https://github.com/browserbase/stagehand/commit/84197d8cbab2461956cecf3fad84a7107610c960) Thanks [@miguelg719](https://github.com/miguelg719)! - Allow OpenAI-compatible models to select the Chat Completions API with `openaiEndpointFormat: "chat"`
+
 ## 3.7.0
 
 ### Minor Changes
