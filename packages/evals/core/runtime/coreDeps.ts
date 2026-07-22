@@ -5,6 +5,7 @@ import { getRepoRootDir } from "../../runtimePaths.js";
 type BrowserbaseConstructor = new (options: { apiKey: string }) => {
   sessions: {
     create: (payload: Record<string, unknown>) => Promise<unknown>;
+    retrieve: (sessionId: string) => Promise<unknown>;
     update: (
       sessionId: string,
       payload: Record<string, unknown>,

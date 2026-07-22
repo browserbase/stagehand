@@ -8,6 +8,7 @@ describe("V4 Browserbase fallback cleanup", () => {
       releaseSession: vi.fn(async (sessionId: string, projectId?: string) => {
         calls.push(`release:${sessionId}:${projectId}`);
       }),
+      retrieveSession: vi.fn(async () => ({ status: "COMPLETED" })),
       deleteExtension: vi.fn(async (extensionId: string) => {
         calls.push(`delete:${extensionId}`);
       }),
@@ -49,6 +50,7 @@ describe("V4 Browserbase fallback cleanup", () => {
           releaseSession: async () => {
             throw new Error("session already released");
           },
+          retrieveSession: async () => ({ status: "COMPLETED" }),
           deleteExtension,
         }),
       ),
@@ -73,10 +75,78 @@ describe("V4 Browserbase fallback cleanup", () => {
           releaseSession: async () => {
             throw new Error("session API unavailable");
           },
+          retrieveSession: async () => ({ status: "RUNNING" }),
           deleteExtension,
         }),
       ),
     ).rejects.toThrow(/Browserbase resource cleanup failed/i);
     expect(deleteExtension).toHaveBeenCalledOnce();
+  });
+
+  it("retries an acknowledged release until the session is terminal", async () => {
+    let clock = 0;
+    const releaseSession = vi.fn(async () => undefined);
+    const retrieveSession = vi
+      .fn<() => Promise<{ status: string }>>()
+      .mockResolvedValueOnce({ status: "RUNNING" })
+      .mockResolvedValueOnce({ status: "RUNNING" })
+      .mockResolvedValueOnce({ status: "COMPLETED" });
+
+    await expect(
+      cleanupV4CodeBrowserbaseResources(
+        {
+          apiKey: "private-api-key",
+          projectId: "private-project",
+          resources: { sessionId: "session-resource" },
+        },
+        () => ({
+          releaseSession,
+          retrieveSession,
+          deleteExtension: async () => undefined,
+        }),
+        {
+          sessionCleanupTimeoutMs: 10,
+          sessionReleaseRetryAfterMs: 1,
+          sessionStatusPollIntervalMs: 1,
+          now: () => clock,
+          sleep: async (delayMs) => {
+            clock += delayMs;
+          },
+        },
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(releaseSession).toHaveBeenCalledTimes(2);
+    expect(retrieveSession).toHaveBeenCalledTimes(3);
+  });
+
+  it("rejects cleanup when an acknowledged release never becomes terminal", async () => {
+    let clock = 0;
+    const releaseSession = vi.fn(async () => undefined);
+
+    await expect(
+      cleanupV4CodeBrowserbaseResources(
+        {
+          apiKey: "private-api-key",
+          resources: { sessionId: "session-resource" },
+        },
+        () => ({
+          releaseSession,
+          retrieveSession: async () => ({ status: "RUNNING" }),
+          deleteExtension: async () => undefined,
+        }),
+        {
+          sessionCleanupTimeoutMs: 3,
+          sessionReleaseRetryAfterMs: 1,
+          sessionStatusPollIntervalMs: 1,
+          now: () => clock,
+          sleep: async (delayMs) => {
+            clock += delayMs;
+          },
+        },
+      ),
+    ).rejects.toThrow(/Browserbase resource cleanup failed/i);
+
+    expect(releaseSession).toHaveBeenCalledTimes(2);
   });
 });
