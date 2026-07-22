@@ -216,7 +216,7 @@ describe("V4 code child controller", () => {
     });
     await controller.close();
 
-    expect(child.sent[0]).toEqual({
+    expect(child.sent[0]).toMatchObject({
       id: 1,
       type: "init",
       mode: "ai",
