@@ -33,7 +33,7 @@ import {
   StagehandMethods,
   StagehandRpcNotificationSchema,
 } from "../../protocol/schema-registry.js";
-import { TelemetryConfigSchema } from "../../protocol/schemas.js";
+import { DEFAULT_TELEMETRY_CONFIG, TelemetryConfigSchema } from "../../protocol/schemas.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
@@ -61,7 +61,7 @@ const RPCClientOptionsBaseSchema = z
     discoveryTimeoutMs: z.number().int().positive().optional(),
     commandTimeoutMs: z.number().int().positive().optional(),
     cdpConnectTimeoutMs: z.number().int().positive().optional(),
-    telemetry: TelemetryConfigSchema,
+    telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
   })
   .strict();
 

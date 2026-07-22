@@ -357,7 +357,7 @@ export const DomainPolicySchema = z
 
 // These schemas follow the MCP createMessage message and content shapes, with
 // Stagehand's structured-output contract layered on top.
-export const LLMRoleSchema = z.enum(["user", "assistant"]);
+export const LLMRoleSchema = z.enum(["user", "assistant"]).meta({ id: "LLMRole" });
 
 export const LLMAnnotationsSchema = z
   .object({
@@ -365,7 +365,8 @@ export const LLMAnnotationsSchema = z
     priority: z.number().min(0).max(1).optional(),
     lastModified: z.string().optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMAnnotations" });
 
 export const LLMTextContentSchema = z
   .object({
@@ -373,7 +374,8 @@ export const LLMTextContentSchema = z
     text: z.string(),
     annotations: LLMAnnotationsSchema.optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMTextContent" });
 
 export const LLMImageContentSchema = z
   .object({
@@ -382,7 +384,8 @@ export const LLMImageContentSchema = z
     mimeType: z.string(),
     annotations: LLMAnnotationsSchema.optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMImageContent" });
 
 export const LLMToolUseContentSchema = z
   .object({
@@ -391,12 +394,12 @@ export const LLMToolUseContentSchema = z
     name: z.string(),
     input: z.record(z.string(), z.json()),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMToolUseContent" });
 
-const LLMToolResultContentBlockSchema = z.discriminatedUnion("type", [
-  LLMTextContentSchema,
-  LLMImageContentSchema,
-]);
+const LLMToolResultContentBlockSchema = z
+  .discriminatedUnion("type", [LLMTextContentSchema, LLMImageContentSchema])
+  .meta({ id: "LLMToolResultContentBlock" });
 
 export const LLMToolResultContentSchema = z
   .object({
@@ -406,21 +409,25 @@ export const LLMToolResultContentSchema = z
     structuredContent: z.record(z.string(), z.json()).optional(),
     isError: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMToolResultContent" });
 
-export const LLMMessageContentBlockSchema = z.discriminatedUnion("type", [
-  LLMTextContentSchema,
-  LLMImageContentSchema,
-  LLMToolUseContentSchema,
-  LLMToolResultContentSchema,
-]);
+export const LLMMessageContentBlockSchema = z
+  .discriminatedUnion("type", [
+    LLMTextContentSchema,
+    LLMImageContentSchema,
+    LLMToolUseContentSchema,
+    LLMToolResultContentSchema,
+  ])
+  .meta({ id: "LLMMessageContentBlock" });
 
 export const LLMMessageSchema = z
   .object({
     role: LLMRoleSchema,
     content: z.union([LLMMessageContentBlockSchema, z.array(LLMMessageContentBlockSchema)]),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMMessage" });
 
 export const LLMToolAnnotationsSchema = z
   .object({
@@ -430,13 +437,15 @@ export const LLMToolAnnotationsSchema = z
     idempotentHint: z.boolean().optional(),
     openWorldHint: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMToolAnnotations" });
 
 export const LLMToolExecutionSchema = z
   .object({
     taskSupport: z.enum(["forbidden", "optional", "required"]).optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMToolExecution" });
 
 export const LLMToolIconSchema = z
   .object({
@@ -445,7 +454,8 @@ export const LLMToolIconSchema = z
     sizes: z.array(z.string()).optional(),
     theme: z.enum(["light", "dark"]).optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMToolIcon" });
 
 const LLMToolJsonSchema = z
   .object({
@@ -454,7 +464,8 @@ const LLMToolJsonSchema = z
     properties: z.record(z.string(), z.record(z.string(), z.json())).optional(),
     required: z.array(z.string()).optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMToolJson" });
 
 export const LLMClientToolSchema = z
   .object({
@@ -467,19 +478,22 @@ export const LLMClientToolSchema = z
     outputSchema: LLMToolJsonSchema.optional(),
     annotations: LLMToolAnnotationsSchema.optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMClientTool" });
 
 export const LLMToolChoiceSchema = z
   .object({
     mode: z.enum(["auto", "required", "none"]).optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMToolChoice" });
 
 export const LLMTextResponseFormatSchema = z
   .object({
     type: z.literal("text"),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMTextResponseFormat" });
 
 export const LLMJsonSchemaResponseFormatSchema = z
   .object({
@@ -488,12 +502,12 @@ export const LLMJsonSchemaResponseFormatSchema = z
     description: z.string().optional(),
     schema: z.json(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMJsonSchemaResponseFormat" });
 
-export const LLMResponseFormatSchema = z.discriminatedUnion("type", [
-  LLMTextResponseFormatSchema,
-  LLMJsonSchemaResponseFormatSchema,
-]);
+export const LLMResponseFormatSchema = z
+  .discriminatedUnion("type", [LLMTextResponseFormatSchema, LLMJsonSchemaResponseFormatSchema])
+  .meta({ id: "LLMResponseFormat" });
 
 const LLMGenerateBaseParamsSchema = z
   .object({
@@ -502,22 +516,26 @@ const LLMGenerateBaseParamsSchema = z
     temperature: z.number().optional(),
     stopSequences: z.array(z.string()).optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMGenerateBaseParams" });
 
 export const LLMMessageGenerateParamsSchema = LLMGenerateBaseParamsSchema.extend({
   tools: z.array(LLMClientToolSchema).optional(),
   toolChoice: LLMToolChoiceSchema.optional(),
   responseFormat: LLMTextResponseFormatSchema.optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "LLMMessageGenerateParams" });
 
 export const LLMStructuredGenerateParamsSchema = LLMGenerateBaseParamsSchema.extend({
   responseFormat: LLMJsonSchemaResponseFormatSchema,
-}).strict();
+})
+  .strict()
+  .meta({ id: "LLMStructuredGenerateParams" });
 
-export const LLMGenerateParamsSchema = z.union([
-  LLMStructuredGenerateParamsSchema,
-  LLMMessageGenerateParamsSchema,
-]);
+export const LLMGenerateParamsSchema = z
+  .union([LLMStructuredGenerateParamsSchema, LLMMessageGenerateParamsSchema])
+  .meta({ id: "LLMGenerateParams" });
 
 export const LLMUsageSchema = z
   .object({
@@ -527,7 +545,8 @@ export const LLMUsageSchema = z
     reasoningTokens: z.number().int().nonnegative().optional(),
     cachedInputTokens: z.number().int().nonnegative().optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LLMUsage" });
 
 const LLMGenerateBaseResultSchema = z
   .object({
@@ -536,21 +555,24 @@ const LLMGenerateBaseResultSchema = z
     stopReason: z.string().optional(),
     usage: LLMUsageSchema.optional(),
   })
-  .catchall(z.json());
+  .catchall(z.json())
+  .meta({ id: "LLMGenerateBaseResult" });
 
 export const LLMMessageGenerateResultSchema = LLMGenerateBaseResultSchema.extend({
   outputFormat: z.literal("text"),
-});
+}).meta({ id: "LLMMessageGenerateResult" });
 
 export const LLMStructuredGenerateResultSchema = LLMGenerateBaseResultSchema.extend({
   outputFormat: z.literal("json_schema"),
   structuredContent: z.json(),
-});
+}).meta({ id: "LLMStructuredGenerateResult" });
 
-export const LLMGenerateResultSchema = z.discriminatedUnion("outputFormat", [
-  LLMMessageGenerateResultSchema,
-  LLMStructuredGenerateResultSchema,
-]);
+export const LLMGenerateResultSchema = z
+  .discriminatedUnion("outputFormat", [
+    LLMMessageGenerateResultSchema,
+    LLMStructuredGenerateResultSchema,
+  ])
+  .meta({ id: "LLMGenerateResult" });
 
 /**
  * Builds the result validator for a particular llm.generate request.
@@ -588,7 +610,8 @@ export const VariableValueSchema = z
         value: VariablePrimitiveSchema,
         description: z.string().optional(),
       })
-      .strict(),
+      .strict()
+      .meta({ id: "DescribedVariableValue" }),
   ])
   .meta({ id: "VariableValue" });
 
@@ -608,15 +631,17 @@ export const LocatorCoordinatesSchema = z
   .strict()
   .meta({ id: "LocatorCoordinates" });
 
-const PageLocatorKnownSchema = z.object({
-  pageIdx: z.number().int().nonnegative().nullable().optional(),
-  url: z.string().nullable().optional(),
-  title: z.string().nullable().optional(),
-  active: z.boolean().nullable().optional(),
-  targetId: z.string().nullable().optional(),
-  tabId: z.number().int().nonnegative().nullable().optional(),
-  frameId: z.string().nullable().optional(),
-});
+const PageLocatorKnownSchema = z
+  .object({
+    pageIdx: z.number().int().nonnegative().nullable().optional(),
+    url: z.string().nullable().optional(),
+    title: z.string().nullable().optional(),
+    active: z.boolean().nullable().optional(),
+    targetId: z.string().nullable().optional(),
+    tabId: z.number().int().nonnegative().nullable().optional(),
+    frameId: z.string().nullable().optional(),
+  })
+  .meta({ id: "PageLocatorKnown" });
 
 export const PageLocatorSchema = PageLocatorKnownSchema.loose()
   .superRefine((value, ctx) => {
@@ -674,7 +699,7 @@ export const StagehandMetricsSchema = z
   .strict()
   .meta({ id: "StagehandMetrics" });
 
-const CacheStatusSchema = z.enum(["HIT", "MISS"]);
+const CacheStatusSchema = z.enum(["HIT", "MISS"]).meta({ id: "CacheStatus" });
 
 /** Server-side caching configuration: a boolean toggle, or an object enabling
  * caching with an optional hit-count threshold (how many identical results
@@ -817,7 +842,8 @@ const ModelConnectionSchema = z
       description: "Custom headers sent with every request to the model provider",
     }),
   })
-  .strict();
+  .strict()
+  .meta({ id: "ModelConnection" });
 
 export const KnownModelConfigSchema = ModelConnectionSchema.extend({
   modelName: ModelNameSchema.meta({
@@ -1182,7 +1208,7 @@ export const ObserveResultSchema = z
   })
   .meta({ id: "ObserveResult" });
 
-export const EmptyParamsSchema = z.object({}).strict();
+export const EmptyParamsSchema = z.object({}).strict().meta({ id: "EmptyParams" });
 
 export const LoadStateSchema = z
   .enum(["load", "domcontentloaded", "networkidle"])
@@ -1256,7 +1282,8 @@ export const PageRefSchema = z
     url: z.string().optional(),
     title: z.string().optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "PageRef" });
 
 export const LocatorDescriptorSchema = z
   .object({
@@ -1264,22 +1291,26 @@ export const LocatorDescriptorSchema = z
     selector: z.string().min(1),
     nth: z.number().int().nonnegative().optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorDescriptor" });
+
+export const DEFAULT_TELEMETRY_CONFIG = {
+  traces: {
+    endpoint: "https://example.com/v1/traces", // TODO: Replace with the Browserbase OTLP traces ingestion endpoint.
+    headers: {},
+  },
+};
 
 export const TelemetryConfigSchema = z
   .strictObject({
-    traces: z.strictObject({
-      endpoint: z.url().refine((value) => new URL(value).pathname.endsWith("/v1/traces"), {
-        message: "OTLP trace endpoint must end with /v1/traces",
-      }),
-      headers: z.record(z.string(), z.string()).default({}),
-    }),
-  })
-  .default({
-    traces: {
-      endpoint: "https://example.com/v1/traces", // TODO: Replace with the Browserbase OTLP traces ingestion endpoint.
-      headers: {},
-    },
+    traces: z
+      .strictObject({
+        endpoint: z.url().refine((value) => new URL(value).pathname.endsWith("/v1/traces"), {
+          message: "OTLP trace endpoint must end with /v1/traces",
+        }),
+        headers: z.record(z.string(), z.string()).default({}),
+      })
+      .meta({ id: "TelemetryTraces" }),
   })
   .meta({ id: "TelemetryConfig" });
 
@@ -1288,7 +1319,7 @@ export const StagehandInitParamsSchema = z
     apiKey: z.string().min(1).optional(),
     browser: BrowserbaseBrowserSourceSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
-    telemetry: TelemetryConfigSchema,
+    telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     systemPrompt: z.string().optional(),
     selfHeal: z.boolean().optional(),
     domSettleTimeoutMs: z.number().int().positive().optional(),
@@ -1303,9 +1334,10 @@ export const StagehandInitParamsSchema = z
 export const RuntimeConfigureParamsSchema = z
   .object({
     cdpUrl: z.string().min(1),
-    telemetry: TelemetryConfigSchema,
+    telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
   })
-  .strict();
+  .strict()
+  .meta({ id: "RuntimeConfigureParams" });
 
 export const StagehandActParamsSchema = z
   .object({
@@ -1313,7 +1345,8 @@ export const StagehandActParamsSchema = z
     input: z.string().min(1),
     options: ActOptionsSchema,
   })
-  .strict();
+  .strict()
+  .meta({ id: "StagehandActParams" });
 
 export const StagehandObserveParamsSchema = z
   .object({
@@ -1321,7 +1354,8 @@ export const StagehandObserveParamsSchema = z
     instruction: z.string().optional(),
     options: ObserveOptionsSchema,
   })
-  .strict();
+  .strict()
+  .meta({ id: "StagehandObserveParams" });
 
 export const StagehandExtractParamsSchema = z
   .object({
@@ -1330,55 +1364,64 @@ export const StagehandExtractParamsSchema = z
     schema: z.json(),
     options: ExtractOptionsSchema,
   })
-  .strict();
+  .strict()
+  .meta({ id: "StagehandExtractParams" });
 
 export const ContextNewPageParamsSchema = z
   .object({
     url: z.string().optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "ContextNewPageParams" });
 
 export const ContextSetActivePageParamsSchema = z
   .object({
     pageId: z.string(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "ContextSetActivePageParams" });
 
 export const ContextAddInitScriptParamsSchema = z
   .object({
     source: z.string(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "ContextAddInitScriptParams" });
 
 export const ContextSetExtraHTTPHeadersParamsSchema = z
   .object({
     headers: z.record(z.string(), z.string()),
   })
-  .strict();
+  .strict()
+  .meta({ id: "ContextSetExtraHTTPHeadersParams" });
 
 export const ContextSetDomainPolicyParamsSchema = z
   .object({
     policy: DomainPolicySchema.nullable(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "ContextSetDomainPolicyParams" });
 
 export const ContextCookiesParamsSchema = z
   .object({
     urls: z.union([z.string(), z.array(z.string())]).optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "ContextCookiesParams" });
 
 export const ContextAddCookiesParamsSchema = z
   .object({
     cookies: z.array(CookieParamSchema),
   })
-  .strict();
+  .strict()
+  .meta({ id: "ContextAddCookiesParams" });
 
 export const ContextClearCookiesParamsSchema = z
   .object({
     options: ClearCookieOptionsSchema.optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "ContextClearCookiesParams" });
 
 export const ContextClipboardTargetSchema = z
   .object({
@@ -1391,13 +1434,17 @@ export const ContextClipboardReadTextParamsSchema = ContextClipboardTargetSchema
 
 export const ContextClipboardWriteTextParamsSchema = ContextClipboardTargetSchema.extend({
   text: z.string(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "ContextClipboardWriteTextParams" });
 
 export const ContextClipboardClearParamsSchema = ContextClipboardTargetSchema;
 
 export const ContextClipboardPasteParamsSchema = ContextClipboardTargetSchema.extend({
   shortcut: z.enum(["ControlOrMeta+V", "Meta+V", "Control+V"]).optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "ContextClipboardPasteParams" });
 
 export const ContextClipboardCopyParamsSchema = ContextClipboardTargetSchema;
 
@@ -1409,31 +1456,40 @@ export const PageGotoParamsSchema = z
     url: z.string().min(1),
     options: PageNavigationOptionsSchema.optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "PageGotoParams" });
 
 export const PageIdParamsSchema = z
   .object({
     pageId: z.string(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "PageIdParams" });
 
-export const MouseButtonSchema = z.enum(["left", "right", "middle"]);
+export const MouseButtonSchema = z.enum(["left", "right", "middle"]).meta({ id: "MouseButton" });
 
 export const PageReloadParamsSchema = PageIdParamsSchema.extend({
   options: PageNavigationOptionsSchema.extend({
     ignoreCache: z.boolean().optional(),
   })
     .strict()
+    .meta({ id: "PageReloadOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageReloadParams" });
 
 export const PageGoBackParamsSchema = PageIdParamsSchema.extend({
   options: PageNavigationOptionsSchema.optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageGoBackParams" });
 
 export const PageGoForwardParamsSchema = PageIdParamsSchema.extend({
   options: PageNavigationOptionsSchema.optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageGoForwardParams" });
 
 export const PageClickParamsSchema = PageIdParamsSchema.extend({
   x: z.number(),
@@ -1445,8 +1501,11 @@ export const PageClickParamsSchema = PageIdParamsSchema.extend({
       returnXpath: z.boolean().optional(),
     })
     .strict()
+    .meta({ id: "PageClickOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageClickParams" });
 
 export const PageHoverParamsSchema = PageIdParamsSchema.extend({
   x: z.number(),
@@ -1456,8 +1515,11 @@ export const PageHoverParamsSchema = PageIdParamsSchema.extend({
       returnXpath: z.boolean().optional(),
     })
     .strict()
+    .meta({ id: "PageHoverOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageHoverParams" });
 
 export const PageScrollParamsSchema = PageIdParamsSchema.extend({
   x: z.number(),
@@ -1469,8 +1531,11 @@ export const PageScrollParamsSchema = PageIdParamsSchema.extend({
       returnXpath: z.boolean().optional(),
     })
     .strict()
+    .meta({ id: "PageScrollOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageScrollParams" });
 
 export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
   fromX: z.number(),
@@ -1485,8 +1550,11 @@ export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
       returnXpath: z.boolean().optional(),
     })
     .strict()
+    .meta({ id: "PageDragAndDropOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageDragAndDropParams" });
 
 export const PageTypeParamsSchema = PageIdParamsSchema.extend({
   text: z.string(),
@@ -1496,8 +1564,11 @@ export const PageTypeParamsSchema = PageIdParamsSchema.extend({
       withMistakes: z.boolean().optional(),
     })
     .strict()
+    .meta({ id: "PageTypeOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageTypeParams" });
 
 export const PageKeyPressParamsSchema = PageIdParamsSchema.extend({
   key: z.string().min(1),
@@ -1506,20 +1577,29 @@ export const PageKeyPressParamsSchema = PageIdParamsSchema.extend({
       delay: z.number().nonnegative().optional(),
     })
     .strict()
+    .meta({ id: "PageKeyPressOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageKeyPressParams" });
 
 export const PageEvaluateParamsSchema = PageIdParamsSchema.extend({
   expression: z.string(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageEvaluateParams" });
 
 export const PageAddInitScriptParamsSchema = PageIdParamsSchema.extend({
   source: z.string(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageAddInitScriptParams" });
 
 export const PageSetExtraHTTPHeadersParamsSchema = PageIdParamsSchema.extend({
   headers: z.record(z.string(), z.string()),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageSetExtraHTTPHeadersParams" });
 
 export const PageScreenshotOptionsSchema = z
   .object({
@@ -1549,11 +1629,15 @@ export const PageScreenshotOptionsSchema = z
 
 export const PageScreenshotParamsSchema = PageIdParamsSchema.extend({
   options: PageScreenshotOptionsSchema.optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageScreenshotParams" });
 
 export const PageSnapshotParamsSchema = PageIdParamsSchema.extend({
   options: PageSnapshotOptionsSchema.optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageSnapshotParams" });
 
 export const PageSetViewportSizeParamsSchema = PageIdParamsSchema.extend({
   width: z.number().int().positive(),
@@ -1563,17 +1647,24 @@ export const PageSetViewportSizeParamsSchema = PageIdParamsSchema.extend({
       deviceScaleFactor: z.number().positive().optional(),
     })
     .strict()
+    .meta({ id: "PageSetViewportSizeOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageSetViewportSizeParams" });
 
 export const PageWaitForLoadStateParamsSchema = PageIdParamsSchema.extend({
   state: LoadStateSchema,
   timeoutMs: z.number().int().nonnegative().optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageWaitForLoadStateParams" });
 
 export const PageWaitForTimeoutParamsSchema = PageIdParamsSchema.extend({
   ms: z.number().int().nonnegative(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageWaitForTimeoutParams" });
 
 export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
   selector: z.string().min(1),
@@ -1584,8 +1675,11 @@ export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
       pierceShadow: z.boolean().optional(),
     })
     .strict()
+    .meta({ id: "PageWaitForSelectorOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "PageWaitForSelectorParams" });
 
 export const LocatorClickParamsSchema = LocatorDescriptorSchema.extend({
   options: z
@@ -1594,16 +1688,23 @@ export const LocatorClickParamsSchema = LocatorDescriptorSchema.extend({
       clickCount: z.number().int().positive().optional(),
     })
     .strict()
+    .meta({ id: "LocatorClickOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "LocatorClickParams" });
 
 export const LocatorFillParamsSchema = LocatorDescriptorSchema.extend({
   value: z.string(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "LocatorFillParams" });
 
 export const LocatorScrollToParamsSchema = LocatorDescriptorSchema.extend({
   percent: z.union([z.number(), z.string()]),
-}).strict();
+})
+  .strict()
+  .meta({ id: "LocatorScrollToParams" });
 
 export const RgbaColorSchema = z
   .object({
@@ -1612,7 +1713,8 @@ export const RgbaColorSchema = z
     b: z.number(),
     a: z.number().optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "RgbaColor" });
 
 export const LocatorHighlightParamsSchema = LocatorDescriptorSchema.extend({
   options: z
@@ -1622,8 +1724,11 @@ export const LocatorHighlightParamsSchema = LocatorDescriptorSchema.extend({
       contentColor: RgbaColorSchema.optional(),
     })
     .strict()
+    .meta({ id: "LocatorHighlightOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "LocatorHighlightParams" });
 
 export const LocatorSendClickEventParamsSchema = LocatorDescriptorSchema.extend({
   options: z
@@ -1634,8 +1739,11 @@ export const LocatorSendClickEventParamsSchema = LocatorDescriptorSchema.extend(
       detail: z.number().optional(),
     })
     .strict()
+    .meta({ id: "LocatorSendClickEventOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "LocatorSendClickEventParams" });
 
 export const LocatorTypeParamsSchema = LocatorDescriptorSchema.extend({
   text: z.string(),
@@ -1644,32 +1752,40 @@ export const LocatorTypeParamsSchema = LocatorDescriptorSchema.extend({
       delay: z.number().nonnegative().optional(),
     })
     .strict()
+    .meta({ id: "LocatorTypeOptions" })
     .optional(),
-}).strict();
+})
+  .strict()
+  .meta({ id: "LocatorTypeParams" });
 
 export const LocatorSelectOptionParamsSchema = LocatorDescriptorSchema.extend({
   values: z.union([z.string(), z.array(z.string())]),
-}).strict();
+})
+  .strict()
+  .meta({ id: "LocatorSelectOptionParams" });
 
 export const StagehandPingResultSchema = z
   .object({
     ok: z.literal(true),
     runtime: z.literal("service_worker"),
   })
-  .strict();
+  .strict()
+  .meta({ id: "StagehandPingResult" });
 
 export const RuntimeConfigureResultSchema = z
   .object({
     configured: z.literal(true),
   })
-  .strict();
+  .strict()
+  .meta({ id: "RuntimeConfigureResult" });
 
 export const RuntimeLoopbackStatusResultSchema = z
   .object({
     configured: z.boolean(),
     connected: z.boolean(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "RuntimeLoopbackStatusResult" });
 
 export const BrowserGetVersionResultSchema = z
   .object({
@@ -1679,22 +1795,25 @@ export const BrowserGetVersionResultSchema = z
     userAgent: z.string().optional(),
     jsVersion: z.string().optional(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "BrowserGetVersionResult" });
 
 export const StagehandInitResultSchema = z
   .object({
     initialized: z.literal(true),
     pages: z.array(PageRefSchema),
   })
-  .strict();
+  .strict()
+  .meta({ id: "StagehandInitResult" });
 
 export const StagehandCloseResultSchema = z
   .object({
     closed: z.literal(true),
   })
-  .strict();
+  .strict()
+  .meta({ id: "StagehandCloseResult" });
 
-export const ContextPagesResultSchema = z.array(PageRefSchema);
+export const ContextPagesResultSchema = z.array(PageRefSchema).meta({ id: "ContextPagesResult" });
 
 export const ContextActivePageResultSchema = PageRefSchema.nullable().meta({
   id: "ContextActivePageResult",
@@ -1725,149 +1844,178 @@ export const PageUrlResultSchema = z
   .object({
     url: z.string(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "PageUrlResult" });
 
 export const PageTitleResultSchema = z
   .object({
     title: z.string(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "PageTitleResult" });
 
 export const PageCloseResultSchema = z
   .object({
     closed: z.literal(true),
   })
-  .strict();
+  .strict()
+  .meta({ id: "PageCloseResult" });
 
 export const PageDragAndDropResultSchema = z
   .object({
     fromXpath: z.string(),
     toXpath: z.string(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "PageDragAndDropResult" });
 
 export const PageEvaluateResultSchema = z
   .object({
     value: z.json(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "PageEvaluateResult" });
 
 export const PageScreenshotResultSchema = z
   .object({
     data: z.base64().meta({ format: "byte" }),
     type: z.enum(["png", "jpeg"]),
   })
-  .strict();
+  .strict()
+  .meta({ id: "PageScreenshotResult" });
 
 export const PageWaitForSelectorResultSchema = z
   .object({
     matched: z.boolean(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "PageWaitForSelectorResult" });
 
 export const LocatorClickResultSchema = z
   .object({
     clicked: z.literal(true),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorClickResult" });
 
 export const LocatorFillResultSchema = z
   .object({
     filled: z.literal(true),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorFillResult" });
 
 export const LocatorHoverResultSchema = z
   .object({
     hovered: z.literal(true),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorHoverResult" });
 
 export const LocatorCountResultSchema = z
   .object({
     count: z.number().int().nonnegative(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorCountResult" });
 
 export const LocatorIsCheckedResultSchema = z
   .object({
     checked: z.boolean(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorIsCheckedResult" });
 
 export const LocatorInputValueResultSchema = z
   .object({
     value: z.string(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorInputValueResult" });
 
 export const LocatorIsVisibleResultSchema = z
   .object({
     visible: z.boolean(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorIsVisibleResult" });
 
 export const LocatorInnerTextResultSchema = z
   .object({
     text: z.string(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorInnerTextResult" });
 
 export const LocatorInnerHtmlResultSchema = z
   .object({
     html: z.string(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorInnerHtmlResult" });
 
 export const LocatorTextContentResultSchema = z
   .object({
     textContent: z.string(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorTextContentResult" });
 
 export const LocatorScrollToResultSchema = z
   .object({
     scrolled: z.literal(true),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorScrollToResult" });
 
 export const LocatorCentroidResultSchema = z
   .object({
     x: z.number(),
     y: z.number(),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorCentroidResult" });
 
 export const LocatorHighlightResultSchema = z
   .object({
     highlighted: z.literal(true),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorHighlightResult" });
 
 export const LocatorSendClickEventResultSchema = z
   .object({
     clicked: z.literal(true),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorSendClickEventResult" });
 
 export const LocatorTypeResultSchema = z
   .object({
     typed: z.literal(true),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorTypeResult" });
 
 export const LocatorSelectOptionResultSchema = z
   .object({
     values: z.array(z.string()),
   })
-  .strict();
+  .strict()
+  .meta({ id: "LocatorSelectOptionResult" });
 
-export const StagehandLogLevelSchema = z.enum(["debug", "info", "warn", "error"]);
+export const StagehandLogLevelSchema = z
+  .enum(["debug", "info", "warn", "error"])
+  .meta({ id: "StagehandLogLevel" });
 
-export const StagehandLogDataSchema = z.record(z.string(), z.json());
+export const StagehandLogDataSchema = z
+  .record(z.string(), z.json())
+  .meta({ id: "StagehandLogData" });
 
-export const StagehandLogSchema = z.strictObject({
-  level: StagehandLogLevelSchema,
-  message: z.string().min(1),
-  data: StagehandLogDataSchema,
-});
+export const StagehandLogSchema = z
+  .strictObject({
+    level: StagehandLogLevelSchema,
+    message: z.string().min(1),
+    data: StagehandLogDataSchema,
+  })
+  .meta({ id: "StagehandLog" });

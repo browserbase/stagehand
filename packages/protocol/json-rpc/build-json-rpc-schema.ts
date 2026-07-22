@@ -1,108 +1,95 @@
 import { writeFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { z } from "zod/v4";
+import { StagehandMethods, StagehandNotifications } from "../schema-registry.ts";
 import {
-  StagehandNotifications,
-  StagehandMethods,
-  StagehandRpcNotificationSchema,
-  StagehandRpcRequestSchema,
-} from "../schema-registry.ts";
-import { JSONRPCErrorResponseSchema, JSONRPCSuccessResponseSchema } from "./schemas.ts";
-import { renameJsonSchemaProperties } from "./wire-casing.ts";
+  JSONRPCErrorResponseSchema,
+  JSONRPCNotificationSchema,
+  JSONRPCRequestSchema,
+  JSONRPCSuccessResponseSchema,
+} from "./schemas.ts";
+import { toWireJsonSchema } from "./wire-casing.ts";
 
 const STAGEHAND_PROTOCOL_VERSION = "stagehand.v4" as const;
 
-const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const schemaPath = path.join(packageDir, `${STAGEHAND_PROTOCOL_VERSION}.json`);
-const transportRequestSchema = requireParams(
-  renameJsonSchemaProperties(z.toJSONSchema(StagehandRpcRequestSchema)),
-);
-const transportNotificationSchema = requireParams(
-  renameJsonSchemaProperties(z.toJSONSchema(StagehandRpcNotificationSchema)),
-);
-const methods = Object.values(StagehandMethods);
-const notifications = Object.values(StagehandNotifications);
+const methodEntries = Object.values(StagehandMethods);
+const notificationEntries = Object.values(StagehandNotifications);
 
-const methodSchemas = Object.fromEntries(
-  methods.map((method) => [
-    method.name,
-    {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        params: renameJsonSchemaProperties(z.toJSONSchema(method.params)),
-        result: renameJsonSchemaProperties(z.toJSONSchema(method.result)),
-      },
-      required: ["params", "result"],
-    },
-  ]),
+const notificationEnvelopeSchemas = notificationEntries.map((notification) =>
+  JSONRPCNotificationSchema.extend({
+    method: z.literal(notification.name),
+    params: notification.params,
+  }),
+);
+const requestEnvelopeSchemas = methodEntries.map((method) =>
+  JSONRPCRequestSchema.extend({
+    method: z.literal(method.name),
+    params: method.params,
+  }),
 );
 
-const notificationSchemas = Object.fromEntries(
-  notifications.map((notification) => [
-    notification.name,
-    {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        params: renameJsonSchemaProperties(z.toJSONSchema(notification.params)),
-      },
-      required: ["params"],
-    },
-  ]),
-);
+const StagehandProtocolDocumentSchema = z
+  .strictObject({
+    methods: z.strictObject(
+      Object.fromEntries(
+        methodEntries.map((method) => [
+          method.name,
+          z.strictObject({ params: method.params, result: method.result }),
+        ]),
+      ),
+    ),
+    notifications: z.strictObject(
+      Object.fromEntries(
+        notificationEntries.map((notification) => [
+          notification.name,
+          z.strictObject({ params: notification.params }),
+        ]),
+      ),
+    ),
+    jsonrpc: z.strictObject({
+      request: z
+        .union([requestEnvelopeSchemas[0]!, ...requestEnvelopeSchemas.slice(1)])
+        .meta({ id: "StagehandRpcRequest" }),
+      notification: (notificationEnvelopeSchemas.length === 1
+        ? notificationEnvelopeSchemas[0]!
+        : z.union([notificationEnvelopeSchemas[0]!, ...notificationEnvelopeSchemas.slice(1)])
+      ).meta({ id: "StagehandRpcNotification" }),
+      successResponse: JSONRPCSuccessResponseSchema,
+      errorResponse: JSONRPCErrorResponseSchema,
+    }),
+  })
+  .meta({ id: "StagehandProtocolDocument", title: "Stagehand V4 Protocol" });
 
-const schema = {
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: `https://stagehand.dev/schema/${STAGEHAND_PROTOCOL_VERSION}.json`,
-  title: "Stagehand V4 Protocol",
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    transport: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        request: transportRequestSchema,
-        notification: transportNotificationSchema,
-        successResponse: z.toJSONSchema(JSONRPCSuccessResponseSchema),
-        errorResponse: z.toJSONSchema(JSONRPCErrorResponseSchema),
-      },
-      required: ["request", "notification", "successResponse", "errorResponse"],
-    },
-    methods: {
-      type: "object",
-      additionalProperties: false,
-      properties: methodSchemas,
-      required: Object.keys(methodSchemas),
-    },
-    notifications: {
-      type: "object",
-      additionalProperties: false,
-      properties: notificationSchemas,
-      required: Object.keys(notificationSchemas),
-    },
-  },
-  required: ["transport", "methods", "notifications"],
-};
-
-await writeFile(schemaPath, `${JSON.stringify(schema, null, 2)}\n`, "utf8");
-
-function requireParams(schema: unknown): unknown {
-  if (!isRecord(schema)) return schema;
-  if (Array.isArray(schema.oneOf)) {
-    return { ...schema, oneOf: schema.oneOf.map(requireParams) };
-  }
-  if (!isRecord(schema.properties) || !("params" in schema.properties)) return schema;
-
-  const required = Array.isArray(schema.required) ? schema.required : [];
+function buildStagehandProtocolDocument(): Record<string, unknown> {
+  const preservedDocumentPropertyNames = new Set([
+    "methods",
+    "notifications",
+    "jsonrpc",
+    "request",
+    "notification",
+    "successResponse",
+    "errorResponse",
+    "params",
+    "result",
+    ...methodEntries.map((method) => method.name),
+    ...notificationEntries.map((notification) => notification.name),
+  ]);
+  const generated = toWireJsonSchema(
+    z.toJSONSchema(StagehandProtocolDocumentSchema, {
+      io: "input",
+      unrepresentable: "any",
+    }),
+    preservedDocumentPropertyNames,
+  ) as Record<string, unknown>;
+  const { $schema, ...document } = generated;
   return {
-    ...schema,
-    required: required.includes("params") ? required : [...required, "params"],
+    $schema,
+    $id: `https://stagehand.dev/schema/${STAGEHAND_PROTOCOL_VERSION}.json`,
+    ...document,
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+await writeFile(
+  new URL(`../${STAGEHAND_PROTOCOL_VERSION}.json`, import.meta.url),
+  `${JSON.stringify(buildStagehandProtocolDocument(), null, 2)}\n`,
+  "utf8",
+);

@@ -1,11 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod/v4";
-import {
-  encodeWireValue,
-  renameJsonSchemaProperties,
-  wireSchema,
-} from "../../json-rpc/wire-casing.js";
+import { encodeWireValue, toWireJsonSchema, wireSchema } from "../../json-rpc/wire-casing.js";
 import { StagehandNotifications, StagehandMethods } from "../../schema-registry.js";
 
 const snakeCaseKey = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
@@ -28,18 +24,18 @@ describe("JSON-RPC wire casing", () => {
     for (const definition of Object.values(StagehandMethods)) {
       const method = definition.name;
       expectDeclaredPropertiesToBeSnakeCase(
-        renameJsonSchemaProperties(z.toJSONSchema(definition.params)),
+        toWireJsonSchema(z.toJSONSchema(definition.params)),
         `${method}.params`,
       );
       expectDeclaredPropertiesToBeSnakeCase(
-        renameJsonSchemaProperties(z.toJSONSchema(definition.result)),
+        toWireJsonSchema(z.toJSONSchema(definition.result)),
         `${method}.result`,
       );
     }
 
     for (const notification of Object.values(StagehandNotifications)) {
       expectDeclaredPropertiesToBeSnakeCase(
-        renameJsonSchemaProperties(z.toJSONSchema(notification.params)),
+        toWireJsonSchema(z.toJSONSchema(notification.params)),
         `${notification.name}.params`,
       );
     }
@@ -60,6 +56,32 @@ describe("JSON-RPC wire casing", () => {
 
     expect(encodeWireValue(apiValue)).toStrictEqual(wireValue);
     expect(wireSchema(schema).parse(wireValue)).toStrictEqual(apiValue);
+  });
+
+  it("round-trips every declared API property name through its wire name", () => {
+    const propertyNames = new Set<string>();
+    for (const definition of Object.values(StagehandMethods)) {
+      collectDeclaredPropertyNames(z.toJSONSchema(definition.params), propertyNames);
+      collectDeclaredPropertyNames(z.toJSONSchema(definition.result), propertyNames);
+    }
+    for (const notification of Object.values(StagehandNotifications)) {
+      collectDeclaredPropertyNames(z.toJSONSchema(notification.params), propertyNames);
+    }
+
+    for (const apiName of propertyNames) {
+      const projected = asRecord(
+        toWireJsonSchema({ type: "object", properties: { [apiName]: {} } }),
+      );
+      const [wireName] = Object.keys(asRecord(projected.properties));
+      expect(wireName).toBeDefined();
+
+      const decoded = wireSchema(z.object({ [apiName]: z.unknown() })).parse({
+        [wireName!]: null,
+      });
+      expect(decoded, `${wireName!} must decode to ${apiName}`).toStrictEqual({
+        [apiName]: null,
+      });
+    }
   });
 
   it("uses one opaque-key configuration for encoding and decoding", () => {
@@ -425,60 +447,117 @@ describe("JSON-RPC wire casing", () => {
 
     for (const [method, definition] of Object.entries(methods)) {
       const methodProperties = asRecord(asRecord(definition).properties);
-      expectDeclaredPropertiesToBeSnakeCase(methodProperties.params, `${method}.params`);
-      expectDeclaredPropertiesToBeSnakeCase(methodProperties.result, `${method}.result`);
+      expectDeclaredPropertiesToBeSnakeCase(methodProperties.params, `${method}.params`, protocol);
+      expectDeclaredPropertiesToBeSnakeCase(methodProperties.result, `${method}.result`, protocol);
     }
 
     for (const [method, definition] of Object.entries(notifications)) {
       const notificationProperties = asRecord(asRecord(definition).properties);
-      expectDeclaredPropertiesToBeSnakeCase(notificationProperties.params, `${method}.params`);
+      expectDeclaredPropertiesToBeSnakeCase(
+        notificationProperties.params,
+        `${method}.params`,
+        protocol,
+      );
     }
   });
 
-  it("keeps transport params required and snake_case", async () => {
+  it("keeps JSON-RPC params required and snake_case", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as Record<string, unknown>;
-    const transport = asRecord(asRecord(asRecord(protocol.properties).transport).properties);
-    const requestSchema = asRecord(transport.request);
+    const jsonrpc = asRecord(asRecord(asRecord(protocol.properties).jsonrpc).properties);
+    const requestSchema = resolveSchema(jsonrpc.request, protocol);
     const requestVariants = requestSchema.oneOf ?? requestSchema.anyOf;
 
-    expect(Array.isArray(requestVariants)).toBe(true);
-    for (const variant of requestVariants as unknown[]) {
-      const request = asRecord(variant);
+    const requests = Array.isArray(requestVariants) ? requestVariants : [requestSchema];
+    for (const variant of requests) {
+      const request = resolveSchema(variant, protocol);
       expect(request.required).toContain("params");
-      expectDeclaredPropertiesToBeSnakeCase(request, "transport.request");
+      expectDeclaredPropertiesToBeSnakeCase(request, "jsonrpc.request", protocol);
     }
 
-    expectDeclaredPropertiesToBeSnakeCase(transport.notification, "transport.notification");
+    const notification = resolveSchema(jsonrpc.notification, protocol);
+    expect(notification.required).toContain("params");
+    expectDeclaredPropertiesToBeSnakeCase(notification, "jsonrpc.notification", protocol);
   });
 });
 
-function expectDeclaredPropertiesToBeSnakeCase(schema: unknown, path: string): void {
-  visitSchema(schema, path, new Set());
+function expectDeclaredPropertiesToBeSnakeCase(
+  schema: unknown,
+  path: string,
+  document: unknown = schema,
+): void {
+  visitSchema(schema, path, document, new Set());
 }
 
-function visitSchema(schema: unknown, path: string, visited: Set<object>): void {
+function collectDeclaredPropertyNames(value: unknown, names: Set<string>): void {
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectDeclaredPropertyNames(entry, names));
+    return;
+  }
+  const record = asRecord(value);
+
+  for (const [name, schema] of Object.entries(asRecord(record.properties))) {
+    names.add(name);
+    collectDeclaredPropertyNames(schema, names);
+  }
+  for (const [key, entry] of Object.entries(record)) {
+    if (key !== "properties") collectDeclaredPropertyNames(entry, names);
+  }
+}
+
+function visitSchema(schema: unknown, path: string, document: unknown, visited: Set<object>): void {
   if (typeof schema !== "object" || schema === null || visited.has(schema)) return;
   visited.add(schema);
 
   const record = schema as Record<string, unknown>;
+  if (typeof record.$ref === "string") {
+    visitSchema(
+      resolveLocalReference(document, record.$ref),
+      `${path} -> ${record.$ref}`,
+      document,
+      visited,
+    );
+  }
+
   const properties = asRecord(record.properties);
   for (const [key, value] of Object.entries(properties)) {
     expect(isWirePropertyName(key), `${path}.${key} must use snake_case`).toBe(true);
-    visitSchema(value, `${path}.${key}`, visited);
+    visitSchema(value, `${path}.${key}`, document, visited);
   }
 
   for (const key of ["items", "additionalProperties", "$defs", "anyOf", "oneOf", "allOf"]) {
     const value = record[key];
     if (Array.isArray(value)) {
-      value.forEach((entry, index) => visitSchema(entry, `${path}.${key}[${index}]`, visited));
+      value.forEach((entry, index) =>
+        visitSchema(entry, `${path}.${key}[${index}]`, document, visited),
+      );
     } else if (key === "$defs") {
       Object.entries(asRecord(value)).forEach(([name, entry]) =>
-        visitSchema(entry, `${path}.$defs.${name}`, visited),
+        visitSchema(entry, `${path}.$defs.${name}`, document, visited),
       );
     } else {
-      visitSchema(value, `${path}.${key}`, visited);
+      visitSchema(value, `${path}.${key}`, document, visited);
     }
   }
+}
+
+function resolveSchema(schema: unknown, document: unknown): Record<string, unknown> {
+  const record = asRecord(schema);
+  return typeof record.$ref === "string"
+    ? asRecord(resolveLocalReference(document, record.$ref))
+    : record;
+}
+
+function resolveLocalReference(document: unknown, reference: string): unknown {
+  expect(reference, "generated schema references must be local").toMatch(/^#\//);
+
+  let value = document;
+  for (const encodedPart of reference.slice(2).split("/")) {
+    const part = encodedPart.replaceAll("~1", "/").replaceAll("~0", "~");
+    const record = asRecord(value);
+    expect(Object.hasOwn(record, part), `${reference} must resolve`).toBe(true);
+    value = record[part];
+  }
+  return value;
 }
 
 function isWirePropertyName(key: string): boolean {

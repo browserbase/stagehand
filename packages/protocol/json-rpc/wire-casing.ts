@@ -25,8 +25,9 @@ export function wireSchema<TSchema extends z.ZodType>(
   return z.preprocess(
     (value) =>
       isCaseable(value)
-        ? camelcaseKeys(value, {
+        ? camelcaseKeys(preserveApiAcronyms(value, options.opaqueKeys), {
             deep: true,
+            preserveConsecutiveUppercase: true,
             stopPaths: findOpaquePaths(value, options.opaqueKeys),
           })
         : value,
@@ -46,20 +47,28 @@ export function encodeWireValue(value: unknown, options: WireCasingOptions = {})
   );
 }
 
-export function renameJsonSchemaProperties(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(renameJsonSchemaProperties);
+export function toWireJsonSchema(
+  value: unknown,
+  preservedPropertyNames: ReadonlySet<string> = new Set(),
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => toWireJsonSchema(entry, preservedPropertyNames));
+  }
   if (!isRecord(value)) return value;
 
   const renamed = Object.fromEntries(
-    Object.entries(value).map(([key, entry]) => [key, renameJsonSchemaProperties(entry)]),
+    Object.entries(value).map(([key, entry]) => [
+      key,
+      toWireJsonSchema(entry, preservedPropertyNames),
+    ]),
   );
   const properties = value.properties;
 
   if (isRecord(properties)) {
     renamed.properties = Object.fromEntries(
       Object.entries(properties).map(([key, entry]) => [
-        toWirePropertyName(key),
-        renameJsonSchemaProperties(entry),
+        preservedPropertyNames.has(key) ? key : toWirePropertyName(key),
+        toWireJsonSchema(entry, preservedPropertyNames),
       ]),
     );
   }
@@ -67,7 +76,7 @@ export function renameJsonSchemaProperties(value: unknown): unknown {
   if (Array.isArray(value.required)) {
     renamed.required = value.required
       .filter((key): key is string => typeof key === "string")
-      .map(toWirePropertyName);
+      .map((key) => (preservedPropertyNames.has(key) ? key : toWirePropertyName(key)));
   }
 
   return renamed;
@@ -109,6 +118,34 @@ function findOpaquePaths(value: unknown, additionalOpaqueKeys: readonly string[]
 
   visit(value, "");
   return paths;
+}
+
+function preserveApiAcronyms(
+  value: Record<string, unknown> | Record<string, unknown>[],
+  additionalOpaqueKeys: readonly string[] = [],
+): Record<string, unknown> | Record<string, unknown>[] {
+  const opaqueKeys = new Set(
+    Object.keys(
+      snakecaseKeys(
+        Object.fromEntries(
+          [...defaultOpaqueKeys, ...additionalOpaqueKeys].map((key) => [key, null]),
+        ),
+      ),
+    ),
+  );
+
+  function visit(entry: unknown): unknown {
+    if (Array.isArray(entry)) return entry.map(visit);
+    if (!isRecord(entry)) return entry;
+    return Object.fromEntries(
+      Object.entries(entry).map(([key, child]) => [
+        key === "base_url" ? "base_URL" : key,
+        opaqueKeys.has(key) ? child : visit(child),
+      ]),
+    );
+  }
+
+  return visit(value) as Record<string, unknown> | Record<string, unknown>[];
 }
 
 function isCaseable(value: unknown): value is Record<string, unknown> | Record<string, unknown>[] {

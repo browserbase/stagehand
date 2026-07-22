@@ -13,11 +13,18 @@ Stagehand uses bidirectional JSON-RPC. “Client” and “server” identify th
 them. `StagehandNotifications` contains one-way notification contracts. A JSON-RPC notification is
 a request object without an `id`, so it does not receive a response.
 
+## How it works
+
+1. `schemas.ts` defines protocol data with Zod.
+2. `schema-registry.ts` assigns those schemas to JSON-RPC methods and notifications.
+3. `json-rpc/build-json-rpc-schema.ts` derives one in-memory Zod document from those catalogs, converts it to JSON Schema, renames API-facing keys to their wire names, and writes `stagehand.v4.json`.
+4. TypeScript uses the original Zod schemas directly. Other SDKs and documentation consume `stagehand.v4.json`.
+
 ## Adding a method
 
 Follow these steps to add a method to the protocol:
 
-1. Define the method's Zod parameter and result schemas in `schemas.ts`.
+1. Define the method's Zod parameter and result schemas in `schemas.ts`, including a stable `.meta({ id: "..." })` on each new schema.
 2. Export their inferred types from `types.ts`.
 3. Add the method definition to `StagehandMethods` in `schema-registry.ts`.
 4. Implement the method in the appropriate server controller.

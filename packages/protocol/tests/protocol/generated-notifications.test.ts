@@ -11,9 +11,10 @@ type GeneratedNotificationRegistry = {
   properties: Record<string, GeneratedNotification>;
 };
 type GeneratedProtocol = {
+  $defs: Record<string, GeneratedNotification>;
   properties: {
     notifications?: GeneratedNotificationRegistry;
-    transport: { properties: Record<string, unknown> };
+    jsonrpc: { properties: Record<string, unknown> };
   };
 };
 
@@ -46,17 +47,29 @@ describe("generated Stagehand notifications", () => {
     expect(notification.required).toStrictEqual(["params"]);
   });
 
-  it("includes a notification envelope in the transport schema", async () => {
+  it("includes a notification envelope in the JSON-RPC schema", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as GeneratedProtocol;
-    expect(protocol.properties.transport.properties.notification).toBeDefined();
+    expect(protocol.properties.jsonrpc.properties.notification).toBeDefined();
   });
 
   it("requires params in the notification envelope", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as GeneratedProtocol;
-    const notification = protocol.properties.transport.properties.notification as {
-      required: string[];
-    };
+    const notification = resolveDefinition(
+      protocol,
+      protocol.properties.jsonrpc.properties.notification,
+    );
 
     expect(notification.required).toContain("params");
   });
 });
+
+function resolveDefinition(protocol: GeneratedProtocol, schema: unknown): GeneratedNotification {
+  const reference = (schema as { $ref?: unknown }).$ref;
+  expect(reference).toBeTypeOf("string");
+  expect(reference).toMatch(/^#\/\$defs\/[^/]+$/);
+
+  const name = (reference as string).slice("#/$defs/".length);
+  const definition = protocol.$defs[name];
+  expect(definition, `${reference as string} must resolve`).toBeDefined();
+  return definition;
+}

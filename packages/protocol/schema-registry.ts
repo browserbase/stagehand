@@ -105,7 +105,9 @@ import {
 } from "./schemas.ts";
 
 export const STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost";
-export const StagehandSendToHostBindingSchema = z.literal(STAGEHAND_SEND_TO_HOST_BINDING);
+export const StagehandSendToHostBindingSchema = z
+  .literal(STAGEHAND_SEND_TO_HOST_BINDING)
+  .meta({ id: "StagehandSendToHostBinding" });
 
 export const StagehandMethods = {
   ping: { name: "ping", params: EmptyParamsSchema, result: StagehandPingResultSchema },
@@ -423,9 +425,9 @@ export const StagehandMethods = {
   },
 } as const satisfies Record<string, RPCMethod>;
 
-export const StagehandMethodSchema = z.enum(
-  Object.values(StagehandMethods).map((method) => method.name),
-);
+export const StagehandMethodSchema = z
+  .enum(Object.values(StagehandMethods).map((method) => method.name))
+  .meta({ id: "StagehandMethod" });
 
 const stagehandRpcRequestSchemas = Object.values(StagehandMethods).map((method) =>
   JSONRPCRequestSchema.extend({
@@ -434,12 +436,14 @@ const stagehandRpcRequestSchemas = Object.values(StagehandMethods).map((method) 
   }),
 );
 
-export const StagehandRpcRequestSchema = z.union(
-  stagehandRpcRequestSchemas as [
-    (typeof stagehandRpcRequestSchemas)[number],
-    ...(typeof stagehandRpcRequestSchemas)[number][],
-  ],
-);
+export const StagehandRpcRequestSchema = z
+  .union(
+    stagehandRpcRequestSchemas as [
+      (typeof stagehandRpcRequestSchemas)[number],
+      ...(typeof stagehandRpcRequestSchemas)[number][],
+    ],
+  )
+  .meta({ id: "StagehandRpcRuntimeRequest" });
 
 export const StagehandNotifications = {
   log: { name: "stagehand.log", params: StagehandLogSchema },
@@ -448,7 +452,7 @@ export const StagehandNotifications = {
 export const StagehandRpcNotificationSchema = JSONRPCNotificationSchema.extend({
   method: z.literal(StagehandNotifications.log.name),
   params: StagehandLogSchema,
-});
+}).meta({ id: "StagehandRpcRuntimeNotification" });
 
 const stagehandMethodsByName = new Map<string, RPCMethod>(
   Object.values(StagehandMethods).map((method) => [method.name, method]),
