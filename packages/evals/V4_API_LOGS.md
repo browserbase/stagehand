@@ -59,6 +59,34 @@ No status-code or response assertions are possible after navigation
 (v3/Playwright: `const res = await page.goto(...); res.status()`).
 **Impact:** flag per task during the full port.
 
+### 13. v3 and v4 cannot coexist in one process: 28 zod global-registry ID collisions
+The headline finding of the smoke phase. v3 core and the v4 protocol both
+register the **same 28 zod schema IDs** via `.meta({ id: ... })` — e.g.
+`VariablePrimitive`, `ActResult`, `ExtractOptions`, `ObserveResult`
+(v3: `core/lib/v3/types/public/*.ts`, v4: `packages/protocol/schemas.ts`).
+zod keeps one registry per process (`globalThis.__zod_globalRegistry`),
+shared across every zod copy and version. zod ≤4.2.x's `add()` throws on a
+duplicate ID, so importing the v4 SDK into any process that already loaded
+v3 core crashed with `ID VariablePrimitive already exists in the registry`
+— exactly what a migration-period consumer (or this regression harness)
+does. v4-spike never sees this internally because zod ≥4.3 silently
+overwrites duplicates instead of throwing.
+
+**Impact:** first harness run of a v4 task failed at `initV4` import time;
+standalone v4 usage (no v3 in-process) worked fine, which is why the SDK's
+own examples/tests don't catch it.
+**Interim resolution (2026-07-22):** unified core + evals on zod 4.4.3 so
+the process-wide registry is created by a tolerant (last-wins) `add()`.
+Verified empirically: `act/dropdown` passes through the harness on both
+`--sdk v3` and `--sdk v4` after unification. Note this only downgrades the
+bug from crash to silent overwrite — v4's registrations now replace v3's
+entries in the shared ID map.
+**Recommendation for the v4 team (raised with them 2026-07-22):**
+namespace the protocol's IDs (e.g. `StagehandV4.ActResult`) or register
+into a scoped `z.registry()` instead of `globalRegistry`, so the SDK can
+coexist with v3-based code in one process regardless of the consumer's zod
+version.
+
 ## Ergonomic friction (non-blocking)
 
 ### 7. Result/param types are not exported
@@ -69,11 +97,14 @@ consumers must derive them (e.g.
 
 ### 8. zod version seam at the extract boundary
 `page.extract()` calls `z.toJSONSchema()` (SDK's zod, 4.4.3) on schema
-objects constructed by the consumer (evals: zod 4.2.1). No version or
-instance guard exists at the boundary; a mismatch would be silent.
-A one-off fidelity check (diff the JSON schema each SDK emits for the same
-task schema) runs during the smoke phase. Suggestion for the v4 team:
+objects constructed by the consumer. No version or instance guard exists at
+the boundary; a mismatch would be silent. Suggestion for the v4 team:
 validate/normalize incoming schemas at the API boundary.
+**Resolution for this port:** core + evals were unified on zod 4.4.3
+(2026-07-22, see #13 for the forcing incident), so both sides of the
+boundary now run identical zod versions. Typechecking with mixed versions
+had already failed loudly (4.2.1 `ZodObject` lacks `with`/`exactOptional`/
+`apply` vs 4.4.3's `ZodType`), confirming the drift was real.
 
 ### 9. Previously-sync accessors are now async RPCs
 `context.pages()`, `page.url()`, `page.title()` are all async in v4
