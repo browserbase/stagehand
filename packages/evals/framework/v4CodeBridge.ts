@@ -19,8 +19,7 @@ if (!process.send) {
   throw new Error("V4 code bridge requires a Node IPC channel.");
 }
 
-process.on("message", (message: unknown) => {
-  if (!isV4CodeBridgeRequest(message)) return;
+process.on("message", (message: V4CodeBridgeRequest) => {
   requestQueue = requestQueue
     .then(() => handleRequest(message))
     .catch((error: unknown) => {
@@ -175,24 +174,4 @@ function serializeError(error: unknown): {
     message: error.message,
     ...(error.stack && { stack: error.stack }),
   };
-}
-
-function isV4CodeBridgeRequest(value: unknown): value is V4CodeBridgeRequest {
-  if (!isRecord(value) || typeof value.id !== "number") return false;
-  if (value.type === "close") return true;
-  if (value.type === "init" && typeof value.sdkPath === "string") {
-    return (
-      value.userDataDir === undefined || typeof value.userDataDir === "string"
-    );
-  }
-  return (
-    value.type === "execute" &&
-    typeof value.code === "string" &&
-    typeof value.startUrl === "string" &&
-    isRecord(value.task)
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
