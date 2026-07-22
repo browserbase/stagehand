@@ -426,4 +426,71 @@ describe("AnthropicCUAClient adaptive thinking", () => {
       expect(callArgs.thinking.type).toBe("adaptive");
     });
   });
+
+  describe("computer tool serialization", () => {
+    it("uses Anthropic's snake_case dimensions for the native endpoint", async () => {
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "claude-sonnet-4-6",
+        undefined,
+        { apiKey: "test-key" },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }]);
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tools: [
+            expect.objectContaining({
+              type: "computer_20251124",
+              name: "computer",
+              display_width_px: 1280,
+              display_height_px: 720,
+              display_number: 1,
+            }),
+          ],
+        }),
+      );
+
+      const computerTool = mockCreate.mock.calls[0][0].tools[0];
+      expect(computerTool).not.toHaveProperty("displayWidthPx");
+      expect(computerTool).not.toHaveProperty("displayHeightPx");
+      expect(computerTool).not.toHaveProperty("displayNumber");
+    });
+
+    it("uses camelCase dimensions for Vercel AI Gateway", async () => {
+      const client = new AnthropicCUAClient(
+        "anthropic",
+        "claude-sonnet-4-6",
+        undefined,
+        {
+          apiKey: "test-key",
+          baseURL: "https://ai-gateway.vercel.sh/",
+        },
+      );
+      client.setViewport(1280, 720);
+
+      await client.getAction([{ role: "user", content: "test" }]);
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tools: [
+            expect.objectContaining({
+              type: "computer_20251124",
+              name: "computer",
+              displayWidthPx: 1280,
+              displayHeightPx: 720,
+              displayNumber: 1,
+            }),
+          ],
+        }),
+      );
+
+      const computerTool = mockCreate.mock.calls[0][0].tools[0];
+      expect(computerTool).not.toHaveProperty("display_width_px");
+      expect(computerTool).not.toHaveProperty("display_height_px");
+      expect(computerTool).not.toHaveProperty("display_number");
+    });
+  });
 });

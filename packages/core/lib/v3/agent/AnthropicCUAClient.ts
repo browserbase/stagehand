@@ -36,6 +36,18 @@ import { v7 as uuidv7 } from "uuid";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
+const VERCEL_AI_GATEWAY_HOSTNAME = "ai-gateway.vercel.sh";
+
+function isVercelAiGatewayBaseUrl(baseURL?: string): boolean {
+  if (!baseURL) return false;
+
+  try {
+    return new URL(baseURL).hostname === VERCEL_AI_GATEWAY_HOSTNAME;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Client for Anthropic's Computer Use API
  * This implementation uses the official Anthropic Messages API for Computer Use
@@ -510,20 +522,32 @@ export class AnthropicCUAClient extends AgentClient {
         ? "computer-use-2025-11-24"
         : "computer-use-2025-01-24";
 
-      // Create the request parameters
-      const requestParams: Record<string, unknown> = {
-        model: this.modelName,
-        max_tokens: 4096,
-        messages: messages,
-        tools: [
-          {
+      // Vercel AI Gateway translates Anthropic Messages requests through its
+      // AI SDK adapter, whose computer-tool schema uses camelCase dimensions.
+      // Anthropic's native Messages endpoint expects the original snake_case
+      // fields, so preserve that shape for every other base URL.
+      const computerTool = isVercelAiGatewayBaseUrl(this.baseURL)
+        ? {
+            type: computerToolType,
+            name: "computer",
+            displayWidthPx: this.currentViewport.width,
+            displayHeightPx: this.currentViewport.height,
+            displayNumber: 1,
+          }
+        : {
             type: computerToolType,
             name: "computer",
             display_width_px: this.currentViewport.width,
             display_height_px: this.currentViewport.height,
             display_number: 1,
-          },
-        ],
+          };
+
+      // Create the request parameters
+      const requestParams: Record<string, unknown> = {
+        model: this.modelName,
+        max_tokens: 4096,
+        messages: messages,
+        tools: [computerTool],
         betas: [betaFlag],
       };
 
