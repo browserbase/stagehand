@@ -33,7 +33,7 @@
     "playwright": ">=1.55.1 <1.57.0",
     "sharp": "^0.34.5",
     "tsx": "*",
-    "zod": "^4.2.1"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "^25.6.2",
