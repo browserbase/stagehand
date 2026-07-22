@@ -1,0 +1,412 @@
+---
+title: "Act"
+description: "Interact with a web page."
+---
+
+## What is `act()`?
+
+<View title="TypeScript" icon="js">
+
+```typescript
+await stagehand.act("Click the add to cart button");
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+await stagehand.act("Click the add to cart button")
+```
+
+</View>
+
+`act()` enables Stagehand to perform **individual** actions on a web page. Use it to build self-healing and deterministic automations that adapt to website changes.
+
+## Why use `act()`?
+
+<CardGroup cols={2}>
+  <Card title="Natural language" icon="wand-magic-sparkles">
+    Describe the action in plain English, with no selectors or brittle syntax.
+  </Card>
+  <Card title="Precise control" icon="crosshairs">
+    Drive your automation one deliberate step at a time.
+  </Card>
+  <Card title="Adapts to change" icon="bandage">
+    Instructions keep working when a site's markup shifts.
+  </Card>
+  <Card title="Composable" icon="layer-group">
+    Pair with [`observe()`](/basics/observe) to plan before acting.
+  </Card>
+</CardGroup>
+
+## Using `act()`
+
+Call `act()` on your [`stagehand`](/reference/stagehand) instance. By default it runs on
+the browser's active page; pass a `page` option to target a specific one. Keep each call to
+a single step, and break multi-step flows into multiple `act()` calls.
+
+<Tabs>
+  <Tab title="Do this" icon="check">
+
+Break the task into single-step actions.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+await page.goto("https://example-store.com");
+await stagehand.act("Open the filters panel");
+await stagehand.act("Choose the 4-star rating");
+await stagehand.act("Click the apply button");
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+await page.goto("https://example-store.com")
+await stagehand.act("Open the filters panel")
+await stagehand.act("Choose the 4-star rating")
+await stagehand.act("Click the apply button")
+```
+
+</View>
+
+  </Tab>
+  <Tab title="Avoid this" icon="xmark">
+
+Cramming several steps into one instruction is less reliable.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+await stagehand.act("Open filters, choose 4-star rating, and click apply");
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+await stagehand.act("Open filters, choose 4-star rating, and click apply")
+```
+
+</View>
+
+  </Tab>
+</Tabs>
+
+<Note>
+  Stagehand resolves elements inside iframes and shadow DOM for you, so you rarely need to target
+  nested documents manually. This relies on privileged browser APIs that aren't available on
+  `about:blank` or `data:` URLs, so navigate to a real page first when a target sits inside a closed
+  shadow root (see [locator limitations](/reference/locator)).
+</Note>
+
+<Accordion title="Suggested actions">
+
+| Action           | Example instruction                              |
+| ---------------- | ------------------------------------------------ |
+| Click            | `Click the sign in button`                       |
+| Fill a field     | `Fill the email field with user@example.com`     |
+| Type text        | `Type "wireless headphones" into the search box` |
+| Press a key      | `Press Enter in the search field`                |
+| Scroll           | `Scroll to the footer`                           |
+| Select an option | `Select "Large" from the size dropdown`          |
+
+</Accordion>
+
+### Return value
+
+`act()` resolves to an `ActResultData` object.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const result = await stagehand.act("Click the sign in button");
+// {
+//   success: true,
+//   message: "Successfully clicked the sign in button",
+//   actionDescription: "Clicked button with text 'Sign in'",
+//   actions: [
+//     { selector: "xpath=/html/body/...", description: "Sign in", method: "click", arguments: [] }
+//   ]
+// }
+
+if (!result.success) {
+  throw new Error(`act() failed: ${result.message}`);
+}
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+result = await stagehand.act("Click the sign in button")
+# result.success            -> bool
+# result.message            -> str
+# result.action_description -> str
+# result.actions            -> list of executed actions
+
+if not result.success:
+    raise RuntimeError(f"act() failed: {result.message}")
+```
+
+</View>
+
+Always check `success` before assuming the action ran. See the full field list in the
+[`stagehand` reference](/reference/stagehand).
+
+<Card title="Complete act() reference" icon="book" href="/reference/stagehand">
+  Full parameters, per-call options, and the `ActResultData` shape.
+</Card>
+
+## Advanced configuration
+
+You can pass additional options to configure `act()` for your exact use case:
+
+<View title="TypeScript" icon="js">
+
+```typescript
+await stagehand.act("Choose 'Peach' from the favorite color dropdown", {
+  model: { modelName: "google/gemini-2.5-flash", apiKey: process.env.GOOGLE_API_KEY },
+  timeout: 10_000,
+});
+```
+
+- `page`: the page to act on. Defaults to the active page.
+- `model`: override the model for this call (see [Models](#)).
+- `timeout`: maximum time in milliseconds.
+- `variables`: values substituted into the instruction (see below).
+- `locator`: a serialized element target to scope the action.
+- `cache`: reuse a prior result for this call (see [Caching](#)).
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+await stagehand.act(
+    "Choose 'Peach' from the favorite color dropdown",
+    model="google/gemini-2.5-flash",
+    model_api_key=os.environ["GOOGLE_API_KEY"],
+    timeout=10_000,
+)
+```
+
+- `page`: the page to act on. Defaults to the active page.
+- `model` / `model_api_key`: override the model for this call (see
+  [Models](#)).
+- `timeout`: maximum time in milliseconds.
+- `variables`: values substituted into the instruction (see below).
+- `cache`: reuse a prior result for this call (see [Caching](#)).
+
+</View>
+
+### Variables
+
+Variables keep sensitive or dynamic values **out of the model prompt**. Reference them in
+the instruction with `%name%`. A variable can be a plain value, or a
+`{ value, description }` object to give the model a hint about a secret without revealing
+it.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+await stagehand.act("Type %username% into the email field", {
+  variables: { username: "user@example.com" },
+});
+
+await stagehand.act("Type %password% into the password field", {
+  variables: {
+    password: { value: process.env.USER_PASSWORD, description: "the login password" },
+  },
+});
+
+await stagehand.act("Click the login button");
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+await stagehand.act(
+    "Type %username% into the email field",
+    variables={"username": "user@example.com"},
+)
+
+await stagehand.act(
+    "Type %password% into the password field",
+    variables={
+        "password": {"value": os.environ["USER_PASSWORD"], "description": "the login password"}
+    },
+)
+
+await stagehand.act("Click the login button")
+```
+
+</View>
+
+<Warning>
+  Load secrets from environment variables, and never hardcode them. Variables are substituted
+  locally, so their values are not sent to the model provider as part of the instruction.
+</Warning>
+
+## Best practices
+
+### Plan reliably with `observe()`
+
+`observe()` returns candidate actions on the current page. Use it to verify an element
+exists or to preview what `act()` will do.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const [candidate] = await stagehand.observe("Find the login button");
+if (candidate) {
+  await stagehand.act("Click the login button");
+}
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+candidates = await stagehand.observe(instruction="Find the login button")
+if candidates:
+    await stagehand.act("Click the login button")
+```
+
+</View>
+
+<Card title="Plan with observe()" icon="eye" href="/basics/observe">
+  Discover and verify actions before you run them.
+</Card>
+
+### Be specific
+
+Ambiguous instructions can target the wrong element. Add context like position, nearby
+text, or a visual cue: `"Click the red 'Delete' button next to the user John Smith"`.
+
+### Cache repeated actions
+
+On [Browserbase](#), turn on [caching](#)
+so repeated, identical actions are served from a cache instead of calling the model again.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+await stagehand.act("Click the sign in button", { cache: true });
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+await stagehand.act("Click the sign in button", cache=True)
+```
+
+</View>
+
+<Card title="Caching guide" icon="database" href="#">
+  Thresholds, session defaults, and when caching applies.
+</Card>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Action failed or timed out">
+
+Make sure the page has finished loading, increase `timeout`, and use `observe()` to confirm
+the target element exists before acting.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+await page.waitForLoadState("domcontentloaded");
+
+const [candidate] = await stagehand.observe("Find the submit button");
+if (candidate) {
+  await stagehand.act("Click the submit button", { timeout: 30_000 });
+}
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+await page.wait_for_load_state("domcontentloaded")
+
+candidates = await stagehand.observe(instruction="Find the submit button")
+if candidates:
+    await stagehand.act("Click the submit button", timeout=30_000)
+```
+
+</View>
+
+  </Accordion>
+  <Accordion title="Wrong element selected">
+
+Be more specific in the instruction, or preview the target with `observe()` and inspect its
+`description` before calling `act()`.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+// Instead of a vague instruction:
+await stagehand.act("Click the button");
+
+// Add context so the target is unambiguous:
+await stagehand.act("Click the red 'Delete' button next to the user John Smith");
+
+// Or preview with observe() and confirm the description before acting:
+const [candidate] = await stagehand.observe("Find the submit button in the checkout form");
+if (candidate?.description.toLowerCase().includes("checkout")) {
+  await stagehand.act("Click the submit button in the checkout form");
+}
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+# Instead of a vague instruction:
+await stagehand.act("Click the button")
+
+# Add context so the target is unambiguous:
+await stagehand.act("Click the red 'Delete' button next to the user John Smith")
+
+# Or preview with observe() and confirm the description before acting:
+candidates = await stagehand.observe(instruction="Find the submit button in the checkout form")
+if candidates and "checkout" in candidates[0].description.lower():
+    await stagehand.act("Click the submit button in the checkout form")
+```
+
+</View>
+
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Observe" icon="eye" href="/basics/observe">
+    Preview actions before executing them.
+  </Card>
+  <Card title="Extract" icon="download" href="/basics/extract">
+    Pull typed data from a page.
+  </Card>
+  <Card title="Prompting best practices" icon="wand-magic-sparkles" href="#">
+    Write instructions that work reliably.
+  </Card>
+  <Card title="Caching" icon="database" href="#">
+    Cut latency and cost on repeated runs.
+  </Card>
+</CardGroup>

@@ -20,13 +20,13 @@ Traditional frameworks like Playwright and Puppeteer force you to write brittle 
 Stagehand gives you three composable primitives, so you decide exactly how much AI to use on any given step and drop down to deterministic browser controls whenever you want.
 
 <CardGroup cols={3}>
-  <Card title="Act" icon="arrow-pointer" href="#">
+  <Card title="Act" icon="arrow-pointer" href="/basics/act">
     Perform a single action described in natural language.
   </Card>
-  <Card title="Extract" icon="download" href="#">
+  <Card title="Extract" icon="download" href="/basics/extract">
     Pull structured, schema-typed data from a page.
   </Card>
-  <Card title="Observe" icon="eye" href="#">
+  <Card title="Observe" icon="eye" href="/basics/observe">
     Discover the actions available on a page before acting.
   </Card>
 </CardGroup>
@@ -93,7 +93,7 @@ page_info = await stagehand.extract(
 - **The engine runs inside the browser:** Act, extract, and observe execute in an in-browser runtime instead of a Node process wrapping Playwright, and clients talk to it over a typed, bidirectional JSON-RPC protocol.
 - **First-class TypeScript, Python, and Go SDKs:** Each client is generated from the same protocol, so every method and option matches across supported languages.
 - **The AI primitives live on Stagehand:** `act`, `extract`, and `observe` are methods on [`stagehand`](/reference/stagehand). They run on the browser's active page by default, or on a page you pass. Deterministic controls like `goto`, `click`, and `type` stay on [`page`](/reference/page).
-- **Extraction is typed:** [`extract`](#) validates results against a schema you define and hands back fully typed data.
+- **Extraction is typed:** [`extract`](/basics/extract) validates results against a schema you define and hands back fully typed data.
 - **Models are flexible:** Use a hosted provider by name, a custom OpenAI-compatible endpoint, or your own client-side LLM callback. See [Models](#).
 - **Metrics and diagnostics are built in:** Read per-method token usage and inference timing with [`metrics()`](/reference/stagehand), and check connectivity with `ping()`.
 

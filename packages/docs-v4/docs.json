@@ -36,6 +36,10 @@
         ]
       },
       {
+        "group": "The Basics",
+        "pages": ["basics/act", "basics/extract", "basics/observe"]
+      },
+      {
         "group": "SDK reference",
         "pages": [
           "reference/stagehand",

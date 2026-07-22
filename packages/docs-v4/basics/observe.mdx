@@ -1,0 +1,446 @@
+---
+title: "Observe"
+description: "Discover and plan executable actions on any web page."
+---
+
+## What is `observe()`?
+
+`observe()` discovers actionable elements on a page and returns structured actions you can execute or validate before acting. Use it to explore pages, plan multi-step workflows, cache actions, and validate elements before acting.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const actions = await stagehand.observe("Find the sign in button");
+// [
+//   { selector: "xpath=/html/body/...", description: "Sign in", method: "click", arguments: [] }
+// ]
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+actions = await stagehand.observe(instruction="Find the sign in button")
+# [ Action(selector="xpath=...", description="Sign in", method="click", arguments=[]) ]
+```
+
+</View>
+
+The `instruction` is optional: call `observe()` with no argument to survey the page broadly.
+
+<Accordion title="Common things to observe">
+
+| Goal                | Example instruction                          |
+| ------------------- | -------------------------------------------- |
+| Find a button       | `Find the submit button`                     |
+| Locate form fields  | `Find all input fields in the checkout form` |
+| Discover links      | `Find the navigation links`                  |
+| Identify a region   | `Find the pricing table`                     |
+| Map a workflow      | `Find each step in the checkout flow`        |
+| Validate an element | `Find the delete account button`             |
+
+</Accordion>
+
+## Why use `observe()`?
+
+<CardGroup cols={2}>
+  <Card title="Plan before acting" icon="list-check">
+    Preview what an action will target before running it.
+  </Card>
+  <Card title="Verify elements" icon="circle-check">
+    Confirm an element is present before interacting with it.
+  </Card>
+  <Card title="Scope the search" icon="crop">
+    Limit consideration to part of the page.
+  </Card>
+  <Card title="Cheaper than acting blind" icon="gauge-high">
+    One planning call can prevent repeated failed actions.
+  </Card>
+</CardGroup>
+
+## Using `observe()`
+
+The most common pattern is to observe first, decide, then act.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const [candidate] = await stagehand.observe("Find the primary call-to-action");
+
+if (candidate) {
+  console.log(candidate.description); // inspect before acting
+  await stagehand.act("Click the primary call-to-action");
+}
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+candidates = await stagehand.observe(instruction="Find the primary call-to-action")
+
+if candidates:
+    print(candidates[0].description)  # inspect before acting
+    await stagehand.act("Click the primary call-to-action")
+```
+
+</View>
+
+<Tabs>
+  <Tab title="Do this" icon="check">
+
+Use specific, descriptive instructions.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+await stagehand.observe("Find the primary call-to-action in the hero section");
+await stagehand.observe("Find all input fields in the checkout form");
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+await stagehand.observe(instruction="Find the primary call-to-action in the hero section")
+await stagehand.observe(instruction="Find all input fields in the checkout form")
+```
+
+</View>
+
+  </Tab>
+  <Tab title="Avoid this" icon="xmark">
+
+Avoid vague instructions, and reach for [`extract()`](/basics/extract) to read data instead of observing it.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+// Too vague to target reliably
+await stagehand.observe("Find buttons");
+
+// Reading data: use extract() instead
+await stagehand.observe("What is the page title?");
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+# Too vague to target reliably
+await stagehand.observe(instruction="Find buttons")
+
+# Reading data: use extract() instead
+await stagehand.observe(instruction="What is the page title?")
+```
+
+</View>
+
+  </Tab>
+</Tabs>
+
+<Card title="Act on what you found" icon="arrow-pointer" href="/basics/act">
+  Run the action once observe confirms the right target.
+</Card>
+
+### Return value
+
+`observe()` resolves to an array of `Action` objects. Each action has a `selector`, a
+human-readable `description`, and an optional `method` and `arguments`.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const actions = await stagehand.observe("Find the learn more button");
+// [
+//   {
+//     selector: "xpath=/html/body/shadow-demo/div[1]/button[1]",
+//     description: "Learn more button",
+//     method: "click",
+//     arguments: [],
+//   },
+// ]
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+actions = await stagehand.observe(instruction="Find the learn more button")
+# [
+#     Action(
+#         selector="xpath=/html/body/shadow-demo/div[1]/button[1]",
+#         description="Learn more button",
+#         method="click",
+#         arguments=[],
+#     ),
+# ]
+```
+
+</View>
+
+## Advanced configuration
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const actions = await stagehand.observe("Find form fields", {
+  selector: "form#signup",
+  ignoreSelectors: [".advertisement"],
+  timeout: 15_000,
+  model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
+});
+```
+
+- `page`: the page to observe. Defaults to the active page.
+- `selector`: a CSS selector that scopes observation to one element.
+- `ignoreSelectors`: elements to exclude.
+- `timeout`: maximum time in milliseconds.
+- `model`: override the model for this call.
+- `variables`: variable names surface as `%name%` placeholders in suggested arguments (see
+  below).
+- `cache`: reuse a prior result for this call (see [Caching](#)).
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+actions = await stagehand.observe(
+    instruction="Find form fields",
+    selector="form#signup",
+    ignore_selectors=[".advertisement"],
+    timeout=15_000,
+    model="openai/gpt-5.4-mini",
+)
+```
+
+- `page`: the page to observe. Defaults to the active page.
+- `selector`: a CSS selector that scopes observation to one element.
+- `ignore_selectors`: elements to exclude.
+- `timeout`: maximum time in milliseconds.
+- `model` / `model_api_key`: override the model for this call.
+- `variables`: variable names surface as `%name%` placeholders in suggested arguments (see
+  below).
+- `cache`: reuse a prior result for this call (see [Caching](#)).
+
+</View>
+
+<Note>
+  `ignoreSelectors` removes every match and its descendants from consideration, while `selector`
+  scopes observation to a single resolved subtree.
+</Note>
+
+### Variables and placeholders
+
+When you pass `variables`, `observe()` exposes their **names** to the model and returns
+`%name%` placeholders in suggested action arguments instead of literal values, so secrets
+stay out of the returned plan.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const actions = await stagehand.observe("Fill the login form", {
+  variables: {
+    username: { value: "user@example.com", description: "the login email" },
+    rememberMe: true,
+  },
+});
+// suggested arguments reference %username% rather than the literal email
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+actions = await stagehand.observe(
+    instruction="Fill the login form",
+    variables={
+        "username": {"value": "user@example.com", "description": "the login email"},
+        "remember_me": True,
+    },
+)
+# suggested arguments reference %username% rather than the literal email
+```
+
+</View>
+
+### Cache repeated observations
+
+On [Browserbase](#), turn on [caching](#)
+so repeated, identical observations are served from a cache instead of calling the model again.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const actions = await stagehand.observe("Find the sign in button", { cache: true });
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+actions = await stagehand.observe(instruction="Find the sign in button", cache=True)
+```
+
+</View>
+
+<Card title="Caching guide" icon="database" href="#">
+  Thresholds, session defaults, and when caching applies.
+</Card>
+
+## Best practices
+
+- **Observe to verify, act to do:** Use `observe()` to confirm the right element exists,
+  then run `act()` with the same intent.
+- **Scope busy pages:** `selector` and `ignoreSelectors` cut noise and speed up planning.
+- **Handle empty results:** An empty array means nothing matched, so surface that instead
+  of acting anyway.
+
+### Scope downstream work
+
+An observed action's `selector` can scope a follow-up `extract()`, narrowing the model to
+just the relevant region.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const [table] = await stagehand.observe("Find the pricing table");
+if (table) {
+  const pricing = await stagehand.extract("Extract each pricing tier", pricingSchema, {
+    selector: table.selector,
+  });
+}
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+tables = await stagehand.observe(instruction="Find the pricing table")
+if tables:
+    pricing = await stagehand.extract(
+        instruction="Extract each pricing tier",
+        schema=Pricing,
+        selector=tables[0].selector,
+    )
+```
+
+</View>
+
+### Validate before acting
+
+Check that an observed action matches what you expect before running a critical step.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const [deleteButton] = await stagehand.observe("Find the delete account button");
+if (deleteButton?.method === "click") {
+  await stagehand.act("Click the delete account button");
+} else {
+  throw new Error("Delete button not found");
+}
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+candidates = await stagehand.observe(instruction="Find the delete account button")
+if candidates and candidates[0].method == "click":
+    await stagehand.act("Click the delete account button")
+else:
+    raise RuntimeError("Delete button not found")
+```
+
+</View>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No actions returned">
+
+An empty array means nothing matched. Loosen an over-specific instruction, make sure the
+page has loaded, and confirm you're scoped to the right region.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+let actions = await stagehand.observe("Find the checkout button");
+if (actions.length === 0) {
+  await page.waitForLoadState("domcontentloaded");
+  actions = await stagehand.observe("Find the checkout button");
+}
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+actions = await stagehand.observe(instruction="Find the checkout button")
+if not actions:
+    await page.wait_for_load_state("domcontentloaded")
+    actions = await stagehand.observe(instruction="Find the checkout button")
+```
+
+</View>
+
+  </Accordion>
+  <Accordion title="Too many or irrelevant actions">
+
+Scope observation to the relevant region with `selector`, and exclude noise with
+`ignoreSelectors`.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const actions = await stagehand.observe("Find the form fields", {
+  selector: "form#signup",
+  ignoreSelectors: [".advertisement"],
+});
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+actions = await stagehand.observe(
+    instruction="Find the form fields",
+    selector="form#signup",
+    ignore_selectors=[".advertisement"],
+)
+```
+
+</View>
+
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Act" icon="arrow-pointer" href="/basics/act">
+    Execute the action you planned.
+  </Card>
+  <Card title="Extract" icon="download" href="/basics/extract">
+    Pull typed data from a page.
+  </Card>
+  <Card title="Speed optimization" icon="gauge-high" href="#">
+    Use observe to make automations faster.
+  </Card>
+  <Card title="Caching" icon="database" href="#">
+    Reuse results on repeated runs.
+  </Card>
+</CardGroup>
