@@ -12,6 +12,11 @@ import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { prepareCoreBrowserTarget } from "../core/targets/index.js";
 import { CdpConnection, type CdpEventMessage } from "../core/tools/cdp_code.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import {
+  startV4CodeController,
+  type V4CodeController,
+} from "./v4CodeController.js";
+import { resolveV4SdkPath, STAGEHAND_V4_SDK_PATH_ENV } from "./v4CodeConfig.js";
 
 export interface ClaudeCodeToolAdapterInput {
   toolSurface?: ToolSurface;
@@ -223,9 +228,15 @@ export async function prepareClaudeCodeToolAdapter(
         toolSurface,
         startupProfile,
       });
+    case "v4_code_deterministic":
+      return prepareV4CodeDeterministicAdapter({
+        ...input,
+        toolSurface,
+        startupProfile,
+      });
     default:
       throw new EvalsError(
-        `Claude Code harness supports --tool browse_cli, playwright_code, or cdp_code for execution right now; received "${toolSurface}".`,
+        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, or v4_code_deterministic for execution right now; received "${toolSurface}".`,
       );
   }
 }
@@ -237,12 +248,13 @@ export function resolveClaudeCodeToolSurface(
   if (
     requested === "browse_cli" ||
     requested === "playwright_code" ||
-    requested === "cdp_code"
+    requested === "cdp_code" ||
+    requested === "v4_code_deterministic"
   ) {
     return requested;
   }
   throw new EvalsError(
-    `Claude Code harness supports --tool browse_cli, playwright_code, or cdp_code for execution right now; received "${requested}".`,
+    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, or v4_code_deterministic for execution right now; received "${requested}".`,
   );
 }
 
@@ -251,6 +263,20 @@ export function resolveClaudeCodeStartupProfile(
   environment: "LOCAL" | "BROWSERBASE",
   requested?: StartupProfile,
 ): StartupProfile {
+  if (toolSurface === "v4_code_deterministic") {
+    if (environment !== "LOCAL") {
+      throw new EvalsError(
+        "v4_code_deterministic currently supports only the LOCAL environment.",
+      );
+    }
+    if (requested && requested !== "tool_launch_local") {
+      throw new EvalsError(
+        `v4_code_deterministic requires startup profile "tool_launch_local"; received "${requested}".`,
+      );
+    }
+    return "tool_launch_local";
+  }
+
   if (requested) return requested;
 
   if (toolSurface === "browse_cli") {
@@ -628,6 +654,123 @@ async function prepareCdpCodeAdapter(
   }
 }
 
+async function prepareV4CodeDeterministicAdapter(
+  input: ClaudeCodeToolAdapterInput & {
+    toolSurface: "v4_code_deterministic";
+    startupProfile: StartupProfile;
+  },
+): Promise<PreparedClaudeCodeToolAdapter> {
+  if (
+    input.environment !== "LOCAL" ||
+    input.startupProfile !== "tool_launch_local"
+  ) {
+    throw new EvalsError(
+      "v4_code_deterministic requires LOCAL with startup profile tool_launch_local.",
+    );
+  }
+
+  let sdkPath: string;
+  try {
+    sdkPath = resolveV4SdkPath();
+  } catch (error) {
+    throw new EvalsError(
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+
+  const cwd = await fsp.mkdtemp(
+    path.join(os.tmpdir(), "stagehand-evals-claude-v4-deterministic-"),
+  );
+  const env = { ...process.env } as Record<string, string>;
+  delete env[STAGEHAND_V4_SDK_PATH_ENV];
+  let controller: V4CodeController | undefined;
+
+  try {
+    controller = await startV4CodeController({
+      sdkPath,
+      inheritChildLogs: process.env.EVAL_V4_CODE_DEBUG_LOGS === "1",
+      workingDirectory: cwd,
+      onConsole: ({ level, message }) => {
+        input.logger.log({
+          category: "claude_code",
+          message: `run console.${level}: ${message}`,
+          level: 1,
+        });
+      },
+      startupTimeoutMs: readPositiveIntEnv(
+        "EVAL_V4_CODE_STARTUP_TIMEOUT_MS",
+        30_000,
+      ),
+      executeTimeoutMs: readPositiveIntEnv(
+        "EVAL_CLAUDE_CODE_RUN_TOOL_TIMEOUT_MS",
+        60_000,
+      ),
+      closeTimeoutMs: readPositiveIntEnv(
+        "EVAL_V4_CODE_CLOSE_TIMEOUT_MS",
+        5_000,
+      ),
+    });
+    const mcpServers = await buildV4DeterministicRunMcpServers({
+      controller,
+      plan: input.plan,
+      logger: input.logger,
+    });
+
+    input.logger.log({
+      category: "claude_code",
+      message:
+        "Initialized local v4_code_deterministic runtime for Claude Code run tool.",
+      level: 1,
+      auxiliary: {
+        startupProfile: {
+          value: input.startupProfile,
+          type: "string",
+        },
+        environment: {
+          value: input.environment,
+          type: "string",
+        },
+      },
+    });
+
+    return {
+      toolSurface: "v4_code_deterministic",
+      startupProfile: input.startupProfile,
+      cwd,
+      env,
+      allowedTools: ["Bash", RUN_TOOL_NAME],
+      settingSources: [],
+      mcpServers,
+      canUseTool: async (toolName, commandInput) => {
+        if (toolName === RUN_TOOL_NAME || toolName === "Bash") {
+          return { behavior: "allow", updatedInput: commandInput };
+        }
+        return {
+          behavior: "deny",
+          message: `Use Bash for inspection and ${RUN_TOOL_NAME} for deterministic V4 browser automation.`,
+        };
+      },
+      promptInstructions: buildV4CodeDeterministicPromptInstructions(
+        input.plan,
+      ),
+      cleanup: async () => {
+        try {
+          await controller?.close();
+        } finally {
+          await fsp.rm(cwd, { recursive: true, force: true });
+        }
+      },
+    };
+  } catch (error) {
+    try {
+      await controller?.close();
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true });
+    }
+    throw error;
+  }
+}
+
 async function buildPlaywrightRunMcpServers(input: {
   browser: Browser;
   context: BrowserContext;
@@ -675,6 +818,91 @@ async function buildPlaywrightRunMcpServers(input: {
       alwaysLoad: true,
     }),
   };
+}
+
+async function buildV4DeterministicRunMcpServers(input: {
+  controller: V4CodeController;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<Record<string, unknown>> {
+  const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as {
+    createSdkMcpServer: SdkMcpServerFactory;
+    tool: SdkToolFactory;
+  };
+
+  const runTool = sdk.tool(
+    "run",
+    [
+      "Execute JavaScript against an initialized deterministic Stagehand V4 browser runtime.",
+      "The snippet runs inside an async function with page, context, startUrl, task, and console in scope.",
+      "The provided page/context facades expose deterministic browser-driver methods; act, extract, observe, Stagehand internals, and RPC objects are not provided in the run scope.",
+      "Use await directly. Return a JSON-serializable value when useful.",
+    ].join(" "),
+    {
+      code: z
+        .string()
+        .describe(
+          "JavaScript function body to execute. page/context/startUrl/task are already in scope.",
+        ),
+    },
+    async ({ code }) =>
+      executeV4DeterministicRunTool({
+        code,
+        controller: input.controller,
+        plan: input.plan,
+        logger: input.logger,
+      }),
+    { alwaysLoad: true },
+  );
+
+  return {
+    [RUN_TOOL_SERVER]: sdk.createSdkMcpServer({
+      name: RUN_TOOL_SERVER,
+      version: "1.0.0",
+      tools: [runTool],
+      alwaysLoad: true,
+    }),
+  };
+}
+
+async function executeV4DeterministicRunTool(input: {
+  code: string;
+  controller: V4CodeController;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<ClaudeToolResult> {
+  try {
+    const result = await input.controller.execute({
+      code: input.code,
+      startUrl: input.plan.startUrl,
+      task: {
+        dataset: input.plan.dataset,
+        id: input.plan.taskId,
+        startUrl: input.plan.startUrl,
+        instruction: input.plan.instruction,
+      },
+    });
+    const text = stringifyToolResult(result);
+    input.logger.log({
+      category: "claude_code",
+      message: `run tool completed: ${clip(text, 500)}`,
+      level: 1,
+    });
+    return {
+      content: [{ type: "text", text }],
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    input.logger.warn({
+      category: "claude_code",
+      message: `run tool failed: ${message}`,
+      level: 1,
+    });
+    return {
+      isError: true,
+      content: [{ type: "text", text: message }],
+    };
+  }
 }
 
 async function executePlaywrightRunTool(input: {
@@ -1108,6 +1336,24 @@ function buildCdpCodePromptInstructions(plan: ExternalHarnessTaskPlan): string {
     'The first browser action should usually be: const loaded = cdp.waitForEvent("Page.loadEventFired"); await cdp.send("Page.navigate", { url: startUrl }); await loaded.',
     "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
     "Do not edit repository files.",
+    "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+  ].join("\n");
+}
+
+function buildV4CodeDeterministicPromptInstructions(
+  plan: ExternalHarnessTaskPlan,
+): string {
+  void plan;
+  return [
+    "Browser tool surface: v4_code_deterministic.",
+    `Use the ${RUN_TOOL_NAME} tool for browser automation. It exposes initialized deterministic Stagehand V4 page and context facades, plus startUrl and task.`,
+    "The page facade supports goto, reload, goBack, goForward, click, hover, scroll, dragAndDrop, type, keyPress, evaluate, addInitScript, setExtraHTTPHeaders, setViewportSize, waitForLoadState, waitForTimeout, waitForSelector, screenshot, snapshot, url, title, close, and locator.",
+    "For selector-based actions use await page.locator('css selector').click(), fill(value), type(text), hover(), or selectOption(values). page.click(x, y) and page.hover(x, y) are coordinate-based; page.type(text) types into the currently focused element.",
+    "Inspect the DOM with await page.evaluate(() => document.body.innerText) or locator text methods. Browser globals such as document exist only inside the function passed to page.evaluate().",
+    "The context facade supports pages, newPage, activePage, setActivePage, clipboard, addInitScript, setExtraHTTPHeaders, domain policy, and cookie methods. context.close is intentionally unavailable because the harness owns cleanup.",
+    "AI methods act, extract, and observe are intentionally omitted from the provided facade. Stagehand internals and RPC objects are also omitted. This is an API-surface distinction, not a hostile-code security sandbox.",
+    "The first browser action should usually be: await page.goto(startUrl, { waitUntil: 'domcontentloaded' }).",
+    "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
     "Return useful JSON-serializable values from run snippets so you can inspect progress.",
   ].join("\n");
 }
