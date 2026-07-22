@@ -77,8 +77,25 @@ export class CdpConnection implements CDPSessionLike {
   private sessionDispatchWaiters = new Set<SessionDispatchWaiter>();
   public readonly id: string | null = null; // root
   private transportCloseHandlers = new Set<(why: string) => void>();
+  private _transportClosedReason: string | null = null;
 
   public flowLoggerContext?: FlowLoggerContext; // Instance-owned fallback flow context; V3 sets this once and later sends/callbacks re-enter it when ALS is absent.
+
+  /**
+   * Why the transport closed, or null while it is still open.
+   *
+   * Waiters that subscribe *after* the socket has already gone need this: no
+   * further close event will ever be emitted for them, so without a way to ask
+   * they would block until their own timeout and report a misleading error.
+   */
+  public get transportClosedReason(): string | null {
+    if (this._transportClosedReason) return this._transportClosedReason;
+    const state = this.ws.readyState;
+    if (state === WebSocket.CLOSED || state === WebSocket.CLOSING) {
+      return `socket-${state === WebSocket.CLOSED ? "closed" : "closing"}`;
+    }
+    return null;
+  }
 
   public onTransportClosed(handler: (why: string) => void): void {
     this.transportCloseHandlers.add(handler);
@@ -88,6 +105,7 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   private emitTransportClosed(why: string) {
+    this._transportClosedReason ??= why;
     for (const h of this.transportCloseHandlers) {
       try {
         h(why);
