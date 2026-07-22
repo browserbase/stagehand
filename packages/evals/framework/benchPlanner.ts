@@ -42,6 +42,8 @@ const DEFAULT_CODEX_MODELS: AvailableModel[] = [
 
 export interface BenchPlanOptions {
   environment?: "LOCAL" | "BROWSERBASE";
+  /** Which Stagehand SDK drives bench tasks: v3 (default) or v4. */
+  sdk?: "v3" | "v4";
   useApi?: boolean;
   modelOverride?: string;
   provider?: string;
@@ -303,6 +305,7 @@ export function buildBenchMatrixRow(
   const resolvedIsCUA = resolvedAgentMode ? resolvedAgentMode === "cua" : isCUA;
   const config = buildBenchHarnessConfig({
     harness,
+    sdk: options.sdk,
     model: modelName,
     provider: options.provider,
     environment,
@@ -336,6 +339,7 @@ export function buildBenchMatrixRow(
 
 function buildBenchHarnessConfig(input: {
   harness: Harness;
+  sdk?: "v3" | "v4";
   model: AvailableModel;
   provider?: string;
   environment: "LOCAL" | "BROWSERBASE";
@@ -349,6 +353,7 @@ function buildBenchHarnessConfig(input: {
   if (input.harness === "stagehand") {
     return {
       harness: "stagehand",
+      sdk: input.sdk,
       model: input.model,
       provider: input.provider,
       environment: input.environment,

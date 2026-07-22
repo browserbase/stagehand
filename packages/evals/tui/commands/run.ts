@@ -194,8 +194,14 @@ export async function runCommand(
 ): Promise<void> {
   const resolvedTasksRoot = getRuntimeTasksRoot();
 
-  if (!registry) {
-    registry = await discoverTasks(resolvedTasksRoot, false);
+  // A cached registry (e.g. from the REPL) is always v3-based; --sdk v4 must
+  // rediscover against the tasks/bench-v4 tree.
+  if (!registry || options.sdk === "v4") {
+    registry = await discoverTasks(
+      resolvedTasksRoot,
+      false,
+      options.sdk ?? "v3",
+    );
   }
 
   const planMode = options.dryRun || options.preview;
@@ -298,6 +304,7 @@ export async function runCommand(
           agentMode: options.agentMode,
           agentModes: options.agentModes,
           harness: options.harness,
+          sdk: options.sdk,
           categoryFilter,
           datasetFilter: options.datasetFilter,
           coreToolSurface: options.coreToolSurface as ToolSurface | undefined,

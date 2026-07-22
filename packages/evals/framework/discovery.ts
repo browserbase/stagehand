@@ -23,6 +23,13 @@ import type {
 const TIERS = ["core", "bench"] as const satisfies readonly Tier[];
 
 /**
+ * Which Stagehand SDK a run targets. Selects the bench task tree:
+ * v3 → tasks/bench (default), v4 → tasks/bench-v4. Only one tree is
+ * scanned per run so task names stay identical across the two suites.
+ */
+export type EvalSdk = "v3" | "v4";
+
+/**
  * Category tags applied to specific bench tasks during non-eager discovery
  * so filters like `evals run regression` work without importing every task
  * module. Sourced from the legacy cli.ts. Long-term these belong in each
@@ -110,9 +117,13 @@ function walkDir(dir: string): string[] {
   return results;
 }
 
-function getTierRoots(tasksRoot: string, tier: Tier): string[] {
+function getTierRoots(
+  tasksRoot: string,
+  tier: Tier,
+  sdk: EvalSdk = "v3",
+): string[] {
   if (tier === "bench") {
-    return [path.join(tasksRoot, "bench")];
+    return [path.join(tasksRoot, sdk === "v4" ? "bench-v4" : "bench")];
   }
 
   const packageRoot = path.dirname(tasksRoot);
@@ -194,6 +205,7 @@ async function loadTaskModule(
 export async function discoverTasks(
   tasksRoot: string,
   eager = false,
+  sdk: EvalSdk = "v3",
 ): Promise<TaskRegistry> {
   const tasks: DiscoveredTask[] = [];
   const byName = new Map<string, DiscoveredTask>();
@@ -201,7 +213,7 @@ export async function discoverTasks(
   const byCategory = new Map<string, DiscoveredTask[]>();
 
   for (const tier of TIERS) {
-    const tierRoots = getTierRoots(tasksRoot, tier);
+    const tierRoots = getTierRoots(tasksRoot, tier, sdk);
 
     for (const tierRoot of tierRoots) {
       const files = walkDir(tierRoot);

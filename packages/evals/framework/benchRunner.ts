@@ -70,7 +70,9 @@ export async function executeBenchTask(
       const ctx = {
         v3: harnessCtx.v3,
         agent: harnessCtx.agent,
-        page: harnessCtx.page,
+        // v4 rows carry the v4 client/page instead of v3/Playwright ones.
+        stagehand: harnessCtx.stagehand,
+        page: harnessCtx.page ?? harnessCtx.v4Page,
         logger,
         input,
         modelName: input.modelName,

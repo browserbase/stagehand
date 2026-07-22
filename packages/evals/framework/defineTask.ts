@@ -12,6 +12,7 @@ import type {
   TaskMeta,
   TaskResult,
 } from "./types.js";
+import type { BenchV4TaskContext } from "./typesV4.js";
 
 /**
  * Define a core tier task (deterministic, no LLM).
@@ -35,6 +36,22 @@ export function defineCoreTask(
 export function defineBenchTask(
   meta: BenchTaskMeta,
   fn: (ctx: BenchTaskContext) => Promise<void | TaskResult>,
+): TaskDefinition {
+  return {
+    __taskDefinition: true,
+    meta,
+    fn,
+  };
+}
+
+/**
+ * Define a bench tier task ported to the Stagehand v4 SDK.
+ * v4 bench tasks receive { stagehand, page, logger, input, ... } and return
+ * TaskResult. They live under tasks/bench-v4/ and are selected via --sdk v4.
+ */
+export function defineBenchV4Task(
+  meta: BenchTaskMeta,
+  fn: (ctx: BenchV4TaskContext) => Promise<void | TaskResult>,
 ): TaskDefinition {
   return {
     __taskDefinition: true,
