@@ -48,6 +48,9 @@ export function normalizeV4ModelName(modelName: string): string {
   if (slash > 0) {
     const provider = value.slice(0, slash);
     requireV4ModelProvider(provider, value);
+    if (!value.slice(slash + 1).trim()) {
+      throw new Error(`v4_code requires a model after provider "${provider}".`);
+    }
     return value;
   }
 
@@ -107,7 +110,9 @@ function requireV4ModelProvider(
   provider: string,
   modelName: string,
 ): V4ModelProvider {
-  if (provider in PROVIDER_API_KEY_ENV) return provider as V4ModelProvider;
+  if (Object.hasOwn(PROVIDER_API_KEY_ENV, provider)) {
+    return provider as V4ModelProvider;
+  }
   throw new Error(
     `v4_code does not support provider "${provider}" from harness model "${modelName}". Supported providers: ${Object.keys(PROVIDER_API_KEY_ENV).join(", ")}.`,
   );

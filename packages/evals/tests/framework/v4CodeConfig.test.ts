@@ -49,4 +49,13 @@ describe("V4 code model configuration", () => {
       /cannot infer a V4 model provider/,
     );
   });
+
+  it("rejects malformed provider-prefixed model identifiers", () => {
+    expect(() => normalizeV4ModelName("anthropic/")).toThrow(
+      /requires a model after provider "anthropic"/,
+    );
+    expect(() => normalizeV4ModelName("toString/foo")).toThrow(
+      /does not support provider "toString"/,
+    );
+  });
 });
