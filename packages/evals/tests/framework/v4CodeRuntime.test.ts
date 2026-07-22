@@ -243,6 +243,34 @@ describe("deterministic V4 runtime", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("makes concurrent close callers await the same teardown", async () => {
+    const raw = createRawRuntime();
+    let finishClose: (() => void) | undefined;
+    const close = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishClose = resolve;
+        }),
+    );
+    class FakeStagehand {
+      readonly context = raw.context;
+      async init() {}
+      close = close;
+    }
+
+    const runtime = await initializeV4DeterministicRuntime({
+      sdkPath: makeSdkEntry(),
+      importModule: async () => ({ Stagehand: FakeStagehand }),
+    });
+    const firstClose = runtime.close();
+    const secondClose = runtime.close();
+
+    expect(firstClose).toBe(secondClose);
+    expect(close).toHaveBeenCalledTimes(1);
+    finishClose?.();
+    await Promise.all([firstClose, secondClose]);
+  });
+
   it("uses the controller-owned Chrome profile directory when provided", async () => {
     const raw = createRawRuntime();
     const constructorOptions: unknown[] = [];

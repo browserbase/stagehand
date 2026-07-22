@@ -127,12 +127,13 @@ export async function initializeV4DeterministicRuntime(input: {
       ...(input.userDataDir && { userDataDir: input.userDataDir }),
     },
   });
-  let closed = false;
+  let closePromise: Promise<void> | undefined;
 
-  const close = async (): Promise<void> => {
-    if (closed) return;
-    closed = true;
-    await stagehand.close();
+  const close = (): Promise<void> => {
+    closePromise ??= (async () => {
+      await stagehand.close();
+    })();
+    return closePromise;
   };
 
   try {

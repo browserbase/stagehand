@@ -5,6 +5,7 @@ import {
   type ForkOptions,
 } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { getRepoRootDir } from "../runtimePaths.js";
 import { STAGEHAND_V4_SDK_PATH_ENV, resolveV4SdkPath } from "./v4CodeConfig.js";
@@ -39,6 +40,16 @@ export type V4CodeBridgeConsoleEvent = {
   level: "log" | "warn" | "error";
   message: string;
 };
+
+export function stringifyV4CodeConsoleValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? String(value) : serialized;
+  } catch {
+    return String(value);
+  }
+}
 
 type V4CodeBridgeRequestPayload = V4CodeBridgeRequest extends infer Request
   ? Request extends V4CodeBridgeRequest
@@ -89,37 +100,57 @@ export async function startV4CodeController(
   const workingDirectory = input.workingDirectory
     ? requireDirectory(input.workingDirectory, "workingDirectory")
     : undefined;
+  const startupTimeoutMs = requirePositiveTimeout(
+    input.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS,
+    "startupTimeoutMs",
+  );
+  const executeTimeoutMs = requirePositiveTimeout(
+    input.executeTimeoutMs ?? DEFAULT_EXECUTE_TIMEOUT_MS,
+    "executeTimeoutMs",
+  );
+  const closeTimeoutMs = requirePositiveTimeout(
+    input.closeTimeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS,
+    "closeTimeoutMs",
+  );
   const browserUserDataDir = workingDirectory
     ? path.join(workingDirectory, "v4-browser-profile")
-    : undefined;
-  if (browserUserDataDir) {
-    fs.mkdirSync(browserUserDataDir, { recursive: true });
-  }
+    : fs.mkdtempSync(path.join(os.tmpdir(), "stagehand-evals-v4-profile-"));
+  const ownedBrowserUserDataDir = workingDirectory
+    ? undefined
+    : browserUserDataDir;
+  if (workingDirectory) fs.mkdirSync(browserUserDataDir, { recursive: true });
   const env = { ...process.env };
   delete env[STAGEHAND_V4_SDK_PATH_ENV];
 
-  const child = forkProcess(bridgePath, [], {
-    cwd: workingDirectory,
-    detached: process.platform !== "win32",
-    env,
-    execArgv: ["--import", import.meta.resolve("tsx")],
-    serialization: "advanced",
-    stdio: [
-      "ignore",
-      input.inheritChildLogs ? "inherit" : "ignore",
-      input.inheritChildLogs ? "inherit" : "ignore",
-      "ipc",
-    ],
-  });
+  let child: ChildProcess;
+  try {
+    child = forkProcess(bridgePath, [], {
+      cwd: workingDirectory,
+      detached: process.platform !== "win32",
+      env,
+      execArgv: ["--import", import.meta.resolve("tsx")],
+      serialization: "advanced",
+      stdio: [
+        "ignore",
+        input.inheritChildLogs ? "inherit" : "ignore",
+        input.inheritChildLogs ? "inherit" : "ignore",
+        "ipc",
+      ],
+    });
+  } catch (error) {
+    if (ownedBrowserUserDataDir) {
+      fs.rmSync(ownedBrowserUserDataDir, { recursive: true, force: true });
+    }
+    throw error;
+  }
   const controller = new IpcV4CodeController(child, {
-    startupTimeoutMs: input.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS,
-    executeTimeoutMs: input.executeTimeoutMs ?? DEFAULT_EXECUTE_TIMEOUT_MS,
-    closeTimeoutMs: input.closeTimeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS,
+    startupTimeoutMs,
+    executeTimeoutMs,
+    closeTimeoutMs,
     onConsole: input.onConsole,
     killProcessGroup: process.platform !== "win32",
-    browserPidFile: browserUserDataDir
-      ? path.join(browserUserDataDir, "chrome.pid")
-      : undefined,
+    browserPidFile: path.join(browserUserDataDir, "chrome.pid"),
+    ownedBrowserUserDataDir,
   });
 
   try {
@@ -156,6 +187,7 @@ class IpcV4CodeController implements V4CodeController {
   readonly #onConsole: ((event: V4CodeBridgeConsoleEvent) => void) | undefined;
   readonly #killProcessGroup: boolean;
   readonly #browserPidFile: string | undefined;
+  readonly #ownedBrowserUserDataDir: string | undefined;
   readonly #parentExitHandler: () => void;
   #browserPid: number | undefined;
   #nextRequestId = 1;
@@ -175,6 +207,7 @@ class IpcV4CodeController implements V4CodeController {
       onConsole?: (event: V4CodeBridgeConsoleEvent) => void;
       killProcessGroup: boolean;
       browserPidFile?: string;
+      ownedBrowserUserDataDir?: string;
     },
   ) {
     this.#startupTimeoutMs = requirePositiveTimeout(
@@ -192,6 +225,7 @@ class IpcV4CodeController implements V4CodeController {
     this.#onConsole = timeouts.onConsole;
     this.#killProcessGroup = timeouts.killProcessGroup;
     this.#browserPidFile = timeouts.browserPidFile;
+    this.#ownedBrowserUserDataDir = timeouts.ownedBrowserUserDataDir;
     this.#parentExitHandler = () => this.#signalProcesses("SIGKILL");
     process.once("exit", this.#parentExitHandler);
     this.#exitPromise = new Promise((resolve) => {
@@ -337,7 +371,16 @@ class IpcV4CodeController implements V4CodeController {
 
   async #stopChild(): Promise<void> {
     if (this.#stopPromise) return this.#stopPromise;
-    this.#stopPromise = this.#stopChildOnce();
+    this.#stopPromise = this.#stopChildOnce().finally(() => {
+      if (this.#ownedBrowserUserDataDir) {
+        fs.rmSync(this.#ownedBrowserUserDataDir, {
+          recursive: true,
+          force: true,
+          maxRetries: 3,
+          retryDelay: 100,
+        });
+      }
+    });
     return this.#stopPromise;
   }
 

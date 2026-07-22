@@ -6,6 +6,7 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   startV4CodeController,
+  stringifyV4CodeConsoleValue,
   type V4CodeBridgeConsoleEvent,
   type V4CodeBridgeFork,
   type V4CodeBridgeRequest,
@@ -117,6 +118,11 @@ describe("V4 code child controller", () => {
       startUrl: "https://example.com",
       task: { id: "smoke" },
     });
+    const initRequest = child.sent[0];
+    expect(initRequest.type).toBe("init");
+    if (initRequest.type !== "init") throw new Error("Expected init request");
+    expect(initRequest.userDataDir?.startsWith(os.tmpdir())).toBe(true);
+    expect(fs.existsSync(initRequest.userDataDir ?? "")).toBe(true);
     await controller.close();
     await controller.close();
 
@@ -141,6 +147,14 @@ describe("V4 code child controller", () => {
       },
     });
     expect(calls[0].options.env?.[STAGEHAND_V4_SDK_PATH_ENV]).toBeUndefined();
+    expect(fs.existsSync(initRequest.userDataDir ?? "")).toBe(false);
+  });
+
+  it("serializes console values without dropping undefined", () => {
+    expect(stringifyV4CodeConsoleValue("text")).toBe("text");
+    expect(stringifyV4CodeConsoleValue({ ok: true })).toBe('{"ok":true}');
+    expect(stringifyV4CodeConsoleValue(undefined)).toBe("undefined");
+    expect(stringifyV4CodeConsoleValue(1n)).toBe("1");
   });
 
   it("can inherit child stdout and stderr for V4 debugging", async () => {

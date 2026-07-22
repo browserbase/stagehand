@@ -5,10 +5,11 @@ import {
   initializeV4DeterministicRuntime,
   type V4DeterministicRuntime,
 } from "./v4CodeRuntime.js";
-import type {
-  V4CodeBridgeConsoleEvent,
-  V4CodeBridgeRequest,
-  V4CodeBridgeResponse,
+import {
+  stringifyV4CodeConsoleValue,
+  type V4CodeBridgeConsoleEvent,
+  type V4CodeBridgeRequest,
+  type V4CodeBridgeResponse,
 } from "./v4CodeController.js";
 
 let runtime: V4DeterministicRuntime | undefined;
@@ -94,7 +95,7 @@ function buildSnippetConsole(
       type: "console",
       requestId,
       level,
-      message: values.map(stringifyConsoleValue).join(" "),
+      message: values.map(stringifyV4CodeConsoleValue).join(" "),
     });
   };
   return {
@@ -102,15 +103,6 @@ function buildSnippetConsole(
     warn: (...values) => write("warn", values),
     error: (...values) => write("error", values),
   };
-}
-
-function stringifyConsoleValue(value: unknown): string {
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
 }
 
 function makeIpcSafeResult(value: unknown): unknown {
