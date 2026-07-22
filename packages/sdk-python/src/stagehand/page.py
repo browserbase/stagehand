@@ -6,22 +6,13 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Literal, Self, TypeVar, cast, overload
 
-from pydantic import BaseModel, JsonValue, TypeAdapter
+from pydantic import JsonValue, TypeAdapter
 
 from ._generated.models import (
-    Action,
-    ActOptions,
-    ActResult,
-    ActResultData,
     Animations,
     Caret,
-    ExtractOptions,
-    ExtractResult,
     LoadState,
-    ModelConfig,
     MouseButton,
-    ObserveOptions,
-    ObserveResult,
     PageAddInitScriptParams,
     PageClickOptions,
     PageClickParams,
@@ -67,23 +58,14 @@ from ._generated.models import (
     PageWaitForTimeoutParams,
     Scale,
     SnapshotResult,
-    StagehandActParams,
-    StagehandExtractParams,
-    StagehandObserveParams,
     State,
-    Variables,
-)
-from ._generated.models import (
-    Locator as ProtocolLocator,
 )
 from ._generated.models import (
     Type as ScreenshotType,
 )
-from .client_models import Cache, _cache_config
 from .locator import Locator
 from .rpc_client import RPCClient
 
-ResultModel = TypeVar("ResultModel", bound=BaseModel)
 EvaluateResult = TypeVar("EvaluateResult")
 
 
@@ -479,103 +461,6 @@ class Page:
             PageIdParams(page_id=self.page_id),
             PageCloseResult,
         )
-
-    async def act(
-        self,
-        input: str,
-        *,
-        model: ModelConfig | None = None,
-        variables: Variables | None = None,
-        timeout: float | None = None,
-        locator: ProtocolLocator | None = None,
-        cache: Cache | None = None,
-    ) -> ActResultData:
-        options = ActOptions.model_validate({
-            name: value
-            for name, value in (
-                ("model", model),
-                ("variables", variables),
-                ("timeout", timeout),
-                ("locator", locator),
-                ("cache", _cache_config(cache) if cache is not None else None),
-            )
-            if value is not None
-        })
-        params = StagehandActParams(page_id=self.page_id, input=input)
-        if options.model_fields_set:
-            params.options = options
-        result = await self._rpc_client.send("stagehand.act", params, ActResult)
-        return result.result
-
-    async def observe(
-        self,
-        *,
-        instruction: str | None = None,
-        model: ModelConfig | None = None,
-        variables: Variables | None = None,
-        timeout: float | None = None,
-        selector: str | None = None,
-        ignore_selectors: list[str] | None = None,
-        locator: ProtocolLocator | None = None,
-        cache: Cache | None = None,
-    ) -> list[Action]:
-        options = ObserveOptions.model_validate({
-            name: value
-            for name, value in (
-                ("model", model),
-                ("variables", variables),
-                ("timeout", timeout),
-                ("selector", selector),
-                ("ignore_selectors", ignore_selectors),
-                ("locator", locator),
-                ("cache", _cache_config(cache) if cache is not None else None),
-            )
-            if value is not None
-        })
-        params = StagehandObserveParams(page_id=self.page_id, instruction=instruction)
-        if options.model_fields_set:
-            params.options = options
-        result = await self._rpc_client.send("stagehand.observe", params, ObserveResult)
-        return result.result
-
-    async def extract(
-        self,
-        *,
-        instruction: str,
-        schema: builtins.type[ResultModel],
-        model: ModelConfig | None = None,
-        timeout: float | None = None,
-        selector: str | None = None,
-        ignore_selectors: list[str] | None = None,
-        screenshot: bool | None = None,
-        locator: ProtocolLocator | None = None,
-        cache: Cache | None = None,
-    ) -> ResultModel:
-        options = ExtractOptions.model_validate({
-            name: value
-            for name, value in (
-                ("model", model),
-                ("timeout", timeout),
-                ("selector", selector),
-                ("ignore_selectors", ignore_selectors),
-                ("screenshot", screenshot),
-                ("locator", locator),
-                ("cache", _cache_config(cache) if cache is not None else None),
-            )
-            if value is not None
-        })
-        params = StagehandExtractParams(
-            page_id=self.page_id,
-            instruction=instruction,
-            schema_=schema.model_json_schema(),
-        )
-        if options.model_fields_set:
-            params.options = options
-        result = await self._rpc_client.send("stagehand.extract", params, ExtractResult)
-        value = (
-            result.result.model_dump() if isinstance(result.result, BaseModel) else result.result
-        )
-        return schema.model_validate(value)
 
     def locator(self, selector: str) -> Locator:
         return Locator(self._rpc_client, page_id=self.page_id, selector=selector)

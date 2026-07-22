@@ -2,7 +2,11 @@ import "dotenv/config";
 import OpenAI from "openai";
 import type { ResponseInput } from "openai/resources/responses/responses";
 import { z } from "zod/v4";
-import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+import type {
+  LLMGenerateParams,
+  LLMGenerateResult,
+  LLMMessageContentBlock,
+} from "../../protocol/types.js";
 import { Stagehand } from "../src/index.js";
 
 const openai = new OpenAI({
@@ -29,17 +33,17 @@ try {
   }
   await page.goto("https://example.com");
 
-  const pageInfo = await page.extract(
+  const pageInfo = await stagehand.extract(
     "Extract the page heading and description",
     z.object({
       heading: z.string(),
       description: z.string(),
     }),
   );
-  const actions = await page.observe(
+  const actions = await stagehand.observe(
     "Find the link that provides more information about Example Domain",
   );
-  const actionResult = await page.act(
+  const actionResult = await stagehand.act(
     "Click the link that provides more information about Example Domain",
   );
 
@@ -112,7 +116,7 @@ async function generateWithOpenAI(params: LLMGenerateParams): Promise<LLMGenerat
   };
 }
 
-function messageText(content: LLMGenerateParams["messages"][number]["content"]): string {
+function messageText(content: LLMMessageContentBlock | LLMMessageContentBlock[]): string {
   const blocks = Array.isArray(content) ? content : [content];
   return blocks
     .map((block) => {

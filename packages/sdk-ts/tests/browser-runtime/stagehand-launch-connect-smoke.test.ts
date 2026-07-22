@@ -258,7 +258,9 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await page.goto(activeFixtureServer.url);
 
     await expect(
-      page.extract("Extract the page heading", z.object({ heading: z.string() })),
+      activeStagehand.extract("Extract the page heading", z.object({ heading: z.string() }), {
+        page,
+      }),
     ).resolves.toStrictEqual({ heading: "Stagehand SDK Smoke" });
   });
 
@@ -269,7 +271,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
     await page.goto(activeFixtureServer.url);
 
-    const actions = await page.observe("Find the Submit button");
+    const actions = await activeStagehand.observe("Find the Submit button", { page });
 
     expect(actions).toHaveLength(1);
     expect(actions[0]).toMatchObject({
@@ -377,7 +379,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
     await page.goto(activeFixtureServer.url);
 
-    const result = await page.act("Click the Submit button");
+    const result = await activeStagehand.act("Click the Submit button", { page });
 
     expect(result).toMatchObject({
       success: true,

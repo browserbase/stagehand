@@ -21,7 +21,7 @@ try {
   }
   await page.goto("https://example.com");
 
-  const actions = await page.observe(
+  const actions = await stagehand.observe(
     "Find the link that provides more information about Example Domain",
   );
 

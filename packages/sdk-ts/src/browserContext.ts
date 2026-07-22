@@ -6,6 +6,7 @@ import type {
   CookieParam,
   DomainPolicy,
 } from "../../protocol/types.js";
+import type * as ProtocolTypes from "../../protocol/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import { BrowserClipboard } from "./browserClipboard.js";
 import { Page } from "./page.js";
@@ -91,7 +92,7 @@ export class BrowserContext {
 
 function serializeClearCookieOptions(
   options: ClearCookieOptions,
-): NonNullable<ContextClearCookiesParams["options"]> {
+): ProtocolTypes.ClearCookieOptions {
   return {
     ...(options.name === undefined ? {} : { name: serializeCookieFilter(options.name) }),
     ...(options.domain === undefined ? {} : { domain: serializeCookieFilter(options.domain) }),

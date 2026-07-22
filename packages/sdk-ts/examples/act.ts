@@ -21,7 +21,7 @@ try {
   }
   await page.goto("https://example.com");
 
-  const result = await page.act(
+  const result = await stagehand.act(
     "Click the link that provides more information about Example Domain",
   );
 

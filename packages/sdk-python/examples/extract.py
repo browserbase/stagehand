@@ -28,7 +28,7 @@ async def main() -> None:
             raise RuntimeError("Stagehand initialized without an active page")
         await page.goto("https://example.com")
 
-        page_info = await page.extract(
+        page_info = await stagehand.extract(
             instruction="Extract the page heading and description",
             schema=PageInfo,
         )

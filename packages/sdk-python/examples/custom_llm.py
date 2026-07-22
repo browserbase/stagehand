@@ -45,14 +45,14 @@ async def main() -> None:
             raise RuntimeError("Stagehand initialized without an active page")
         await page.goto("https://example.com")
 
-        page_info = await page.extract(
+        page_info = await stagehand.extract(
             instruction="Extract the page heading and description",
             schema=PageInfo,
         )
-        actions = await page.observe(
+        actions = await stagehand.observe(
             instruction="Find the link that provides more information about Example Domain",
         )
-        action_result = await page.act(
+        action_result = await stagehand.act(
             "Click the link that provides more information about Example Domain"
         )
 

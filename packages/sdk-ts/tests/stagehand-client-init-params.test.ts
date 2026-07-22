@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 import { StagehandInitParamsSchema } from "../../protocol/schemas.js";
-import { StagehandClientInitParamsSchema } from "../src/clientSchemas.js";
+import {
+  StagehandClientActOptionsSchema,
+  StagehandClientExtractOptionsSchema,
+  StagehandClientInitParamsSchema,
+  StagehandClientObserveOptionsSchema,
+} from "../src/clientSchemas.js";
+import { Page } from "../src/page.js";
+import type { RPCClient } from "../src/rpcClient.js";
 
 const defaultTelemetry = {
   traces: {
@@ -8,6 +15,21 @@ const defaultTelemetry = {
     headers: {},
   },
 };
+
+describe("Stagehand client method options", () => {
+  it("extends protocol method options with SDK Page instances", () => {
+    const page = new Page({} as RPCClient, { pageId: "page-1" });
+
+    for (const schema of [
+      StagehandClientActOptionsSchema,
+      StagehandClientObserveOptionsSchema,
+      StagehandClientExtractOptionsSchema,
+    ]) {
+      expect(schema.parse({ page, timeout: 5_000 })).toStrictEqual({ page, timeout: 5_000 });
+      expect(() => schema.parse({ page: { pageId: "page-1" } })).toThrow();
+    }
+  });
+});
 
 describe("Stagehand client browser sources", () => {
   it("uses Browserbase by default when an API key is provided", () => {

@@ -22,7 +22,7 @@ try {
   }
   await page.goto("https://example.com");
 
-  const pageInfo = await page.extract(
+  const pageInfo = await stagehand.extract(
     "Extract the page heading and description",
     z.object({
       heading: z.string(),

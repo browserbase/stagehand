@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import logging
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
-from typing import Literal, Self, overload
+from typing import Literal, Self, TypeVar, overload
+
+from pydantic import BaseModel
 
 from ._generated.models import (
+    Action,
+    ActOptions,
+    ActResult,
+    ActResultData,
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
@@ -15,18 +22,29 @@ from ._generated.models import (
     ClientModelReference,
     EmptyParams,
     ExternalProxyConfig,
+    ExtractOptions,
+    ExtractResult,
     LLMGenerateParams,
     LLMGenerateResult,
     ModelConfig,
+    ObserveOptions,
+    ObserveResult,
     ProxyConfig,
     RuntimeLoopbackStatusResult,
+    StagehandActParams,
     StagehandCloseResult,
+    StagehandExtractParams,
     StagehandInitParams,
     StagehandInitResult,
     StagehandLog,
     StagehandMetrics,
+    StagehandObserveParams,
     StagehandPingResult,
     TelemetryConfig,
+    Variables,
+)
+from ._generated.models import (
+    Locator as ProtocolLocator,
 )
 from .browser_context import BrowserContext
 from .browser_source import ResolvedBrowserSource, resolve_browser_source
@@ -44,9 +62,11 @@ from .client_models import (
     _cache_config,
     _model_config,
 )
+from .page import Page
 from .rpc_client import RPCClient, connect_rpc_client
 
 _LOGGER = logging.getLogger("stagehand")
+ResultModel = TypeVar("ResultModel", bound=BaseModel)
 
 
 class Stagehand:
@@ -425,6 +445,115 @@ class Stagehand:
                 raise
 
             self._initialized = True
+
+    async def act(
+        self,
+        input: str,
+        *,
+        page: Page | None = None,
+        model: ModelConfig | None = None,
+        variables: Variables | None = None,
+        timeout: float | None = None,
+        locator: ProtocolLocator | None = None,
+        cache: Cache | None = None,
+    ) -> ActResultData:
+        options = ActOptions.model_validate({
+            name: value
+            for name, value in (
+                ("model", model),
+                ("variables", variables),
+                ("timeout", timeout),
+                ("locator", locator),
+                ("cache", _cache_config(cache) if cache is not None else None),
+            )
+            if value is not None
+        })
+        target_page = page or await self.context.active_page()
+        if target_page is None:
+            raise RuntimeError("Stagehand has no active page")
+        params = StagehandActParams(page_id=target_page.page_id, input=input)
+        if options.model_fields_set:
+            params.options = options
+        result = await self._connected_rpc_client.send("stagehand.act", params, ActResult)
+        return result.result
+
+    async def observe(
+        self,
+        *,
+        instruction: str | None = None,
+        page: Page | None = None,
+        model: ModelConfig | None = None,
+        variables: Variables | None = None,
+        timeout: float | None = None,
+        selector: str | None = None,
+        ignore_selectors: list[str] | None = None,
+        locator: ProtocolLocator | None = None,
+        cache: Cache | None = None,
+    ) -> list[Action]:
+        options = ObserveOptions.model_validate({
+            name: value
+            for name, value in (
+                ("model", model),
+                ("variables", variables),
+                ("timeout", timeout),
+                ("selector", selector),
+                ("ignore_selectors", ignore_selectors),
+                ("locator", locator),
+                ("cache", _cache_config(cache) if cache is not None else None),
+            )
+            if value is not None
+        })
+        target_page = page or await self.context.active_page()
+        if target_page is None:
+            raise RuntimeError("Stagehand has no active page")
+        params = StagehandObserveParams(page_id=target_page.page_id, instruction=instruction)
+        if options.model_fields_set:
+            params.options = options
+        result = await self._connected_rpc_client.send("stagehand.observe", params, ObserveResult)
+        return result.result
+
+    async def extract(
+        self,
+        *,
+        instruction: str,
+        schema: builtins.type[ResultModel],
+        page: Page | None = None,
+        model: ModelConfig | None = None,
+        timeout: float | None = None,
+        selector: str | None = None,
+        ignore_selectors: list[str] | None = None,
+        screenshot: bool | None = None,
+        locator: ProtocolLocator | None = None,
+        cache: Cache | None = None,
+    ) -> ResultModel:
+        options = ExtractOptions.model_validate({
+            name: value
+            for name, value in (
+                ("model", model),
+                ("timeout", timeout),
+                ("selector", selector),
+                ("ignore_selectors", ignore_selectors),
+                ("screenshot", screenshot),
+                ("locator", locator),
+                ("cache", _cache_config(cache) if cache is not None else None),
+            )
+            if value is not None
+        })
+        target_page = page or await self.context.active_page()
+        if target_page is None:
+            raise RuntimeError("Stagehand has no active page")
+        params = StagehandExtractParams(
+            page_id=target_page.page_id,
+            instruction=instruction,
+            schema_=schema.model_json_schema(),
+        )
+        if options.model_fields_set:
+            params.options = options
+        result = await self._connected_rpc_client.send("stagehand.extract", params, ExtractResult)
+        value = (
+            result.result.model_dump() if isinstance(result.result, BaseModel) else result.result
+        )
+        return schema.model_validate(value)
 
     async def close(self) -> None:
         async with self._lifecycle_lock:

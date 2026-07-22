@@ -36,10 +36,10 @@ try {
   // to start serving hits, so the second call below is served from the cache.
   const extractCompanies = async () => {
     const start = performance.now();
-    const result = await page.extract(
+    const result = await stagehand.extract(
       "Extract the names and descriptions of the first five companies listed on the page",
       companiesSchema,
-      { cache: { threshold: 1 } },
+      { page, cache: { threshold: 1 } },
     );
     return { result, durationMs: Math.round(performance.now() - start) };
   };

@@ -1,14 +1,11 @@
 import { writeFile } from "node:fs/promises";
-import { z } from "zod/v4";
 import type {
-  ActResultData,
+  LoadState,
   PageClickParams,
   PageDragAndDropParams,
-  PageGoBackParams,
-  PageGoForwardParams,
-  PageGotoParams,
   PageHoverParams,
   PageKeyPressParams,
+  PageNavigationOptions,
   PageRef,
   PageReloadParams,
   PageScrollParams,
@@ -16,13 +13,8 @@ import type {
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
   PageSnapshotOptions,
-  Action,
-  StagehandActParams,
-  StagehandExtractParams,
-  StagehandObserveParams,
   SnapshotResult,
   PageTypeParams,
-  PageWaitForLoadStateParams,
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
 } from "../../protocol/types.js";
@@ -58,7 +50,7 @@ export class Page {
     return this.currentRef;
   }
 
-  async goto(url: string, options?: PageGotoParams["options"]): Promise<this> {
+  async goto(url: string, options?: PageNavigationOptions): Promise<this> {
     this.currentRef = await this.rpcClient.send(StagehandMethods.pageGoto, {
       pageId: this.pageId,
       url,
@@ -75,7 +67,7 @@ export class Page {
     return this;
   }
 
-  async goBack(options?: PageGoBackParams["options"]): Promise<this> {
+  async goBack(options?: PageNavigationOptions): Promise<this> {
     this.currentRef = await this.rpcClient.send(StagehandMethods.pageGoBack, {
       pageId: this.pageId,
       ...(options ? { options } : {}),
@@ -83,7 +75,7 @@ export class Page {
     return this;
   }
 
-  async goForward(options?: PageGoForwardParams["options"]): Promise<this> {
+  async goForward(options?: PageNavigationOptions): Promise<this> {
     this.currentRef = await this.rpcClient.send(StagehandMethods.pageGoForward, {
       pageId: this.pageId,
       ...(options ? { options } : {}),
@@ -202,10 +194,7 @@ export class Page {
     });
   }
 
-  async waitForLoadState(
-    state: PageWaitForLoadStateParams["state"],
-    timeout?: number,
-  ): Promise<void> {
+  async waitForLoadState(state: LoadState, timeout?: number): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageWaitForLoadState, {
       pageId: this.pageId,
       state,
@@ -269,45 +258,6 @@ export class Page {
 
   async close(): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageClose, { pageId: this.pageId });
-  }
-
-  async act(input: string, options?: StagehandActParams["options"]): Promise<ActResultData> {
-    const response = await this.rpcClient.send(StagehandMethods.stagehandAct, {
-      pageId: this.pageId,
-      input,
-      ...(options === undefined ? {} : { options }),
-    });
-
-    return response.result;
-  }
-
-  async observe(
-    instruction?: string,
-    options?: StagehandObserveParams["options"],
-  ): Promise<Action[]> {
-    const response = await this.rpcClient.send(StagehandMethods.stagehandObserve, {
-      pageId: this.pageId,
-      ...(instruction === undefined ? {} : { instruction }),
-      ...(options === undefined ? {} : { options }),
-    });
-
-    return response.result;
-  }
-
-  async extract<Schema extends z.ZodType>(
-    instruction: string,
-    schema: Schema,
-    options?: StagehandExtractParams["options"],
-  ): Promise<z.output<Schema>> {
-    const jsonSchema = z.json().parse(z.toJSONSchema(schema));
-    const response = await this.rpcClient.send(StagehandMethods.stagehandExtract, {
-      pageId: this.pageId,
-      instruction,
-      schema: jsonSchema,
-      ...(options === undefined ? {} : { options }),
-    });
-
-    return schema.parse(response.result);
   }
 
   locator(selector: string): Locator {

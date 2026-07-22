@@ -1,19 +1,24 @@
 /**
- * TypeScript SDK-owned schemas. They extend the protocol's Stagehand init params with local/CDP
- * connection options and JavaScript callbacks that never cross the RPC boundary. Other language
- * SDKs should follow the same pattern around the shared wire params.
+ * TypeScript SDK-owned schemas. They extend protocol schemas with SDK-only values such as local/CDP
+ * connection options, JavaScript callbacks, and Page instances. Those values are consumed by the
+ * SDK and never cross the RPC boundary. Other language SDKs should follow the same pattern around
+ * the shared wire params.
  */
 
 import { z } from "zod/v4";
 import {
+  ActOptionsSchema,
   BrowserbaseBrowserSettingsSchema,
   BrowserbaseSessionCreateParamsSchema,
+  ExtractOptionsSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
   ModelConfigSchema,
+  ObserveOptionsSchema,
   StagehandInitParamsSchema,
 } from "../../protocol/schemas.js";
 import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
+import { Page } from "./page.js";
 
 const BrowserbaseClientBrowserSettingsSchema = BrowserbaseBrowserSettingsSchema.omit({
   extensionId: true,
@@ -65,6 +70,27 @@ export const ClientLLMSchema = z
   .strict()
   .meta({ id: "ClientLLM" });
 
+export const StagehandClientActOptionsSchema = ActOptionsSchema.unwrap()
+  .extend({
+    page: z.instanceof(Page).optional(),
+  })
+  .strict()
+  .meta({ id: "StagehandClientActOptions" });
+
+export const StagehandClientObserveOptionsSchema = ObserveOptionsSchema.unwrap()
+  .extend({
+    page: z.instanceof(Page).optional(),
+  })
+  .strict()
+  .meta({ id: "StagehandClientObserveOptions" });
+
+export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.unwrap()
+  .extend({
+    page: z.instanceof(Page).optional(),
+  })
+  .strict()
+  .meta({ id: "StagehandClientExtractOptions" });
+
 export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.extend({
   browser: BrowserSourceSchema.default({ type: "browserbase" }),
   model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
@@ -82,6 +108,9 @@ export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.extend(
   .meta({ id: "StagehandClientInitParams" });
 
 export type ClientLLM = z.infer<typeof ClientLLMSchema>;
+export type StagehandClientActOptions = z.input<typeof StagehandClientActOptionsSchema>;
+export type StagehandClientObserveOptions = z.input<typeof StagehandClientObserveOptionsSchema>;
+export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtractOptionsSchema>;
 export type BrowserSource = z.infer<typeof BrowserSourceSchema>;
 export type StagehandClientInitParams = z.input<typeof StagehandClientInitParamsSchema>;
 export type ResolvedStagehandClientInitParams = z.output<typeof StagehandClientInitParamsSchema>;

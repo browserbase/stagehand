@@ -1,5 +1,6 @@
 import type {
   BrowserGetVersionResult,
+  ClearCookieOptions,
   ContextActivePageResult,
   ContextAddCookiesParams,
   ContextAddInitScriptParams,
@@ -22,10 +23,12 @@ import type {
   ContextSetExtraHTTPHeadersParams,
   ContextVoidResult,
   Cookie,
+  CookieFilter,
   CookieParam,
   DomainPolicy,
   LLMGenerateParams,
   LLMGenerateResult,
+  LoadState,
   LocatorClickParams,
   LocatorClickResult,
   LocatorCentroidResult,
@@ -64,6 +67,7 @@ import type {
   PageHoverParams,
   PageIdParams,
   PageKeyPressParams,
+  PageNavigationOptions,
   PageRef,
   PageReloadParams,
   PageScrollParams,
@@ -102,10 +106,10 @@ import { Page } from "./understudy/page.js";
 export type UnderstudyRuntimePage = {
   targetId(): string;
   url(): string;
-  goto(url: string, options?: PageGotoParams["options"]): Promise<unknown>;
+  goto(url: string, options?: PageNavigationOptions): Promise<unknown>;
   reload(options?: PageReloadParams["options"]): Promise<unknown>;
-  goBack(options?: PageGoBackParams["options"]): Promise<unknown>;
-  goForward(options?: PageGoForwardParams["options"]): Promise<unknown>;
+  goBack(options?: PageNavigationOptions): Promise<unknown>;
+  goForward(options?: PageNavigationOptions): Promise<unknown>;
   click(x: number, y: number, options?: PageClickParams["options"]): Promise<string>;
   hover(x: number, y: number, options?: PageHoverParams["options"]): Promise<string>;
   scroll(
@@ -132,7 +136,7 @@ export type UnderstudyRuntimePage = {
     height: number,
     options?: PageSetViewportSizeParams["options"],
   ): Promise<void>;
-  waitForLoadState(state: PageWaitForLoadStateParams["state"], timeout?: number): Promise<void>;
+  waitForLoadState(state: LoadState, timeout?: number): Promise<void>;
   waitForTimeout(ms: number): Promise<void>;
   waitForSelector(
     selector: string,
@@ -759,7 +763,7 @@ function pageRefFromUnderstudyPage(page: UnderstudyRuntimePage): PageRef {
 }
 
 function hydrateClearCookieOptions(
-  options: ContextClearCookiesParams["options"],
+  options: ClearCookieOptions | undefined,
 ): UnderstudyRuntimeClearCookieOptions | undefined {
   if (options === undefined) return undefined;
   return {
@@ -769,9 +773,7 @@ function hydrateClearCookieOptions(
   };
 }
 
-function hydrateCookieFilter(
-  filter: Exclude<NonNullable<ContextClearCookiesParams["options"]>["name"], undefined>,
-): string | RegExp {
+function hydrateCookieFilter(filter: CookieFilter): string | RegExp {
   if (typeof filter === "string") return filter;
   return new RegExp(filter.source, filter.flags);
 }

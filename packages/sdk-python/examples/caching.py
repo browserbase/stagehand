@@ -36,12 +36,13 @@ async def main() -> None:
 
         async def extract_companies() -> tuple[Companies, int]:
             start = perf_counter()
-            result = await page.extract(
+            result = await stagehand.extract(
                 instruction=(
                     "Extract the names and descriptions of the first five companies "
                     "listed on the page"
                 ),
                 schema=Companies,
+                page=page,
                 cache=True,
             )
             return result, round((perf_counter() - start) * 1000)

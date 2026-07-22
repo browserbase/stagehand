@@ -21,7 +21,7 @@ async def main() -> None:
             raise RuntimeError("Stagehand initialized without an active page")
         await page.goto("https://example.com")
 
-        result = await page.act(
+        result = await stagehand.act(
             "Click the link that provides more information about Example Domain"
         )
 

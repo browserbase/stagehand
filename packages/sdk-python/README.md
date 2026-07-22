@@ -16,6 +16,7 @@ async def main() -> None:
         if page is None:
             raise RuntimeError("Stagehand initialized without an active page")
         await page.goto("https://example.com")
+        await stagehand.observe(instruction="Find the more information link")
         print(await page.title())
     finally:
         await stagehand.close()
@@ -25,6 +26,9 @@ asyncio.run(main())
 ```
 
 See [`examples`](examples) for action, extraction, observation, and custom LLM usage.
+
+`Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by
+default. Pass `page=page` to target a specific SDK `Page`.
 
 ## Contributing
 

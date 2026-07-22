@@ -13,6 +13,9 @@ const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.ne
 await page.goto("https://example.com");
 const currentUrl = await page.url();
 
+const actions = await stagehand.observe("Find the sign-in button");
+await stagehand.act("Click the sign-in button");
+
 await page.locator("#email").fill("user@example.com");
 await page.locator("button[type=submit]").click();
 
@@ -22,6 +25,7 @@ await stagehand.close();
 ## object model
 
 - `Stagehand` owns a protocol client and exposes `context`
+- `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by default and accept an SDK `Page` in their options
 - `BrowserContext.pages()` returns `Page` objects from `context.pages`
 - `BrowserContext.newPage()` wraps the `context.new_page` result
 - `Page` routes `goto`, `url`, `title`, and `close` to page protocol methods

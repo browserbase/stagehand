@@ -24,6 +24,7 @@ import type {
   Cookie,
   CookieParam,
   DomainPolicy,
+  LoadState,
   LocatorCentroidResult,
   LocatorClickParams,
   LocatorHighlightParams,
@@ -36,10 +37,9 @@ import type {
   PageClickParams,
   PageDragAndDropParams,
   PageEvaluateParams,
-  PageGoBackParams,
-  PageGoForwardParams,
   PageHoverParams,
   PageKeyPressParams,
+  PageNavigationOptions,
   PageReloadParams,
   PageScrollParams,
   PageSnapshotOptions,
@@ -47,7 +47,6 @@ import type {
   PageSetViewportSizeParams,
   SnapshotResult,
   PageTypeParams,
-  PageWaitForLoadStateParams,
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
 } from "../../protocol/types.ts";
@@ -197,8 +196,8 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     };
   }> = [];
   readonly reloadCalls: Array<PageReloadParams["options"]> = [];
-  readonly goBackCalls: Array<PageGoBackParams["options"]> = [];
-  readonly goForwardCalls: Array<PageGoForwardParams["options"]> = [];
+  readonly goBackCalls: Array<PageNavigationOptions | undefined> = [];
+  readonly goForwardCalls: Array<PageNavigationOptions | undefined> = [];
   readonly clickCalls: Array<{ x: number; y: number; options?: PageClickParams["options"] }> = [];
   readonly hoverCalls: Array<{ x: number; y: number; options?: PageHoverParams["options"] }> = [];
   readonly scrollCalls: Array<{
@@ -226,7 +225,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     options?: PageSetViewportSizeParams["options"];
   }> = [];
   readonly waitForLoadStateCalls: Array<{
-    state: PageWaitForLoadStateParams["state"];
+    state: LoadState;
     timeout?: number;
   }> = [];
   readonly waitForTimeoutCalls: Array<PageWaitForTimeoutParams["ms"]> = [];
@@ -275,12 +274,12 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     this.reloadCalls.push(options);
   }
 
-  async goBack(options?: PageGoBackParams["options"]): Promise<void> {
+  async goBack(options?: PageNavigationOptions): Promise<void> {
     this.goBackCalls.push(options);
     if (this.backUrl) this.currentUrl = this.backUrl;
   }
 
-  async goForward(options?: PageGoForwardParams["options"]): Promise<void> {
+  async goForward(options?: PageNavigationOptions): Promise<void> {
     this.goForwardCalls.push(options);
     if (this.forwardUrl) this.currentUrl = this.forwardUrl;
   }
@@ -346,10 +345,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     this.setViewportSizeCalls.push({ width, height, options });
   }
 
-  async waitForLoadState(
-    state: PageWaitForLoadStateParams["state"],
-    timeout?: number,
-  ): Promise<void> {
+  async waitForLoadState(state: LoadState, timeout?: number): Promise<void> {
     this.waitForLoadStateCalls.push({ state, timeout });
   }
 

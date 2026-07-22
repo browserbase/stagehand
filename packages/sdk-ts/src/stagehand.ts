@@ -2,18 +2,27 @@ import { connectRPCClient, type RPCClient, type RPCClientOptions } from "./rpcCl
 import { StagehandInitParamsSchema } from "../../protocol/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
+  ActResultData,
+  Action,
   BrowserGetVersionResult,
   RuntimeLoopbackStatusResult,
   StagehandMetrics,
   StagehandPingResult,
   StagehandRpcNotification,
 } from "../../protocol/types.js";
+import { z } from "zod/v4";
 import { BrowserContext } from "./browserContext.js";
 import { resolveBrowserSource, type ResolvedBrowserSource } from "./browserSource.js";
 import {
+  StagehandClientActOptionsSchema,
+  StagehandClientExtractOptionsSchema,
   StagehandClientInitParamsSchema,
+  StagehandClientObserveOptionsSchema,
+  type StagehandClientActOptions,
+  type StagehandClientExtractOptions,
   type ResolvedStagehandClientInitParams,
   type StagehandClientInitParams,
+  type StagehandClientObserveOptions,
 } from "./clientSchemas.js";
 import { CDPConnectionClosedError } from "./cdpClient.js";
 
@@ -117,6 +126,51 @@ export class Stagehand {
 
     this.isInitialized = true;
     this.closePromise = undefined;
+  }
+
+  async act(input: string, options?: StagehandClientActOptions): Promise<ActResultData> {
+    const { page, ...protocolOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
+    const targetPage = page ?? (await this.context.activePage());
+    if (!targetPage) throw new Error("Stagehand has no active page.");
+    const response = await this.connectedRpcClient.send(StagehandMethods.stagehandAct, {
+      pageId: targetPage.pageId,
+      input,
+      ...(options === undefined ? {} : { options: protocolOptions }),
+    });
+
+    return response.result;
+  }
+
+  async observe(instruction?: string, options?: StagehandClientObserveOptions): Promise<Action[]> {
+    const { page, ...protocolOptions } = StagehandClientObserveOptionsSchema.parse(options ?? {});
+    const targetPage = page ?? (await this.context.activePage());
+    if (!targetPage) throw new Error("Stagehand has no active page.");
+    const response = await this.connectedRpcClient.send(StagehandMethods.stagehandObserve, {
+      pageId: targetPage.pageId,
+      ...(instruction === undefined ? {} : { instruction }),
+      ...(options === undefined ? {} : { options: protocolOptions }),
+    });
+
+    return response.result;
+  }
+
+  async extract<Schema extends z.ZodType>(
+    instruction: string,
+    schema: Schema,
+    options?: StagehandClientExtractOptions,
+  ): Promise<z.output<Schema>> {
+    const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(options ?? {});
+    const targetPage = page ?? (await this.context.activePage());
+    if (!targetPage) throw new Error("Stagehand has no active page.");
+    const jsonSchema = z.json().parse(z.toJSONSchema(schema));
+    const response = await this.connectedRpcClient.send(StagehandMethods.stagehandExtract, {
+      pageId: targetPage.pageId,
+      instruction,
+      schema: jsonSchema,
+      ...(options === undefined ? {} : { options: protocolOptions }),
+    });
+
+    return schema.parse(response.result);
   }
 
   close(): Promise<void> {
