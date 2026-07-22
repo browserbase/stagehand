@@ -56,9 +56,28 @@ describe("claude code tool adapter resolution", () => {
     );
   });
 
+  it("supports deterministic V4 only as a local tool-launched surface", () => {
+    expect(resolveClaudeCodeToolSurface("v4_code_deterministic")).toBe(
+      "v4_code_deterministic",
+    );
+    expect(
+      resolveClaudeCodeStartupProfile("v4_code_deterministic", "LOCAL"),
+    ).toBe("tool_launch_local");
+    expect(() =>
+      resolveClaudeCodeStartupProfile(
+        "v4_code_deterministic",
+        "LOCAL",
+        "runner_provided_local_cdp",
+      ),
+    ).toThrow(/requires startup profile "tool_launch_local"/);
+    expect(() =>
+      resolveClaudeCodeStartupProfile("v4_code_deterministic", "BROWSERBASE"),
+    ).toThrow(/supports only the LOCAL environment/);
+  });
+
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool browse_cli, playwright_code, or cdp_code/,
+      /supports --tool .*v4_code_deterministic/,
     );
   });
 

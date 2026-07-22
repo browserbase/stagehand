@@ -20,6 +20,7 @@ export type ToolSurface =
   | "understudy_code"
   | "playwright_code"
   | "cdp_code"
+  | "v4_code_deterministic"
   | "playwright_mcp"
   | "chrome_devtools_mcp"
   | "browse_cli";
