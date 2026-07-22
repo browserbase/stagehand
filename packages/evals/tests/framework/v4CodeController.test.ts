@@ -155,6 +155,16 @@ describe("V4 code child controller", () => {
     expect(stringifyV4CodeConsoleValue({ ok: true })).toBe('{"ok":true}');
     expect(stringifyV4CodeConsoleValue(undefined)).toBe("undefined");
     expect(stringifyV4CodeConsoleValue(1n)).toBe("1");
+    expect(
+      stringifyV4CodeConsoleValue({
+        toJSON: () => {
+          throw new Error("cannot serialize");
+        },
+        [Symbol.toPrimitive]: () => {
+          throw new Error("cannot coerce");
+        },
+      }),
+    ).toBe("[unserializable value]");
   });
 
   it("can inherit child stdout and stderr for V4 debugging", async () => {

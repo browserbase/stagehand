@@ -45,9 +45,14 @@ export function stringifyV4CodeConsoleValue(value: unknown): string {
   if (typeof value === "string") return value;
   try {
     const serialized = JSON.stringify(value);
-    return serialized === undefined ? String(value) : serialized;
+    if (serialized !== undefined) return serialized;
   } catch {
+    // Fall through to primitive coercion.
+  }
+  try {
     return String(value);
+  } catch {
+    return "[unserializable value]";
   }
 }
 
