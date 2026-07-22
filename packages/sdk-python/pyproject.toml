@@ -1,0 +1,40 @@
+[project]
+name = "stagehand-v4"
+version = "0.1.0"
+description = "Stagehand V4 Python SDK"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.12,<3"]
+
+[build-system]
+requires = ["uv_build>=0.11.29,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "stagehand"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = ["src/stagehand/_generated"]
+preview = true
+
+[tool.ruff.lint]
+select = ["ANN", "E", "F", "I", "PYI", "UP"]
+
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.src]
+exclude = ["src/stagehand/_generated"]
+
+[tool.ty.rules]
+missing-type-argument = "error"
+possibly-unresolved-reference = "warn"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+strict = true
+
+[dependency-groups]
+dev = ["datamodel-code-generator==0.68.1", "pytest==9.0.2", "ruff==0.15.7", "ty==0.0.56"]
