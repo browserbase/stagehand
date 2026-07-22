@@ -22,6 +22,7 @@
     "../server/understudy/**/*.ts",
     "../server/version.ts",
     "../sdk-ts/src/**/*.ts",
-    "../sdk-ts/tests/**/*.ts"
+    "../sdk-ts/tests/**/*.ts",
+    "../../rules/ast-grep/**/*.ts"
   ]
 }
