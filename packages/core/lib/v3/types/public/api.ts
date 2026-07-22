@@ -213,7 +213,7 @@ export const GenericModelConfigObjectSchema = ModelConfigBaseSchema.extend({
     example: "chat",
   }),
   provider: z
-    .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
+    .enum(["openai", "anthropic", "google", "microsoft", "yutori", "bedrock"])
     .optional()
     .meta({
       description:
@@ -835,7 +835,7 @@ export const ObserveResponseSchema = wrapResponse(
 export const AgentConfigSchema = z
   .object({
     provider: z // cloud accepts provider: at the top level for legacy reasons, in the future we should remove it
-      .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
+      .enum(["openai", "anthropic", "google", "microsoft", "yutori", "bedrock"])
       .optional()
       .meta({
         description:

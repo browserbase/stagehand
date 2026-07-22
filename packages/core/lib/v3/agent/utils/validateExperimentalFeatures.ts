@@ -18,13 +18,24 @@ export interface AgentValidationOptions {
     | null;
   /** Whether this is streaming mode (can be derived from agentConfig.stream) */
   isStreaming?: boolean;
+  /**
+   * Execute options the resolved CUA provider's client implements (declared in
+   * CUA_SUPPORTED_EXECUTE_OPTIONS on the provider registry). Supported options
+   * are validated as experimental features instead of rejected outright.
+   */
+  cuaSupportedExecuteOptions?: CuaSupportedExecuteOptions;
+}
+
+export interface CuaSupportedExecuteOptions {
+  excludeTools?: boolean;
+  output?: boolean;
 }
 
 /**
  * Validates agent configuration and experimental feature usage.
  *
  * This utility consolidates all validation checks for both CUA and non-CUA agent paths:
- * - Invalid argument errors for CUA (streaming, abort signal, message continuation, excludeTools, output schema are not supported)
+ * - Invalid argument errors for CUA (streaming, abort signal, message continuation are not supported; excludeTools and output schema are unsupported except for providers that opt in via CUA_SUPPORTED_EXECUTE_OPTIONS, e.g. Yutori Navigator)
  * - Experimental feature checks for integrations and tools (both CUA and non-CUA)
  * - Experimental feature checks for hybrid mode (requires experimental: true)
  * - Experimental feature checks for non-CUA only (callbacks, signal, messages, streaming, excludeTools, output schema)
@@ -35,7 +46,13 @@ export interface AgentValidationOptions {
 export function validateExperimentalFeatures(
   options: AgentValidationOptions,
 ): void {
-  const { isExperimental, agentConfig, executeOptions, isStreaming } = options;
+  const {
+    isExperimental,
+    agentConfig,
+    executeOptions,
+    isStreaming,
+    cuaSupportedExecuteOptions,
+  } = options;
 
   // Check if CUA mode is enabled (via mode: "cua" or deprecated cua: true)
   const isCuaMode =
@@ -58,11 +75,12 @@ export function validateExperimentalFeatures(
     }
     if (
       executeOptions?.excludeTools &&
-      executeOptions.excludeTools.length > 0
+      executeOptions.excludeTools.length > 0 &&
+      !cuaSupportedExecuteOptions?.excludeTools
     ) {
       unsupportedFeatures.push("excludeTools");
     }
-    if (executeOptions?.output) {
+    if (executeOptions?.output && !cuaSupportedExecuteOptions?.output) {
       unsupportedFeatures.push("output schema");
     }
     if (
@@ -113,6 +131,21 @@ export function validateExperimentalFeatures(
       features.push("excludeTools");
     }
     if (executeOptions.output) {
+      features.push("output schema");
+    }
+  }
+
+  // CUA execute options the provider supports are still experimental features,
+  // matching the non-CUA gating above.
+  if (executeOptions && isCuaMode) {
+    if (
+      cuaSupportedExecuteOptions?.excludeTools &&
+      executeOptions.excludeTools &&
+      executeOptions.excludeTools.length > 0
+    ) {
+      features.push("excludeTools");
+    }
+    if (cuaSupportedExecuteOptions?.output && executeOptions.output) {
       features.push("output schema");
     }
   }
