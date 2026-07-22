@@ -441,10 +441,10 @@ async function getFrameUrl(frame: Frame): Promise<string> {
 export async function waitForDomNetworkQuiet(
   frame: Frame,
   logger: StagehandLogger,
-  timeoutMs?: number,
+  timeout?: number,
 ): Promise<void> {
   const overallTimeout =
-    typeof timeoutMs === "number" && Number.isFinite(timeoutMs) ? Math.max(0, timeoutMs) : 5_000;
+    typeof timeout === "number" && Number.isFinite(timeout) ? Math.max(0, timeout) : 5_000;
   const client = frame.session;
   const settleStart = Date.now();
 

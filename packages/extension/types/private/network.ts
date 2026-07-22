@@ -23,7 +23,7 @@ export interface NetworkObserver {
 /** Options for the idle waiter helper. */
 export type WaitForIdleOptions = {
   startTime?: number;
-  timeoutMs: number;
+  timeout: number;
   idleTimeMs?: number;
   filter?: (info: NetworkRequestInfo) => boolean;
   totalBudgetMs?: number;

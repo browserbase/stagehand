@@ -368,7 +368,7 @@ describe("Stagehand TS object wrapper", () => {
 
     const returnedPage = await page.goto("https://example.com/next", {
       waitUntil: "load",
-      timeoutMs: 5000,
+      timeout: 5000,
     });
 
     expect(returnedPage).toBe(page);
@@ -378,7 +378,7 @@ describe("Stagehand TS object wrapper", () => {
         url: "https://example.com/next",
         options: {
           waitUntil: "load",
-          timeoutMs: 5000,
+          timeout: 5000,
         },
       }),
     ]);
@@ -406,7 +406,7 @@ describe("Stagehand TS object wrapper", () => {
     const page = new Page(client, { pageId: "page-1", url: "https://example.com/current" });
 
     await expect(
-      page.reload({ waitUntil: "load", timeoutMs: 5_000, ignoreCache: true }),
+      page.reload({ waitUntil: "load", timeout: 5_000, ignoreCache: true }),
     ).resolves.toBe(page);
     expect(page.ref.url).toBe("https://example.com/reloaded");
 
@@ -419,7 +419,7 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.pageReload, {
         pageId: "page-1",
-        options: { waitUntil: "load", timeoutMs: 5_000, ignoreCache: true },
+        options: { waitUntil: "load", timeout: 5_000, ignoreCache: true },
       }),
       requestCall(StagehandMethods.pageGoBack, {
         pageId: "page-1",
@@ -599,7 +599,7 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.pageWaitForLoadState, {
         pageId: "page-1",
         state: "networkidle",
-        timeoutMs: 0,
+        timeout: 0,
       }),
       requestCall(StagehandMethods.pageWaitForTimeout, { pageId: "page-1", ms: 250 }),
       requestCall(StagehandMethods.pageWaitForSelector, {

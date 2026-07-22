@@ -1580,7 +1580,7 @@ class PageNavigationOptions(WireModel):
         validate_by_name=True,
     )
     wait_until: Optional[LoadState] = None
-    timeout_ms: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
+    timeout: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
 
 
 class PageRef(WireModel):
@@ -1607,7 +1607,7 @@ class PageReloadOptions(WireModel):
         validate_by_name=True,
     )
     wait_until: Optional[LoadState] = None
-    timeout_ms: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
+    timeout: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     ignore_cache: Optional[StrictBool] = None
 
 
@@ -1790,7 +1790,7 @@ class PageWaitForLoadStateParams(WireModel):
     )
     page_id: StrictStr
     state: LoadState
-    timeout_ms: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    timeout: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
 
 
 class PageWaitForSelectorOptions(WireModel):

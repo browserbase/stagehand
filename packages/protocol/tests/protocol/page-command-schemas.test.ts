@@ -31,11 +31,11 @@ describe("page command schemas", () => {
     expect(
       PageReloadParamsSchema.parse({
         pageId,
-        options: { waitUntil: "load", timeoutMs: 5_000, ignoreCache: true },
+        options: { waitUntil: "load", timeout: 5_000, ignoreCache: true },
       }),
     ).toStrictEqual({
       pageId,
-      options: { waitUntil: "load", timeoutMs: 5_000, ignoreCache: true },
+      options: { waitUntil: "load", timeout: 5_000, ignoreCache: true },
     });
     expect(PageGoBackParamsSchema.parse({ pageId })).toStrictEqual({ pageId });
     expect(
@@ -168,9 +168,9 @@ describe("page command schemas", () => {
       PageWaitForLoadStateParamsSchema.parse({
         pageId,
         state: "domcontentloaded",
-        timeoutMs: 0,
+        timeout: 0,
       }),
-    ).toStrictEqual({ pageId, state: "domcontentloaded", timeoutMs: 0 });
+    ).toStrictEqual({ pageId, state: "domcontentloaded", timeout: 0 });
     expect(PageWaitForTimeoutParamsSchema.parse({ pageId, ms: 250 })).toStrictEqual({
       pageId,
       ms: 250,

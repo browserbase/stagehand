@@ -46,7 +46,7 @@ async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_r
     returned = await page.goto(
         "https://example.com",
         wait_until="domcontentloaded",
-        timeout_ms=5_000,
+        timeout=5_000,
     )
     title = await page.title()
 
@@ -58,7 +58,7 @@ async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_r
     assert params == PageGotoParams.model_validate({
         "page_id": "page-1",
         "url": "https://example.com",
-        "options": {"wait_until": "domcontentloaded", "timeout_ms": 5_000},
+        "options": {"wait_until": "domcontentloaded", "timeout": 5_000},
     })
     assert result_model is PageRef
 

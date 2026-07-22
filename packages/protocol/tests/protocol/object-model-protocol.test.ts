@@ -273,12 +273,12 @@ describe("Stagehand object-model protocol", () => {
       StagehandMethods.pageGoto.params.parse({
         pageId: "target-1",
         url: "https://example.com",
-        options: { waitUntil: "load", timeoutMs: 10_000 },
+        options: { waitUntil: "load", timeout: 10_000 },
       }),
     ).toStrictEqual({
       pageId: "target-1",
       url: "https://example.com",
-      options: { waitUntil: "load", timeoutMs: 10_000 },
+      options: { waitUntil: "load", timeout: 10_000 },
     });
   });
 

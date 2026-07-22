@@ -285,11 +285,11 @@ export class Frame implements FrameManager {
   /** Wait for a lifecycle state (load/domcontentloaded/networkidle) */
   async waitForLoadState(
     state: "load" | "domcontentloaded" | "networkidle" = "load",
-    timeoutMs: number = 15_000,
+    timeout: number = 15_000,
   ): Promise<void> {
     await this.session.send("Page.enable");
     const targetState = state.toLowerCase();
-    const timeout = Math.max(0, timeoutMs);
+    const effectiveTimeout = Math.max(0, timeout);
     await new Promise<void>((resolve, reject) => {
       let done = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
@@ -320,10 +320,10 @@ export class Frame implements FrameManager {
         this.session.off("Page.lifecycleEvent", handler);
         reject(
           new Error(
-            `waitForLoadState(${state}) timed out after ${timeout}ms for frame ${this.frameId}`,
+            `waitForLoadState(${state}) timed out after ${effectiveTimeout}ms for frame ${this.frameId}`,
           ),
         );
-      }, timeout);
+      }, effectiveTimeout);
     });
   }
 

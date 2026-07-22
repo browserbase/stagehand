@@ -56,7 +56,7 @@ type PendingCDPRequest = {
   method: string;
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
-  timeout: ReturnType<typeof setTimeout>;
+  timeoutId: ReturnType<typeof setTimeout>;
 };
 
 type VersionResponse = {
@@ -67,7 +67,7 @@ type VersionResponse = {
 };
 
 type ResolveBrowserWebSocketUrlOptions = {
-  timeoutMs?: number;
+  timeout?: number;
   pollIntervalMs?: number;
   fetchFn?: (url: string) => Promise<VersionResponse>;
   delayFn?: (ms: number) => Promise<void>;
@@ -156,7 +156,7 @@ export class CDPClient {
 
   static async connect(options: CDPClientOptions): Promise<CDPClient> {
     const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, {
-      timeoutMs: options.cdpConnectTimeoutMs,
+      timeout: options.cdpConnectTimeoutMs,
     });
     const socket = new WebSocket(webSocketDebuggerUrl);
 
@@ -194,7 +194,7 @@ export class CDPClient {
       if (options.preloadedExtension) {
         const discovered = await waitForPreloadedStagehandServiceWorker(client, {
           urlIncludes: options.serviceWorkerUrlIncludes,
-          timeoutMs: options.discoveryTimeoutMs,
+          timeout: options.discoveryTimeoutMs,
         });
         serviceWorker = discovered.serviceWorker;
         attached = { sessionId: discovered.sessionId };
@@ -206,7 +206,7 @@ export class CDPClient {
         serviceWorker = await waitForServiceWorker(client, {
           extensionId,
           urlIncludes: options.serviceWorkerUrlIncludes,
-          timeoutMs: options.discoveryTimeoutMs,
+          timeout: options.discoveryTimeoutMs,
         });
         attached = await client.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
           targetId: serviceWorker.targetId,
@@ -229,7 +229,7 @@ export class CDPClient {
         attached.sessionId,
       );
       await waitForRuntimeReady(client, attached.sessionId, {
-        timeoutMs: options.discoveryTimeoutMs,
+        timeout: options.discoveryTimeoutMs,
       });
       return client;
     } catch (error) {
@@ -274,7 +274,7 @@ export class CDPClient {
     method: string,
     params: JsonObject = {},
     sessionId?: string,
-    timeoutMs = 10_000,
+    timeout = 10_000,
   ): Promise<Result> {
     if (this.socket.readyState !== WebSocket.OPEN) {
       throw new Error("CDP connection is not open");
@@ -284,16 +284,16 @@ export class CDPClient {
     const message = sessionId ? { id, method, params, sessionId } : { id, method, params };
 
     return await new Promise<Result>((resolve, reject) => {
-      const timeout = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`CDP command timed out: ${method}`));
-      }, timeoutMs);
+      }, timeout);
 
       this.pending.set(id, {
         method,
         resolve: (value) => resolve(value as Result),
         reject,
-        timeout,
+        timeoutId,
       });
 
       this.socket.send(JSON.stringify(message));
@@ -335,7 +335,7 @@ export class CDPClient {
     if (!pending) return;
 
     this.pending.delete(message.id);
-    clearTimeout(pending.timeout);
+    clearTimeout(pending.timeoutId);
 
     if (message.error) {
       pending.reject(
@@ -355,7 +355,7 @@ export class CDPClient {
   rejectPending(error: Error): void {
     for (const pending of this.pending.values()) {
       pending.reject(error);
-      clearTimeout(pending.timeout);
+      clearTimeout(pending.timeoutId);
     }
     this.pending.clear();
   }
@@ -367,7 +367,7 @@ export async function waitForRuntimeReady(
   cdp: CDPCommandSender,
   sessionId: string,
   options: {
-    timeoutMs: number;
+    timeout: number;
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
     nowFn?: () => number;
@@ -380,7 +380,7 @@ export async function waitForRuntimeReady(
   let lastReadiness: RuntimeReadiness | undefined;
   let lastError = "";
 
-  while (nowFn() - startedAt < options.timeoutMs) {
+  while (nowFn() - startedAt < options.timeout) {
     try {
       const evaluated = await evaluateRuntimeReadiness(cdp, sessionId);
 
@@ -418,7 +418,7 @@ export async function waitForPreloadedStagehandServiceWorker(
   cdp: CDPCommandSender,
   options: {
     urlIncludes?: string;
-    timeoutMs: number;
+    timeout: number;
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
     nowFn?: () => number;
@@ -431,7 +431,7 @@ export async function waitForPreloadedStagehandServiceWorker(
   const workerUrlIncludes = options.urlIncludes ?? "service-worker.js";
   let lastTargets: TargetInfo[] = [];
 
-  while (nowFn() - startedAt < options.timeoutMs) {
+  while (nowFn() - startedAt < options.timeout) {
     const targets = await cdp.sendCommand<{ targetInfos: TargetInfo[] }>("Target.getTargets");
     lastTargets = targets.targetInfos;
     const candidates = targets.targetInfos.filter(
@@ -508,7 +508,7 @@ export async function waitForServiceWorker(
   options: {
     extensionId?: string;
     urlIncludes?: string;
-    timeoutMs: number;
+    timeout: number;
     activationDelayMs?: number;
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
@@ -522,7 +522,7 @@ export async function waitForServiceWorker(
   let lastTargets: TargetInfo[] = [];
   let activationTargetId: string | undefined;
 
-  while (Date.now() - startedAt < options.timeoutMs) {
+  while (Date.now() - startedAt < options.timeout) {
     const targets = await cdp.sendCommand<{ targetInfos: TargetInfo[] }>("Target.getTargets");
     lastTargets = targets.targetInfos;
     const serviceWorker = targets.targetInfos.find(
@@ -601,13 +601,13 @@ export async function resolveBrowserWebSocketUrl(
 ): Promise<string> {
   if (cdpUrl.startsWith("ws://") || cdpUrl.startsWith("wss://")) return cdpUrl;
 
-  const timeoutMs = options.timeoutMs ?? 10_000;
+  const timeout = options.timeout ?? 10_000;
   const pollIntervalMs = options.pollIntervalMs ?? 250;
   const fetchFn = options.fetchFn ?? fetch;
   const delayFn = options.delayFn ?? delay;
   const nowFn = options.nowFn ?? Date.now;
   const baseUrl = cdpUrl.replace(/\/$/, "");
-  const deadlineMs = nowFn() + timeoutMs;
+  const deadlineMs = nowFn() + timeout;
   let lastError = "";
 
   while (nowFn() <= deadlineMs) {

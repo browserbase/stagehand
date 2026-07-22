@@ -50,7 +50,7 @@ expectTypeOf<z.input<typeof StagehandMethods.pageGoto.params>>().toEqualTypeOf<{
   url: string;
   options?: {
     waitUntil?: "load" | "domcontentloaded" | "networkidle";
-    timeoutMs?: number;
+    timeout?: number;
   };
 }>();
 expectTypeOf(StagehandMethods.pageReload.name).toEqualTypeOf<"page.reload">();
@@ -58,7 +58,7 @@ expectTypeOf<z.input<typeof StagehandMethods.pageReload.params>>().toEqualTypeOf
   pageId: string;
   options?: {
     waitUntil?: "load" | "domcontentloaded" | "networkidle";
-    timeoutMs?: number;
+    timeout?: number;
     ignoreCache?: boolean;
   };
 }>();

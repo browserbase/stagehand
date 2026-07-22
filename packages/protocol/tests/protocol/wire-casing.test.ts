@@ -46,12 +46,12 @@ describe("JSON-RPC wire casing", () => {
     const apiValue = {
       pageId: "page_1",
       url: "https://example.com",
-      options: { waitUntil: "load" as const, timeoutMs: 5_000 },
+      options: { waitUntil: "load" as const, timeout: 5_000 },
     };
     const wireValue = {
       page_id: "page_1",
       url: "https://example.com",
-      options: { wait_until: "load" as const, timeout_ms: 5_000 },
+      options: { wait_until: "load" as const, timeout: 5_000 },
     };
 
     expect(encodeWireValue(apiValue)).toStrictEqual(wireValue);

@@ -14,14 +14,14 @@ describe("shared page protocol schemas", () => {
     expect(
       PageNavigationOptionsSchema.parse({
         waitUntil: "domcontentloaded",
-        timeoutMs: 10_000,
+        timeout: 10_000,
       }),
     ).toStrictEqual({
       waitUntil: "domcontentloaded",
-      timeoutMs: 10_000,
+      timeout: 10_000,
     });
     expect(() => LoadStateSchema.parse("commit")).toThrow();
-    expect(() => PageNavigationOptionsSchema.parse({ timeoutMs: 0 })).toThrow();
+    expect(() => PageNavigationOptionsSchema.parse({ timeout: 0 })).toThrow();
   });
 
   it("keeps command result schemas strict", () => {

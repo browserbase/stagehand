@@ -193,7 +193,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     url: string;
     options?: {
       waitUntil?: "load" | "domcontentloaded" | "networkidle";
-      timeoutMs?: number;
+      timeout?: number;
     };
   }> = [];
   readonly reloadCalls: Array<PageReloadParams["options"]> = [];
@@ -227,7 +227,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   }> = [];
   readonly waitForLoadStateCalls: Array<{
     state: PageWaitForLoadStateParams["state"];
-    timeoutMs?: number;
+    timeout?: number;
   }> = [];
   readonly waitForTimeoutCalls: Array<PageWaitForTimeoutParams["ms"]> = [];
   readonly waitForSelectorCalls: Array<{
@@ -265,7 +265,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
 
   async goto(
     url: string,
-    options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeoutMs?: number },
+    options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle"; timeout?: number },
   ): Promise<void> {
     this.gotoCalls.push({ url, options });
     this.currentUrl = url;
@@ -348,9 +348,9 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
 
   async waitForLoadState(
     state: PageWaitForLoadStateParams["state"],
-    timeoutMs?: number,
+    timeout?: number,
   ): Promise<void> {
-    this.waitForLoadStateCalls.push({ state, timeoutMs });
+    this.waitForLoadStateCalls.push({ state, timeout });
   }
 
   async waitForTimeout(ms: PageWaitForTimeoutParams["ms"]): Promise<void> {
@@ -1391,7 +1391,7 @@ describe("Stagehand worker clients", () => {
           url: "https://example.test/next",
           options: {
             waitUntil: "domcontentloaded",
-            timeoutMs: 5000,
+            timeout: 5000,
           },
         },
       }),
@@ -1409,7 +1409,7 @@ describe("Stagehand worker clients", () => {
         url: "https://example.test/next",
         options: {
           waitUntil: "domcontentloaded",
-          timeoutMs: 5000,
+          timeout: 5000,
         },
       },
     ]);
@@ -1428,7 +1428,7 @@ describe("Stagehand worker clients", () => {
         method: "page.reload",
         params: {
           page_id: "page-a",
-          options: { wait_until: "load", timeout_ms: 5_000, ignore_cache: true },
+          options: { wait_until: "load", timeout: 5_000, ignore_cache: true },
         },
       }),
     ).resolves.toStrictEqual({
@@ -1455,7 +1455,7 @@ describe("Stagehand worker clients", () => {
         jsonrpc: "2.0",
         id: 15,
         method: "page.go_forward",
-        params: { page_id: "page-a", options: { timeout_ms: 2_500 } },
+        params: { page_id: "page-a", options: { timeout: 2_500 } },
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
@@ -1464,10 +1464,10 @@ describe("Stagehand worker clients", () => {
     });
 
     expect(page.reloadCalls).toStrictEqual([
-      { waitUntil: "load", timeoutMs: 5_000, ignoreCache: true },
+      { waitUntil: "load", timeout: 5_000, ignoreCache: true },
     ]);
     expect(page.goBackCalls).toStrictEqual([{ waitUntil: "domcontentloaded" }]);
-    expect(page.goForwardCalls).toStrictEqual([{ timeoutMs: 2_500 }]);
+    expect(page.goForwardCalls).toStrictEqual([{ timeout: 2_500 }]);
   });
 
   it("routes page coordinate interactions and adapts their results", async () => {
@@ -1691,7 +1691,7 @@ describe("Stagehand worker clients", () => {
         jsonrpc: "2.0",
         id: 27,
         method: "page.wait_for_load_state",
-        params: { page_id: "page-a", state: "networkidle", timeout_ms: 0 },
+        params: { page_id: "page-a", state: "networkidle", timeout: 0 },
       }),
     ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 27, result: { ok: true } });
 
@@ -1717,7 +1717,7 @@ describe("Stagehand worker clients", () => {
       }),
     ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 29, result: { matched: false } });
 
-    expect(page.waitForLoadStateCalls).toStrictEqual([{ state: "networkidle", timeoutMs: 0 }]);
+    expect(page.waitForLoadStateCalls).toStrictEqual([{ state: "networkidle", timeout: 0 }]);
     expect(page.waitForTimeoutCalls).toStrictEqual([250]);
     expect(page.waitForSelectorCalls).toStrictEqual([
       {

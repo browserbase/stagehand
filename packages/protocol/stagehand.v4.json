@@ -3361,7 +3361,7 @@
         "wait_until": {
           "$ref": "#/$defs/LoadState"
         },
-        "timeout_ms": {
+        "timeout": {
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991
@@ -3433,7 +3433,7 @@
         "wait_until": {
           "$ref": "#/$defs/LoadState"
         },
-        "timeout_ms": {
+        "timeout": {
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991
@@ -4008,7 +4008,7 @@
         "state": {
           "$ref": "#/$defs/LoadState"
         },
-        "timeout_ms": {
+        "timeout": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991

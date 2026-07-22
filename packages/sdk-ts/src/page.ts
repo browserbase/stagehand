@@ -204,12 +204,12 @@ export class Page {
 
   async waitForLoadState(
     state: PageWaitForLoadStateParams["state"],
-    timeoutMs?: number,
+    timeout?: number,
   ): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageWaitForLoadState, {
       pageId: this.pageId,
       state,
-      ...(timeoutMs === undefined ? {} : { timeoutMs }),
+      ...(timeout === undefined ? {} : { timeout }),
     });
   }
 

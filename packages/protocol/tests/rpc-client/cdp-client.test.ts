@@ -61,7 +61,7 @@ describe("resolveBrowserWebSocketUrl", () => {
     await expect(
       resolveBrowserWebSocketUrl("http://127.0.0.1:9222", {
         pollIntervalMs: 1,
-        timeoutMs: 1_000,
+        timeout: 1_000,
         nowFn: () => now,
         delayFn: async (ms) => {
           now += ms;
@@ -97,7 +97,7 @@ describe("resolveBrowserWebSocketUrl", () => {
     await expect(
       resolveBrowserWebSocketUrl("http://127.0.0.1:9222", {
         pollIntervalMs: 1,
-        timeoutMs: 1,
+        timeout: 1,
         nowFn: () => now,
         delayFn: async (ms) => {
           now += ms;
@@ -167,7 +167,7 @@ describe("waitForServiceWorker", () => {
     await expect(
       waitForServiceWorker(cdp, {
         extensionId: "stagehandext",
-        timeoutMs: 1_000,
+        timeout: 1_000,
         delayFn: async () => {},
       }),
     ).resolves.toStrictEqual(worker);
@@ -184,7 +184,7 @@ describe("waitForServiceWorker", () => {
 
     await expect(
       waitForServiceWorker(cdp, {
-        timeoutMs: 1_000,
+        timeout: 1_000,
         delayFn: async () => {},
       }),
     ).resolves.toStrictEqual(worker);
@@ -202,7 +202,7 @@ describe("waitForServiceWorker", () => {
       waitForServiceWorker(cdp, {
         activationDelayMs: 0,
         extensionId: "stagehandext",
-        timeoutMs: 1_000,
+        timeout: 1_000,
         delayFn: async () => {},
       }),
     ).resolves.toStrictEqual(worker);
@@ -247,7 +247,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
 
     await expect(
       waitForPreloadedStagehandServiceWorker(cdp, {
-        timeoutMs: 1_000,
+        timeout: 1_000,
         nowFn: () => 0,
         delayFn: async () => {},
       }),
@@ -275,7 +275,7 @@ describe("waitForRuntimeReady", () => {
 
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
-        timeoutMs: 1_000,
+        timeout: 1_000,
         delayFn: async () => {},
       }),
     ).resolves.toBeUndefined();
@@ -312,7 +312,7 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 5,
-        timeoutMs: 100,
+        timeout: 100,
         nowFn: () => now,
         delayFn: async (ms) => {
           now += ms;
@@ -339,7 +339,7 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        timeoutMs: 2,
+        timeout: 2,
         nowFn: () => now,
         delayFn: async (ms) => {
           now += ms;
@@ -367,7 +367,7 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        timeoutMs: 10,
+        timeout: 10,
         nowFn: () => now,
         delayFn: async (ms) => {
           now += ms;

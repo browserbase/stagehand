@@ -93,7 +93,7 @@ export class ExecutionContextRegistry {
   async waitForLocatorWorld(
     session: CDPSessionLike,
     frameId: FrameId,
-    timeoutMs: number = 1000,
+    timeout: number = 1000,
   ): Promise<LocatorWorld> {
     const extensionContextId = this.getExtensionWorld(session, frameId);
     if (extensionContextId) return this.extensionWorld(extensionContextId);
@@ -102,7 +102,7 @@ export class ExecutionContextRegistry {
     if (fallbackContextId) return this.fallbackWorld(fallbackContextId);
 
     try {
-      return this.extensionWorld(await this.waitForExtensionWorld(session, frameId, timeoutMs));
+      return this.extensionWorld(await this.waitForExtensionWorld(session, frameId, timeout));
     } catch (extensionError) {
       if (!(await this.isFallbackEligible(session, frameId))) throw extensionError;
       return this.fallbackWorld(await this.createFallbackWorld(session, frameId));
@@ -112,13 +112,13 @@ export class ExecutionContextRegistry {
   async waitForExtensionWorld(
     session: CDPSessionLike,
     frameId: FrameId,
-    timeoutMs: number = 1000,
+    timeout: number = 1000,
   ): Promise<ExecId> {
     const cached = this.getExtensionWorld(session, frameId);
     if (cached) return cached;
 
     await session.send("Runtime.enable").catch(() => {});
-    const deadline = Date.now() + timeoutMs;
+    const deadline = Date.now() + timeout;
     const checkedContextIds = new Set<ExecId>();
     const diagnostics = new Map<ExecId, string>();
 
@@ -149,7 +149,7 @@ export class ExecutionContextRegistry {
   async waitForMainWorld(
     session: CDPSessionLike,
     frameId: FrameId,
-    timeoutMs: number = 800,
+    timeout: number = 800,
   ): Promise<ExecId> {
     const cached = this.getMainWorld(session, frameId);
     if (cached) return cached;
@@ -181,7 +181,7 @@ export class ExecutionContextRegistry {
           session.off("Runtime.executionContextCreated", onCreated);
           reject(new Error(`main world not ready for frame ${frameId}`));
         }
-      }, timeoutMs);
+      }, timeout);
       session.on("Runtime.executionContextCreated", onCreated);
     });
   }

@@ -1217,7 +1217,7 @@ export const LoadStateSchema = z
 export const PageNavigationOptionsSchema = z
   .object({
     waitUntil: LoadStateSchema.optional(),
-    timeoutMs: z.number().int().positive().optional(),
+    timeout: z.number().int().positive().optional(),
   })
   .strict()
   .meta({ id: "PageNavigationOptions" });
@@ -1655,7 +1655,7 @@ export const PageSetViewportSizeParamsSchema = PageIdParamsSchema.extend({
 
 export const PageWaitForLoadStateParamsSchema = PageIdParamsSchema.extend({
   state: LoadStateSchema,
-  timeoutMs: z.number().int().nonnegative().optional(),
+  timeout: z.number().int().nonnegative().optional(),
 })
   .strict()
   .meta({ id: "PageWaitForLoadStateParams" });

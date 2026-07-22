@@ -30,7 +30,7 @@ await page.goto("https://example.com");
 <ParamField path="options" type="PageNavigationOptions" optional>
   Options that configure this operation.
 
-<ParamField path="options.timeoutMs" type="number" optional>
+<ParamField path="options.timeout" type="number" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -58,7 +58,7 @@ await page.reload();
   Whether to bypass the browser cache.
 </ParamField>
 
-<ParamField path="options.timeoutMs" type="number" optional>
+<ParamField path="options.timeout" type="number" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -82,7 +82,7 @@ await page.goBack();
 <ParamField path="options" type="PageNavigationOptions" optional>
   Options that configure this operation.
 
-<ParamField path="options.timeoutMs" type="number" optional>
+<ParamField path="options.timeout" type="number" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -106,7 +106,7 @@ await page.goForward();
 <ParamField path="options" type="PageNavigationOptions" optional>
   Options that configure this operation.
 
-<ParamField path="options.timeoutMs" type="number" optional>
+<ParamField path="options.timeout" type="number" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -417,7 +417,7 @@ await page.waitForLoadState("networkidle", 10_000);
   The state to wait for.
 </ParamField>
 
-<ParamField path="timeoutMs" type="number" optional>
+<ParamField path="timeout" type="number" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -1208,7 +1208,7 @@ await page.goto("https://example.com")
   The load state to wait for.
 </ParamField>
 
-<ParamField path="timeout_ms" type="int | None" optional>
+<ParamField path="timeout" type="int | None" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -1232,7 +1232,7 @@ await page.reload()
   The load state to wait for.
 </ParamField>
 
-<ParamField path="timeout_ms" type="int | None" optional>
+<ParamField path="timeout" type="int | None" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -1260,7 +1260,7 @@ await page.go_back()
   The load state to wait for.
 </ParamField>
 
-<ParamField path="timeout_ms" type="int | None" optional>
+<ParamField path="timeout" type="int | None" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -1284,7 +1284,7 @@ await page.go_forward()
   The load state to wait for.
 </ParamField>
 
-<ParamField path="timeout_ms" type="int | None" optional>
+<ParamField path="timeout" type="int | None" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -1549,14 +1549,14 @@ await page.set_viewport_size(1440, 900)
 Wait until the page reaches a load state.
 
 ```python
-await page.wait_for_load_state("networkidle", timeout_ms=10_000)
+await page.wait_for_load_state("networkidle", timeout=10_000)
 ```
 
 <ParamField path="state" type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']">
   The state to wait for.
 </ParamField>
 
-<ParamField path="timeout_ms" type="int | None" optional>
+<ParamField path="timeout" type="int | None" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 

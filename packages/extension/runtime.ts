@@ -132,7 +132,7 @@ export type UnderstudyRuntimePage = {
     height: number,
     options?: PageSetViewportSizeParams["options"],
   ): Promise<void>;
-  waitForLoadState(state: PageWaitForLoadStateParams["state"], timeoutMs?: number): Promise<void>;
+  waitForLoadState(state: PageWaitForLoadStateParams["state"], timeout?: number): Promise<void>;
   waitForTimeout(ms: number): Promise<void>;
   waitForSelector(
     selector: string,
@@ -522,7 +522,7 @@ export class StagehandRuntime {
   }
 
   async pageWaitForLoadState(params: PageWaitForLoadStateParams): Promise<PageVoidResult> {
-    await this.resolvePage(params.pageId).waitForLoadState(params.state, params.timeoutMs);
+    await this.resolvePage(params.pageId).waitForLoadState(params.state, params.timeout);
     return { ok: true };
   }
 

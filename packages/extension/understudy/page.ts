@@ -495,10 +495,10 @@ export class Page {
    */
   async goto(
     url: string,
-    options?: { waitUntil?: LoadState; timeoutMs?: number },
+    options?: { waitUntil?: LoadState; timeout?: number },
   ): Promise<Response | null> {
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
-    const timeout = options?.timeoutMs ?? 15000;
+    const timeout = options?.timeout ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
     const tracker = new NavigationResponseTracker({
@@ -512,7 +512,7 @@ export class Page {
       mainSession: this.mainSession,
       networkManager: this.networkManager,
       waitUntil,
-      timeoutMs: timeout,
+      timeout,
       navigationCommandId,
     });
 
@@ -521,7 +521,7 @@ export class Page {
       if (this.apiClient) {
         const result = await this.apiClient.goto(
           url,
-          { waitUntil: options?.waitUntil, timeout: options?.timeoutMs },
+          { waitUntil: options?.waitUntil, timeout: options?.timeout },
           this.mainFrameId(),
         );
         this._currentUrl = url;
@@ -556,11 +556,11 @@ export class Page {
    */
   async reload(options?: {
     waitUntil?: LoadState;
-    timeoutMs?: number;
+    timeout?: number;
     ignoreCache?: boolean;
   }): Promise<Response | null> {
     const waitUntil = options?.waitUntil;
-    const timeout = options?.timeoutMs ?? 15000;
+    const timeout = options?.timeout ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
 
@@ -577,7 +577,7 @@ export class Page {
           mainSession: this.mainSession,
           networkManager: this.networkManager,
           waitUntil,
-          timeoutMs: timeout,
+          timeout,
           navigationCommandId,
         })
       : null;
@@ -600,7 +600,7 @@ export class Page {
   /**
    * Navigate back in history if possible; optionally wait for a lifecycle state.
    */
-  async goBack(options?: { waitUntil?: LoadState; timeoutMs?: number }): Promise<Response | null> {
+  async goBack(options?: { waitUntil?: LoadState; timeout?: number }): Promise<Response | null> {
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
@@ -608,7 +608,7 @@ export class Page {
     const prev = entries[currentIndex - 1];
     if (!prev) return null; // nothing to do
     const waitUntil = options?.waitUntil;
-    const timeout = options?.timeoutMs ?? 15000;
+    const timeout = options?.timeout ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
 
@@ -625,7 +625,7 @@ export class Page {
           mainSession: this.mainSession,
           networkManager: this.networkManager,
           waitUntil,
-          timeoutMs: timeout,
+          timeout,
           navigationCommandId,
         })
       : null;
@@ -649,10 +649,7 @@ export class Page {
   /**
    * Navigate forward in history if possible; optionally wait for a lifecycle state.
    */
-  async goForward(options?: {
-    waitUntil?: LoadState;
-    timeoutMs?: number;
-  }): Promise<Response | null> {
+  async goForward(options?: { waitUntil?: LoadState; timeout?: number }): Promise<Response | null> {
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
@@ -660,7 +657,7 @@ export class Page {
     const next = entries[currentIndex + 1];
     if (!next) return null; // nothing to do
     const waitUntil = options?.waitUntil;
-    const timeout = options?.timeoutMs ?? 15000;
+    const timeout = options?.timeout ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
 
@@ -677,7 +674,7 @@ export class Page {
           mainSession: this.mainSession,
           networkManager: this.networkManager,
           waitUntil,
-          timeoutMs: timeout,
+          timeout,
           navigationCommandId,
         })
       : null;
@@ -936,8 +933,8 @@ export class Page {
    * Wait until the page reaches a lifecycle state on the current main frame.
    * Mirrors Playwright's API signatures.
    */
-  async waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void> {
-    await this.waitForMainLoadState(state, timeoutMs ?? 15000);
+  async waitForLoadState(state: LoadState, timeout?: number): Promise<void> {
+    await this.waitForMainLoadState(state, timeout ?? 15000);
   }
 
   /**
@@ -1869,7 +1866,7 @@ export class Page {
    * - Event path listens at the session level and compares incoming `frameId`
    *   to `mainFrameId()` **at event time** to follow root swaps.
    */
-  async waitForMainLoadState(state: LoadState, timeoutMs = 15000): Promise<void> {
+  async waitForMainLoadState(state: LoadState, timeout = 15000): Promise<void> {
     await this.mainSession
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
@@ -1963,8 +1960,8 @@ export class Page {
         done = true;
         clearPollTimer();
         off();
-        reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
+        reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
+      }, timeout);
     });
   }
 }

@@ -28,7 +28,7 @@ export class LifecycleWatcher {
   readonly mainSession: CDPSessionLike;
   readonly networkManager: NetworkManager;
   readonly waitUntil: LoadState;
-  readonly timeoutMs: number;
+  readonly timeout: number;
   readonly startTime: number;
   readonly navigationCommandId: number;
   currentLoaderId: string | undefined;
@@ -54,14 +54,14 @@ export class LifecycleWatcher {
     mainSession: CDPSessionLike;
     networkManager: NetworkManager;
     waitUntil: LoadState;
-    timeoutMs: number;
+    timeout: number;
     navigationCommandId: number;
   }) {
     this.page = params.page;
     this.mainSession = params.mainSession;
     this.networkManager = params.networkManager;
     this.waitUntil = params.waitUntil;
-    this.timeoutMs = params.timeoutMs;
+    this.timeout = params.timeout;
     this.startTime = Date.now();
     this.navigationCommandId = params.navigationCommandId;
     this.idleStartTime = this.startTime;
@@ -84,7 +84,7 @@ export class LifecycleWatcher {
 
   /** Wait for the requested lifecycle state or throw on timeout/abort. */
   public async wait(): Promise<void> {
-    const deadline = Date.now() + this.timeoutMs;
+    const deadline = Date.now() + this.timeout;
 
     try {
       if (this.waitUntil === "domcontentloaded") {
@@ -197,7 +197,7 @@ export class LifecycleWatcher {
   timeRemaining(deadline: number): number {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
-      throw new TimeoutError("Lifecycle wait", this.timeoutMs);
+      throw new TimeoutError("Lifecycle wait", this.timeout);
     }
     return remaining;
   }
@@ -227,8 +227,8 @@ export class LifecycleWatcher {
     const idleWindow = Math.min(DEFAULT_IDLE_WAIT, remaining);
     this.idleHandle = this.networkManager.waitForIdle({
       startTime: this.idleStartTime,
-      timeoutMs: remaining,
-      totalBudgetMs: this.timeoutMs,
+      timeout: remaining,
+      totalBudgetMs: this.timeout,
       idleTimeMs: idleWindow,
       filter: this.buildIdleFilter(),
     });

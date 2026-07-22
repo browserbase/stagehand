@@ -194,8 +194,8 @@ export class NetworkManager {
   public waitForIdle(options: WaitForIdleOptions): WaitForIdleHandle {
     const startTime = options.startTime ?? Date.now();
     const idleTimeMs = options.idleTimeMs ?? DEFAULT_IDLE_WAIT;
-    const timeoutMs = options.timeoutMs;
-    const remainingBudgetMs = Number.isFinite(timeoutMs) ? timeoutMs : undefined;
+    const timeout = options.timeout;
+    const remainingBudgetMs = Number.isFinite(timeout) ? timeout : undefined;
     const originalBudgetMs = Number.isFinite(options.totalBudgetMs ?? NaN)
       ? (options.totalBudgetMs as number)
       : remainingBudgetMs;
@@ -275,7 +275,7 @@ export class NetworkManager {
     // Trigger initial idle check so that we still respect the quiet window
     maybeIdle();
 
-    if (Number.isFinite(timeoutMs)) {
+    if (Number.isFinite(timeout)) {
       timeoutTimer = setTimeout(
         () => {
           const elapsed = Date.now() - startTime;
@@ -285,7 +285,7 @@ export class NetworkManager {
               : `networkidle timed out after ${elapsed}ms`;
           cleanup(new Error(message));
         },
-        Math.max(0, timeoutMs),
+        Math.max(0, timeout),
       );
     }
 

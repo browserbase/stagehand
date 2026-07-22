@@ -157,9 +157,9 @@ export function frameLocatorFromFrame(page: Page, root: Frame, selector: string)
 async function listDirectChildFrameIdsFromRegistry(
   page: Page,
   parentFrameId: string,
-  timeoutMs: number,
+  timeout: number,
 ): Promise<string[]> {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = Date.now() + timeout;
   while (true) {
     try {
       const tree = page.getFullFrameTree();

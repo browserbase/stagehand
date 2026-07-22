@@ -202,11 +202,11 @@ export class V3Context {
     return false;
   }
 
-  async ensureFirstTopLevelPage(timeoutMs: number): Promise<void> {
+  async ensureFirstTopLevelPage(timeout: number): Promise<void> {
     if (this.hasTopLevelPage()) return;
 
     try {
-      await this.waitForFirstTopLevelPage(timeoutMs);
+      await this.waitForFirstTopLevelPage(timeout);
       return;
     } catch (err) {
       if (!(err instanceof TimeoutError)) {
@@ -227,8 +227,8 @@ export class V3Context {
    * Wait until at least one top-level Page has been created and registered.
    * We poll internal maps that bootstrap/onAttachedToTarget populate.
    */
-  async waitForFirstTopLevelPage(timeoutMs: number): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
+  async waitForFirstTopLevelPage(timeout: number): Promise<void> {
+    const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       // A top-level Page is present if typeByTarget has an entry "page"
       // and pagesByTarget has the corresponding Page object.
@@ -240,13 +240,13 @@ export class V3Context {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
-    throw new TimeoutError(WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION, timeoutMs);
+    throw new TimeoutError(WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION, timeout);
   }
 
-  async waitForInitialTopLevelTargets(targetIds: TargetId[], timeoutMs = 3000): Promise<void> {
+  async waitForInitialTopLevelTargets(targetIds: TargetId[], timeout = 3000): Promise<void> {
     if (!targetIds.length) return;
     const pending = new Set(targetIds);
-    const deadline = Date.now() + timeoutMs;
+    const deadline = Date.now() + timeout;
     while (pending.size && Date.now() < deadline) {
       for (const tid of Array.from(pending)) {
         if (this.pagesByTarget.has(tid)) {
@@ -1211,11 +1211,11 @@ export class V3Context {
 
   /**
    * Await the current active page, waiting briefly if a popup/open was just triggered.
-   * Normal path returns immediately; popup path waits up to timeoutMs for the new page.
+   * Normal path returns immediately; popup path waits up to timeout for the new page.
    */
-  async awaitActivePage(timeoutMs?: number): Promise<Page> {
+  async awaitActivePage(timeout?: number): Promise<Page> {
     const defaultTimeout = this.env === "BROWSERBASE" ? 4000 : 2000;
-    timeoutMs = timeoutMs ?? defaultTimeout;
+    timeout = timeout ?? defaultTimeout;
     // If a popup was just triggered, Chrome (especially on Browserbase)
     // may briefly pause new targets at document start ("waiting for debugger").
     const recentWindowMs = this.env === "BROWSERBASE" ? 1000 : 300;
@@ -1225,7 +1225,7 @@ export class V3Context {
     const immediate = this.activePage();
     if (!hasRecentPopup && immediate) return immediate;
 
-    const deadline = now + timeoutMs;
+    const deadline = now + timeout;
     while (Date.now() < deadline) {
       // Prefer most-recent by createdAt
       let newestTid: TargetId | undefined;

@@ -105,12 +105,12 @@ class Page:
         url: str,
         *,
         wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
-        timeout_ms: int | None = None,
+        timeout: int | None = None,
     ) -> Self:
         params = PageGotoParams(page_id=self.page_id, url=url)
         options = PageNavigationOptions.model_validate({
             name: value
-            for name, value in (("wait_until", wait_until), ("timeout_ms", timeout_ms))
+            for name, value in (("wait_until", wait_until), ("timeout", timeout))
             if value is not None
         })
         if options.model_fields_set:
@@ -122,7 +122,7 @@ class Page:
         self,
         *,
         wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
-        timeout_ms: int | None = None,
+        timeout: int | None = None,
         ignore_cache: bool | None = None,
     ) -> Self:
         params = PageReloadParams(page_id=self.page_id)
@@ -130,7 +130,7 @@ class Page:
             name: value
             for name, value in (
                 ("wait_until", wait_until),
-                ("timeout_ms", timeout_ms),
+                ("timeout", timeout),
                 ("ignore_cache", ignore_cache),
             )
             if value is not None
@@ -144,12 +144,12 @@ class Page:
         self,
         *,
         wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
-        timeout_ms: int | None = None,
+        timeout: int | None = None,
     ) -> Self:
         params = PageGoBackParams(page_id=self.page_id)
         options = PageNavigationOptions.model_validate({
             name: value
-            for name, value in (("wait_until", wait_until), ("timeout_ms", timeout_ms))
+            for name, value in (("wait_until", wait_until), ("timeout", timeout))
             if value is not None
         })
         if options.model_fields_set:
@@ -161,12 +161,12 @@ class Page:
         self,
         *,
         wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
-        timeout_ms: int | None = None,
+        timeout: int | None = None,
     ) -> Self:
         params = PageGoForwardParams(page_id=self.page_id)
         options = PageNavigationOptions.model_validate({
             name: value
-            for name, value in (("wait_until", wait_until), ("timeout_ms", timeout_ms))
+            for name, value in (("wait_until", wait_until), ("timeout", timeout))
             if value is not None
         })
         if options.model_fields_set:
@@ -356,14 +356,14 @@ class Page:
     async def wait_for_load_state(
         self,
         state: LoadState | Literal["load", "domcontentloaded", "networkidle"],
-        timeout_ms: int | None = None,
+        timeout: int | None = None,
     ) -> None:
         params = PageWaitForLoadStateParams.model_validate({
             "page_id": self.page_id,
             "state": state,
         })
-        if timeout_ms is not None:
-            params.timeout_ms = timeout_ms
+        if timeout is not None:
+            params.timeout = timeout
         await self._rpc_client.send("page.wait_for_load_state", params, PageVoidResult)
 
     async def wait_for_timeout(self, ms: int) -> None:
