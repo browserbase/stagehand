@@ -2,8 +2,7 @@ import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Page } from "../../page.js";
 import { executionContexts } from "../../executionContextRegistry.js";
-import { a11yScriptSources } from "../../../dom/build/a11yScripts.generated.js";
-import { buildA11yInvocation } from "../../a11yInvocation.js";
+import { getBoundingRectLite, getScrollOffsets } from "../../../dom/a11yScripts/index.js";
 import type { ResolvedLocation } from "../../../types/private/snapshot.js";
 import { listChildrenOf } from "./focusSelectors.js";
 import { buildAbsoluteXPathFromChain } from "./xpathUtils.js";
@@ -45,7 +44,7 @@ export async function resolveXpathForLocation(
         const ctxId = await executionContexts
           .waitForMainWorld(curSession, curFrameId)
           .catch(() => {});
-        const scrollExpr = buildA11yInvocation("getScrollOffsets", []);
+        const scrollExpr = `(${getScrollOffsets.toString()})()`;
         const evalParams = ctxId
           ? {
               contextId: ctxId,
@@ -125,7 +124,7 @@ export async function resolveXpathForLocation(
             result: { value?: { left: number; top: number } };
           }>("Runtime.callFunctionOn", {
             objectId,
-            functionDeclaration: a11yScriptSources.getBoundingRectLite,
+            functionDeclaration: getBoundingRectLite.toString(),
             returnByValue: true,
           });
           left = Number(result?.value?.left ?? 0);

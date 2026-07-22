@@ -180,6 +180,42 @@ export class Frame implements FrameManager {
     return res.result.value as R;
   }
 
+  /** Evaluate an internal expression in Stagehand's selected locator world. */
+  async evaluateInLocatorWorld<R = unknown>(expression: string): Promise<R> {
+    await this.session.send("Runtime.enable").catch(() => {});
+    let locatorWorld = await executionContexts.waitForLocatorWorld(
+      this.session,
+      this.frameId,
+      1000,
+    );
+
+    let response: Protocol.Runtime.EvaluateResponse;
+    try {
+      response = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+        expression,
+        contextId: locatorWorld.contextId,
+        awaitPromise: true,
+        returnByValue: true,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("Cannot find context with specified id")) throw error;
+      executionContexts.unregisterLocatorContext(this.session, locatorWorld.contextId);
+      locatorWorld = await executionContexts.waitForLocatorWorld(this.session, this.frameId, 1000);
+      response = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+        expression,
+        contextId: locatorWorld.contextId,
+        awaitPromise: true,
+        returnByValue: true,
+      });
+    }
+
+    if (response.exceptionDetails) {
+      throw new Error(response.exceptionDetails.text ?? "Locator-world evaluation failed");
+    }
+    return response.result.value as R;
+  }
+
   /** Page.captureScreenshot (frame-scoped session) */
   async screenshot(options?: {
     fullPage?: boolean;
@@ -299,5 +335,14 @@ export class Frame implements FrameManager {
   /** Resolve the main-world execution context id for this frame. */
   async getMainWorldExecutionContextId(): Promise<number> {
     return executionContexts.waitForMainWorld(this.session, this.frameId, 1000);
+  }
+
+  async getExtensionWorldExecutionContextId(): Promise<number> {
+    return executionContexts.waitForExtensionWorld(this.session, this.frameId, 1000);
+  }
+
+  async getLocatorWorldExecutionContextId(): Promise<number> {
+    return (await executionContexts.waitForLocatorWorld(this.session, this.frameId, 1000))
+      .contextId;
   }
 }

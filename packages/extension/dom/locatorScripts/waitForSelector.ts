@@ -1,13 +1,14 @@
 /**
  * waitForSelector - Waits for an element matching a selector to reach a specific state.
  * Supports both CSS selectors and XPath expressions.
- * Uses MutationObserver for efficiency and integrates with the V3 piercer for closed shadow roots.
+ * Uses MutationObserver for efficiency and the extension DOM API for closed shadow roots.
  *
  * NOTE: This function runs inside the page context. Keep it dependency-free
  * and resilient to exceptions.
  */
 
 import { resolveXPathFirst } from "./xpathResolver.js";
+import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
 type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
 
@@ -19,32 +20,7 @@ const isXPath = (selector: string): boolean => {
 };
 
 /**
- * Get closed shadow root via the V3 piercer if available.
- */
-const getClosedRoot = (element: Element): ShadowRoot | null => {
-  try {
-    const backdoor = window.__stagehandV3__;
-    if (backdoor && typeof backdoor.getClosedRoot === "function") {
-      return backdoor.getClosedRoot(element) ?? null;
-    }
-  } catch {
-    // ignore
-  }
-  return null;
-};
-
-/**
- * Get shadow root (open or closed via piercer).
- */
-const getShadowRoot = (element: Element): ShadowRoot | null => {
-  // First try open shadow root
-  if (element.shadowRoot) return element.shadowRoot;
-  // Then try closed shadow root via piercer
-  return getClosedRoot(element);
-};
-
-/**
- * Deep querySelector that pierces shadow DOM (both open and closed via piercer).
+ * Deep querySelector that pierces both open and closed shadow DOM.
  */
 const deepQuerySelector = (
   root: Document | ShadowRoot,
@@ -88,7 +64,7 @@ const deepQuerySelector = (
       let node: Node | null;
       while ((node = walker.nextNode())) {
         if (!(node instanceof Element)) continue;
-        const shadowRoot = getShadowRoot(node);
+        const shadowRoot = getOpenOrClosedShadowRoot(node);
         if (shadowRoot && !seenRoots.has(shadowRoot)) {
           queue.push(shadowRoot);
         }
@@ -161,14 +137,20 @@ const checkState = (el: Element | null, state: WaitForSelectorState): boolean =>
 /**
  * Set up MutationObservers on all shadow roots to detect changes.
  */
-const setupShadowObservers = (callback: () => void, observers: MutationObserver[]): void => {
+const setupShadowObservers = (
+  callback: () => void,
+  observers: MutationObserver[],
+): (() => void) => {
   const seenRoots = new WeakSet<Node>();
 
   const observeShadowRoots = (node: Element): void => {
-    const shadowRoot = getShadowRoot(node);
+    const shadowRoot = getOpenOrClosedShadowRoot(node);
     if (shadowRoot && !seenRoots.has(shadowRoot)) {
       seenRoots.add(shadowRoot);
-      const shadowObserver = new MutationObserver(callback);
+      const shadowObserver = new MutationObserver(() => {
+        callback();
+        scan();
+      });
       shadowObserver.observe(shadowRoot, {
         childList: true,
         subtree: true,
@@ -190,9 +172,11 @@ const setupShadowObservers = (callback: () => void, observers: MutationObserver[
   };
 
   const root = document.documentElement || document.body;
-  if (root) {
-    observeShadowRoots(root);
-  }
+  const scan = (): void => {
+    if (root) observeShadowRoots(root);
+  };
+  scan();
+  return scan;
 };
 
 /**
@@ -236,10 +220,16 @@ export function waitForSelector(
     }
 
     const observers: MutationObserver[] = [];
+    let shadowScanInterval: ReturnType<typeof setInterval> | null = null;
+    let rescanShadowRoots: (() => void) | null = null;
 
     const cleanup = (): void => {
       for (const obs of observers) {
         obs.disconnect();
+      }
+      if (shadowScanInterval !== null) {
+        clearInterval(shadowScanInterval);
+        shadowScanInterval = null;
       }
       if (domReadyHandler) {
         document.removeEventListener("DOMContentLoaded", domReadyHandler);
@@ -287,7 +277,10 @@ export function waitForSelector(
       if (!root) return;
 
       // Main document observer
-      const mainObserver = new MutationObserver(check);
+      const mainObserver = new MutationObserver(() => {
+        check();
+        rescanShadowRoots?.();
+      });
       mainObserver.observe(root, {
         childList: true,
         subtree: true,
@@ -298,7 +291,11 @@ export function waitForSelector(
 
       // Shadow DOM observers (if piercing)
       if (pierceShadow) {
-        setupShadowObservers(check, observers);
+        rescanShadowRoots = setupShadowObservers(check, observers);
+        shadowScanInterval = setInterval(() => {
+          rescanShadowRoots?.();
+          check();
+        }, 100);
       }
     };
 

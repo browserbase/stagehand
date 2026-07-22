@@ -149,27 +149,6 @@ export function scrollElementToPercent(this: Element, percent: number | string):
   }
 }
 
-const inputTypesToSetValue = new Set([
-  "color",
-  "date",
-  "datetime-local",
-  "month",
-  "range",
-  "time",
-  "week",
-]);
-
-const inputTypesToTypeInto = new Set([
-  "",
-  "email",
-  "number",
-  "password",
-  "search",
-  "tel",
-  "text",
-  "url",
-]);
-
 export type FillElementResult =
   | { status: "done" }
   | { status: "needsinput"; value: string; reason?: string }
@@ -236,6 +215,25 @@ export function prepareElementForTyping(this: Element): boolean {
 }
 
 export function fillElementValue(this: Element, rawValue: string): FillElementResult {
+  const inputTypesToSetValue = new Set([
+    "color",
+    "date",
+    "datetime-local",
+    "month",
+    "range",
+    "time",
+    "week",
+  ]);
+  const inputTypesToTypeInto = new Set([
+    "",
+    "email",
+    "number",
+    "password",
+    "search",
+    "tel",
+    "text",
+    "url",
+  ]);
   const element = this as HTMLElement;
   if (!element.isConnected) {
     return { status: "error", reason: "notconnected" };
@@ -294,7 +292,11 @@ export function fillElementValue(this: Element, rawValue: string): FillElementRe
       if (inputTypesToSetValue.has(type)) {
         const trimmed = rawValue.trim();
         fallbackValue = trimmed;
-        prepareElementForTyping.call(element);
+        try {
+          element.focus();
+        } catch {
+          // Setting the value does not require focus.
+        }
 
         const prototype = win.HTMLInputElement.prototype;
         const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
@@ -321,12 +323,10 @@ export function fillElementValue(this: Element, rawValue: string): FillElementRe
         return { status: "done" };
       }
 
-      prepareElementForTyping.call(element);
       return { status: "needsinput", value: valueForTyping };
     }
 
     if (element instanceof win.HTMLTextAreaElement) {
-      prepareElementForTyping.call(element);
       fallbackValue = rawValue;
       return { status: "needsinput", value: rawValue };
     }
@@ -337,7 +337,6 @@ export function fillElementValue(this: Element, rawValue: string): FillElementRe
     }
 
     if (element.isContentEditable) {
-      prepareElementForTyping.call(element);
       fallbackValue = rawValue;
       return { status: "needsinput", value: rawValue };
     }

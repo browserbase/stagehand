@@ -1,6 +1,7 @@
 import { applyPredicates, parseXPathSteps, type XPathStep } from "./xpathParser.js";
+import { documentHasShadowRoot, getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
-type ClosedRootGetter = (host: Element) => ShadowRoot | null;
+type ShadowRootGetter = (host: Element) => ShadowRoot | null;
 type TraversalRoot = Document | Element | ShadowRoot | DocumentFragment;
 
 export type XPathResolveOptions = {
@@ -8,7 +9,7 @@ export type XPathResolveOptions = {
 };
 
 type ShadowContext = {
-  getClosedRoot: ClosedRootGetter | null;
+  getShadowRoot: ShadowRootGetter | null;
   hasShadow: boolean;
 };
 
@@ -42,17 +43,15 @@ export function resolveXPathAtIndex(
   if (!shadowCtx?.hasShadow) {
     const native = resolveNativeAtIndexWithError(xp, targetIndex);
     if (!native.error) return native.value;
-    const composed = resolveXPathComposedMatches(xp, shadowCtx?.getClosedRoot);
+    const composed = resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot);
     return composed[targetIndex] ?? null;
   }
 
-  const composed = resolveXPathComposedMatches(xp, shadowCtx.getClosedRoot);
-  if (composed.length > 0) {
-    return composed[targetIndex] ?? null;
-  }
+  const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot);
+  if (shadowHopMatches.length > 0) return shadowHopMatches[targetIndex] ?? null;
 
-  const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getClosedRoot);
-  return shadowHopMatches[targetIndex] ?? null;
+  const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
+  return composed[targetIndex] ?? null;
 }
 
 export function countXPathMatches(rawXp: string, options?: XPathResolveOptions): number {
@@ -69,18 +68,18 @@ export function countXPathMatches(rawXp: string, options?: XPathResolveOptions):
   if (!shadowCtx?.hasShadow) {
     const count = resolveNativeCountWithError(xp);
     if (!count.error) return count.count;
-    return resolveXPathComposedMatches(xp, shadowCtx?.getClosedRoot).length;
+    return resolveXPathComposedMatches(xp, shadowCtx?.getShadowRoot).length;
   }
 
-  const composedCount = resolveXPathComposedMatches(xp, shadowCtx.getClosedRoot).length;
-  if (composedCount > 0) return composedCount;
+  const shadowHopCount = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot).length;
+  if (shadowHopCount > 0) return shadowHopCount;
 
-  return resolveStagehandShadowHopMatches(xp, shadowCtx.getClosedRoot).length;
+  return resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot).length;
 }
 
 export function resolveXPathComposedMatches(
   rawXp: string,
-  getClosedRoot?: ClosedRootGetter | null,
+  getShadowRoot?: ShadowRootGetter | null,
 ): Element[] {
   const xp = normalizeXPath(rawXp);
   if (!xp) return [];
@@ -88,7 +87,7 @@ export function resolveXPathComposedMatches(
   const steps = parseXPathSteps(xp);
   if (!steps.length) return [];
 
-  const closedRoot = getClosedRoot ?? null;
+  const shadowRootGetter = getShadowRoot ?? null;
 
   let current: TraversalRoot[] = [document];
 
@@ -99,8 +98,8 @@ export function resolveXPathComposedMatches(
     for (const root of current) {
       const pool =
         step.axis === "child"
-          ? composedChildren(root, closedRoot)
-          : composedDescendants(root, closedRoot);
+          ? composedChildren(root, shadowRootGetter)
+          : composedDescendants(root, shadowRootGetter);
       if (!pool.length) continue;
 
       const tagMatches = pool.filter((candidate) => matchesTag(candidate, step));
@@ -123,7 +122,7 @@ export function resolveXPathComposedMatches(
 
 function resolveStagehandShadowHopMatches(
   rawXp: string,
-  getClosedRoot?: ClosedRootGetter | null,
+  getShadowRoot?: ShadowRootGetter | null,
 ): Element[] {
   const xp = normalizeXPath(rawXp);
   if (!xp) return [];
@@ -133,7 +132,7 @@ function resolveStagehandShadowHopMatches(
     return [];
   }
 
-  const closedRoot = getClosedRoot ?? null;
+  const shadowRootGetter = getShadowRoot ?? null;
   let current: TraversalRoot[] = [document];
 
   for (let i = 0; i < steps.length; i += 1) {
@@ -146,8 +145,8 @@ function resolveStagehandShadowHopMatches(
         step.axis === "child"
           ? domChildren(root)
           : i === 0
-            ? composedDescendants(root, closedRoot)
-            : shadowRootChildren(root, closedRoot);
+            ? composedDescendants(root, shadowRootGetter)
+            : shadowRootChildren(root, shadowRootGetter);
       if (!pool.length) continue;
 
       const tagMatches = pool.filter((candidate) => matchesTag(candidate, step));
@@ -174,47 +173,10 @@ function matchesTag(element: Element, step: XPathStep): boolean {
 }
 
 function getShadowContext(): ShadowContext {
-  const backdoor = window.__stagehandV3__;
-  const getClosedRoot: ClosedRootGetter | null =
-    backdoor && typeof backdoor.getClosedRoot === "function"
-      ? (host: Element): ShadowRoot | null => {
-          try {
-            return backdoor.getClosedRoot(host) ?? null;
-          } catch {
-            return null;
-          }
-        }
-      : null;
-
-  let hasShadow = false;
-  try {
-    if (backdoor && typeof backdoor.stats === "function") {
-      const stats = backdoor.stats();
-      hasShadow = (stats?.open ?? 0) > 0 || (stats?.closed ?? 0) > 0;
-    }
-  } catch {
-    // ignore stats errors
-  }
-
-  if (!hasShadow) {
-    try {
-      const walker = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
-      while (walker.nextNode()) {
-        const el = walker.currentNode as Element;
-        if (el.shadowRoot) {
-          hasShadow = true;
-          break;
-        }
-      }
-    } catch {
-      // ignore scan errors
-    }
-  }
-
-  return { getClosedRoot, hasShadow };
+  return { getShadowRoot: getOpenOrClosedShadowRoot, hasShadow: documentHasShadowRoot() };
 }
 
-function composedChildren(node: TraversalRoot, getClosedRoot: ClosedRootGetter | null): Element[] {
+function composedChildren(node: TraversalRoot, getShadowRoot: ShadowRootGetter | null): Element[] {
   const out: Element[] = [];
 
   if (node instanceof Document) {
@@ -229,12 +191,8 @@ function composedChildren(node: TraversalRoot, getClosedRoot: ClosedRootGetter |
 
   if (node instanceof Element) {
     out.push(...Array.from(node.children ?? []));
-    const open = node.shadowRoot;
-    if (open) out.push(...Array.from(open.children ?? []));
-    if (getClosedRoot) {
-      const closed = getClosedRoot(node);
-      if (closed) out.push(...Array.from(closed.children ?? []));
-    }
+    const shadowRoot = getShadowRoot?.(node) ?? getOpenOrClosedShadowRoot(node);
+    if (shadowRoot) out.push(...Array.from(shadowRoot.children ?? []));
     return out;
   }
 
@@ -264,28 +222,24 @@ function domChildren(node: TraversalRoot): Element[] {
 
 function shadowRootChildren(
   node: TraversalRoot,
-  getClosedRoot: ClosedRootGetter | null,
+  getShadowRoot: ShadowRootGetter | null,
 ): Element[] {
   const out: Element[] = [];
   if (!(node instanceof Element)) return out;
 
-  const open = node.shadowRoot;
-  if (open) out.push(...Array.from(open.children ?? []));
-  if (getClosedRoot) {
-    const closed = getClosedRoot(node);
-    if (closed) out.push(...Array.from(closed.children ?? []));
-  }
+  const shadowRoot = getShadowRoot?.(node) ?? getOpenOrClosedShadowRoot(node);
+  if (shadowRoot) out.push(...Array.from(shadowRoot.children ?? []));
 
   return out;
 }
 
 function composedDescendants(
   node: TraversalRoot,
-  getClosedRoot: ClosedRootGetter | null,
+  getShadowRoot: ShadowRootGetter | null,
 ): Element[] {
   const out: Element[] = [];
   const seen = new Set<Element>();
-  const stack = [...composedChildren(node, getClosedRoot)].reverse();
+  const stack = [...composedChildren(node, getShadowRoot)].reverse();
 
   while (stack.length) {
     const next = stack.pop()!;
@@ -293,7 +247,7 @@ function composedDescendants(
     seen.add(next);
     out.push(next);
 
-    const children = composedChildren(next, getClosedRoot);
+    const children = composedChildren(next, getShadowRoot);
     for (let i = children.length - 1; i >= 0; i -= 1) {
       stack.push(children[i]!);
     }

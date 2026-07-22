@@ -23,21 +23,6 @@ export function getBoundingRectLite(this: Element): {
   }
 }
 
-export function resolveDeepActiveElement(): Element | null {
-  try {
-    const deepActive = (doc: Document | ShadowRoot): Element | null => {
-      let el: Element | null = doc.activeElement ?? null;
-      while (el && el.shadowRoot && el.shadowRoot.activeElement) {
-        el = el.shadowRoot.activeElement;
-      }
-      return el ?? null;
-    };
-    return deepActive(document);
-  } catch {
-    return null;
-  }
-}
-
 export function nodeToAbsoluteXPath(this: Node | null | undefined): string {
   const compute = (node: Node | null | undefined): string => {
     try {

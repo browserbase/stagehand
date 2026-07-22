@@ -1,16 +1,14 @@
-import {
-  locatorScriptBootstrap,
-  locatorScriptGlobalRefs,
-  type LocatorScriptName,
-} from "../dom/build/locatorScripts.generated.js";
+import type { LocatorScriptName } from "../dom/locatorScripts/registry.js";
 
 /**
- * Build an expression that injects the locator bundle (if needed) and invokes a
- * specific helper via its stable global reference. This keeps Runtime.evaluate
- * payloads tiny while guaranteeing our selector utilities are present in any
- * execution context.
+ * Build an expression that invokes a helper installed by Stagehand's extension
+ * content script in its isolated world.
  */
 export function buildLocatorInvocation(name: LocatorScriptName, args: string[]): string {
-  const invocation = `${locatorScriptGlobalRefs[name]}(${args.join(", ")})`;
-  return `(() => { ${locatorScriptBootstrap}; return ${invocation}; })()`;
+  const key = JSON.stringify(name);
+  return `(() => {
+    const scripts = globalThis.__stagehandLocatorScripts;
+    if (!scripts) throw new Error("Stagehand extension world is not initialized");
+    return scripts[${key}](${args.join(", ")});
+  })()`;
 }

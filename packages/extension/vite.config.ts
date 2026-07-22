@@ -12,6 +12,7 @@ function copyExtensionStaticFiles() {
     async closeBundle() {
       await mkdir(outDir, { recursive: true });
       await cp(path.join(root, "manifest.json"), path.join(outDir, "manifest.json"));
+      await cp(path.join(root, "blank.html"), path.join(outDir, "blank.html"));
       await cp(
         path.join(root, "service-worker-lifecycle/wake.html"),
         path.join(outDir, "wake-service-worker.html"),
@@ -35,6 +36,7 @@ export default defineConfig({
     rolldownOptions: {
       input: {
         "service-worker": path.join(root, "service-worker.ts"),
+        "content-script": path.join(root, "content-script.ts"),
         "offscreen/service-worker-heartbeat": path.join(
           root,
           "service-worker-lifecycle/heartbeat.ts",

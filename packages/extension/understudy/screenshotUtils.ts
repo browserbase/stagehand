@@ -4,7 +4,7 @@ import type { Frame } from "./frame.js";
 import type { Locator } from "./locator.js";
 import type { Page } from "./page.js";
 import type { ScreenshotClip, UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
-import { screenshotScriptSources } from "../dom/build/screenshotScripts.generated.js";
+import { resolveMaskRect } from "../dom/screenshotScripts/index.js";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
 
@@ -351,7 +351,7 @@ async function resolveMaskRectForObject(
     "Runtime.callFunctionOn",
     {
       objectId,
-      functionDeclaration: screenshotScriptSources.resolveMaskRect,
+      functionDeclaration: resolveMaskRect.toString(),
       arguments: [{ value: maskToken }],
       returnByValue: true,
     },

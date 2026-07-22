@@ -121,6 +121,133 @@ describe("Stagehand service worker RPC client smoke", () => {
     expect(page.url).toBe("about:blank");
   });
 
+  it("supports locators on a newly created page before its first navigation", async () => {
+    const activeRpcClient = requireRpcClient(rpcClient);
+    const page = await activeRpcClient.send(StagehandMethods.contextNewPage, {});
+
+    try {
+      expect(page.url).toBe(
+        `chrome-extension://${activeRpcClient.serviceWorker.extensionId}/blank.html`,
+      );
+      await activeRpcClient.send(StagehandMethods.pageEvaluate, {
+        pageId: page.pageId,
+        expression: `(() => {
+          const button = document.createElement("button");
+          button.id = "blank-page-button";
+          button.textContent = "Continue";
+          button.addEventListener("click", () => {
+            button.textContent = "Clicked";
+          });
+          document.body.appendChild(button);
+        })()`,
+      });
+
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorClick, {
+          pageId: page.pageId,
+          selector: "#blank-page-button",
+        }),
+      ).resolves.toStrictEqual({ clicked: true });
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: "#blank-page-button",
+        }),
+      ).resolves.toStrictEqual({ textContent: "Clicked" });
+    } finally {
+      await activeRpcClient.send(StagehandMethods.pageClose, { pageId: page.pageId });
+    }
+  });
+
+  it("returns a newly created URL page with locators ready", async () => {
+    const activeRpcClient = requireRpcClient(rpcClient);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const page = await activeRpcClient.send(StagehandMethods.contextNewPage, {
+      url: activeFixtureServer.url,
+    });
+
+    try {
+      expect(page.url).toBe(activeFixtureServer.url);
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: "#locator-message",
+        }),
+      ).resolves.toStrictEqual({ textContent: "locator text" });
+    } finally {
+      await activeRpcClient.send(StagehandMethods.pageClose, { pageId: page.pageId });
+    }
+  });
+
+  it("supports locators through the CDP fallback world on a data URL", async () => {
+    const activeRpcClient = requireRpcClient(rpcClient);
+    const page = await activeRpcClient.send(StagehandMethods.contextNewPage, {});
+    const html = `<button id="data-button" onclick="this.textContent='Clicked'">Continue</button>`;
+
+    try {
+      await activeRpcClient.send(StagehandMethods.pageGoto, {
+        pageId: page.pageId,
+        url: `data:text/html,${encodeURIComponent(html)}`,
+      });
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorClick, {
+          pageId: page.pageId,
+          selector: "#data-button",
+        }),
+      ).resolves.toStrictEqual({ clicked: true });
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: "#data-button",
+        }),
+      ).resolves.toStrictEqual({ textContent: "Clicked" });
+
+      await activeRpcClient.send(StagehandMethods.pageEvaluate, {
+        pageId: page.pageId,
+        expression: `(() => {
+          const host = document.createElement("div");
+          const root = host.attachShadow({ mode: "open" });
+          root.innerHTML = '<span id="data-shadow-text">Open shadow</span>';
+          document.body.appendChild(host);
+        })()`,
+      });
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: "#data-shadow-text",
+        }),
+      ).resolves.toStrictEqual({ textContent: "Open shadow" });
+      await expect(
+        activeRpcClient.send(StagehandMethods.pageEvaluate, {
+          pageId: page.pageId,
+          expression: `({
+            hasLocatorWorldGlobal: "__stagehandLocatorWorld" in window,
+            hasLocatorScriptsGlobal: "__stagehandLocatorScripts" in window
+          })`,
+        }),
+      ).resolves.toStrictEqual({
+        value: {
+          hasLocatorWorldGlobal: false,
+          hasLocatorScriptsGlobal: false,
+        },
+      });
+
+      const activeFixtureServer = requireFixtureServer(fixtureServer);
+      await activeRpcClient.send(StagehandMethods.pageGoto, {
+        pageId: page.pageId,
+        url: activeFixtureServer.url,
+      });
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorTextContent, {
+          pageId: page.pageId,
+          selector: "#locator-message",
+        }),
+      ).resolves.toStrictEqual({ textContent: "locator text" });
+    } finally {
+      await activeRpcClient.send(StagehandMethods.pageClose, { pageId: page.pageId });
+    }
+  });
+
   it("ping rejects invalid params before the handler runs", async () => {
     await expect(
       rpcClient?.send(StagehandMethods.ping, { extra: true } as never),
@@ -222,7 +349,126 @@ describe("Stagehand service worker RPC client smoke", () => {
     ).resolves.toStrictEqual({
       textContent: "clicked:user@example.com",
     });
-  });
+
+    await expect(
+      activeRpcClient.send(StagehandMethods.locatorFill, {
+        pageId: page.pageId,
+        selector: "#locator-date",
+        value: "2026-07-21",
+      }),
+    ).resolves.toStrictEqual({ filled: true });
+    await expect(
+      activeRpcClient.send(StagehandMethods.locatorInputValue, {
+        pageId: page.pageId,
+        selector: "#locator-date",
+      }),
+    ).resolves.toStrictEqual({ value: "2026-07-21" });
+
+    await expect(
+      activeRpcClient.send(StagehandMethods.locatorIsVisible, {
+        pageId: page.pageId,
+        selector: "#closed-message",
+      }),
+    ).resolves.toStrictEqual({ visible: true });
+    await expect(
+      activeRpcClient.send(StagehandMethods.locatorTextContent, {
+        pageId: page.pageId,
+        selector: "xpath=//div[@id='closed-host']//p[1]",
+      }),
+    ).resolves.toStrictEqual({ textContent: "closed root text" });
+    await expect(
+      activeRpcClient.send(StagehandMethods.locatorTextContent, {
+        pageId: page.pageId,
+        selector: "#shadow-frame >> #frame-closed-message",
+      }),
+    ).resolves.toStrictEqual({ textContent: "closed root iframe text" });
+
+    await activeRpcClient.send(StagehandMethods.locatorFill, {
+      pageId: page.pageId,
+      selector: "#closed-input",
+      value: "inside closed root",
+    });
+    await activeRpcClient.send(StagehandMethods.locatorClick, {
+      pageId: page.pageId,
+      selector: "#closed-button",
+    });
+    await expect(
+      activeRpcClient.send(StagehandMethods.locatorTextContent, {
+        pageId: page.pageId,
+        selector: "#closed-output",
+      }),
+    ).resolves.toStrictEqual({ textContent: "clicked:inside closed root" });
+
+    await expect(
+      activeRpcClient.send(StagehandMethods.locatorCount, {
+        pageId: page.pageId,
+        selector: ".mixed-shadow",
+      }),
+    ).resolves.toStrictEqual({ count: 3 });
+    await expect(
+      activeRpcClient.send(StagehandMethods.locatorTextContent, {
+        pageId: page.pageId,
+        selector: ".mixed-shadow",
+        nth: 1,
+      }),
+    ).resolves.toStrictEqual({ textContent: "closed" });
+
+    await activeRpcClient.send(StagehandMethods.pageHover, {
+      pageId: page.pageId,
+      x: 1,
+      y: 1,
+      options: { returnXpath: true },
+    });
+
+    await expect(
+      activeRpcClient.send(StagehandMethods.pageEvaluate, {
+        pageId: page.pageId,
+        expression: `({
+          hasBackdoor: "__stagehandV3__" in window,
+          hasA11yGlobal: "__stagehandA11yScripts" in window,
+          hasExtensionWorldGlobal: "__stagehandExtensionWorld" in window,
+          hasLocatorWorldGlobal: "__stagehandLocatorWorld" in window,
+          hasLocatorScriptsGlobal: "__stagehandLocatorScripts" in window,
+          attachShadowIsNative: Element.prototype.attachShadow.toString().includes("[native code]")
+        })`,
+      }),
+    ).resolves.toStrictEqual({
+      value: {
+        hasBackdoor: false,
+        hasA11yGlobal: false,
+        hasExtensionWorldGlobal: false,
+        hasLocatorWorldGlobal: false,
+        hasLocatorScriptsGlobal: false,
+        attachShadowIsNative: true,
+      },
+    });
+
+    await activeRpcClient.send(StagehandMethods.pageEvaluate, {
+      pageId: page.pageId,
+      expression: `(() => {
+        const host = document.createElement("div");
+        host.id = "delayed-shadow-host";
+        document.body.append(host);
+        setTimeout(() => {
+          const root = host.attachShadow({ mode: "closed" });
+          setTimeout(() => {
+            const target = document.createElement("button");
+            target.id = "delayed-shadow-target";
+            target.textContent = "ready";
+            root.append(target);
+          }, 100);
+        }, 100);
+        return true;
+      })()`,
+    });
+    await expect(
+      activeRpcClient.send(StagehandMethods.pageWaitForSelector, {
+        pageId: page.pageId,
+        selector: "#delayed-shadow-target",
+        options: { state: "visible", timeout: 2_000, pierceShadow: true },
+      }),
+    ).resolves.toStrictEqual({ matched: true });
+  }, 10_000);
 
   it("unknown protocol command preserves the protocol error as the cause", async () => {
     await expect(
@@ -360,6 +606,23 @@ async function launchChrome(startingUrl: string): Promise<LaunchedChrome> {
 
 async function startFixtureServer(): Promise<FixtureServer> {
   const server = createServer((request, response) => {
+    if (request.url === "/frame") {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end(`<!doctype html>
+<html>
+  <body>
+    <div id="frame-closed-host"></div>
+    <script>
+      const root = document
+        .querySelector("#frame-closed-host")
+        .attachShadow({ mode: "closed" });
+      root.innerHTML = '<p id="frame-closed-message">closed root iframe text</p>';
+    </script>
+  </body>
+</html>`);
+      return;
+    }
+
     if (request.url !== "/") {
       response.writeHead(404);
       response.end("not found");
@@ -377,6 +640,8 @@ async function startFixtureServer(): Promise<FixtureServer> {
     <p id="locator-message">locator text</p>
     <label for="locator-input">Email</label>
     <input id="locator-input" name="email" />
+    <label for="locator-date">Date</label>
+    <input id="locator-date" type="date" />
     <button
       id="locator-button"
       onclick="document.querySelector('#locator-output').textContent = 'clicked:' + document.querySelector('#locator-input').value;"
@@ -384,6 +649,27 @@ async function startFixtureServer(): Promise<FixtureServer> {
       Submit
     </button>
     <p id="locator-output">waiting</p>
+    <p class="mixed-shadow">light</p>
+    <div id="closed-host"><p>light DOM collision</p></div>
+    <div id="open-host"></div>
+    <iframe id="shadow-frame" src="/frame"></iframe>
+    <script>
+      const closedRoot = document.querySelector("#closed-host").attachShadow({ mode: "closed" });
+      closedRoot.innerHTML = [
+        '<p id="closed-message">closed root text</p>',
+        '<input id="closed-input" />',
+        '<button id="closed-button">Submit closed</button>',
+        '<p id="closed-output">waiting</p>',
+        '<p class="mixed-shadow">closed</p>',
+      ].join("");
+      closedRoot.querySelector("#closed-button").addEventListener("click", () => {
+        closedRoot.querySelector("#closed-output").textContent =
+          "clicked:" + closedRoot.querySelector("#closed-input").value;
+      });
+
+      const openRoot = document.querySelector("#open-host").attachShadow({ mode: "open" });
+      openRoot.innerHTML = '<p class="mixed-shadow">open</p>';
+    </script>
   </body>
 </html>`);
   });

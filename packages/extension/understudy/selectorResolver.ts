@@ -1,11 +1,7 @@
 import type { Protocol } from "devtools-protocol";
-import {
-  locatorScriptBootstrap,
-  locatorScriptGlobalRefs,
-  type LocatorScriptName,
-} from "../dom/build/locatorScripts.generated.js";
 import type { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
+import { buildLocatorInvocation } from "./locatorInvocation.js";
 
 export type SelectorQuery =
   | { kind: "css"; value: string }
@@ -100,58 +96,26 @@ export class FrameSelectorResolver {
     return results[index] ?? null;
   }
 
-  buildLocatorInvocation(name: LocatorScriptName, args: string[]): string {
-    const call = `${locatorScriptGlobalRefs[name]}(${args.join(", ")})`;
-    return `(() => { ${locatorScriptBootstrap}; return ${call}; })()`;
-  }
-
   async resolveCss(selector: string, limit: number): Promise<ResolvedNode[]> {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
-    const { executionContextId } = await session.send<{
-      executionContextId: Protocol.Runtime.ExecutionContextId;
-    }>("Page.createIsolatedWorld", {
-      frameId: this.frame.frameId,
-      worldName: "v3-world",
-    });
-
-    const ctxId = await executionContexts.waitForMainWorld(session, this.frame.frameId, 1000);
+    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
+      session,
+      this.frame.frameId,
+      1000,
+    );
 
     const results: ResolvedNode[] = [];
-    let loggedFallback = false;
 
     for (let index = 0; index < limit; index += 1) {
-      const primaryExpr = this.buildLocatorInvocation("resolveCssSelector", [
+      const expression = buildLocatorInvocation("resolveCssSelector", [
         JSON.stringify(selector),
         String(index),
       ]);
-      const primary = await this.evaluateElement(primaryExpr, executionContextId);
-      if (primary) {
-        results.push(primary);
-        continue;
-      }
-
-      if (!loggedFallback) {
-        this.frame.logger.debug("Using CSS pierce fallback", {
-          category: "locator",
-          frameId: String(this.frame.frameId),
-          selector,
-        });
-        loggedFallback = true;
-      }
-
-      const fallbackExpr = this.buildLocatorInvocation("resolveCssSelectorPierce", [
-        JSON.stringify(selector),
-        String(index),
-      ]);
-      const fallback = await this.evaluateElement(fallbackExpr, ctxId);
-      if (fallback) {
-        results.push(fallback);
-        continue;
-      }
-
-      break;
+      const resolved = await this.evaluateElement(expression, ctxId);
+      if (!resolved) break;
+      results.push(resolved);
     }
 
     return results;
@@ -161,11 +125,15 @@ export class FrameSelectorResolver {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
-    const ctxId = await executionContexts.waitForMainWorld(session, this.frame.frameId, 1000);
+    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
+      session,
+      this.frame.frameId,
+      1000,
+    );
 
     const results: ResolvedNode[] = [];
     for (let index = 0; index < limit; index += 1) {
-      const expr = this.buildLocatorInvocation("resolveTextSelector", [
+      const expr = buildLocatorInvocation("resolveTextSelector", [
         JSON.stringify(value),
         String(index),
       ]);
@@ -181,11 +149,15 @@ export class FrameSelectorResolver {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
-    const ctxId = await executionContexts.waitForMainWorld(session, this.frame.frameId, 1000);
+    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
+      session,
+      this.frame.frameId,
+      1000,
+    );
 
     const results: ResolvedNode[] = [];
     for (let index = 0; index < limit; index += 1) {
-      const expr = this.buildLocatorInvocation("resolveXPathMainWorld", [
+      const expr = buildLocatorInvocation("resolveXPathMainWorld", [
         JSON.stringify(value),
         String(index),
       ]);
@@ -199,34 +171,27 @@ export class FrameSelectorResolver {
 
   async countCss(selector: string): Promise<number> {
     const session = this.frame.session;
+    const { contextId } = await executionContexts.waitForLocatorWorld(
+      session,
+      this.frame.frameId,
+      1000,
+    );
 
-    const { executionContextId } = await session.send<{
-      executionContextId: Protocol.Runtime.ExecutionContextId;
-    }>("Page.createIsolatedWorld", {
-      frameId: this.frame.frameId,
-      worldName: "v3-world",
-    });
-
-    const primaryExpr = this.buildLocatorInvocation("countCssMatchesPrimary", [
+    const primaryExpr = buildLocatorInvocation("countCssMatchesPrimary", [
       JSON.stringify(selector),
     ]);
-    const primary = await this.evaluateCount(primaryExpr, executionContextId);
-
-    const ctxId = await executionContexts.waitForMainWorld(session, this.frame.frameId, 1000);
-
-    const fallbackExpr = this.buildLocatorInvocation("countCssMatchesPierce", [
-      JSON.stringify(selector),
-    ]);
-    const fallback = await this.evaluateCount(fallbackExpr, ctxId);
-
-    return Math.max(primary, fallback);
+    return this.evaluateCount(primaryExpr, contextId);
   }
 
   async countText(value: string): Promise<number> {
     const session = this.frame.session;
-    const ctxId = await executionContexts.waitForMainWorld(session, this.frame.frameId, 1000);
+    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
+      session,
+      this.frame.frameId,
+      1000,
+    );
 
-    const expr = this.buildLocatorInvocation("countTextMatches", [JSON.stringify(value)]);
+    const expr = buildLocatorInvocation("countTextMatches", [JSON.stringify(value)]);
 
     try {
       const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
@@ -264,9 +229,13 @@ export class FrameSelectorResolver {
   async countXPath(value: string): Promise<number> {
     const session = this.frame.session;
 
-    const ctxId = await executionContexts.waitForMainWorld(session, this.frame.frameId, 1000);
+    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
+      session,
+      this.frame.frameId,
+      1000,
+    );
 
-    const expr = this.buildLocatorInvocation("countXPathMatchesMainWorld", [JSON.stringify(value)]);
+    const expr = buildLocatorInvocation("countXPathMatchesMainWorld", [JSON.stringify(value)]);
 
     try {
       const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {

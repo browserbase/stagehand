@@ -4,8 +4,6 @@ import type { StagehandLogger } from "../logger.js";
 import { CdpConnection } from "./cdp.js";
 import type { CDPSessionLike, CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
-import { installV3PiercerIntoSession } from "./piercer.js";
-import { v3ScriptContent } from "../dom/build/scriptV3Content.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandAPIClient } from "../api.js";
 import type {
@@ -94,9 +92,10 @@ export class V3Context {
     readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
     readonly apiClient: StagehandAPIClient | null = null,
     readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
+    readonly blankPageUrl: string = "about:blank",
+    readonly fallbackLocatorScriptSource: string | null = null,
   ) {}
 
-  readonly _piercerInstalled = new Set<string>();
   // Timestamp for most recent popup/open signal
   _lastPopupSignalAt = 0;
   readonly _targetSessionListeners = new Set<SessionId>();
@@ -163,6 +162,8 @@ export class V3Context {
       env?: "LOCAL" | "BROWSERBASE";
       apiClient?: StagehandAPIClient | null;
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
+      blankPageUrl: string;
+      fallbackLocatorScriptSource: string;
       logger: StagehandLogger;
     },
   ): Promise<V3Context> {
@@ -174,6 +175,8 @@ export class V3Context {
         opts?.env ?? "LOCAL",
         opts?.apiClient ?? null,
         opts?.localBrowserLaunchOptions ?? null,
+        opts.blankPageUrl,
+        opts.fallbackLocatorScriptSource,
       );
       await ctx.bootstrap();
       // Allow connectTimeoutMs to also govern how long we wait for the first
@@ -217,7 +220,7 @@ export class V3Context {
       );
     }
 
-    await this.newPage("about:blank");
+    await this.newPage();
   }
 
   /**
@@ -259,17 +262,6 @@ export class V3Context {
         remainingTargets: Array.from(pending),
       });
     }
-  }
-
-  async ensurePiercer(session: CDPSessionLike): Promise<boolean> {
-    const id = session.id ?? "";
-    if (this._piercerInstalled.has(id)) return true;
-
-    const installed = await installV3PiercerIntoSession(session);
-    if (installed) {
-      this._piercerInstalled.add(id);
-    }
-    return installed;
   }
 
   /** Mark a page target as the most-recent one (active). */
@@ -580,14 +572,14 @@ export class V3Context {
    * Create a new top-level page (tab) with the given URL and return its Page object.
    * Waits until the target is attached and registered.
    */
-  public async newPage(url = "about:blank"): Promise<Page> {
-    const targetUrl = String(url ?? "about:blank");
+  public async newPage(url?: string): Promise<Page> {
+    const targetUrl = url === undefined ? this.blankPageUrl : String(url);
     const { targetId } = await this.conn.send<{ targetId: string }>(
       "Target.createTarget",
-      // Create at about:blank so init scripts can install before first real navigation.
-      { url: "about:blank" },
+      // The packaged page provides locators before a caller's first navigation.
+      { url: this.blankPageUrl },
     );
-    this.pendingCreatedTargetUrl.set(targetId, "about:blank");
+    this.pendingCreatedTargetUrl.set(targetId, this.blankPageUrl);
     // Best-effort bring-to-front
     await this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
 
@@ -602,12 +594,12 @@ export class V3Context {
 
       const page = this.pagesByTarget.get(targetId);
       if (page) {
-        // we created at about:blank; navigate only after attach so init scripts run
-        // on the first real document. Fire-and-forget so newPage() resolves on attach.
-        if (targetUrl !== "about:blank") {
-          // Seed requested URL into the page cache before navigation events arrive.
-          page.seedCurrentUrl(targetUrl);
-          void page.sendInternalCDP("Page.navigate", { url: targetUrl }).catch(() => {});
+        await page.mainFrameWrapper.getExtensionWorldExecutionContextId();
+        if (url !== undefined) {
+          await page.goto(targetUrl);
+          if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+            await page.mainFrameWrapper.getExtensionWorldExecutionContextId();
+          }
         }
         return page;
       }
@@ -702,8 +694,8 @@ export class V3Context {
 
     // Skip non-web targets (workers, chrome extensions, background pages, etc.).
     // They still need to be resumed so we don't leave them paused by
-    // waitForDebuggerOnStart, but injecting the piercer into these targets
-    // can throw or corrupt their internal state (e.g. Chrome's PDF viewer).
+    // waitForDebuggerOnStart. Trying to initialize these targets can throw or
+    // corrupt their internal state (e.g. Chrome's PDF viewer).
     if (isNonWebTarget(info)) {
       const session = this.conn.getSession(sessionId);
       if (session) {
@@ -722,6 +714,9 @@ export class V3Context {
     this.installTargetSessionListeners(session);
 
     // Register for Runtime events before enabling it so we don't miss initial contexts.
+    if (this.fallbackLocatorScriptSource) {
+      executionContexts.setFallbackInstallerSource(session, this.fallbackLocatorScriptSource);
+    }
     executionContexts.attachSession(session);
 
     // Ensure we only resume once even if multiple code paths hit finally.
@@ -831,21 +826,12 @@ export class V3Context {
         );
       }
     }
-    const piercerPreloadOp = queuePreResume(
-      "Page.addScriptToEvaluateOnNewDocument",
-      {
-        source: v3ScriptContent,
-        runImmediately: true,
-      },
-      (sentParams) => (sentParams as { source?: string } | undefined)?.source === v3ScriptContent,
-    );
     const preResumeDispatched = (
       await Promise.all([
         ...corePreResumeOps.map((op) => op.dispatched),
         ...headerPreResumeOps.map((op) => op.dispatched),
         ...fetchPreResumeOps.map((op) => op.dispatched),
         ...initScriptOps.map((op) => op.dispatched),
-        piercerPreloadOp.dispatched,
       ])
     ).every(Boolean);
     // Dispatch resume only after pre-resume setup has actually been sent.
@@ -854,14 +840,12 @@ export class V3Context {
       resumeOp.dispatched,
       resumeOp.response,
     ]);
-    const [coreResults, headerResults, fetchResults, initScriptResults, piercerPreRegistered] =
-      await Promise.all([
-        Promise.all(corePreResumeOps.map((op) => op.response)),
-        Promise.all(headerPreResumeOps.map((op) => op.response)),
-        Promise.all(fetchPreResumeOps.map((op) => op.response)),
-        Promise.all(initScriptOps.map((op) => op.response)),
-        piercerPreloadOp.response,
-      ]);
+    const [coreResults, headerResults, fetchResults, initScriptResults] = await Promise.all([
+      Promise.all(corePreResumeOps.map((op) => op.response)),
+      Promise.all(headerPreResumeOps.map((op) => op.response)),
+      Promise.all(fetchPreResumeOps.map((op) => op.response)),
+      Promise.all(initScriptOps.map((op) => op.response)),
+    ]);
     // Header propagation is independent of init-script determinism but still
     // part of pre-resume attach setup; awaited above for ordering/lifecycle.
     void headerResults;
@@ -966,23 +950,13 @@ export class V3Context {
         page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
         this._pushActive(info.targetId);
         this.installFrameEventBridges(sessionId, page);
-        if (piercerPreRegistered) {
-          this._piercerInstalled.add(sessionId);
-        }
         // If we already installed scripts at the session level, only seed the
         // Page's registry to avoid double-installing DOMContentLoaded handlers.
         await this.applyInitScriptsToPage(page, {
           seedOnly: scriptsInstalled,
         });
-        if (!piercerPreRegistered) {
-          void this.ensurePiercer(session).catch(() => {});
-        }
-
         return;
       }
-
-      const piercerReady = await this.ensurePiercer(session).catch(() => false);
-      if (!piercerReady) return;
 
       // Child (iframe / OOPIF)
       try {
@@ -1120,7 +1094,6 @@ export class V3Context {
       this._domainPolicySessionListeners.delete(sessionId);
     }
     this._sessionInit.delete(sessionId);
-    this._piercerInstalled.delete(sessionId);
   }
 
   /**

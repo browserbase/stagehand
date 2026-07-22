@@ -189,14 +189,8 @@ export async function resolveObjectIdForXPath(
   frameId?: string,
 ): Promise<string | null> {
   let contextId: number | undefined;
-  try {
-    if (frameId) {
-      contextId = await executionContexts
-        .waitForMainWorld(session, frameId, 800)
-        .catch(() => executionContexts.getMainWorld(session, frameId) ?? undefined);
-    }
-  } catch {
-    contextId = undefined;
+  if (frameId) {
+    contextId = (await executionContexts.waitForLocatorWorld(session, frameId, 800)).contextId;
   }
   const expr = buildLocatorInvocation("resolveXPathMainWorld", [JSON.stringify(xpath), "0"]);
   const { result, exceptionDetails } = await session.send<{
@@ -219,20 +213,10 @@ export async function resolveObjectIdForCss(
   frameId?: string,
 ): Promise<string | null> {
   let contextId: number | undefined;
-  try {
-    if (frameId) {
-      contextId = await executionContexts
-        .waitForMainWorld(session, frameId, 800)
-        .catch(() => executionContexts.getMainWorld(session, frameId) ?? undefined);
-    }
-  } catch {
-    contextId = undefined;
+  if (frameId) {
+    contextId = (await executionContexts.waitForLocatorWorld(session, frameId, 800)).contextId;
   }
-  const primaryExpr = buildLocatorInvocation("resolveCssSelector", [JSON.stringify(selector), "0"]);
-  const fallbackExpr = buildLocatorInvocation("resolveCssSelectorPierce", [
-    JSON.stringify(selector),
-    "0",
-  ]);
+  const expression = buildLocatorInvocation("resolveCssSelector", [JSON.stringify(selector), "0"]);
 
   const evaluate = async (expression: string): Promise<string | null> => {
     const { result, exceptionDetails } = await session.send<{
@@ -248,9 +232,7 @@ export async function resolveObjectIdForCss(
     return result?.objectId ?? null;
   };
 
-  const primary = await evaluate(primaryExpr);
-  if (primary) return primary;
-  return evaluate(fallbackExpr);
+  return evaluate(expression);
 }
 
 export function listChildrenOf(parentByFrame: FrameParentIndex, parentId: string): string[] {

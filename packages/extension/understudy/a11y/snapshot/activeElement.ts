@@ -1,8 +1,7 @@
 import type { Protocol } from "devtools-protocol";
 import { Page } from "../../page.js";
 import { executionContexts } from "../../executionContextRegistry.js";
-import { buildA11yInvocation } from "../../a11yInvocation.js";
-import { a11yScriptSources } from "../../../dom/build/a11yScripts.generated.js";
+import { documentHasFocusStrict, nodeToAbsoluteXPath } from "../../../dom/a11yScripts/index.js";
 import { absoluteXPathForBackendNode, normalizeXPath, prefixXPath } from "./xpathUtils.js";
 
 /**
@@ -26,7 +25,7 @@ export async function computeActiveElementXpath(page: Page): Promise<string | nu
     try {
       await sess.send("Runtime.enable").catch(() => {});
       const ctxId = await executionContexts.waitForMainWorld(sess, fid, 1000).catch(() => {});
-      const hasFocusExpr = buildA11yInvocation("documentHasFocusStrict", []);
+      const hasFocusExpr = `(${documentHasFocusStrict.toString()})()`;
       const evalParams = ctxId
         ? {
             contextId: ctxId,
@@ -52,17 +51,25 @@ export async function computeActiveElementXpath(page: Page): Promise<string | nu
   let objectId: string | undefined;
   try {
     await focusedSession.send("Runtime.enable").catch(() => {});
-    const ctxId = await executionContexts
-      .waitForMainWorld(focusedSession, focusedFrameId, 1000)
-      .catch(() => {});
-    const activeExpr = buildA11yInvocation("resolveDeepActiveElement", []);
-    const evalParams = ctxId
-      ? {
-          contextId: ctxId,
-          expression: activeExpr,
-          returnByValue: false,
-        }
-      : { expression: activeExpr, returnByValue: false };
+    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
+      focusedSession,
+      focusedFrameId,
+      1000,
+    );
+    const activeExpr = `(() => {
+      let element = document.activeElement;
+      while (element) {
+        const shadowRoot = globalThis.__stagehandLocatorScripts.getOpenOrClosedShadowRoot(element);
+        if (!shadowRoot?.activeElement) break;
+        element = shadowRoot.activeElement;
+      }
+      return element ?? null;
+    })()`;
+    const evalParams = {
+      contextId: ctxId,
+      expression: activeExpr,
+      returnByValue: false,
+    };
     const { result } = await focusedSession.send<Protocol.Runtime.EvaluateResponse>(
       "Runtime.evaluate",
       evalParams,
@@ -79,7 +86,7 @@ export async function computeActiveElementXpath(page: Page): Promise<string | nu
         result: { value?: string };
       }>("Runtime.callFunctionOn", {
         objectId,
-        functionDeclaration: a11yScriptSources.nodeToAbsoluteXPath,
+        functionDeclaration: nodeToAbsoluteXPath.toString(),
         returnByValue: true,
       });
       try {

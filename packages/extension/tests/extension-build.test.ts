@@ -15,6 +15,17 @@ const ManifestSchema = z.looseObject({
     service_worker: z.string(),
     type: z.literal("module"),
   }),
+  content_scripts: z.array(
+    z.object({
+      matches: z.array(z.string()),
+      js: z.array(z.string()),
+      run_at: z.literal("document_start"),
+      all_frames: z.literal(true),
+      world: z.literal("ISOLATED"),
+      match_about_blank: z.literal(true),
+      match_origin_as_fallback: z.literal(true),
+    }),
+  ),
   options_page: z.string(),
 });
 
@@ -27,6 +38,11 @@ describe("extension build", () => {
       path.join(stagehandExtensionDistDir, "service-worker.js"),
       "utf8",
     );
+    const contentScript = await readFile(
+      path.join(stagehandExtensionDistDir, "content-script.js"),
+      "utf8",
+    );
+    const blankPage = await readFile(path.join(stagehandExtensionDistDir, "blank.html"), "utf8");
     const wakeServiceWorkerHtml = await readFile(
       path.join(stagehandExtensionDistDir, "wake-service-worker.html"),
       "utf8",
@@ -52,6 +68,17 @@ describe("extension build", () => {
         service_worker: "service-worker.js",
         type: "module",
       },
+      content_scripts: [
+        {
+          matches: ["<all_urls>"],
+          js: ["content-script.js"],
+          run_at: "document_start",
+          all_frames: true,
+          world: "ISOLATED",
+          match_about_blank: true,
+          match_origin_as_fallback: true,
+        },
+      ],
       options_page: "wake-service-worker.html",
     });
     expect(manifest.permissions).toEqual(["offscreen", "scripting", "tabs"]);
@@ -59,6 +86,14 @@ describe("extension build", () => {
     expect(serviceWorker).toContain("__stagehandReceiveFromHost");
     expect(serviceWorker).toContain("offscreen/service-worker-heartbeat.html");
     expect(serviceWorker).toContain("OFFSCREEN_DOCUMENT");
+    expect(contentScript).toContain("__stagehandExtensionWorld");
+    expect(contentScript).toContain("stagehand.v4");
+    expect(contentScript).toContain("installCursorOverlay");
+    expect(contentScript).not.toContain("fillElementValue");
+    expect(contentScript).not.toContain("__v3Cursor");
+    expect(contentScript).not.toMatch(/^import\s/m);
+    expect(contentScript).not.toContain("__vite-browser-external");
+    expect(blankPage).toContain('src="content-script.js"');
     expect(wakeServiceWorkerHtml).toContain("wake-service-worker.js");
     expect(wakeServiceWorkerScript).toContain("stagehand_wake_service_worker");
     expect(offscreenHtml).toContain("service-worker-heartbeat.js");
@@ -69,6 +104,7 @@ describe("extension build", () => {
     expect(serviceWorker).not.toContain("__vite-browser-external");
     expect(serviceWorker).not.toContain("__vite_browser_external");
     expect(serviceWorker).not.toContain("Node WebSocket transport is unavailable");
+    expect(serviceWorker).not.toContain("__v3Cursor");
     expect(JSON.stringify(manifest)).not.toContain("stagehand-smoke-worker");
   });
 });

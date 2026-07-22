@@ -1,10 +1,21 @@
 // lib/v3/understudy/locator.ts
 import { Protocol } from "devtools-protocol";
 import {
-  locatorScriptBootstrap,
-  locatorScriptGlobalRefs,
-  locatorScriptSources,
-} from "../dom/build/locatorScripts.generated.js";
+  assignFilePayloadsToInputElement,
+  dispatchDomClick,
+  ensureFileInputElement,
+  fillElementValue,
+  focusElement,
+  isElementChecked,
+  isElementVisible,
+  prepareElementForTyping,
+  readElementInnerHTML,
+  readElementInnerText,
+  readElementInputValue,
+  readElementTextContent,
+  scrollElementToPercent,
+  selectElementOptions,
+} from "../dom/locatorScripts/scripts.js";
 import type { Frame } from "./frame.js";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver.js";
 import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
@@ -75,7 +86,7 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.ensureFileInputElement,
+          functionDeclaration: ensureFileInputElement.toString(),
           returnByValue: true,
         },
       );
@@ -124,7 +135,7 @@ export class Locator {
       "Runtime.callFunctionOn",
       {
         objectId,
-        functionDeclaration: locatorScriptSources.assignFilePayloadsToInputElement,
+        functionDeclaration: assignFilePayloadsToInputElement.toString(),
         arguments: [
           {
             value: serialized,
@@ -376,7 +387,7 @@ export class Locator {
       await session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
       await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
         objectId,
-        functionDeclaration: locatorScriptSources.dispatchDomClick,
+        functionDeclaration: dispatchDomClick.toString(),
         arguments: [
           {
             value: { bubbles, cancelable, composed, detail },
@@ -400,7 +411,7 @@ export class Locator {
     try {
       await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
         objectId,
-        functionDeclaration: locatorScriptSources.scrollElementToPercent,
+        functionDeclaration: scrollElementToPercent.toString(),
         arguments: [{ value: percent as unknown as number }],
         returnByValue: true,
       });
@@ -417,8 +428,6 @@ export class Locator {
    */
   async fill(value: string): Promise<void> {
     const session = this.frame.session;
-    // Use the bundled locator globals; the raw fill snippet depends on helper symbols.
-    const fillDeclaration = `function(value) { ${locatorScriptBootstrap}; return ${locatorScriptGlobalRefs.fillElementValue}.call(this, value); }`;
     const { objectId } = await this.resolveNode();
 
     let releaseNeeded = true;
@@ -428,7 +437,7 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: fillDeclaration,
+          functionDeclaration: fillElementValue.toString(),
           arguments: [{ value }],
           returnByValue: true,
         },
@@ -467,7 +476,7 @@ export class Locator {
               "Runtime.callFunctionOn",
               {
                 objectId: prepObjectId,
-                functionDeclaration: locatorScriptSources.prepareElementForTyping,
+                functionDeclaration: prepareElementForTyping.toString(),
                 returnByValue: true,
               },
             );
@@ -542,7 +551,7 @@ export class Locator {
       // Focus using JS (avoids DOM.focus(nodeId))
       await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
         objectId,
-        functionDeclaration: locatorScriptSources.focusElement,
+        functionDeclaration: focusElement.toString(),
         returnByValue: true,
       });
 
@@ -585,7 +594,7 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.selectElementOptions,
+          functionDeclaration: selectElementOptions.toString(),
           arguments: [{ value: desired }],
           returnByValue: true,
         },
@@ -608,7 +617,7 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.isElementVisible,
+          functionDeclaration: isElementVisible.toString(),
           returnByValue: true,
         },
       );
@@ -630,7 +639,7 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.isElementChecked,
+          functionDeclaration: isElementChecked.toString(),
           returnByValue: true,
         },
       );
@@ -651,7 +660,7 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.readElementInputValue,
+          functionDeclaration: readElementInputValue.toString(),
           returnByValue: true,
         },
       );
@@ -672,7 +681,7 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.readElementTextContent,
+          functionDeclaration: readElementTextContent.toString(),
           returnByValue: true,
         },
       );
@@ -693,7 +702,7 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.readElementInnerHTML,
+          functionDeclaration: readElementInnerHTML.toString(),
           returnByValue: true,
         },
       );
@@ -714,7 +723,7 @@ export class Locator {
         "Runtime.callFunctionOn",
         {
           objectId,
-          functionDeclaration: locatorScriptSources.readElementInnerText,
+          functionDeclaration: readElementInnerText.toString(),
           returnByValue: true,
         },
       );

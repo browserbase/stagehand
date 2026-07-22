@@ -9,5 +9,16 @@
     "service_worker": "service-worker.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "ISOLATED",
+      "match_about_blank": true,
+      "match_origin_as_fallback": true
+    }
+  ],
   "options_page": "wake-service-worker.html"
 }

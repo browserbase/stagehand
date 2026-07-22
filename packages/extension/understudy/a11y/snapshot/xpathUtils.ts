@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
-import { a11yScriptSources } from "../../../dom/build/a11yScripts.generated.js";
+import { nodeToAbsoluteXPath } from "../../../dom/a11yScripts/index.js";
 
 /**
  * Build the absolute XPath for a node by walking through every iframe host
@@ -44,7 +44,7 @@ export async function absoluteXPathForBackendNode(
       "Runtime.callFunctionOn",
       {
         objectId,
-        functionDeclaration: a11yScriptSources.nodeToAbsoluteXPath,
+        functionDeclaration: nodeToAbsoluteXPath.toString(),
         returnByValue: true,
       },
     );

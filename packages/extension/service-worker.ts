@@ -29,8 +29,20 @@ export function startStagehandServiceWorker(
   const activeRuntime =
     runtime ??
     createStagehandRuntime({
-      browserSessionFactory: (cdpUrl, logger) =>
-        V3Context.create(cdpUrl, { websocketFactory: browserWebSocketFactory, logger }),
+      browserSessionFactory: async (cdpUrl, logger) => {
+        const locatorRuntimeResponse = await fetch(chrome.runtime.getURL("content-script.js"));
+        if (!locatorRuntimeResponse.ok) {
+          throw new Error(
+            `Failed to load Stagehand locator runtime: ${locatorRuntimeResponse.status}`,
+          );
+        }
+        return V3Context.create(cdpUrl, {
+          websocketFactory: browserWebSocketFactory,
+          logger,
+          blankPageUrl: chrome.runtime.getURL("blank.html"),
+          fallbackLocatorScriptSource: await locatorRuntimeResponse.text(),
+        });
+      },
       emitLog: (log) => {
         void rpcClient?.notify(StagehandNotifications.log, log).catch((error: unknown) => {
           // The JSON-RPC log sink itself failed, so no Stagehand logger is safe here.
