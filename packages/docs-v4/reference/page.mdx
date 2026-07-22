@@ -327,7 +327,7 @@ Evaluate JavaScript in the page and return its result.
 const title = await page.evaluate(() => document.title);
 ```
 
-<ParamField path="expression" type="string | function">
+<ParamField path="expression" type="string | ((arg: Arg) => R | Promise<R>)">
   JavaScript source or a function to evaluate.
 </ParamField>
 
@@ -349,7 +349,7 @@ await page.addInitScript(() => {
 });
 ```
 
-<ParamField path="script" type="InitScriptSource">
+<ParamField path="script" type="InitScriptSource<Arg>">
   A function or JavaScript source string.
 </ParamField>
 
@@ -1200,7 +1200,11 @@ await page.goto("https://example.com")
   The destination URL.
 </ParamField>
 
-<ParamField path="wait_until" type="LoadState | str | None" optional>
+<ParamField
+  path="wait_until"
+  type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
+  optional
+>
   The load state to wait for.
 </ParamField>
 
@@ -1220,7 +1224,11 @@ Reload the current page.
 await page.reload()
 ```
 
-<ParamField path="wait_until" type="LoadState | str | None" optional>
+<ParamField
+  path="wait_until"
+  type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
+  optional
+>
   The load state to wait for.
 </ParamField>
 
@@ -1244,7 +1252,11 @@ Navigate backward in the page history.
 await page.go_back()
 ```
 
-<ParamField path="wait_until" type="LoadState | str | None" optional>
+<ParamField
+  path="wait_until"
+  type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
+  optional
+>
   The load state to wait for.
 </ParamField>
 
@@ -1264,7 +1276,11 @@ Navigate forward in the page history.
 await page.go_forward()
 ```
 
-<ParamField path="wait_until" type="LoadState | str | None" optional>
+<ParamField
+  path="wait_until"
+  type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
+  optional
+>
   The load state to wait for.
 </ParamField>
 
@@ -1292,7 +1308,7 @@ xpath = await page.click(240, 320)
   The vertical page coordinate.
 </ParamField>
 
-<ParamField path="button" type="MouseButton | str | None" optional>
+<ParamField path="button" type="MouseButton | Literal['left', 'right', 'middle']" optional>
   The mouse button to use.
 </ParamField>
 
@@ -1388,7 +1404,7 @@ from_xpath, to_xpath = await page.drag_and_drop(100, 100, 400, 400)
   The drop target's vertical coordinate.
 </ParamField>
 
-<ParamField path="button" type="MouseButton | str | None" optional>
+<ParamField path="button" type="MouseButton | Literal['left', 'right', 'middle']" optional>
   The mouse button to use.
 </ParamField>
 
@@ -1536,7 +1552,7 @@ Wait until the page reaches a load state.
 await page.wait_for_load_state("networkidle", timeout_ms=10_000)
 ```
 
-<ParamField path="state" type="LoadState | str">
+<ParamField path="state" type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']">
   The state to wait for.
 </ParamField>
 
@@ -1576,7 +1592,11 @@ matched = await page.wait_for_selector("main", state="visible")
   The selector to target.
 </ParamField>
 
-<ParamField path="state" type="State | str | None" optional>
+<ParamField
+  path="state"
+  type="State | Literal['attached', 'detached', 'visible', 'hidden']"
+  optional
+>
   The state to wait for.
 </ParamField>
 
@@ -1600,11 +1620,11 @@ Capture a screenshot of the page.
 image = await page.screenshot(full_page=True)
 ```
 
-<ParamField path="animations" type="Animations | str | None" optional>
+<ParamField path="animations" type="Animations | Literal['disabled', 'allow']" optional>
   How to handle CSS animations.
 </ParamField>
 
-<ParamField path="caret" type="Caret | str | None" optional>
+<ParamField path="caret" type="Caret | Literal['hide', 'initial']" optional>
   How to render the text caret.
 </ParamField>
 
@@ -1664,7 +1684,7 @@ image = await page.screenshot(full_page=True)
   JPEG quality from 0 to 100.
 </ParamField>
 
-<ParamField path="scale" type="Scale | str | None" optional>
+<ParamField path="scale" type="Scale | Literal['css', 'device']" optional>
   Whether to use CSS or device pixel scale.
 </ParamField>
 
@@ -1676,7 +1696,7 @@ image = await page.screenshot(full_page=True)
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ParamField path="type" type="ScreenshotType | str | None" optional>
+<ParamField path="type" type="ScreenshotType | Literal['png', 'jpeg']" optional>
   The image format.
 </ParamField>
 

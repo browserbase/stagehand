@@ -76,6 +76,7 @@ type SdkMethod = {
 
 type JsonSchema = {
   $ref?: string;
+  additionalProperties?: boolean | JsonSchema;
   allOf?: JsonSchema[];
   anyOf?: JsonSchema[];
   items?: JsonSchema;
@@ -276,6 +277,59 @@ describe("SDK reference surface", () => {
     ).toEqual([]);
   });
 
+  it("uses the public SDK type for every direct documented parameter", async () => {
+    const [typescriptMethods, pythonMethods, referencePages, protocol, pythonAliases] =
+      await Promise.all([
+        readTypescriptMethods(),
+        readPythonMethods(),
+        readReferencePages(),
+        readProtocolDocument(),
+        readPythonTypeAliases(),
+      ]);
+    const differences: string[] = [];
+
+    for (const [language, methods] of [
+      ["TypeScript", typescriptMethods],
+      ["Python", pythonMethods],
+    ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
+      const documentedByMethod = documentedMethodMap(referencePages, language);
+      for (const method of methods) {
+        const reference = documentedByMethod.get(methodKey(method));
+        if (!reference) continue;
+        const documented = new Map(
+          reference.method.paramFields
+            .filter(({ key }) => key !== undefined && !key.includes("."))
+            .map((field) => [field.key as string, field]),
+        );
+
+        for (const parameter of method.parameters) {
+          const field = documented.get(parameter);
+          const sdkType = method.parameterTypes[parameter];
+          if (!field || !sdkType) continue;
+          const actual = normalizePublicType(field.type, language, field.optional, pythonAliases);
+          const expected = publicTypeCandidates(
+            sdkType,
+            language,
+            field.optional,
+            protocol,
+            pythonAliases,
+            method,
+          );
+          if (!expected.has(actual)) {
+            differences.push(
+              `${methodKey(method)} ${language} ${parameter}: expected one of [${[...expected].join(", ")}], received ${actual || "<missing>"}`,
+            );
+          }
+        }
+      }
+    }
+
+    expect(
+      differences,
+      "Top-level ParamField types must match their public SDK parameter annotations",
+    ).toEqual([]);
+  });
+
   it("documents every nested public protocol input field", async () => {
     const [typescriptMethods, pythonMethods, referencePages, protocol] = await Promise.all([
       readTypescriptMethods(),
@@ -424,6 +478,50 @@ describe("SDK reference surface", () => {
     expect(
       invalidViews,
       "Each SDK method View must contain exactly one top-level ResponseField named result",
+    ).toEqual([]);
+  });
+
+  it("uses the public SDK return type for every documented result root", async () => {
+    const [typescriptMethods, pythonMethods, referencePages, protocol, pythonAliases] =
+      await Promise.all([
+        readTypescriptMethods(),
+        readPythonMethods(),
+        readReferencePages(),
+        readProtocolDocument(),
+        readPythonTypeAliases(),
+      ]);
+    const differences: string[] = [];
+
+    for (const [language, methods] of [
+      ["TypeScript", typescriptMethods],
+      ["Python", pythonMethods],
+    ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
+      const documentedByMethod = documentedMethodMap(referencePages, language);
+      for (const method of methods) {
+        const reference = documentedByMethod.get(methodKey(method));
+        if (!reference || !method.returnType) continue;
+        const result = reference.method.responseFields.find(({ key }) => key === "result");
+        if (!result) continue;
+        const actual = normalizePublicType(result.type, language, false, pythonAliases);
+        const expected = publicTypeCandidates(
+          method.returnType,
+          language,
+          false,
+          protocol,
+          pythonAliases,
+          method,
+        );
+        if (!expected.has(actual)) {
+          differences.push(
+            `${methodKey(method)} ${language}: expected one of [${[...expected].join(", ")}], received ${actual || "<missing>"}`,
+          );
+        }
+      }
+    }
+
+    expect(
+      differences,
+      "Top-level ResponseField result types must match public SDK return annotations",
     ).toEqual([]);
   });
 
@@ -1037,6 +1135,149 @@ function operationBindings(methods: SdkMethod[]): string[] {
 
 async function readProtocolDocument(): Promise<ProtocolDocument> {
   return JSON.parse(await readFile(PROTOCOL_SCHEMA, "utf8")) as ProtocolDocument;
+}
+
+async function readPythonTypeAliases(): Promise<Map<string, string>> {
+  const aliases = new Map<string, string>();
+  for (const filePath of await listFiles(PYTHON_ROOT)) {
+    if (extname(filePath) !== ".py") continue;
+    const root = parse("python", await readFile(filePath, "utf8")).root();
+    for (const assignment of root.findAll({ rule: { kind: "assignment" } })) {
+      if (
+        assignment
+          .ancestors()
+          .some(
+            (ancestor) =>
+              ancestor.kind() === "function_definition" || ancestor.kind() === "class_definition",
+          )
+      ) {
+        continue;
+      }
+      const [name, value] = namedChildren(assignment);
+      if (name?.kind() === "identifier" && value && /^[A-Z]/u.test(name.text())) {
+        aliases.set(name.text(), value.text());
+      }
+    }
+  }
+  return aliases;
+}
+
+function publicTypeCandidates(
+  type: string,
+  language: Language,
+  optional: boolean,
+  protocol: ProtocolDocument,
+  pythonAliases: ReadonlyMap<string, string>,
+  method: SdkMethod,
+): Set<string> {
+  const candidates = new Set([normalizePublicType(type, language, optional, pythonAliases)]);
+  if (language === "TypeScript") {
+    const indexedAccess = type.match(/\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\[\s*["']([^"']+)["']\s*\]/u);
+    if (indexedAccess) {
+      const [, modelName, propertyName] = indexedAccess;
+      const model = modelName ? protocol.$defs[modelName] : undefined;
+      const property =
+        model && propertyName ? resolvedProperties(model, protocol)[propertyName] : undefined;
+      if (property) {
+        candidates.add(
+          normalizePublicType(
+            canonicalDirectSchemaType(property, language, protocol),
+            language,
+            optional,
+            pythonAliases,
+          ),
+        );
+      }
+    }
+    if (type.includes("this")) {
+      const className = SDK_OBJECTS.find(
+        ({ classSlug }) => classSlug === method.classSlug,
+      )?.className;
+      if (className) {
+        candidates.add(
+          normalizePublicType(
+            type.replace(/\bthis\b/gu, className),
+            language,
+            optional,
+            pythonAliases,
+          ),
+        );
+      }
+    }
+  }
+  return candidates;
+}
+
+function canonicalDirectSchemaType(
+  schema: JsonSchema,
+  language: Language,
+  protocol: ProtocolDocument,
+): string {
+  if (
+    schema.type === "object" &&
+    typeof schema.additionalProperties === "object" &&
+    schema.additionalProperties !== null
+  ) {
+    const value = canonicalSchemaType(schema.additionalProperties, language, protocol);
+    return language === "TypeScript" ? `Record<string, ${value}>` : `dict[str, ${value}]`;
+  }
+  return canonicalSchemaType(schema, language, protocol);
+}
+
+function normalizePublicType(
+  type: string | undefined,
+  language: Language,
+  optional: boolean,
+  pythonAliases: ReadonlyMap<string, string>,
+): string {
+  if (!type) return "";
+  let normalized = type
+    .replace(/\s+/gu, "")
+    .replaceAll('"', "'")
+    .replace(/\b(?:builtins|re)\./gu, "");
+  if (language === "Python") {
+    normalized = expandPythonAliases(normalized, pythonAliases);
+    const optionalMatch = normalized.match(/^Optional\[(.*)\]$/u);
+    if (optionalMatch?.[1]) normalized = `${optionalMatch[1]}|None`;
+  }
+  const union = splitTopLevelUnion(normalized);
+  const withoutOptional = optional
+    ? union.filter((part) => part !== "None" && part !== "undefined")
+    : union;
+  return [...new Set(withoutOptional)].sort().join("|");
+}
+
+function expandPythonAliases(
+  type: string,
+  aliases: ReadonlyMap<string, string>,
+  seen = new Set<string>(),
+): string {
+  return type.replace(/\b[A-Z][A-Za-z0-9_]*\b/gu, (name) => {
+    const alias = aliases.get(name);
+    if (!alias || seen.has(name)) return name;
+    return expandPythonAliases(
+      alias.replace(/\s+/gu, "").replaceAll('"', "'"),
+      aliases,
+      new Set([...seen, name]),
+    );
+  });
+}
+
+function splitTopLevelUnion(type: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < type.length; index += 1) {
+    const character = type[index];
+    if (character === "[" || character === "(" || character === "{") depth += 1;
+    if (character === "]" || character === ")" || character === "}") depth -= 1;
+    if (character === "|" && depth === 0) {
+      parts.push(type.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(type.slice(start));
+  return parts;
 }
 
 function projectedInputPaths(

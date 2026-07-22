@@ -218,7 +218,11 @@ await stagehand.context.clipboard.paste()
   The page to target. Defaults to the active page.
 </ParamField>
 
-<ParamField path="shortcut" type="Shortcut | str | None" optional>
+<ParamField
+  path="shortcut"
+  type="Shortcut | Literal['ControlOrMeta+V', 'Meta+V', 'Control+V']"
+  optional
+>
   The keyboard shortcut used to paste.
 </ParamField>
 
