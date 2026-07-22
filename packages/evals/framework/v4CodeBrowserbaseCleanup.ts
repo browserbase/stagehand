@@ -145,17 +145,35 @@ async function releaseAndVerifySession(
   const deadline = startedAt + timeoutMs;
   let retried = false;
 
-  await browserbase.releaseSession(sessionId, projectId);
+  await runBeforeSessionCleanupDeadline(
+    () => browserbase.releaseSession(sessionId, projectId),
+    deadline,
+    timeoutMs,
+    now,
+    "requesting the initial session release",
+  );
 
   while (true) {
     const status = readSessionStatus(
-      await browserbase.retrieveSession(sessionId),
+      await runBeforeSessionCleanupDeadline(
+        () => browserbase.retrieveSession(sessionId),
+        deadline,
+        timeoutMs,
+        now,
+        "retrieving session status",
+      ),
     );
     if (status && TERMINAL_SESSION_STATUSES.has(status)) return;
 
     const currentTime = now();
     if (!retried && currentTime - startedAt >= retryAfterMs) {
-      await browserbase.releaseSession(sessionId, projectId);
+      await runBeforeSessionCleanupDeadline(
+        () => browserbase.releaseSession(sessionId, projectId),
+        deadline,
+        timeoutMs,
+        now,
+        "requesting the fallback session release",
+      );
       retried = true;
       continue;
     }
@@ -166,6 +184,39 @@ async function releaseAndVerifySession(
     }
     await sleep(Math.min(pollIntervalMs, deadline - currentTime));
   }
+}
+
+async function runBeforeSessionCleanupDeadline<T>(
+  operation: () => Promise<T>,
+  deadline: number,
+  timeoutMs: number,
+  now: () => number,
+  description: string,
+): Promise<T> {
+  const remainingMs = deadline - now();
+  if (remainingMs <= 0) {
+    throw sessionCleanupTimeoutError(timeoutMs, description);
+  }
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(sessionCleanupTimeoutError(timeoutMs, description));
+    }, remainingMs);
+  });
+  try {
+    return await Promise.race([Promise.resolve().then(operation), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function sessionCleanupTimeoutError(
+  timeoutMs: number,
+  description: string,
+): Error {
+  return new Error(
+    `Browserbase session cleanup timed out after ${timeoutMs}ms while ${description}.`,
+  );
 }
 
 function readSessionStatus(value: unknown): string | undefined {

@@ -291,6 +291,71 @@ describe("V4 code child controller", () => {
     expect(child.sent).toEqual([]);
   });
 
+  it("uses the configured startup timeout while waiting for bridge readiness", async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new FakeBridgeChild();
+      const controllerPromise = startV4CodeController({
+        sdkPath: "/synthetic/v4-sdk.ts",
+        bridgePath: "/synthetic/v4CodeBridge.ts",
+        forkProcess: () => child as unknown as ChildProcess,
+        startupTimeoutMs: 25,
+        executeTimeoutMs: 100,
+        closeTimeoutMs: 100,
+      });
+      const rejection = expect(controllerPromise).rejects.toThrow(
+        "V4 code bridge startup timed out after 25ms",
+      );
+
+      await vi.advanceTimersByTimeAsync(25);
+
+      await rejection;
+      expect(child.sent).toEqual([]);
+      expect(child.disconnectCalls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shares one startup timeout across bridge readiness and initialization", async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new FakeBridgeChild();
+      let settled = false;
+      const controllerPromise = startV4CodeController({
+        sdkPath: "/synthetic/v4-sdk.ts",
+        bridgePath: "/synthetic/v4CodeBridge.ts",
+        forkProcess: () => child as unknown as ChildProcess,
+        startupTimeoutMs: 25,
+        executeTimeoutMs: 100,
+        closeTimeoutMs: 100,
+      });
+      void controllerPromise.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+      const rejection = expect(controllerPromise).rejects.toThrow(
+        "V4 code bridge startup timed out after 25ms",
+      );
+
+      await vi.advanceTimersByTimeAsync(20);
+      child.respond({ type: "bridge_ready" });
+      await vi.advanceTimersByTimeAsync(4);
+
+      expect(child.sent.map((request) => request.type)).toEqual(["init"]);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("initializes, executes by request ID, and closes exactly once", async () => {
     const child = new FakeBridgeChild();
     respondSuccessfully(child);
@@ -312,8 +377,12 @@ describe("V4 code child controller", () => {
     const initRequest = child.sent[0];
     expect(initRequest.type).toBe("init");
     if (initRequest.type !== "init") throw new Error("Expected init request");
-    expect(initRequest.userDataDir?.startsWith(os.tmpdir())).toBe(true);
-    expect(fs.existsSync(initRequest.userDataDir ?? "")).toBe(true);
+    expect(initRequest.browser.type).toBe("local");
+    if (initRequest.browser.type !== "local") {
+      throw new Error("Expected local browser configuration");
+    }
+    expect(initRequest.browser.userDataDir?.startsWith(os.tmpdir())).toBe(true);
+    expect(fs.existsSync(initRequest.browser.userDataDir ?? "")).toBe(true);
     await controller.close();
     await controller.close();
 
@@ -343,7 +412,7 @@ describe("V4 code child controller", () => {
       },
     });
     expect(calls[0].options.env?.[STAGEHAND_V4_SDK_PATH_ENV]).toBeUndefined();
-    expect(fs.existsSync(initRequest.userDataDir ?? "")).toBe(false);
+    expect(fs.existsSync(initRequest.browser.userDataDir ?? "")).toBe(false);
   });
 
   it("serializes console values without dropping undefined", () => {
@@ -1244,7 +1313,7 @@ describe("V4 code child controller", () => {
           executeTimeoutMs: 100,
           closeTimeoutMs: 100,
         }),
-      ).rejects.toThrow("V4 code bridge init timed out after 25ms");
+      ).rejects.toThrow("V4 code bridge startup timed out after 25ms");
 
       expect(cleanupInputs.at(-1)).toEqual({
         apiKey: "private-api-key",

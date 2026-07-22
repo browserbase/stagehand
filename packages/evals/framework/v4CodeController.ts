@@ -23,7 +23,6 @@ import {
 } from "./v4CodeBrowserbaseCleanup.js";
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
-const BRIDGE_READY_TIMEOUT_MS = 30_000;
 const DEFAULT_EXECUTE_TIMEOUT_MS = 60_000;
 const DEFAULT_CLOSE_TIMEOUT_MS = 5_000;
 const CHILD_EXIT_GRACE_MS = 1_000;
@@ -398,8 +397,52 @@ class IpcV4CodeController implements V4CodeController {
     mode: V4CodeMode;
     model?: V4CodeModelConfig;
   }): Promise<void> {
-    await this.#waitForBridgeReady();
-    const result = await this.#request(
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(
+          new Error(
+            `V4 code bridge startup timed out after ${this.#startupTimeoutMs}ms.`,
+          ),
+        );
+      }, this.#startupTimeoutMs);
+    });
+    let result: unknown;
+    try {
+      result = await Promise.race([
+        this.#initializeWithinBudget(input),
+        timeout,
+      ]);
+    } catch (error) {
+      const normalized =
+        error instanceof Error ? error : new Error(String(error));
+      this.#fail(normalized);
+      void this.#stopChild();
+      throw normalized;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    if (
+      isRecord(result) &&
+      typeof result.browserPid === "number" &&
+      Number.isSafeInteger(result.browserPid) &&
+      result.browserPid > 0
+    ) {
+      this.#browserPid = result.browserPid;
+    }
+    if (isRecord(result) && isV4CodeBrowserbaseResources(result.resources)) {
+      this.#recordBrowserbaseResources(result.resources);
+    }
+  }
+
+  async #initializeWithinBudget(input: {
+    sdkPath: string;
+    browser: V4CodeBrowserConfig;
+    mode: V4CodeMode;
+    model?: V4CodeModelConfig;
+  }): Promise<unknown> {
+    await this.#bridgeReadyPromise;
+    return this.#request(
       input.mode === "ai"
         ? {
             type: "init",
@@ -416,17 +459,6 @@ class IpcV4CodeController implements V4CodeController {
           },
       this.#startupTimeoutMs,
     );
-    if (
-      isRecord(result) &&
-      typeof result.browserPid === "number" &&
-      Number.isSafeInteger(result.browserPid) &&
-      result.browserPid > 0
-    ) {
-      this.#browserPid = result.browserPid;
-    }
-    if (isRecord(result) && isV4CodeBrowserbaseResources(result.resources)) {
-      this.#recordBrowserbaseResources(result.resources);
-    }
   }
 
   execute(input: {
@@ -581,31 +613,6 @@ class IpcV4CodeController implements V4CodeController {
       }
     });
     return this.#stopPromise;
-  }
-
-  async #waitForBridgeReady(): Promise<void> {
-    if (this.#bridgeReady) return;
-    let timer: NodeJS.Timeout | undefined;
-    const timeout = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => {
-        reject(
-          new Error(
-            `V4 code bridge startup timed out after ${BRIDGE_READY_TIMEOUT_MS}ms.`,
-          ),
-        );
-      }, BRIDGE_READY_TIMEOUT_MS);
-    });
-    try {
-      await Promise.race([this.#bridgeReadyPromise, timeout]);
-    } catch (error) {
-      const normalized =
-        error instanceof Error ? error : new Error(String(error));
-      this.#fail(normalized);
-      void this.#stopChild();
-      throw normalized;
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
   }
 
   async #stopChildOnce(): Promise<void> {

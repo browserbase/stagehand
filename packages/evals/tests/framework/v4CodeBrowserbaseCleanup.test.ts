@@ -1,6 +1,29 @@
 import { describe, expect, it, vi } from "vitest";
 import { cleanupV4CodeBrowserbaseResources } from "../../framework/v4CodeBrowserbaseCleanup.js";
 
+function deferred<T>(): {
+  promise: Promise<T>;
+  reject: (error: Error) => void;
+} {
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((_resolve, rejectPromise) => {
+    reject = rejectPromise;
+  });
+  return { promise, reject };
+}
+
+function expectSessionCleanupTimeout(
+  error: unknown,
+  description: string,
+): void {
+  expect(error).toBeInstanceOf(AggregateError);
+  const [cause] = (error as AggregateError).errors;
+  expect(cause).toBeInstanceOf(Error);
+  expect((cause as Error).message).toBe(
+    `Browserbase session cleanup timed out after 5ms while ${description}.`,
+  );
+}
+
 describe("V4 Browserbase fallback cleanup", () => {
   it("releases the session before deleting the uploaded extension", async () => {
     const calls: string[] = [];
@@ -148,5 +171,110 @@ describe("V4 Browserbase fallback cleanup", () => {
     ).rejects.toThrow(/Browserbase resource cleanup failed/i);
 
     expect(releaseSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds the initial release request by the cleanup deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      const lateRelease = deferred<unknown>();
+      const cleanup = cleanupV4CodeBrowserbaseResources(
+        {
+          apiKey: "private-api-key",
+          resources: { sessionId: "session-resource" },
+        },
+        () => ({
+          releaseSession: () => lateRelease.promise,
+          retrieveSession: async () => ({ status: "COMPLETED" }),
+          deleteExtension: async () => undefined,
+        }),
+        { sessionCleanupTimeoutMs: 5 },
+      );
+      const observed = cleanup.catch((error: unknown) => error);
+
+      await vi.advanceTimersByTimeAsync(5);
+
+      expectSessionCleanupTimeout(
+        await observed,
+        "requesting the initial session release",
+      );
+      expect(vi.getTimerCount()).toBe(0);
+      lateRelease.reject(new Error("late release rejection"));
+      await Promise.resolve();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bounds every status retrieval by the cleanup deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      const lateRetrieve = deferred<unknown>();
+      const retrieveSession = vi.fn(() => lateRetrieve.promise);
+      const cleanup = cleanupV4CodeBrowserbaseResources(
+        {
+          apiKey: "private-api-key",
+          resources: { sessionId: "session-resource" },
+        },
+        () => ({
+          releaseSession: async () => undefined,
+          retrieveSession,
+          deleteExtension: async () => undefined,
+        }),
+        { sessionCleanupTimeoutMs: 5 },
+      );
+      const observed = cleanup.catch((error: unknown) => error);
+
+      await vi.advanceTimersByTimeAsync(5);
+
+      expect(retrieveSession).toHaveBeenCalledOnce();
+      expectSessionCleanupTimeout(await observed, "retrieving session status");
+      expect(vi.getTimerCount()).toBe(0);
+      lateRetrieve.reject(new Error("late retrieve rejection"));
+      await Promise.resolve();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bounds the fallback release by the remaining cleanup deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      const lateRelease = deferred<unknown>();
+      const releaseSession = vi
+        .fn<() => Promise<unknown>>()
+        .mockResolvedValueOnce(undefined)
+        .mockImplementationOnce(() => lateRelease.promise);
+      const cleanup = cleanupV4CodeBrowserbaseResources(
+        {
+          apiKey: "private-api-key",
+          resources: { sessionId: "session-resource" },
+        },
+        () => ({
+          releaseSession,
+          retrieveSession: async () => ({ status: "RUNNING" }),
+          deleteExtension: async () => undefined,
+        }),
+        {
+          sessionCleanupTimeoutMs: 5,
+          sessionReleaseRetryAfterMs: 1,
+          sessionStatusPollIntervalMs: 1,
+        },
+      );
+      const observed = cleanup.catch((error: unknown) => error);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(releaseSession).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(4);
+
+      expectSessionCleanupTimeout(
+        await observed,
+        "requesting the fallback session release",
+      );
+      expect(vi.getTimerCount()).toBe(0);
+      lateRelease.reject(new Error("late fallback rejection"));
+      await Promise.resolve();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
