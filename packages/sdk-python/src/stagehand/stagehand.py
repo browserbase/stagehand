@@ -30,6 +30,7 @@ from ._generated.models import (
 )
 from .browser_context import BrowserContext
 from .browser_source import ResolvedBrowserSource, resolve_browser_source
+from .cdp_client import CDPConnectionClosedError
 from .client_models import (
     BrowserbaseBrowserSource,
     Cache,
@@ -429,11 +430,14 @@ class Stagehand:
         async with self._lifecycle_lock:
             try:
                 if self._browser_context is not None and self._rpc_client is not None:
-                    await self._rpc_client.send(
-                        "stagehand.close",
-                        EmptyParams(),
-                        StagehandCloseResult,
-                    )
+                    try:
+                        await self._rpc_client.send(
+                            "stagehand.close",
+                            EmptyParams(),
+                            StagehandCloseResult,
+                        )
+                    except CDPConnectionClosedError:
+                        pass
             finally:
                 await asyncio.shield(self._release_resources())
 

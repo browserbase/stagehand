@@ -38,6 +38,11 @@ class _CDPCommandError(RuntimeError):
         super().__init__(f"CDP command failed: {method}: {error.get('message', 'Unknown error')}")
 
 
+class CDPConnectionClosedError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("CDP connection closed")
+
+
 class CDPClient:
     def __init__(
         self,
@@ -226,7 +231,11 @@ class CDPClient:
     async def _read(self) -> None:
         try:
             while not self._closed:
-                await self._handle_message(await self._socket.recv())
+                try:
+                    message = await self._socket.recv()
+                except Exception as error:
+                    raise CDPConnectionClosedError() from error
+                await self._handle_message(message)
         except asyncio.CancelledError:
             raise
         except Exception as error:

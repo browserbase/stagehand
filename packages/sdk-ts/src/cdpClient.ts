@@ -113,6 +113,13 @@ const RuntimeReadinessSchema = z.object({
   hasStagehandReceiveFromHost: z.boolean(),
 });
 
+export class CDPConnectionClosedError extends Error {
+  constructor() {
+    super("CDP connection closed");
+    this.name = "CDPConnectionClosedError";
+  }
+}
+
 export class CDPClient {
   onmessage?: (message: unknown) => void | Promise<void>;
   onclose?: (reason?: Error) => void;
@@ -141,7 +148,7 @@ export class CDPClient {
     this.socket.addEventListener("close", () => {
       if (this.closed) return;
       this.closed = true;
-      const reason = new Error("CDP connection closed");
+      const reason = new CDPConnectionClosedError();
       this.rejectPending(reason);
       this.onclose?.(reason);
     });

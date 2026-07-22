@@ -5,6 +5,7 @@ import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { Stagehand } from "../src/index.js";
 import type { ResolvedBrowserSource } from "../src/browserSource.js";
+import { CDPConnectionClosedError } from "../src/cdpClient.js";
 import { RPCClient, type RPCClientOptions } from "../src/rpcClient.js";
 import { createStagehandWithDependenciesForTest } from "../src/stagehand.js";
 
@@ -35,7 +36,7 @@ class FakeRPCClient extends RPCClient {
 
   queueResponse<Method extends RPCMethod>(
     method: Method,
-    response: z.input<Method["result"]>,
+    response: z.input<Method["result"]> | Error,
   ): void {
     const responses = this.responses.get(method.name) ?? [];
     responses.push(response);
@@ -51,7 +52,9 @@ class FakeRPCClient extends RPCClient {
     if (!responses?.length) {
       throw new Error(`No fake response queued for ${method.name}`);
     }
-    return method.result.parse(responses.shift()) as z.output<Method["result"]>;
+    const response = responses.shift();
+    if (response instanceof Error) throw response;
+    return method.result.parse(response) as z.output<Method["result"]>;
   }
 
   onNotification(listener: (notification: StagehandRpcNotification) => void): () => void {
@@ -373,10 +376,10 @@ describe("Stagehand", () => {
     ]);
   });
 
-  it("closes the runtime, rpcClient, and owned browser source", async () => {
+  it("treats a CDP disconnect during close as successful and closes each resource once", async () => {
     const closeBrowser = vi.fn();
     const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
+    rpcClient.queueResponse(StagehandMethods.stagehandClose, new CDPConnectionClosedError());
     const stagehand = createStagehandWithDependenciesForTest(
       {
         browser: { type: "local" },
@@ -392,7 +395,7 @@ describe("Stagehand", () => {
     );
 
     await stagehand.init();
-    await stagehand.close();
+    await Promise.all([stagehand.close(), stagehand.close()]);
 
     expect(stagehand.initialized).toBe(false);
     expect(rpcClient.calls).toStrictEqual([

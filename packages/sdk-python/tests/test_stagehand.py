@@ -28,6 +28,7 @@ from stagehand._generated.models import (
     StagehandPingResult,
 )
 from stagehand.browser_source import ResolvedBrowserSource
+from stagehand.cdp_client import CDPConnectionClosedError
 from stagehand.client_models import CdpBrowserSource, LocalBrowserSource, StagehandClientInitParams
 from stagehand.rpc_client import RPCClient
 
@@ -129,7 +130,7 @@ async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
 
 
 @pytest.mark.asyncio
-async def test_stagehand_serializes_initialization_and_closes_every_owned_resource(
+async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_successful(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     browser_closes = 0
@@ -145,7 +146,7 @@ async def test_stagehand_serializes_initialization_and_closes_every_owned_resour
     )
     recording = RecordingRPCClient({
         "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
-        "stagehand.close": StagehandCloseResult(closed=True),
+        "stagehand.close": CDPConnectionClosedError(),
     })
 
     async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
@@ -203,9 +204,10 @@ async def test_stagehand_serializes_initialization_and_closes_every_owned_resour
     assert "browser" not in init_params.model_fields_set
     assert init_params.model == ClientModelReference(source="client")
 
-    await stagehand.close()
+    await asyncio.gather(stagehand.close(), stagehand.close())
 
     assert stagehand.initialized is False
+    assert [method for method, _, _ in recording.calls].count("stagehand.close") == 1
     assert recording.closed is True
     assert browser_closes == 1
     with pytest.raises(RuntimeError, match="not initialized"):

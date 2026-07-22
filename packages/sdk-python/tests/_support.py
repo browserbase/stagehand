@@ -24,7 +24,10 @@ class RecordingRPCClient:
         result_model: type[ResultT],
     ) -> ResultT:
         self.calls.append((method, params, result_model))
-        return result_model.model_validate(self.responses[method], strict=True)
+        response = self.responses[method]
+        if isinstance(response, BaseException):
+            raise response
+        return result_model.model_validate(response, strict=True)
 
     def on_request(
         self,

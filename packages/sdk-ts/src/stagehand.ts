@@ -15,6 +15,7 @@ import {
   type ResolvedStagehandClientInitParams,
   type StagehandClientInitParams,
 } from "./clientSchemas.js";
+import { CDPConnectionClosedError } from "./cdpClient.js";
 
 type StagehandAdapters = {
   resolveBrowserSource?: (initParams: StagehandClientInitParams) => Promise<ResolvedBrowserSource>;
@@ -30,6 +31,7 @@ export class Stagehand {
   removeNotificationListener: (() => void) | undefined;
   removeClientLLMHandler: (() => void) | undefined;
   browser: ResolvedBrowserSource | undefined;
+  closePromise: Promise<void> | undefined;
 
   constructor(readonly initParams: StagehandClientInitParams) {}
 
@@ -114,25 +116,33 @@ export class Stagehand {
     }
 
     this.isInitialized = true;
+    this.closePromise = undefined;
   }
 
-  async close(): Promise<void> {
-    const context = this.browserContext;
-    try {
-      if (context) {
-        await this.rpcClient?.send(StagehandMethods.stagehandClose, {});
+  close(): Promise<void> {
+    this.closePromise ??= (async () => {
+      const context = this.browserContext;
+      try {
+        if (context) {
+          try {
+            await this.rpcClient?.send(StagehandMethods.stagehandClose, {});
+          } catch (error) {
+            if (!(error instanceof CDPConnectionClosedError)) throw error;
+          }
+        }
+      } finally {
+        this.removeClientLLMHandler?.();
+        this.removeClientLLMHandler = undefined;
+        this.removeNotificationListener?.();
+        this.removeNotificationListener = undefined;
+        this.rpcClient?.close();
+        await this.closeBrowserSource();
+        this.rpcClient = undefined;
+        this.browserContext = undefined;
+        this.isInitialized = false;
       }
-    } finally {
-      this.removeClientLLMHandler?.();
-      this.removeClientLLMHandler = undefined;
-      this.removeNotificationListener?.();
-      this.removeNotificationListener = undefined;
-      this.rpcClient?.close();
-      await this.closeBrowserSource();
-      this.rpcClient = undefined;
-      this.browserContext = undefined;
-      this.isInitialized = false;
-    }
+    })();
+    return this.closePromise;
   }
 
   private get connectedRpcClient(): RPCClient {
