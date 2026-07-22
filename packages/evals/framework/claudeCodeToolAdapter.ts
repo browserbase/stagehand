@@ -742,6 +742,14 @@ async function prepareV4CodeAdapter(
           level: 0,
         });
       },
+      onCloseWarning: () => {
+        input.logger.warn({
+          category: "claude_code",
+          message:
+            "V4 Browserbase native close failed after execution; verified parent fallback cleanup completed.",
+          level: 0,
+        });
+      },
       startupTimeoutMs: readPositiveIntEnv(
         "EVAL_V4_CODE_STARTUP_TIMEOUT_MS",
         30_000,

@@ -45,6 +45,9 @@ process.once("SIGINT", () => {
 process.once("SIGTERM", () => {
   void shutdown();
 });
+void sendLifecycleEvent({ type: "bridge_ready" }).catch(() => {
+  void shutdown();
+});
 
 async function handleRequest(message: V4CodeBridgeRequest): Promise<void> {
   switch (message.type) {

@@ -23,6 +23,7 @@ import {
 } from "./v4CodeBrowserbaseCleanup.js";
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
+const BRIDGE_READY_TIMEOUT_MS = 30_000;
 const DEFAULT_EXECUTE_TIMEOUT_MS = 60_000;
 const DEFAULT_CLOSE_TIMEOUT_MS = 5_000;
 const CHILD_EXIT_GRACE_MS = 1_000;
@@ -73,10 +74,12 @@ export function stringifyV4CodeConsoleValue(value: unknown): string {
   }
 }
 
-export type V4CodeBridgeLifecycleEvent = {
-  type: "browserbase_resources";
-  resources: V4CodeBrowserbaseResources;
-};
+export type V4CodeBridgeLifecycleEvent =
+  | { type: "bridge_ready" }
+  | {
+      type: "browserbase_resources";
+      resources: V4CodeBrowserbaseResources;
+    };
 
 type V4CodeBridgeRequestPayload = V4CodeBridgeRequest extends infer Request
   ? Request extends V4CodeBridgeRequest
@@ -120,6 +123,7 @@ export interface StartV4CodeControllerInput {
     input: V4CodeBrowserbaseCleanupInput,
   ) => void;
   onCleanupWarning?: (error: Error) => void;
+  onCloseWarning?: (error: Error) => void;
 }
 
 type PendingRequest = {
@@ -235,6 +239,7 @@ export async function startV4CodeController(
       input.cleanupBrowserbaseResourcesSync ??
       cleanupV4CodeBrowserbaseResourcesSync,
     onCleanupWarning: input.onCleanupWarning,
+    onCloseWarning: input.onCloseWarning,
   });
 
   try {
@@ -292,6 +297,11 @@ class IpcV4CodeController implements V4CodeController {
   ) => void;
   readonly #parentExitHandler: () => void;
   readonly #onCleanupWarning: ((error: Error) => void) | undefined;
+  readonly #onCloseWarning: ((error: Error) => void) | undefined;
+  readonly #bridgeReadyPromise: Promise<void>;
+  #resolveBridgeReady!: () => void;
+  #rejectBridgeReady!: (error: Error) => void;
+  #bridgeReady = false;
   #browserPid: number | undefined;
   #browserbaseResources: V4CodeBrowserbaseResources = {};
   #resourceGeneration = 0;
@@ -326,6 +336,7 @@ class IpcV4CodeController implements V4CodeController {
         input: V4CodeBrowserbaseCleanupInput,
       ) => void;
       onCleanupWarning?: (error: Error) => void;
+      onCloseWarning?: (error: Error) => void;
     },
   ) {
     this.#startupTimeoutMs = requirePositiveTimeout(
@@ -349,10 +360,15 @@ class IpcV4CodeController implements V4CodeController {
     this.#cleanupBrowserbaseResourcesSync =
       timeouts.cleanupBrowserbaseResourcesSync;
     this.#onCleanupWarning = timeouts.onCleanupWarning;
+    this.#onCloseWarning = timeouts.onCloseWarning;
     this.#parentExitHandler = () => {
       this.#signalProcesses("SIGKILL");
       this.#cleanupRemoteSync();
     };
+    this.#bridgeReadyPromise = new Promise((resolve, reject) => {
+      this.#resolveBridgeReady = resolve;
+      this.#rejectBridgeReady = reject;
+    });
     this.#armParentExit();
     this.#exitPromise = new Promise((resolve) => {
       child.once("exit", (code, signal) => {
@@ -382,6 +398,7 @@ class IpcV4CodeController implements V4CodeController {
     mode: V4CodeMode;
     model?: V4CodeModelConfig;
   }): Promise<void> {
+    await this.#waitForBridgeReady();
     const result = await this.#request(
       input.mode === "ai"
         ? {
@@ -444,14 +461,23 @@ class IpcV4CodeController implements V4CodeController {
 
   async #close(): Promise<void> {
     if (this.#closed) return;
+    let closeError: Error | undefined;
     try {
       if (!this.#exited && !this.#terminalError) {
         await this.#request({ type: "close" }, this.#closeTimeoutMs);
       }
+    } catch (error) {
+      closeError = error instanceof Error ? error : new Error(String(error));
     } finally {
       this.#closed = true;
       await this.#stopChild();
     }
+    if (!closeError) return;
+    if (this.#hasCleanedLatestRemoteResources()) {
+      this.#emitCloseWarning(closeError);
+      return;
+    }
+    throw closeError;
   }
 
   #request(
@@ -503,7 +529,14 @@ class IpcV4CodeController implements V4CodeController {
       return;
     }
     if (isV4CodeBridgeLifecycleEvent(message)) {
-      this.#recordBrowserbaseResources(message.resources);
+      if (message.type === "bridge_ready") {
+        if (!this.#bridgeReady) {
+          this.#bridgeReady = true;
+          this.#resolveBridgeReady();
+        }
+      } else {
+        this.#recordBrowserbaseResources(message.resources);
+      }
       return;
     }
     if (!isV4CodeBridgeResponse(message)) return;
@@ -527,6 +560,7 @@ class IpcV4CodeController implements V4CodeController {
 
   #fail(error: Error): void {
     this.#terminalError ??= error;
+    this.#rejectBridgeReady(this.#terminalError);
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(this.#terminalError);
@@ -547,6 +581,31 @@ class IpcV4CodeController implements V4CodeController {
       }
     });
     return this.#stopPromise;
+  }
+
+  async #waitForBridgeReady(): Promise<void> {
+    if (this.#bridgeReady) return;
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(
+          new Error(
+            `V4 code bridge startup timed out after ${BRIDGE_READY_TIMEOUT_MS}ms.`,
+          ),
+        );
+      }, BRIDGE_READY_TIMEOUT_MS);
+    });
+    try {
+      await Promise.race([this.#bridgeReadyPromise, timeout]);
+    } catch (error) {
+      const normalized =
+        error instanceof Error ? error : new Error(String(error));
+      this.#fail(normalized);
+      void this.#stopChild();
+      throw normalized;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async #stopChildOnce(): Promise<void> {
@@ -678,6 +737,22 @@ class IpcV4CodeController implements V4CodeController {
     }
   }
 
+  #emitCloseWarning(error: Error): void {
+    try {
+      this.#onCloseWarning?.(error);
+    } catch {
+      // Close warnings must never replace verified fallback cleanup.
+    }
+  }
+
+  #hasCleanedLatestRemoteResources(): boolean {
+    return (
+      this.#browserbase !== undefined &&
+      this.#resourceGeneration > 0 &&
+      this.#cleanedResourceGeneration >= this.#resourceGeneration
+    );
+  }
+
   #disarmParentExitIfSafe(): void {
     if (
       this.#closeAcknowledged ||
@@ -788,8 +863,9 @@ function isV4CodeBridgeLifecycleEvent(
 ): value is V4CodeBridgeLifecycleEvent {
   return (
     isRecord(value) &&
-    value.type === "browserbase_resources" &&
-    isV4CodeBrowserbaseResources(value.resources)
+    (value.type === "bridge_ready" ||
+      (value.type === "browserbase_resources" &&
+        isV4CodeBrowserbaseResources(value.resources)))
   );
 }
 
