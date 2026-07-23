@@ -86,10 +86,28 @@ export class RubricCache {
       );
       return undefined;
     }
+    if (!parsed.rubric?.items?.length) {
+      // An empty rubric grades nothing: every trial gets processScore 0 and
+      // no per-criterion rows, silently, in every arm that hits the cache
+      // (observed on webvoyager Allrecipes--2, 2026-07-23). Treat it as a
+      // miss so generation is retried instead of poisoning whole matrices.
+      console.warn(
+        `[rubric-cache] cached rubric for ${taskSpec.id} has no items; regenerating`,
+      );
+      return undefined;
+    }
     return parsed.rubric;
   }
 
   async write(taskSpec: TaskSpec, rubric: Rubric): Promise<void> {
+    if (!rubric?.items?.length) {
+      // Never persist an empty rubric — a cached zero-item rubric silently
+      // disables grading for every future trial of this task.
+      console.warn(
+        `[rubric-cache] refusing to cache empty rubric for ${taskSpec.id}`,
+      );
+      return;
+    }
     await fs.mkdir(this.cacheDir, { recursive: true });
     const entry: CacheEntry = {
       taskId: taskSpec.id,
