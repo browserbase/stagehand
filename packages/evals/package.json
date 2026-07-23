@@ -25,7 +25,6 @@
     "@ai-sdk/provider": "^2.0.0",
     "@anthropic-ai/claude-agent-sdk": "^0.2.141",
     "@browserbasehq/stagehand": "workspace:*",
-    "@browserbasehq/stagehand-v4-spike-sdk-ts": "link:../../v4-spike/packages/sdk-ts",
     "@openai/codex-sdk": "0.125.0",
     "ai": "^5.0.133",
     "dotenv": "^17.3.1",

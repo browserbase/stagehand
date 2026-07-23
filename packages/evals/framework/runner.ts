@@ -11,7 +11,6 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import type { AgentToolMode } from "@browserbasehq/stagehand";
 import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
@@ -33,6 +32,11 @@ import type { DiscoveredTask, TaskRegistry, TaskResult } from "./types.js";
 import type { Testcase, EvalInput } from "../types/evals.js";
 import { generateBenchTestcases } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS, type Harness } from "./benchTypes.js";
+import {
+  benchmarkRunMetadata,
+  buildBenchmarkExperimentName,
+  type BenchmarkRunDescriptor,
+} from "../benchmarks/braintrust.js";
 import { executeBenchTask } from "./benchRunner.js";
 import {
   hasBraintrustApiKey,
@@ -41,6 +45,7 @@ import {
 } from "./braintrust.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
+import { resolveV4SdkPath } from "../v4SdkLoader.js";
 
 export { discoverTasks, resolveTarget } from "./discovery.js";
 export {
@@ -78,8 +83,15 @@ function buildSdkComparisonExperimentName(input: {
   ].join("__");
 }
 
-/** Braintrust project for SDK-comparison runs (--sdk v3|v4). */
+/**
+ * Braintrust project routing for v4 work:
+ * - deterministic suite (direct a/e/o method-call tasks, pass-rate /
+ *   exact-match scored) → stagehand-v4-deterministic
+ * - nondeterministic suite (longer-horizon / LLMJ-scored: external-harness
+ *   and benchmark-matrix runs) → stagehand-v4
+ */
 const SDK_COMPARISON_PROJECT = "stagehand-v4";
+const DETERMINISTIC_COMPARISON_PROJECT = "stagehand-v4-deterministic";
 
 /**
  * Fail fast before spending money: verify the configured Braintrust key can
@@ -96,8 +108,7 @@ const SDK_COMPARISON_PROJECT = "stagehand-v4";
 async function assertBraintrustProjectReachable(
   projectName: string,
 ): Promise<void> {
-  const apiUrl =
-    process.env.BRAINTRUST_API_URL ?? "https://api.braintrust.dev";
+  const apiUrl = process.env.BRAINTRUST_API_URL ?? "https://api.braintrust.dev";
   let body: { objects?: unknown[] };
   try {
     const response = await fetch(
@@ -139,10 +150,9 @@ async function assertBraintrustProjectReachable(
  */
 function resolveV4SpikeSha(): string {
   try {
-    const sdkEntry = fileURLToPath(
-      import.meta.resolve("@browserbasehq/stagehand-v4-spike-sdk-ts"),
-    );
-    // src/index.ts → package root → (realpath) v4-spike/packages/sdk-ts → repo root
+    const sdkEntry = resolveV4SdkPath();
+    if (!sdkEntry) return "unknown";
+    // <checkout>/packages/sdk-ts/src/index.ts → checkout root
     const sdkPackageRoot = fs.realpathSync(
       path.dirname(path.dirname(sdkEntry)),
     );
@@ -187,6 +197,16 @@ export interface RunEvalsOptions {
    * be diffed per task.
    */
   sdk?: "v3" | "v4";
+  /**
+   * Benchmark-matrix run descriptor (see benchmarks/). When set, the
+   * Braintrust experiment name becomes
+   * `<benchmark>__<harness>__<toolSurface>__<env>__<model>__<date>` and
+   * metadata carries the full (benchmark, harness, toolSurface) triple, so
+   * any two points of a matrix are diffable. Produced by
+   * `benchmarkRunnerOptions()` — spread that into this call rather than
+   * assembling by hand.
+   */
+  benchmark?: BenchmarkRunDescriptor;
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;
   onProgress?: (event: RunProgressEvent) => void;
@@ -449,9 +469,11 @@ export async function runEvals(
   const hasCoreOnly = options.tasks.every(
     (t: DiscoveredTask) => t.tier === "core",
   );
+  // Core runs default to understudy; bench runs under an external harness
+  // carry the requested surface (the comparison arm) into metadata/naming.
   const effectiveCoreToolSurface = hasCoreOnly
     ? (options.coreToolSurface ?? "understudy_code")
-    : undefined;
+    : options.coreToolSurface;
   const effectiveCoreStartupProfile =
     hasCoreOnly && effectiveCoreToolSurface
       ? (options.coreStartupProfile ??
@@ -473,14 +495,20 @@ export async function runEvals(
   // SDK-comparison runs (--sdk passed explicitly) get self-describing names
   // so matched v3/v4 pairs are unmistakable in the Braintrust experiment
   // list; default runs keep the plain target-label naming.
-  const experimentName = options.sdk
-    ? buildSdkComparisonExperimentName({
-        base: baseExperimentName,
-        sdk: options.sdk,
+  const experimentName = options.benchmark
+    ? buildBenchmarkExperimentName({
+        benchmark: options.benchmark,
         environment,
         model: runModel ?? options.modelOverride,
       })
-    : baseExperimentName;
+    : options.sdk
+      ? buildSdkComparisonExperimentName({
+          base: baseExperimentName,
+          sdk: options.sdk,
+          environment,
+          model: runModel ?? options.modelOverride,
+        })
+      : baseExperimentName;
 
   // Stamp the run-scoped trajectory group; the token is generated once here and
   // reused for the completion-time experiment link. Local persistence only.
@@ -497,18 +525,28 @@ export async function runEvals(
     process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
   if (options.provider) process.env.EVAL_PROVIDER = options.provider;
 
-  // SDK-comparison runs (--sdk passed) land in the dedicated project so
-  // v3/v4 experiments are diffable in one place; default runs keep the
+  // v4-work routing: benchmark-matrix runs and the replay (nondeterministic)
+  // suite land in stagehand-v4; plain --sdk comparison runs of deterministic
+  // a/e/o tasks land in stagehand-v4-deterministic. Default runs keep the
   // existing project routing.
-  const braintrustProjectName = options.sdk
-    ? SDK_COMPARISON_PROJECT
-    : hasCoreOnly
-      ? process.env.CI === "true"
-        ? "stagehand-core"
-        : "stagehand-core-dev"
-      : process.env.CI === "true"
-        ? "stagehand"
-        : "stagehand-dev";
+  // External coding harnesses (claude_code, codex) only drive the
+  // longer-horizon LLMJ-graded suite — always nondeterministic.
+  const isExternalHarnessRun =
+    !hasCoreOnly &&
+    effectiveBenchHarness !== undefined &&
+    effectiveBenchHarness !== "stagehand";
+  const braintrustProjectName =
+    options.benchmark || isExternalHarnessRun
+      ? SDK_COMPARISON_PROJECT
+      : options.sdk
+        ? DETERMINISTIC_COMPARISON_PROJECT
+        : hasCoreOnly
+          ? process.env.CI === "true"
+            ? "stagehand-core"
+            : "stagehand-core-dev"
+          : process.env.CI === "true"
+            ? "stagehand"
+            : "stagehand-dev";
 
   const scores = hasCoreOnly
     ? [passRate, errorMatch]
@@ -521,7 +559,7 @@ export async function runEvals(
   // any task starts rather than discovering dropped log batches afterwards.
   // Every comparison run must be verifiable and traceable in Braintrust —
   // results without a backing experiment record can't be audited.
-  if (options.sdk && sendLogs) {
+  if ((options.sdk || options.benchmark || isExternalHarnessRun) && sendLogs) {
     await assertBraintrustProjectReachable(braintrustProjectName);
   }
 
@@ -544,7 +582,17 @@ export async function runEvals(
       experimentName,
       metadata: {
         environment,
-        sdk: options.sdk ?? "v3",
+        // External-harness runs aren't driven by a Stagehand SDK unless the
+        // tool surface IS one; don't let the legacy v3 default mislabel them.
+        ...(options.sdk
+          ? { sdk: options.sdk }
+          : isExternalHarnessRun
+            ? options.coreToolSurface === "v4_code"
+              ? { sdk: "v4" }
+              : options.coreToolSurface === "understudy_code"
+                ? { sdk: "v3" }
+                : {}
+            : { sdk: "v3" }),
         ...(options.sdk === "v4" && { v4Sha: resolveV4SpikeSha() }),
         tier: hasCoreOnly ? "core" : "bench",
         ...(effectiveCoreToolSurface && {
@@ -554,6 +602,9 @@ export async function runEvals(
           startupProfile: effectiveCoreStartupProfile,
         }),
         ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
+        // Benchmark-matrix runs: stamp the full triple last so it is
+        // authoritative over the tier-derived harness/toolSurface fields.
+        ...(options.benchmark && benchmarkRunMetadata(options.benchmark)),
         ...(options.provider && { provider: options.provider }),
         ...(options.modelOverride && { model: options.modelOverride }),
         ...(options.useApi && { api: true }),
