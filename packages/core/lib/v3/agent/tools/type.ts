@@ -63,9 +63,18 @@ export const typeTool = (v3: V3, provider?: string, variables?: Variables) => {
 
         // Only request XPath when caching is enabled to avoid unnecessary computation
         const shouldCollectXpath = v3.isAgentReplayActive();
-        const xpath = await page.click(processed.x, processed.y, {
-          returnXpath: shouldCollectXpath,
-        });
+        // Focus the field the way the session's input actually works: on a touch
+        // session a synthesized mouse click never registers on touch-gated mobile
+        // layouts, so the field would stay unfocused and the text go nowhere.
+        // Only the actuation changes — the recorded step is a "type", whose replay
+        // focuses via the selector rather than a pointer event.
+        const xpath = v3.usesTouch
+          ? await page.tap(processed.x, processed.y, {
+              returnXpath: shouldCollectXpath,
+            })
+          : await page.click(processed.x, processed.y, {
+              returnXpath: shouldCollectXpath,
+            });
 
         await page.type(actualText);
 
