@@ -8,7 +8,7 @@ export default defineBenchV4Task(
         waitUntil: "networkidle",
       });
 
-      const observations = await page.observe(
+      const observations = await stagehand.observe(
         "Click the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
       );
 

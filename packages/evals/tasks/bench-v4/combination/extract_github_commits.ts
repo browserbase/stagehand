@@ -7,10 +7,10 @@ export default defineBenchV4Task(
     try {
       await page.goto("https://github.com/facebook/react");
 
-      await page.act(
+      await stagehand.act(
         "find commit history, generally described by the number of commits",
       );
-      const { commits } = await page.extract(
+      const { commits } = await stagehand.extract(
         "Extract last 20 commits",
         z.object({
           commits: z.array(

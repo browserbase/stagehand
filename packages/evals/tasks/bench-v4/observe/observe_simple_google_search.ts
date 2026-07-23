@@ -1,8 +1,8 @@
-import type { Page } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
+import type { Page, Stagehand } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
 import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
 /** The v4 SDK does not export the observe result type (V4_API_LOGS.md #7). */
-type ObservedAction = Awaited<ReturnType<Page["observe"]>>[number];
+type ObservedAction = Awaited<ReturnType<Stagehand["observe"]>>[number];
 
 /**
  * WORKAROUND (V4_API_LOGS.md #1): v4 has no `act(observeResult)` replay.
@@ -49,7 +49,7 @@ export default defineBenchV4Task(
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/google/",
       );
-      const observation1 = await page.observe(
+      const observation1 = await stagehand.observe(
         "Find the search bar and type 'OpenAI'",
       );
 
@@ -57,7 +57,7 @@ export default defineBenchV4Task(
         const action1 = observation1[0];
         await replayObservedAction(page, action1);
       }
-      const observation2 = await page.observe("Press enter");
+      const observation2 = await stagehand.observe("Press enter");
 
       if (observation2.length > 0) {
         const action2 = observation2[0];
