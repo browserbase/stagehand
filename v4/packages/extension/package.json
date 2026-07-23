@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vp build --config vite.config.ts",
-    "test": "pnpm run build && vp test run --root ../.. packages/server/tests"
+    "test": "pnpm run build && vp test run --root ../.. packages/extension/tests"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "catalog:",

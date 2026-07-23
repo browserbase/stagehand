@@ -87,7 +87,7 @@ export class Stagehand {
         // TODO: Thread browser.cdpHeaders through CDP discovery and the WebSocket handshake.
         ...(browser.preloadedExtension
           ? { preloadedExtension: true as const }
-          : { extensionDir: new URL("../../server/dist", import.meta.url).pathname }),
+          : { extensionDir: new URL("../../extension/dist", import.meta.url).pathname }),
         serviceWorkerUrlIncludes: "service-worker.js",
         telemetry: clientInitParams.telemetry,
       });

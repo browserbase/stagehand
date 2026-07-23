@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path
 
 SDK_ROOT = Path(__file__).resolve().parents[1]
-SERVER_EXTENSION_ROOT = SDK_ROOT.parent / "server" / "dist"
+SERVER_EXTENSION_ROOT = SDK_ROOT.parent / "extension" / "dist"
 
 
 def main() -> None:

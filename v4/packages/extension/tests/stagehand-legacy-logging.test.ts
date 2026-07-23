@@ -21,7 +21,9 @@ describe("Stagehand legacy logging migration", () => {
   });
 
   it("does not expose the legacy LogLine schema or type", async () => {
-    expect(await findSourceMatches(/\bLogLine(?:Schema)?\b/, ["protocol", "server"])).toEqual([]);
+    expect(await findSourceMatches(/\bLogLine(?:Schema)?\b/, ["protocol", "extension"])).toEqual(
+      [],
+    );
   });
 
   it("still throws an understudy method error after recording it", async () => {
@@ -51,7 +53,7 @@ describe("Stagehand legacy logging migration", () => {
 });
 
 async function findServerSourceMatches(pattern: RegExp): Promise<string[]> {
-  return await findSourceMatches(pattern, ["server"]);
+  return await findSourceMatches(pattern, ["extension"]);
 }
 
 async function findSourceMatches(pattern: RegExp, directories: string[]): Promise<string[]> {

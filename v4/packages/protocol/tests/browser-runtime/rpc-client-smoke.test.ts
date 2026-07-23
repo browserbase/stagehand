@@ -11,7 +11,7 @@ import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.
 import { StagehandMethods } from "../../schema-registry.js";
 import type { StagehandRpcNotification } from "../../types.js";
 
-const stagehandExtensionDistDir = new URL("../../../server/dist", import.meta.url).pathname;
+const stagehandExtensionDistDir = new URL("../../../extension/dist", import.meta.url).pathname;
 
 type FixtureServer = {
   url: string;
@@ -501,10 +501,10 @@ async function createFullGraphSmokeExtension(): Promise<string> {
   );
 
   const extensionEntryPath = fileURLToPath(
-    new URL("../../../server/service-worker.ts", import.meta.url),
+    new URL("../../../extension/service-worker.ts", import.meta.url),
   );
   const serverModulePath = (relativePath: string): string =>
-    fileURLToPath(new URL(`../../../server/${relativePath}`, import.meta.url));
+    fileURLToPath(new URL(`../../../extension/${relativePath}`, import.meta.url));
   const workerEntryPath = path.join(extensionDir, "stagehand-full-graph-entry.ts");
 
   await writeFile(

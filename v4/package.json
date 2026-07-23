@@ -1,0 +1,48 @@
+{
+  "name": "stagehand-v4",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:schema": "vp run -F ./packages/protocol build:schema",
+    "check": "vp check && vp run -F ./packages/docs-v4 check",
+    "docs": "vp run --no-cache -F ./packages/docs-v4 dev",
+    "fmt": "vp fmt . --write",
+    "test": "pnpm --dir packages/extension run build && vp run -r test && vp test run rules/ast-grep",
+    "build": "vp run -r build",
+    "example:act": "pnpm --dir packages/extension run build && tsx packages/sdk-ts/examples/act.ts",
+    "example:extract": "pnpm --dir packages/extension run build && tsx packages/sdk-ts/examples/extract.ts",
+    "example:observe": "pnpm --dir packages/extension run build && tsx packages/sdk-ts/examples/observe.ts",
+    "example:custom-llm": "pnpm --dir packages/extension run build && tsx packages/sdk-ts/examples/custom-llm.ts",
+    "example:caching": "pnpm --dir packages/extension run build && tsx packages/sdk-ts/examples/caching.ts"
+  },
+  "devDependencies": {
+    "@ast-grep/lang-python": "catalog:",
+    "@ast-grep/napi": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/sdk-trace-web": "catalog:",
+    "@oxlint/plugins": "1.68.0",
+    "@types/chrome": "catalog:",
+    "dotenv": "catalog:",
+    "openai": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.10.0",
+      "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "^24.18.0",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

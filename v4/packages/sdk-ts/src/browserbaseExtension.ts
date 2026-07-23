@@ -5,7 +5,7 @@ import path from "node:path";
 import Browserbase from "@browserbasehq/sdk";
 import { zip } from "fflate";
 
-const DEFAULT_EXTENSION_DIR = new URL("../../server/dist", import.meta.url).pathname;
+const DEFAULT_EXTENSION_DIR = new URL("../../extension/dist", import.meta.url).pathname;
 
 export type BrowserbaseExtensionArchive = {
   path: string;

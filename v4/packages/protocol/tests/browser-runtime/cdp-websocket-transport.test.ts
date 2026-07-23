@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { browserWebSocketFactory } from "../../../server/understudy/browserWebSocketTransport.js";
-import { CdpConnection } from "../../../server/understudy/cdp.js";
+import { browserWebSocketFactory } from "../../../extension/understudy/browserWebSocketTransport.js";
+import { CdpConnection } from "../../../extension/understudy/cdp.js";
 
 const discardCdpLogs = {
   debug: () => {},

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "mint dev --no-open --disable-openapi",
-    "check": "mint validate --disable-openapi && mint broken-links --check-anchors --check-redirects --check-snippets && mint a11y && vp test run --root ../.. packages/docs/tests"
+    "check": "mint validate --disable-openapi && mint broken-links --check-anchors --check-redirects --check-snippets && mint a11y && vp test run --root ../.. packages/docs-v4/tests"
   },
   "devDependencies": {
     "@ast-grep/lang-python": "catalog:",

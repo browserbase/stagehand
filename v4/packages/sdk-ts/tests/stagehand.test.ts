@@ -133,7 +133,7 @@ describe("Stagehand", () => {
     });
     expect(connectRpcClient).toHaveBeenCalledWith({
       cdpUrl: "http://127.0.0.1:9222",
-      extensionDir: expect.stringContaining("packages/server/dist") as string,
+      extensionDir: expect.stringContaining("packages/extension/dist") as string,
       serviceWorkerUrlIncludes: "service-worker.js",
       telemetry: {
         traces: {
@@ -250,7 +250,7 @@ describe("Stagehand", () => {
 
     expect(connectRpcClient).toHaveBeenCalledWith({
       cdpUrl: "http://127.0.0.1:9222",
-      extensionDir: expect.stringContaining("packages/server/dist") as string,
+      extensionDir: expect.stringContaining("packages/extension/dist") as string,
       serviceWorkerUrlIncludes: "service-worker.js",
       telemetry: {
         traces: {
