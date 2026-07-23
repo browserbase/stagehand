@@ -16,6 +16,7 @@
  *   (window.scrollBy) in the main frame.
  * - type/press on "focused": routed through page.keyPress.
  */
+import { createRequire } from "node:module";
 import { z } from "zod/v4";
 import type {
   Page as V4Page,
@@ -24,6 +25,12 @@ import type {
 } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
 import { EvalsError } from "../../errors.js";
 import { initV4, type V4InitResult } from "../../initV4.js";
+import { startV4CodeController } from "../../framework/v4CodeController.js";
+import {
+  resolveV4CodeModelConfig,
+  STAGEHAND_V4_SDK_PATH_ENV,
+  type V4CodeMode,
+} from "../../framework/v4CodeConfig.js";
 import type { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import type {
@@ -451,6 +458,7 @@ export async function prepareLLMExposure(
   env: "LOCAL" | "BROWSERBASE",
   logger: EvalLogger,
   startupProfile?: StartupProfile,
+  mode: V4CodeMode = "ai",
 ): Promise<LLMExposure> {
   const resolvedProfile =
     startupProfile ??
@@ -464,8 +472,140 @@ export async function prepareLLMExposure(
     );
   }
 
-  // The surface's internal SDK model (drives act/extract/observe inside
-  // v4); the benchmark's model drives the agent harness itself. Fixed for
+  // LOCAL: run the agent's snippets in a forked-child controller. The v4 SDK
+  // launches a local Chrome through the extension stack, so isolation buys
+  // kill-escalation teardown (child process group + chrome.pid) and keeps long
+  // eval runs from accumulating orphaned browsers. It is also the only surface
+  // that offers the deterministic (no-LLM) mode.
+  if (resolvedProfile === "tool_launch_local") {
+    return prepareV4CodeIsolatedExposure(plan, logger, mode);
+  }
+
+  // BROWSERBASE: the browser is remote, so there is no local child process to
+  // leak; the in-process SDK path (workspace `link:`) is simpler and already
+  // grades correctly. Deterministic mode is only meaningful against a locally
+  // launched browser.
+  if (mode === "deterministic") {
+    throw new EvalsError(
+      `v4_code_deterministic runs against a locally launched browser; run it with env=LOCAL (got "${env}").`,
+    );
+  }
+  return prepareV4CodeInProcessExposure(plan, env, logger, resolvedProfile);
+}
+
+/**
+ * LOCAL agent exposure: the agent's `run` snippets execute inside Stack 1's
+ * forked-child controller (v4CodeController). The child owns the snippet scope
+ * (page/context [+ stagehand/z in AI mode]/startUrl/task/console) and the v4
+ * SDK's local Chrome; the harness only ships code strings and receives
+ * JSON-safe results, so cleanup is a robust process-group + browser-pid kill.
+ */
+async function prepareV4CodeIsolatedExposure(
+  plan: ExternalHarnessTaskPlan,
+  logger: EvalLogger,
+  mode: V4CodeMode,
+): Promise<LLMExposure> {
+  // AI mode drives the in-browser Stagehand with a FIXED surface model (parity
+  // with understudy/playwright/cdp — the benchmark model drives the agent, not
+  // this surface). Deterministic mode passes no model.
+  const model =
+    mode === "ai" ? resolveV4CodeModelConfig(SURFACE_MODEL) : undefined;
+
+  // SDK linkage: prefer the operator's STAGEHAND_V4_SDK_PATH; otherwise fall
+  // back to the workspace-linked package entry so the env-path (child) and the
+  // link (in-process / tasks) mechanisms point at the same v4-spike checkout
+  // and runner.ts's v4Sha pinning stays meaningful.
+  const sdkPathOverride = process.env[STAGEHAND_V4_SDK_PATH_ENV]?.trim()
+    ? undefined
+    : resolveLinkedV4SdkEntry();
+
+  const controller = await startV4CodeController({
+    mode,
+    ...(model ? { model } : {}),
+    ...(sdkPathOverride ? { sdkPath: sdkPathOverride } : {}),
+    executeTimeoutMs: readPositiveIntEnv(
+      "EVAL_CLAUDE_CODE_RUN_TOOL_TIMEOUT_MS",
+      60_000,
+    ),
+    onConsole: (event) => {
+      logger.log({
+        category: "claude_code",
+        message: `run console.${event.level}: ${event.message}`,
+        level: 1,
+      });
+    },
+  });
+
+  logger.log({
+    category: "claude_code",
+    message: `Initialized v4_code (isolated ${mode} runtime) for Claude Code run tool.`,
+    level: 1,
+    auxiliary: {
+      mode: { value: mode, type: "string" },
+      startupProfile: { value: "tool_launch_local", type: "string" },
+      environment: { value: "LOCAL", type: "string" },
+    },
+  });
+
+  return {
+    kind: "code_handles",
+    // No in-process handles: the snippet scope lives in the forked child.
+    promptInstructions: buildV4CodePromptInstructions(mode, {
+      hasContext: true,
+    }),
+    runTool: {
+      description: [
+        mode === "ai"
+          ? "Execute JavaScript against an initialized Stagehand v4 SDK running in an isolated child process."
+          : "Execute JavaScript against an initialized Stagehand v4 browser (deterministic, no AI methods) in an isolated child process.",
+        mode === "ai"
+          ? "The snippet runs inside an async function with page, context, stagehand, z (zod), startUrl, task, and console in scope."
+          : "The snippet runs inside an async function with page, context, startUrl, task, and console in scope.",
+        "Use await directly. Return a JSON-serializable value when useful.",
+      ].join(" "),
+      codeParamDescription:
+        mode === "ai"
+          ? "JavaScript function body to execute. page/context/stagehand/z/startUrl/task are already in scope."
+          : "JavaScript function body to execute. page/context/startUrl/task are already in scope.",
+      denyMessage: `Use Bash for inspection and ${LLM_RUN_TOOL_NAME} for browser automation.`,
+      task: { instruction: plan.instruction, startUrl: plan.startUrl },
+    },
+    executeSnippet: ({ code, startUrl, task }) =>
+      controller.execute({ code, startUrl, task }),
+    captureFinalState: async () => {
+      const artifact: { screenshot?: Buffer; url?: string } = {};
+      try {
+        const state = (await controller.execute({
+          code: "return { url: await page.url(), screenshot: (await page.screenshot()).toString('base64') };",
+          startUrl: plan.startUrl,
+          task: {},
+        })) as { url?: string; screenshot?: string };
+        if (state?.url) artifact.url = state.url;
+        if (state?.screenshot) {
+          artifact.screenshot = Buffer.from(state.screenshot, "base64");
+        }
+      } catch {
+        // best-effort only
+      }
+      return artifact;
+    },
+    cleanup: () => controller.close(),
+  };
+}
+
+/**
+ * BROWSERBASE agent exposure: in-process, driving the v4 SDK directly (via the
+ * workspace `link:`). The remote browser has no local child to leak, so the
+ * generic in-process `code_handles` path is sufficient.
+ */
+async function prepareV4CodeInProcessExposure(
+  plan: ExternalHarnessTaskPlan,
+  env: "LOCAL" | "BROWSERBASE",
+  logger: EvalLogger,
+  resolvedProfile: StartupProfile,
+): Promise<LLMExposure> {
+  // The surface's internal SDK model (drives act/extract/observe inside v4);
+  // the benchmark's model drives the agent harness itself. Fixed for
   // comparability, same convention as the v4_code CoreTool.
   const v4 = await initV4({
     logger,
@@ -478,7 +618,7 @@ export async function prepareLLMExposure(
 
   logger.log({
     category: "claude_code",
-    message: `Initialized v4_code (Stagehand v4 SDK) runtime for Claude Code run tool.`,
+    message: `Initialized v4_code (in-process Stagehand v4 SDK) runtime for Claude Code run tool.`,
     level: 1,
     auxiliary: {
       startupProfile: { value: resolvedProfile, type: "string" },
@@ -493,7 +633,9 @@ export async function prepareLLMExposure(
   return {
     kind: "code_handles",
     handles: { stagehand, page: v4.page, z },
-    promptInstructions: buildV4CodePromptInstructions(),
+    promptInstructions: buildV4CodePromptInstructions("ai", {
+      hasContext: false,
+    }),
     runTool: {
       description: [
         "Execute JavaScript against the initialized Stagehand v4 SDK.",
@@ -531,16 +673,53 @@ export async function prepareLLMExposure(
   };
 }
 
-function buildV4CodePromptInstructions(): string {
-  return [
+/**
+ * Resolve the workspace-linked v4 SDK entry file, used as the default
+ * STAGEHAND_V4_SDK_PATH for the forked child so the env-path and `link:`
+ * mechanisms cannot drift to different checkouts. Returns undefined if the
+ * package cannot be resolved (the controller then requires the env var).
+ */
+function resolveLinkedV4SdkEntry(): string | undefined {
+  try {
+    return createRequire(import.meta.url).resolve(
+      "@browserbasehq/stagehand-v4-spike-sdk-ts",
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function buildV4CodePromptInstructions(
+  mode: V4CodeMode = "ai",
+  opts?: { hasContext?: boolean },
+): string {
+  const hasContext = opts?.hasContext ?? false;
+  const scope =
+    (mode === "ai" ? "an initialized Stagehand v4 client (stagehand), its" : "") +
+    ` page${hasContext ? ", context," : ","} startUrl, and task object`;
+  const lines = [
     "Browser tool surface: v4_code (Stagehand v4 SDK).",
-    `Use the ${LLM_RUN_TOOL_NAME} tool for browser automation. It exposes an initialized Stagehand v4 client (stagehand), its active page, startUrl, and task object.`,
-    "AI methods live on the client: await stagehand.act('instruction'), await stagehand.observe('instruction'), await stagehand.extract('instruction', zodSchema) — a zod `z` is in scope for extract schemas (use single-word keys).",
+    `Use the ${LLM_RUN_TOOL_NAME} tool for browser automation. It exposes ${scope.trim()}.`,
+  ];
+  if (mode === "ai") {
+    lines.push(
+      "AI methods live on the client: await stagehand.act('instruction'), await stagehand.observe('instruction'), await stagehand.extract('instruction', zodSchema) — a zod `z` is in scope for extract schemas (use single-word keys).",
+    );
+  }
+  lines.push(
     "Deterministic methods live on the page: await page.goto(url), page.locator(selector).click()/fill()/type(), await page.url(), await page.title(), await page.screenshot().",
     "Page accessors are async RPCs — always await them.",
     "The first browser action should usually be: await page.goto(startUrl, { waitUntil: 'domcontentloaded' }).",
     "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
     "Do not edit repository files.",
     "Return useful JSON-serializable values from run snippets so you can inspect progress.",
-  ].join("\n");
+  );
+  return lines.join("\n");
 }

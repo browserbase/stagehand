@@ -191,14 +191,11 @@ export async function prepareClaudeCodeToolAdapter(
         startupProfile,
       });
     case "playwright_code":
-    case "cdp_code":
-    case "v4_code": {
+    case "cdp_code": {
       const prepareSurfaceExposure =
         toolSurface === "playwright_code"
           ? preparePlaywrightCodeLLMExposure
-          : toolSurface === "cdp_code"
-            ? prepareCdpCodeLLMExposure
-            : prepareV4CodeLLMExposure;
+          : prepareCdpCodeLLMExposure;
       const exposure = await prepareSurfaceExposure(
         input.plan,
         input.environment,
@@ -211,9 +208,30 @@ export async function prepareClaudeCodeToolAdapter(
         startupProfile,
       });
     }
+    case "v4_code":
+    case "v4_code_deterministic": {
+      // v4_code = AI mode (stagehand.act/observe/extract in scope);
+      // v4_code_deterministic = no-LLM mode. LOCAL runs go through the
+      // isolated forked-child controller; BROWSERBASE (AI only) stays
+      // in-process. See core/tools/v4_code.ts.
+      const mode =
+        toolSurface === "v4_code_deterministic" ? "deterministic" : "ai";
+      const exposure = await prepareV4CodeLLMExposure(
+        input.plan,
+        input.environment,
+        input.logger,
+        startupProfile,
+        mode,
+      );
+      return prepareCodeExposureAdapter(exposure, {
+        ...input,
+        toolSurface,
+        startupProfile,
+      });
+    }
     default:
       throw new EvalsError(
-        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, or v4_code for execution right now; received "${toolSurface}".`,
+        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, v4_code, or v4_code_deterministic for execution right now; received "${toolSurface}".`,
       );
   }
 }
@@ -226,12 +244,13 @@ export function resolveClaudeCodeToolSurface(
     requested === "browse_cli" ||
     requested === "playwright_code" ||
     requested === "cdp_code" ||
-    requested === "v4_code"
+    requested === "v4_code" ||
+    requested === "v4_code_deterministic"
   ) {
     return requested;
   }
   throw new EvalsError(
-    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, or v4_code for execution right now; received "${requested}".`,
+    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, v4_code, or v4_code_deterministic for execution right now; received "${requested}".`,
   );
 }
 
@@ -242,9 +261,13 @@ export function resolveClaudeCodeStartupProfile(
 ): StartupProfile {
   if (requested) return requested;
 
-  // browse_cli and v4_code own their browser (the v4 SDK launches or
-  // creates it via the extension stack), so no runner-provided CDP endpoint.
-  if (toolSurface === "browse_cli" || toolSurface === "v4_code") {
+  // browse_cli and the v4_code surfaces own their browser (the v4 SDK launches
+  // or creates it via the extension stack), so no runner-provided CDP endpoint.
+  if (
+    toolSurface === "browse_cli" ||
+    toolSurface === "v4_code" ||
+    toolSurface === "v4_code_deterministic"
+  ) {
     return environment === "BROWSERBASE"
       ? "tool_create_browserbase"
       : "tool_launch_local";
@@ -398,6 +421,7 @@ export async function prepareBrowseCliHarnessAdapter(
  */
 const CODE_EXPOSURE_TMPDIR_SUFFIXES: Partial<Record<ToolSurface, string>> = {
   v4_code: "v4",
+  v4_code_deterministic: "v4-det",
   playwright_code: "playwright",
   cdp_code: "cdp",
 };
@@ -419,9 +443,16 @@ async function prepareCodeExposureAdapter(
 ): Promise<PreparedClaudeCodeToolAdapter> {
   let cwd: string | undefined;
   try {
-    if (exposure.kind !== "code_handles" || !exposure.handles) {
+    // A code_handles exposure is mounted one of two ways: in-process (the
+    // harness builds an AsyncFunction over `handles`) or out-of-process (the
+    // exposure supplies `executeSnippet`, e.g. a forked child that isolates a
+    // browser-launching SDK). Exactly one must be present.
+    if (
+      exposure.kind !== "code_handles" ||
+      (!exposure.handles && !exposure.executeSnippet)
+    ) {
       throw new EvalsError(
-        `Claude Code run-tool mounting requires a code_handles exposure with handles; "${input.toolSurface}" returned kind "${exposure.kind}".`,
+        `Claude Code run-tool mounting requires a code_handles exposure with either handles or executeSnippet; "${input.toolSurface}" returned kind "${exposure.kind}".`,
       );
     }
     const runToolSpec = exposure.runTool;
@@ -439,7 +470,8 @@ async function prepareCodeExposureAdapter(
     const cleanupCwd = cwd;
     const env = { ...process.env } as Record<string, string>;
     const mcpServers = await buildCodeExposureRunMcpServers({
-      handles: exposure.handles,
+      handles: exposure.handles ?? {},
+      executeSnippet: exposure.executeSnippet,
       runToolSpec,
       plan: input.plan,
       logger: input.logger,
@@ -500,6 +532,7 @@ async function prepareCodeExposureAdapter(
 
 async function buildCodeExposureRunMcpServers(input: {
   handles: Record<string, unknown>;
+  executeSnippet?: LLMExposure["executeSnippet"];
   runToolSpec: LLMRunToolSpec;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
@@ -519,6 +552,7 @@ async function buildCodeExposureRunMcpServers(input: {
       return executeCodeExposureRunTool({
         code,
         handles: input.handles,
+        executeSnippet: input.executeSnippet,
         runToolSpec: input.runToolSpec,
         plan: input.plan,
         logger: input.logger,
@@ -540,6 +574,7 @@ async function buildCodeExposureRunMcpServers(input: {
 async function executeCodeExposureRunTool(input: {
   code: string;
   handles: Record<string, unknown>;
+  executeSnippet?: LLMExposure["executeSnippet"];
   runToolSpec: LLMRunToolSpec;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
@@ -575,10 +610,21 @@ async function executeCodeExposureRunTool(input: {
 async function executeCodeExposureSnippet(input: {
   code: string;
   handles: Record<string, unknown>;
+  executeSnippet?: LLMExposure["executeSnippet"];
   runToolSpec: LLMRunToolSpec;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
 }): Promise<unknown> {
+  // Out-of-process surface: the exposure owns the snippet scope (e.g. a forked
+  // child), so hand it the raw code plus startUrl/task. Console flows back
+  // through the surface's own transport, not the in-process binding below.
+  if (input.executeSnippet) {
+    return input.executeSnippet({
+      code: input.code,
+      startUrl: input.plan.startUrl,
+      task: input.runToolSpec.task,
+    });
+  }
   const AsyncFunction = Object.getPrototypeOf(async function () {})
     .constructor as new (
     ...args: string[]

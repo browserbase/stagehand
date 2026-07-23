@@ -19,6 +19,7 @@ import type {
 export type ToolSurface =
   | "understudy_code"
   | "v4_code"
+  | "v4_code_deterministic"
   | "playwright_code"
   | "cdp_code"
   | "playwright_mcp"
@@ -236,8 +237,26 @@ export interface LLMExposure {
    * code_handles: named values placed in the run-tool snippet scope. The
    * harness derives the snippet argument names from these keys (plus
    * startUrl, task, and console). Names, not order, bind the values.
+   *
+   * Omitted for out-of-process code surfaces (see `executeSnippet`), where
+   * the snippet's scope is owned by the child process, not by this map.
    */
   handles?: Record<string, unknown>;
+  /**
+   * code_handles, out-of-process variant: when present, the harness runs the
+   * agent's snippet through this executor instead of building an in-process
+   * AsyncFunction over `handles`. The surface owns the snippet's scope and
+   * lifecycle (e.g. a forked child that isolates a browser-launching SDK);
+   * the harness still owns timeouts, result stringification, logging, and the
+   * run-tool copy contract. Console output is expected to flow back through
+   * the surface's own transport (e.g. the controller's onConsole), so no
+   * console binding is passed here.
+   */
+  executeSnippet?: (input: {
+    code: string;
+    startUrl: string;
+    task: Record<string, unknown>;
+  }) => Promise<unknown>;
   promptInstructions: string;
   /** mcp_server: mounted as-is by the harness. */
   mcpServers?: Record<string, unknown>;
