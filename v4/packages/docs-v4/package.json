@@ -1,0 +1,20 @@
+{
+  "name": "@browserbasehq/stagehand-v4-spike-docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "mint dev --no-open --disable-openapi",
+    "check": "mint validate --disable-openapi && mint broken-links --check-anchors --check-redirects --check-snippets && mint a11y && vp test run --root ../.. packages/docs-v4/tests"
+  },
+  "devDependencies": {
+    "@ast-grep/lang-python": "catalog:",
+    "@ast-grep/napi": "catalog:",
+    "@mdx-js/mdx": "catalog:",
+    "mint": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0 <25"
+  }
+}
