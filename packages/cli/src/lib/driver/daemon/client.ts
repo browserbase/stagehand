@@ -120,6 +120,14 @@ export async function stopDriverDaemon(
       type: "stop",
     });
   } catch (error) {
+    if (
+      !force &&
+      error instanceof CommandFailure &&
+      error.telemetry.resultCode === "daemon_not_running"
+    ) {
+      await cleanupDaemonFiles(session);
+      return { stopped: false };
+    }
     if (!force) throw error;
     await cleanupDaemonFiles(session);
     return { stopped: true };
@@ -376,7 +384,8 @@ function daemonNotRunningError(
   session: string,
   request: DriverRequest,
 ): CommandFailure {
-  const sessionFlag = session === "default" ? "" : ` --session ${session}`;
+  const sessionFlag =
+    session === "default" ? "" : ` --session ${formatCommandArgument(session)}`;
   const startCommand =
     request.type === "open"
       ? `browse open ${formatCommandArgument(request.url)}${sessionFlag}`
@@ -390,7 +399,7 @@ function daemonNotRunningError(
 }
 
 function formatCommandArgument(value: string): string {
-  return /^[A-Za-z0-9_./:?&=%#@+~-]+$/.test(value)
+  return /^[A-Za-z0-9_./:@%+=,-]+$/.test(value)
     ? value
-    : JSON.stringify(value);
+    : `'${value.replaceAll("'", "'\"'\"'")}'`;
 }

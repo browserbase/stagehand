@@ -1,7 +1,9 @@
+import { execFile } from "node:child_process";
 import { access, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import net from "node:net";
 import { tmpdir } from "node:os";
+import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { itPosix } from "./helpers/platform.js";
@@ -22,6 +24,7 @@ import {
   ensureDriverDaemon,
   getDriverStatus,
   openViaDaemon,
+  stopDriverDaemon,
 } from "../src/lib/driver/daemon/client.js";
 import {
   collectForwardedEnv,
@@ -33,6 +36,7 @@ import { DriverSessionManager } from "../src/lib/driver/session-manager.js";
 import { runCli } from "./helpers/run-cli.js";
 
 const cleanupPaths: string[] = [];
+const execFileAsync = promisify(execFile);
 
 afterEach(async () => {
   while (cleanupPaths.length > 0) {
@@ -615,6 +619,76 @@ describe("driver foundation", () => {
     }
   });
 
+  it("treats a daemon disappearing between status and stop as already stopped", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = "stop-race";
+    const sockets = new Set<net.Socket>();
+    const server = net.createServer((socket) => {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+      socket.once("data", (chunk) => {
+        const request = JSON.parse(chunk.toString().split("\n")[0] ?? "{}") as {
+          id: string;
+          type: string;
+        };
+        if (request.type !== "status") return;
+
+        server.close();
+        socket.end(
+          `${JSON.stringify({
+            data: {
+              browserConnected: true,
+              initialized: true,
+              mode: "managed-local",
+              session,
+              target: { headless: true, kind: "managed-local" },
+            },
+            id: request.id,
+            type: "success",
+          })}\n`,
+        );
+      });
+    });
+
+    try {
+      await writeFile(getPidPath(session), "999999");
+      await writeFile(getLockPath(session), "999999");
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(getSocketPath(session), resolve);
+      });
+
+      await expect(stopDriverDaemon(session)).resolves.toEqual({
+        stopped: false,
+      });
+      await expect(access(getPidPath(session))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(access(getLockPath(session))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      if (server.listening) {
+        await new Promise<void>((resolve, reject) => {
+          server.close((error) => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            resolve();
+          });
+        });
+      }
+    }
+  });
+
   it("times out resolving HTTP CDP endpoints", async () => {
     const sockets = new Set<net.Socket>();
     const server = net.createServer((socket) => {
@@ -707,12 +781,55 @@ describe("driver foundation", () => {
 
     try {
       await expect(
-        openViaDaemon("missing-daemon", "https://example.com/search?q=test"),
+        openViaDaemon(
+          "missing-daemon",
+          "https://example.com/search?q=test&page=1",
+        ),
       ).rejects.toMatchObject({
         message:
-          'Driver daemon session "missing-daemon" is not running. Start it with: browse open https://example.com/search?q=test --session missing-daemon',
+          "Driver daemon session \"missing-daemon\" is not running. Start it with: browse open 'https://example.com/search?q=test&page=1' --session missing-daemon",
         telemetry: { resultCode: "daemon_not_running" },
       });
+    } finally {
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
+
+  itPosix("shell-quotes unsafe recovery command arguments", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "b-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = 's $() `t` "d" \'q';
+    const url =
+      'https://example.com/a path?q=$(echo bad)&tick=`echo bad`&double="quoted"&single=it\'s';
+
+    try {
+      let error: unknown;
+      try {
+        await openViaDaemon(session, url);
+      } catch (thrown) {
+        error = thrown;
+      }
+
+      expect(error).toMatchObject({
+        message:
+          'Driver daemon session "s $() `t` "d" \'q" is not running. Start it with: browse open \'https://example.com/a path?q=$(echo bad)&tick=`echo bad`&double="quoted"&single=it\'"\'"\'s\' --session \'s $() `t` "d" \'"\'"\'q\'',
+        telemetry: { resultCode: "daemon_not_running" },
+      });
+      if (!(error instanceof Error)) {
+        throw new Error("Expected the missing daemon request to fail.");
+      }
+
+      const recoveryCommand = error.message.split("Start it with: ")[1];
+      if (!recoveryCommand) {
+        throw new Error("Expected a recovery command in the error message.");
+      }
+      const { stdout } = await execFileAsync("/bin/sh", [
+        "-c",
+        `browse() { printf '%s\\n' "$@"; }\n${recoveryCommand}`,
+      ]);
+      expect(stdout).toBe(`open\n${url}\n--session\n${session}\n`);
     } finally {
       restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
     }
