@@ -1185,6 +1185,13 @@ export const StreamEventSchema = z
 
 /** OpenAPI security schemes for authentication */
 export const openApiSecuritySchemes = {
+  StagehandServerApiKey: {
+    type: "apiKey",
+    in: "header",
+    name: "x-stagehand-api-key",
+    description:
+      "Shared server API key for self-hosted deployments, configured with STAGEHAND_SERVER_API_KEY",
+  },
   BrowserbaseApiKey: {
     type: "apiKey",
     in: "header",
