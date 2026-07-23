@@ -126,4 +126,27 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({ status: "closed" });
     expect(close).toHaveBeenCalledOnce();
   });
+
+  it("returns the runtime to created state for a new reservation", async () => {
+    const close = vi.fn(async () => {});
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => createBrowserSession({ close }),
+    });
+
+    await runtime.configureLoopback({ cdpUrl: "ws://browser.example" });
+    await runtime.initialize({
+      model: { modelName: "openai/gpt-5" },
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    });
+    runtime.pagesById.set("previous-page", {} as never);
+
+    await runtime.resetForReservation();
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(runtime.pagesById.size).toBe(0);
+    expect(runtime.state.getState()).toStrictEqual({ status: "created" });
+    expect(runtime.loopbackStatus()).toStrictEqual({ configured: false, connected: false });
+  });
 });

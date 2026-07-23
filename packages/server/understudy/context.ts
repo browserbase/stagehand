@@ -165,30 +165,41 @@ export class V3Context {
       fallbackLocatorScriptSource: string;
       chromeTabs: ChromeTabTargetController;
       logger: StagehandLogger;
+      onConnected?(): void;
+      onDisconnected?(): void;
     },
   ): Promise<V3Context> {
     const connectTask = async () => {
       const conn = await CdpConnection.connect(wsUrl, opts.websocketFactory, opts.logger);
-      const ctx = new V3Context(
-        conn,
-        opts.logger,
-        opts.chromeTabs,
-        opts?.env ?? "LOCAL",
-        opts?.apiClient ?? null,
-        opts?.localBrowserLaunchOptions ?? null,
-        opts.blankPageUrl,
-        opts.fallbackLocatorScriptSource,
-      );
-      await ctx.bootstrap();
-      // Allow connectTimeoutMs to also govern how long we wait for the first
-      // top-level page to appear.  On slow machines the browser may need more
-      // time after the CDP socket is open before the initial page registers.
-      const firstPageTimeoutMs = Math.max(
-        opts?.localBrowserLaunchOptions?.connectTimeoutMs ?? 0,
-        DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS,
-      );
-      await ctx.ensureFirstTopLevelPage(firstPageTimeoutMs);
-      return ctx;
+      if (opts.onDisconnected) {
+        conn.onTransportClosed(() => opts.onDisconnected?.());
+      }
+      try {
+        opts.onConnected?.();
+        const ctx = new V3Context(
+          conn,
+          opts.logger,
+          opts.chromeTabs,
+          opts?.env ?? "LOCAL",
+          opts?.apiClient ?? null,
+          opts?.localBrowserLaunchOptions ?? null,
+          opts.blankPageUrl,
+          opts.fallbackLocatorScriptSource,
+        );
+        await ctx.bootstrap();
+        // Allow connectTimeoutMs to also govern how long we wait for the first
+        // top-level page to appear.  On slow machines the browser may need more
+        // time after the CDP socket is open before the initial page registers.
+        const firstPageTimeoutMs = Math.max(
+          opts?.localBrowserLaunchOptions?.connectTimeoutMs ?? 0,
+          DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS,
+        );
+        await ctx.ensureFirstTopLevelPage(firstPageTimeoutMs);
+        return ctx;
+      } catch (error) {
+        await conn.close();
+        throw error;
+      }
     };
 
     return await connectTask();
