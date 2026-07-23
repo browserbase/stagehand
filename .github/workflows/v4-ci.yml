@@ -1,0 +1,120 @@
+name: v4 CI
+
+on:
+  pull_request:
+    paths:
+      - "v4/**"
+      - ".github/workflows/v4-ci.yml"
+  push:
+    branches:
+      - v4
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BROWSERBASE_API_KEY_CONFIGURED: ${{ secrets.BROWSERBASE_API_KEY != '' }}
+    defaults:
+      run:
+        working-directory: v4
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "24"
+          cache: true
+
+      - uses: browser-actions/setup-chrome@v2
+        id: setup-chrome
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - run: vp install
+      - run: vp run -w build:schema
+      - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
+      # The root check also runs Mintlify validation, link/a11y checks, and the
+      # SDK-reference conformance tests from the docs workspace.
+      - run: vp run -w check
+      - run: vp run @browserbasehq/stagehand-v4-spike-server#build
+      - run: vp test run
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+      - name: Browserbase smoke test
+        if: ${{ env.BROWSERBASE_API_KEY_CONFIGURED == 'true' }}
+        run: >-
+          vp test run --root .
+          packages/sdk-ts/tests/browser-runtime/stagehand-browserbase-smoke.test.ts
+        env:
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          BROWSERBASE_SMOKE: "1"
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: v4/packages/sdk-python
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "24"
+          cache: true
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: "11.10.0"
+          run_install: false
+
+      - uses: browser-actions/setup-chrome@v2
+        id: setup-chrome
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: v4/packages/sdk-python/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: v4/packages/sdk-python
+          enable-cache: true
+          cache-dependency-glob: v4/packages/sdk-python/uv.lock
+
+      - uses: extractions/setup-just@v3
+
+      - run: vp install
+        working-directory: v4
+      - run: uv sync --locked --dev
+      - run: uv lock --check
+      - run: uv run --locked python scripts/generate.py --check
+      - run: uv run --locked ruff format --check .
+      - run: uv run --locked ruff check .
+      - run: uv run --locked ty check
+      - run: uv run --locked pytest
+      - run: just build
+        working-directory: v4
+      - name: Smoke test installed Python wheel
+        run: >-
+          uv run --isolated --no-project
+          --with dist/*.whl
+          python scripts/smoke.py
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
