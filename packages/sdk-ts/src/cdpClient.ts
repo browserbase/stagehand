@@ -4,6 +4,12 @@ import {
   StagehandSendToHostBindingSchema,
 } from "../../protocol/schema-registry.js";
 import { z } from "zod/v4";
+import {
+  DEFAULT_RUNTIME_REQUIREMENT,
+  negotiateRuntimeCompatibility,
+  type RuntimeCompatibility,
+  type RuntimeRequirement,
+} from "./runtimeCompatibility.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -30,6 +36,8 @@ export type CDPClientOptions = {
   discoveryTimeoutMs: number;
   commandTimeoutMs: number;
   cdpConnectTimeoutMs: number;
+  runtimeRequirement?: RuntimeRequirement;
+  allowFallbackInstall?: boolean;
 };
 
 type RuntimeEvaluateResult = {
@@ -43,13 +51,6 @@ type RuntimeEvaluateResult = {
       value?: unknown;
     };
   };
-};
-
-type RuntimeReadiness = {
-  ok: boolean;
-  runtimeName?: unknown;
-  runtimeVersion?: unknown;
-  hasStagehandReceiveFromHost: boolean;
 };
 
 type PendingCDPRequest = {
@@ -74,8 +75,27 @@ type ResolveBrowserWebSocketUrlOptions = {
   nowFn?: () => number;
 };
 
-const RUNTIME_NAME = "stagehand";
-const RUNTIME_VERSION = "stagehand.v4";
+export class StagehandRuntimeIncompatibleError extends Error {
+  readonly reason;
+  constructor(readonly compatibility: Extract<RuntimeCompatibility, { kind: "incompatible" }>) {
+    super(
+      "Incompatible Stagehand runtime: " +
+        compatibility.detail +
+        "; required protocol " +
+        compatibility.required.minimumProtocolVersion +
+        "-" +
+        compatibility.required.maximumProtocolVersion +
+        ", reported protocol " +
+        String(compatibility.reported.protocolVersion) +
+        ", server " +
+        compatibility.reported.serverInfo.name +
+        "/" +
+        compatibility.reported.serverInfo.version,
+    );
+    this.name = "StagehandRuntimeIncompatibleError";
+    this.reason = compatibility.reason;
+  }
+}
 
 const CDPErrorSchema = z.looseObject({
   code: z.int(),
@@ -106,11 +126,9 @@ const RuntimeBindingCalledSchema = z.looseObject({
   executionContextId: z.int(),
 });
 
-const RuntimeReadinessSchema = z.object({
-  ok: z.boolean(),
-  runtimeName: z.unknown().optional(),
-  runtimeVersion: z.unknown().optional(),
-  hasStagehandReceiveFromHost: z.boolean(),
+const RuntimeReadinessEnvelopeSchema = z.looseObject({
+  marker: z.unknown(),
+  hasReceiver: z.boolean(),
 });
 
 export class CDPConnectionClosedError extends Error {
@@ -195,6 +213,8 @@ export class CDPClient {
         const discovered = await waitForPreloadedStagehandServiceWorker(client, {
           urlIncludes: options.serviceWorkerUrlIncludes,
           timeout: options.discoveryTimeoutMs,
+          runtimeRequirement: options.runtimeRequirement,
+          allowFallbackInstall: options.allowFallbackInstall,
         });
         serviceWorker = discovered.serviceWorker;
         attached = { sessionId: discovered.sessionId };
@@ -230,6 +250,8 @@ export class CDPClient {
       );
       await waitForRuntimeReady(client, attached.sessionId, {
         timeout: options.discoveryTimeoutMs,
+        runtimeRequirement: options.runtimeRequirement,
+        allowFallbackInstall: options.allowFallbackInstall,
       });
       return client;
     } catch (error) {
@@ -371,13 +393,15 @@ export async function waitForRuntimeReady(
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
     nowFn?: () => number;
+    runtimeRequirement?: RuntimeRequirement;
+    allowFallbackInstall?: boolean;
   },
 ): Promise<void> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const delayFn = options.delayFn ?? delay;
   const nowFn = options.nowFn ?? Date.now;
   const startedAt = nowFn();
-  let lastReadiness: RuntimeReadiness | undefined;
+  let lastReadiness: z.output<typeof RuntimeReadinessEnvelopeSchema> | undefined;
   let lastError = "";
 
   while (nowFn() - startedAt < options.timeout) {
@@ -393,13 +417,20 @@ export async function waitForRuntimeReady(
         const readiness = parseRuntimeReadiness(evaluated.result?.value);
         lastReadiness = readiness;
 
-        if (readiness.ok) return;
+        const compatibility = negotiateRuntimeCompatibility(
+          options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
+          readiness.marker,
+        );
+        if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false)
+          throw new StagehandRuntimeIncompatibleError(compatibility);
+        if (compatibility.kind === "compatible" && readiness.hasReceiver) return;
 
-        lastError = `runtime=${String(readiness.runtimeName)}/${String(
-          readiness.runtimeVersion,
-        )}, __stagehandReceiveFromHost=${String(readiness.hasStagehandReceiveFromHost)}`;
+        lastError = `protocolVersion=${String(
+          observedProtocolVersion(readiness.marker),
+        )}, __stagehandReceiveFromHost=${String(readiness.hasReceiver)}`;
       }
     } catch (error) {
+      if (error instanceof StagehandRuntimeIncompatibleError) throw error;
       lastError = error instanceof Error ? error.message : String(error);
     }
 
@@ -422,6 +453,8 @@ export async function waitForPreloadedStagehandServiceWorker(
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
     nowFn?: () => number;
+    runtimeRequirement?: RuntimeRequirement;
+    allowFallbackInstall?: boolean;
   },
 ): Promise<{ serviceWorker: TargetInfo; sessionId: string }> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
@@ -430,6 +463,8 @@ export async function waitForPreloadedStagehandServiceWorker(
   const startedAt = nowFn();
   const workerUrlIncludes = options.urlIncludes ?? "service-worker.js";
   let lastTargets: TargetInfo[] = [];
+  const lastReadinessByTarget = new Map<string, z.output<typeof RuntimeReadinessEnvelopeSchema>>();
+  let lastIncompatibility: Extract<RuntimeCompatibility, { kind: "incompatible" }> | undefined;
 
   while (nowFn() - startedAt < options.timeout) {
     const targets = await cdp.sendCommand<{ targetInfos: TargetInfo[] }>("Target.getTargets");
@@ -440,9 +475,9 @@ export async function waitForPreloadedStagehandServiceWorker(
         target.url.startsWith("chrome-extension://") &&
         target.url.includes(workerUrlIncludes),
     );
-
     for (const serviceWorker of candidates) {
       let sessionId: string | undefined;
+      let keepAttached = false;
       try {
         const attached = await cdp.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
           targetId: serviceWorker.targetId,
@@ -450,25 +485,50 @@ export async function waitForPreloadedStagehandServiceWorker(
         });
         sessionId = attached.sessionId;
         const evaluated = await evaluateRuntimeReadiness(cdp, sessionId);
-        if (!evaluated.exceptionDetails && parseRuntimeReadiness(evaluated.result?.value).ok) {
-          return { serviceWorker, sessionId };
+        if (!evaluated.exceptionDetails) {
+          const readiness = parseRuntimeReadiness(evaluated.result?.value);
+          lastReadinessByTarget.set(serviceWorker.targetId, readiness);
+          const compatibility = negotiateRuntimeCompatibility(
+            options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
+            readiness.marker,
+          );
+          if (compatibility.kind === "compatible" && readiness.hasReceiver) {
+            keepAttached = true;
+            return { serviceWorker, sessionId };
+          }
+
+          if (compatibility.kind === "incompatible") {
+            lastIncompatibility = compatibility;
+          }
         }
       } catch {
         // The worker may still be starting. Detach and retry until discovery times out.
-      }
-
-      if (sessionId) {
-        await cdp.sendCommand("Target.detachFromTarget", { sessionId }).catch(() => undefined);
+      } finally {
+        if (sessionId && !keepAttached) {
+          await cdp.sendCommand("Target.detachFromTarget", { sessionId }).catch(() => undefined);
+        }
       }
     }
 
     await delayFn(pollIntervalMs);
   }
 
+  if (options.allowFallbackInstall === false && lastIncompatibility) {
+    throw new StagehandRuntimeIncompatibleError(lastIncompatibility);
+  }
+
+  const observedReadiness = [...lastReadinessByTarget.entries()]
+    .map(
+      ([targetId, readiness]) =>
+        `${targetId}=protocolVersion:${String(
+          observedProtocolVersion(readiness.marker),
+        )},receiver:${String(readiness.hasReceiver)}`,
+    )
+    .join(", ");
   throw new Error(
     `Timed out discovering the preloaded Stagehand service worker. Observed targets: ${lastTargets
       .map((target) => `${target.type}:${target.url}`)
-      .join(", ")}`,
+      .join(", ")}${observedReadiness ? `. Runtime probes: ${observedReadiness}` : ""}`,
   );
 }
 
@@ -479,23 +539,24 @@ async function evaluateRuntimeReadiness(
   return await cdp.sendCommand<RuntimeEvaluateResult>(
     "Runtime.evaluate",
     {
-      expression: `(() => {
-        const runtime = globalThis.__stagehand_runtime;
-        const hasStagehandReceiveFromHost =
-          typeof globalThis.__stagehandReceiveFromHost === "function";
-        return {
-          ok: runtime?.name === ${JSON.stringify(RUNTIME_NAME)} &&
-            runtime?.version === ${JSON.stringify(RUNTIME_VERSION)} &&
-            hasStagehandReceiveFromHost,
-          runtimeName: runtime?.name,
-          runtimeVersion: runtime?.version,
-          hasStagehandReceiveFromHost,
-        };
-      })()`,
+      expression: `(() => ({
+  marker: globalThis.__stagehand_runtime ?? null,
+  hasReceiver: typeof globalThis.__stagehandReceiveFromHost === "function",
+}))()`,
       returnByValue: true,
     },
     sessionId,
   );
+}
+
+function parseRuntimeReadiness(value: unknown): z.output<typeof RuntimeReadinessEnvelopeSchema> {
+  const parsed = RuntimeReadinessEnvelopeSchema.safeParse(value);
+  return parsed.success ? parsed.data : { marker: null, hasReceiver: false };
+}
+
+function observedProtocolVersion(marker: unknown): unknown {
+  if (typeof marker !== "object" || marker === null) return undefined;
+  return Reflect.get(marker, "protocolVersion");
 }
 
 function extensionIdFromUrl(url: string): string | undefined {
@@ -658,18 +719,6 @@ function isExtensionsLoadUnpackedUnavailable(error: unknown): boolean {
     cause.data.method === "Extensions.loadUnpacked" &&
     (cause.data.code === -32601 || /method not found|wasn't found/i.test(cause.data.message))
   );
-}
-
-function parseRuntimeReadiness(value: unknown): RuntimeReadiness {
-  const readiness = RuntimeReadinessSchema.safeParse(value);
-  return readiness.success
-    ? readiness.data
-    : {
-        ok: false,
-        runtimeName: undefined,
-        runtimeVersion: undefined,
-        hasStagehandReceiveFromHost: false,
-      };
 }
 
 function asError(error: unknown): Error {

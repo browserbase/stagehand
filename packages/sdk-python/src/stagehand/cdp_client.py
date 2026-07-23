@@ -11,7 +11,36 @@ from urllib.request import urlopen
 
 STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
-_RUNTIME_VERSION = "stagehand.v4"
+_MINIMUM_PROTOCOL_VERSION = 4
+_MAXIMUM_PROTOCOL_VERSION = 4
+
+# Constant on purpose: the TypeScript SDK evaluates the identical expression, so the two cannot
+# drift. All judgement happens here rather than in the page.
+_RUNTIME_READINESS_EXPRESSION = """(() => ({
+  marker: globalThis.__stagehand_runtime ?? null,
+  hasReceiver: typeof globalThis.__stagehandReceiveFromHost === "function",
+}))()"""
+
+
+def _negotiate_runtime(marker: object) -> tuple[bool, str]:
+    """Return (compatible, detail). Never raises: a malformed marker is just incompatible."""
+    if not isinstance(marker, Mapping):
+        return False, "no Stagehand runtime marker"
+
+    server_info = marker.get("serverInfo")
+    name = server_info.get("name") if isinstance(server_info, Mapping) else None
+    if name != _RUNTIME_NAME:
+        return False, f"serverInfo.name={name!r}"
+
+    protocol_version = marker.get("protocolVersion")
+    if not isinstance(protocol_version, int) or isinstance(protocol_version, bool):
+        return False, f"protocolVersion={protocol_version!r}"
+    if protocol_version < _MINIMUM_PROTOCOL_VERSION:
+        return False, f"protocolVersion={protocol_version} below {_MINIMUM_PROTOCOL_VERSION}"
+    if protocol_version > _MAXIMUM_PROTOCOL_VERSION:
+        return False, f"protocolVersion={protocol_version} above {_MAXIMUM_PROTOCOL_VERSION}"
+
+    return True, f"protocolVersion={protocol_version}"
 
 
 class _WebSocket(Protocol):
@@ -383,25 +412,15 @@ class CDPClient:
     async def _wait_for_runtime_ready(self, session_id: str, timeout_ms: int) -> None:
         started = time.monotonic()
         last_error = ""
-        expression = f"""(() => {{
-          const runtime = globalThis.__stagehand_runtime;
-          const hasStagehandReceiveFromHost =
-            typeof globalThis.__stagehandReceiveFromHost === "function";
-          return {{
-            ok: runtime?.name === {json.dumps(_RUNTIME_NAME)} &&
-              runtime?.version === {json.dumps(_RUNTIME_VERSION)} &&
-              hasStagehandReceiveFromHost,
-            runtimeName: runtime?.name,
-            runtimeVersion: runtime?.version,
-            hasStagehandReceiveFromHost,
-          }};
-        }})()"""
 
         while (time.monotonic() - started) * 1_000 < timeout_ms:
             try:
                 evaluated = await self.send_command(
                     "Runtime.evaluate",
-                    {"expression": expression, "returnByValue": True},
+                    {
+                        "expression": _RUNTIME_READINESS_EXPRESSION,
+                        "returnByValue": True,
+                    },
                     session_id=session_id,
                 )
                 exception = evaluated.get("exceptionDetails")
@@ -414,14 +433,12 @@ class CDPClient:
                 else:
                     result = evaluated.get("result")
                     value = result.get("value") if isinstance(result, Mapping) else None
-                    if isinstance(value, Mapping) and value.get("ok") is True:
-                        return
                     if isinstance(value, Mapping):
-                        last_error = (
-                            f"runtime={value.get('runtimeName')}/{value.get('runtimeVersion')}, "
-                            "__stagehandReceiveFromHost="
-                            f"{value.get('hasStagehandReceiveFromHost')}"
-                        )
+                        has_receiver = value.get("hasReceiver") is True
+                        compatible, detail = _negotiate_runtime(value.get("marker"))
+                        if compatible and has_receiver:
+                            return
+                        last_error = f"runtime {detail}, __stagehandReceiveFromHost={has_receiver}"
             except Exception as error:
                 last_error = str(error)
             await asyncio.sleep(0.1)

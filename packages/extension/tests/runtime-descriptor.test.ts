@@ -15,8 +15,6 @@ describe("runtime descriptor", () => {
       scope.__stagehand_runtime,
     );
     expect(scope.__stagehand_runtime).toStrictEqual({
-      name: "stagehand",
-      version: "stagehand.v4",
       protocolVersion: 4,
       serverInfo: {
         name: "stagehand",

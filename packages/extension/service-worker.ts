@@ -13,13 +13,8 @@ import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
 import { V3Context } from "./understudy/context.js";
 
-type StagehandRuntimeMarker = RuntimeDescriptor & {
-  name: "stagehand";
-  version: "stagehand.v4";
-};
-
 export type StagehandServiceWorkerScope = {
-  __stagehand_runtime?: StagehandRuntimeMarker;
+  __stagehand_runtime?: RuntimeDescriptor;
   __stagehandReceiveFromHost?: (raw: unknown) => Promise<void>;
 };
 
@@ -62,8 +57,6 @@ export function startStagehandServiceWorker(
 
   rpcClient = new RPCClient(chromeRuntimeClient, new RPCRouter(activeRuntime));
   scope.__stagehand_runtime = {
-    name: "stagehand",
-    version: "stagehand.v4",
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     serverInfo: {
       name: "stagehand",

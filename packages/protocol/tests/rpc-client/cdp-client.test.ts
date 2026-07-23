@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
+  StagehandRuntimeIncompatibleError,
   waitForPreloadedStagehandServiceWorker,
   waitForRuntimeReady,
   waitForServiceWorker,
@@ -232,10 +233,11 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     const attachedSessions = ["wrong-session", "stagehand-session"];
     const readiness = [
       {
-        ok: false,
-        runtimeName: "other",
-        runtimeVersion: "1",
-        hasStagehandReceiveFromHost: false,
+        marker: {
+          protocolVersion: 4,
+          serverInfo: { name: "other", version: "1" },
+        },
+        hasReceiver: false,
       },
       readyRuntime(),
     ];
@@ -262,6 +264,132 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       sessionId: undefined,
     });
     expect(cdp.calls.some((call) => call.method === "Extensions.loadUnpacked")).toBe(false);
+  });
+
+  it("skips a stale Stagehand runtime and selects the compatible version", async () => {
+    const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
+    const currentWorker = target(
+      "current-worker",
+      "chrome-extension://currentext/service-worker.js",
+    );
+    const attachedSessions = ["stale-session", "current-session"];
+    const readiness = [runtimeReadiness(3), readyRuntime()];
+    const cdp = new FakeCdp()
+      .on("Target.getTargets", () => ({ targetInfos: [staleWorker, currentWorker] }))
+      .on("Target.attachToTarget", () => ({ sessionId: attachedSessions.shift() }))
+      .on("Runtime.evaluate", () => ({ result: { value: readiness.shift() } }))
+      .on("Target.detachFromTarget", () => ({}));
+
+    await expect(
+      waitForPreloadedStagehandServiceWorker(cdp, {
+        timeout: 1_000,
+        nowFn: () => 0,
+        delayFn: async () => {},
+      }),
+    ).resolves.toStrictEqual({
+      serviceWorker: currentWorker,
+      sessionId: "current-session",
+    });
+
+    expect(cdp.calls).toContainEqual({
+      method: "Target.detachFromTarget",
+      params: { sessionId: "stale-session" },
+      sessionId: undefined,
+    });
+  });
+
+  it("times out with the observed protocol version when the only runtime is stale", async () => {
+    let now = 0;
+    const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
+    const cdp = new FakeCdp()
+      .on("Target.getTargets", () => ({ targetInfos: [staleWorker] }))
+      .on("Target.attachToTarget", () => ({ sessionId: "stale-session" }))
+      .on("Runtime.evaluate", () => ({
+        result: { value: runtimeReadiness(3) },
+      }))
+      .on("Target.detachFromTarget", () => ({}));
+
+    const error = await rejectedError(
+      waitForPreloadedStagehandServiceWorker(cdp, {
+        pollIntervalMs: 1,
+        timeout: 1,
+        nowFn: () => now,
+        delayFn: async (ms) => {
+          now += ms;
+        },
+      }),
+    );
+
+    expect(error).not.toBeInstanceOf(StagehandRuntimeIncompatibleError);
+    expect(error.message).toContain("Timed out discovering the preloaded Stagehand service worker");
+    expect(error.message).toContain("protocolVersion:3");
+
+    expect(cdp.calls).toContainEqual({
+      method: "Target.detachFromTarget",
+      params: { sessionId: "stale-session" },
+      sessionId: undefined,
+    });
+  });
+
+  it("throws for a stale runtime when fallback installation is disabled", async () => {
+    let now = 0;
+    const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
+    const cdp = new FakeCdp()
+      .on("Target.getTargets", () => ({ targetInfos: [staleWorker] }))
+      .on("Target.attachToTarget", () => ({ sessionId: "stale-session" }))
+      .on("Runtime.evaluate", () => ({ result: { value: runtimeReadiness(3) } }))
+      .on("Target.detachFromTarget", () => ({}));
+
+    await expect(
+      waitForPreloadedStagehandServiceWorker(cdp, {
+        allowFallbackInstall: false,
+        pollIntervalMs: 1,
+        timeout: 1,
+        nowFn: () => now,
+        delayFn: async (ms) => {
+          now += ms;
+        },
+      }),
+    ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
+
+    expect(cdp.calls).toContainEqual({
+      method: "Target.detachFromTarget",
+      params: { sessionId: "stale-session" },
+      sessionId: undefined,
+    });
+  });
+
+  it("continues past a stale runtime when fallback installation is disabled", async () => {
+    const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
+    const currentWorker = target(
+      "current-worker",
+      "chrome-extension://currentext/service-worker.js",
+    );
+    const attachedSessions = ["stale-session", "current-session"];
+    const readiness = [runtimeReadiness(3), readyRuntime()];
+    const cdp = new FakeCdp()
+      .on("Target.getTargets", () => ({ targetInfos: [staleWorker, currentWorker] }))
+      .on("Target.attachToTarget", () => ({ sessionId: attachedSessions.shift() }))
+      .on("Runtime.evaluate", () => ({ result: { value: readiness.shift() } }))
+      .on("Target.detachFromTarget", () => ({}));
+
+    await expect(
+      waitForPreloadedStagehandServiceWorker(cdp, {
+        allowFallbackInstall: false,
+        timeout: 1_000,
+        nowFn: () => 0,
+        delayFn: async () => {},
+      }),
+    ).resolves.toStrictEqual({
+      serviceWorker: currentWorker,
+      sessionId: "current-session",
+    });
+
+    expect(cdp.calls).toContainEqual({
+      method: "Target.detachFromTarget",
+      params: { sessionId: "stale-session" },
+      sessionId: undefined,
+    });
   });
 });
 
@@ -290,16 +418,19 @@ describe("waitForRuntimeReady", () => {
         sessionId: "worker-session",
       },
     ]);
+
+    const expression = String(cdp.calls[0]?.params?.expression);
+    expect(expression).toContain("__stagehand_runtime");
+    expect(expression).toContain("hasReceiver");
+    expect(expression).not.toContain("stagehand.v4");
   });
 
   it("retries until the Stagehand runtime is ready", async () => {
     let now = 0;
     const readiness = [
       {
-        ok: false,
-        runtimeName: "stagehand",
-        runtimeVersion: "stagehand.v4",
-        hasStagehandReceiveFromHost: false,
+        marker: runtimeMarker(4),
+        hasReceiver: false,
       },
       readyRuntime(),
     ];
@@ -328,10 +459,11 @@ describe("waitForRuntimeReady", () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: {
-          ok: false,
-          runtimeName: "other-extension",
-          runtimeVersion: "1",
-          hasStagehandReceiveFromHost: false,
+          marker: {
+            protocolVersion: 4,
+            serverInfo: { name: "other-extension", version: "1" },
+          },
+          hasReceiver: false,
         },
       },
     }));
@@ -377,6 +509,84 @@ describe("waitForRuntimeReady", () => {
 
     expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(2);
   });
+
+  it("reports a malformed readiness envelope without a Zod error dump", async () => {
+    let now = 0;
+    const cdp = new FakeCdp().on("Runtime.evaluate", () => ({}));
+
+    const error = await rejectedError(
+      waitForRuntimeReady(cdp, "worker-session", {
+        pollIntervalMs: 1,
+        timeout: 1,
+        nowFn: () => now,
+        delayFn: async (ms) => {
+          now += ms;
+        },
+      }),
+    );
+
+    expect(error.message).toContain("protocolVersion=undefined, __stagehandReceiveFromHost=false");
+    expect(error.message).not.toContain("invalid_type");
+    expect(error.message).not.toContain("ZodError");
+  });
+
+  it("times out on an out-of-range runtime by default", async () => {
+    let now = 0;
+    const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
+      result: { value: runtimeReadiness(3) },
+    }));
+
+    const error = await rejectedError(
+      waitForRuntimeReady(cdp, "worker-session", {
+        pollIntervalMs: 1,
+        timeout: 1,
+        nowFn: () => now,
+        delayFn: async (ms) => {
+          now += ms;
+        },
+      }),
+    );
+
+    expect(error).not.toBeInstanceOf(StagehandRuntimeIncompatibleError);
+    expect(error.message).toContain(
+      "Timed out waiting for the Stagehand extension runtime to become ready",
+    );
+    expect(error.message).toContain("protocolVersion=3");
+    expect(error.message).not.toContain("undefined");
+  });
+
+  it("throws for an out-of-range attached runtime when fallback installation is disabled", async () => {
+    const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
+      result: { value: runtimeReadiness(3) },
+    }));
+
+    await expect(
+      waitForRuntimeReady(cdp, "worker-session", {
+        allowFallbackInstall: false,
+        timeout: 1_000,
+        nowFn: () => 0,
+        delayFn: async () => {},
+      }),
+    ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
+  });
+
+  it("accepts compatible markers with unknown descriptor fields", async () => {
+    const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
+      result: {
+        value: {
+          marker: { ...runtimeMarker(4), status: "ready" },
+          hasReceiver: true,
+        },
+      },
+    }));
+
+    await expect(
+      waitForRuntimeReady(cdp, "worker-session", {
+        timeout: 1_000,
+        delayFn: async () => {},
+      }),
+    ).resolves.toBeUndefined();
+  });
 });
 
 function target(targetId: string, url: string): TargetInfo {
@@ -390,9 +600,32 @@ function target(targetId: string, url: string): TargetInfo {
 
 function readyRuntime(): Record<string, unknown> {
   return {
-    ok: true,
-    runtimeName: "stagehand",
-    runtimeVersion: "stagehand.v4",
-    hasStagehandReceiveFromHost: true,
+    marker: runtimeMarker(4),
+    hasReceiver: true,
   };
+}
+
+function runtimeReadiness(protocolVersion: number): Record<string, unknown> {
+  return {
+    marker: runtimeMarker(protocolVersion),
+    hasReceiver: true,
+  };
+}
+
+function runtimeMarker(protocolVersion: number): Record<string, unknown> {
+  return {
+    protocolVersion,
+    serverInfo: { name: "stagehand", version: "4.0.0" },
+  };
+}
+
+async function rejectedError(promise: Promise<unknown>): Promise<Error> {
+  try {
+    await promise;
+  } catch (error) {
+    expect(error).toBeInstanceOf(Error);
+    return error as Error;
+  }
+
+  throw new Error("Expected promise to reject");
 }

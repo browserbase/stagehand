@@ -13,6 +13,17 @@ from stagehand.cdp_client import (
 )
 
 
+def _ready_marker() -> dict[str, object]:
+    """The readiness envelope a current service worker publishes."""
+    return {
+        "marker": {
+            "protocolVersion": 4,
+            "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+        },
+        "hasReceiver": True,
+    }
+
+
 class FakeWebSocket:
     def __init__(
         self,
@@ -61,7 +72,7 @@ async def test_connect_loads_and_attaches_the_stagehand_extension(
         if method == "Target.attachToTarget":
             return {"result": {"sessionId": "worker-session"}}
         if method == "Runtime.evaluate":
-            return {"result": {"result": {"value": {"ok": True}}}}
+            return {"result": {"result": {"value": _ready_marker()}}}
         return {"result": {}}
 
     socket = FakeWebSocket(response_for)
@@ -121,7 +132,7 @@ async def test_connect_uses_an_existing_extension_without_loading_it(
         if message["method"] == "Target.attachToTarget":
             return {"result": {"sessionId": "worker-session"}}
         if message["method"] == "Runtime.evaluate":
-            return {"result": {"result": {"value": {"ok": True}}}}
+            return {"result": {"result": {"value": _ready_marker()}}}
         return {"result": {}}
 
     socket = FakeWebSocket(response_for)
@@ -237,3 +248,49 @@ async def test_connect_requires_exactly_one_extension_source() -> None:
             extension_dir="/tmp/stagehand-extension",
             extension_id="stagehand-extension",
         )
+
+
+class TestNegotiateRuntime:
+    """Mirrors the TypeScript negotiation tests so the two SDKs cannot drift apart.
+
+    The absence of these is why a marker-shape change shipped with the Python client still
+    exact-matching the removed `name`/`version` keys: pytest only covered the happy path, and
+    its fixture encoded the old shape, so it agreed with the stale code.
+    """
+
+    def test_accepts_a_current_marker(self) -> None:
+        compatible, detail = cdp_client._negotiate_runtime({
+            "protocolVersion": 4,
+            "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+        })
+        assert compatible is True
+        assert "protocolVersion=4" in detail
+
+    def test_tolerates_unknown_extra_keys(self) -> None:
+        # A newer runtime may publish fields this client has never heard of, e.g. `status`.
+        compatible, _ = cdp_client._negotiate_runtime({
+            "protocolVersion": 4,
+            "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+            "status": {"state": "ready"},
+        })
+        assert compatible is True
+
+    @pytest.mark.parametrize(
+        ("marker", "expected"),
+        [
+            (None, "no Stagehand runtime marker"),
+            ({}, "serverInfo.name=None"),
+            ({"protocolVersion": 3, "serverInfo": {"name": "stagehand", "version": "3"}}, "below"),
+            ({"protocolVersion": 5, "serverInfo": {"name": "stagehand", "version": "5"}}, "above"),
+            ({"protocolVersion": 4, "serverInfo": {"name": "other", "version": "1"}}, "name="),
+            ({"protocolVersion": "4", "serverInfo": {"name": "stagehand", "version": "4"}}, "'4'"),
+        ],
+    )
+    def test_rejects_unusable_markers(self, marker: object, expected: str) -> None:
+        compatible, detail = cdp_client._negotiate_runtime(marker)
+        assert compatible is False
+        assert expected in detail
+
+    def test_never_raises_on_hostile_input(self) -> None:
+        for marker in ("string", 42, [], {"serverInfo": "not-a-mapping"}, {"serverInfo": None}):
+            assert cdp_client._negotiate_runtime(marker)[0] is False
