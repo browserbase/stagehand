@@ -1,5 +1,7 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { describe, expect, it } from "vitest";
 import { FlowLogger } from "../../lib/v3/flowlogger/FlowLogger.js";
+import { EventEmitterWithWildcardSupport } from "../../lib/v3/flowlogger/EventEmitter.js";
 
 describe("flow logger llm logging", () => {
   it("no-ops direct llm logging calls when no flow context is active", () => {
@@ -46,5 +48,31 @@ describe("flow logger llm logging", () => {
     ).resolves.toMatchObject({
       text: "done",
     });
+  });
+
+  it("FlowLogger.init() does not throw when enterWith() is not implemented (e.g. Cloudflare Workers)", () => {
+    // Simulate a runtime that omits enterWith() from AsyncLocalStorage.
+    const originalEnterWith = AsyncLocalStorage.prototype.enterWith;
+    Object.defineProperty(AsyncLocalStorage.prototype, "enterWith", {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const bus = new EventEmitterWithWildcardSupport();
+      let ctx: ReturnType<typeof FlowLogger.init> | undefined;
+      expect(() => {
+        ctx = FlowLogger.init("session-cloudflare", bus);
+      }).not.toThrow();
+      // The returned context must still be valid even without ALS support.
+      expect(ctx).toMatchObject({ sessionId: "session-cloudflare" });
+    } finally {
+      Object.defineProperty(AsyncLocalStorage.prototype, "enterWith", {
+        value: originalEnterWith,
+        configurable: true,
+        writable: true,
+      });
+    }
   });
 });
