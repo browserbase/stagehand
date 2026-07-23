@@ -449,6 +449,47 @@ export class Locator {
   }
 
   /**
+   * Tap the element at its visual center with a real (trusted) touch.
+   * Mirrors {@link click} but synthesizes touch input via `Input.dispatchTouchEvent`
+   * instead of mouse input, so mobile layouts that gate handlers on touch/pointer
+   * (`pointerType: "touch"`) events — where a mouse click never registers — respond
+   * correctly. This is the deterministic (selector-based) counterpart used when a
+   * recorded CUA `tap` step is replayed. Requires a touch-capable (e.g. mobile)
+   * session.
+   */
+  async tap(): Promise<void> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+
+    try {
+      await session.send("DOM.scrollIntoViewIfNeeded", { objectId });
+
+      const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
+        "DOM.getBoxModel",
+        { objectId },
+      );
+      if (!box.model) throw new ElementNotVisibleError(this.selector);
+      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+
+      await session.send<never>("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x: cx, y: cy }],
+      } as Protocol.Input.DispatchTouchEventRequest);
+      await session.send<never>("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      } as Protocol.Input.DispatchTouchEventRequest);
+    } finally {
+      try {
+        await session.send<never>("Runtime.releaseObject", { objectId });
+      } catch {
+        // If the context navigated or was destroyed (e.g., link opens new tab),
+        // releaseObject may fail with -32000. Ignore as best-effort cleanup.
+      }
+    }
+  }
+
+  /**
    * Dispatch a DOM 'click' MouseEvent on the element itself.
    * - Does not synthesize real pointer input; directly dispatches an event.
    * - Useful for elements that rely on click handlers without needing hit-testing.
