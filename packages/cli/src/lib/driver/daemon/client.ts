@@ -399,7 +399,7 @@ function daemonNotRunningError(
 }
 
 function formatCommandArgument(value: string): string {
-  return /^[A-Za-z0-9_./:@%+=,-]+$/.test(value)
-    ? value
-    : `'${value.replaceAll("'", "'\"'\"'")}'`;
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
+  const escaped = value.replaceAll("'", "'\"'\"'");
+  return `'${escaped}'`;
 }
