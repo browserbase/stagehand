@@ -76,22 +76,6 @@
         "!dist/tests/**"
       ]
     },
-    "@browserbasehq/stagehand-server-v4#build": {
-      "dependsOn": ["^build"],
-      "outputs": [
-        "dist/**",
-        "openapi.v4.yaml"
-      ],
-      "inputs": [
-        "**/*.ts",
-        "**/*.js",
-        "package.json",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "!dist/**",
-        "!openapi.v4.yaml"
-      ]
-    },
     "browse#build": {
       "dependsOn": ["^build"],
       "outputs": [
@@ -105,18 +89,6 @@
         "tsconfig.json",
         "tsconfig.*.json",
         "!dist/**"
-      ]
-    },
-    "@browserbasehq/stagehand-server-v4#gen:openapi": {
-      "dependsOn": ["^build:esm"],
-      "outputs": ["openapi.v4.yaml"],
-      "inputs": [
-        "src/**/*.ts",
-        "scripts/gen-openapi.ts",
-        "package.json",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "!openapi.v4.yaml"
       ]
     },
     "@browserbasehq/stagehand#build:esm": {
