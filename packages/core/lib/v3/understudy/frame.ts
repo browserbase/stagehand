@@ -3,7 +3,7 @@ import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import { Locator } from "./locator.js";
 import { StagehandEvalError } from "../types/public/sdkErrors.js";
-import { executionContexts } from "./executionContextRegistry.js";
+import { executionContexts, DEFAULT_MAIN_WORLD_TIMEOUT_MS } from "./executionContextRegistry.js";
 
 interface FrameManager {
   session: CDPSessionLike;
@@ -314,6 +314,10 @@ export class Frame implements FrameManager {
 
   /** Resolve the main-world execution context id for this frame. */
   private async getMainWorldExecutionContextId(): Promise<number> {
-    return executionContexts.waitForMainWorld(this.session, this.frameId, 1000);
+    return executionContexts.waitForMainWorld(
+      this.session,
+      this.frameId,
+      DEFAULT_MAIN_WORLD_TIMEOUT_MS,
+    );
   }
 }
