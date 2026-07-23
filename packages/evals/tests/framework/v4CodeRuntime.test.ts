@@ -341,6 +341,305 @@ describe("deterministic V4 runtime", () => {
     ]);
   });
 
+  it("tracks native Browserbase provisioning through the pinned internal adapter seam", async () => {
+    const raw = createRawRuntime();
+    const uploadExtension = vi.fn(async () => ({ id: "extension-resource" }));
+    const deleteExtension = vi.fn(async () => {});
+    const createSession = vi.fn(async () => ({
+      id: "session-resource",
+      connectUrl: "wss://connect.invalid",
+    }));
+    const releaseSession = vi.fn(async () => {});
+    const resourceUpdates: unknown[] = [];
+    const constructorOptions: unknown[] = [];
+
+    const importer = vi.fn(async (specifier: string) => {
+      if (specifier.endsWith("/browserbaseSession.ts")) {
+        return {
+          createBrowserbaseApiClient: () => ({
+            uploadExtension,
+            deleteExtension,
+            createSession,
+            releaseSession,
+          }),
+          createBrowserbaseSessionClient: (
+            _apiKey: string,
+            dependencies: {
+              browserbase: {
+                uploadExtension(path: string): Promise<{ id: string }>;
+                deleteExtension(id: string): Promise<void>;
+                createSession(
+                  params: Record<string, unknown>,
+                ): Promise<{ id: string; connectUrl: string }>;
+                releaseSession(id: string): Promise<void>;
+              };
+            },
+          ) => ({
+            async createSession(params: Record<string, unknown>) {
+              const extension =
+                await dependencies.browserbase.uploadExtension("archive.zip");
+              const session = await dependencies.browserbase.createSession({
+                ...params,
+                extensionId: extension.id,
+              });
+              return {
+                sessionId: session.id,
+                cdpUrl: session.connectUrl,
+                close: async () => {
+                  await dependencies.browserbase.releaseSession(session.id);
+                  await dependencies.browserbase.deleteExtension(extension.id);
+                },
+              };
+            },
+          }),
+        };
+      }
+      if (specifier.endsWith("/browserSource.ts")) {
+        return {
+          resolveBrowserSource: async (
+            options: { browser: Record<string, unknown> },
+            dependencies: {
+              browserbase: {
+                createSession(params: Record<string, unknown>): Promise<{
+                  sessionId: string;
+                  cdpUrl: string;
+                  close(): Promise<void>;
+                }>;
+              };
+            },
+          ) => {
+            const session = await dependencies.browserbase.createSession(
+              options.browser,
+            );
+            return {
+              cdpUrl: session.cdpUrl,
+              browserbaseSessionId: session.sessionId,
+              preloadedExtension: true,
+              keepAlive: false,
+              close: session.close,
+            };
+          },
+        };
+      }
+      if (specifier.endsWith("/stagehand.ts")) {
+        return {
+          createStagehandWithDependenciesForTest: (
+            options: unknown,
+            adapters: {
+              resolveBrowserSource(input: unknown): Promise<{
+                close(): Promise<void>;
+              }>;
+            },
+          ) => {
+            constructorOptions.push(options);
+            let browser: { close(): Promise<void> } | undefined;
+            return {
+              context: raw.context,
+              async init() {
+                browser = await adapters.resolveBrowserSource(options);
+              },
+              async close() {
+                await browser?.close();
+              },
+            };
+          },
+        };
+      }
+      throw new Error(`Unexpected V4 internal module: ${specifier}`);
+    });
+
+    const runtime = await initializeV4CodeRuntime({
+      sdkPath: makeSdkEntry(),
+      browser: {
+        type: "browserbase",
+        apiKey: "private-api-key",
+        projectId: "private-project",
+        region: "us-east-1",
+      },
+      mode: "deterministic",
+      importModule: importer,
+      onBrowserbaseResources: (resources) => {
+        resourceUpdates.push(resources);
+      },
+    });
+
+    expect(constructorOptions).toEqual([
+      {
+        apiKey: "private-api-key",
+        browser: {
+          type: "browserbase",
+          region: "us-east-1",
+          userMetadata: {
+            stagehand: "true",
+            evals: "true",
+            toolSurface: "v4_code_deterministic",
+          },
+        },
+      },
+    ]);
+    expect(resourceUpdates).toEqual([
+      { extensionId: "extension-resource" },
+      {
+        extensionId: "extension-resource",
+        sessionId: "session-resource",
+      },
+    ]);
+    expect(runtime.browserbaseResources).toEqual({
+      extensionId: "extension-resource",
+      sessionId: "session-resource",
+    });
+    expect(createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "private-project",
+        extensionId: "extension-resource",
+      }),
+    );
+
+    await runtime.close();
+    expect(releaseSession).toHaveBeenCalledWith("session-resource");
+    expect(deleteExtension).toHaveBeenCalledWith("extension-resource");
+  });
+
+  it.each(["extension", "session"] as const)(
+    "locally cleans a %s when lifecycle handoff fails",
+    async (failedResource) => {
+      const raw = createRawRuntime();
+      const uploadExtension = vi.fn(async () => ({
+        id: "extension-resource",
+      }));
+      const deleteExtension = vi.fn(async () => {});
+      const createSession = vi.fn(async () => ({
+        id: "session-resource",
+        connectUrl: "wss://connect.invalid",
+      }));
+      const releaseSession = vi.fn(async () => {});
+      const importer = async (
+        specifier: string,
+      ): Promise<Record<string, unknown>> => {
+        if (specifier.endsWith("/browserbaseSession.ts")) {
+          return {
+            createBrowserbaseApiClient: () => ({
+              uploadExtension,
+              deleteExtension,
+              createSession,
+              releaseSession,
+            }),
+            createBrowserbaseSessionClient: (
+              _apiKey: string,
+              dependencies: {
+                browserbase: {
+                  uploadExtension(path: string): Promise<{ id: string }>;
+                  deleteExtension(id: string): Promise<void>;
+                  createSession(params: Record<string, unknown>): Promise<{
+                    id: string;
+                    connectUrl: string;
+                  }>;
+                  releaseSession(id: string): Promise<void>;
+                };
+              },
+            ) => ({
+              async createSession(params: Record<string, unknown>) {
+                let extension: { id: string } | undefined;
+                try {
+                  extension =
+                    await dependencies.browserbase.uploadExtension(
+                      "archive.zip",
+                    );
+                  const session = await dependencies.browserbase.createSession({
+                    ...params,
+                    extensionId: extension.id,
+                  });
+                  return {
+                    sessionId: session.id,
+                    cdpUrl: session.connectUrl,
+                    close: async () => {
+                      await dependencies.browserbase.releaseSession(session.id);
+                      await dependencies.browserbase.deleteExtension(
+                        extension.id,
+                      );
+                    },
+                  };
+                } catch (error) {
+                  if (extension) {
+                    await dependencies.browserbase.deleteExtension(
+                      extension.id,
+                    );
+                  }
+                  throw error;
+                }
+              },
+            }),
+          };
+        }
+        if (specifier.endsWith("/browserSource.ts")) {
+          return {
+            resolveBrowserSource: async (
+              options: { browser: Record<string, unknown> },
+              dependencies: {
+                browserbase: {
+                  createSession(params: Record<string, unknown>): Promise<{
+                    close(): Promise<void>;
+                  }>;
+                };
+              },
+            ) => dependencies.browserbase.createSession(options.browser),
+          };
+        }
+        if (specifier.endsWith("/stagehand.ts")) {
+          return {
+            createStagehandWithDependenciesForTest: (
+              options: unknown,
+              adapters: {
+                resolveBrowserSource(input: unknown): Promise<{
+                  close(): Promise<void>;
+                }>;
+              },
+            ) => {
+              let browser: { close(): Promise<void> } | undefined;
+              return {
+                context: raw.context,
+                async init() {
+                  browser = await adapters.resolveBrowserSource(options);
+                },
+                async close() {
+                  await browser?.close();
+                },
+              };
+            },
+          };
+        }
+        throw new Error(`Unexpected V4 internal module: ${specifier}`);
+      };
+
+      await expect(
+        initializeV4CodeRuntime({
+          sdkPath: makeSdkEntry(),
+          browser: { type: "browserbase", apiKey: "private-api-key" },
+          mode: "deterministic",
+          importModule: importer,
+          onBrowserbaseResources: async (resources) => {
+            if (
+              (failedResource === "extension" && resources.extensionId) ||
+              (failedResource === "session" && resources.sessionId)
+            ) {
+              throw new Error(`${failedResource} handoff unavailable`);
+            }
+          },
+        }),
+      ).rejects.toThrow(`${failedResource} handoff unavailable`);
+
+      expect(uploadExtension).toHaveBeenCalledOnce();
+      expect(deleteExtension).toHaveBeenCalledWith("extension-resource");
+      if (failedResource === "extension") {
+        expect(createSession).not.toHaveBeenCalled();
+        expect(releaseSession).not.toHaveBeenCalled();
+      } else {
+        expect(createSession).toHaveBeenCalledOnce();
+        expect(releaseSession).toHaveBeenCalledWith("session-resource");
+      }
+    },
+  );
+
   it("initializes AI mode with the selected model credentials and headers", async () => {
     const raw = createRawRuntime();
     const constructorOptions: unknown[] = [];

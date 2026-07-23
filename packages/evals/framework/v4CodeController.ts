@@ -11,9 +11,16 @@ import { getRepoRootDir } from "../runtimePaths.js";
 import {
   STAGEHAND_V4_SDK_PATH_ENV,
   resolveV4SdkPath,
+  type V4CodeBrowserbaseResources,
+  type V4CodeBrowserConfig,
   type V4CodeMode,
   type V4CodeModelConfig,
 } from "./v4CodeConfig.js";
+import {
+  cleanupV4CodeBrowserbaseResources,
+  cleanupV4CodeBrowserbaseResourcesSync,
+  type V4CodeBrowserbaseCleanupInput,
+} from "./v4CodeBrowserbaseCleanup.js";
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
 const DEFAULT_EXECUTE_TIMEOUT_MS = 60_000;
@@ -25,7 +32,7 @@ export type V4CodeBridgeRequest =
       id: number;
       type: "init";
       sdkPath: string;
-      userDataDir?: string;
+      browser: V4CodeBrowserConfig;
     } & ({ mode: "deterministic" } | { mode: "ai"; model: V4CodeModelConfig }))
   | {
       id: number;
@@ -66,6 +73,13 @@ export function stringifyV4CodeConsoleValue(value: unknown): string {
   }
 }
 
+export type V4CodeBridgeLifecycleEvent =
+  | { type: "bridge_ready" }
+  | {
+      type: "browserbase_resources";
+      resources: V4CodeBrowserbaseResources;
+    };
+
 type V4CodeBridgeRequestPayload = V4CodeBridgeRequest extends infer Request
   ? Request extends V4CodeBridgeRequest
     ? Omit<Request, "id">
@@ -78,6 +92,7 @@ export interface V4CodeController {
     startUrl: string;
     task: Record<string, unknown>;
   }): Promise<unknown>;
+  getBrowserbaseResources(): Readonly<V4CodeBrowserbaseResources> | undefined;
   close(): Promise<void>;
 }
 
@@ -90,6 +105,7 @@ export type V4CodeBridgeFork = (
 export interface StartV4CodeControllerInput {
   mode?: V4CodeMode;
   model?: V4CodeModelConfig;
+  browser?: V4CodeBrowserConfig;
   sdkPath?: string;
   bridgePath?: string;
   forkProcess?: V4CodeBridgeFork;
@@ -99,6 +115,14 @@ export interface StartV4CodeControllerInput {
   startupTimeoutMs?: number;
   executeTimeoutMs?: number;
   closeTimeoutMs?: number;
+  cleanupBrowserbaseResources?: (
+    input: V4CodeBrowserbaseCleanupInput,
+  ) => Promise<void>;
+  cleanupBrowserbaseResourcesSync?: (
+    input: V4CodeBrowserbaseCleanupInput,
+  ) => void;
+  onCleanupWarning?: (error: Error) => void;
+  onCloseWarning?: (error: Error) => void;
 }
 
 type PendingRequest = {
@@ -116,6 +140,7 @@ export async function startV4CodeController(
   const sdkPath = input.sdkPath ?? resolveV4SdkPath();
   const bridgePath = input.bridgePath ?? resolveV4CodeBridgePath();
   const forkProcess = input.forkProcess ?? nodeFork;
+  const configuredBrowser = input.browser ?? { type: "local" as const };
   const workingDirectory = input.workingDirectory
     ? requireDirectory(input.workingDirectory, "workingDirectory")
     : undefined;
@@ -131,15 +156,41 @@ export async function startV4CodeController(
     input.closeTimeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS,
     "closeTimeoutMs",
   );
-  const browserUserDataDir = workingDirectory
-    ? path.join(workingDirectory, "v4-browser-profile")
-    : fs.mkdtempSync(path.join(os.tmpdir(), "stagehand-evals-v4-profile-"));
-  const ownedBrowserUserDataDir = workingDirectory
-    ? undefined
-    : browserUserDataDir;
-  if (workingDirectory) fs.mkdirSync(browserUserDataDir, { recursive: true });
+  const browserUserDataDir =
+    configuredBrowser.type === "local"
+      ? (configuredBrowser.userDataDir ??
+        (workingDirectory
+          ? path.join(workingDirectory, "v4-browser-profile")
+          : fs.mkdtempSync(
+              path.join(os.tmpdir(), "stagehand-evals-v4-profile-"),
+            )))
+      : undefined;
+  const ownedBrowserUserDataDir =
+    configuredBrowser.type === "local" &&
+    !configuredBrowser.userDataDir &&
+    !workingDirectory
+      ? browserUserDataDir
+      : undefined;
+  if (browserUserDataDir) {
+    fs.mkdirSync(browserUserDataDir, { recursive: true });
+  }
   const env = { ...process.env };
-  delete env[STAGEHAND_V4_SDK_PATH_ENV];
+  for (const key of [
+    STAGEHAND_V4_SDK_PATH_ENV,
+    "BROWSERBASE_API_KEY",
+    "BROWSERBASE_PROJECT_ID",
+    "BB_API_KEY",
+    "BB_PROJECT_ID",
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GROQ_API_KEY",
+    "CEREBRAS_API_KEY",
+  ]) {
+    delete env[key];
+  }
 
   let child: ChildProcess;
   try {
@@ -168,14 +219,38 @@ export async function startV4CodeController(
     closeTimeoutMs,
     onConsole: input.onConsole,
     killProcessGroup: process.platform !== "win32",
-    browserPidFile: path.join(browserUserDataDir, "chrome.pid"),
+    browserPidFile: browserUserDataDir
+      ? path.join(browserUserDataDir, "chrome.pid")
+      : undefined,
     ownedBrowserUserDataDir,
+    browserbase:
+      configuredBrowser.type === "browserbase"
+        ? {
+            apiKey: configuredBrowser.apiKey,
+            ...(configuredBrowser.projectId && {
+              projectId: configuredBrowser.projectId,
+            }),
+          }
+        : undefined,
+    cleanupBrowserbaseResources:
+      input.cleanupBrowserbaseResources ?? cleanupV4CodeBrowserbaseResources,
+    cleanupBrowserbaseResourcesSync:
+      input.cleanupBrowserbaseResourcesSync ??
+      cleanupV4CodeBrowserbaseResourcesSync,
+    onCleanupWarning: input.onCleanupWarning,
+    onCloseWarning: input.onCloseWarning,
   });
 
   try {
     await controller.initialize({
       sdkPath,
-      userDataDir: browserUserDataDir,
+      browser:
+        configuredBrowser.type === "local"
+          ? {
+              type: "local",
+              ...(browserUserDataDir && { userDataDir: browserUserDataDir }),
+            }
+          : configuredBrowser,
       mode,
       model,
     });
@@ -212,8 +287,24 @@ class IpcV4CodeController implements V4CodeController {
   readonly #killProcessGroup: boolean;
   readonly #browserPidFile: string | undefined;
   readonly #ownedBrowserUserDataDir: string | undefined;
+  readonly #browserbase: { apiKey: string; projectId?: string } | undefined;
+  readonly #cleanupBrowserbaseResources: (
+    input: V4CodeBrowserbaseCleanupInput,
+  ) => Promise<void>;
+  readonly #cleanupBrowserbaseResourcesSync: (
+    input: V4CodeBrowserbaseCleanupInput,
+  ) => void;
   readonly #parentExitHandler: () => void;
+  readonly #onCleanupWarning: ((error: Error) => void) | undefined;
+  readonly #onCloseWarning: ((error: Error) => void) | undefined;
+  readonly #bridgeReadyPromise: Promise<void>;
+  #resolveBridgeReady!: () => void;
+  #rejectBridgeReady!: (error: Error) => void;
+  #bridgeReady = false;
   #browserPid: number | undefined;
+  #browserbaseResources: V4CodeBrowserbaseResources = {};
+  #resourceGeneration = 0;
+  #cleanedResourceGeneration = 0;
   #nextRequestId = 1;
   #closed = false;
   #closeAcknowledged = false;
@@ -221,6 +312,10 @@ class IpcV4CodeController implements V4CodeController {
   #terminalError: Error | undefined;
   #closePromise: Promise<void> | undefined;
   #stopPromise: Promise<void> | undefined;
+  #remoteCleanupPromise: Promise<void> | undefined;
+  #cleanupRequestedDuringPass = false;
+  #remoteCleanupSyncStarted = false;
+  #parentExitArmed = false;
 
   constructor(
     readonly child: ChildProcess,
@@ -232,6 +327,15 @@ class IpcV4CodeController implements V4CodeController {
       killProcessGroup: boolean;
       browserPidFile?: string;
       ownedBrowserUserDataDir?: string;
+      browserbase?: { apiKey: string; projectId?: string };
+      cleanupBrowserbaseResources: (
+        input: V4CodeBrowserbaseCleanupInput,
+      ) => Promise<void>;
+      cleanupBrowserbaseResourcesSync: (
+        input: V4CodeBrowserbaseCleanupInput,
+      ) => void;
+      onCleanupWarning?: (error: Error) => void;
+      onCloseWarning?: (error: Error) => void;
     },
   ) {
     this.#startupTimeoutMs = requirePositiveTimeout(
@@ -250,18 +354,35 @@ class IpcV4CodeController implements V4CodeController {
     this.#killProcessGroup = timeouts.killProcessGroup;
     this.#browserPidFile = timeouts.browserPidFile;
     this.#ownedBrowserUserDataDir = timeouts.ownedBrowserUserDataDir;
-    this.#parentExitHandler = () => this.#signalProcesses("SIGKILL");
-    process.once("exit", this.#parentExitHandler);
+    this.#browserbase = timeouts.browserbase;
+    this.#cleanupBrowserbaseResources = timeouts.cleanupBrowserbaseResources;
+    this.#cleanupBrowserbaseResourcesSync =
+      timeouts.cleanupBrowserbaseResourcesSync;
+    this.#onCleanupWarning = timeouts.onCleanupWarning;
+    this.#onCloseWarning = timeouts.onCloseWarning;
+    this.#parentExitHandler = () => {
+      this.#signalProcesses("SIGKILL");
+      this.#cleanupRemoteSync();
+    };
+    this.#bridgeReadyPromise = new Promise((resolve, reject) => {
+      this.#resolveBridgeReady = resolve;
+      this.#rejectBridgeReady = reject;
+    });
+    this.#armParentExit();
     this.#exitPromise = new Promise((resolve) => {
       child.once("exit", (code, signal) => {
         this.#exited = true;
-        process.removeListener("exit", this.#parentExitHandler);
         const error = new Error(
           `V4 code bridge exited unexpectedly (code=${String(code)}, signal=${String(signal)}).`,
         );
         if (!this.#closeAcknowledged) {
           this.#fail(error);
           this.#signalProcesses("SIGKILL");
+          void this.#cleanupRemote().then(() => {
+            this.#disarmParentExitIfSafe();
+          });
+        } else {
+          this.#disarmParentExitIfSafe();
         }
         resolve();
       });
@@ -272,27 +393,35 @@ class IpcV4CodeController implements V4CodeController {
 
   async initialize(input: {
     sdkPath: string;
-    userDataDir?: string;
+    browser: V4CodeBrowserConfig;
     mode: V4CodeMode;
     model?: V4CodeModelConfig;
   }): Promise<void> {
-    const result = await this.#request(
-      input.mode === "ai"
-        ? {
-            type: "init",
-            sdkPath: input.sdkPath,
-            ...(input.userDataDir && { userDataDir: input.userDataDir }),
-            mode: "ai",
-            model: requireControllerModel(input.model),
-          }
-        : {
-            type: "init",
-            sdkPath: input.sdkPath,
-            ...(input.userDataDir && { userDataDir: input.userDataDir }),
-            mode: "deterministic",
-          },
-      this.#startupTimeoutMs,
-    );
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(
+          new Error(
+            `V4 code bridge startup timed out after ${this.#startupTimeoutMs}ms.`,
+          ),
+        );
+      }, this.#startupTimeoutMs);
+    });
+    let result: unknown;
+    try {
+      result = await Promise.race([
+        this.#initializeWithinBudget(input),
+        timeout,
+      ]);
+    } catch (error) {
+      const normalized =
+        error instanceof Error ? error : new Error(String(error));
+      this.#fail(normalized);
+      void this.#stopChild();
+      throw normalized;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
     if (
       isRecord(result) &&
       typeof result.browserPid === "number" &&
@@ -301,6 +430,35 @@ class IpcV4CodeController implements V4CodeController {
     ) {
       this.#browserPid = result.browserPid;
     }
+    if (isRecord(result) && isV4CodeBrowserbaseResources(result.resources)) {
+      this.#recordBrowserbaseResources(result.resources);
+    }
+  }
+
+  async #initializeWithinBudget(input: {
+    sdkPath: string;
+    browser: V4CodeBrowserConfig;
+    mode: V4CodeMode;
+    model?: V4CodeModelConfig;
+  }): Promise<unknown> {
+    await this.#bridgeReadyPromise;
+    return this.#request(
+      input.mode === "ai"
+        ? {
+            type: "init",
+            sdkPath: input.sdkPath,
+            browser: input.browser,
+            mode: "ai",
+            model: requireControllerModel(input.model),
+          }
+        : {
+            type: "init",
+            sdkPath: input.sdkPath,
+            browser: input.browser,
+            mode: "deterministic",
+          },
+      this.#startupTimeoutMs,
+    );
   }
 
   execute(input: {
@@ -309,6 +467,16 @@ class IpcV4CodeController implements V4CodeController {
     task: Record<string, unknown>;
   }): Promise<unknown> {
     return this.#request({ type: "execute", ...input }, this.#executeTimeoutMs);
+  }
+
+  getBrowserbaseResources(): Readonly<V4CodeBrowserbaseResources> | undefined {
+    if (
+      !this.#browserbaseResources.sessionId &&
+      !this.#browserbaseResources.extensionId
+    ) {
+      return undefined;
+    }
+    return { ...this.#browserbaseResources };
   }
 
   close(): Promise<void> {
@@ -325,14 +493,23 @@ class IpcV4CodeController implements V4CodeController {
 
   async #close(): Promise<void> {
     if (this.#closed) return;
+    let closeError: Error | undefined;
     try {
       if (!this.#exited && !this.#terminalError) {
         await this.#request({ type: "close" }, this.#closeTimeoutMs);
       }
+    } catch (error) {
+      closeError = error instanceof Error ? error : new Error(String(error));
     } finally {
       this.#closed = true;
       await this.#stopChild();
     }
+    if (!closeError) return;
+    if (this.#hasCleanedLatestRemoteResources()) {
+      this.#emitCloseWarning(closeError);
+      return;
+    }
+    throw closeError;
   }
 
   #request(
@@ -383,6 +560,17 @@ class IpcV4CodeController implements V4CodeController {
       this.#onConsole?.(message);
       return;
     }
+    if (isV4CodeBridgeLifecycleEvent(message)) {
+      if (message.type === "bridge_ready") {
+        if (!this.#bridgeReady) {
+          this.#bridgeReady = true;
+          this.#resolveBridgeReady();
+        }
+      } else {
+        this.#recordBrowserbaseResources(message.resources);
+      }
+      return;
+    }
     if (!isV4CodeBridgeResponse(message)) return;
     const pending = this.#pending.get(message.id);
     if (!pending) return;
@@ -404,6 +592,7 @@ class IpcV4CodeController implements V4CodeController {
 
   #fail(error: Error): void {
     this.#terminalError ??= error;
+    this.#rejectBridgeReady(this.#terminalError);
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(this.#terminalError);
@@ -427,24 +616,190 @@ class IpcV4CodeController implements V4CodeController {
   }
 
   async #stopChildOnce(): Promise<void> {
-    if (this.#exited) {
-      if (!this.#closeAcknowledged) this.#signalBrowser("SIGKILL");
-      process.removeListener("exit", this.#parentExitHandler);
-      return;
+    try {
+      if (this.#exited) {
+        if (!this.#closeAcknowledged) this.#signalBrowser("SIGKILL");
+        return;
+      }
+      if (this.child.connected && !this.#browserbase) {
+        try {
+          this.child.disconnect();
+        } catch {
+          // The child may have disconnected between the connected check and call.
+        }
+      }
+      if (this.#browserbase) this.#signalChild("SIGTERM");
+      await waitForExit(this.#exitPromise, CHILD_EXIT_GRACE_MS);
+      if (this.#exited) return;
+      this.#signalProcesses("SIGTERM");
+      await waitForExit(this.#exitPromise, CHILD_EXIT_GRACE_MS);
+      if (!this.#exited) {
+        this.#signalProcesses("SIGKILL");
+        await waitForExit(this.#exitPromise, CHILD_EXIT_GRACE_MS);
+      }
+      await waitForIpcDrain();
+    } finally {
+      if (!this.#closeAcknowledged) await this.#cleanupRemote();
+      this.#disarmParentExitIfSafe();
     }
-    if (this.child.connected) {
+  }
+
+  #recordBrowserbaseResources(resources: V4CodeBrowserbaseResources): void {
+    let changed = false;
+    if (
+      resources.sessionId &&
+      resources.sessionId !== this.#browserbaseResources.sessionId
+    ) {
+      this.#browserbaseResources.sessionId = resources.sessionId;
+      changed = true;
+    }
+    if (
+      resources.extensionId &&
+      resources.extensionId !== this.#browserbaseResources.extensionId
+    ) {
+      this.#browserbaseResources.extensionId = resources.extensionId;
+      changed = true;
+    }
+    if (!changed) return;
+    this.#resourceGeneration += 1;
+    if (this.#remoteCleanupPromise) {
+      this.#cleanupRequestedDuringPass = true;
+    } else if (this.#shouldFallbackCleanup()) {
+      this.#armParentExit();
+      void this.#cleanupRemote().then(() => {
+        this.#disarmParentExitIfSafe();
+      });
+    }
+  }
+
+  #cleanupRemote(): Promise<void> {
+    if (this.#remoteCleanupPromise) {
+      return this.#remoteCleanupPromise;
+    }
+    if (
+      !this.#browserbase ||
+      this.#cleanedResourceGeneration >= this.#resourceGeneration
+    ) {
+      return Promise.resolve();
+    }
+    const cleanup = this.#drainRemoteCleanup();
+    this.#remoteCleanupPromise = cleanup;
+    const onSettled = (): void => {
+      if (this.#remoteCleanupPromise === cleanup) {
+        this.#remoteCleanupPromise = undefined;
+        if (
+          this.#shouldFallbackCleanup() &&
+          this.#cleanupRequestedDuringPass &&
+          this.#cleanedResourceGeneration < this.#resourceGeneration
+        ) {
+          this.#armParentExit();
+          void this.#cleanupRemote().then(() => {
+            this.#disarmParentExitIfSafe();
+          });
+          return;
+        }
+        this.#disarmParentExitIfSafe();
+      }
+    };
+    void cleanup.then(onSettled, onSettled);
+    return cleanup;
+  }
+
+  async #drainRemoteCleanup(): Promise<void> {
+    while (
+      this.#browserbase &&
+      this.#cleanedResourceGeneration < this.#resourceGeneration
+    ) {
+      this.#cleanupRequestedDuringPass = false;
+      const generation = this.#resourceGeneration;
+      const resources = { ...this.#browserbaseResources };
       try {
-        this.child.disconnect();
-      } catch {
-        // The child may have disconnected between the connected check and call.
+        await this.#cleanupBrowserbaseResources({
+          ...this.#browserbase,
+          resources,
+        });
+        this.#cleanedResourceGeneration = generation;
+      } catch (error) {
+        this.#emitCleanupWarning(error);
+        if (this.#resourceGeneration <= generation) return;
+      }
+      if (
+        !this.#cleanupRequestedDuringPass &&
+        this.#cleanedResourceGeneration >= this.#resourceGeneration
+      ) {
+        return;
       }
     }
-    await waitForExit(this.#exitPromise, CHILD_EXIT_GRACE_MS);
-    if (this.#exited) return;
-    this.#signalProcesses("SIGTERM");
-    await waitForExit(this.#exitPromise, CHILD_EXIT_GRACE_MS);
-    if (!this.#exited) this.#signalProcesses("SIGKILL");
-    process.removeListener("exit", this.#parentExitHandler);
+  }
+
+  #emitCleanupWarning(error: unknown): void {
+    try {
+      this.#onCleanupWarning?.(
+        error instanceof Error
+          ? error
+          : new Error("V4 Browserbase fallback cleanup failed."),
+      );
+    } catch {
+      // Cleanup warnings must never replace the primary bridge failure.
+    }
+  }
+
+  #emitCloseWarning(error: Error): void {
+    try {
+      this.#onCloseWarning?.(error);
+    } catch {
+      // Close warnings must never replace verified fallback cleanup.
+    }
+  }
+
+  #hasCleanedLatestRemoteResources(): boolean {
+    return (
+      this.#browserbase !== undefined &&
+      this.#resourceGeneration > 0 &&
+      this.#cleanedResourceGeneration >= this.#resourceGeneration
+    );
+  }
+
+  #disarmParentExitIfSafe(): void {
+    if (
+      this.#closeAcknowledged ||
+      (this.#exited &&
+        this.#cleanedResourceGeneration >= this.#resourceGeneration &&
+        !this.#remoteCleanupPromise)
+    ) {
+      process.removeListener("exit", this.#parentExitHandler);
+      this.#parentExitArmed = false;
+    }
+  }
+
+  #armParentExit(): void {
+    if (this.#parentExitArmed) return;
+    process.once("exit", this.#parentExitHandler);
+    this.#parentExitArmed = true;
+  }
+
+  #shouldFallbackCleanup(): boolean {
+    return (
+      !this.#closeAcknowledged &&
+      (this.#closed || this.#terminalError !== undefined || this.#exited)
+    );
+  }
+
+  #cleanupRemoteSync(): void {
+    if (
+      this.#closeAcknowledged ||
+      this.#remoteCleanupSyncStarted ||
+      !this.#browserbase ||
+      (!this.#browserbaseResources.sessionId &&
+        !this.#browserbaseResources.extensionId)
+    ) {
+      return;
+    }
+    this.#remoteCleanupSyncStarted = true;
+    this.#cleanupBrowserbaseResourcesSync({
+      ...this.#browserbase,
+      resources: { ...this.#browserbaseResources },
+    });
   }
 
   #signalProcesses(signal: NodeJS.Signals): void {
@@ -507,6 +862,27 @@ function isV4CodeBridgeConsoleEvent(
       value.level === "warn" ||
       value.level === "error") &&
     typeof value.message === "string"
+  );
+}
+
+function isV4CodeBridgeLifecycleEvent(
+  value: unknown,
+): value is V4CodeBridgeLifecycleEvent {
+  return (
+    isRecord(value) &&
+    (value.type === "bridge_ready" ||
+      (value.type === "browserbase_resources" &&
+        isV4CodeBrowserbaseResources(value.resources)))
+  );
+}
+
+function isV4CodeBrowserbaseResources(
+  value: unknown,
+): value is V4CodeBrowserbaseResources {
+  return (
+    isRecord(value) &&
+    (value.sessionId === undefined || typeof value.sessionId === "string") &&
+    (value.extensionId === undefined || typeof value.extensionId === "string")
   );
 }
 
@@ -575,4 +951,8 @@ function waitForExit(
       resolve();
     });
   });
+}
+
+function waitForIpcDrain(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
 }

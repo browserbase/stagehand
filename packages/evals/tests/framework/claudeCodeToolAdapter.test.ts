@@ -56,7 +56,7 @@ describe("claude code tool adapter resolution", () => {
     );
   });
 
-  it("supports both V4 modes only as local tool-launched surfaces", () => {
+  it("maps both V4 modes to native local and Browserbase startup profiles", () => {
     expect(resolveClaudeCodeToolSurface("v4_code")).toBe("v4_code");
     expect(resolveClaudeCodeStartupProfile("v4_code", "LOCAL")).toBe(
       "tool_launch_local",
@@ -74,12 +74,19 @@ describe("claude code tool adapter resolution", () => {
         "runner_provided_local_cdp",
       ),
     ).toThrow(/requires startup profile "tool_launch_local"/);
-    expect(() =>
+    expect(
       resolveClaudeCodeStartupProfile("v4_code_deterministic", "BROWSERBASE"),
-    ).toThrow(/supports only the LOCAL environment/);
+    ).toBe("tool_create_browserbase");
+    expect(resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE")).toBe(
+      "tool_create_browserbase",
+    );
     expect(() =>
-      resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE"),
-    ).toThrow(/supports only the LOCAL environment/);
+      resolveClaudeCodeStartupProfile(
+        "v4_code",
+        "BROWSERBASE",
+        "runner_provided_browserbase_cdp",
+      ),
+    ).toThrow(/requires startup profile "tool_create_browserbase"/);
   });
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {

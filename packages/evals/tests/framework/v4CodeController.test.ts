@@ -1,14 +1,20 @@
 import { EventEmitter } from "node:events";
-import type { ChildProcess, ForkOptions } from "node:child_process";
+import {
+  fork as nodeFork,
+  type ChildProcess,
+  type ForkOptions,
+} from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  resolveV4CodeBridgePath,
   startV4CodeController,
   stringifyV4CodeConsoleValue,
   type V4CodeBridgeConsoleEvent,
   type V4CodeBridgeFork,
+  type V4CodeBridgeLifecycleEvent,
   type V4CodeBridgeRequest,
   type V4CodeBridgeResponse,
 } from "../../framework/v4CodeController.js";
@@ -23,6 +29,7 @@ class FakeBridgeChild extends EventEmitter {
   disconnectCalls = 0;
   killCalls: Array<NodeJS.Signals | number | undefined> = [];
   onRequest?: (request: V4CodeBridgeRequest) => void;
+  onKill?: (signal: NodeJS.Signals | number | undefined) => boolean;
 
   send(
     message: V4CodeBridgeRequest,
@@ -46,11 +53,17 @@ class FakeBridgeChild extends EventEmitter {
   kill(signal?: NodeJS.Signals | number): boolean {
     this.killCalls.push(signal);
     this.killed = true;
+    if (this.onKill) return this.onKill(signal);
     this.exit(null, typeof signal === "string" ? signal : "SIGTERM");
     return true;
   }
 
-  respond(response: V4CodeBridgeResponse | V4CodeBridgeConsoleEvent): void {
+  respond(
+    response:
+      | V4CodeBridgeResponse
+      | V4CodeBridgeConsoleEvent
+      | V4CodeBridgeLifecycleEvent,
+  ): void {
     this.emit("message", response);
   }
 
@@ -80,6 +93,7 @@ function makeFork(child: FakeBridgeChild): {
     calls,
     forkProcess: (modulePath, args, options) => {
       calls.push({ modulePath, args, options });
+      queueMicrotask(() => child.respond({ type: "bridge_ready" }));
       return child as unknown as ChildProcess;
     },
   };
@@ -99,7 +113,249 @@ function respondSuccessfully(child: FakeBridgeChild): void {
   };
 }
 
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve = (): void => {};
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function makeTerminationGatedBrowserbaseSdk(
+  blockedResource: "extension" | "session",
+): { directory: string; sdkPath: string } {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "v4-gated-browserbase-sdk-"),
+  );
+  fs.writeFileSync(
+    path.join(directory, "index.ts"),
+    "export class Stagehand {}\n",
+  );
+  fs.writeFileSync(
+    path.join(directory, "browserbaseSession.ts"),
+    `
+async function waitForTermination(resource: "extension" | "session") {
+  if (resource !== ${JSON.stringify(blockedResource)}) return;
+  const terminated = new Promise<void>((resolve) => {
+    process.once("SIGTERM", () => resolve());
+  });
+  if (!process.send) throw new Error("Fixture requires IPC.");
+  await new Promise<void>((resolve, reject) => {
+    process.send?.(
+      { type: "fixture_provisioning_started", resource },
+      (error) => error ? reject(error) : resolve(),
+    );
+  });
+  await terminated;
+}
+
+export function createBrowserbaseApiClient() {
+  return {
+    async uploadExtension() {
+      await waitForTermination("extension");
+      return { id: "late-extension-resource" };
+    },
+    async deleteExtension() {},
+    async createSession() {
+      await waitForTermination("session");
+      return {
+        id: "late-session-resource",
+        connectUrl: "wss://connect.invalid",
+      };
+    },
+    async releaseSession() {},
+  };
+}
+
+export function createBrowserbaseSessionClient(
+  _apiKey: string,
+  dependencies: {
+    browserbase: ReturnType<typeof createBrowserbaseApiClient>;
+  },
+) {
+  return {
+    async createSession(params: Record<string, unknown>) {
+      const extension =
+        await dependencies.browserbase.uploadExtension("fixture.zip");
+      const session = await dependencies.browserbase.createSession({
+        ...params,
+        extensionId: extension.id,
+      });
+      return {
+        sessionId: session.id,
+        cdpUrl: session.connectUrl,
+        async close() {
+          await dependencies.browserbase.releaseSession();
+          await dependencies.browserbase.deleteExtension();
+        },
+      };
+    },
+  };
+}
+`,
+  );
+  fs.writeFileSync(
+    path.join(directory, "browserSource.ts"),
+    `
+export async function resolveBrowserSource(
+  input: { browser: Record<string, unknown> },
+  dependencies: {
+    browserbase: {
+      createSession(params: Record<string, unknown>): Promise<{
+        sessionId: string;
+        cdpUrl: string;
+        close(): Promise<void>;
+      }>;
+    };
+  },
+) {
+  const session = await dependencies.browserbase.createSession(input.browser);
+  return {
+    cdpUrl: session.cdpUrl,
+    browserbaseSessionId: session.sessionId,
+    preloadedExtension: true,
+    keepAlive: false,
+    close: session.close,
+  };
+}
+`,
+  );
+  fs.writeFileSync(
+    path.join(directory, "stagehand.ts"),
+    `
+export function createStagehandWithDependenciesForTest(
+  options: unknown,
+  adapters: {
+    resolveBrowserSource(input: unknown): Promise<{ close(): Promise<void> }>;
+  },
+) {
+  const page = { pageId: "fixture-page" };
+  let browser: { close(): Promise<void> } | undefined;
+  return {
+    context: {
+      clipboard: {},
+      async activePage() { return page; },
+      async pages() { return [page]; },
+      async newPage() { return page; },
+    },
+    async init() {
+      browser = await adapters.resolveBrowserSource(options);
+    },
+    async close() {
+      await browser?.close();
+    },
+  };
+}
+`,
+  );
+  return { directory, sdkPath: path.join(directory, "index.ts") };
+}
+
 describe("V4 code child controller", () => {
+  it("does not start V4 initialization until the bridge is ready", async () => {
+    const child = new FakeBridgeChild();
+    respondSuccessfully(child);
+    const controllerPromise = startV4CodeController({
+      sdkPath: "/synthetic/v4-sdk.ts",
+      bridgePath: "/synthetic/v4CodeBridge.ts",
+      forkProcess: () => child as unknown as ChildProcess,
+      startupTimeoutMs: 100,
+      executeTimeoutMs: 100,
+      closeTimeoutMs: 100,
+    });
+
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(child.sent).toEqual([]);
+
+    child.respond({ type: "bridge_ready" });
+    const controller = await controllerPromise;
+    expect(child.sent[0]?.type).toBe("init");
+    await controller.close();
+  });
+
+  it("rejects promptly when the bridge exits before becoming ready", async () => {
+    const child = new FakeBridgeChild();
+    const controllerPromise = startV4CodeController({
+      sdkPath: "/synthetic/v4-sdk.ts",
+      bridgePath: "/synthetic/v4CodeBridge.ts",
+      forkProcess: () => child as unknown as ChildProcess,
+      startupTimeoutMs: 100,
+      executeTimeoutMs: 100,
+      closeTimeoutMs: 100,
+    });
+
+    child.exit(17, null);
+    await expect(controllerPromise).rejects.toThrow(
+      "V4 code bridge exited unexpectedly (code=17, signal=null)",
+    );
+    expect(child.sent).toEqual([]);
+  });
+
+  it("uses the configured startup timeout while waiting for bridge readiness", async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new FakeBridgeChild();
+      const controllerPromise = startV4CodeController({
+        sdkPath: "/synthetic/v4-sdk.ts",
+        bridgePath: "/synthetic/v4CodeBridge.ts",
+        forkProcess: () => child as unknown as ChildProcess,
+        startupTimeoutMs: 25,
+        executeTimeoutMs: 100,
+        closeTimeoutMs: 100,
+      });
+      const rejection = expect(controllerPromise).rejects.toThrow(
+        "V4 code bridge startup timed out after 25ms",
+      );
+
+      await vi.advanceTimersByTimeAsync(25);
+
+      await rejection;
+      expect(child.sent).toEqual([]);
+      expect(child.disconnectCalls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shares one startup timeout across bridge readiness and initialization", async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new FakeBridgeChild();
+      let settled = false;
+      const controllerPromise = startV4CodeController({
+        sdkPath: "/synthetic/v4-sdk.ts",
+        bridgePath: "/synthetic/v4CodeBridge.ts",
+        forkProcess: () => child as unknown as ChildProcess,
+        startupTimeoutMs: 25,
+        executeTimeoutMs: 100,
+        closeTimeoutMs: 100,
+      });
+      void controllerPromise.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+      const rejection = expect(controllerPromise).rejects.toThrow(
+        "V4 code bridge startup timed out after 25ms",
+      );
+
+      await vi.advanceTimersByTimeAsync(20);
+      child.respond({ type: "bridge_ready" });
+      await vi.advanceTimersByTimeAsync(4);
+
+      expect(child.sent.map((request) => request.type)).toEqual(["init"]);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("initializes, executes by request ID, and closes exactly once", async () => {
     const child = new FakeBridgeChild();
     respondSuccessfully(child);
@@ -121,8 +377,12 @@ describe("V4 code child controller", () => {
     const initRequest = child.sent[0];
     expect(initRequest.type).toBe("init");
     if (initRequest.type !== "init") throw new Error("Expected init request");
-    expect(initRequest.userDataDir?.startsWith(os.tmpdir())).toBe(true);
-    expect(fs.existsSync(initRequest.userDataDir ?? "")).toBe(true);
+    expect(initRequest.browser.type).toBe("local");
+    if (initRequest.browser.type !== "local") {
+      throw new Error("Expected local browser configuration");
+    }
+    expect(initRequest.browser.userDataDir?.startsWith(os.tmpdir())).toBe(true);
+    expect(fs.existsSync(initRequest.browser.userDataDir ?? "")).toBe(true);
     await controller.close();
     await controller.close();
 
@@ -135,6 +395,7 @@ describe("V4 code child controller", () => {
     expect(child.sent[0]).toMatchObject({
       type: "init",
       mode: "deterministic",
+      browser: { type: "local" },
     });
     expect(new Set(child.sent.map((request) => request.id)).size).toBe(3);
     expect(child.disconnectCalls).toBe(1);
@@ -151,7 +412,7 @@ describe("V4 code child controller", () => {
       },
     });
     expect(calls[0].options.env?.[STAGEHAND_V4_SDK_PATH_ENV]).toBeUndefined();
-    expect(fs.existsSync(initRequest.userDataDir ?? "")).toBe(false);
+    expect(fs.existsSync(initRequest.browser.userDataDir ?? "")).toBe(false);
   });
 
   it("serializes console values without dropping undefined", () => {
@@ -195,6 +456,49 @@ describe("V4 code child controller", () => {
     ]);
   });
 
+  it("does not make Browserbase or model credentials ambient in the bridge", async () => {
+    const credentialNames = [
+      "BROWSERBASE_API_KEY",
+      "BROWSERBASE_PROJECT_ID",
+      "BB_API_KEY",
+      "BB_PROJECT_ID",
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "GEMINI_API_KEY",
+      "GOOGLE_GENERATIVE_AI_API_KEY",
+      "GOOGLE_API_KEY",
+      "GROQ_API_KEY",
+      "CEREBRAS_API_KEY",
+    ];
+    const previous = new Map(
+      credentialNames.map((name) => [name, process.env[name]]),
+    );
+    try {
+      for (const name of credentialNames) process.env[name] = "secret-value";
+      const child = new FakeBridgeChild();
+      respondSuccessfully(child);
+      const { forkProcess, calls } = makeFork(child);
+      const controller = await startV4CodeController({
+        sdkPath: "/synthetic/v4-sdk.ts",
+        bridgePath: "/synthetic/v4CodeBridge.ts",
+        forkProcess,
+        startupTimeoutMs: 100,
+        executeTimeoutMs: 100,
+        closeTimeoutMs: 100,
+      });
+      await controller.close();
+
+      for (const name of credentialNames) {
+        expect(calls[0].options.env?.[name]).toBeUndefined();
+      }
+    } finally {
+      for (const [name, value] of previous) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
+
   it("sends AI mode and model configuration through typed init IPC", async () => {
     const child = new FakeBridgeChild();
     respondSuccessfully(child);
@@ -221,6 +525,7 @@ describe("V4 code child controller", () => {
       type: "init",
       mode: "ai",
       sdkPath: "/synthetic/v4-sdk.ts",
+      browser: { type: "local" },
       model: {
         modelName: "anthropic/claude-sonnet-5",
         apiKey: "test-key",
@@ -277,7 +582,10 @@ describe("V4 code child controller", () => {
     expect(calls[0].options.cwd).toBe(os.tmpdir());
     expect(child.sent[0]).toMatchObject({
       type: "init",
-      userDataDir: path.join(os.tmpdir(), "v4-browser-profile"),
+      browser: {
+        type: "local",
+        userDataDir: path.join(os.tmpdir(), "v4-browser-profile"),
+      },
     });
     expect(onConsole).toHaveBeenCalledWith({
       type: "console",
@@ -314,6 +622,446 @@ describe("V4 code child controller", () => {
       controller.execute({ code: "throw new Error()", startUrl: "", task: {} }),
     ).rejects.toThrow("V4 code bridge execute failed: page method failed");
     await controller.close();
+  });
+
+  it("uses Browserbase without creating a local profile and disarms fallback after close ACK", async () => {
+    const workingDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "v4-controller-browserbase-"),
+    );
+    try {
+      const child = new FakeBridgeChild();
+      child.onRequest = (request) => {
+        if (request.type === "init") {
+          child.respond({
+            type: "browserbase_resources",
+            resources: { extensionId: "extension-resource" },
+          });
+          child.respond({
+            type: "browserbase_resources",
+            resources: {
+              extensionId: "extension-resource",
+              sessionId: "session-resource",
+            },
+          });
+        }
+        child.respond({ id: request.id, ok: true });
+      };
+      const { forkProcess } = makeFork(child);
+      const cleanup = vi.fn(async () => {});
+      const cleanupSync = vi.fn();
+      const controller = await startV4CodeController({
+        browser: {
+          type: "browserbase",
+          apiKey: "private-api-key",
+          projectId: "private-project",
+          region: "us-west-2",
+        },
+        sdkPath: "/synthetic/v4-sdk.ts",
+        bridgePath: "/synthetic/v4CodeBridge.ts",
+        forkProcess,
+        workingDirectory,
+        cleanupBrowserbaseResources: cleanup,
+        cleanupBrowserbaseResourcesSync: cleanupSync,
+        startupTimeoutMs: 100,
+        executeTimeoutMs: 100,
+        closeTimeoutMs: 100,
+      });
+
+      expect(child.sent[0]).toEqual({
+        id: 1,
+        type: "init",
+        sdkPath: "/synthetic/v4-sdk.ts",
+        mode: "deterministic",
+        browser: {
+          type: "browserbase",
+          apiKey: "private-api-key",
+          projectId: "private-project",
+          region: "us-west-2",
+        },
+      });
+      expect(controller.getBrowserbaseResources()).toEqual({
+        extensionId: "extension-resource",
+        sessionId: "session-resource",
+      });
+      expect(
+        fs.existsSync(path.join(workingDirectory, "v4-browser-profile")),
+      ).toBe(false);
+
+      await controller.close();
+      expect(cleanup).not.toHaveBeenCalled();
+      expect(cleanupSync).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(workingDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it("recovers a remote native close error after verified fallback cleanup", async () => {
+    const child = new FakeBridgeChild();
+    child.onRequest = (request) => {
+      if (request.type === "init") {
+        child.respond({
+          type: "browserbase_resources",
+          resources: {
+            extensionId: "extension-resource",
+            sessionId: "session-resource",
+          },
+        });
+        child.respond({ id: request.id, ok: true });
+        return;
+      }
+      if (request.type === "close") {
+        child.respond({
+          id: request.id,
+          ok: false,
+          error: { name: "Error", message: "CDP connection closed" },
+        });
+      }
+    };
+    const cleanup = vi.fn(async () => {});
+    const onCloseWarning = vi.fn();
+    const { forkProcess } = makeFork(child);
+    const controller = await startV4CodeController({
+      browser: { type: "browserbase", apiKey: "private-api-key" },
+      sdkPath: "/synthetic/v4-sdk.ts",
+      bridgePath: "/synthetic/v4CodeBridge.ts",
+      forkProcess,
+      cleanupBrowserbaseResources: cleanup,
+      cleanupBrowserbaseResourcesSync: vi.fn(),
+      onCloseWarning,
+      startupTimeoutMs: 100,
+      executeTimeoutMs: 100,
+      closeTimeoutMs: 100,
+    });
+
+    await expect(controller.close()).resolves.toBeUndefined();
+    expect(cleanup).toHaveBeenCalledWith({
+      apiKey: "private-api-key",
+      resources: {
+        extensionId: "extension-resource",
+        sessionId: "session-resource",
+      },
+    });
+    expect(onCloseWarning).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "V4 code bridge close failed: CDP connection closed",
+      }),
+    );
+  });
+
+  it("preserves a remote native close error when fallback cleanup fails", async () => {
+    const existingExitListeners = new Set(process.listeners("exit"));
+    const child = new FakeBridgeChild();
+    child.onRequest = (request) => {
+      if (request.type === "init") {
+        child.respond({
+          type: "browserbase_resources",
+          resources: {
+            extensionId: "extension-resource",
+            sessionId: "session-resource",
+          },
+        });
+        child.respond({ id: request.id, ok: true });
+        return;
+      }
+      if (request.type === "close") {
+        child.respond({
+          id: request.id,
+          ok: false,
+          error: { name: "Error", message: "CDP connection closed" },
+        });
+      }
+    };
+    const cleanup = vi.fn(async () => {
+      throw new Error("cleanup unavailable");
+    });
+    const onCloseWarning = vi.fn();
+    const { forkProcess } = makeFork(child);
+    const controller = await startV4CodeController({
+      browser: { type: "browserbase", apiKey: "private-api-key" },
+      sdkPath: "/synthetic/v4-sdk.ts",
+      bridgePath: "/synthetic/v4CodeBridge.ts",
+      forkProcess,
+      cleanupBrowserbaseResources: cleanup,
+      cleanupBrowserbaseResourcesSync: vi.fn(),
+      onCleanupWarning: vi.fn(),
+      onCloseWarning,
+      startupTimeoutMs: 100,
+      executeTimeoutMs: 100,
+      closeTimeoutMs: 100,
+    });
+
+    await expect(controller.close()).rejects.toThrow(
+      "V4 code bridge close failed: CDP connection closed",
+    );
+    expect(cleanup).toHaveBeenCalled();
+    expect(onCloseWarning).not.toHaveBeenCalled();
+    for (const listener of process.listeners("exit")) {
+      if (!existingExitListeners.has(listener)) {
+        process.removeListener("exit", listener);
+      }
+    }
+  });
+
+  it("preserves local native close errors", async () => {
+    const child = new FakeBridgeChild();
+    child.onRequest = (request) => {
+      if (request.type === "init") {
+        child.respond({ id: request.id, ok: true });
+        return;
+      }
+      if (request.type === "close") {
+        child.respond({
+          id: request.id,
+          ok: false,
+          error: { name: "Error", message: "CDP connection closed" },
+        });
+      }
+    };
+    const onCloseWarning = vi.fn();
+    const { forkProcess } = makeFork(child);
+    const controller = await startV4CodeController({
+      sdkPath: "/synthetic/v4-sdk.ts",
+      bridgePath: "/synthetic/v4CodeBridge.ts",
+      forkProcess,
+      onCloseWarning,
+      startupTimeoutMs: 100,
+      executeTimeoutMs: 100,
+      closeTimeoutMs: 100,
+    });
+
+    await expect(controller.close()).rejects.toThrow(
+      "V4 code bridge close failed: CDP connection closed",
+    );
+    expect(onCloseWarning).not.toHaveBeenCalled();
+  });
+
+  it("falls back to parent-owned Browserbase cleanup after an unexpected child exit", async () => {
+    const existingExitListeners = new Set(process.listeners("exit"));
+    const child = new FakeBridgeChild();
+    child.onRequest = (request) => {
+      if (request.type === "init") {
+        child.respond({
+          type: "browserbase_resources",
+          resources: { extensionId: "extension-resource" },
+        });
+        child.respond({
+          type: "browserbase_resources",
+          resources: { sessionId: "session-resource" },
+        });
+        child.respond({ id: request.id, ok: true });
+        return;
+      }
+      if (request.type === "execute") child.exit(17, null);
+    };
+    const { forkProcess } = makeFork(child);
+    const cleanupError = new Error("cleanup unavailable");
+    const cleanup = vi.fn(async () => {
+      throw cleanupError;
+    });
+    const onCleanupWarning = vi.fn();
+    const controller = await startV4CodeController({
+      browser: {
+        type: "browserbase",
+        apiKey: "private-api-key",
+        projectId: "private-project",
+      },
+      sdkPath: "/synthetic/v4-sdk.ts",
+      bridgePath: "/synthetic/v4CodeBridge.ts",
+      forkProcess,
+      cleanupBrowserbaseResources: cleanup,
+      cleanupBrowserbaseResourcesSync: vi.fn(),
+      onCleanupWarning,
+      startupTimeoutMs: 100,
+      executeTimeoutMs: 100,
+      closeTimeoutMs: 100,
+    });
+
+    await expect(
+      controller.execute({ code: "while (true) {}", startUrl: "", task: {} }),
+    ).rejects.toThrow("V4 code bridge exited unexpectedly");
+    await controller.close();
+
+    expect(cleanup).toHaveBeenCalledTimes(2);
+    expect(cleanup).toHaveBeenCalledWith({
+      apiKey: "private-api-key",
+      projectId: "private-project",
+      resources: {
+        extensionId: "extension-resource",
+        sessionId: "session-resource",
+      },
+    });
+    expect(onCleanupWarning).toHaveBeenCalledTimes(2);
+    expect(onCleanupWarning).toHaveBeenCalledWith(cleanupError);
+    for (const listener of process.listeners("exit")) {
+      if (!existingExitListeners.has(listener)) {
+        process.removeListener("exit", listener);
+      }
+    }
+  });
+
+  it("keeps synchronous parent-exit cleanup armed while asynchronous cleanup is pending", async () => {
+    const existingExitListeners = new Set(process.listeners("exit"));
+    const child = new FakeBridgeChild();
+    child.onRequest = (request) => {
+      if (request.type === "init") {
+        child.respond({
+          type: "browserbase_resources",
+          resources: {
+            extensionId: "extension-resource",
+            sessionId: "session-resource",
+          },
+        });
+        child.respond({ id: request.id, ok: true });
+        return;
+      }
+      if (request.type === "execute") child.exit(17, null);
+    };
+    const cleanupHeld = deferred();
+    const cleanupStarted = deferred();
+    const cleanup = vi.fn(async () => {
+      cleanupStarted.resolve();
+      await cleanupHeld.promise;
+    });
+    const cleanupSync = vi.fn();
+    const { forkProcess } = makeFork(child);
+    const controller = await startV4CodeController({
+      browser: { type: "browserbase", apiKey: "private-api-key" },
+      sdkPath: "/synthetic/v4-sdk.ts",
+      bridgePath: "/synthetic/v4CodeBridge.ts",
+      forkProcess,
+      cleanupBrowserbaseResources: cleanup,
+      cleanupBrowserbaseResourcesSync: cleanupSync,
+      startupTimeoutMs: 100,
+      executeTimeoutMs: 100,
+      closeTimeoutMs: 100,
+    });
+
+    await expect(
+      controller.execute({ code: "while (true) {}", startUrl: "", task: {} }),
+    ).rejects.toThrow("V4 code bridge exited unexpectedly");
+    await cleanupStarted.promise;
+
+    const parentExitHandler = process
+      .listeners("exit")
+      .find((listener) => !existingExitListeners.has(listener));
+    expect(parentExitHandler).toBeDefined();
+    (parentExitHandler as (code: number) => void)(0);
+    expect(cleanupSync).toHaveBeenCalledWith({
+      apiKey: "private-api-key",
+      resources: {
+        extensionId: "extension-resource",
+        sessionId: "session-resource",
+      },
+    });
+
+    const close = controller.close();
+    cleanupHeld.resolve();
+    await close;
+    expect(process.listeners("exit")).not.toContain(parentExitHandler);
+  });
+
+  it("runs another cleanup pass when a session arrives during failed extension cleanup", async () => {
+    const child = new FakeBridgeChild();
+    child.onRequest = (request) => {
+      if (request.type === "init") {
+        child.respond({
+          type: "browserbase_resources",
+          resources: { extensionId: "extension-resource" },
+        });
+        child.respond({ id: request.id, ok: true });
+        return;
+      }
+      if (request.type === "execute") child.exit(17, null);
+    };
+    const firstCleanupHeld = deferred();
+    const firstCleanupStarted = deferred();
+    const cleanupInputs: unknown[] = [];
+    const cleanup = vi.fn(async (cleanupInput) => {
+      cleanupInputs.push(cleanupInput);
+      if (cleanup.mock.calls.length === 1) {
+        firstCleanupStarted.resolve();
+        await firstCleanupHeld.promise;
+        throw new Error("extension cleanup failed");
+      }
+    });
+    const onCleanupWarning = vi.fn();
+    const { forkProcess } = makeFork(child);
+    const controller = await startV4CodeController({
+      browser: { type: "browserbase", apiKey: "private-api-key" },
+      sdkPath: "/synthetic/v4-sdk.ts",
+      bridgePath: "/synthetic/v4CodeBridge.ts",
+      forkProcess,
+      cleanupBrowserbaseResources: cleanup,
+      cleanupBrowserbaseResourcesSync: vi.fn(),
+      onCleanupWarning,
+      startupTimeoutMs: 100,
+      executeTimeoutMs: 100,
+      closeTimeoutMs: 100,
+    });
+
+    await expect(
+      controller.execute({ code: "while (true) {}", startUrl: "", task: {} }),
+    ).rejects.toThrow("V4 code bridge exited unexpectedly");
+    await firstCleanupStarted.promise;
+    child.respond({
+      type: "browserbase_resources",
+      resources: {
+        extensionId: "extension-resource",
+        sessionId: "session-resource",
+      },
+    });
+    firstCleanupHeld.resolve();
+    await controller.close();
+
+    expect(cleanupInputs).toEqual([
+      {
+        apiKey: "private-api-key",
+        resources: { extensionId: "extension-resource" },
+      },
+      {
+        apiKey: "private-api-key",
+        resources: {
+          extensionId: "extension-resource",
+          sessionId: "session-resource",
+        },
+      },
+    ]);
+    expect(onCleanupWarning).toHaveBeenCalledTimes(1);
+  });
+
+  it("cleans partially provisioned Browserbase resources when init fails", async () => {
+    const child = new FakeBridgeChild();
+    child.onRequest = (request) => {
+      child.respond({
+        type: "browserbase_resources",
+        resources: { extensionId: "extension-resource" },
+      });
+      child.respond({
+        id: request.id,
+        ok: false,
+        error: { name: "Error", message: "session creation failed" },
+      });
+    };
+    const { forkProcess } = makeFork(child);
+    const cleanup = vi.fn(async () => {});
+
+    await expect(
+      startV4CodeController({
+        browser: { type: "browserbase", apiKey: "private-api-key" },
+        sdkPath: "/synthetic/v4-sdk.ts",
+        bridgePath: "/synthetic/v4CodeBridge.ts",
+        forkProcess,
+        cleanupBrowserbaseResources: cleanup,
+        cleanupBrowserbaseResourcesSync: vi.fn(),
+        startupTimeoutMs: 100,
+        executeTimeoutMs: 100,
+        closeTimeoutMs: 100,
+      }),
+    ).rejects.toThrow("session creation failed");
+    expect(cleanup).toHaveBeenCalledWith({
+      apiKey: "private-api-key",
+      resources: { extensionId: "extension-resource" },
+    });
   });
 
   it("terminates the child when initialization fails", async () => {
@@ -515,4 +1263,132 @@ describe("V4 code child controller", () => {
       vi.useRealTimers();
     }
   });
+
+  it.each(["extension", "session"] as const)(
+    "cleans the complete resource set when %s provisioning settles after startup timeout",
+    async (lateResource) => {
+      const child = new FakeBridgeChild();
+      const cleanupInputs: unknown[] = [];
+      child.onRequest = (request) => {
+        if (request.type === "init" && lateResource === "session") {
+          child.respond({
+            type: "browserbase_resources",
+            resources: { extensionId: "late-extension-resource" },
+          });
+        }
+      };
+      child.onKill = (signal) => {
+        if (!child.connected) return true;
+        if (signal === "SIGTERM") {
+          if (lateResource === "extension") {
+            child.respond({
+              type: "browserbase_resources",
+              resources: { extensionId: "late-extension-resource" },
+            });
+          }
+          child.respond({
+            type: "browserbase_resources",
+            resources: {
+              extensionId: "late-extension-resource",
+              sessionId: "late-session-resource",
+            },
+          });
+          queueMicrotask(() => child.exit(null, "SIGTERM"));
+        }
+        return true;
+      };
+      const { forkProcess } = makeFork(child);
+
+      await expect(
+        startV4CodeController({
+          browser: { type: "browserbase", apiKey: "private-api-key" },
+          sdkPath: "/synthetic/v4-sdk.ts",
+          bridgePath: "/synthetic/v4CodeBridge.ts",
+          forkProcess,
+          cleanupBrowserbaseResources: async (cleanupInput) => {
+            cleanupInputs.push(cleanupInput);
+          },
+          cleanupBrowserbaseResourcesSync: vi.fn(),
+          startupTimeoutMs: 25,
+          executeTimeoutMs: 100,
+          closeTimeoutMs: 100,
+        }),
+      ).rejects.toThrow("V4 code bridge startup timed out after 25ms");
+
+      expect(cleanupInputs.at(-1)).toEqual({
+        apiKey: "private-api-key",
+        resources: {
+          extensionId: "late-extension-resource",
+          sessionId: "late-session-resource",
+        },
+      });
+    },
+  );
+
+  it.each(["extension", "session"] as const)(
+    "keeps real bridge lifecycle IPC open when %s provisioning settles after SIGTERM",
+    async (lateResource) => {
+      const fixture = makeTerminationGatedBrowserbaseSdk(lateResource);
+      const messages: unknown[] = [];
+      const bridgeReady = deferred();
+      const provisioningStarted = deferred();
+      const child = nodeFork(resolveV4CodeBridgePath(), [], {
+        execArgv: ["--import", import.meta.resolve("tsx")],
+        serialization: "advanced",
+        stdio: ["ignore", "ignore", "ignore", "ipc"],
+      });
+      child.on("message", (message: unknown) => {
+        messages.push(message);
+        if (isRecord(message) && message.type === "bridge_ready") {
+          bridgeReady.resolve();
+        }
+        if (
+          isRecord(message) &&
+          message.type === "fixture_provisioning_started" &&
+          message.resource === lateResource
+        ) {
+          provisioningStarted.resolve();
+        }
+      });
+      try {
+        await bridgeReady.promise;
+        await new Promise<void>((resolve, reject) => {
+          child.send(
+            {
+              id: 1,
+              type: "init",
+              sdkPath: fixture.sdkPath,
+              browser: { type: "browserbase", apiKey: "private-api-key" },
+              mode: "deterministic",
+            } satisfies V4CodeBridgeRequest,
+            (error) => (error ? reject(error) : resolve()),
+          );
+        });
+        await provisioningStarted.promise;
+
+        const closed = new Promise<void>((resolve, reject) => {
+          child.once("error", reject);
+          child.once("close", () => resolve());
+        });
+        child.kill("SIGTERM");
+        await closed;
+
+        expect(messages).toContainEqual({
+          type: "browserbase_resources",
+          resources: {
+            extensionId: "late-extension-resource",
+            sessionId: "late-session-resource",
+          },
+        });
+      } finally {
+        if (!child.killed) child.kill("SIGKILL");
+        fs.rmSync(fixture.directory, { recursive: true, force: true });
+      }
+    },
+    10_000,
+  );
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}

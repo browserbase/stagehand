@@ -2,10 +2,45 @@ import { describe, expect, it } from "vitest";
 import {
   ANTHROPIC_DIRECT_BROWSER_ACCESS_HEADER,
   normalizeV4ModelName,
+  resolveV4BrowserbaseConfig,
   resolveV4CodeModelConfig,
 } from "../../framework/v4CodeConfig.js";
 
 describe("V4 code model configuration", () => {
+  it("resolves canonical and fallback Browserbase credentials without logging values", () => {
+    expect(
+      resolveV4BrowserbaseConfig({
+        BROWSERBASE_API_KEY: " canonical-key ",
+        BROWSERBASE_PROJECT_ID: " canonical-project ",
+        BROWSERBASE_REGION: "us-west-2",
+      }),
+    ).toEqual({
+      type: "browserbase",
+      apiKey: "canonical-key",
+      projectId: "canonical-project",
+      region: "us-west-2",
+    });
+    expect(
+      resolveV4BrowserbaseConfig({
+        BB_API_KEY: "fallback-key",
+        BB_PROJECT_ID: "fallback-project",
+      }),
+    ).toEqual({
+      type: "browserbase",
+      apiKey: "fallback-key",
+      projectId: "fallback-project",
+    });
+    expect(() => resolveV4BrowserbaseConfig({})).toThrow(
+      /BROWSERBASE_API_KEY or BB_API_KEY/,
+    );
+    expect(() =>
+      resolveV4BrowserbaseConfig({
+        BROWSERBASE_API_KEY: "secret-value",
+        BROWSERBASE_REGION: "invalid-region",
+      }),
+    ).toThrow(/BROWSERBASE_REGION must be one of/);
+  });
+
   it("normalizes bare harness model identifiers for V4", () => {
     expect(normalizeV4ModelName("claude-sonnet-5")).toBe(
       "anthropic/claude-sonnet-5",
