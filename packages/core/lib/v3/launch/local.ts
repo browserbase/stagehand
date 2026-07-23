@@ -83,10 +83,18 @@ export async function launchLocalChrome(
     maxConnectionRetries,
   });
 
-  const ws = await waitForWebSocketDebuggerUrl(chrome.port, deadlineMs);
-  await waitForWebSocketReady(ws, deadlineMs);
-
-  return { ws, chrome };
+  try {
+    const ws = await waitForWebSocketDebuggerUrl(chrome.port, deadlineMs);
+    await waitForWebSocketReady(ws, deadlineMs);
+    return { ws, chrome };
+  } catch (error) {
+    try {
+      await chrome.kill();
+    } catch {
+      // best-effort cleanup; preserve the original connection error
+    }
+    throw error;
+  }
 }
 
 async function waitForWebSocketDebuggerUrl(
