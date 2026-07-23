@@ -58,7 +58,7 @@ describe("claude code tool adapter resolution", () => {
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool browse_cli, playwright_code, cdp_code, or v4_code/,
+      /supports --tool browse_cli, playwright_code, cdp_code, v4_code, or v4_code_deterministic/,
     );
   });
 
@@ -70,6 +70,18 @@ describe("claude code tool adapter resolution", () => {
     expect(resolveClaudeCodeStartupProfile("v4_code", "LOCAL")).toBe(
       "tool_launch_local",
     );
+  });
+
+  it("accepts v4_code_deterministic with the same SDK-owned profiles", () => {
+    expect(resolveClaudeCodeToolSurface("v4_code_deterministic")).toBe(
+      "v4_code_deterministic",
+    );
+    expect(
+      resolveClaudeCodeStartupProfile("v4_code_deterministic", "LOCAL"),
+    ).toBe("tool_launch_local");
+    expect(
+      resolveClaudeCodeStartupProfile("v4_code_deterministic", "BROWSERBASE"),
+    ).toBe("tool_create_browserbase");
   });
 
   it("supports browse_cli as the first Codex tool surface", () => {

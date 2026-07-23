@@ -6,10 +6,10 @@
  * Kept deliberately minimal: no agent support (agent tasks are not ported)
  * and no USE_API path (v3-only concept).
  */
-import {
+import type {
+  Page,
   Stagehand,
-  type Page,
-  type StagehandClientInitParams,
+  StagehandClientInitParams,
 } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
 import { getEnv } from "./env.js";
 import type { EvalLogger } from "./logger.js";
@@ -76,6 +76,13 @@ export async function initV4({
   configOverrides,
 }: InitV4Args): Promise<V4InitResult> {
   const env = configOverrides?.env ?? getEnv();
+
+  // Import the SDK lazily: merely loading the tool registry / CLI (e.g. for a
+  // non-v4 command, or a unit test) must not require the unpublished v4-spike
+  // package to be resolvable at module load. Only an actual v4 init pulls it in.
+  const { Stagehand } = await import(
+    "@browserbasehq/stagehand-v4-spike-sdk-ts"
+  );
 
   // The model allow-list is enforced at runtime by the SDK's zod schema
   // (loud, descriptive error on an unsupported model), so the cast here is
