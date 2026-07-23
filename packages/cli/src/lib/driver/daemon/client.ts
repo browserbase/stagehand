@@ -318,7 +318,9 @@ async function cleanupStoppedDaemonFiles(session: string): Promise<void> {
   const locked = await acquireLock(session);
   if (!locked) return;
   try {
-    await cleanupStaleDaemonFiles(session);
+    const status = await tryDriverStatus(session);
+    if (status?.session === session) return;
+    await cleanupDaemonFiles(session, { includeLock: false });
   } finally {
     await releaseLock(session);
   }

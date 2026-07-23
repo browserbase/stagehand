@@ -627,7 +627,7 @@ describe("driver foundation", () => {
     }
   });
 
-  it("treats a daemon disappearing between status and stop as already stopped", async () => {
+  it("cleans a vanished daemon even when its PID has been reused", async () => {
     const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
     cleanupPaths.push(daemonDir);
     const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
@@ -662,7 +662,7 @@ describe("driver foundation", () => {
     });
 
     try {
-      await writeFile(getPidPath(session), "999999");
+      await writeFile(getPidPath(session), String(process.pid));
       await writeFile(getLockPath(session), "999999");
       await new Promise<void>((resolve, reject) => {
         server.once("error", reject);
@@ -673,6 +673,9 @@ describe("driver foundation", () => {
         stopped: false,
       });
       await expect(access(getPidPath(session))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(access(getSocketPath(session))).rejects.toMatchObject({
         code: "ENOENT",
       });
       await expect(access(getLockPath(session))).rejects.toMatchObject({
@@ -736,6 +739,27 @@ describe("driver foundation", () => {
     const restartedServer = net.createServer((socket) => {
       sockets.add(socket);
       socket.once("close", () => sockets.delete(socket));
+      socket.once("data", (chunk) => {
+        const request = JSON.parse(chunk.toString().split("\n")[0] ?? "{}") as {
+          id: string;
+          type: string;
+        };
+        if (request.type !== "status") return;
+
+        socket.end(
+          `${JSON.stringify({
+            data: {
+              browserConnected: true,
+              initialized: true,
+              mode: "managed-local",
+              session,
+              target: { headless: true, kind: "managed-local" },
+            },
+            id: request.id,
+            type: "success",
+          })}\n`,
+        );
+      });
     });
     let resolveLockAttempt: (() => void) | undefined;
     const lockAttempted = new Promise<void>((resolve) => {
@@ -769,7 +793,12 @@ describe("driver foundation", () => {
       });
       await rm(lockPath);
 
-      await expect(stopPromise).resolves.toEqual({ stopped: false });
+      await expect(
+        Promise.race([
+          stopPromise,
+          rejectAfter(1_000, "Stop cleanup did not validate the restart."),
+        ]),
+      ).resolves.toEqual({ stopped: false });
       await expect(access(pidPath)).resolves.toBeUndefined();
       await expect(canConnect(socketPath)).resolves.toBe(true);
     } finally {
