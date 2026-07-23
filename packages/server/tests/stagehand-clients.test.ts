@@ -7,7 +7,10 @@ import {
   StagehandRpcNotificationSchema,
   StagehandSendToHostBindingSchema,
 } from "../../protocol/schema-registry.ts";
-import { startStagehandServiceWorker } from "../service-worker.ts";
+import {
+  startStagehandServiceWorker,
+  type StagehandServiceWorkerScope,
+} from "../service-worker.ts";
 import type {
   StagehandBrowserSession,
   UnderstudyRuntimeClipboardOptions,
@@ -600,6 +603,33 @@ describe("Stagehand worker clients", () => {
       },
       __stagehandReceiveFromHost: expect.any(Function),
     });
+  });
+
+  it("retries resident bootstrap after a bounded resolver failure", async () => {
+    const session = new FakeBrowserSession();
+    const runtime = createStagehandRuntime(
+      { browserSessionFactory: async () => session },
+      testTracing,
+    );
+    const resolveDebuggerUrl = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(new Error("Debugger is still starting"))
+      .mockResolvedValueOnce("ws://127.0.0.1:9222/devtools/browser/session");
+    const scope: StagehandServiceWorkerScope & {
+      [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
+    } = {
+      [STAGEHAND_SEND_TO_HOST_BINDING]: () => {},
+    };
+
+    startStagehandServiceWorker(scope, runtime, {
+      autoBootstrap: true,
+      resolveDebuggerUrl,
+    });
+
+    await vi.waitFor(() => {
+      expect(scope.__stagehand_runtime).toMatchObject({ state: "ready", connected: true });
+    });
+    expect(resolveDebuggerUrl).toHaveBeenCalledTimes(2);
   });
 
   it("returns responses without streaming debug logs at the default info level", async () => {

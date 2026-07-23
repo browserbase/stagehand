@@ -20,6 +20,9 @@ describe("runtime descriptor", () => {
         name: "stagehand",
         version: "4.0.0",
       },
+      state: "starting",
+      connected: false,
+      timings: {},
     });
   });
 

@@ -27,6 +27,10 @@ export type HandlerContext = {
   logger: StagehandLogger;
 };
 
+export type RPCRouterOptions = {
+  beforeRuntimeConfigure?: () => void;
+};
+
 export class RPCRouter {
   readonly runtimeController;
   readonly browserController;
@@ -35,7 +39,10 @@ export class RPCRouter {
   readonly pageController;
   readonly locatorController;
 
-  constructor(readonly runtime: StagehandRuntime) {
+  constructor(
+    readonly runtime: StagehandRuntime,
+    private readonly options: RPCRouterOptions = {},
+  ) {
     this.runtimeController = createRuntimeController(runtime);
     this.browserController = createBrowserController(runtime);
     this.stagehandController = createStagehandController(runtime);
@@ -89,11 +96,11 @@ export class RPCRouter {
           parseParams(StagehandMethods.ping, request.params),
           context,
         );
-      case "runtime.configure":
-        return this.runtimeController.configure(
-          parseParams(StagehandMethods.runtimeConfigure, request.params),
-          context,
-        );
+      case "runtime.configure": {
+        const params = parseParams(StagehandMethods.runtimeConfigure, request.params);
+        this.options.beforeRuntimeConfigure?.();
+        return this.runtimeController.configure(params, context);
+      }
       case "runtime.loopback_status":
         return this.runtimeController.loopbackStatus(
           parseParams(StagehandMethods.runtimeLoopbackStatus, request.params),
