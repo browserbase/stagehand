@@ -3,7 +3,7 @@
 TypeScript object wrapper for the Stagehand v4 service-worker protocol.
 
 ```ts
-import { Stagehand } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({ client });
 await stagehand.init();

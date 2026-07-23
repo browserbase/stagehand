@@ -1,7 +1,17 @@
 {
-  "name": "v4-spike",
-  "version": "0.0.0",
+  "name": "stagehand-workspace",
+  "version": "4.0.0",
   "private": true,
+  "description": "Stagehand monorepo workspace",
+  "homepage": "https://stagehand.dev",
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git"
+  },
   "type": "module",
   "scripts": {
     "check": "vp check && vp run -F ./packages/docs check",
