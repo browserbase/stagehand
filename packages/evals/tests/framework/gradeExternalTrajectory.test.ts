@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  Rubric,
-  TaskSpec,
-  Trajectory,
-  TrajectoryStep,
-} from "@browserbasehq/stagehand";
+import type { Rubric, TaskSpec, Trajectory, TrajectoryStep } from "@browserbasehq/stagehand";
 
 import { gradeExternalTrajectory } from "../../framework/verifierAdapter.js";
 import { EvalLogger } from "../../logger.js";
@@ -80,8 +75,7 @@ describe("gradeExternalTrajectory", () => {
   afterEach(() => {
     if (savedSuccessMode === undefined) delete process.env.EVAL_SUCCESS_MODE;
     else process.env.EVAL_SUCCESS_MODE = savedSuccessMode;
-    if (savedPersist === undefined)
-      delete process.env.VERIFIER_PERSIST_TRAJECTORIES;
+    if (savedPersist === undefined) delete process.env.VERIFIER_PERSIST_TRAJECTORIES;
     else process.env.VERIFIER_PERSIST_TRAJECTORIES = savedPersist;
     mockState.evaluationResult = { outcomeSuccess: true, processScore: 0.92 };
   });

@@ -77,10 +77,7 @@ export async function executeBenchTask(
         debugUrl: harnessCtx.debugUrl,
         sessionUrl: harnessCtx.sessionUrl,
       };
-      return withBenchSessionUrls(
-        (await taskModule.definition.fn(ctx)) as TaskResult,
-        harnessCtx,
-      );
+      return withBenchSessionUrls((await taskModule.definition.fn(ctx)) as TaskResult, harnessCtx);
     }
     if (taskModule.legacyFn) {
       return withBenchSessionUrls(
@@ -117,10 +114,7 @@ export async function executeBenchTask(
     return withBenchSessionUrls(
       {
         _success: false,
-        error:
-          error instanceof Error
-            ? JSON.parse(JSON.stringify(error, null, 2))
-            : String(error),
+        error: error instanceof Error ? JSON.parse(JSON.stringify(error, null, 2)) : String(error),
         logs: logger.getLogs(),
       },
       harnessCtx,

@@ -24,8 +24,7 @@ export default defineBenchTask(
       });
 
       const halfwayScroll = scrollInfo.scrollHeight / 2;
-      const halfwayReached =
-        Math.abs(scrollInfo.scrollTop - halfwayScroll) <= 1;
+      const halfwayReached = Math.abs(scrollInfo.scrollTop - halfwayScroll) <= 1;
       const evaluationResult = halfwayReached
         ? {
             _success: true,

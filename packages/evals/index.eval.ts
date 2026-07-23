@@ -16,11 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
-import {
-  DEFAULT_EVAL_CATEGORIES,
-  filterByCategory,
-  filterByEvalName,
-} from "./args.js";
+import { DEFAULT_EVAL_CATEGORIES, filterByCategory, filterByEvalName } from "./args.js";
 import { generateExperimentName } from "./utils.js";
 import {
   buildTrajectoryGroupSlug,
@@ -74,10 +70,7 @@ const moduleDir = getCurrentDirPath();
  * tasks/bench/<category>/. We scan bench subdirectories for a matching file.
  * Falls back to the old flat tasks/ layout for backward compatibility.
  */
-function resolveTaskModulePath(
-  baseDir: string,
-  taskName: string,
-): string | undefined {
+function resolveTaskModulePath(baseDir: string, taskName: string): string | undefined {
   const extensions = [".js", ".ts"];
 
   // If the task name includes "agent/", look in bench/agent/
@@ -97,9 +90,7 @@ function resolveTaskModulePath(
       .filter((d: fs.Dirent) => d.isDirectory())
       .map((d: fs.Dirent) => d.name);
 
-    const baseName = taskName.includes("/")
-      ? taskName.split("/").pop()!
-      : taskName;
+    const baseName = taskName.includes("/") ? taskName.split("/").pop()! : taskName;
     for (const cat of categories) {
       for (const ext of extensions) {
         const p = path.join(benchDir, cat, baseName + ext);
@@ -125,9 +116,7 @@ const MAX_CONCURRENCY = process.env.EVAL_MAX_CONCURRENCY
   ? parseInt(process.env.EVAL_MAX_CONCURRENCY, 10)
   : 3;
 
-const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
-  ? parseInt(process.env.EVAL_TRIAL_COUNT, 10)
-  : 3;
+const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT ? parseInt(process.env.EVAL_TRIAL_COUNT, 10) : 3;
 
 const USE_API: boolean = (process.env.USE_API ?? "").toLowerCase() === "true";
 console.log(`[EVALS] USE_API: ${USE_API}`);
@@ -156,8 +145,7 @@ const generateFilteredTestcases = (): Testcase[] => {
     const taskCategories = tasksByName[filterByEvalName]?.categories || [];
     if (
       taskCategories.length === 1 &&
-      (taskCategories[0] === "agent" ||
-        taskCategories[0] === "external_agent_benchmarks")
+      (taskCategories[0] === "agent" || taskCategories[0] === "external_agent_benchmarks")
     ) {
       // Treat this run as an agent category run for model selection
       effectiveCategory = taskCategories[0];
@@ -173,19 +161,14 @@ const generateFilteredTestcases = (): Testcase[] => {
   } else {
     // If no specific task or category filter, run tasks from default categories
     taskNamesToRun = Object.keys(tasksByName).filter((name) =>
-      DEFAULT_EVAL_CATEGORIES.some((category) =>
-        tasksByName[name].categories.includes(category),
-      ),
+      DEFAULT_EVAL_CATEGORIES.some((category) => tasksByName[name].categories.includes(category)),
     );
   }
 
   // Dynamically determine the MODELS based on the effective category
   const currentModels = getModelList(effectiveCategory);
 
-  console.log(
-    `Using models for this run (${effectiveCategory || "default"}):`,
-    currentModels,
-  );
+  console.log(`Using models for this run (${effectiveCategory || "default"}):`, currentModels);
 
   // Check for dataset filter from environment
   const datasetFilter = process.env.EVAL_DATASET;
@@ -195,9 +178,7 @@ const generateFilteredTestcases = (): Testcase[] => {
   // Special handling: fan out WebVoyager dataset for agent/webvoyager
   const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager");
   // Special handling: fan out Mind2Web dataset for agent/onlineMind2Web
-  const isMind2WebTaskIncluded = taskNamesToRun.includes(
-    "agent/onlineMind2Web",
-  );
+  const isMind2WebTaskIncluded = taskNamesToRun.includes("agent/onlineMind2Web");
 
   let allTestcases: Testcase[] = [];
 
@@ -211,78 +192,46 @@ const generateFilteredTestcases = (): Testcase[] => {
   }
 
   // Only include WebVoyager if no dataset filter or if webvoyager is selected
-  if (
-    isWebVoyagerTaskIncluded &&
-    (!datasetFilter || datasetFilter === "webvoyager")
-  ) {
+  if (isWebVoyagerTaskIncluded && (!datasetFilter || datasetFilter === "webvoyager")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
     allTestcases.push(...buildWebVoyagerTestcases(currentModels));
-  } else if (
-    isWebVoyagerTaskIncluded &&
-    datasetFilter &&
-    datasetFilter !== "webvoyager"
-  ) {
+  } else if (isWebVoyagerTaskIncluded && datasetFilter && datasetFilter !== "webvoyager") {
     // Remove WebVoyager from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
   }
 
   // Only include Mind2Web if no dataset filter or if onlineMind2Web is selected
-  if (
-    isMind2WebTaskIncluded &&
-    (!datasetFilter || datasetFilter === "onlineMind2Web")
-  ) {
+  if (isMind2WebTaskIncluded && (!datasetFilter || datasetFilter === "onlineMind2Web")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/onlineMind2Web");
     allTestcases.push(...buildOnlineMind2WebTestcases(currentModels));
-  } else if (
-    isMind2WebTaskIncluded &&
-    datasetFilter &&
-    datasetFilter !== "onlineMind2Web"
-  ) {
+  } else if (isMind2WebTaskIncluded && datasetFilter && datasetFilter !== "onlineMind2Web") {
     // Remove Mind2Web from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/onlineMind2Web");
   }
 
   // Special handling: fan out WebTailBench dataset for agent/webtailbench
-  const isWebTailBenchTaskIncluded =
-    taskNamesToRun.includes("agent/webtailbench");
+  const isWebTailBenchTaskIncluded = taskNamesToRun.includes("agent/webtailbench");
 
-  if (
-    isWebTailBenchTaskIncluded &&
-    (!datasetFilter || datasetFilter === "webtailbench")
-  ) {
+  if (isWebTailBenchTaskIncluded && (!datasetFilter || datasetFilter === "webtailbench")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webtailbench");
     allTestcases.push(...buildWebTailBenchTestcases(currentModels));
-  } else if (
-    isWebTailBenchTaskIncluded &&
-    datasetFilter &&
-    datasetFilter !== "webtailbench"
-  ) {
+  } else if (isWebTailBenchTaskIncluded && datasetFilter && datasetFilter !== "webtailbench") {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webtailbench");
   }
 
   // Special handling: fan out OdysseysBench dataset for agent/odysseysbench
-  const isOdysseysBenchTaskIncluded = taskNamesToRun.includes(
-    "agent/odysseysbench",
-  );
+  const isOdysseysBenchTaskIncluded = taskNamesToRun.includes("agent/odysseysbench");
 
-  if (
-    isOdysseysBenchTaskIncluded &&
-    (!datasetFilter || datasetFilter === "odysseysbench")
-  ) {
+  if (isOdysseysBenchTaskIncluded && (!datasetFilter || datasetFilter === "odysseysbench")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/odysseysbench");
     allTestcases.push(...buildOdysseysBenchTestcases(currentModels));
-  } else if (
-    isOdysseysBenchTaskIncluded &&
-    datasetFilter &&
-    datasetFilter !== "odysseysbench"
-  ) {
+  } else if (isOdysseysBenchTaskIncluded && datasetFilter && datasetFilter !== "odysseysbench") {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/odysseysbench");
   }
 
   // Create a list of all remaining testcases using the determined task names and models
   const isAgentCategory =
-    effectiveCategory === "agent" ||
-    effectiveCategory === "external_agent_benchmarks";
+    effectiveCategory === "agent" || effectiveCategory === "external_agent_benchmarks";
 
   // Use agent model entries (with cua flag) for agent categories, otherwise map currentModels
   const modelEntries = isAgentCategory
@@ -332,10 +281,7 @@ const generateFilteredTestcases = (): Testcase[] => {
   console.log(
     "Final test cases to run:",
     allTestcases
-      .map(
-        (t, i) =>
-          `${i}: ${t.name} (${t.input.modelName}): ${tasksByName[t.name].categories}`,
-      )
+      .map((t, i) => `${i}: ${t.name} (${t.input.modelName}): ${tasksByName[t.name].categories}`)
       .join("\n"),
   );
 
@@ -368,8 +314,7 @@ const generateFilteredTestcases = (): Testcase[] => {
     environment: env,
   });
   // Determine braintrust project name to use (stagehand in CI, stagehand-dev otherwise)
-  const braintrustProjectName =
-    process.env.CI === "true" ? "stagehand" : "stagehand-dev";
+  const braintrustProjectName = process.env.CI === "true" ? "stagehand" : "stagehand-dev";
 
   try {
     // Materialized rather than passed to Eval() as a lazy generator: the group must
@@ -445,10 +390,7 @@ const generateFilteredTestcases = (): Testcase[] => {
           // Check for defineBenchTask default export
           if (typeof taskFunction !== "function" && taskModule.default) {
             const defaultExport = taskModule.default;
-            if (
-              defaultExport.__taskDefinition === true &&
-              typeof defaultExport.fn === "function"
-            ) {
+            if (defaultExport.__taskDefinition === true && typeof defaultExport.fn === "function") {
               taskFunction = defaultExport.fn;
             }
           }
@@ -460,8 +402,7 @@ const generateFilteredTestcases = (): Testcase[] => {
           }
 
           // Execute the task
-          const isAgentTask =
-            input.name.startsWith("agent/") || input.name.includes("/agent/");
+          const isAgentTask = input.name.startsWith("agent/") || input.name.includes("/agent/");
           if (USE_API) {
             // Derive provider from model. Prefer explicit "provider/model"; otherwise infer for agent models
             let provider: string;
@@ -563,10 +504,7 @@ const generateFilteredTestcases = (): Testcase[] => {
             } catch (closeError) {
               // Log but don't throw - we don't want close errors to mask
               // the original task result or prevent subsequent evals
-              console.error(
-                `Warning: Error closing V3 instance for ${input.name}:`,
-                closeError,
-              );
+              console.error(`Warning: Error closing V3 instance for ${input.name}:`, closeError);
             }
           }
           await endBrowserbaseSession(v3ToClose);
@@ -583,9 +521,7 @@ const generateFilteredTestcases = (): Testcase[] => {
     // Map results to the SummaryResult format
     const summaryResults: SummaryResult[] = evalResult.results.map((result) => {
       const output =
-        typeof result.output === "boolean"
-          ? { _success: result.output }
-          : result.output;
+        typeof result.output === "boolean" ? { _success: result.output } : result.output;
 
       return {
         input: result.input,

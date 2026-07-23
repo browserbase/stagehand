@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/namespaced-xpath/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/namespaced-xpath/");
 
       await v3.act("fill 'nunya' into the 'type here' form");
 

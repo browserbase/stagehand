@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/");
 
       await v3.act("click the button to open the other page");
       await v3.act("click the button to open the other page");
@@ -36,8 +34,7 @@ export default defineBenchTask(
 
       activePage = await v3.context.awaitActivePage();
       currentPageUrl = await activePage.url();
-      expectedUrl =
-        "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page2.html";
+      expectedUrl = "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page2.html";
       if (currentPageUrl !== expectedUrl) {
         return {
           _success: false,

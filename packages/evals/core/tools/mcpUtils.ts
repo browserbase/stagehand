@@ -27,9 +27,7 @@ type McpEmbeddedResourceContent = {
 };
 
 export type McpToolResult = {
-  content?: Array<
-    McpTextContent | McpImageContent | McpEmbeddedResourceContent
-  >;
+  content?: Array<McpTextContent | McpImageContent | McpEmbeddedResourceContent>;
   isError?: boolean;
   structuredContent?: unknown;
 };
@@ -105,9 +103,7 @@ export function extractMcpText(result: McpToolResult): string {
   return parts.join("\n").trim();
 }
 
-export function extractMcpImage(
-  result: McpToolResult,
-): { data: string; mimeType?: string } | null {
+export function extractMcpImage(result: McpToolResult): { data: string; mimeType?: string } | null {
   for (const item of result.content ?? []) {
     if (item.type === "image") {
       return {
@@ -126,11 +122,7 @@ export function parseLooseJson<T>(text: string): T {
     while (typeof current === "string") {
       const trimmed = current.trim();
       if (!trimmed) break;
-      if (
-        !trimmed.startsWith("{") &&
-        !trimmed.startsWith("[") &&
-        !trimmed.startsWith('"')
-      ) {
+      if (!trimmed.startsWith("{") && !trimmed.startsWith("[") && !trimmed.startsWith('"')) {
         break;
       }
       try {
@@ -173,9 +165,7 @@ export function parseLooseJson<T>(text: string): T {
   }
 }
 
-export function parseChromeDevtoolsListedPages(
-  text: string,
-): ParsedListedPage[] {
+export function parseChromeDevtoolsListedPages(text: string): ParsedListedPage[] {
   const pages = new Map<number, ParsedListedPage>();
   const lines = text.split(/\r?\n/);
 
@@ -183,9 +173,7 @@ export function parseChromeDevtoolsListedPages(
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    const urlMatch = trimmed.match(
-      /(https?:\/\/\S+|about:blank|data:[^\s|]+|chrome:\/\/[^\s|]+)/i,
-    );
+    const urlMatch = trimmed.match(/(https?:\/\/\S+|about:blank|data:[^\s|]+|chrome:\/\/[^\s|]+)/i);
     if (!urlMatch) continue;
     const url = urlMatch[1];
 
@@ -209,15 +197,10 @@ export function parseChromeDevtoolsListedPages(
     pages.set(toolPageId, { toolPageId, url });
   }
 
-  return [...pages.values()].sort(
-    (left, right) => left.toolPageId - right.toolPageId,
-  );
+  return [...pages.values()].sort((left, right) => left.toolPageId - right.toolPageId);
 }
 
-function normalizeToolError(
-  result: McpToolResult,
-  toolName: string,
-): Error | null {
+function normalizeToolError(result: McpToolResult, toolName: string): Error | null {
   if (!result.isError) return null;
   const text = extractMcpText(result);
   return new Error(text || `MCP tool "${toolName}" failed`);
@@ -286,25 +269,18 @@ export class StdioMcpRuntime {
     private readonly artifactDir: string,
   ) {}
 
-  static async connect(
-    options: StdioMcpConnectionOptions,
-  ): Promise<StdioMcpRuntime> {
+  static async connect(options: StdioMcpConnectionOptions): Promise<StdioMcpRuntime> {
     const client = await connectToMCPServer({
       command: options.command,
       args: options.args,
       env: createPnpmDlxEnv(options.env),
     });
     const artifactBaseDir = options.artifactRootDir ?? os.tmpdir();
-    const artifactDir = await mkdtemp(
-      path.join(artifactBaseDir, "stagehand-evals-mcp-"),
-    );
+    const artifactDir = await mkdtemp(path.join(artifactBaseDir, "stagehand-evals-mcp-"));
     return new StdioMcpRuntime(client, artifactDir);
   }
 
-  async callTool(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<McpToolResult> {
+  async callTool(toolName: string, args: Record<string, unknown>): Promise<McpToolResult> {
     const result = (await this.client.callTool({
       name: toolName,
       arguments: args,
@@ -314,18 +290,12 @@ export class StdioMcpRuntime {
     return result;
   }
 
-  async callText(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<string> {
+  async callText(toolName: string, args: Record<string, unknown>): Promise<string> {
     const result = await this.callTool(toolName, args);
     return extractMcpText(result);
   }
 
-  async callJson<T>(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<T> {
+  async callJson<T>(toolName: string, args: Record<string, unknown>): Promise<T> {
     const text = await this.callText(toolName, args);
     return parseLooseJson<T>(text);
   }
@@ -346,9 +316,7 @@ export class StdioMcpRuntime {
     try {
       await this.client.close();
     } finally {
-      await rm(this.artifactDir, { recursive: true, force: true }).catch(
-        () => {},
-      );
+      await rm(this.artifactDir, { recursive: true, force: true }).catch(() => {});
     }
   }
 }

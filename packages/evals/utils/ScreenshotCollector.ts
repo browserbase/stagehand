@@ -103,10 +103,7 @@ export class ScreenshotCollector {
             shouldKeep = false;
           } else {
             // Significant difference detected, verify with SSIM
-            const ssim = await this.calculateSSIM(
-              this.lastScreenshot,
-              screenshot,
-            );
+            const ssim = await this.calculateSSIM(this.lastScreenshot, screenshot);
             shouldKeep = ssim < this.ssimThreshold;
           }
         } catch (error) {
@@ -166,10 +163,7 @@ export class ScreenshotCollector {
             shouldKeep = false;
           } else {
             // Significant difference detected, verify with SSIM
-            const ssim = await this.calculateSSIM(
-              this.lastScreenshot,
-              screenshot,
-            );
+            const ssim = await this.calculateSSIM(this.lastScreenshot, screenshot);
             shouldKeep = ssim < this.ssimThreshold;
           }
         } catch (error) {
@@ -249,8 +243,7 @@ export class ScreenshotCollector {
       const cov12 = sum12 / N - mean1 * mean2;
 
       const numerator = (2 * mean1 * mean2 + c1) * (2 * cov12 + c2);
-      const denominator =
-        (mean1 * mean1 + mean2 * mean2 + c1) * (var1 + var2 + c2);
+      const denominator = (mean1 * mean1 + mean2 * mean2 + c1) * (var1 + var2 + c2);
 
       return numerator / denominator;
     } catch {

@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes/");
 
       await v3.act("type 'stagehand' into the 'username' field");
 
@@ -16,9 +14,7 @@ export default defineBenchTask(
         .frameLocator("iframe.lvl2") // level 2
         .frameLocator("iframe.lvl3"); // level 3 – form lives here
 
-      const usernameText = await inner
-        .locator('input[name="username"]')
-        .inputValue();
+      const usernameText = await inner.locator('input[name="username"]').inputValue();
 
       const passed: boolean = usernameText.toLowerCase().trim() === "stagehand";
 

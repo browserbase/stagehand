@@ -27,10 +27,7 @@ fs.rmSync(`${repoRoot}/packages/evals/dist/esm`, {
 run(["exec", "tsc", "-p", "packages/evals/tsconfig.json"]);
 
 fs.mkdirSync(`${repoRoot}/packages/evals/dist/esm`, { recursive: true });
-fs.writeFileSync(
-  `${repoRoot}/packages/evals/dist/esm/package.json`,
-  '{\n  "type": "module"\n}\n',
-);
+fs.writeFileSync(`${repoRoot}/packages/evals/dist/esm/package.json`, '{\n  "type": "module"\n}\n');
 
 const copyFile = (filename: string) => {
   const src = `${repoRoot}/packages/evals/${filename}`;

@@ -5,20 +5,14 @@ import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { PreparedClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
 import { claudeCodeAdapter } from "./harnesses/claudeCodeAdapter.js";
-import {
-  gradeExternalTrajectory,
-  type ExternalHarnessVerifierConfig,
-} from "./verifierAdapter.js";
+import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 type ClaudeSdkMessage = Record<string, unknown>;
 type ClaudeQuery = AsyncIterable<ClaudeSdkMessage>;
 type MetricValue = { count: number; value: number };
 
 export type ClaudeAgentSdk = {
-  query: (input: {
-    prompt: string;
-    options?: Record<string, unknown>;
-  }) => ClaudeQuery;
+  query: (input: { prompt: string; options?: Record<string, unknown> }) => ClaudeQuery;
 };
 
 export interface ClaudeCodeRunnerInput {
@@ -67,8 +61,7 @@ export function buildClaudeCodePrompt(
     "Instruction:",
     plan.instruction,
     "",
-    toolInstructions ??
-      "Use the available browser/web tools to complete the task.",
+    toolInstructions ?? "Use the available browser/web tools to complete the task.",
     "At the end, print exactly one line beginning with EVAL_RESULT: followed by compact JSON.",
     'The JSON schema is: {"success": boolean, "summary": string, "finalAnswer": string}.',
   ]
@@ -117,8 +110,7 @@ function tryParseClaudeCodeJson(
     return {
       success: parsed.success === true,
       summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
-      finalAnswer:
-        typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : undefined,
+      finalAnswer: typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : undefined,
     };
   } catch {
     return undefined;
@@ -127,9 +119,7 @@ function tryParseClaudeCodeJson(
 
 export function isClaudeCodeMaxTurnsError(value: unknown): boolean {
   const message = stringifyError(value);
-  return /(?:maximum number of turns|max(?:imum)? turns|turn limit)/i.test(
-    message,
-  );
+  return /(?:maximum number of turns|max(?:imum)? turns|turn limit)/i.test(message);
 }
 
 export async function runClaudeCodeAgent({
@@ -145,11 +135,7 @@ export async function runClaudeCodeAgent({
   const abortController = new AbortController();
   if (signal) {
     if (signal.aborted) abortController.abort(signal.reason);
-    signal.addEventListener(
-      "abort",
-      () => abortController.abort(signal.reason),
-      { once: true },
-    );
+    signal.addEventListener("abort", () => abortController.abort(signal.reason), { once: true });
   }
 
   const messages: ClaudeSdkMessage[] = [];
@@ -157,11 +143,9 @@ export async function runClaudeCodeAgent({
   const allowedTools =
     toolAdapter?.allowedTools ??
     readCsvEnv("EVAL_CLAUDE_CODE_ALLOWED_TOOLS", ["WebFetch", "WebSearch"]);
-  const permissionMode =
-    process.env.EVAL_CLAUDE_CODE_PERMISSION_MODE ?? "default";
+  const permissionMode = process.env.EVAL_CLAUDE_CODE_PERMISSION_MODE ?? "default";
   const maxTurns = readPositiveIntEnv("EVAL_CLAUDE_CODE_MAX_TURNS", 50);
-  const pathToClaudeCodeExecutable =
-    process.env.EVAL_CLAUDE_CODE_EXECUTABLE || undefined;
+  const pathToClaudeCodeExecutable = process.env.EVAL_CLAUDE_CODE_EXECUTABLE || undefined;
 
   let resultText = "";
   let resultMessage: ClaudeSdkMessage | undefined;
@@ -290,46 +274,32 @@ function buildClaudeCodeMetrics(
     claude_code_cost_usd: metricValue(resultMessage?.total_cost_usd),
     claude_code_input_tokens: metricValue(tokenUsage.inputTokens),
     claude_code_output_tokens: metricValue(tokenUsage.outputTokens),
-    claude_code_cache_creation_input_tokens: metricValue(
-      tokenUsage.cacheCreationInputTokens,
-    ),
-    claude_code_cache_read_input_tokens: metricValue(
-      tokenUsage.cacheReadInputTokens,
-    ),
+    claude_code_cache_creation_input_tokens: metricValue(tokenUsage.cacheCreationInputTokens),
+    claude_code_cache_read_input_tokens: metricValue(tokenUsage.cacheReadInputTokens),
     claude_code_total_tokens: metricValue(tokenUsage.totalTokens),
   };
 }
 
-function extractClaudeCodeTokenUsage(
-  resultMessage: ClaudeSdkMessage | undefined,
-): {
+function extractClaudeCodeTokenUsage(resultMessage: ClaudeSdkMessage | undefined): {
   inputTokens: number;
   outputTokens: number;
   cacheCreationInputTokens: number;
   cacheReadInputTokens: number;
   totalTokens: number;
 } {
-  const usage = isRecord(resultMessage?.usage)
-    ? resultMessage.usage
-    : undefined;
+  const usage = isRecord(resultMessage?.usage) ? resultMessage.usage : undefined;
 
   const inputTokens =
-    readNumber(usage, "input_tokens") ??
-    sumModelUsage(resultMessage, "inputTokens");
+    readNumber(usage, "input_tokens") ?? sumModelUsage(resultMessage, "inputTokens");
   const outputTokens =
-    readNumber(usage, "output_tokens") ??
-    sumModelUsage(resultMessage, "outputTokens");
+    readNumber(usage, "output_tokens") ?? sumModelUsage(resultMessage, "outputTokens");
   const cacheCreationInputTokens =
     readNumber(usage, "cache_creation_input_tokens") ??
     sumModelUsage(resultMessage, "cacheCreationInputTokens");
   const cacheReadInputTokens =
     readNumber(usage, "cache_read_input_tokens") ??
     sumModelUsage(resultMessage, "cacheReadInputTokens");
-  const totalTokens =
-    inputTokens +
-    outputTokens +
-    cacheCreationInputTokens +
-    cacheReadInputTokens;
+  const totalTokens = inputTokens + outputTokens + cacheCreationInputTokens + cacheReadInputTokens;
 
   return {
     inputTokens,
@@ -340,10 +310,7 @@ function extractClaudeCodeTokenUsage(
   };
 }
 
-function sumModelUsage(
-  resultMessage: ClaudeSdkMessage | undefined,
-  key: string,
-): number {
+function sumModelUsage(resultMessage: ClaudeSdkMessage | undefined, key: string): number {
   if (!isRecord(resultMessage?.modelUsage)) return 0;
 
   let total = 0;
@@ -361,10 +328,7 @@ function metricValue(value: unknown): MetricValue {
   };
 }
 
-function readNumber(
-  record: Record<string, unknown> | undefined,
-  key: string,
-): number | undefined {
+function readNumber(record: Record<string, unknown> | undefined, key: string): number | undefined {
   if (!record || !(key in record)) return undefined;
   return toFiniteNumber(record[key]);
 }
@@ -384,10 +348,7 @@ function resolveClaudeCodeStatus(
   resultMessage: ClaudeSdkMessage | undefined,
   iterationError: unknown,
 ): "completed" | "max_turns" | "sdk_error" {
-  if (
-    isClaudeCodeMaxTurnsError(iterationError) ||
-    isClaudeCodeMaxTurnsError(resultMessage)
-  ) {
+  if (isClaudeCodeMaxTurnsError(iterationError) || isClaudeCodeMaxTurnsError(resultMessage)) {
     return "max_turns";
   }
   if (iterationError || resultMessage?.is_error === true) {
@@ -420,10 +381,7 @@ function buildClaudeCodeTranscript(messages: ClaudeSdkMessage[]): string {
     .join("\n");
 }
 
-function logClaudeCodeMessage(
-  logger: EvalLogger,
-  message: ClaudeSdkMessage,
-): void {
+function logClaudeCodeMessage(logger: EvalLogger, message: ClaudeSdkMessage): void {
   const summary = summarizeClaudeCodeMessage(message);
   logger.log({
     category: "claude_code",
@@ -519,9 +477,7 @@ function stringifyError(value: unknown): string {
 }
 
 function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength
-    ? value
-    : `${value.slice(0, maxLength - 1)}…`;
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
 }
 
 async function loadClaudeAgentSdk(): Promise<ClaudeAgentSdk> {

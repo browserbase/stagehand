@@ -2,10 +2,7 @@ import type { TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";
-import {
-  runWithVerifier,
-  evaluationResultToSuccess,
-} from "../../../framework/verifierAdapter.js";
+import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/sf_library_card_multiple" },
@@ -15,16 +12,13 @@ export default defineBenchTask(
       const page = v3.context.pages()[0];
       await page.goto(initUrl);
 
-      const instruction =
-        "Fill in ALL the required fields with mock data. DO NOT submit the form";
+      const instruction = "Fill in ALL the required fields with mock data. DO NOT submit the form";
 
       const taskSpec: TaskSpec = {
         id: "agent/sf_library_card_multiple",
         instruction,
         initUrl,
-        precomputedRubric: adHocRubric(
-          "Does the page show all the required fields filled?",
-        ),
+        precomputedRubric: adHocRubric("Does the page show all the required fields filled?"),
       };
 
       const { evaluationResult, trajectoryDir } = await runWithVerifier({

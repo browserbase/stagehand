@@ -15,8 +15,7 @@ export default defineBenchTask(
       const url = page.url();
 
       const isCorrectUrl =
-        (await url) ===
-        "https://docs.browserbase.com/introduction/what-is-browserbase";
+        (await url) === "https://docs.browserbase.com/introduction/what-is-browserbase";
 
       return {
         _success: isCorrectUrl,

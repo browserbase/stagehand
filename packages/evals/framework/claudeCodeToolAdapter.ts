@@ -55,23 +55,12 @@ export interface BrowseCliHarnessAdapterInput {
   logCategory: string;
 }
 
-const BROWSE_CLI_ENTRYPOINT = path.join(
-  getRepoRootDir(),
-  "packages",
-  "cli",
-  "bin",
-  "run.js",
-);
+const BROWSE_CLI_ENTRYPOINT = path.join(getRepoRootDir(), "packages", "cli", "bin", "run.js");
 const BROWSE_CLI_BUILD_ARTIFACTS = [
   path.join(getRepoRootDir(), "packages", "cli", "oclif.manifest.json"),
   path.join(getRepoRootDir(), "packages", "cli", "dist", "commands", "open.js"),
 ];
-const BROWSE_CLI_PACKAGE_JSON = path.join(
-  getRepoRootDir(),
-  "packages",
-  "cli",
-  "package.json",
-);
+const BROWSE_CLI_PACKAGE_JSON = path.join(getRepoRootDir(), "packages", "cli", "package.json");
 const BROWSE_SKILL_SOURCE = path.join(
   getRepoRootDir(),
   "packages",
@@ -145,27 +134,13 @@ type ActiveCdpPage = {
 type CdpRuntime = {
   readonly targetId: string;
   readonly sessionId: string;
-  send<T = unknown>(
-    method: string,
-    params?: Record<string, unknown>,
-  ): Promise<T>;
-  browser<T = unknown>(
-    method: string,
-    params?: Record<string, unknown>,
-  ): Promise<T>;
-  on(
-    method: string,
-    listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
-  ): () => void;
-  off(
-    method: string,
-    listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
-  ): void;
+  send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
+  browser<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
+  on(method: string, listener: (event: CdpEventMessage) => unknown | Promise<unknown>): () => void;
+  off(method: string, listener: (event: CdpEventMessage) => unknown | Promise<unknown>): void;
   once(
     method: string,
-    listenerOrTimeout?:
-      | ((event: CdpEventMessage) => unknown | Promise<unknown>)
-      | number,
+    listenerOrTimeout?: ((event: CdpEventMessage) => unknown | Promise<unknown>) | number,
     timeoutMs?: number,
   ): Promise<CdpEventMessage> | (() => void);
   waitForEvent(method: string, timeoutMs?: number): Promise<CdpEventMessage>;
@@ -230,15 +205,9 @@ export async function prepareClaudeCodeToolAdapter(
   }
 }
 
-export function resolveClaudeCodeToolSurface(
-  requested?: ToolSurface,
-): ToolSurface {
+export function resolveClaudeCodeToolSurface(requested?: ToolSurface): ToolSurface {
   if (!requested) return "browse_cli";
-  if (
-    requested === "browse_cli" ||
-    requested === "playwright_code" ||
-    requested === "cdp_code"
-  ) {
+  if (requested === "browse_cli" || requested === "playwright_code" || requested === "cdp_code") {
     return requested;
   }
   throw new EvalsError(
@@ -254,9 +223,7 @@ export function resolveClaudeCodeStartupProfile(
   if (requested) return requested;
 
   if (toolSurface === "browse_cli") {
-    return environment === "BROWSERBASE"
-      ? "tool_create_browserbase"
-      : "tool_launch_local";
+    return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
   }
   if (toolSurface === "playwright_code" || toolSurface === "cdp_code") {
     return environment === "BROWSERBASE"
@@ -322,9 +289,7 @@ async function prepareBrowseCliAdapter(
 export async function prepareBrowseCliHarnessAdapter(
   input: BrowseCliHarnessAdapterInput,
 ): Promise<PreparedBrowseCliHarnessAdapter> {
-  const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find(
-    (artifact) => !fs.existsSync(artifact),
-  );
+  const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find((artifact) => !fs.existsSync(artifact));
   if (missingArtifact) {
     throw new EvalsError(
       `browse_cli requires built CLI artifacts; missing ${missingArtifact}. Run pnpm --dir packages/cli build first.`,
@@ -332,10 +297,8 @@ export async function prepareBrowseCliHarnessAdapter(
   }
 
   if (
-    (input.environment === "LOCAL" &&
-      input.startupProfile !== "tool_launch_local") ||
-    (input.environment === "BROWSERBASE" &&
-      input.startupProfile !== "tool_create_browserbase")
+    (input.environment === "LOCAL" && input.startupProfile !== "tool_launch_local") ||
+    (input.environment === "BROWSERBASE" && input.startupProfile !== "tool_create_browserbase")
   ) {
     throw new EvalsError(
       `browse_cli startup profile "${input.startupProfile}" is not valid for environment "${input.environment}".`,
@@ -343,9 +306,7 @@ export async function prepareBrowseCliHarnessAdapter(
   }
 
   const session = createBrowseSessionName();
-  const cwd = await fsp.mkdtemp(
-    path.join(os.tmpdir(), "stagehand-evals-claude-browse-"),
-  );
+  const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "stagehand-evals-claude-browse-"));
   const wrapperPath = path.join(cwd, "browse");
   await installBrowseSkill(cwd);
   input.logger.log({
@@ -389,13 +350,9 @@ export async function prepareBrowseCliHarnessAdapter(
     promptInstructions: buildBrowseCliPromptInstructions(input.plan),
     metadata: getBrowseCliToolMetadata(),
     cleanup: async () => {
-      await runBrowseCommand(
-        wrapperPath,
-        ["stop", "--force"],
-        input.logger,
-        env,
-        cwd,
-      ).catch((): undefined => undefined);
+      await runBrowseCommand(wrapperPath, ["stop", "--force"], input.logger, env, cwd).catch(
+        (): undefined => undefined,
+      );
       await fsp.rm(cwd, { recursive: true, force: true });
     },
   };
@@ -416,9 +373,7 @@ async function preparePlaywrightCodeAdapter(
     );
   }
 
-  const cwd = await fsp.mkdtemp(
-    path.join(os.tmpdir(), "stagehand-evals-claude-playwright-"),
-  );
+  const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "stagehand-evals-claude-playwright-"));
   const env = { ...process.env } as Record<string, string>;
   let browser: Browser | undefined;
   let targetCleanup: () => Promise<void> = async () => {};
@@ -528,9 +483,7 @@ async function prepareCdpCodeAdapter(
     );
   }
 
-  const cwd = await fsp.mkdtemp(
-    path.join(os.tmpdir(), "stagehand-evals-claude-cdp-"),
-  );
+  const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "stagehand-evals-claude-cdp-"));
   const env = { ...process.env } as Record<string, string>;
   let connection: CdpConnection | undefined;
   let targetCleanup: () => Promise<void> = async () => {};
@@ -721,8 +674,7 @@ async function executePlaywrightSnippet(input: {
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
 }): Promise<unknown> {
-  const AsyncFunction = Object.getPrototypeOf(async function () {})
-    .constructor as new (
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
     ...args: string[]
   ) => (...values: unknown[]) => Promise<unknown>;
   const fn = new AsyncFunction(
@@ -770,9 +722,7 @@ async function buildCdpRunMcpServers(input: {
     {
       code: z
         .string()
-        .describe(
-          "JavaScript function body to execute. cdp/startUrl/task are already in scope.",
-        ),
+        .describe("JavaScript function body to execute. cdp/startUrl/task are already in scope."),
     },
     async ({ code }) => {
       return executeCdpRunTool({
@@ -838,17 +788,10 @@ async function executeCdpSnippet(input: {
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
 }): Promise<unknown> {
-  const AsyncFunction = Object.getPrototypeOf(async function () {})
-    .constructor as new (
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
     ...args: string[]
   ) => (...values: unknown[]) => Promise<unknown>;
-  const fn = new AsyncFunction(
-    "cdp",
-    "startUrl",
-    "task",
-    "console",
-    input.code,
-  );
+  const fn = new AsyncFunction("cdp", "startUrl", "task", "console", input.code);
   return fn(
     buildCdpRuntime(input.connection, input.activePage, input.logger),
     input.plan.startUrl,
@@ -874,25 +817,15 @@ function buildCdpRuntime(
   return {
     targetId: activePage.targetId,
     sessionId: activePage.sessionId,
-    send: <T = unknown>(
-      method: string,
-      params?: Record<string, unknown>,
-    ): Promise<T> => connection.send<T>(method, params, activePage.sessionId),
-    browser: <T = unknown>(
-      method: string,
-      params?: Record<string, unknown>,
-    ): Promise<T> => connection.send<T>(method, params),
+    send: <T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> =>
+      connection.send<T>(method, params, activePage.sessionId),
+    browser: <T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> =>
+      connection.send<T>(method, params),
     on: (
       method: string,
       listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
     ): (() => void) => {
-      const unsubscribe = onCdpEvent(
-        connection,
-        activePage.sessionId,
-        method,
-        listener,
-        logger,
-      );
+      const unsubscribe = onCdpEvent(connection, activePage.sessionId, method, listener, logger);
       listenerUnsubscribes.set(listener, unsubscribe);
       return () => {
         listenerUnsubscribes.delete(listener);
@@ -909,9 +842,7 @@ function buildCdpRuntime(
     },
     once: (
       method: string,
-      listenerOrTimeout?:
-        | ((event: CdpEventMessage) => unknown | Promise<unknown>)
-        | number,
+      listenerOrTimeout?: ((event: CdpEventMessage) => unknown | Promise<unknown>) | number,
       timeoutMs = 15_000,
     ): Promise<CdpEventMessage> | (() => void) => {
       if (typeof listenerOrTimeout === "function") {
@@ -940,10 +871,7 @@ function buildCdpRuntime(
         listenerOrTimeout ?? timeoutMs,
       );
     },
-    waitForEvent: (
-      method: string,
-      timeoutMs = 15_000,
-    ): Promise<CdpEventMessage> =>
+    waitForEvent: (method: string, timeoutMs = 15_000): Promise<CdpEventMessage> =>
       waitForCdpEvent(connection, activePage.sessionId, method, timeoutMs),
     wait: sleep,
   };
@@ -957,10 +885,7 @@ function onCdpEvent(
   logger: EvalLogger,
 ): () => void {
   return connection.onEvent((event) => {
-    if (
-      event.method !== method ||
-      (event.sessionId && event.sessionId !== sessionId)
-    ) {
+    if (event.method !== method || (event.sessionId && event.sessionId !== sessionId)) {
       return;
     }
     try {
@@ -984,9 +909,7 @@ function onCdpEvent(
   });
 }
 
-async function attachActiveCdpPage(
-  connection: CdpConnection,
-): Promise<ActiveCdpPage> {
+async function attachActiveCdpPage(connection: CdpConnection): Promise<ActiveCdpPage> {
   const targets = await connection.send<{
     targetInfos: Array<{
       targetId: string;
@@ -996,8 +919,7 @@ async function attachActiveCdpPage(
   }>("Target.getTargets");
 
   const existingPage = targets.targetInfos.find(
-    (target) =>
-      target.type === "page" && !target.url?.startsWith("devtools://"),
+    (target) => target.type === "page" && !target.url?.startsWith("devtools://"),
   );
   const targetId =
     existingPage?.targetId ??
@@ -1006,22 +928,15 @@ async function attachActiveCdpPage(
         url: "about:blank",
       })
     ).targetId;
-  const attached = await connection.send<{ sessionId: string }>(
-    "Target.attachToTarget",
-    {
-      targetId,
-      flatten: true,
-    },
-  );
+  const attached = await connection.send<{ sessionId: string }>("Target.attachToTarget", {
+    targetId,
+    flatten: true,
+  });
 
   await connection.send("Page.enable", {}, attached.sessionId);
   await connection.send("Runtime.enable", {}, attached.sessionId);
   await connection.send("DOM.enable", {}, attached.sessionId);
-  await connection.send(
-    "Page.setLifecycleEventsEnabled",
-    { enabled: true },
-    attached.sessionId,
-  );
+  await connection.send("Page.setLifecycleEventsEnabled", { enabled: true }, attached.sessionId);
 
   return {
     targetId,
@@ -1044,10 +959,7 @@ export function waitForCdpEvent(
       unsubscribe?.();
     };
     unsubscribe = connection.onEvent((event) => {
-      if (
-        event.method !== method ||
-        (event.sessionId && event.sessionId !== sessionId)
-      ) {
+      if (event.method !== method || (event.sessionId && event.sessionId !== sessionId)) {
         return;
       }
       cleanup();
@@ -1067,9 +979,7 @@ export function waitForCdpEvent(
   return promise;
 }
 
-function buildRunToolConsole(
-  logger: EvalLogger,
-): Pick<Console, "log" | "warn" | "error"> {
+function buildRunToolConsole(logger: EvalLogger): Pick<Console, "log" | "warn" | "error"> {
   const write = (level: "log" | "warn" | "error", values: unknown[]) => {
     logger.log({
       category: "claude_code",
@@ -1084,9 +994,7 @@ function buildRunToolConsole(
   };
 }
 
-function buildPlaywrightCodePromptInstructions(
-  plan: ExternalHarnessTaskPlan,
-): string {
+function buildPlaywrightCodePromptInstructions(plan: ExternalHarnessTaskPlan): string {
   void plan;
   return [
     "Browser tool surface: playwright_code.",
@@ -1112,9 +1020,7 @@ function buildCdpCodePromptInstructions(plan: ExternalHarnessTaskPlan): string {
   ].join("\n");
 }
 
-function buildBrowseCliPromptInstructions(
-  plan: ExternalHarnessTaskPlan,
-): string {
+function buildBrowseCliPromptInstructions(plan: ExternalHarnessTaskPlan): string {
   void plan;
   return [
     "Browser tool surface: browse_cli.",
@@ -1153,10 +1059,7 @@ export async function installBrowseSkill(cwd: string): Promise<void> {
 // only use gray-matter to find the frontmatter/body boundary, then
 // reassemble from the ORIGINAL raw string so the frontmatter block that
 // ships is byte-identical to the frontmatter block in the source file.
-export function insertAfterFrontmatter(
-  markdown: string,
-  addition: string,
-): string {
+export function insertAfterFrontmatter(markdown: string, addition: string): string {
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(markdown);
@@ -1207,10 +1110,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-): Promise<T> {
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timeout: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
@@ -1238,9 +1138,7 @@ function stringifyToolResult(value: unknown): string {
 }
 
 function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength
-    ? value
-    : `${value.slice(0, maxLength - 1)}…`;
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
 }
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> & {
@@ -1290,23 +1188,17 @@ async function runBrowseCommand(
         resolve();
         return;
       }
-      reject(
-        new EvalsError(
-          `browse_cli command failed (${args.join(" ")}): ${stderr.trim()}`,
-        ),
-      );
+      reject(new EvalsError(`browse_cli command failed (${args.join(" ")}): ${stderr.trim()}`));
     });
   });
 }
 
 function readBrowseCliVersion(): { browseCliVersion?: string } {
   try {
-    const parsed = JSON.parse(
-      fs.readFileSync(BROWSE_CLI_PACKAGE_JSON, "utf8"),
-    ) as { version?: unknown };
-    return typeof parsed.version === "string"
-      ? { browseCliVersion: parsed.version }
-      : {};
+    const parsed = JSON.parse(fs.readFileSync(BROWSE_CLI_PACKAGE_JSON, "utf8")) as {
+      version?: unknown;
+    };
+    return typeof parsed.version === "string" ? { browseCliVersion: parsed.version } : {};
   } catch {
     return {};
   }

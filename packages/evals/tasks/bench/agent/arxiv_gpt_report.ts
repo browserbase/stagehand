@@ -3,10 +3,7 @@ import type { TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";
-import {
-  runWithVerifier,
-  evaluationResultToSuccess,
-} from "../../../framework/verifierAdapter.js";
+import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/arxiv_gpt_report" },
@@ -16,8 +13,7 @@ export default defineBenchTask(
       const page = v3.context.pages()[0];
       await page.goto(initUrl);
 
-      const instruction =
-        "Find the paper 'GPT-4 Technical Report', when was v3 submitted?";
+      const instruction = "Find the paper 'GPT-4 Technical Report', when was v3 submitted?";
       // Mon, 27 Mar 2023 17:46:54 UTC
       const expected = "03-27-2023";
 

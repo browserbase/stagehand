@@ -1,10 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  AgentProvider,
-  AVAILABLE_CUA_MODELS,
-  providerEnvVarMap,
-} from "@browserbasehq/stagehand";
+import { AgentProvider, AVAILABLE_CUA_MODELS, providerEnvVarMap } from "@browserbasehq/stagehand";
 
 type TaskConfigModule = typeof import("../taskConfig.js");
 
@@ -100,9 +96,7 @@ describe("getAgentModelEntries", () => {
       expect(provider in providerEnvVarMap).toBe(true);
     }
 
-    expect(cuaEntries.map((entry) => entry.modelName)).not.toContain(
-      "microsoft/fara-7b",
-    );
+    expect(cuaEntries.map((entry) => entry.modelName)).not.toContain("microsoft/fara-7b");
   });
 
   it("runs configured standard agent models in dom and hybrid modes", async () => {
@@ -136,8 +130,7 @@ describe("getAgentModelEntries", () => {
   });
 
   it("runs CUA-capable EVAL_AGENT_MODELS entries in dom and hybrid modes", async () => {
-    process.env.EVAL_AGENT_MODELS =
-      "openai/gpt-5.4,google/gemini-3-flash-preview";
+    process.env.EVAL_AGENT_MODELS = "openai/gpt-5.4,google/gemini-3-flash-preview";
     process.env.EVAL_AGENT_MODELS_CUA = " ";
 
     const { getAgentModelEntries } = await loadTaskConfig();
@@ -151,17 +144,13 @@ describe("getAgentModelEntries", () => {
     );
 
     expect(standardModes).toEqual(["dom", "hybrid"]);
-    expect(cuaEntries.map((entry) => entry.mode).sort()).toEqual([
-      "dom",
-      "hybrid",
-    ]);
+    expect(cuaEntries.map((entry) => entry.mode).sort()).toEqual(["dom", "hybrid"]);
     expect(cuaEntries.every((entry) => entry.cua === false)).toBe(true);
   });
 
   it("does not run non-CUA models from EVAL_AGENT_MODELS_CUA as CUA", async () => {
     process.env.EVAL_AGENT_MODELS = " ";
-    process.env.EVAL_AGENT_MODELS_CUA =
-      "openai/gpt-4.1-mini,google/gemini-3-flash-preview";
+    process.env.EVAL_AGENT_MODELS_CUA = "openai/gpt-4.1-mini,google/gemini-3-flash-preview";
 
     const { getAgentModelEntries } = await loadTaskConfig();
     const entries = getAgentModelEntries();
@@ -242,9 +231,7 @@ describe("validateEvalName", () => {
     }) as any);
     const mockError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(() => validateEvalName("this_task_does_not_exist_xyz")).toThrow(
-      "process.exit called",
-    );
+    expect(() => validateEvalName("this_task_does_not_exist_xyz")).toThrow("process.exit called");
 
     mockExit.mockRestore();
     mockError.mockRestore();

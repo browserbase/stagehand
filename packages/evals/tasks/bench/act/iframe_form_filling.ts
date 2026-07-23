@@ -17,22 +17,16 @@ export default defineBenchTask(
 
       const iframe = page.frameLocator("iframe");
 
-      const firstNameValue: string = await iframe
-        .locator('input[placeholder="Jane"]')
-        .inputValue();
+      const firstNameValue: string = await iframe.locator('input[placeholder="Jane"]').inputValue();
 
-      const lastNameValue: string = await iframe
-        .locator('input[placeholder="Doe"]')
-        .inputValue();
+      const lastNameValue: string = await iframe.locator('input[placeholder="Doe"]').inputValue();
 
       const emailValue: string = await iframe
         .locator('input[placeholder="jane@example.com"]')
         .inputValue();
 
       const contactValue: boolean = await iframe
-        .locator(
-          "xpath=/html/body/main/section[1]/form/fieldset/label[2]/input",
-        )
+        .locator("xpath=/html/body/main/section[1]/form/fieldset/label[2]/input")
         .isChecked();
 
       const messageValue: string = await iframe

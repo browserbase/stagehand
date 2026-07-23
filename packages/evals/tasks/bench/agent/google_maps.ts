@@ -2,10 +2,7 @@ import type { TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";
-import {
-  runWithVerifier,
-  evaluationResultToSuccess,
-} from "../../../framework/verifierAdapter.js";
+import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/google_maps" },
@@ -15,8 +12,7 @@ export default defineBenchTask(
       const page = v3.context.pages()[0];
       await page.goto(initUrl);
 
-      const instruction =
-        "How long does it take to get from San Francisco to New York driving?";
+      const instruction = "How long does it take to get from San Francisco to New York driving?";
 
       const taskSpec: TaskSpec = {
         id: "agent/google_maps",

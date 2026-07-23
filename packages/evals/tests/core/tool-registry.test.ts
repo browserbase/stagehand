@@ -4,11 +4,7 @@ import { getCoreTool, listCoreTools } from "../../core/tools/registry.js";
 describe("core tool registry", () => {
   it("lists extended tool surfaces", () => {
     expect(listCoreTools()).toEqual(
-      expect.arrayContaining([
-        "playwright_mcp",
-        "chrome_devtools_mcp",
-        "browse_cli",
-      ]),
+      expect.arrayContaining(["playwright_mcp", "chrome_devtools_mcp", "browse_cli"]),
     );
   });
 

@@ -5,13 +5,9 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/amazon/");
 
-      const observations1 = await v3.observe(
-        "Find and click the 'Add to Cart' button",
-      );
+      const observations1 = await v3.observe("Find and click the 'Add to Cart' button");
 
       // Example of using performPlaywrightMethod if you have the xpath
       if (observations1.length > 0) {
@@ -19,9 +15,7 @@ export default defineBenchTask(
         await v3.act(action1);
       }
 
-      const observations2 = await v3.observe(
-        "Find and click the 'Proceed to checkout' button",
-      );
+      const observations2 = await v3.observe("Find and click the 'Proceed to checkout' button");
 
       // Example of using performPlaywrightMethod if you have the xpath
       if (observations2.length > 0) {

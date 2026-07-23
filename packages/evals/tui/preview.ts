@@ -115,8 +115,7 @@ function renderHeader(p: PreviewPayload): void {
   if (env) headerBits.push(`${bold("Env:")} ${cyan(env)}`);
   if (opts.concurrency !== undefined)
     headerBits.push(`${bold("Concurrency:")} ${opts.concurrency}`);
-  if (opts.trials !== undefined)
-    headerBits.push(`${bold("Trials:")} ${opts.trials}`);
+  if (opts.trials !== undefined) headerBits.push(`${bold("Trials:")} ${opts.trials}`);
   if (opts.harness !== undefined && opts.harness !== null)
     headerBits.push(`${bold("Harness:")} ${opts.harness}`);
   if (opts.useApi === true) headerBits.push(`${bold("API:")} ${yellow("on")}`);
@@ -130,13 +129,7 @@ function renderHeader(p: PreviewPayload): void {
   const envOverrideKeys = Object.keys(p.envOverrides ?? {}).filter(
     // These are echoes of resolved options, not user-supplied overrides
     // worth surfacing again. Hide to keep the header tight.
-    (k) =>
-      ![
-        "EVAL_ENV",
-        "USE_API",
-        "EVAL_TRIAL_COUNT",
-        "EVAL_MAX_CONCURRENCY",
-      ].includes(k),
+    (k) => !["EVAL_ENV", "USE_API", "EVAL_TRIAL_COUNT", "EVAL_MAX_CONCURRENCY"].includes(k),
   );
   if (envOverrideKeys.length > 0) {
     const fragments = envOverrideKeys.map((k) => `${k}=${p.envOverrides[k]}`);
@@ -209,9 +202,7 @@ export function buildCombinations(matrix: MatrixRow[]): {
   const varying: string[] = [];
   for (const col of allColumns) {
     const sample = stableJson(groups[0]?.values[col] ?? null);
-    const allSame = groups.every(
-      (g) => stableJson(g.values[col] ?? null) === sample,
-    );
+    const allSame = groups.every((g) => stableJson(g.values[col] ?? null) === sample);
     if (!allSame) varying.push(col);
   }
 
@@ -233,9 +224,7 @@ function renderCombinations(p: PreviewPayload): void {
 
   const { columns, rows } = buildCombinations(p.matrix);
 
-  console.log(
-    `  ${bold(`Combinations (${rows.length})`)} ${dim(`× tasks → runs`)}`,
-  );
+  console.log(`  ${bold(`Combinations (${rows.length})`)} ${dim(`× tasks → runs`)}`);
 
   if (columns.length === 0) {
     // Single combination — just say so. The task list does the work.
@@ -250,15 +239,9 @@ function renderCombinations(p: PreviewPayload): void {
   const headerCells = columns.map((c) => COLUMN_HEADERS[c] ?? c);
 
   const colWidths = columns.map((col, i) =>
-    Math.max(
-      headerCells[i].length,
-      ...rows.map((r) => formatCell(r.values[col]).length),
-    ),
+    Math.max(headerCells[i].length, ...rows.map((r) => formatCell(r.values[col]).length)),
   );
-  const runsWidth = Math.max(
-    RUNS_HEADER.length,
-    ...rows.map((r) => String(r.runs).length),
-  );
+  const runsWidth = Math.max(RUNS_HEADER.length, ...rows.map((r) => String(r.runs).length));
 
   // Trim if total width blows past terminal.
   const termWidth = getTerminalWidth();
@@ -275,9 +258,7 @@ function renderCombinations(p: PreviewPayload): void {
     }
   }
 
-  const sepLine = gray(
-    "─".repeat(colWidths.reduce((a, b) => a + b, 0) + runsWidth + padding - 2),
-  );
+  const sepLine = gray("─".repeat(colWidths.reduce((a, b) => a + b, 0) + runsWidth + padding - 2));
 
   // Header row
   const headerLine = headerCells
@@ -291,16 +272,12 @@ function renderCombinations(p: PreviewPayload): void {
   const sortedRows = [...rows].sort(
     (a, b) =>
       columns
-        .map((col) =>
-          formatCell(a.values[col]).localeCompare(formatCell(b.values[col])),
-        )
+        .map((col) => formatCell(a.values[col]).localeCompare(formatCell(b.values[col])))
         .find((v) => v !== 0) ?? 0,
   );
 
   for (const row of sortedRows) {
-    const cells = columns.map((col, i) =>
-      padRight(formatCell(row.values[col]), colWidths[i]),
-    );
+    const cells = columns.map((col, i) => padRight(formatCell(row.values[col]), colWidths[i]));
     cells.push(dim(padRight(String(row.runs), runsWidth)));
     console.log(`  ${cells.join("  ")}`);
   }
@@ -370,9 +347,7 @@ function renderFooter(p: PreviewPayload): void {
     // Full cross-product: every task runs every combination.
     const taskLabel = `${taskCount} task${taskCount === 1 ? "" : "s"}`;
     const comboLabel = `${combos} combination${combos === 1 ? "" : "s"}`;
-    console.log(
-      `  ${bold("Total:")} ${total} runs ${dim(`(${taskLabel} × ${comboLabel})`)}`,
-    );
+    console.log(`  ${bold("Total:")} ${total} runs ${dim(`(${taskLabel} × ${comboLabel})`)}`);
   } else {
     console.log(`  ${bold("Total:")} ${total} run${total === 1 ? "" : "s"}`);
   }

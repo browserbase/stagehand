@@ -93,11 +93,7 @@ export function scaffoldTask(args: string[]): ScaffoldedTask | null {
   }
 
   if (!/^[a-z][a-z0-9_]*$/.test(name)) {
-    console.log(
-      red(
-        `  Invalid name "${name}". Use lowercase letters, numbers, underscores.`,
-      ),
-    );
+    console.log(red(`  Invalid name "${name}". Use lowercase letters, numbers, underscores.`));
     return null;
   }
 
@@ -106,10 +102,7 @@ export function scaffoldTask(args: string[]): ScaffoldedTask | null {
     tier === "core"
       ? path.join(packageRoot, "core", "tasks")
       : path.join(packageRoot, "tasks", tier);
-  const taskDir =
-    tier === "core"
-      ? path.join(taskRoot, category)
-      : path.join(taskRoot, category);
+  const taskDir = tier === "core" ? path.join(taskRoot, category) : path.join(taskRoot, category);
   const taskFile = path.join(taskDir, `${name}.ts`);
   const relativeTaskFile = path.relative(taskRoot, taskFile);
   if (relativeTaskFile.startsWith("..") || path.isAbsolute(relativeTaskFile)) {
@@ -128,9 +121,7 @@ export function scaffoldTask(args: string[]): ScaffoldedTask | null {
   fs.writeFileSync(taskFile, content);
 
   const displayPath =
-    tier === "core"
-      ? `core/tasks/${category}/${name}.ts`
-      : `tasks/${tier}/${category}/${name}.ts`;
+    tier === "core" ? `core/tasks/${category}/${name}.ts` : `tasks/${tier}/${category}/${name}.ts`;
   console.log(green(`  Created: `) + cyan(displayPath));
   console.log(dim("  Task will be auto-discovered on next run."));
 

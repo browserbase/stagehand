@@ -1,10 +1,6 @@
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
-import type {
-  ActionTarget,
-  TargetKind,
-  WaitSpec,
-} from "../contracts/targets.js";
+import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
 import type {
   CoreCapability,
   CoreLocatorHandle,
@@ -122,9 +118,7 @@ function normalizeText(value: string | undefined): string {
   return value?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
 }
 
-function parseChromeDevtoolsSnapshotEntries(
-  text: string,
-): ChromeDevtoolsSnapshotEntry[] {
+function parseChromeDevtoolsSnapshotEntries(text: string): ChromeDevtoolsSnapshotEntry[] {
   const entries: ChromeDevtoolsSnapshotEntry[] = [];
   const lines = text.split(/\r?\n/);
 
@@ -165,9 +159,7 @@ function scoreChromeDevtoolsSnapshotEntry(
 
   if (query.name) {
     const expected = normalizeText(query.name);
-    const candidates = [entry.name, entry.text]
-      .map(normalizeText)
-      .filter(Boolean);
+    const candidates = [entry.name, entry.text].map(normalizeText).filter(Boolean);
     if (!candidates.length) {
       return -1;
     }
@@ -182,9 +174,7 @@ function scoreChromeDevtoolsSnapshotEntry(
 
   if (query.text) {
     const expected = normalizeText(query.text);
-    const candidates = [entry.text, entry.name]
-      .map(normalizeText)
-      .filter(Boolean);
+    const candidates = [entry.text, entry.name].map(normalizeText).filter(Boolean);
     if (!candidates.length) {
       return -1;
     }
@@ -229,10 +219,7 @@ class ChromeDevtoolsMcpLocatorHandle implements CoreLocatorHandle {
   ) {}
 
   async count(): Promise<number> {
-    return this.pageHandle.evaluateSelector<number>(
-      this.selector,
-      "return elements.length;",
-    );
+    return this.pageHandle.evaluateSelector<number>(this.selector, "return elements.length;");
   }
 
   async click(): Promise<void> {
@@ -297,13 +284,9 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
     return this.runtime.callText("take_snapshot", {});
   }
 
-  private async describeSelectorTarget(
-    selector: string,
-  ): Promise<ChromeDevtoolsSnapshotQuery> {
-    return this.runtime.callJson<ChromeDevtoolsSnapshotQuery>(
-      "evaluate_script",
-      {
-        function: `() => {
+  private async describeSelectorTarget(selector: string): Promise<ChromeDevtoolsSnapshotQuery> {
+    return this.runtime.callJson<ChromeDevtoolsSnapshotQuery>("evaluate_script", {
+      function: `() => {
         ${buildSelectorResolver(serialize(selector))}
         if (!(first instanceof Element)) {
           throw new Error("Selector not found: ${escapeTemplateLiteral(selector)}");
@@ -347,14 +330,11 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
           text: textContent || valueText || undefined,
         });
       }`,
-      },
-    );
+    });
   }
 
   private async resolveTargetUid(
-    target:
-      | string
-      | Extract<ActionTarget, { kind: "selector" | "role_name" | "text" }>,
+    target: string | Extract<ActionTarget, { kind: "selector" | "role_name" | "text" }>,
   ): Promise<string> {
     const query =
       typeof target === "string"
@@ -365,9 +345,7 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
             ? { role: target.role, name: target.name }
             : { text: target.text };
 
-    const entries = parseChromeDevtoolsSnapshotEntries(
-      await this.snapshotText(),
-    );
+    const entries = parseChromeDevtoolsSnapshotEntries(await this.snapshotText());
     const match = findBestChromeDevtoolsSnapshotEntry(entries, query);
     if (!match) {
       throw new Error(
@@ -417,9 +395,7 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
     await this.runtime.callTool("navigate_page", {
       type: "url",
       url,
-      ...(typeof opts?.timeoutMs === "number"
-        ? { timeout: opts.timeoutMs }
-        : {}),
+      ...(typeof opts?.timeoutMs === "number" ? { timeout: opts.timeoutMs } : {}),
     });
     this.cachedUrl = url;
   }
@@ -430,9 +406,7 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
   }): Promise<void> {
     await this.runtime.callTool("navigate_page", {
       type: "reload",
-      ...(typeof opts?.timeoutMs === "number"
-        ? { timeout: opts.timeoutMs }
-        : {}),
+      ...(typeof opts?.timeoutMs === "number" ? { timeout: opts.timeoutMs } : {}),
     });
     await this.refreshUrlFromPage();
   }
@@ -443,9 +417,7 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
   }): Promise<boolean> {
     await this.runtime.callTool("navigate_page", {
       type: "back",
-      ...(typeof opts?.timeoutMs === "number"
-        ? { timeout: opts.timeoutMs }
-        : {}),
+      ...(typeof opts?.timeoutMs === "number" ? { timeout: opts.timeoutMs } : {}),
     });
     await this.refreshUrlFromPage();
     return true;
@@ -457,9 +429,7 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
   }): Promise<boolean> {
     await this.runtime.callTool("navigate_page", {
       type: "forward",
-      ...(typeof opts?.timeoutMs === "number"
-        ? { timeout: opts.timeoutMs }
-        : {}),
+      ...(typeof opts?.timeoutMs === "number" ? { timeout: opts.timeoutMs } : {}),
     });
     await this.refreshUrlFromPage();
     return true;
@@ -658,26 +628,17 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
     });
   }
 
-  async click(
-    targetOrX: string | ActionTarget | number,
-    y?: number,
-  ): Promise<void> {
+  async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
       }
-      await this.dispatchPointerAtCoordinates(targetOrX, y, [
-        "mousedown",
-        "mouseup",
-        "click",
-      ]);
+      await this.dispatchPointerAtCoordinates(targetOrX, y, ["mousedown", "mouseup", "click"]);
       return;
     }
 
     const target =
-      typeof targetOrX === "string"
-        ? ({ kind: "selector", value: targetOrX } as const)
-        : targetOrX;
+      typeof targetOrX === "string" ? ({ kind: "selector", value: targetOrX } as const) : targetOrX;
 
     switch (target.kind) {
       case "selector":
@@ -705,10 +666,7 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
     }
   }
 
-  async hover(
-    targetOrX: string | ActionTarget | number,
-    y?: number,
-  ): Promise<void> {
+  async hover(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
@@ -722,9 +680,7 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
     }
 
     const target =
-      typeof targetOrX === "string"
-        ? ({ kind: "selector", value: targetOrX } as const)
-        : targetOrX;
+      typeof targetOrX === "string" ? ({ kind: "selector", value: targetOrX } as const) : targetOrX;
 
     switch (target.kind) {
       case "selector":
@@ -752,12 +708,7 @@ class ChromeDevtoolsMcpPageHandle implements CorePageHandle {
     }
   }
 
-  async scroll(
-    _x: number,
-    _y: number,
-    deltaX: number,
-    deltaY: number,
-  ): Promise<void> {
+  async scroll(_x: number, _y: number, deltaX: number, deltaY: number): Promise<void> {
     await this.runtime.callTool("evaluate_script", {
       function: `() => {
         window.scrollBy(${deltaX}, ${deltaY});
@@ -878,15 +829,9 @@ class ChromeDevtoolsMcpSession implements CoreSession {
     return `page-${this.pageCounter}`;
   }
 
-  private findOrCreateTrackedPage(input: {
-    toolPageId?: number;
-    url: string;
-  }): TrackedChromePage {
+  private findOrCreateTrackedPage(input: { toolPageId?: number; url: string }): TrackedChromePage {
     const existing = [...this.pages.values()].find((page) => {
-      return (
-        typeof input.toolPageId === "number" &&
-        page.toolPageId === input.toolPageId
-      );
+      return typeof input.toolPageId === "number" && page.toolPageId === input.toolPageId;
     });
 
     if (existing) {
@@ -899,11 +844,7 @@ class ChromeDevtoolsMcpSession implements CoreSession {
       toolPageId: input.toolPageId,
       handle: new ChromeDevtoolsMcpPageHandle(this.runtime, "", input.url),
     };
-    tracked.handle = new ChromeDevtoolsMcpPageHandle(
-      this.runtime,
-      tracked.id,
-      input.url,
-    );
+    tracked.handle = new ChromeDevtoolsMcpPageHandle(this.runtime, tracked.id, input.url);
     this.pages.set(tracked.id, tracked);
     return tracked;
   }
@@ -973,9 +914,7 @@ class ChromeDevtoolsMcpSession implements CoreSession {
     await this.syncPagesFromTool();
     const created =
       [...this.pages.values()].find((page) => {
-        return (
-          typeof page.toolPageId === "number" && !beforeIds.has(page.toolPageId)
-        );
+        return typeof page.toolPageId === "number" && !beforeIds.has(page.toolPageId);
       }) ?? [...this.pages.values()].at(-1);
 
     if (!created) {
@@ -997,9 +936,7 @@ class ChromeDevtoolsMcpSession implements CoreSession {
       bringToFront: true,
     });
     this.activePageId = pageId;
-    tracked.handle.setCachedUrl(
-      await tracked.handle.evaluate<string>("window.location.href"),
-    );
+    tracked.handle.setCachedUrl(await tracked.handle.evaluate<string>("window.location.href"));
   }
 
   async closePage(pageId: string): Promise<void> {
@@ -1059,10 +996,7 @@ function buildChromeDevtoolsMcpArgs(input: ToolStartInput): string[] {
     if (input.providedEndpoint.kind === "ws") {
       args.push("--wsEndpoint", input.providedEndpoint.url);
       if (input.providedEndpoint.headers) {
-        args.push(
-          "--wsHeaders",
-          JSON.stringify(input.providedEndpoint.headers),
-        );
+        args.push("--wsHeaders", JSON.stringify(input.providedEndpoint.headers));
       }
     } else {
       args.push("--browserUrl", input.providedEndpoint.url);
@@ -1097,9 +1031,7 @@ export class ChromeDevtoolsMcpTool implements CoreTool {
     "tool_attach_local_cdp",
     "tool_attach_browserbase",
   ];
-  readonly supportedCapabilities: CoreCapability[] = [
-    ...SUPPORTED_CAPABILITIES,
-  ];
+  readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
   readonly supportedTargetKinds: TargetKind[] = [
     "selector",
     "coords",
@@ -1122,11 +1054,8 @@ export class ChromeDevtoolsMcpTool implements CoreTool {
         await session.close();
       },
       metadata: {
-        environment:
-          input.environment === "BROWSERBASE" ? "browserbase" : "local",
-        browserOwnership: input.startupProfile.startsWith("runner_provided")
-          ? "runner"
-          : "tool",
+        environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
+        browserOwnership: input.startupProfile.startsWith("runner_provided") ? "runner" : "tool",
         connectionMode: connectionModeFromProfile(
           input.startupProfile,
           input.providedEndpoint?.kind,

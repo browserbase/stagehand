@@ -20,12 +20,9 @@ export default defineBenchTask(
       const hasObserveEntry = history[3].method === "observe";
 
       const allEntriesHaveTimestamps = history.every(
-        (entry) =>
-          typeof entry.timestamp === "string" && entry.timestamp.length > 0,
+        (entry) => typeof entry.timestamp === "string" && entry.timestamp.length > 0,
       );
-      const allEntriesHaveResults = history.every(
-        (entry) => entry.result !== undefined,
-      );
+      const allEntriesHaveResults = history.every((entry) => entry.result !== undefined);
 
       const success =
         hasCorrectNumberOfEntries &&

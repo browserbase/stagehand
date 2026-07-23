@@ -17,9 +17,7 @@ export default defineBenchTask(
         "Extract the title of the first recipe and the total number of ratings it has received.",
         z.object({
           title: z.string().describe("Title of the recipe"),
-          total_ratings: z
-            .string()
-            .describe("Total number of ratings for the recipe"),
+          total_ratings: z.string().describe("Total number of ratings for the recipe"),
         }),
       );
 
@@ -27,13 +25,9 @@ export default defineBenchTask(
       const expectedTitle = "Best Chocolate Chip Cookies";
       const expectedRatings = 19164;
 
-      const extractedRatings = parseInt(
-        total_ratings.replace(/[^\d]/g, ""),
-        10,
-      );
+      const extractedRatings = parseInt(total_ratings.replace(/[^\d]/g, ""), 10);
       const isRatingsWithinRange =
-        extractedRatings >= expectedRatings - 1000 &&
-        extractedRatings <= expectedRatings + 1000;
+        extractedRatings >= expectedRatings - 1000 && extractedRatings <= expectedRatings + 1000;
 
       if (title !== expectedTitle || !isRatingsWithinRange) {
         const errors = [];

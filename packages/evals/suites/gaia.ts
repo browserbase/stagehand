@@ -10,19 +10,14 @@ import {
   normalizeAgentModelEntries,
 } from "../utils.js";
 
-export const buildGAIATestcases = (
-  models: string[] | AgentModelEntry[],
-): Testcase[] => {
+export const buildGAIATestcases = (models: string[] | AgentModelEntry[]): Testcase[] => {
   const moduleDir = getCurrentDirPath();
   const gaiaFilePath =
-    process.env.EVAL_GAIA_FILE ||
-    path.join(moduleDir, "..", "datasets", "gaia", "GAIA_web.jsonl");
+    process.env.EVAL_GAIA_FILE || path.join(moduleDir, "..", "datasets", "gaia", "GAIA_web.jsonl");
 
   const gaiaLines = readJsonlFile(gaiaFilePath);
 
-  const levelFilter = process.env.EVAL_GAIA_LEVEL
-    ? Number(process.env.EVAL_GAIA_LEVEL)
-    : undefined;
+  const levelFilter = process.env.EVAL_GAIA_LEVEL ? Number(process.env.EVAL_GAIA_LEVEL) : undefined;
   // Use EVAL_MAX_K if set, otherwise fall back to EVAL_GAIA_LIMIT or default to 25
   const maxCases = process.env.EVAL_MAX_K
     ? Number(process.env.EVAL_MAX_K)
@@ -45,9 +40,7 @@ export const buildGAIATestcases = (
     if (parsed === null || typeof parsed !== "object") return false;
     const obj = parsed as Record<string, unknown>;
     return (
-      typeof obj.id === "string" &&
-      typeof obj.web === "string" &&
-      typeof obj.ques === "string"
+      typeof obj.id === "string" && typeof obj.web === "string" && typeof obj.ques === "string"
     );
   }
 
@@ -63,9 +56,7 @@ export const buildGAIATestcases = (
   const allTestcases: Testcase[] = [];
   for (const modelEntry of normalizeAgentModelEntries(models)) {
     for (const row of gaiaRows) {
-      const finalAnswer = (row as Record<string, unknown>)[
-        "Final answer"
-      ] as unknown;
+      const finalAnswer = (row as Record<string, unknown>)["Final answer"] as unknown;
       const input: EvalInput = {
         name: "agent/gaia",
         modelName: modelEntry.modelName as AvailableModel,
@@ -86,9 +77,9 @@ export const buildGAIATestcases = (
           modelEntry.modelName,
           modelEntry.mode,
           input.name,
-          ...(
-            tasksConfig.find((t) => t.name === input.name)?.categories || []
-          ).map((x) => `category/${x}`),
+          ...(tasksConfig.find((t) => t.name === input.name)?.categories || []).map(
+            (x) => `category/${x}`,
+          ),
           `gaia/id/${row.id}`,
           row.Level ? `gaia/level/${row.Level}` : "gaia/level/unknown",
         ],

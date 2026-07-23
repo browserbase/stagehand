@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://stockx.com/air-jordan-3-retro-black-cement-2024",
-      );
+      await page.goto("https://stockx.com/air-jordan-3-retro-black-cement-2024");
 
       await v3.act("click on Jordan 3 Retro Crimson in the related products");
 

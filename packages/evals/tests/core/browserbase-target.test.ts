@@ -40,19 +40,14 @@ describe("runner-provided Browserbase target", () => {
       debuggerUrl: "https://debug.browserbase.test/session-123",
     });
 
-    const { launchRunnerProvidedBrowserbaseChrome } = await import(
-      "../../core/targets/browserbase.js"
-    );
+    const { launchRunnerProvidedBrowserbaseChrome } =
+      await import("../../core/targets/browserbase.js");
 
     const target = await launchRunnerProvidedBrowserbaseChrome();
 
-    expect(target.wsUrl).toBe(
-      "wss://connect.browserbase.test/devtools/browser/session-123",
-    );
+    expect(target.wsUrl).toBe("wss://connect.browserbase.test/devtools/browser/session-123");
     expect(target.sessionId).toBe("session-123");
-    expect(target.sessionUrl).toBe(
-      "https://www.browserbase.com/sessions/session-123",
-    );
+    expect(target.sessionUrl).toBe("https://www.browserbase.com/sessions/session-123");
     expect(target.debugUrl).toBe("https://debug.browserbase.test/session-123");
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -81,9 +76,8 @@ describe("runner-provided Browserbase target", () => {
       connectUrl: "wss://connect.browserbase.test/devtools/browser/session-456",
     });
 
-    const { launchRunnerProvidedBrowserbaseChrome } = await import(
-      "../../core/targets/browserbase.js"
-    );
+    const { launchRunnerProvidedBrowserbaseChrome } =
+      await import("../../core/targets/browserbase.js");
 
     const target = await launchRunnerProvidedBrowserbaseChrome();
 

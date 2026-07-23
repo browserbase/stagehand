@@ -8,9 +8,7 @@ export function onceAsync(fn: () => Promise<void>): () => Promise<void> {
   };
 }
 
-export function registerActiveRunCleanup(
-  cleanup: () => Promise<void>,
-): () => void {
+export function registerActiveRunCleanup(cleanup: () => Promise<void>): () => void {
   const key = Symbol("active-run-cleanup");
   activeRunCleanups.set(key, cleanup);
   return () => {

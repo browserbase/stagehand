@@ -40,20 +40,14 @@ interface CacheEntry {
 }
 
 function hashInstruction(instruction: string): string {
-  return crypto
-    .createHash("sha256")
-    .update(instruction)
-    .digest("hex")
-    .slice(0, 16);
+  return crypto.createHash("sha256").update(instruction).digest("hex").slice(0, 16);
 }
 
 export class RubricCache {
   private readonly cacheDir: string;
 
   constructor(opts: RubricCacheOptions) {
-    const root =
-      opts.cacheRoot ??
-      path.join(process.cwd(), "packages/evals/.rubric-cache");
+    const root = opts.cacheRoot ?? path.join(process.cwd(), "packages/evals/.rubric-cache");
     this.cacheDir = path.join(root, opts.dataset);
   }
 
@@ -73,17 +67,13 @@ export class RubricCache {
       return undefined;
     }
     if (parsed.taskId !== taskSpec.id) {
-      console.warn(
-        `[rubric-cache] task-id mismatch for ${taskSpec.id}; regenerating`,
-      );
+      console.warn(`[rubric-cache] task-id mismatch for ${taskSpec.id}; regenerating`);
       return undefined;
     }
     const expectedHash = hashInstruction(taskSpec.instruction);
     if (parsed.instructionHash !== expectedHash) {
       // Drift detected — surface a clear log and miss.
-      console.warn(
-        `[rubric-cache] instruction-hash drift for ${taskSpec.id}; regenerating`,
-      );
+      console.warn(`[rubric-cache] instruction-hash drift for ${taskSpec.id}; regenerating`);
       return undefined;
     }
     return parsed.rubric;
@@ -97,10 +87,7 @@ export class RubricCache {
       generatedAt: new Date().toISOString(),
       rubric,
     };
-    await fs.writeFile(
-      this.entryPath(taskSpec.id),
-      JSON.stringify(entry, null, 2),
-    );
+    await fs.writeFile(this.entryPath(taskSpec.id), JSON.stringify(entry, null, 2));
   }
 
   /** Wipe the cache directory (used by tests / `bench cache clear`). */

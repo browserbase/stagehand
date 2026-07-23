@@ -6,9 +6,7 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/jfk/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/jfk/");
 
       const extraction = await v3.extract(
         "extract all the record file name and their corresponding links",

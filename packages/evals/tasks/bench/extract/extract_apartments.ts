@@ -6,12 +6,9 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://www.apartments.com/san-francisco-ca/2-bedrooms/",
-        {
-          waitUntil: "load",
-        },
-      );
+      await page.goto("https://www.apartments.com/san-francisco-ca/2-bedrooms/", {
+        waitUntil: "load",
+      });
       const apartment_listings = await v3.extract(
         "Extract all the apartment listings with their prices and their addresses.",
         z.object({

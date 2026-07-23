@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes-2/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes-2/");
 
       await v3.act("click the button called 'click me (inner 2)'");
 
@@ -18,8 +16,7 @@ export default defineBenchTask(
       const messageText = await inner.locator("#msg").textContent();
 
       const passed: boolean =
-        messageText.toLowerCase().trim() ===
-        "clicked the button in the second inner iframe";
+        messageText.toLowerCase().trim() === "clicked the button in the second inner iframe";
 
       return {
         _success: passed,

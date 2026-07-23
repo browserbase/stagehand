@@ -7,10 +7,9 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/sars/",
-        { waitUntil: "load" },
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/sars/", {
+        waitUntil: "load",
+      });
 
       const result = await v3.extract(
         "Extract ALL the public notice descriptions with their corresponding, GG number and publication date. Extract ALL notices from 2024 through 2020. Do not include the Notice number.",
@@ -19,17 +18,11 @@ export default defineBenchTask(
             z.object({
               notice_description: z
                 .string()
-                .describe(
-                  "the description of the notice. Do not include the Notice number",
-                ),
-              gg_number: z
-                .string()
-                .describe("the GG number of the notice. For example, GG 12345"),
+                .describe("the description of the notice. Do not include the Notice number"),
+              gg_number: z.string().describe("the GG number of the notice. For example, GG 12345"),
               publication_date: z
                 .string()
-                .describe(
-                  "the publication date of the notice. For example, 8 December 2021",
-                ),
+                .describe("the publication date of the notice. For example, 8 December 2021"),
             }),
           ),
         }),
@@ -81,16 +74,8 @@ export default defineBenchTask(
           expectedFirstItem.notice_description,
           0.9,
         ) &&
-        compareStrings(
-          publicNotices[0].gg_number,
-          expectedFirstItem.gg_number,
-          0.9,
-        ) &&
-        compareStrings(
-          publicNotices[0].publication_date,
-          expectedFirstItem.publication_date,
-          0.9,
-        );
+        compareStrings(publicNotices[0].gg_number, expectedFirstItem.gg_number, 0.9) &&
+        compareStrings(publicNotices[0].publication_date, expectedFirstItem.publication_date, 0.9);
 
       if (!firstItemMatches) {
         logger.error({

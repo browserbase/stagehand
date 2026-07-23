@@ -8,17 +8,12 @@ export interface ExternalHarnessTaskPlan {
   instruction: string;
 }
 
-function readString(
-  params: Record<string, unknown>,
-  key: string,
-): string | undefined {
+function readString(params: Record<string, unknown>, key: string): string | undefined {
   const value = params[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-export function buildExternalHarnessTaskPlan(
-  input: EvalInput,
-): ExternalHarnessTaskPlan {
+export function buildExternalHarnessTaskPlan(input: EvalInput): ExternalHarnessTaskPlan {
   const params = input.params ?? {};
 
   if (input.name === "agent/webvoyager") {
@@ -56,9 +51,7 @@ export function buildExternalHarnessTaskPlan(
   if (input.name === "agent/webtailbench") {
     const instruction = readString(params, "ques");
     if (!instruction) {
-      throw new EvalsError(
-        `Missing WebTailBench params for external harness: expected ques.`,
-      );
+      throw new EvalsError(`Missing WebTailBench params for external harness: expected ques.`);
     }
     return {
       dataset: "webtailbench",

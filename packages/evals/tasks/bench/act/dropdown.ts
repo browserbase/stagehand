@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/dropdown/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/dropdown/");
 
       // click the dropdown element to expand it
       const xpath = "xpath=/html/body/div/div/button";

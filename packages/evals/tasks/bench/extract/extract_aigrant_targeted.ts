@@ -6,9 +6,7 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
       const selector = "/html/body/div/ul[5]/li[28]";
       const company = await v3.extract(
         "Extract the company name.",

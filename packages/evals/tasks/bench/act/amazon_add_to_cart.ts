@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/amazon/");
 
       await v3.act("click the 'Add to Cart' button");
 

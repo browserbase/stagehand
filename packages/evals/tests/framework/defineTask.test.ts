@@ -1,10 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from "vitest";
-import {
-  defineCoreTask,
-  defineBenchTask,
-  defineTask,
-} from "../../framework/defineTask.js";
+import { defineCoreTask, defineBenchTask, defineTask } from "../../framework/defineTask.js";
 
 describe("defineCoreTask", () => {
   it("returns a TaskDefinition with marker", () => {
@@ -37,10 +33,7 @@ describe("defineBenchTask", () => {
   });
 
   it("preserves models override in meta", () => {
-    const result = defineBenchTask(
-      { name: "x", models: ["openai/gpt-4o"] },
-      vi.fn() as any,
-    );
+    const result = defineBenchTask({ name: "x", models: ["openai/gpt-4o"] }, vi.fn() as any);
 
     expect((result.meta as any).models).toEqual(["openai/gpt-4o"]);
   });

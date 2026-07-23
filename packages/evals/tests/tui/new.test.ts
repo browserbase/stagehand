@@ -35,11 +35,9 @@ describe("scaffoldTask", () => {
 
     const task = scaffoldTask(["core", "navigation", "my_task"]);
 
-    expect(
-      fs.existsSync(
-        path.join(packageRoot, "core", "tasks", "navigation", "my_task.ts"),
-      ),
-    ).toBe(true);
+    expect(fs.existsSync(path.join(packageRoot, "core", "tasks", "navigation", "my_task.ts"))).toBe(
+      true,
+    );
     expect(task?.displayPath).toBe("core/tasks/navigation/my_task.ts");
   });
 
@@ -48,11 +46,7 @@ describe("scaffoldTask", () => {
 
     const task = scaffoldTask(["bench", "act", "my_task"]);
 
-    expect(
-      fs.existsSync(
-        path.join(packageRoot, "tasks", "bench", "act", "my_task.ts"),
-      ),
-    ).toBe(true);
+    expect(fs.existsSync(path.join(packageRoot, "tasks", "bench", "act", "my_task.ts"))).toBe(true);
     expect(task?.displayPath).toBe("tasks/bench/act/my_task.ts");
   });
 

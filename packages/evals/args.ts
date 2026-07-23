@@ -97,9 +97,7 @@ const providerDefault = process.env.EVAL_PROVIDER ?? undefined;
 
 function buildUsage(detailed = false): string {
   const header = chalk.blue.bold("Stagehand • Eval Runner");
-  const synopsis = chalk.cyan(
-    `pnpm run evals [key=value]… [category <name>] | name=<evalName>`,
-  );
+  const synopsis = chalk.cyan(`pnpm run evals [key=value]… [category <name>] | name=<evalName>`);
 
   const examplesSection = `
       ${chalk.magenta.underline("Examples")}
@@ -161,9 +159,7 @@ function buildUsage(detailed = false): string {
   `;
 
   if (!detailed)
-    return `${header}\n\n${synopsis}\n\nFor more details: ${chalk.bold(
-      "pnpm run evals -man\n",
-    )}`;
+    return `${header}\n\n${synopsis}\n\nFor more details: ${chalk.bold("pnpm run evals -man\n")}`;
 
   const externalBenchmarksSection = dedent`
     ${chalk.magenta.underline("\nExternal Benchmarks\n")}
@@ -315,9 +311,4 @@ if (parsedArgs.provider !== undefined) {
   process.env.EVAL_PROVIDER = parsedArgs.provider;
 }
 
-export {
-  filterByCategory,
-  filterByEvalName,
-  DEFAULT_EVAL_CATEGORIES,
-  parsedArgs,
-};
+export { filterByCategory, filterByEvalName, DEFAULT_EVAL_CATEGORIES, parsedArgs };

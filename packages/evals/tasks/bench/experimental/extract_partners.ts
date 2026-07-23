@@ -25,9 +25,7 @@ export default defineBenchTask(
           explanation: z
             .string()
             .optional()
-            .describe(
-              "Any explanation about partner listing or absence thereof",
-            ),
+            .describe("Any explanation about partner listing or absence thereof"),
         }),
       );
 

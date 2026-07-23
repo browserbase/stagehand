@@ -6,9 +6,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/csa/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/csa/");
 
       const result = await v3.extract(
         "Extract all the publications on the page including the publication date, session type, publication type, and annotation",

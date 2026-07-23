@@ -14,19 +14,11 @@ export default defineBenchTask(
       const movieDetails = await v3.extract(
         "Extract the list of countries with the most ratings.",
         z.object({
-          countries: z
-            .array(z.string())
-            .describe("List of countries with the most ratings"),
+          countries: z.array(z.string()).describe("List of countries with the most ratings"),
         }),
       );
 
-      const expectedCountries = [
-        "United States",
-        "United Kingdom",
-        "Turkey",
-        "India",
-        "Germany",
-      ];
+      const expectedCountries = ["United States", "United Kingdom", "Turkey", "India", "Germany"];
 
       if (!movieDetails.countries || movieDetails.countries.length !== 5) {
         logger.error({

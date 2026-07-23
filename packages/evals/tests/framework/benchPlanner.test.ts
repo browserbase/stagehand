@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import type { DiscoveredTask } from "../../framework/types.js";
-import {
-  buildBenchMatrixRow,
-  generateBenchTestcases,
-} from "../../framework/benchPlanner.js";
+import { buildBenchMatrixRow, generateBenchTestcases } from "../../framework/benchPlanner.js";
 import { withEnvOverrides } from "../../tui/commands/parse.js";
 
 function makeTask(overrides: Partial<DiscoveredTask> = {}): DiscoveredTask {
@@ -23,15 +20,11 @@ function makeTask(overrides: Partial<DiscoveredTask> = {}): DiscoveredTask {
 describe("benchPlanner", () => {
   it("builds stagehand matrix rows by default", () => {
     const task = makeTask();
-    const row = buildBenchMatrixRow(
-      task,
-      "openai/gpt-4.1-mini" as AvailableModel,
-      {
-        environment: "BROWSERBASE",
-        provider: "openai",
-        useApi: true,
-      },
-    );
+    const row = buildBenchMatrixRow(task, "openai/gpt-4.1-mini" as AvailableModel, {
+      environment: "BROWSERBASE",
+      provider: "openai",
+      useApi: true,
+    });
 
     expect(row).toMatchObject({
       harness: "stagehand",
@@ -160,16 +153,12 @@ describe("benchPlanner", () => {
     );
 
     expect(testcases).toHaveLength(2);
-    expect(
-      testcases.map((testcase) => testcase.input.agentMode).sort(),
-    ).toEqual(["dom", "hybrid"]);
+    expect(testcases.map((testcase) => testcase.input.agentMode).sort()).toEqual(["dom", "hybrid"]);
     expect(testcases.map((testcase) => testcase.input.modelName)).toEqual([
       "openai/gpt-4.1-mini",
       "openai/gpt-4.1-mini",
     ]);
-    expect(testcases.every((testcase) => testcase.input.isCUA === false)).toBe(
-      true,
-    );
+    expect(testcases.every((testcase) => testcase.input.isCUA === false)).toBe(true);
   });
 
   it("runs configured non-CUA agent models in dom and hybrid modes", async () => {
@@ -197,14 +186,10 @@ describe("benchPlanner", () => {
     );
 
     expect(testcases).toHaveLength(2);
-    expect(
-      testcases.map((testcase) => testcase.input.agentMode).sort(),
-    ).toEqual(["dom", "hybrid"]);
-    expect(
-      testcases.every(
-        (testcase) => testcase.input.modelName === "openai/gpt-4.1-mini",
-      ),
-    ).toBe(true);
+    expect(testcases.map((testcase) => testcase.input.agentMode).sort()).toEqual(["dom", "hybrid"]);
+    expect(testcases.every((testcase) => testcase.input.modelName === "openai/gpt-4.1-mini")).toBe(
+      true,
+    );
   });
 
   it("can run CUA-capable models in requested dom and hybrid modes", async () => {
@@ -232,15 +217,15 @@ describe("benchPlanner", () => {
         ),
     );
 
-    expect(
-      testcases.map((testcase) => testcase.input.agentMode).sort(),
-    ).toEqual(["dom", "dom", "hybrid", "hybrid"]);
+    expect(testcases.map((testcase) => testcase.input.agentMode).sort()).toEqual([
+      "dom",
+      "dom",
+      "hybrid",
+      "hybrid",
+    ]);
     expect(
       testcases
-        .filter(
-          (testcase) =>
-            testcase.input.modelName === "google/gemini-3-flash-preview",
-        )
+        .filter((testcase) => testcase.input.modelName === "google/gemini-3-flash-preview")
         .map((testcase) => testcase.input.agentMode)
         .sort(),
     ).toEqual(["dom", "hybrid"]);
@@ -376,9 +361,7 @@ describe("benchPlanner", () => {
     );
 
     expect(testcases).toHaveLength(1);
-    expect(testcases[0].input.modelName).toBe(
-      "anthropic/claude-sonnet-4-20250514",
-    );
+    expect(testcases[0].input.modelName).toBe("anthropic/claude-sonnet-4-20250514");
     expect(testcases[0].input.agentMode).toBeUndefined();
     expect(testcases[0].input.isCUA).toBeUndefined();
     expect(testcases[0].tags).toContain("harness/claude_code");
@@ -486,9 +469,7 @@ describe("benchPlanner", () => {
     expect(testcases[0].input.isCUA).toBe(false);
     expect(testcases[0].input.params?.id).toBeTruthy();
     expect(testcases[0].metadata.dataset).toBe("webvoyager");
-    expect(testcases[0].metadata.categories).toEqual([
-      "external_agent_benchmarks",
-    ]);
+    expect(testcases[0].metadata.categories).toEqual(["external_agent_benchmarks"]);
     expect(testcases[0].metadata.category).toBe("external_agent_benchmarks");
   });
 
@@ -557,9 +538,7 @@ describe("benchPlanner", () => {
     const rowCategory = testcases[0].input.params?.category as string;
     expect(rowCategory).toBeTruthy();
     expect(testcases[0].metadata.task_category).toBe(rowCategory);
-    expect(testcases[0].metadata.task_category).not.toBe(
-      testcases[0].metadata.category,
-    );
+    expect(testcases[0].metadata.task_category).not.toBe(testcases[0].metadata.category);
     expect(testcases[0].metadata.task_category).not.toBe("agent");
   });
 });

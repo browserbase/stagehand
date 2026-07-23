@@ -5,10 +5,7 @@ import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import { codexAdapter } from "./harnesses/codexAdapter.js";
-import {
-  gradeExternalTrajectory,
-  type ExternalHarnessVerifierConfig,
-} from "./verifierAdapter.js";
+import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 type MetricValue = { count: number; value: number };
 type CodexEvent = Record<string, unknown>;
@@ -74,10 +71,7 @@ export function normalizeCodexModel(model: AvailableModel): string {
   return model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
 }
 
-export function buildCodexPrompt(
-  plan: ExternalHarnessTaskPlan,
-  toolInstructions?: string,
-): string {
+export function buildCodexPrompt(plan: ExternalHarnessTaskPlan, toolInstructions?: string): string {
   return [
     "You are running a browser benchmark task.",
     "",
@@ -88,8 +82,7 @@ export function buildCodexPrompt(
     "Instruction:",
     plan.instruction,
     "",
-    toolInstructions ??
-      "Use the available browser/web tools to complete the task.",
+    toolInstructions ?? "Use the available browser/web tools to complete the task.",
     "Do not edit repository files.",
     "At the end, return compact JSON matching this schema:",
     '{"success": boolean, "summary": string, "finalAnswer": string}',
@@ -165,8 +158,7 @@ export async function runCodexAgent({
       } else if (event.type === "turn.failed") {
         stopReason = readCodexErrorMessage(event.error);
       } else if (event.type === "error") {
-        stopReason =
-          typeof event.message === "string" ? event.message : "error";
+        stopReason = typeof event.message === "string" ? event.message : "error";
       }
 
       const item = isRecord(event.item) ? event.item : undefined;
@@ -203,10 +195,7 @@ export async function runCodexAgent({
   const errorMessage =
     parsed.summary ??
     stopReason ??
-    (iterationErrorMessage ||
-      finalResponse ||
-      transcriptText ||
-      "Codex did not report success");
+    (iterationErrorMessage || finalResponse || transcriptText || "Codex did not report success");
   const baseResult: TaskResult = {
     _success: parsed.success,
     error: !parsed.success ? errorMessage : undefined,
@@ -253,9 +242,7 @@ export async function runCodexAgent({
   });
 }
 
-function tryParseCodexJson(
-  candidate: string,
-): Omit<ParsedCodexResult, "raw"> | undefined {
+function tryParseCodexJson(candidate: string): Omit<ParsedCodexResult, "raw"> | undefined {
   try {
     const parsed = JSON.parse(candidate) as {
       success?: unknown;
@@ -265,8 +252,7 @@ function tryParseCodexJson(
     return {
       success: parsed.success === true,
       summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
-      finalAnswer:
-        typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : undefined,
+      finalAnswer: typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : undefined,
     };
   } catch {
     return undefined;
@@ -280,9 +266,7 @@ function resolveCodexStatus(
   return iterationError || stopReason ? "sdk_error" : "completed";
 }
 
-function buildCodexMetrics(
-  usage: CodexUsage | undefined,
-): Record<string, MetricValue> {
+function buildCodexMetrics(usage: CodexUsage | undefined): Record<string, MetricValue> {
   const inputTokens = toFiniteNumber(usage?.input_tokens);
   const cachedInputTokens = toFiniteNumber(usage?.cached_input_tokens);
   const outputTokens = toFiniteNumber(usage?.output_tokens);
@@ -359,8 +343,7 @@ function summarizeCodexEvent(event: CodexEvent): {
   }
   if (item?.type === "command_execution") {
     return {
-      message:
-        `command: ${String(item.command ?? "")} ${String(item.status ?? "")}`.trim(),
+      message: `command: ${String(item.command ?? "")} ${String(item.status ?? "")}`.trim(),
       detail: safeJson(item),
     };
   }
@@ -423,8 +406,7 @@ async function loadCodexSdk(env?: Record<string, string>): Promise<CodexSdk> {
         apiKey: process.env.OPENAI_API_KEY,
       }),
       config: {
-        show_raw_agent_reasoning:
-          process.env.EVAL_CODEX_RAW_REASONING === "true",
+        show_raw_agent_reasoning: process.env.EVAL_CODEX_RAW_REASONING === "true",
       },
     });
   } catch (error) {
@@ -436,33 +418,17 @@ async function loadCodexSdk(env?: Record<string, string>): Promise<CodexSdk> {
   }
 }
 
-function readCodexSandboxMode():
-  | "read-only"
-  | "workspace-write"
-  | "danger-full-access" {
+function readCodexSandboxMode(): "read-only" | "workspace-write" | "danger-full-access" {
   const raw = process.env.EVAL_CODEX_SANDBOX_MODE;
-  if (
-    raw === "read-only" ||
-    raw === "workspace-write" ||
-    raw === "danger-full-access"
-  ) {
+  if (raw === "read-only" || raw === "workspace-write" || raw === "danger-full-access") {
     return raw;
   }
   return "workspace-write";
 }
 
-function readCodexApprovalPolicy():
-  | "never"
-  | "on-request"
-  | "on-failure"
-  | "untrusted" {
+function readCodexApprovalPolicy(): "never" | "on-request" | "on-failure" | "untrusted" {
   const raw = process.env.EVAL_CODEX_APPROVAL_POLICY;
-  if (
-    raw === "never" ||
-    raw === "on-request" ||
-    raw === "on-failure" ||
-    raw === "untrusted"
-  ) {
+  if (raw === "never" || raw === "on-request" || raw === "on-failure" || raw === "untrusted") {
     return raw;
   }
   return "never";
@@ -503,7 +469,5 @@ function stringifyError(value: unknown): string {
 }
 
 function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength
-    ? value
-    : `${value.slice(0, maxLength - 1)}…`;
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
 }

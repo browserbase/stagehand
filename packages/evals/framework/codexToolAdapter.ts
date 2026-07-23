@@ -52,9 +52,7 @@ export function resolveCodexStartupProfile(
   if (requested) return requested;
 
   if (toolSurface === "browse_cli") {
-    return environment === "BROWSERBASE"
-      ? "tool_create_browserbase"
-      : "tool_launch_local";
+    return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
   }
 
   throw new EvalsError(

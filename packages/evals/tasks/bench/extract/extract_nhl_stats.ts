@@ -7,12 +7,9 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://www.hockeydb.com/ihdb/stats/top_league.php?lid=nhl1927&sid=1990",
-        {
-          waitUntil: "domcontentloaded",
-        },
-      );
+      await page.goto("https://www.hockeydb.com/ihdb/stats/top_league.php?lid=nhl1927&sid=1990", {
+        waitUntil: "domcontentloaded",
+      });
 
       const result = await v3.extract(
         "Extract the name of the goal scoring leader, their number of goals they scored, and the team they played for.",

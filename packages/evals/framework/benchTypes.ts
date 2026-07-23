@@ -33,13 +33,7 @@ export function parseBenchHarness(value: string | undefined): Harness {
   );
 }
 
-export type BenchTaskKind =
-  | "act"
-  | "extract"
-  | "observe"
-  | "agent"
-  | "combination"
-  | "suite";
+export type BenchTaskKind = "act" | "extract" | "observe" | "agent" | "combination" | "suite";
 
 export interface StagehandHarnessConfig {
   harness: "stagehand";

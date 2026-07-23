@@ -1,10 +1,7 @@
 import { normalizeRubric, type TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import {
-  evaluationResultToSuccess,
-  runWithVerifier,
-} from "../../../framework/verifierAdapter.js";
+import { evaluationResultToSuccess, runWithVerifier } from "../../../framework/verifierAdapter.js";
 
 /**
  * OdysseysBench bench task.
@@ -76,16 +73,15 @@ export default defineBenchTask(
         precomputedRubric,
       };
 
-      const { evaluationResult, trajectory, trajectoryDir, rubric } =
-        await runWithVerifier({
-          v3,
-          agent,
-          taskSpec,
-          dataset: "odysseysbench",
-          agentOptions: {
-            maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
-          },
-        });
+      const { evaluationResult, trajectory, trajectoryDir, rubric } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "odysseysbench",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+        },
+      });
 
       const successMode = process.env.EVAL_SUCCESS_MODE;
 

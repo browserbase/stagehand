@@ -31,18 +31,12 @@ export default defineBenchTask(
 
       const expectedLocator = `#tpWages`;
 
-      const expectedResult = await page
-        .locator(expectedLocator)
-        .first()
-        .innerText();
+      const expectedResult = await page.locator(expectedLocator).first().innerText();
 
       let foundMatch = false;
       for (const observation of observations) {
         try {
-          const observationResult = await page
-            .locator(observation.selector)
-            .first()
-            .innerText();
+          const observationResult = await page.locator(observation.selector).first().innerText();
 
           if (observationResult === expectedResult) {
             foundMatch = true;

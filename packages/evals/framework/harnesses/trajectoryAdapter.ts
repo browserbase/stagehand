@@ -101,9 +101,7 @@ export function actionToAgentEvidence(
   return { modalities };
 }
 
-export function toolCallToTrajectoryStep(
-  call: NormalizedToolCall,
-): TrajectoryStep {
+export function toolCallToTrajectoryStep(call: NormalizedToolCall): TrajectoryStep {
   return {
     actionName: call.name,
     actionArgs: call.args,
@@ -143,9 +141,7 @@ export interface BuildTrajectoryOptions {
 }
 
 export function buildTrajectory(opts: BuildTrajectoryOptions): Trajectory {
-  const steps: TrajectoryStep[] = opts.toolCalls.map((call) =>
-    toolCallToTrajectoryStep(call),
-  );
+  const steps: TrajectoryStep[] = opts.toolCalls.map((call) => toolCallToTrajectoryStep(call));
 
   return {
     task: opts.taskSpec,

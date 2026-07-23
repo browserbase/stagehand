@@ -1,28 +1,18 @@
 import { bold, dim, cyan, gray, bb, separator } from "../format.js";
 import type { TaskRegistry, Tier } from "../../framework/types.js";
 
-export function printList(
-  registry: TaskRegistry,
-  tierFilter?: string,
-  detailed = false,
-): void {
+export function printList(registry: TaskRegistry, tierFilter?: string, detailed = false): void {
   if (tierFilter && tierFilter !== "core" && tierFilter !== "bench") {
-    throw new Error(
-      `Unknown list filter "${tierFilter}". Use "core" or "bench".`,
-    );
+    throw new Error(`Unknown list filter "${tierFilter}". Use "core" or "bench".`);
   }
 
-  const tiers: Tier[] = tierFilter
-    ? [tierFilter as Tier]
-    : (["core", "bench"] as const);
+  const tiers: Tier[] = tierFilter ? [tierFilter as Tier] : (["core", "bench"] as const);
 
   for (const tier of tiers) {
     const tasks = registry.byTier.get(tier);
     if (!tasks || tasks.length === 0) continue;
 
-    console.log(
-      `\n  ${bold(bb(tier.toUpperCase()))} ${dim(`(${tasks.length} tasks)`)}`,
-    );
+    console.log(`\n  ${bold(bb(tier.toUpperCase()))} ${dim(`(${tasks.length} tasks)`)}`);
     console.log(separator());
 
     const byCategory = new Map<string, string[]>();
@@ -45,9 +35,7 @@ export function printList(
   }
 
   if (!detailed) {
-    console.log(
-      `\n  ${dim("Use")} ${cyan("list --detailed")} ${dim("to see all tasks.")}`,
-    );
+    console.log(`\n  ${dim("Use")} ${cyan("list --detailed")} ${dim("to see all tasks.")}`);
   }
   console.log("");
 }

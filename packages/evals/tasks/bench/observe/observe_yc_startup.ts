@@ -44,9 +44,7 @@ export default defineBenchTask(
 
       for (const observation of observations) {
         try {
-          const obsId = await page
-            .locator(observation.selector)
-            .backendNodeId();
+          const obsId = await page.locator(observation.selector).backendNodeId();
           for (const [candSel, candId] of candidateIds) {
             if (candId === obsId) {
               foundMatch = true;

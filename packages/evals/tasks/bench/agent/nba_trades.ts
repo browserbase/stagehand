@@ -2,10 +2,7 @@ import type { TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";
-import {
-  runWithVerifier,
-  evaluationResultToSuccess,
-} from "../../../framework/verifierAdapter.js";
+import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/nba_trades" },
@@ -15,16 +12,13 @@ export default defineBenchTask(
       const page = v3.context.pages()[0];
       await page.goto(initUrl);
 
-      const instruction =
-        "Find the latest Team transaction in the NBA within the past week.";
+      const instruction = "Find the latest Team transaction in the NBA within the past week.";
 
       const taskSpec: TaskSpec = {
         id: "agent/nba_trades",
         instruction,
         initUrl,
-        precomputedRubric: adHocRubric(
-          "Did the agent make it to the nba transactions page?",
-        ),
+        precomputedRubric: adHocRubric("Did the agent make it to the nba transactions page?"),
       };
 
       const { evaluationResult, trajectoryDir } = await runWithVerifier({

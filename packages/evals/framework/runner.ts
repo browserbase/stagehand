@@ -30,19 +30,12 @@ import type { Testcase, EvalInput } from "../types/evals.js";
 import { generateBenchTestcases } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS, type Harness } from "./benchTypes.js";
 import { executeBenchTask } from "./benchRunner.js";
-import {
-  hasBraintrustApiKey,
-  loadBraintrust,
-  tracedSpan,
-} from "./braintrust.js";
+import { hasBraintrustApiKey, loadBraintrust, tracedSpan } from "./braintrust.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
 
 export { discoverTasks, resolveTarget } from "./discovery.js";
-export {
-  inferEffectiveBenchCategory,
-  resolveBenchModelEntries,
-} from "./benchPlanner.js";
+export { inferEffectiveBenchCategory, resolveBenchModelEntries } from "./benchPlanner.js";
 export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
 import { resolveDefaultCoreStartupProfile } from "./context.js";
@@ -110,10 +103,7 @@ const silentBraintrustReporter = {
   },
 };
 
-function generateTestcases(
-  tasks: DiscoveredTask[],
-  options: RunEvalsOptions,
-): Testcase[] {
+function generateTestcases(tasks: DiscoveredTask[], options: RunEvalsOptions): Testcase[] {
   const coreTasks = tasks.filter((t) => t.tier === "core");
   const benchTasks = tasks.filter((t) => t.tier === "bench");
   let allTestcases: Testcase[] = [];
@@ -143,9 +133,7 @@ function generateTestcases(
   }
 
   if (options.environment === "BROWSERBASE") {
-    allTestcases = allTestcases.filter(
-      (tc) => !["peeler_simple", "stock_x"].includes(tc.name),
-    );
+    allTestcases = allTestcases.filter((tc) => !["peeler_simple", "stock_x"].includes(tc.name));
   }
 
   return allTestcases;
@@ -200,10 +188,7 @@ async function executeCoreTask(
     const ctxLocal = ctx!;
     result = await tracedSpan(
       async (): Promise<TaskResult> => {
-        const taskModule = await loadTaskModuleFromPath(
-          task.filePath,
-          task.name,
-        );
+        const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
         if (taskModule.definition) {
           await taskModule.definition.fn(ctxLocal);
           return {
@@ -308,9 +293,7 @@ function formatProgressError(error: unknown): string | undefined {
   }
 }
 
-export async function runEvals(
-  options: RunEvalsOptions,
-): Promise<RunEvalsResult> {
+export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult> {
   const concurrency = options.concurrency ?? 3;
   const trials = options.trials ?? 3;
   const environment = options.environment ?? "LOCAL";
@@ -329,9 +312,7 @@ export async function runEvals(
     };
   }
 
-  const hasCoreOnly = options.tasks.every(
-    (t: DiscoveredTask) => t.tier === "core",
-  );
+  const hasCoreOnly = options.tasks.every((t: DiscoveredTask) => t.tier === "core");
   const effectiveCoreToolSurface = hasCoreOnly
     ? (options.coreToolSurface ?? "understudy_code")
     : undefined;
@@ -350,9 +331,7 @@ export async function runEvals(
     toolSurface: effectiveCoreToolSurface,
     startupProfile: effectiveCoreStartupProfile,
   });
-  const runModel = resolveUnambiguousModel(
-    testcases.map((testcase) => testcase.input?.modelName),
-  );
+  const runModel = resolveUnambiguousModel(testcases.map((testcase) => testcase.input?.modelName));
 
   // Stamp the run-scoped trajectory group; the token is generated once here and
   // reused for the completion-time experiment link. Local persistence only.
@@ -365,8 +344,7 @@ export async function runEvals(
   process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
   if (runModel) process.env.EVAL_TRAJECTORY_MODEL = runModel;
   else delete process.env.EVAL_TRAJECTORY_MODEL;
-  if (options.modelOverride)
-    process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
+  if (options.modelOverride) process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
   if (options.provider) process.env.EVAL_PROVIDER = options.provider;
 
   const braintrustProjectName = hasCoreOnly
@@ -377,9 +355,7 @@ export async function runEvals(
       ? "stagehand"
       : "stagehand-dev";
 
-  const scores = hasCoreOnly
-    ? [passRate, errorMatch]
-    : [exactMatch, errorMatch];
+  const scores = hasCoreOnly ? [passRate, errorMatch] : [exactMatch, errorMatch];
 
   const { Eval, flush } = await loadBraintrust();
   const sendLogs = hasBraintrustApiKey();
@@ -457,9 +433,7 @@ export async function runEvals(
           type: result._success ? "passed" : "failed",
           taskName: input.name,
           modelName: input.modelName,
-          error: result._success
-            ? undefined
-            : formatProgressError(result.error),
+          error: result._success ? undefined : formatProgressError(result.error),
         });
 
         return result;
@@ -480,10 +454,7 @@ export async function runEvals(
   }
 
   const summaryResults = evalResult.results.map((result) => {
-    const output =
-      typeof result.output === "boolean"
-        ? { _success: result.output }
-        : result.output;
+    const output = typeof result.output === "boolean" ? { _success: result.output } : result.output;
     const categories = Array.isArray(result.metadata?.categories)
       ? result.metadata.categories.filter(
           (category): category is string => typeof category === "string",
@@ -499,8 +470,7 @@ export async function runEvals(
     };
   });
 
-  const resolvedExperimentName =
-    evalResult.summary?.experimentName ?? experimentName;
+  const resolvedExperimentName = evalResult.summary?.experimentName ?? experimentName;
   const resolvedExperimentUrl = evalResult.summary?.experimentUrl;
 
   // Cross-link local trajectories to the resolved Braintrust experiment. The
@@ -514,8 +484,7 @@ export async function runEvals(
       braintrustExperiment: resolvedExperimentName,
       braintrustExperimentId: evalResult.summary?.experimentId ?? null,
       braintrustExperimentUrl: resolvedExperimentUrl ?? null,
-      braintrustProject:
-        evalResult.summary?.projectName ?? braintrustProjectName,
+      braintrustProject: evalResult.summary?.projectName ?? braintrustProjectName,
       braintrustProjectUrl: evalResult.summary?.projectUrl ?? null,
       requestedExperimentName: experimentName,
     },

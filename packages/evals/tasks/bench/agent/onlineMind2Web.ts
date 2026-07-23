@@ -1,10 +1,7 @@
 import type { TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import {
-  runWithVerifier,
-  evaluationResultToSuccess,
-} from "../../../framework/verifierAdapter.js";
+import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
 /**
  * OnlineMind2Web bench task.
@@ -59,16 +56,15 @@ export default defineBenchTask(
         // then hydrate from cache on subsequent runs.
       };
 
-      const { evaluationResult, trajectory, trajectoryDir, rubric } =
-        await runWithVerifier({
-          v3,
-          agent,
-          taskSpec,
-          dataset: "onlineMind2Web",
-          agentOptions: {
-            maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
-          },
-        });
+      const { evaluationResult, trajectory, trajectoryDir, rubric } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "onlineMind2Web",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+        },
+      });
 
       const successMode = process.env.EVAL_SUCCESS_MODE;
 
@@ -104,8 +100,7 @@ export default defineBenchTask(
         _success: false,
         error,
         trajectoryDir,
-        task_level: ((input.params as { level?: string } | undefined) ?? {})
-          .level,
+        task_level: ((input.params as { level?: string } | undefined) ?? {}).level,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

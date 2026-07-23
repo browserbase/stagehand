@@ -5,10 +5,7 @@ import { getRepoRootDir } from "../../runtimePaths.js";
 type BrowserbaseConstructor = new (options: { apiKey: string }) => {
   sessions: {
     create: (payload: Record<string, unknown>) => Promise<unknown>;
-    update: (
-      sessionId: string,
-      payload: Record<string, unknown>,
-    ) => Promise<unknown>;
+    update: (sessionId: string, payload: Record<string, unknown>) => Promise<unknown>;
     debug?: (sessionId: string) => Promise<unknown>;
   };
 };
@@ -31,12 +28,7 @@ let coreRequire: ReturnType<typeof createRequire> | null = null;
 
 function requireFromCorePackage(specifier: string): unknown {
   if (!coreRequire) {
-    const packageJsonPath = path.join(
-      getRepoRootDir(),
-      "packages",
-      "core",
-      "package.json",
-    );
+    const packageJsonPath = path.join(getRepoRootDir(), "packages", "core", "package.json");
     coreRequire = createRequire(packageJsonPath);
   }
 

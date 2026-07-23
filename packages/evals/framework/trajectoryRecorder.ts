@@ -108,10 +108,7 @@ export class TrajectoryRecorder {
         mediaType: "image/png",
       });
     }
-    const merged = mergeAgentEvidence(
-      { modalities },
-      buildAgentEvidenceFromStepFinished(e),
-    );
+    const merged = mergeAgentEvidence({ modalities }, buildAgentEvidenceFromStepFinished(e));
 
     // Intentionally not cleared here: the same agent screenshot applies to
     // every step in a batched CUA turn. It's replaced when a newer agent
@@ -132,8 +129,7 @@ export class TrajectoryRecorder {
 
   private onStepObserved(e: AgentStepObservedEvent): void {
     const probe: ProbeEvidence = { url: e.url };
-    if (this.pendingProbeScreenshot)
-      probe.screenshot = this.pendingProbeScreenshot;
+    if (this.pendingProbeScreenshot) probe.screenshot = this.pendingProbeScreenshot;
     if (e.ariaTree !== undefined) probe.ariaTree = e.ariaTree;
     for (const idx of this.stepsAwaitingProbe) {
       this.steps[idx].probeEvidence = probe;
@@ -147,12 +143,8 @@ export class TrajectoryRecorder {
     if (e.observation) {
       this.finalObservation = {
         url: e.observation.url,
-        ...(e.observation.screenshot
-          ? { screenshot: e.observation.screenshot }
-          : {}),
-        ...(e.observation.ariaTree !== undefined
-          ? { ariaTree: e.observation.ariaTree }
-          : {}),
+        ...(e.observation.screenshot ? { screenshot: e.observation.screenshot } : {}),
+        ...(e.observation.ariaTree !== undefined ? { ariaTree: e.observation.ariaTree } : {}),
       };
     }
   }
@@ -202,9 +194,7 @@ export class TrajectoryRecorder {
       task: this.taskSpec,
       steps: this.steps,
       finalAnswer: opts.finalAnswer ?? this.finalAnswerEvent?.message,
-      ...(this.finalObservation
-        ? { finalObservation: this.finalObservation }
-        : {}),
+      ...(this.finalObservation ? { finalObservation: this.finalObservation } : {}),
       status: opts.status,
       usage: { ...ZERO_USAGE, ...(opts.usage ?? {}) },
     };
@@ -280,10 +270,7 @@ export class TrajectoryRecorder {
    * Persist evaluator result next to the trajectory. No-op when trajectory
    * persistence is disabled.
    */
-  async persistResult(
-    result: EvaluationResult,
-    filename = "result.json",
-  ): Promise<void> {
+  async persistResult(result: EvaluationResult, filename = "result.json"): Promise<void> {
     if (!this.persistEnabled) return;
 
     // Route through the shared reservation so scores land in the same dir as
@@ -291,24 +278,15 @@ export class TrajectoryRecorder {
     const { directory } = await this.ensureReserved();
     const scoresDir = path.join(directory, "scores");
     await fs.mkdir(scoresDir, { recursive: true });
-    await fs.writeFile(
-      path.join(scoresDir, filename),
-      JSON.stringify(result, null, 2),
-    );
+    await fs.writeFile(path.join(scoresDir, filename), JSON.stringify(result, null, 2));
 
     const taskDataPath = path.join(this.outputDir, "task_data.json");
     let taskData: Record<string, unknown>;
     try {
-      taskData = JSON.parse(await fs.readFile(taskDataPath, "utf8")) as Record<
-        string,
-        unknown
-      >;
+      taskData = JSON.parse(await fs.readFile(taskDataPath, "utf8")) as Record<string, unknown>;
     } catch {
       taskData = { task: this.taskSpec };
     }
-    await fs.writeFile(
-      taskDataPath,
-      JSON.stringify({ ...taskData, result }, null, 2),
-    );
+    await fs.writeFile(taskDataPath, JSON.stringify({ ...taskData, result }, null, 2));
   }
 }

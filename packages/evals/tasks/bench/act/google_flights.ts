@@ -16,9 +16,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/");
 
       const observeResult: Action = {
         selector:

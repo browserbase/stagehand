@@ -16,9 +16,7 @@ export type StagehandInitResult = {
   agent: AgentInstance;
 };
 
-export type EvalFunction = (
-  taskInput: StagehandInitResult & { input: EvalInput },
-) => Promise<{
+export type EvalFunction = (taskInput: StagehandInitResult & { input: EvalInput }) => Promise<{
   _success: boolean;
   logs: LogLine[];
   debugUrl: string;
@@ -49,33 +47,32 @@ export interface EvalInput {
   params?: Record<string, unknown>;
 }
 
-export interface Testcase
-  extends EvalCase<
-    EvalInput,
-    unknown,
-    {
-      model: AvailableModel;
-      test: string;
-      tier?: "core" | "bench";
-      task?: string;
-      categories?: string[];
-      category?: string;
-      dataset?: string;
-      task_id?: string;
-      website?: string;
-      difficulty?: string;
-      harness?: string;
-      environment?: "LOCAL" | "BROWSERBASE";
-      api?: boolean;
-      provider?: string;
-      toolSurface?: string;
-      startupProfile?: string;
-      toolCommand?: string;
-      browseCliVersion?: string;
-      browseCliEntrypoint?: string;
-      agentMode?: AgentToolMode;
-    }
-  > {
+export interface Testcase extends EvalCase<
+  EvalInput,
+  unknown,
+  {
+    model: AvailableModel;
+    test: string;
+    tier?: "core" | "bench";
+    task?: string;
+    categories?: string[];
+    category?: string;
+    dataset?: string;
+    task_id?: string;
+    website?: string;
+    difficulty?: string;
+    harness?: string;
+    environment?: "LOCAL" | "BROWSERBASE";
+    api?: boolean;
+    provider?: string;
+    toolSurface?: string;
+    startupProfile?: string;
+    toolCommand?: string;
+    browseCliVersion?: string;
+    browseCliEntrypoint?: string;
+    agentMode?: AgentToolMode;
+  }
+> {
   input: EvalInput;
   name: string;
   tags: string[];

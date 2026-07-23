@@ -75,9 +75,7 @@ export default defineBenchTask(
         }
 
         await v3.act(observations[0]);
-        const clicked = await page.evaluate(
-          () => document.body.dataset.clicked,
-        );
+        const clicked = await page.evaluate(() => document.body.dataset.clicked);
         results.push({
           instruction: testCase.instruction,
           clicked,
