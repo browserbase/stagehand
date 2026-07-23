@@ -70,6 +70,8 @@ def main() -> None:
         for existing_distribution in (
             *output_directory.glob("stagehand-*.whl"),
             *output_directory.glob("stagehand-*.tar.gz"),
+            *output_directory.glob("stagehand_v4-*.whl"),
+            *output_directory.glob("stagehand_v4-*.tar.gz"),
         ):
             existing_distribution.unlink()
         for distribution in (*wheels, *source_distributions):

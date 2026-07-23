@@ -51,3 +51,11 @@ version:
     vp exec tsx scripts/release/sync-python-version.ts
     uv --directory "{{python_dir}}" lock
     vp exec tsx scripts/release/sync-python-version.ts --check
+
+_publish-typescript:
+    vp run -F ./packages/sdk-ts build
+    vp exec changeset publish
+
+_publish-typescript-canary commit:
+    vp run -F ./packages/sdk-ts build
+    vp exec tsx scripts/release/publish-typescript-canary.ts "{{commit}}"
