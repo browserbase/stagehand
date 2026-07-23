@@ -31,7 +31,7 @@ Follow these steps to add a method to the protocol:
 5. Route the method to that controller in `../extension/rpcRouter.ts`.
 6. Expose the method from the appropriate TypeScript SDK class using `client.send(StagehandMethods.example, params)`.
 7. Add protocol, server, and SDK tests for the method.
-8. Regenerate `stagehand.v4.json` with `vp run -w build:schema`, then run `vp run -w check` and `vp run -w test` from the repository root.
+8. Regenerate `stagehand.v4.json` with `vp run -w build:schema`, then run `vp run -w check` and `vp run -w test` from the `v4/` workspace root.
 
 ## Runtime protocol versions
 

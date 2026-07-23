@@ -37,6 +37,7 @@ export default defineConfig({
       "packages/extension/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/extension/understudy/**/*.test.ts",
+      "packages/extension/llm/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",
     ],
     typecheck: {

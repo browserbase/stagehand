@@ -405,7 +405,7 @@ class Stagehand:
             self.browser = browser
             extension_dir = Path(__file__).with_name("_extension")
             if not (extension_dir / "manifest.json").is_file():
-                extension_dir = Path(__file__).resolve().parents[3] / "server" / "dist"
+                extension_dir = Path(__file__).resolve().parents[3] / "extension" / "dist"
 
             try:
                 rpc_client = await connect_rpc_client(
