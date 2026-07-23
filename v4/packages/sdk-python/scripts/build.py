@@ -13,7 +13,9 @@ SERVER_EXTENSION_ROOT = SDK_ROOT.parent / "extension" / "dist"
 
 def main() -> None:
     if not (SERVER_EXTENSION_ROOT / "manifest.json").is_file():
-        raise SystemExit("Stagehand extension is not built; run `just build` from the v4/ workspace root.")
+        raise SystemExit(
+            "Stagehand extension is not built; run `just build` from the v4/ workspace root."
+        )
 
     with tempfile.TemporaryDirectory(prefix="stagehand-python-build-") as temporary_directory:
         temporary_root = Path(temporary_directory)
