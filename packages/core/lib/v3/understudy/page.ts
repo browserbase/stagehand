@@ -62,6 +62,11 @@ import {
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
 import { withTimeout } from "../timeoutConfig.js";
+import {
+  getActiveAbortSignal,
+  raceWithAbort,
+  runWithoutAbortSignal,
+} from "../cancellation.js";
 
 /**
  * Page
@@ -1209,6 +1214,9 @@ export class Page {
       timeoutMs: timeout,
       navigationCommandId,
     });
+    const removeAbortHandler = this.stopLoadingWhenAborted(
+      getActiveAbortSignal(),
+    );
 
     try {
       // Route to API if available
@@ -1238,9 +1246,10 @@ export class Page {
         watcher.setExpectedLoaderId(response.loaderId);
         tracker.setExpectedLoaderId(response.loaderId);
       }
-      await watcher.wait();
-      return await tracker.navigationCompleted();
+      await raceWithAbort(watcher.wait());
+      return await raceWithAbort(tracker.navigationCompleted());
     } finally {
+      removeAbortHandler();
       watcher.dispose();
       tracker.dispose();
     }
@@ -1277,6 +1286,9 @@ export class Page {
           navigationCommandId,
         })
       : null;
+    const removeAbortHandler = this.stopLoadingWhenAborted(
+      getActiveAbortSignal(),
+    );
 
     try {
       await this.mainSession.send("Page.reload", {
@@ -1284,10 +1296,11 @@ export class Page {
       });
 
       if (watcher) {
-        await watcher.wait();
+        await raceWithAbort(watcher.wait());
       }
-      return await tracker.navigationCompleted();
+      return await raceWithAbort(tracker.navigationCompleted());
     } finally {
+      removeAbortHandler();
       watcher?.dispose();
       tracker.dispose();
     }
@@ -1329,6 +1342,9 @@ export class Page {
           navigationCommandId,
         })
       : null;
+    const removeAbortHandler = this.stopLoadingWhenAborted(
+      getActiveAbortSignal(),
+    );
 
     try {
       await this.mainSession.send("Page.navigateToHistoryEntry", {
@@ -1337,10 +1353,11 @@ export class Page {
       this._currentUrl = prev.url ?? this._currentUrl;
 
       if (watcher) {
-        await watcher.wait();
+        await raceWithAbort(watcher.wait());
       }
-      return await tracker.navigationCompleted();
+      return await raceWithAbort(tracker.navigationCompleted());
     } finally {
+      removeAbortHandler();
       watcher?.dispose();
       tracker.dispose();
     }
@@ -1384,6 +1401,9 @@ export class Page {
           navigationCommandId,
         })
       : null;
+    const removeAbortHandler = this.stopLoadingWhenAborted(
+      getActiveAbortSignal(),
+    );
 
     try {
       await this.mainSession.send("Page.navigateToHistoryEntry", {
@@ -1392,10 +1412,11 @@ export class Page {
       this._currentUrl = next.url ?? this._currentUrl;
 
       if (watcher) {
-        await watcher.wait();
+        await raceWithAbort(watcher.wait());
       }
-      return await tracker.navigationCompleted();
+      return await raceWithAbort(tracker.navigationCompleted());
     } finally {
+      removeAbortHandler();
       watcher?.dispose();
       tracker.dispose();
     }
@@ -1412,6 +1433,18 @@ export class Page {
     const id = ++this.navigationCommandSeq;
     this.latestNavigationCommandId = id;
     return id;
+  }
+
+  private stopLoadingWhenAborted(signal?: AbortSignal): () => void {
+    if (!signal) return () => {};
+
+    const stopLoading = () => {
+      runWithoutAbortSignal(() => {
+        void this.mainSession.send("Page.stopLoading").catch(() => {});
+      });
+    };
+    signal.addEventListener("abort", stopLoading, { once: true });
+    return () => signal.removeEventListener("abort", stopLoading);
   }
 
   public isCurrentNavigationCommand(id: number): boolean {
@@ -1563,7 +1596,7 @@ export class Page {
       }
     };
 
-    return await withTimeout(exec(), opts.timeout, "screenshot");
+    return await withTimeout(() => exec(), opts.timeout, "screenshot");
   }
 
   /**
@@ -2067,32 +2100,53 @@ export class Page {
       clickCount: 1,
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    // Intermediate moves
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const x = fromX + (toX - fromX) * t;
-      const y = fromY + (toY - fromY) * t;
-      await this.updateCursor(x, y);
+    let releaseNeeded = true;
+    let currentX = fromX;
+    let currentY = fromY;
+    try {
+      // Intermediate moves
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        currentX = fromX + (toX - fromX) * t;
+        currentY = fromY + (toY - fromY) * t;
+        await this.updateCursor(currentX, currentY);
+        await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x: currentX,
+          y: currentY,
+          button,
+          buttons: buttonMask(button),
+        } as Protocol.Input.DispatchMouseEventRequest);
+        if (delay) await raceWithAbort(sleep(delay));
+      }
+
+      // Release at end
+      await this.updateCursor(toX, toY);
       await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseMoved",
-        x,
-        y,
+        type: "mouseReleased",
+        x: toX,
+        y: toY,
         button,
         buttons: buttonMask(button),
+        clickCount: 1,
       } as Protocol.Input.DispatchMouseEventRequest);
-      if (delay) await sleep(delay);
+      releaseNeeded = false;
+    } finally {
+      if (releaseNeeded) {
+        await runWithoutAbortSignal(() =>
+          this.mainSession
+            .send<never>("Input.dispatchMouseEvent", {
+              type: "mouseReleased",
+              x: currentX,
+              y: currentY,
+              button,
+              buttons: buttonMask(button),
+              clickCount: 1,
+            } as Protocol.Input.DispatchMouseEventRequest)
+            .catch(() => {}),
+        );
+      }
     }
-
-    // Release at end
-    await this.updateCursor(toX, toY);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x: toX,
-      y: toY,
-      button,
-      buttons: buttonMask(button),
-      clickCount: 1,
-    } as Protocol.Input.DispatchMouseEventRequest);
 
     return [fromXpath ?? "", toXpath ?? ""];
   }
@@ -2130,10 +2184,22 @@ export class Page {
           windowsVirtualKeyCode: override.windowsVirtualKeyCode,
         } as Protocol.Input.DispatchKeyEventRequest;
         await this.mainSession.send("Input.dispatchKeyEvent", base);
-        await this.mainSession.send("Input.dispatchKeyEvent", {
-          ...base,
-          type: "keyUp",
-        } as Protocol.Input.DispatchKeyEventRequest);
+        try {
+          await this.mainSession.send("Input.dispatchKeyEvent", {
+            ...base,
+            type: "keyUp",
+          } as Protocol.Input.DispatchKeyEventRequest);
+        } catch (error) {
+          await runWithoutAbortSignal(() =>
+            this.mainSession
+              .send("Input.dispatchKeyEvent", {
+                ...base,
+                type: "keyUp",
+              } as Protocol.Input.DispatchKeyEventRequest)
+              .catch(() => {}),
+          );
+          throw error;
+        }
         return;
       }
 
@@ -2170,12 +2236,20 @@ export class Page {
         windowsVirtualKeyCode,
       };
       await this.mainSession.send("Input.dispatchKeyEvent", down);
-      await this.mainSession.send("Input.dispatchKeyEvent", {
+      const up = {
         type: "keyUp",
         key,
         code: code || undefined,
         windowsVirtualKeyCode,
-      } as Protocol.Input.DispatchKeyEventRequest);
+      } as Protocol.Input.DispatchKeyEventRequest;
+      try {
+        await this.mainSession.send("Input.dispatchKeyEvent", up);
+      } catch (error) {
+        await runWithoutAbortSignal(() =>
+          this.mainSession.send("Input.dispatchKeyEvent", up).catch(() => {}),
+        );
+        throw error;
+      }
     };
 
     const pressBackspace = async () =>
@@ -2214,14 +2288,14 @@ export class Page {
           // Type a wrong character, then backspace to correct
           const wrong = randomPrintable(ch);
           await keyStroke(wrong);
-          if (delay) await sleep(delay);
+          if (delay) await raceWithAbort(sleep(delay));
           await pressBackspace();
-          if (delay) await sleep(delay);
+          if (delay) await raceWithAbort(sleep(delay));
         }
         await keyStroke(ch);
       }
 
-      if (delay) await sleep(delay);
+      if (delay) await raceWithAbort(sleep(delay));
     }
   }
 
@@ -2263,20 +2337,29 @@ export class Page {
     const mainKey = tokens[tokens.length - 1];
     const modifierKeys = tokens.slice(0, -1);
 
+    const pressedKeys: string[] = [];
     try {
       for (const modKey of modifierKeys) {
         await this.keyDown(modKey);
+        pressedKeys.push(modKey);
       }
 
       await this.keyDown(mainKey);
-      if (delay) await sleep(delay);
+      pressedKeys.push(mainKey);
+      if (delay) await raceWithAbort(sleep(delay));
       await this.keyUp(mainKey);
+      pressedKeys.pop();
 
       for (let i = modifierKeys.length - 1; i >= 0; i--) {
         await this.keyUp(modifierKeys[i]);
+        pressedKeys.pop();
       }
     } catch (error) {
-      // Clear stuck modifiers on error to prevent affecting subsequent keyPress calls
+      await runWithoutAbortSignal(async () => {
+        for (let i = pressedKeys.length - 1; i >= 0; i--) {
+          await this.keyUp(pressedKeys[i]).catch(() => {});
+        }
+      });
       this._pressedModifiers.clear();
       throw error;
     }

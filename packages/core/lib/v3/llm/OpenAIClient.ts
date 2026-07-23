@@ -24,6 +24,7 @@ import {
   ZodSchemaValidationError,
 } from "../types/public/sdkErrors.js";
 import { toJsonSchema } from "../zodCompat.js";
+import { getActiveAbortSignal } from "../cancellation.js";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;
@@ -292,7 +293,10 @@ export class OpenAIClient extends LLMClient {
       })),
     };
 
-    const response = await this.client.chat.completions.create(body);
+    const signal = getActiveAbortSignal();
+    const response = await (signal
+      ? this.client.chat.completions.create(body, { signal })
+      : this.client.chat.completions.create(body));
 
     // For O1 models, we need to parse the tool call response manually and add it to the response.
     if (isToolsOverridedForO1) {

@@ -32,6 +32,7 @@ import type {
   StagehandZodObject,
   StagehandZodSchema,
 } from "../zodCompat.js";
+import { withTimeout } from "../timeoutConfig.js";
 
 /**
  * Scans the provided Zod schema for any `z.string().url()` fields and
@@ -107,6 +108,17 @@ export class ExtractHandler {
   }
 
   async extract<T extends StagehandZodSchema>(
+    params: ExtractHandlerParams<T>,
+  ): Promise<InferStagehandSchema<T> | { pageText: string }> {
+    return await withTimeout(
+      () => this.extractWithCancellation(params),
+      params.timeout,
+      "extract()",
+      { errorFactory: (ms) => new ExtractTimeoutError(ms) },
+    );
+  }
+
+  private async extractWithCancellation<T extends StagehandZodSchema>(
     params: ExtractHandlerParams<T>,
   ): Promise<InferStagehandSchema<T> | { pageText: string }> {
     const {

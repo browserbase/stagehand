@@ -25,6 +25,7 @@ import {
   LLMResponse,
   AnnotatedScreenshotText,
 } from "./LLMClient.js";
+import { getActiveAbortSignal } from "../cancellation.js";
 import {
   CreateChatCompletionResponseError,
   StagehandError,
@@ -262,6 +263,9 @@ export class GoogleClient extends LLMClient {
       contents: formattedMessages,
       config: {
         ...generationConfig,
+        ...(getActiveAbortSignal()
+          ? { abortSignal: getActiveAbortSignal() }
+          : {}),
         safetySettings: safetySettings,
         tools: formattedTools,
       },
@@ -416,6 +420,7 @@ export class GoogleClient extends LLMClient {
 
       return llmResponse as T;
     } catch (error) {
+      getActiveAbortSignal()?.throwIfAborted();
       logger({
         category: "google",
         message: `Error during Google AI chat completion: ${error.message}`,

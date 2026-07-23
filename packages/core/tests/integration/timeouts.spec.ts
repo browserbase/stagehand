@@ -5,6 +5,7 @@ import { z } from "zod";
 import { closeV3 } from "./testUtils.js";
 import type { LLMClient } from "../../lib/v3/llm/LLMClient.js";
 import { generateText } from "ai";
+import { withTimeout } from "../../lib/v3/timeoutConfig.js";
 
 type AgentToolNameWithTimeout =
   | "act"
@@ -241,6 +242,36 @@ test.describe("V3 hard timeouts", () => {
     await expect(v3.act("do nothing", { timeout: 5 })).rejects.toThrow(
       /timed out/i,
     );
+  });
+
+  test("timed-out work cannot dispatch a late browser action", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(
+      `data:text/html,${encodeURIComponent(`
+        <button
+          style="position:fixed;inset:0;width:200px;height:200px"
+          onclick="window.clickCount += 1"
+        >click</button>
+        <script>window.clickCount = 0</script>
+      `)}`,
+    );
+
+    await expect(
+      withTimeout(
+        async () => {
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          await page.click(50, 50);
+        },
+        5,
+        "delayed click",
+      ),
+    ).rejects.toThrow(/timed out/i);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const clickCount = await page.evaluate(
+      () => (window as typeof window & { clickCount: number }).clickCount,
+    );
+    expect(clickCount).toBe(0);
   });
 
   test("agent toolTimeout enforces timeout for act tool", async () => {

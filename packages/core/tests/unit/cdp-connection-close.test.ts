@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { WebSocketServer, type WebSocket as ServerWebSocket } from "ws";
 import { CdpConnection } from "../../lib/v3/understudy/cdp.js";
+import { withTimeout } from "../../lib/v3/timeoutConfig.js";
+import { TimeoutError } from "../../lib/v3/types/public/sdkErrors.js";
 
 type ConnectionInternals = {
   eventHandlers: Map<string, Set<unknown>>;
@@ -139,6 +141,33 @@ describe("CdpConnection", () => {
       );
 
       expect(result).toBe("rejected");
+    });
+  });
+
+  describe("cancelled CDP work", () => {
+    it("does not send a command reached after the operation times out", async () => {
+      const pair = await createPair();
+      wss = pair.wss;
+      const receivedCommand = vi.fn();
+      pair.serverSocket.on("message", receivedCommand);
+
+      const operation = withTimeout(
+        async () => {
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          await pair.conn.send("Input.dispatchMouseEvent", {
+            type: "mousePressed",
+            x: 10,
+            y: 10,
+          });
+        },
+        5,
+        "click()",
+      );
+
+      await expect(operation).rejects.toBeInstanceOf(TimeoutError);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(receivedCommand).not.toHaveBeenCalled();
     });
   });
 
