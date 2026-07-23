@@ -1,0 +1,1447 @@
+---
+title: "Stagehand"
+description: "Initialize a browser session and run AI-powered actions, observations, and extractions."
+icon: "hand-horns"
+---
+
+`Stagehand` owns the browser connection and exposes top-level lifecycle, diagnostics, and AI methods.
+
+<View title="TypeScript" icon="js">
+
+## Quick start
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ browser: { type: "local" } });
+await stagehand.init();
+```
+
+## init()
+
+Initialize Stagehand and connect to the configured browser.
+
+```typescript
+await stagehand.init();
+```
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## close()
+
+Close the Stagehand session and release browser resources.
+
+```typescript
+await stagehand.close();
+```
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## ping()
+
+Check that the Stagehand runtime is responding.
+
+```typescript
+const status = await stagehand.ping();
+```
+
+<ResponseField name="result" type="Promise<StagehandPingResult>">
+  The operation result.
+
+<ResponseField name="result.ok" type="boolean">
+  Whether the runtime responded successfully.
+</ResponseField>
+
+  <ResponseField name="result.runtime" type="string">
+    The responding runtime.
+  </ResponseField>
+</ResponseField>
+
+## runtimeLoopbackStatus()
+
+Inspect the runtime loopback connection status.
+
+```typescript
+const status = await stagehand.runtimeLoopbackStatus();
+```
+
+<ResponseField name="result" type="Promise<RuntimeLoopbackStatusResult>">
+  The operation result.
+
+<ResponseField name="result.configured" type="boolean">
+  Whether loopback is configured.
+</ResponseField>
+
+  <ResponseField name="result.connected" type="boolean">
+    Whether loopback is connected.
+  </ResponseField>
+</ResponseField>
+
+## browserGetVersion()
+
+Read version information from the connected browser.
+
+```typescript
+const version = await stagehand.browserGetVersion();
+```
+
+<ResponseField name="result" type="Promise<BrowserGetVersionResult>">
+  The operation result.
+
+<ResponseField name="result.protocolVersion" type="string" optional>
+  The browser protocol version.
+</ResponseField>
+
+<ResponseField name="result.product" type="string" optional>
+  The browser product string.
+</ResponseField>
+
+<ResponseField name="result.revision" type="string" optional>
+  The browser revision.
+</ResponseField>
+
+<ResponseField name="result.userAgent" type="string" optional>
+  The browser user agent.
+</ResponseField>
+
+  <ResponseField name="result.jsVersion" type="string" optional>
+    The JavaScript engine version.
+  </ResponseField>
+</ResponseField>
+
+## metrics()
+
+Return token usage and inference timing metrics for this session.
+
+```typescript
+const metrics = await stagehand.metrics();
+```
+
+<ResponseField name="result" type="Promise<StagehandMetrics>">
+  The operation result.
+
+<ResponseField name="result.actPromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.actCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.actReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.actCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.actInferenceTimeMs" type="number">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.extractPromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractInferenceTimeMs" type="number">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.observePromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeInferenceTimeMs" type="number">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.totalPromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.totalCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.totalReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.totalCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+  <ResponseField name="result.totalInferenceTimeMs" type="number">
+    Inference time in milliseconds.
+  </ResponseField>
+</ResponseField>
+
+## act()
+
+Perform an action described in natural language.
+
+```typescript
+const result = await stagehand.act("Click the sign in button");
+```
+
+<ParamField path="input" type="string">
+  The natural-language action to perform.
+</ParamField>
+
+<ParamField path="options" type="StagehandClientActOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.cache" type="Caching" optional>
+    Override server-side caching for this request.
+
+    <ParamField path="options.cache.threshold" type="number" optional>
+      The identical-result threshold required before serving a cache hit.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.locator" type="Locator" optional>
+    The serialized page or element target.
+
+    <ParamField path="options.locator.active" type="boolean | null" optional>
+      Whether the locator is active.
+    </ParamField>
+
+    <ParamField path="options.locator.coordinates" type="LocatorCoordinates | null" optional>
+      The locator bounds.
+
+      <ParamField path="options.locator.coordinates.bottom" type="number | null" optional>
+        The bottom coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.left" type="number | null" optional>
+        The left coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.right" type="number | null" optional>
+        The right coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.top" type="number | null" optional>
+        The top coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.x" type="number | null" optional>
+        The horizontal coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.y" type="number | null" optional>
+        The vertical coordinate.
+      </ParamField>
+    </ParamField>
+
+    <ParamField path="options.locator.css" type="string | null" optional>
+      The resolved CSS selector.
+    </ParamField>
+
+    <ParamField path="options.locator.elementId" type="string | null" optional>
+      The snapshot element identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameId" type="string | null" optional>
+      The frame identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameIdx" type="number | null" optional>
+      The frame index.
+    </ParamField>
+
+    <ParamField path="options.locator.idx" type="number | null" optional>
+      The element index.
+    </ParamField>
+
+    <ParamField path="options.locator.pageIdx" type="number | null" optional>
+      The page index.
+    </ParamField>
+
+    <ParamField path="options.locator.reactElementName" type="string | null" optional>
+      The React element name.
+    </ParamField>
+
+    <ParamField path="options.locator.snapshotId" type="string | null" optional>
+      The snapshot identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.tabId" type="number | null" optional>
+      The browser tab identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.targetId" type="string | null" optional>
+      The browser target identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.text" type="string | null" optional>
+      The element text.
+    </ParamField>
+
+    <ParamField path="options.locator.title" type="string | null" optional>
+      The document or element title.
+    </ParamField>
+
+    <ParamField path="options.locator.url" type="string | null" optional>
+      The locator URL.
+    </ParamField>
+
+    <ParamField path="options.locator.xpath" type="string | null" optional>
+      The resolved XPath.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.model" type="ModelConfig" optional>
+    Model configuration for this call.
+
+    <ParamField path="options.model.apiKey" type="string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.model.baseUrl" type="string">
+      The model provider base URL.
+    </ParamField>
+
+    <ParamField path="options.model.headers" type="object" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.model.modelName" type="ModelName">
+      The model identifier.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.timeout" type="number" optional>
+  The operation timeout in milliseconds.
+</ParamField>
+
+  <ParamField path="options.variables" type="Variables" optional>
+    Variables available to the instruction.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<ActResultData>">
+  The operation result.
+
+<ResponseField name="result.actionDescription" type="string">
+  A summary of the completed action.
+</ResponseField>
+
+  <ResponseField name="result.actions" type="Action[]">
+    The actions that were performed.
+
+    <ResponseField name="result.actions.arguments" type="string[]" optional>
+      Arguments passed to the action.
+    </ResponseField>
+
+    <ResponseField name="result.actions.description" type="string">
+      A human-readable action description.
+    </ResponseField>
+
+    <ResponseField name="result.actions.method" type="string" optional>
+      The action method.
+    </ResponseField>
+
+    <ResponseField name="result.actions.selector" type="string">
+      The action target selector.
+    </ResponseField>
+
+  </ResponseField>
+
+<ResponseField name="result.message" type="string">
+  The operation message.
+</ResponseField>
+
+  <ResponseField name="result.success" type="boolean">
+    Whether the action succeeded.
+  </ResponseField>
+</ResponseField>
+
+## observe()
+
+Find candidate actions on the page from an optional instruction.
+
+```typescript
+const actions = await stagehand.observe("Find the sign in button");
+```
+
+<ParamField path="instruction" type="string" optional>
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="options" type="StagehandClientObserveOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.cache" type="Caching" optional>
+    Override server-side caching for this request.
+
+    <ParamField path="options.cache.threshold" type="number" optional>
+      The identical-result threshold required before serving a cache hit.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.ignoreSelectors" type="string[]" optional>
+  Selectors to exclude.
+</ParamField>
+
+  <ParamField path="options.locator" type="Locator" optional>
+    The serialized page or element target.
+
+    <ParamField path="options.locator.active" type="boolean | null" optional>
+      Whether the locator is active.
+    </ParamField>
+
+    <ParamField path="options.locator.coordinates" type="LocatorCoordinates | null" optional>
+      The locator bounds.
+
+      <ParamField path="options.locator.coordinates.bottom" type="number | null" optional>
+        The bottom coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.left" type="number | null" optional>
+        The left coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.right" type="number | null" optional>
+        The right coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.top" type="number | null" optional>
+        The top coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.x" type="number | null" optional>
+        The horizontal coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.y" type="number | null" optional>
+        The vertical coordinate.
+      </ParamField>
+    </ParamField>
+
+    <ParamField path="options.locator.css" type="string | null" optional>
+      The resolved CSS selector.
+    </ParamField>
+
+    <ParamField path="options.locator.elementId" type="string | null" optional>
+      The snapshot element identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameId" type="string | null" optional>
+      The frame identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameIdx" type="number | null" optional>
+      The frame index.
+    </ParamField>
+
+    <ParamField path="options.locator.idx" type="number | null" optional>
+      The element index.
+    </ParamField>
+
+    <ParamField path="options.locator.pageIdx" type="number | null" optional>
+      The page index.
+    </ParamField>
+
+    <ParamField path="options.locator.reactElementName" type="string | null" optional>
+      The React element name.
+    </ParamField>
+
+    <ParamField path="options.locator.snapshotId" type="string | null" optional>
+      The snapshot identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.tabId" type="number | null" optional>
+      The browser tab identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.targetId" type="string | null" optional>
+      The browser target identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.text" type="string | null" optional>
+      The element text.
+    </ParamField>
+
+    <ParamField path="options.locator.title" type="string | null" optional>
+      The document or element title.
+    </ParamField>
+
+    <ParamField path="options.locator.url" type="string | null" optional>
+      The locator URL.
+    </ParamField>
+
+    <ParamField path="options.locator.xpath" type="string | null" optional>
+      The resolved XPath.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.model" type="ModelConfig" optional>
+    Model configuration for this call.
+
+    <ParamField path="options.model.apiKey" type="string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.model.baseUrl" type="string">
+      The model provider base URL.
+    </ParamField>
+
+    <ParamField path="options.model.headers" type="object" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.model.modelName" type="ModelName">
+      The model identifier.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.selector" type="string" optional>
+  A selector that scopes the operation.
+</ParamField>
+
+<ParamField path="options.timeout" type="number" optional>
+  The operation timeout in milliseconds.
+</ParamField>
+
+  <ParamField path="options.variables" type="Variables" optional>
+    Variables available to the instruction.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<Action[]>">
+  The operation result.
+
+<ResponseField name="result.arguments" type="string[]" optional>
+  Arguments passed to the action.
+</ResponseField>
+
+<ResponseField name="result.description" type="string">
+  A human-readable action description.
+</ResponseField>
+
+<ResponseField name="result.method" type="string" optional>
+  The action method.
+</ResponseField>
+
+  <ResponseField name="result.selector" type="string">
+    The action target selector.
+  </ResponseField>
+</ResponseField>
+
+## extract()
+
+Extract structured data from the page.
+
+```typescript
+const product = await stagehand.extract("Extract the product", ProductSchema);
+```
+
+<ParamField path="instruction" type="string">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="schema" type="Schema">
+  The schema used to validate extracted data.
+</ParamField>
+
+<ParamField path="options" type="StagehandClientExtractOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.cache" type="Caching" optional>
+    Override server-side caching for this request.
+
+    <ParamField path="options.cache.threshold" type="number" optional>
+      The identical-result threshold required before serving a cache hit.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.ignoreSelectors" type="string[]" optional>
+  Selectors to exclude.
+</ParamField>
+
+  <ParamField path="options.locator" type="Locator" optional>
+    The serialized page or element target.
+
+    <ParamField path="options.locator.active" type="boolean | null" optional>
+      Whether the locator is active.
+    </ParamField>
+
+    <ParamField path="options.locator.coordinates" type="LocatorCoordinates | null" optional>
+      The locator bounds.
+
+      <ParamField path="options.locator.coordinates.bottom" type="number | null" optional>
+        The bottom coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.left" type="number | null" optional>
+        The left coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.right" type="number | null" optional>
+        The right coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.top" type="number | null" optional>
+        The top coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.x" type="number | null" optional>
+        The horizontal coordinate.
+      </ParamField>
+
+      <ParamField path="options.locator.coordinates.y" type="number | null" optional>
+        The vertical coordinate.
+      </ParamField>
+    </ParamField>
+
+    <ParamField path="options.locator.css" type="string | null" optional>
+      The resolved CSS selector.
+    </ParamField>
+
+    <ParamField path="options.locator.elementId" type="string | null" optional>
+      The snapshot element identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameId" type="string | null" optional>
+      The frame identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.frameIdx" type="number | null" optional>
+      The frame index.
+    </ParamField>
+
+    <ParamField path="options.locator.idx" type="number | null" optional>
+      The element index.
+    </ParamField>
+
+    <ParamField path="options.locator.pageIdx" type="number | null" optional>
+      The page index.
+    </ParamField>
+
+    <ParamField path="options.locator.reactElementName" type="string | null" optional>
+      The React element name.
+    </ParamField>
+
+    <ParamField path="options.locator.snapshotId" type="string | null" optional>
+      The snapshot identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.tabId" type="number | null" optional>
+      The browser tab identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.targetId" type="string | null" optional>
+      The browser target identifier.
+    </ParamField>
+
+    <ParamField path="options.locator.text" type="string | null" optional>
+      The element text.
+    </ParamField>
+
+    <ParamField path="options.locator.title" type="string | null" optional>
+      The document or element title.
+    </ParamField>
+
+    <ParamField path="options.locator.url" type="string | null" optional>
+      The locator URL.
+    </ParamField>
+
+    <ParamField path="options.locator.xpath" type="string | null" optional>
+      The resolved XPath.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.model" type="ModelConfig" optional>
+    Model configuration for this call.
+
+    <ParamField path="options.model.apiKey" type="string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.model.baseUrl" type="string">
+      The model provider base URL.
+    </ParamField>
+
+    <ParamField path="options.model.headers" type="object" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.model.modelName" type="ModelName">
+      The model identifier.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.screenshot" type="boolean" optional>
+  Whether the operation may use a screenshot.
+</ParamField>
+
+<ParamField path="options.selector" type="string" optional>
+  A selector that scopes the operation.
+</ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    The operation timeout in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<z.output<Schema>>">
+  The operation result.
+</ResponseField>
+
+</View>
+
+<View title="Python" icon="python">
+
+## Quick start
+
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(browser="local")
+await stagehand.init()
+```
+
+## init()
+
+Initialize Stagehand and connect to the configured browser.
+
+```python
+await stagehand.init()
+```
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## close()
+
+Close the Stagehand session and release browser resources.
+
+```python
+await stagehand.close()
+```
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## ping()
+
+Check that the Stagehand runtime is responding.
+
+```python
+status = await stagehand.ping()
+```
+
+<ResponseField name="result" type="StagehandPingResult">
+  The operation result.
+
+<ResponseField name="result.ok" type="bool">
+  Whether the runtime responded successfully.
+</ResponseField>
+
+  <ResponseField name="result.runtime" type="str">
+    The responding runtime.
+  </ResponseField>
+</ResponseField>
+
+## runtime_loopback_status()
+
+Inspect the runtime loopback connection status.
+
+```python
+status = await stagehand.runtime_loopback_status()
+```
+
+<ResponseField name="result" type="RuntimeLoopbackStatusResult">
+  The operation result.
+
+<ResponseField name="result.configured" type="bool">
+  Whether loopback is configured.
+</ResponseField>
+
+  <ResponseField name="result.connected" type="bool">
+    Whether loopback is connected.
+  </ResponseField>
+</ResponseField>
+
+## browser_get_version()
+
+Read version information from the connected browser.
+
+```python
+version = await stagehand.browser_get_version()
+```
+
+<ResponseField name="result" type="BrowserGetVersionResult">
+  The operation result.
+
+<ResponseField name="result.protocol_version" type="str" optional>
+  The browser protocol version.
+</ResponseField>
+
+<ResponseField name="result.product" type="str" optional>
+  The browser product string.
+</ResponseField>
+
+<ResponseField name="result.revision" type="str" optional>
+  The browser revision.
+</ResponseField>
+
+<ResponseField name="result.user_agent" type="str" optional>
+  The browser user agent.
+</ResponseField>
+
+  <ResponseField name="result.js_version" type="str" optional>
+    The JavaScript engine version.
+  </ResponseField>
+</ResponseField>
+
+## metrics()
+
+Return token usage and inference timing metrics for this session.
+
+```python
+metrics = await stagehand.metrics()
+```
+
+<ResponseField name="result" type="StagehandMetrics">
+  The operation result.
+
+<ResponseField name="result.act_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_inference_time_ms" type="float">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.extract_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_inference_time_ms" type="float">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.observe_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_inference_time_ms" type="float">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.total_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+  <ResponseField name="result.total_inference_time_ms" type="float">
+    Inference time in milliseconds.
+  </ResponseField>
+</ResponseField>
+
+## act()
+
+Perform an action described in natural language.
+
+```python
+result = await stagehand.act("Click the sign in button")
+```
+
+<ParamField path="input" type="str">
+  The natural-language action to perform.
+</ParamField>
+
+<ParamField path="page" type="Page | None" optional>
+  The SDK page to target. Uses the active page when omitted.
+</ParamField>
+
+<ParamField path="model" type="ModelConfig" optional>
+  Model configuration for this call.
+
+<ParamField path="model.api_key" type="str" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.base_url" type="str">
+  The model provider base URL.
+</ParamField>
+
+<ParamField path="model.headers" type="dict[str, object]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="ModelName">
+    The model identifier.
+  </ParamField>
+</ParamField>
+
+<ParamField path="variables" type="Variables | None" optional>
+  Variables available to the instruction.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="locator" type="ProtocolLocator" optional>
+  The serialized page or element target.
+
+<ParamField path="locator.active" type="bool | None" optional>
+  Whether the locator is active.
+</ParamField>
+
+  <ParamField path="locator.coordinates" type="LocatorCoordinates | None" optional>
+    The locator bounds.
+
+    <ParamField path="locator.coordinates.bottom" type="float | None" optional>
+      The bottom coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.left" type="float | None" optional>
+      The left coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.right" type="float | None" optional>
+      The right coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.top" type="float | None" optional>
+      The top coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.x" type="float | None" optional>
+      The horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.y" type="float | None" optional>
+      The vertical coordinate.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="locator.css" type="str | None" optional>
+  The resolved CSS selector.
+</ParamField>
+
+<ParamField path="locator.element_id" type="str | None" optional>
+  The snapshot element identifier.
+</ParamField>
+
+<ParamField path="locator.frame_id" type="str | None" optional>
+  The frame identifier.
+</ParamField>
+
+<ParamField path="locator.frame_idx" type="int | None" optional>
+  The frame index.
+</ParamField>
+
+<ParamField path="locator.idx" type="int | None" optional>
+  The element index.
+</ParamField>
+
+<ParamField path="locator.page_idx" type="int | None" optional>
+  The page index.
+</ParamField>
+
+<ParamField path="locator.react_element_name" type="str | None" optional>
+  The React element name.
+</ParamField>
+
+<ParamField path="locator.snapshot_id" type="str | None" optional>
+  The snapshot identifier.
+</ParamField>
+
+<ParamField path="locator.tab_id" type="int | None" optional>
+  The browser tab identifier.
+</ParamField>
+
+<ParamField path="locator.target_id" type="str | None" optional>
+  The browser target identifier.
+</ParamField>
+
+<ParamField path="locator.text" type="str | None" optional>
+  The element text.
+</ParamField>
+
+<ParamField path="locator.title" type="str | None" optional>
+  The document or element title.
+</ParamField>
+
+<ParamField path="locator.url" type="str | None" optional>
+  The locator URL.
+</ParamField>
+
+  <ParamField path="locator.xpath" type="str | None" optional>
+    The resolved XPath.
+  </ParamField>
+</ParamField>
+
+<ParamField path="cache" type="bool | CacheOptions | None" optional>
+  Override server-side caching for this request.
+
+  <ParamField path="cache.threshold" type="int" optional>
+    The identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="ActResultData">
+  The operation result.
+
+<ResponseField name="result.action_description" type="str">
+  A summary of the completed action.
+</ResponseField>
+
+  <ResponseField name="result.actions" type="list[Action]">
+    The actions that were performed.
+
+    <ResponseField name="result.actions.arguments" type="list[str]" optional>
+      Arguments passed to the action.
+    </ResponseField>
+
+    <ResponseField name="result.actions.description" type="str">
+      A human-readable action description.
+    </ResponseField>
+
+    <ResponseField name="result.actions.method" type="str" optional>
+      The action method.
+    </ResponseField>
+
+    <ResponseField name="result.actions.selector" type="str">
+      The action target selector.
+    </ResponseField>
+
+  </ResponseField>
+
+<ResponseField name="result.message" type="str">
+  The operation message.
+</ResponseField>
+
+  <ResponseField name="result.success" type="bool">
+    Whether the action succeeded.
+  </ResponseField>
+</ResponseField>
+
+## observe()
+
+Find candidate actions on the page from an optional instruction.
+
+```python
+actions = await stagehand.observe(instruction="Find the sign in button")
+```
+
+<ParamField path="instruction" type="str | None" optional>
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="page" type="Page | None" optional>
+  The SDK page to target. Uses the active page when omitted.
+</ParamField>
+
+<ParamField path="model" type="ModelConfig" optional>
+  Model configuration for this call.
+
+<ParamField path="model.api_key" type="str" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.base_url" type="str">
+  The model provider base URL.
+</ParamField>
+
+<ParamField path="model.headers" type="dict[str, object]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="ModelName">
+    The model identifier.
+  </ParamField>
+</ParamField>
+
+<ParamField path="variables" type="Variables | None" optional>
+  Variables available to the instruction.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="selector" type="str | None" optional>
+  The selector to target.
+</ParamField>
+
+<ParamField path="ignore_selectors" type="list[str] | None" optional>
+  Selectors to exclude from consideration.
+</ParamField>
+
+<ParamField path="locator" type="ProtocolLocator" optional>
+  The serialized page or element target.
+
+<ParamField path="locator.active" type="bool | None" optional>
+  Whether the locator is active.
+</ParamField>
+
+  <ParamField path="locator.coordinates" type="LocatorCoordinates | None" optional>
+    The locator bounds.
+
+    <ParamField path="locator.coordinates.bottom" type="float | None" optional>
+      The bottom coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.left" type="float | None" optional>
+      The left coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.right" type="float | None" optional>
+      The right coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.top" type="float | None" optional>
+      The top coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.x" type="float | None" optional>
+      The horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.y" type="float | None" optional>
+      The vertical coordinate.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="locator.css" type="str | None" optional>
+  The resolved CSS selector.
+</ParamField>
+
+<ParamField path="locator.element_id" type="str | None" optional>
+  The snapshot element identifier.
+</ParamField>
+
+<ParamField path="locator.frame_id" type="str | None" optional>
+  The frame identifier.
+</ParamField>
+
+<ParamField path="locator.frame_idx" type="int | None" optional>
+  The frame index.
+</ParamField>
+
+<ParamField path="locator.idx" type="int | None" optional>
+  The element index.
+</ParamField>
+
+<ParamField path="locator.page_idx" type="int | None" optional>
+  The page index.
+</ParamField>
+
+<ParamField path="locator.react_element_name" type="str | None" optional>
+  The React element name.
+</ParamField>
+
+<ParamField path="locator.snapshot_id" type="str | None" optional>
+  The snapshot identifier.
+</ParamField>
+
+<ParamField path="locator.tab_id" type="int | None" optional>
+  The browser tab identifier.
+</ParamField>
+
+<ParamField path="locator.target_id" type="str | None" optional>
+  The browser target identifier.
+</ParamField>
+
+<ParamField path="locator.text" type="str | None" optional>
+  The element text.
+</ParamField>
+
+<ParamField path="locator.title" type="str | None" optional>
+  The document or element title.
+</ParamField>
+
+<ParamField path="locator.url" type="str | None" optional>
+  The locator URL.
+</ParamField>
+
+  <ParamField path="locator.xpath" type="str | None" optional>
+    The resolved XPath.
+  </ParamField>
+</ParamField>
+
+<ParamField path="cache" type="bool | CacheOptions | None" optional>
+  Override server-side caching for this request.
+
+  <ParamField path="cache.threshold" type="int" optional>
+    The identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="list[Action]">
+  The operation result.
+
+<ResponseField name="result.arguments" type="list[str]" optional>
+  Arguments passed to the action.
+</ResponseField>
+
+<ResponseField name="result.description" type="str">
+  A human-readable action description.
+</ResponseField>
+
+<ResponseField name="result.method" type="str" optional>
+  The action method.
+</ResponseField>
+
+  <ResponseField name="result.selector" type="str">
+    The action target selector.
+  </ResponseField>
+</ResponseField>
+
+## extract()
+
+Extract structured data from the page.
+
+```python
+product = await stagehand.extract(instruction="Extract the product", schema=Product)
+```
+
+<ParamField path="instruction" type="str">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="schema" type="type[ResultModel]">
+  The schema used to validate extracted data.
+</ParamField>
+
+<ParamField path="page" type="Page | None" optional>
+  The SDK page to target. Uses the active page when omitted.
+</ParamField>
+
+<ParamField path="model" type="ModelConfig" optional>
+  Model configuration for this call.
+
+<ParamField path="model.api_key" type="str" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.base_url" type="str">
+  The model provider base URL.
+</ParamField>
+
+<ParamField path="model.headers" type="dict[str, object]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="ModelName">
+    The model identifier.
+  </ParamField>
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="selector" type="str | None" optional>
+  The selector to target.
+</ParamField>
+
+<ParamField path="ignore_selectors" type="list[str] | None" optional>
+  Selectors to exclude from consideration.
+</ParamField>
+
+<ParamField path="screenshot" type="bool | None" optional>
+  Whether extraction may use a screenshot.
+</ParamField>
+
+<ParamField path="locator" type="ProtocolLocator" optional>
+  The serialized page or element target.
+
+<ParamField path="locator.active" type="bool | None" optional>
+  Whether the locator is active.
+</ParamField>
+
+  <ParamField path="locator.coordinates" type="LocatorCoordinates | None" optional>
+    The locator bounds.
+
+    <ParamField path="locator.coordinates.bottom" type="float | None" optional>
+      The bottom coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.left" type="float | None" optional>
+      The left coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.right" type="float | None" optional>
+      The right coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.top" type="float | None" optional>
+      The top coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.x" type="float | None" optional>
+      The horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="locator.coordinates.y" type="float | None" optional>
+      The vertical coordinate.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="locator.css" type="str | None" optional>
+  The resolved CSS selector.
+</ParamField>
+
+<ParamField path="locator.element_id" type="str | None" optional>
+  The snapshot element identifier.
+</ParamField>
+
+<ParamField path="locator.frame_id" type="str | None" optional>
+  The frame identifier.
+</ParamField>
+
+<ParamField path="locator.frame_idx" type="int | None" optional>
+  The frame index.
+</ParamField>
+
+<ParamField path="locator.idx" type="int | None" optional>
+  The element index.
+</ParamField>
+
+<ParamField path="locator.page_idx" type="int | None" optional>
+  The page index.
+</ParamField>
+
+<ParamField path="locator.react_element_name" type="str | None" optional>
+  The React element name.
+</ParamField>
+
+<ParamField path="locator.snapshot_id" type="str | None" optional>
+  The snapshot identifier.
+</ParamField>
+
+<ParamField path="locator.tab_id" type="int | None" optional>
+  The browser tab identifier.
+</ParamField>
+
+<ParamField path="locator.target_id" type="str | None" optional>
+  The browser target identifier.
+</ParamField>
+
+<ParamField path="locator.text" type="str | None" optional>
+  The element text.
+</ParamField>
+
+<ParamField path="locator.title" type="str | None" optional>
+  The document or element title.
+</ParamField>
+
+<ParamField path="locator.url" type="str | None" optional>
+  The locator URL.
+</ParamField>
+
+  <ParamField path="locator.xpath" type="str | None" optional>
+    The resolved XPath.
+  </ParamField>
+</ParamField>
+
+<ParamField path="cache" type="bool | CacheOptions | None" optional>
+  Override server-side caching for this request.
+
+  <ParamField path="cache.threshold" type="int" optional>
+    The identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="ResultModel">
+  The operation result.
+</ResponseField>
+
+</View>

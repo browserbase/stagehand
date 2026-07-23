@@ -1,0 +1,127 @@
+---
+title: "Installation"
+description: "Add Stagehand to an existing project."
+---
+
+Add Stagehand to a project you already have. If you're starting from scratch, the
+[Quickstart](/first-steps/quickstart) has a complete runnable script.
+
+## Install the SDK
+
+<View title="TypeScript" icon="js">
+
+```bash
+pnpm add @browserbasehq/stagehand zod
+```
+
+`zod` is a peer of `extract()`, which uses Zod schemas to type and validate results. Any
+recent package manager works, so swap `pnpm` for `npm` or `yarn` if you prefer.
+
+</View>
+
+<View title="Python" icon="python">
+
+```bash
+uv pip install stagehand
+```
+
+The Python SDK is async and uses [Pydantic](https://docs.pydantic.dev/) models for
+`extract()` schemas (Pydantic is installed as a dependency).
+
+</View>
+
+## Configure credentials
+
+Stagehand needs an API key for the model provider it calls. If you run on Browserbase, it
+also needs a Browserbase API key. Store both in environment variables rather than in code.
+
+```bash
+# Model provider (example: OpenAI)
+export OPENAI_API_KEY="sk-..."
+
+# Only required for the Browserbase browser source
+export BROWSERBASE_API_KEY="bb_..."
+```
+
+<Warning>
+  Never hardcode API keys, passwords, or other secrets in your source. Load them from environment
+  variables or a secrets manager, and pass user credentials to `act()` through
+  [variables](/basics/act#variables) so they're kept out of the model prompt.
+</Warning>
+
+## Initialize Stagehand
+
+Construct a `Stagehand`, choose a [browser source](#) and a
+[model](#), then call `init()`.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  browser: { type: "local", headless: true },
+  model: {
+    modelName: "openai/gpt-5.4-mini",
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+});
+
+await stagehand.init();
+const page = await stagehand.context.newPage();
+await page.goto("https://example.com");
+
+// ... use stagehand.act / stagehand.extract / stagehand.observe ...
+
+await stagehand.close();
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+import os
+
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    browser="local",
+    headless=True,
+    model="openai/gpt-5.4-mini",
+    model_api_key=os.environ["OPENAI_API_KEY"],
+)
+
+await stagehand.init()
+page = await stagehand.context.new_page()
+await page.goto("https://example.com")
+
+# ... use stagehand.act / stagehand.extract / stagehand.observe ...
+
+await stagehand.close()
+```
+
+</View>
+
+<Note>
+  The `browser` source defaults to `browserbase`, which requires a Browserbase API key. The examples
+  above use `local` so you can run without one. Always `await stagehand.init()` before using a page,
+  and `await stagehand.close()` when you're done.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/first-steps/quickstart">
+    Run a full example end to end.
+  </Card>
+  <Card title="AI rules" icon="robot" href="/first-steps/ai-rules">
+    Give your AI coding assistant the rules to write correct Stagehand code.
+  </Card>
+  <Card title="Browser configuration" icon="window" href="#">
+    Local, Browserbase, and CDP browser sources.
+  </Card>
+  <Card title="Models" icon="microchip-ai" href="#">
+    Choose and configure the LLM Stagehand uses.
+  </Card>
+</CardGroup>

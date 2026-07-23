@@ -1,0 +1,54 @@
+---
+title: "Stagehand SDK"
+description: "Build reliable browser automations with the Stagehand TypeScript and Python SDKs."
+---
+
+Stagehand provides a typed browser automation API with matching TypeScript and Python clients.
+Use the native view selector on each page to switch between language-specific examples and signatures.
+
+## Install and initialize
+
+<View title="TypeScript" icon="js">
+
+**Install**
+
+```bash
+pnpm add @browserbasehq/stagehand
+```
+
+**Initialize Stagehand**
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  browser: { type: "local" },
+});
+
+await stagehand.init();
+const page = await stagehand.context.newPage();
+await page.goto("https://example.com");
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+**Install**
+
+```bash
+pip install stagehand-v4
+```
+
+**Initialize Stagehand**
+
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(browser="local")
+await stagehand.init()
+page = await stagehand.context.new_page()
+await page.goto("https://example.com")
+```
+
+</View>

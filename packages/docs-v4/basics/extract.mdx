@@ -1,0 +1,341 @@
+---
+title: "Extract"
+description: "Extract structured data from a webpage."
+---
+
+## What is `extract()`?
+
+`extract()` reads a page and returns data that matches a schema you define. The result is
+validated against that schema, so you get fully typed data back.
+
+<View title="TypeScript" icon="js">
+
+Define the schema as a [Zod](https://zod.dev) object:
+
+```typescript
+import { z } from "zod";
+
+const product = await stagehand.extract(
+  "Extract the product name and price",
+  z.object({
+    name: z.string(),
+    price: z.number(),
+  }),
+);
+// product: { name: string; price: number }
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+Define the schema as a [Pydantic](https://docs.pydantic.dev/) model:
+
+```python
+from pydantic import BaseModel
+
+
+class Product(BaseModel):
+    name: str
+    price: float
+
+
+product = await stagehand.extract(
+    instruction="Extract the product name and price",
+    schema=Product,
+)
+# product.name -> str, product.price -> float
+```
+
+</View>
+
+## Why use `extract()`?
+
+<CardGroup cols={2}>
+  <Card title="Typed output" icon="brackets-curly">
+    Results are validated and typed against your schema.
+  </Card>
+  <Card title="Resilient" icon="shield-check">
+    Reads meaning, not markup, so there are no brittle scraping selectors.
+  </Card>
+  <Card title="Scoped" icon="crop">
+    Narrow extraction to part of the page for speed and accuracy.
+  </Card>
+  <Card title="Visual" icon="image">
+    Optionally include a screenshot for layout-dependent data.
+  </Card>
+</CardGroup>
+
+## Using `extract()`
+
+Describe exactly the shape you want. Add fields for lists, nested objects, and optional
+values, and use field descriptions to guide the model.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+import { z } from "zod";
+
+const results = await stagehand.extract(
+  "Extract each search result",
+  z.object({
+    results: z.array(
+      z.object({
+        title: z.string(),
+        url: z.string().describe("The absolute link to the result"),
+        rating: z.number().optional(),
+      }),
+    ),
+  }),
+);
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+from pydantic import BaseModel, Field
+
+
+class Result(BaseModel):
+    title: str
+    url: str = Field(description="The absolute link to the result")
+    rating: float | None = None
+
+
+class SearchResults(BaseModel):
+    results: list[Result]
+
+
+results = await stagehand.extract(
+    instruction="Extract each search result",
+    schema=SearchResults,
+)
+```
+
+</View>
+
+### Return value
+
+`extract()` resolves to data that matches your schema, with no wrapper object. In
+TypeScript the type is inferred from the Zod schema; in Python it's an instance of your
+Pydantic model. When the schema is an array or list, you get an array or list back.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const product = await stagehand.extract(
+  "Extract the product details",
+  z.object({ name: z.string(), price: z.number(), inStock: z.boolean() }),
+);
+// product is typed as { name: string; price: number; inStock: boolean }
+// e.g. { name: "Wireless Mouse", price: 29.99, inStock: true }
+
+console.log(product.name, product.price);
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+class Product(BaseModel):
+    name: str
+    price: float
+    in_stock: bool
+
+
+product = await stagehand.extract(
+    instruction="Extract the product details",
+    schema=Product,
+)
+# product is a Product instance, e.g. Product(name="Wireless Mouse", price=29.99, in_stock=True)
+
+print(product.name, product.price)
+```
+
+</View>
+
+## Advanced configuration
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const data = await stagehand.extract("Extract the article body", schema, {
+  selector: "#main-content",
+  ignoreSelectors: ["nav", ".cookie-banner"],
+  screenshot: true,
+  timeout: 30_000,
+  model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
+});
+```
+
+- `page`: the page to extract from. Defaults to the active page.
+- `selector`: a CSS selector that scopes extraction to one element and its subtree.
+- `ignoreSelectors`: elements to exclude, such as ads, chrome, and boilerplate.
+- `screenshot`: include a screenshot of the viewport for layout-dependent extraction.
+- `timeout`: maximum time in milliseconds.
+- `model`: override the model for this call.
+- `cache`: reuse a prior result for this call (see [Caching](#)).
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+data = await stagehand.extract(
+    instruction="Extract the article body",
+    schema=schema,
+    selector="#main-content",
+    ignore_selectors=["nav", ".cookie-banner"],
+    screenshot=True,
+    timeout=30_000,
+    model="openai/gpt-5.4-mini",
+)
+```
+
+- `page`: the page to extract from. Defaults to the active page.
+- `selector`: a CSS selector that scopes extraction to one element and its subtree.
+- `ignore_selectors`: elements to exclude, such as ads, chrome, and boilerplate.
+- `screenshot`: include a screenshot of the viewport for layout-dependent extraction.
+- `timeout`: maximum time in milliseconds.
+- `model` / `model_api_key`: override the model for this call.
+- `cache`: reuse a prior result for this call (see [Caching](#)).
+
+</View>
+
+### Scoped extraction
+
+When a page is large, scoping to the relevant region with `selector` (and excluding noise
+with `ignoreSelectors`) is faster, cheaper, and more accurate than extracting from the
+whole document.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const { price } = await stagehand.extract(
+  "Extract the sale price",
+  z.object({ price: z.number() }),
+  { selector: "#product-summary", ignoreSelectors: [".related-products"] },
+);
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+result = await stagehand.extract(
+    instruction="Extract the sale price",
+    schema=Product,
+    selector="#product-summary",
+    ignore_selectors=[".related-products"],
+)
+```
+
+</View>
+
+### Visual extraction
+
+Set `screenshot` to include an image of the current viewport in the model call. This helps
+when the data depends on layout or styling that isn't obvious from the DOM alone.
+
+### Cache repeated extractions
+
+On [Browserbase](#), turn on [caching](#)
+so repeated, identical extractions are served from a cache instead of calling the model again.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const product = await stagehand.extract(
+  "Extract the product name and price",
+  z.object({ name: z.string(), price: z.number() }),
+  { cache: true },
+);
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+product = await stagehand.extract(
+    instruction="Extract the product name and price",
+    schema=Product,
+    cache=True,
+)
+```
+
+</View>
+
+<Card title="Caching guide" icon="database" href="#">
+  Thresholds, session defaults, and when caching applies.
+</Card>
+
+## Best practices
+
+- **Ask for exactly what you need:** Smaller schemas are faster and more reliable than
+  "extract everything."
+- **Use descriptions:** Field descriptions disambiguate similar values (for example, which
+  price is the sale price).
+- **Scope first:** Reach for `selector`/`ignoreSelectors` before extracting from a busy
+  page.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Missing or empty fields">
+    Make the instruction and field descriptions more specific, mark truly optional fields
+    as optional, and confirm the data is actually present in the scoped region.
+  </Accordion>
+  <Accordion title="Wrong value picked">
+
+Narrow with `selector`, exclude distractors with `ignoreSelectors`, or enable `screenshot`
+when the correct value is clear visually but ambiguous in the DOM.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const { price } = await stagehand.extract(
+  "Extract the sale price, not the original price",
+  z.object({ price: z.number() }),
+  { selector: "#product-summary", ignoreSelectors: [".related-products"] },
+);
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+result = await stagehand.extract(
+    instruction="Extract the sale price, not the original price",
+    schema=Product,
+    selector="#product-summary",
+    ignore_selectors=[".related-products"],
+)
+```
+
+</View>
+
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Act" icon="arrow-pointer" href="/basics/act">
+    Perform actions with natural language.
+  </Card>
+  <Card title="Observe" icon="eye" href="/basics/observe">
+    Discover available actions on a page.
+  </Card>
+  <Card title="Caching" icon="database" href="#">
+    Reuse results on repeated runs.
+  </Card>
+  <Card title="Prompting best practices" icon="wand-magic-sparkles" href="#">
+    Write instructions that extract cleanly.
+  </Card>
+</CardGroup>

@@ -1,0 +1,34 @@
+{
+  "name": "@browserbasehq/stagehand-v4-spike-server",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vp build --config vite.config.ts",
+    "test": "pnpm run build && vp test run --root ../.. packages/server/tests"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/cerebras": "catalog:",
+    "@ai-sdk/google": "catalog:",
+    "@ai-sdk/groq": "catalog:",
+    "@ai-sdk/openai": "catalog:",
+    "@ai-sdk/provider": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/core": "catalog:",
+    "@opentelemetry/exporter-trace-otlp-http": "catalog:",
+    "@opentelemetry/resources": "catalog:",
+    "@opentelemetry/sdk-trace-web": "catalog:",
+    "@opentelemetry/semantic-conventions": "catalog:",
+    "ai": "catalog:",
+    "devtools-protocol": "catalog:",
+    "zod": "catalog:",
+    "zustand": "catalog:"
+  },
+  "devDependencies": {
+    "@types/chrome": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}
