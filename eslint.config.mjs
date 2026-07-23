@@ -38,6 +38,7 @@ export default [
       "stainless.yml",
       "packages/server-v3/openapi.v3.yaml",
       "packages/server-v4/openapi.v4.yaml",
+      "v4/**",
     ],
   },
   pluginJs.configs.recommended,
