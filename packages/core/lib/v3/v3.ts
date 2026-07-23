@@ -2057,10 +2057,17 @@ export class V3 {
         ...this.modelClientOptions,
       };
 
-      const { modelName, isCua, clientOptions } = resolveModel(modelToUse);
+      const { modelName, isCua, clientOptions, provider } =
+        resolveModel(modelToUse);
 
       if (!isCua) {
         throw new CuaModelRequiredError(AVAILABLE_CUA_MODELS);
+      }
+
+      // resolveModel drops the parsed provider prefix; "vertex/" must reach
+      // the agent client since it changes the endpoint/auth, not the model.
+      if (provider === "vertex" && !clientOptions.provider) {
+        clientOptions.provider = "vertex";
       }
 
       const agentConfigSignature =

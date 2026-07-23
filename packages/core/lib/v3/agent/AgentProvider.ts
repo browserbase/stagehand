@@ -91,6 +91,7 @@ export class AgentProvider {
             tools,
           );
         case "google":
+        case "vertex":
           return new GoogleCUAClient(
             type,
             modelName,
@@ -107,7 +108,7 @@ export class AgentProvider {
           );
         default:
           throw new UnsupportedModelProviderError(
-            ["openai", "anthropic", "google", "microsoft"],
+            ["openai", "anthropic", "google", "vertex", "microsoft"],
             "Computer Use Agent",
           );
       }
@@ -124,6 +125,21 @@ export class AgentProvider {
   }
 
   static getAgentProvider(modelName: string): AgentProviderType {
+    // Vertex AI serves the same Google CU models through a different
+    // endpoint/auth scheme, so the prefix (not the model name) decides.
+    if (modelName.startsWith("vertex/")) {
+      const vertexModel = modelName.slice("vertex/".length);
+      if (modelToAgentProviderMap[vertexModel] === "google") {
+        return "vertex";
+      }
+      throw new UnsupportedModelError(
+        Object.keys(modelToAgentProviderMap).filter(
+          (model) => modelToAgentProviderMap[model] === "google",
+        ),
+        "Vertex AI Computer Use Agent",
+      );
+    }
+
     const normalized = stripModelProvider(modelName);
 
     if (normalized in modelToAgentProviderMap) {
