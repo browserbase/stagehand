@@ -91,7 +91,7 @@ export class ContextClipboard {
   }
 
   async ensurePageFocused(page: Page): Promise<void> {
-    this.params.context.setActivePage(page);
+    await this.params.context.setActivePage(page);
     await page.sendInternalCDP("Page.bringToFront").catch(() => {});
     await page.sendInternalCDP("Runtime.enable").catch(() => {});
     await page

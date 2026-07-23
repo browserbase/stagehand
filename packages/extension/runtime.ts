@@ -202,8 +202,8 @@ export type StagehandBrowserSession = {
   getVersion(): Promise<BrowserGetVersionResult>;
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
-  activePage(): UnderstudyRuntimePage | undefined;
-  setActivePage(page: UnderstudyRuntimePage): void;
+  activePage(): Promise<UnderstudyRuntimePage | undefined>;
+  setActivePage(page: UnderstudyRuntimePage): Promise<void>;
   addInitScript(source: string): Promise<void>;
   setExtraHTTPHeaders(headers: ContextSetExtraHTTPHeadersParams["headers"]): Promise<void>;
   getDomainPolicy(): DomainPolicy | null;
@@ -336,16 +336,16 @@ export class StagehandRuntime {
     return this.pageRefForId(page.targetId());
   }
 
-  contextActivePage(): ContextActivePageResult {
-    const page = this.requireBrowserSession().activePage();
+  async contextActivePage(): Promise<ContextActivePageResult> {
+    const page = await this.requireBrowserSession().activePage();
     if (!page) return null;
     this.registerPage(page);
     return pageRefFromUnderstudyPage(page);
   }
 
-  contextSetActivePage(params: ContextSetActivePageParams): ContextVoidResult {
+  async contextSetActivePage(params: ContextSetActivePageParams): Promise<ContextVoidResult> {
     const page = this.resolvePage(params.pageId);
-    this.requireBrowserSession().setActivePage(page);
+    await this.requireBrowserSession().setActivePage(page);
     return { ok: true };
   }
 

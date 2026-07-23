@@ -11,6 +11,7 @@ import { RPCRouter } from "./rpcRouter.js";
 import { installServiceWorkerHeartbeat } from "./service-worker-lifecycle/heartbeat-manager.js";
 import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
+import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { V3Context } from "./understudy/context.js";
 
 export type StagehandServiceWorkerScope = {
@@ -40,6 +41,7 @@ export function startStagehandServiceWorker(
           logger,
           blankPageUrl: chrome.runtime.getURL("blank.html"),
           fallbackLocatorScriptSource: await locatorRuntimeResponse.text(),
+          chromeTabs: new ChromeTabTargetAdapter(chrome),
         });
       },
       emitLog: (log) => {

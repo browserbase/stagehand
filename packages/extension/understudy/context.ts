@@ -26,6 +26,7 @@ import {
 import type { UnderstudyClearCookieOptions } from "./cookies.js";
 import { getDomainPolicyDecision, normalizeDomainPolicy } from "./domainPolicy.js";
 import type { NormalizedDomainPolicy } from "./domainPolicy.js";
+import type { ChromeTabTargetController } from "./chromeTabs.js";
 
 type TargetId = string;
 type SessionId = string;
@@ -89,6 +90,7 @@ export class V3Context {
   constructor(
     readonly conn: CdpConnection,
     readonly logger: StagehandLogger,
+    readonly chromeTabs: ChromeTabTargetController,
     readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
     readonly apiClient: StagehandAPIClient | null = null,
     readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
@@ -96,8 +98,6 @@ export class V3Context {
     readonly fallbackLocatorScriptSource: string | null = null,
   ) {}
 
-  // Timestamp for most recent popup/open signal
-  _lastPopupSignalAt = 0;
   readonly _targetSessionListeners = new Set<SessionId>();
   readonly _domainPolicySessionListeners = new Map<
     SessionId,
@@ -112,7 +112,6 @@ export class V3Context {
   pendingOopifByMainFrame = new Map<string, SessionId>();
   createdAtByTarget = new Map<TargetId, number>();
   typeByTarget = new Map<TargetId, TargetType>();
-  _pageOrder: TargetId[] = [];
   pendingCreatedTargetUrl = new Map<TargetId, string>();
   pageCreationFailures = new Map<TargetId, Error>();
   // Popup close attempts can race targetCreated, targetInfoChanged, and attached.
@@ -164,6 +163,7 @@ export class V3Context {
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
       blankPageUrl: string;
       fallbackLocatorScriptSource: string;
+      chromeTabs: ChromeTabTargetController;
       logger: StagehandLogger;
     },
   ): Promise<V3Context> {
@@ -172,6 +172,7 @@ export class V3Context {
       const ctx = new V3Context(
         conn,
         opts.logger,
+        opts.chromeTabs,
         opts?.env ?? "LOCAL",
         opts?.apiClient ?? null,
         opts?.localBrowserLaunchOptions ?? null,
@@ -264,62 +265,24 @@ export class V3Context {
     }
   }
 
-  /** Mark a page target as the most-recent one (active). */
-  _pushActive(tid: TargetId): void {
-    // remove prior entry if any
-    const i = this._pageOrder.indexOf(tid);
-    if (i !== -1) this._pageOrder.splice(i, 1);
-    this._pageOrder.push(tid);
+  /** Return the understudy Page for Chrome's active tab in its last-focused window. */
+  public async activePage(): Promise<Page | undefined> {
+    const targetId = await this.chromeTabs.activeTargetId();
+    return targetId === undefined ? undefined : this.pagesByTarget.get(targetId);
   }
 
-  /** Remove a page target from the recency list (used on close). */
-  _removeFromOrder(tid: TargetId): void {
-    const i = this._pageOrder.indexOf(tid);
-    if (i !== -1) this._pageOrder.splice(i, 1);
-  }
-
-  /** Return the current active Page (most-recent page that still exists). */
-  public activePage(): Page | undefined {
-    // prune any stale ids from the tail
-    for (let i = this._pageOrder.length - 1; i >= 0; i--) {
-      const tid = this._pageOrder[i]!;
-      const p = this.pagesByTarget.get(tid);
-      if (p) return p;
-      // stale — remove and continue
-      this._pageOrder.splice(i, 1);
-    }
-    // fallback: pick the newest by createdAt if order is empty
-    let newestTid: TargetId | undefined;
-    let newestTs = -1;
-    for (const [tid] of this.pagesByTarget) {
-      const ts = this.createdAtByTarget.get(tid) ?? 0;
-      if (ts > newestTs) {
-        newestTs = ts;
-        newestTid = tid;
-      }
-    }
-    return newestTid ? this.pagesByTarget.get(newestTid) : undefined;
-  }
-
-  /** Explicitly mark a known Page as the most-recent active page (and focus it). */
-  public setActivePage(page: Page): void {
+  /** Select the Chrome tab that owns a known understudy Page. */
+  public async setActivePage(page: Page): Promise<void> {
     let targetId = page.targetId();
     if (this.pagesByTarget.get(targetId) !== page) {
       const lookup = this.findTargetIdByPage(page);
       if (!lookup) {
-        this.logger.debug("setActivePage called with an unknown page", {
-          category: "ctx",
-          targetId: String(targetId),
-        });
-        return;
+        throw new Error(`Cannot activate unknown Stagehand page "${targetId}"`);
       }
       targetId = lookup;
     }
 
-    this._pushActive(targetId);
-
-    // Bring the tab to the foreground in headful Chrome (best effort).
-    void this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
+    await this.chromeTabs.activateTarget(targetId);
   }
 
   public async addInitScript<Arg>(script: InitScriptSource<Arg>, arg?: Arg): Promise<void> {
@@ -517,7 +480,7 @@ export class V3Context {
       context: this,
       resolvePage: async (page) => {
         if (page) return page;
-        const active = this.activePage();
+        const active = await this.activePage();
         if (!active) throw new Error("No Page found for active page");
         return active;
       },
@@ -649,12 +612,9 @@ export class V3Context {
       this.cleanupByTarget(evt.targetId);
     });
 
-    this.conn.on<Protocol.Target.TargetCreatedEvent>("Target.targetCreated", async (evt) => {
+    this.conn.on<Protocol.Target.TargetCreatedEvent>("Target.targetCreated", (evt) => {
       const info = evt.targetInfo;
-      // Note popups to help activePage settle
-      const ti = info;
-      if (info.type === "page" && (ti?.openerId || ti?.openerFrameId)) {
-        this._notePopupSignal();
+      if (info.type === "page" && (info.openerId || info.openerFrameId)) {
         void this.closePopupIfBlockedByDomainPolicy(info, "targetCreated");
       }
     });
@@ -948,7 +908,6 @@ export class V3Context {
         const pendingSeedUrl = this.pendingCreatedTargetUrl.get(info.targetId);
         this.pendingCreatedTargetUrl.delete(info.targetId);
         page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
-        this._pushActive(info.targetId);
         this.installFrameEventBridges(sessionId, page);
         // If we already installed scripts at the session level, only seed the
         // Page's registry to avoid double-installing DOMContentLoaded handlers.
@@ -1117,7 +1076,6 @@ export class V3Context {
       if (!owner || owner === page) this.pendingOopifByMainFrame.delete(fid);
     }
 
-    this._removeFromOrder(targetId);
     this.pagesByTarget.delete(targetId);
     this.createdAtByTarget.delete(targetId);
     this.typeByTarget.delete(targetId);
@@ -1181,11 +1139,6 @@ export class V3Context {
         owner.onNavigatedWithinDocument(evt.frameId, evt.url, session);
       },
     );
-
-    // Observe window.open to anticipate default page changes
-    session.on<Protocol.Page.WindowOpenEvent>("Page.windowOpen", () => {
-      this._notePopupSignal();
-    });
   }
 
   /**
@@ -1203,48 +1156,6 @@ export class V3Context {
       if (p === page) return tid;
     }
     return undefined;
-  }
-
-  _notePopupSignal(): void {
-    this._lastPopupSignalAt = Date.now();
-  }
-
-  /**
-   * Await the current active page, waiting briefly if a popup/open was just triggered.
-   * Normal path returns immediately; popup path waits up to timeout for the new page.
-   */
-  async awaitActivePage(timeout?: number): Promise<Page> {
-    const defaultTimeout = this.env === "BROWSERBASE" ? 4000 : 2000;
-    timeout = timeout ?? defaultTimeout;
-    // If a popup was just triggered, Chrome (especially on Browserbase)
-    // may briefly pause new targets at document start ("waiting for debugger").
-    const recentWindowMs = this.env === "BROWSERBASE" ? 1000 : 300;
-    const now = Date.now();
-    const hasRecentPopup = now - this._lastPopupSignalAt <= recentWindowMs;
-
-    const immediate = this.activePage();
-    if (!hasRecentPopup && immediate) return immediate;
-
-    const deadline = now + timeout;
-    while (Date.now() < deadline) {
-      // Prefer most-recent by createdAt
-      let newestTid: TargetId | undefined;
-      let newestTs = -1;
-      for (const [tid] of this.pagesByTarget) {
-        const ts = this.createdAtByTarget.get(tid) ?? 0;
-        if (ts > newestTs) {
-          newestTs = ts;
-          newestTid = tid;
-        }
-      }
-      if (newestTid) {
-        const p = this.pagesByTarget.get(newestTid);
-        if (p && newestTs >= this._lastPopupSignalAt) return p;
-      }
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    if (immediate) return immediate;
-    throw new Error("No Page found for awaitActivePage: no page available");
   }
 
   /**

@@ -3,7 +3,7 @@
   "name": "Stagehand Runtime",
   "version": "0.0.0",
   "minimum_chrome_version": "116",
-  "permissions": ["offscreen", "scripting", "tabs"],
+  "permissions": ["debugger", "offscreen", "scripting", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "service-worker.js",

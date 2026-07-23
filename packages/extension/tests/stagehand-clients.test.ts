@@ -142,11 +142,11 @@ class FakeBrowserSession implements StagehandBrowserSession {
     return page;
   }
 
-  activePage(): UnderstudyRuntimePage | undefined {
+  async activePage(): Promise<UnderstudyRuntimePage | undefined> {
     return this.activePageRef;
   }
 
-  setActivePage(page: UnderstudyRuntimePage): void {
+  async setActivePage(page: UnderstudyRuntimePage): Promise<void> {
     this.setActivePageCalls.push(page);
     this.activePageRef = page;
   }
@@ -1070,6 +1070,73 @@ describe("Stagehand worker clients", () => {
       id: 9,
       result: null,
     });
+  });
+
+  it("returns active-page lookup failures through the standard JSON-RPC error path", async () => {
+    const context = new FakeBrowserSession();
+    vi.spyOn(context, "activePage").mockRejectedValue(new Error("Chrome tabs query failed"));
+    const handle = await createConfiguredHandler(context);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 9,
+        method: "context.active_page",
+        params: {},
+      }),
+    ).resolves.toMatchObject({
+      jsonrpc: "2.0",
+      id: 9,
+      error: {
+        code: -32603,
+        message: "Chrome tabs query failed",
+        data: { name: "Error" },
+      },
+    });
+  });
+
+  it("awaits set-active-page failures and rejects unknown page ids before activation", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/a");
+    const context = new FakeBrowserSession([page]);
+    const setActivePage = vi
+      .spyOn(context, "setActivePage")
+      .mockRejectedValueOnce(new Error("Chrome tab activation failed"));
+    const handle = await createConfiguredHandler(context);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 10,
+        method: "context.set_active_page",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toMatchObject({
+      jsonrpc: "2.0",
+      id: 10,
+      error: {
+        code: -32603,
+        message: "Chrome tab activation failed",
+        data: { name: "Error" },
+      },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 11,
+        method: "context.set_active_page",
+        params: { page_id: "missing-page" },
+      }),
+    ).resolves.toMatchObject({
+      jsonrpc: "2.0",
+      id: 11,
+      error: {
+        code: -32603,
+        message: 'Stagehand page "missing-page" was not found; call context.pages and retry',
+        data: { name: "Error" },
+      },
+    });
+    expect(setActivePage).toHaveBeenCalledTimes(1);
   });
 
   it("closes the configured context", async () => {

@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod/v4";
 import type { LLMGenerateResult } from "../../../protocol/types.js";
-import { Stagehand } from "../../src/index.js";
+import { Stagehand, type BrowserContext, type Page } from "../../src/index.js";
 
 type FixtureServer = {
   url: string;
@@ -282,20 +282,110 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     });
   });
 
-  it("selects and reads the active context page", async () => {
+  it("tracks four identical Chrome tabs across rapid selection and closure", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const firstPage = await activeStagehand.context.newPage({ url: activeFixtureServer.url });
-    await activeStagehand.context.newPage({
-      url: new URL("/second", activeFixtureServer.url).href,
-    });
+    const createdPages: Page[] = [];
 
-    await activeStagehand.context.setActivePage(firstPage);
+    try {
+      for (const marker of ["one", "two", "three", "four"]) {
+        const page = await activeStagehand.context.newPage({ url: activeFixtureServer.url });
+        createdPages.push(page);
+        await page.evaluate((value: string) => {
+          (
+            globalThis as typeof globalThis & {
+              __stagehandActivePageMarker?: string;
+            }
+          ).__stagehandActivePageMarker = value;
+        }, marker);
+        await waitForActivePageId(activeStagehand.context, page.pageId);
+      }
 
-    const activePage = await activeStagehand.context.activePage();
-    expect(activePage?.pageId).toBe(firstPage.pageId);
-    await expect(activePage?.url()).resolves.toBe(activeFixtureServer.url);
-  });
+      expect(new Set(createdPages.map((page) => page.pageId)).size).toBe(4);
+      await expect(Promise.all(createdPages.map((page) => page.url()))).resolves.toStrictEqual(
+        Array.from({ length: 4 }, () => activeFixtureServer.url),
+      );
+      await expect(Promise.all(createdPages.map((page) => page.title()))).resolves.toStrictEqual(
+        Array.from({ length: 4 }, () => "Stagehand SDK Smoke"),
+      );
+
+      const selectionOrder = [
+        createdPages[2]!,
+        createdPages[0]!,
+        createdPages[3]!,
+        createdPages[1]!,
+      ];
+      for (const page of selectionOrder) {
+        await activeStagehand.context.setActivePage(page);
+      }
+
+      const selectedPage = await waitForActivePageId(
+        activeStagehand.context,
+        createdPages[1]!.pageId,
+      );
+      await expect(selectedPage.evaluate("globalThis.__stagehandActivePageMarker")).resolves.toBe(
+        "two",
+      );
+
+      await createdPages[0]!.close();
+      await waitForPageRemoval(activeStagehand.context, createdPages[0]!.pageId);
+      await waitForActivePageId(activeStagehand.context, createdPages[1]!.pageId);
+
+      const closedActivePageId = createdPages[1]!.pageId;
+      await createdPages[1]!.close();
+      await waitForPageRemoval(activeStagehand.context, closedActivePageId);
+      const replacement = await waitForActivePageOtherThan(
+        activeStagehand.context,
+        closedActivePageId,
+      );
+      const livePageIds = new Set(
+        (await activeStagehand.context.pages()).map((page) => page.pageId),
+      );
+      expect(livePageIds.has(replacement.pageId)).toBe(true);
+    } finally {
+      await closePages(createdPages);
+    }
+  }, 20_000);
+
+  it("tracks a user-gesture popup as it opens, activates, and closes", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const createdPages: Page[] = [];
+
+    try {
+      const opener = await activeStagehand.context.newPage({ url: activeFixtureServer.url });
+      createdPages.push(opener);
+      await activeStagehand.context.setActivePage(opener);
+      await waitForActivePageId(activeStagehand.context, opener.pageId);
+
+      const pageIdsBeforePopup = new Set(
+        (await activeStagehand.context.pages()).map((page) => page.pageId),
+      );
+      await opener.locator("#popup-button").click();
+
+      const popup = await waitForNewPage(activeStagehand.context, pageIdsBeforePopup);
+      createdPages.push(popup);
+      await popup.waitForLoadState("load");
+
+      expect(popup.pageId).not.toBe(opener.pageId);
+      await expect(popup.url()).resolves.toBe(activeFixtureServer.url);
+      await expect(popup.title()).resolves.toBe("Stagehand SDK Smoke");
+      await waitForActivePageId(activeStagehand.context, popup.pageId);
+
+      await popup.close();
+      await waitForPageRemoval(activeStagehand.context, popup.pageId);
+      const replacement = await waitForActivePageOtherThan(activeStagehand.context, popup.pageId);
+      const livePageIds = new Set(
+        (await activeStagehand.context.pages()).map((page) => page.pageId),
+      );
+      expect(livePageIds.has(replacement.pageId)).toBe(true);
+
+      await activeStagehand.context.setActivePage(opener);
+      await waitForActivePageId(activeStagehand.context, opener.pageId);
+    } finally {
+      await closePages(createdPages);
+    }
+  }, 20_000);
 
   it("applies context scripts and headers to a new page", async () => {
     const activeStagehand = requireStagehand(stagehand);
@@ -438,6 +528,9 @@ async function startFixtureServer(): Promise<FixtureServer> {
     >
       Submit
     </button>
+    <button id="popup-button" onclick="window.open(window.location.href, '_blank')">
+      Open popup
+    </button>
     <ul>
       <li class="locator-item">first</li>
       <li class="locator-item">second</li>
@@ -503,6 +596,94 @@ async function startFixtureServer(): Promise<FixtureServer> {
     url: `http://127.0.0.1:${address.port}/`,
     close: () => closeServer(server),
   };
+}
+
+async function waitForActivePageId(
+  context: BrowserContext,
+  pageId: string,
+  timeoutMs = 10_000,
+): Promise<Page> {
+  return await pollUntil(
+    () => context.activePage(),
+    (page): page is Page => page?.pageId === pageId,
+    `active page ${pageId}`,
+    timeoutMs,
+  );
+}
+
+async function waitForActivePageOtherThan(
+  context: BrowserContext,
+  excludedPageId: string,
+  timeoutMs = 10_000,
+): Promise<Page> {
+  return await pollUntil(
+    () => context.activePage(),
+    (page): page is Page => page !== undefined && page.pageId !== excludedPageId,
+    `an active page other than ${excludedPageId}`,
+    timeoutMs,
+  );
+}
+
+async function waitForNewPage(
+  context: BrowserContext,
+  existingPageIds: ReadonlySet<string>,
+  timeoutMs = 10_000,
+): Promise<Page> {
+  return await pollUntil(
+    async () => (await context.pages()).find((page) => !existingPageIds.has(page.pageId)),
+    (page): page is Page => page !== undefined,
+    "a newly opened popup page",
+    timeoutMs,
+  );
+}
+
+async function waitForPageRemoval(
+  context: BrowserContext,
+  pageId: string,
+  timeoutMs = 10_000,
+): Promise<void> {
+  await pollUntil(
+    async () => (await context.pages()).some((page) => page.pageId === pageId),
+    (isPresent) => !isPresent,
+    `page ${pageId} to close`,
+    timeoutMs,
+  );
+}
+
+async function pollUntil<Value, Result extends Value>(
+  read: () => Promise<Value>,
+  matches: (value: Value) => value is Result,
+  description: string,
+  timeoutMs: number,
+): Promise<Result>;
+async function pollUntil<Value>(
+  read: () => Promise<Value>,
+  matches: (value: Value) => boolean,
+  description: string,
+  timeoutMs: number,
+): Promise<Value>;
+async function pollUntil<Value>(
+  read: () => Promise<Value>,
+  matches: (value: Value) => boolean,
+  description: string,
+  timeoutMs: number,
+): Promise<Value> {
+  const deadline = Date.now() + timeoutMs;
+  let value = await read();
+  while (!matches(value) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    value = await read();
+  }
+  if (!matches(value)) {
+    throw new Error(`Timed out waiting for ${description}`);
+  }
+  return value;
+}
+
+async function closePages(pages: Page[]): Promise<void> {
+  for (const page of [...pages].reverse()) {
+    await page.close().catch(() => {});
+  }
 }
 
 function escapeHtml(value: string): string {

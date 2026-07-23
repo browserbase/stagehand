@@ -12,8 +12,8 @@ function createBrowserSession(
     newPage: async () => {
       throw new Error("Not used by this test");
     },
-    activePage: () => undefined,
-    setActivePage: () => {},
+    activePage: async () => undefined,
+    setActivePage: async () => {},
     addInitScript: async () => {},
     setExtraHTTPHeaders: async () => {},
     getDomainPolicy: () => null,
