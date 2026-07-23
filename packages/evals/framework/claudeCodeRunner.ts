@@ -237,6 +237,7 @@ export async function runClaudeCodeAgent({
     stopReason ??
     (resultText || transcriptText || "Claude Code did not report success");
   const tokenUsage = extractClaudeCodeTokenUsage(resultMessage);
+  const toolMetrics = await collectClaudeCodeToolMetrics(toolAdapter, logger);
 
   const baseResult: TaskResult = {
     _success: parsed.success,
@@ -247,7 +248,10 @@ export async function runClaudeCodeAgent({
     claudeCodeStatus: status,
     ...(stopReason && { claudeCodeStopReason: stopReason }),
     logs: logger.getLogs(),
-    metrics: buildClaudeCodeMetrics(resultMessage),
+    metrics: {
+      ...buildClaudeCodeMetrics(resultMessage),
+      ...toolMetrics,
+    },
   };
 
   if (!verifier) {
@@ -277,6 +281,23 @@ export async function runClaudeCodeAgent({
     category: "claude_code",
     logger,
   });
+}
+
+async function collectClaudeCodeToolMetrics(
+  toolAdapter: PreparedClaudeCodeToolAdapter | undefined,
+  logger: EvalLogger,
+): Promise<Record<string, MetricValue>> {
+  if (!toolAdapter?.collectMetrics) return {};
+  try {
+    return await toolAdapter.collectMetrics();
+  } catch (error) {
+    logger.warn({
+      category: "claude_code",
+      message: `Tool metrics collection failed: ${stringifyError(error)}`,
+      level: 1,
+    });
+    return {};
+  }
 }
 
 function buildClaudeCodeMetrics(

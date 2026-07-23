@@ -415,6 +415,50 @@ describe("V4 code child controller", () => {
     expect(fs.existsSync(initRequest.browser.userDataDir ?? "")).toBe(false);
   });
 
+  it("requests a metrics snapshot before closing the bridge", async () => {
+    const child = new FakeBridgeChild();
+    child.onRequest = (request) => {
+      if (request.type === "metrics") {
+        child.respond({
+          id: request.id,
+          ok: true,
+          result: {
+            available: true,
+            values: { totalPromptTokens: 42 },
+          },
+        });
+        return;
+      }
+      child.respond({ id: request.id, ok: true });
+    };
+    const { forkProcess } = makeFork(child);
+    const controller = await startV4CodeController({
+      mode: "ai",
+      model: {
+        modelName: "anthropic/claude-sonnet-5",
+        apiKey: "test-key",
+      },
+      sdkPath: "/synthetic/v4-sdk.ts",
+      bridgePath: "/synthetic/v4CodeBridge.ts",
+      forkProcess,
+      startupTimeoutMs: 100,
+      executeTimeoutMs: 100,
+      closeTimeoutMs: 100,
+    });
+
+    await expect(controller.metrics()).resolves.toEqual({
+      available: true,
+      values: { totalPromptTokens: 42 },
+    });
+    await controller.close();
+
+    expect(child.sent.map((request) => request.type)).toEqual([
+      "init",
+      "metrics",
+      "close",
+    ]);
+  });
+
   it("serializes console values without dropping undefined", () => {
     expect(stringifyV4CodeConsoleValue("text")).toBe("text");
     expect(stringifyV4CodeConsoleValue({ ok: true })).toBe('{"ok":true}');

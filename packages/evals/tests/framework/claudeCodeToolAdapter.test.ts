@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  buildV4StagehandMetrics,
   getBrowseCliAllowedTools,
   getBrowseCliToolMetadata,
   insertAfterFrontmatter,
@@ -137,6 +138,31 @@ describe("claude code tool adapter resolution", () => {
       toolCommand: "browse",
       browseCliVersion: expect.any(String),
       browseCliEntrypoint: expect.stringContaining("packages/cli/bin/run.js"),
+    });
+  });
+
+  it("maps V4 Stagehand metrics into prefixed Braintrust metrics", () => {
+    expect(
+      buildV4StagehandMetrics({
+        available: true,
+        values: {
+          actPromptTokens: 12,
+          totalInferenceTimeMs: 340,
+        },
+      }),
+    ).toEqual({
+      v4_stagehand_metrics_available: { count: 1, value: 1 },
+      v4_act_prompt_tokens: { count: 1, value: 12 },
+      v4_total_inference_time_ms: { count: 1, value: 340 },
+    });
+    expect(
+      buildV4StagehandMetrics({
+        available: false,
+        values: {},
+        unavailableReason: "upstream_not_implemented",
+      }),
+    ).toEqual({
+      v4_stagehand_metrics_available: { count: 1, value: 0 },
     });
   });
 

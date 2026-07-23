@@ -106,6 +106,15 @@ async function handleRequest(message: V4CodeBridgeRequest): Promise<void> {
       });
       return;
     }
+    case "metrics": {
+      if (!runtime) throw new Error("V4 code bridge is not initialized.");
+      sendResponse({
+        id: message.id,
+        ok: true,
+        result: await runtime.metrics(),
+      });
+      return;
+    }
     case "close": {
       await closeRuntime();
       sendResponse({ id: message.id, ok: true }, () => {

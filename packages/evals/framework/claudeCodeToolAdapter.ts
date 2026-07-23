@@ -25,6 +25,7 @@ import {
   type V4CodeBrowserConfig,
   type V4CodeModelConfig,
 } from "./v4CodeConfig.js";
+import type { V4CodeMetricsSnapshot } from "./v4CodeRuntime.js";
 
 export interface ClaudeCodeToolAdapterInput {
   toolSurface?: ToolSurface;
@@ -48,7 +49,13 @@ export interface PreparedClaudeCodeToolAdapter {
     toolName: string,
     input: Record<string, unknown>,
   ) => Promise<Record<string, unknown>>;
+  collectMetrics?: () => Promise<Record<string, ClaudeCodeMetricValue>>;
   cleanup: () => Promise<void>;
+}
+
+export interface ClaudeCodeMetricValue {
+  count: number;
+  value: number;
 }
 
 export interface PreparedBrowseCliHarnessAdapter {
@@ -804,6 +811,8 @@ async function prepareV4CodeAdapter(
         };
       },
       promptInstructions: buildV4CodePromptInstructions(input.plan, mode),
+      collectMetrics: async () =>
+        buildV4StagehandMetrics(await controller.metrics()),
       cleanup: async () => {
         try {
           await controller?.close();
@@ -820,6 +829,28 @@ async function prepareV4CodeAdapter(
     }
     throw error;
   }
+}
+
+export function buildV4StagehandMetrics(
+  snapshot: V4CodeMetricsSnapshot,
+): Record<string, ClaudeCodeMetricValue> {
+  const metrics: Record<string, ClaudeCodeMetricValue> = {
+    v4_stagehand_metrics_available: {
+      count: 1,
+      value: snapshot.available ? 1 : 0,
+    },
+  };
+  for (const [name, value] of Object.entries(snapshot.values)) {
+    metrics[`v4_${camelCaseToSnakeCase(name)}`] = {
+      count: 1,
+      value,
+    };
+  }
+  return metrics;
+}
+
+function camelCaseToSnakeCase(value: string): string {
+  return value.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
 }
 
 async function buildPlaywrightRunMcpServers(input: {
