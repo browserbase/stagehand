@@ -11,7 +11,7 @@ export default defineBenchV4Task(
       // NOTE: v3 passes a bare XPath here; v4 documents options.selector as
       // CSS-only (V4_API_LOGS.md #10). Ported verbatim on purpose.
       const selector = "/html/body/div/ul[5]/li[28]";
-      const company = await page.extract(
+      const company = await stagehand.extract(
         "Extract the company name.",
         z.object({
           company_name: z.string(),

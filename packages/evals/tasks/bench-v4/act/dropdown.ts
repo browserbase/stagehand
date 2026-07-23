@@ -14,7 +14,7 @@ export default defineBenchV4Task(
 
       // type into the input box (which should be hidden behind the
       // expanded dropdown)
-      await page.act("type 'test fill' into the input field");
+      await stagehand.act("type 'test fill' into the input field");
 
       const input = page.locator(`xpath=/html/body/div/input`);
       const expectedValue = "test fill";

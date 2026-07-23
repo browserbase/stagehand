@@ -8,9 +8,9 @@ export default defineBenchV4Task(
         "https://browserbase.github.io/stagehand-eval-sites/sites/checkboxes/",
       );
 
-      await page.act("click the 'baseball' option");
+      await stagehand.act("click the 'baseball' option");
 
-      await page.act("click the 'netball' option");
+      await stagehand.act("click the 'netball' option");
 
       const baseballChecked = await page
         .locator('input[type="checkbox"][name="sports"][value="baseball"]')

@@ -6,7 +6,7 @@ export default defineBenchV4Task(
     try {
       await page.goto("https://docs.browserbase.com/");
 
-      await page.act("secret12345");
+      await stagehand.act("secret12345");
 
       await page.waitForLoadState("domcontentloaded");
 
