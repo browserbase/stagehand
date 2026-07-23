@@ -5,10 +5,12 @@ import { ChromeDevtoolsMcpTool } from "./chrome_devtools_mcp.js";
 import { PlaywrightCodeTool } from "./playwright_code.js";
 import { PlaywrightMcpTool } from "./playwright_mcp.js";
 import { UnderstudyCodeTool } from "./understudy_code.js";
+import { V4CodeTool } from "./v4_code.js";
 
 export function listCoreTools(): ToolSurface[] {
   return [
     "understudy_code",
+    "v4_code",
     "playwright_code",
     "cdp_code",
     "playwright_mcp",
@@ -21,6 +23,8 @@ export function getCoreTool(toolSurface: ToolSurface): CoreTool {
   switch (toolSurface) {
     case "understudy_code":
       return new UnderstudyCodeTool();
+    case "v4_code":
+      return new V4CodeTool();
     case "playwright_code":
       return new PlaywrightCodeTool();
     case "cdp_code":
