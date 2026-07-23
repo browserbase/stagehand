@@ -140,6 +140,8 @@ const result = await stagehand.act("click the login button");
 console.log(result.cacheStatus); // "HIT", "MISS", or undefined
 ```
 
+For how the cache works, tuning the validation threshold, and best practices, see the [Server Caching](/v3/best-practices/server-caching) guide.
+
 ### Using with Custom Pages
 
 You can use `act()` with pages from other browser automation libraries like Puppeteer, Playwright, or Patchright by passing the `page` option:
@@ -226,7 +228,7 @@ await stagehand.act("click the login button");
 Caching persists across script executions. The first time you run your script, actions are cached to your local filesystem. On subsequent runs, cached actions are reused automatically, significantly reducing costs and improving performance.
 </Note>
 
-<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v3/best-practices/caching">
+<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v3/best-practices/server-caching">
   Learn advanced caching techniques and patterns for optimal performance.
 </Card>
 
@@ -390,7 +392,7 @@ if (action.description.includes("checkout")) {
     Use `Agent` to autonomously execute multi-step tasks and complex workflows.
   </Card>
 
-   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/v3/best-practices/caching">
+   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/v3/best-practices/server-caching">
     Speed up repeated automations by caching actions.
   </Card>
 

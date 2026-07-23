@@ -62,7 +62,8 @@
               {
                 "group": "Best Practices",
                 "pages": [
-                  "v3/best-practices/caching",
+                  "v3/best-practices/server-caching",
+                  "v3/best-practices/local-caching",
                   "v3/best-practices/cost-optimization",
                   "v3/best-practices/deterministic-agent",
                   "v3/best-practices/using-multiple-tabs",
@@ -432,6 +433,10 @@
     ]
   },
   "redirects": [
+    {
+      "source": "/v3/best-practices/caching",
+      "destination": "/v3/best-practices/server-caching"
+    },
     {
       "source": "/first-steps/:slug*",
       "destination": "/v3/first-steps/:slug*"

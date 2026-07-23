@@ -1,0 +1,200 @@
+---
+title: Server Caching
+description: Cache actions automatically on Browserbase's servers to reduce costs and improve performance
+---
+
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+Browserbase Cache is a managed, server-side caching layer built into the Stagehand API. When you run Stagehand with `env: "BROWSERBASE"`, every `act()`, `extract()`, and `observe()` call is automatically cached on Browserbase's servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens. You don't need to configure anything to start benefiting.
+
+Server caching can be used independently or together with [Local Caching](/v3/best-practices/local-caching).
+
+## Using the Cache
+
+Caching is on by default. Run your automation as normal and repeated actions are served from the cache:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+// First run: LLM inference, result is cached on Browserbase's servers
+// Repeated runs are served from the cache w/o using an LLM
+await stagehand.act("click the login button");
+```
+
+The cache key is a combination of the instruction, page content, and options you pass. On a cache hit, the response is returned directly from the server with no LLM inference and no token cost. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
+
+## Checking Cache Status
+
+`act()` returns a `cacheStatus` field you can use to verify whether a result was served from cache:
+
+```typescript
+const actResult = await stagehand.act("click the login button");
+console.log(actResult.cacheStatus); // "HIT" or "MISS"
+```
+
+On a miss, the result also tells you *why* the cache missed when the server reports a reason, via the `cacheMissReason` field:
+
+```typescript
+const actResult = await stagehand.act("click the login button");
+
+if (actResult.cacheStatus === "MISS") {
+  console.log(actResult.cacheMissReason); // e.g. "threshold"
+}
+```
+
+The field is available on `act()`, `extract()`, and `observe()` results. Possible reasons:
+
+| Reason | Why it happens |
+| ------ | -------------- |
+| `not_found` | No cache entry exists for this action yet. This is the normal first-time miss — the result is recorded so future identical requests can be served from cache. |
+| `threshold` | A cache entry exists but the action hasn't been seen enough times to be served yet. Entries are only replayed once they've been validated by repeat executions — see [Tune the cache threshold](#tune-the-cache-threshold) to control this. |
+| `empty_array` | The cached value was an empty array (for example, an `observe()` call that found no elements). Empty results are never served from cache, so the action runs again. |
+| `timeout` | The cache lookup didn't complete within its time budget, so the server skipped the cache and executed the action normally. |
+| `error` | The cache lookup failed unexpectedly. The action still executes normally — the cache fails open. |
+| `disabled` | Caching is turned off for this method or project, so the lookup was skipped. |
+| `no_cache_key` | The server couldn't build a stable cache key for the request, so the result can't be cached or looked up. |
+
+<Note>
+Cache status for your sessions in the Browserbase dashboard is coming soon.
+</Note>
+
+## Best Practices
+
+### Tune the cache threshold
+
+Before a cached result is served, the same action must have been seen a certain number of times — the validation threshold. This protects you from replaying a one-off result on a page that isn't actually deterministic. Browserbase manages the default for you, but you can override it per action with `serverCacheThreshold`:
+
+```typescript
+// Serve the cached result as soon as the action has run once
+await stagehand.act("click the Sign in button", {
+  serverCacheThreshold: 1,
+});
+```
+
+The value persists on the cache entry, so later calls that omit `serverCacheThreshold` keep honoring it; passing a new value updates it. Use a low threshold (like `1`) for flows you know are stable to start hitting the cache immediately, or a higher one when you want more repeated observations before trusting the cached result. It must be a non-negative integer, and it also works on `extract()` and `observe()`.
+
+### Scope actions with a selector
+
+When targeting a specific part of a page, pass a `selector` to scope the accessibility tree snapshot to that container. This reduces token costs, speeds up inference, and — crucially for caching — means that changes *outside* the container don't affect the cache key. On content-heavy pages (search results, dashboards, feeds), scoping is often the difference between a stable cache key and a new miss on every visit.
+
+```typescript
+async function example(stagehand: Stagehand) {
+  const page = stagehand.context.pages()[0];
+  await page.goto("https://www.google.com/search?q=browserbase");
+
+  await page.waitForLoadState("networkidle");
+
+  const result = await stagehand.observe("click the first search result", {
+    // Scope to the search results container so ads, headers,
+    // and other surrounding content don't pollute the cache key.
+    selector: "#rcnt",
+  });
+}
+```
+
+### Use variables for dynamic values
+
+Using variables in `act()` lets you generalize a single cache entry across many different values. The cache key is built from the variable *keys*, not the values — so `{ email: "alice@example.com" }` and `{ email: "bob@example.com" }` share the same entry.
+
+Without variables you'd accumulate a separate cache miss for every unique email address you type. With variables you prime the cache once and hit it forever.
+
+```typescript
+async function example(stagehand: Stagehand) {
+  const page = stagehand.context.pages()[0];
+  await page.goto("https://example.com/login");
+
+  await page.waitForLoadState("networkidle");
+
+  // First run with alice@example.com → MISS (primes cache)
+  // Any future run, regardless of email value → HIT
+  await stagehand.act(
+    "type %email% into the Email address field",
+    { variables: { email: "alice@example.com" } },
+  );
+}
+```
+
+### Stabilize the environment
+
+Small differences in runtime state produce different accessibility trees and therefore different cache keys. Keep your environment as deterministic as possible:
+
+- **Fixed viewport size** — `await page.setViewportSize({ width: 1280, height: 720 })`
+- **Consistent user agent and locale** — set these in your browser launch options if your stack supports it
+
+```typescript
+const page = stagehand.context.pages()[0];
+
+// Lock the viewport so the layout is identical across runs
+await page.setViewportSize({ width: 1280, height: 720 });
+```
+
+### Keep prompts deterministic
+
+The exact instruction is part of the cache key. Even minor wording changes — synonyms, extra adjectives, punctuation — produce a new key and a cache miss.
+
+- Anchor instructions to visible UI labels: `"click the Sign in button"` not `"click the button to log me in"`
+- Keep instructions short and free of filler words
+- Avoid instructions that contain runtime-variable text inline — use `variables` instead
+
+```typescript
+// Good: anchored to the visible label, no variance
+await stagehand.act("click the Sign in button");
+
+// Bad: inline dynamic value creates a new cache key every time
+await stagehand.act(`type ${email} into the Email address field`);
+```
+
+## Limitations
+
+- The page URL factors in to the cache key. If the action is being made on a page with a dynamic URL, caching may not work as expected. We do filter out certain query parameters like referral trackers and analytics, but we don't catch everything just yet.
+- If the page content or structure changes, the action won't get a cache `HIT` and the LLM will be called. The subsequent actions will attempt to hit the resulting cache entry.
+- Page content changes aren't always visual or apparent — dynamic IDs, rotating ad slots, or injected scripts can shift the DOM between loads even when the page looks identical. If an action keeps getting cache misses after repeated calls, it's worth checking how consistent the DOM actually is across loads and [scoping the action with a selector](#scope-actions-with-a-selector) to the part of the page you care about, so DOM changes in irrelevant parts of the page don't affect cache performance.
+
+## Disabling the Cache
+
+Caching is on by default, but you can opt out at two levels.
+
+To disable caching for all requests made by an instance, pass `serverCache: false` to the constructor:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  serverCache: false,
+});
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+await page.goto("https://example.com");
+
+// Cache is disabled, always hits the LLM
+await stagehand.act("click the login button");
+```
+
+To override the instance setting for a single call, pass `serverCache: false` in the options:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "BROWSERBASE" }); // caching on by default
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+// This call skips the cache
+await stagehand.act("click the login button", { serverCache: false });
+
+// This call uses the cache as normal
+await stagehand.act("submit the form");
+```
