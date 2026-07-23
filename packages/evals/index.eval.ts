@@ -22,6 +22,13 @@ import {
   filterByEvalName,
 } from "./args.js";
 import { generateExperimentName } from "./utils.js";
+import {
+  buildTrajectoryGroupSlug,
+  generateRunToken,
+  resolveUnambiguousModel,
+  resolveTrajectoryRoot,
+  writeExperimentLink,
+} from "./framework/trajectoryGroup.js";
 import { exactMatch, errorMatch } from "./scoring.js";
 import {
   tasksByName,
@@ -52,6 +59,7 @@ import { buildWebVoyagerTestcases } from "./suites/webvoyager.js";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web.js";
 import { endBrowserbaseSession } from "./browserbaseCleanup.js";
 import { buildWebTailBenchTestcases } from "./suites/webtailbench.js";
+import { buildOdysseysBenchTestcases } from "./suites/odysseysbench.js";
 import { getCurrentDirPath } from "./runtimePaths.js";
 
 import dotenv from "dotenv";
@@ -252,6 +260,25 @@ const generateFilteredTestcases = (): Testcase[] => {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webtailbench");
   }
 
+  // Special handling: fan out OdysseysBench dataset for agent/odysseysbench
+  const isOdysseysBenchTaskIncluded = taskNamesToRun.includes(
+    "agent/odysseysbench",
+  );
+
+  if (
+    isOdysseysBenchTaskIncluded &&
+    (!datasetFilter || datasetFilter === "odysseysbench")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/odysseysbench");
+    allTestcases.push(...buildOdysseysBenchTestcases(currentModels));
+  } else if (
+    isOdysseysBenchTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "odysseysbench"
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/odysseysbench");
+  }
+
   // Create a list of all remaining testcases using the determined task names and models
   const isAgentCategory =
     effectiveCategory === "agent" ||
@@ -340,12 +367,35 @@ const generateFilteredTestcases = (): Testcase[] => {
     category: filterByCategory || undefined,
     environment: env,
   });
-
   // Determine braintrust project name to use (stagehand in CI, stagehand-dev otherwise)
   const braintrustProjectName =
     process.env.CI === "true" ? "stagehand" : "stagehand-dev";
 
   try {
+    // Materialized rather than passed to Eval() as a lazy generator: the group must
+    // be stamped before any TrajectoryRecorder is constructed, and its model can
+    // only come from the testcases that will run. Stays inside the try so a
+    // dataset-load failure is still reported by the catch below.
+    const testcases = generateFilteredTestcases();
+    // EVAL_MODEL_OVERRIDE does not drive the model matrix, so it can't stand in for
+    // the model that actually ran.
+    const runModel = resolveUnambiguousModel(
+      testcases.map((testcase) => testcase.input?.modelName),
+    );
+
+    // Stamp the run-scoped trajectory group; the token is generated once here and
+    // reused at completion time. Local persistence only.
+    const trajectoryGroup = buildTrajectoryGroupSlug({
+      experimentName,
+      model: runModel,
+      runToken: generateRunToken(),
+    });
+    process.env.EVAL_EXPERIMENT_NAME = experimentName;
+    process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
+    // Absent beats wrong: clear any model a previous run left behind.
+    if (runModel) process.env.EVAL_TRAJECTORY_MODEL = runModel;
+    else delete process.env.EVAL_TRAJECTORY_MODEL;
+
     // Run the evaluations with the braintrust Eval function
     const evalResult = await Eval(braintrustProjectName, {
       experimentName,
@@ -360,7 +410,7 @@ const generateFilteredTestcases = (): Testcase[] => {
           model: process.env.EVAL_MODEL_OVERRIDE,
         }),
       },
-      data: generateFilteredTestcases,
+      data: () => testcases,
       // Each test is a function that runs the corresponding task module
       task: async (input: EvalInput) => {
         const logger = new EvalLogger();
@@ -544,6 +594,22 @@ const generateFilteredTestcases = (): Testcase[] => {
         score: output._success ? 1 : 0,
       };
     });
+
+    // Cross-link local trajectories to the resolved Braintrust experiment.
+    // The hashed name (e.g. `agent/onlineMind2Web-92918006`) is only known now,
+    // after Eval() resolves — so write it once at the group-dir root of the group
+    // this run recorded into.
+    const summary = evalResult.summary;
+    if (summary) {
+      await writeExperimentLink(resolveTrajectoryRoot(), trajectoryGroup, {
+        braintrustExperiment: summary.experimentName,
+        braintrustExperimentId: summary.experimentId ?? null,
+        braintrustExperimentUrl: summary.experimentUrl ?? null,
+        braintrustProject: summary.projectName,
+        braintrustProjectUrl: summary.projectUrl ?? null,
+        requestedExperimentName: experimentName,
+      });
+    }
 
     // Generate and write the summary
     await generateSummary(summaryResults, experimentName);

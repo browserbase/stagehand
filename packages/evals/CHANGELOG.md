@@ -1,5 +1,16 @@
 # @browserbasehq/stagehand-evals
 
+## 2.1.0
+
+### Minor Changes
+
+- [#2275](https://github.com/browserbase/stagehand/pull/2275) [`cdae405`](https://github.com/browserbase/stagehand/commit/cdae405c1884d2600a1df02dd71556cfbf876e1e) Thanks [@miguelg719](https://github.com/miguelg719)! - Add OdysseysBench as a supported agent benchmark in the evals CLI. OdysseysBench is a 200-task web-agent benchmark (45 easy / 46 medium / 109 hard); each task ships a weighted rubric that is baked into the verifier's `precomputed_rubric` format so process + outcome are scored against the published criteria. Run with `--eval-name agent/odysseysbench` (or the `external_agent_benchmarks` category); supports `EVAL_ODYSSEYSBENCH_LIMIT`, `EVAL_ODYSSEYSBENCH_SAMPLE`, `EVAL_ODYSSEYSBENCH_LEVEL`, and `EVAL_ODYSSEYSBENCH_IDS`.
+
+### Patch Changes
+
+- Updated dependencies [[`2cd1edf`](https://github.com/browserbase/stagehand/commit/2cd1edf49e5b726d817805e3258f2fa9b7fa17b0), [`84197d8`](https://github.com/browserbase/stagehand/commit/84197d8cbab2461956cecf3fad84a7107610c960)]:
+  - @browserbasehq/stagehand@3.7.1
+
 ## 2.0.4
 
 ### Patch Changes

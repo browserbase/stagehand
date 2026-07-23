@@ -252,6 +252,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           messages: formattedMessages,
           schema: options.response_model.schema,
           temperature,
+          allowSystemInMessages: true,
           ...(Object.keys(providerOptions).length > 0
             ? { providerOptions }
             : {}),
@@ -383,6 +384,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
                 : "auto"
             : undefined,
         temperature,
+        allowSystemInMessages: true,
       });
     } catch (err) {
       // Log error response to maintain request/response pairing

@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   applyBenchmarkShorthand,
   parseRunArgs,
   resolveRunOptions,
+  withEnvOverrides,
 } from "../../tui/commands/parse.js";
 
 describe("resolveRunOptions", () => {
@@ -127,5 +128,48 @@ describe("resolveRunOptions", () => {
     expect(() => parseRunArgs(["b:webvoyager", "--filter", "bad"])).toThrow(
       /key=value/,
     );
+  });
+});
+
+describe("withEnvOverrides", () => {
+  const stamped = [
+    "EVAL_TRAJECTORY_GROUP",
+    "EVAL_EXPERIMENT_NAME",
+    "EVAL_TRAJECTORY_MODEL",
+  ];
+
+  afterEach(() => {
+    for (const key of [...stamped, "EVAL_ENV"]) delete process.env[key];
+  });
+
+  it("restores declared overrides", async () => {
+    delete process.env.EVAL_ENV;
+    await withEnvOverrides({ EVAL_ENV: "BROWSERBASE" }, async () => {
+      expect(process.env.EVAL_ENV).toBe("BROWSERBASE");
+    });
+    expect(process.env.EVAL_ENV).toBeUndefined();
+  });
+
+  it("does not leak env a run stamps from the inside", async () => {
+    // The REPL is long-lived: a run stamps its trajectory group directly onto
+    // process.env (the value is only known once testcases are generated, so it
+    // can't be declared as an override). It must not survive the command.
+    await withEnvOverrides({}, async () => {
+      process.env.EVAL_TRAJECTORY_GROUP = "agent__20260716-110342-9f3a1c";
+      process.env.EVAL_EXPERIMENT_NAME = "agent";
+      process.env.EVAL_TRAJECTORY_MODEL = "openai/gpt-4.1-mini";
+    });
+
+    for (const key of stamped) expect(process.env[key]).toBeUndefined();
+  });
+
+  it("restores a run-stamped key to its prior value rather than deleting it", async () => {
+    process.env.EVAL_TRAJECTORY_GROUP = "pre-existing";
+
+    await withEnvOverrides({}, async () => {
+      process.env.EVAL_TRAJECTORY_GROUP = "clobbered-by-run";
+    });
+
+    expect(process.env.EVAL_TRAJECTORY_GROUP).toBe("pre-existing");
   });
 });

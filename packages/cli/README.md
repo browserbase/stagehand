@@ -277,10 +277,19 @@ export BROWSERBASE_API_KEY=bb_live_...
 
 Local driver commands (`--local`) work without an API key.
 
+`browse` also auto-loads a `.env` file from the current directory on startup, and prints a
+one-time deprecation warning to stderr when it actually pulls a variable from `.env` this way.
+This is deprecated because a CLI used across many unrelated projects can silently pick up a
+stale key from the wrong project's `.env`; a future release will disable auto-loading by
+default so `browse` only reads `process.env`. Set `BROWSE_LOAD_DOTENV=0` (or `false`/`no`) to
+opt out of `.env` auto-loading now, ahead of that change, or `BROWSE_LOAD_DOTENV=1` to keep
+auto-loading with no warning.
+
 | Variable | Description |
 |----------|-------------|
 | `BROWSERBASE_API_KEY` | Enables `--remote` sessions and all `browse cloud` / `functions` commands |
 | `BROWSE_SESSION` | Default session name (alternative to `-s, --session`) |
+| `BROWSE_LOAD_DOTENV` | Controls `.env` auto-loading: unset = load + warn once (default, deprecated), `0`/`false`/`no` = skip loading, anything else = load silently |
 
 ## Links
 

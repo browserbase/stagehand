@@ -1,6 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  reserveTrajectoryDir,
+  resolveTrajectoryDir,
+  resolveTrajectoryGroup,
+  resolveTrajectoryRoot,
+  writeTrajectoryMetadata,
+} from "./trajectoryGroup.js";
+import {
   buildAgentEvidenceFromStepFinished,
   mergeAgentEvidence,
   redactInlineImagePayloads,
@@ -26,8 +33,9 @@ import type {
 export interface TrajectoryRecorderOptions {
   taskSpec: TaskSpec;
   /**
-   * Root directory under which trajectory dirs are written. Each task run
-   * gets a subdirectory named by runId/task.id.
+   * Root directory under which trajectory dirs are written. The on-disk layout
+   * is `<root>/<group>/<task.id>/<runId>/`, where <group> is the run-scoped
+   * EVAL_TRAJECTORY_GROUP (experiment+model) or "default".
    * Defaults to `<cwd>/.trajectories`.
    */
   outputRoot?: string;
@@ -54,7 +62,17 @@ const ZERO_USAGE: TrajectoryUsage = {
 export class TrajectoryRecorder {
   private readonly taskSpec: TaskSpec;
   private readonly runId: string;
-  private readonly outputDir: string;
+  private readonly outputRoot: string;
+  // Captured at construction: the env group is restamped per run, so a recorder
+  // must write under the group it was created for even if it finishes later.
+  private readonly group: string;
+  // Caches the in-flight PROMISE, not the resolved value: caching the result would
+  // leave a check-then-await window where two overlapping callers each reserve, and
+  // one recorder's artifacts split across two run dirs.
+  private reservation?: Promise<{ directory: string; attempt: number }>;
+  // Starts as the un-reserved path for the `directory` getter; ensureReserved()
+  // replaces it with the dir actually created (which may carry a -2/-3 suffix).
+  private outputDir: string;
   private readonly persistEnabled: boolean;
 
   // Steps are appended in arrival order on each step_finished event.
@@ -142,8 +160,18 @@ export class TrajectoryRecorder {
   constructor(opts: TrajectoryRecorderOptions) {
     this.taskSpec = opts.taskSpec;
     this.runId = opts.runId ?? new Date().toISOString().replace(/[:.]/g, "-");
-    const root = opts.outputRoot ?? path.join(process.cwd(), ".trajectories");
-    this.outputDir = path.join(root, this.runId, opts.taskSpec.id);
+    // Same resolution as the entrypoint's experiment-link write, so the
+    // EVAL_TRAJECTORY_ROOT override can't split them across two roots.
+    this.outputRoot = opts.outputRoot ?? resolveTrajectoryRoot();
+    this.group = resolveTrajectoryGroup();
+    // Best-effort path for the `directory` getter before anything persists;
+    // ensureReserved() replaces it with the dir actually created on disk.
+    this.outputDir = resolveTrajectoryDir(
+      this.outputRoot,
+      opts.taskSpec.id,
+      this.runId,
+      this.group,
+    );
     this.persistEnabled = shouldPersistTrajectory(opts.persist);
   }
 
@@ -182,7 +210,15 @@ export class TrajectoryRecorder {
     };
 
     if (this.persistEnabled) {
-      await writeTrajectoryDir(this.outputDir, trajectory);
+      const { directory, attempt } = await this.ensureReserved();
+      await writeTrajectoryDir(directory, trajectory);
+      await writeTrajectoryMetadata(directory, {
+        task: this.taskSpec.id,
+        runId: this.runId,
+        runDir: path.basename(directory),
+        attempt,
+        status: opts.status,
+      });
     }
 
     return trajectory;
@@ -209,6 +245,38 @@ export class TrajectoryRecorder {
   }
 
   /**
+   * Reserve this recorder's on-disk directory exactly once. Reserved at first
+   * persistence rather than construction, so collision resolution sees dirs
+   * concurrent recorders have actually created; caching keeps finish() idempotent
+   * and makes finish()/persistResult() order-free.
+   */
+  private ensureReserved(): Promise<{
+    directory: string;
+    attempt: number;
+  }> {
+    // Assigned synchronously, before any await, so concurrent callers share the one
+    // reservation. Do not `await` inside the `if` — that reopens the race.
+    if (!this.reservation) {
+      this.reservation = reserveTrajectoryDir(
+        this.outputRoot,
+        this.taskSpec.id,
+        this.runId,
+        this.group,
+      )
+        .then((reserved) => {
+          this.outputDir = reserved.directory;
+          return reserved;
+        })
+        .catch((err) => {
+          // Don't cache a rejection; a later attempt should be able to retry.
+          this.reservation = undefined;
+          throw err;
+        });
+    }
+    return this.reservation;
+  }
+
+  /**
    * Persist evaluator result next to the trajectory. No-op when trajectory
    * persistence is disabled.
    */
@@ -218,7 +286,10 @@ export class TrajectoryRecorder {
   ): Promise<void> {
     if (!this.persistEnabled) return;
 
-    const scoresDir = path.join(this.outputDir, "scores");
+    // Route through the shared reservation so scores land in the same dir as
+    // the trajectory regardless of finish()/persistResult() call order.
+    const { directory } = await this.ensureReserved();
+    const scoresDir = path.join(directory, "scores");
     await fs.mkdir(scoresDir, { recursive: true });
     await fs.writeFile(
       path.join(scoresDir, filename),
