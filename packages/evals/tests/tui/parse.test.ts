@@ -27,6 +27,66 @@ describe("resolveRunOptions", () => {
     expect(resolved.harness).toBe("claude_code");
   });
 
+  it("parses --skill-mode for adapter-backed harnesses", () => {
+    for (const mode of ["none", "prompt_show", "injected"] as const) {
+      const flags = parseRunArgs([
+        "b:webvoyager",
+        "--harness",
+        "vercel_ai_sdk",
+        "--skill-mode",
+        mode,
+      ]);
+      const resolved = resolveRunOptions(flags, {}, {});
+      expect(resolved.skillMode).toBe(mode);
+    }
+  });
+
+  it("leaves skillMode undefined when the flag is omitted", () => {
+    const resolved = resolveRunOptions({ harness: "claude_code" }, {}, {});
+    expect(resolved.skillMode).toBeUndefined();
+  });
+
+  it("rejects unknown --skill-mode values", () => {
+    const flags = parseRunArgs([
+      "b:webvoyager",
+      "--harness",
+      "vercel_ai_sdk",
+      "--skill-mode",
+      "bogus",
+    ]);
+    expect(() => resolveRunOptions(flags, {}, {})).toThrow(
+      /Unknown skill mode/,
+    );
+  });
+
+  it("rejects --skill-mode for the stagehand harness", () => {
+    const flags = parseRunArgs([
+      "b:webvoyager",
+      "--harness",
+      "stagehand",
+      "--skill-mode",
+      "none",
+    ]);
+    expect(() => resolveRunOptions(flags, {}, {})).toThrow(
+      /only applies to adapter-backed harnesses/,
+    );
+  });
+
+  it("rejects --skill-mode for claude_code/codex -- they have their own provisioning and silently ignored it", () => {
+    for (const harness of ["claude_code", "codex"] as const) {
+      const flags = parseRunArgs([
+        "b:webvoyager",
+        "--harness",
+        harness,
+        "--skill-mode",
+        "none",
+      ]);
+      expect(() => resolveRunOptions(flags, {}, {})).toThrow(
+        /only applies to adapter-backed harnesses/,
+      );
+    }
+  });
+
   it("accepts explicit agent modes", () => {
     for (const agentMode of ["dom", "hybrid", "cua"] as const) {
       const flags = parseRunArgs(["b:webvoyager", "--agent-mode", agentMode]);
