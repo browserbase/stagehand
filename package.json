@@ -23,10 +23,13 @@
   "devDependencies": {
     "@ast-grep/lang-python": "catalog:",
     "@ast-grep/napi": "catalog:",
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/sdk-trace-web": "catalog:",
     "@oxlint/plugins": "1.68.0",
     "@types/chrome": "catalog:",
+    "@types/node": "catalog:",
     "dotenv": "catalog:",
     "openai": "catalog:",
     "tsx": "catalog:",
