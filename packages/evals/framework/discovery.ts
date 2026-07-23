@@ -117,7 +117,7 @@ function walkDir(dir: string): string[] {
   return results;
 }
 
-function getTierRoots(
+export function getTierRoots(
   tasksRoot: string,
   tier: Tier,
   sdk: EvalSdk = "v3",

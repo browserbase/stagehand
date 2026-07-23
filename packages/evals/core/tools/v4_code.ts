@@ -702,7 +702,9 @@ function buildV4CodePromptInstructions(
 ): string {
   const hasContext = opts?.hasContext ?? false;
   const scope =
-    (mode === "ai" ? "an initialized Stagehand v4 client (stagehand), its" : "") +
+    (mode === "ai"
+      ? "an initialized Stagehand v4 client (stagehand), its"
+      : "") +
     ` page${hasContext ? ", context," : ","} startUrl, and task object`;
   const lines = [
     "Browser tool surface: v4_code (Stagehand v4 SDK).",

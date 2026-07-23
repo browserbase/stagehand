@@ -607,7 +607,7 @@ async function executeCodeExposureRunTool(input: {
   }
 }
 
-async function executeCodeExposureSnippet(input: {
+export async function executeCodeExposureSnippet(input: {
   code: string;
   handles: Record<string, unknown>;
   executeSnippet?: LLMExposure["executeSnippet"];

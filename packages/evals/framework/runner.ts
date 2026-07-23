@@ -57,7 +57,7 @@ import { resolveDefaultCoreStartupProfile } from "./context.js";
  * e.g. act__v4__local__gpt-5.4-mini__2026-07-22. Matched pairs differ only
  * in the sdk segment; never diff across environments.
  */
-function buildSdkComparisonExperimentName(input: {
+export function buildSdkComparisonExperimentName(input: {
   base: string;
   sdk: "v3" | "v4";
   environment: string;
@@ -96,8 +96,7 @@ const SDK_COMPARISON_PROJECT = "stagehand-v4";
 async function assertBraintrustProjectReachable(
   projectName: string,
 ): Promise<void> {
-  const apiUrl =
-    process.env.BRAINTRUST_API_URL ?? "https://api.braintrust.dev";
+  const apiUrl = process.env.BRAINTRUST_API_URL ?? "https://api.braintrust.dev";
   let body: { objects?: unknown[] };
   try {
     const response = await fetch(

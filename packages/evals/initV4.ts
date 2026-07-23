@@ -44,7 +44,7 @@ const PROVIDER_API_KEY_ENV: Record<string, string[]> = {
   cerebras: ["CEREBRAS_API_KEY"],
 };
 
-function resolveModelApiKey(modelName: string): string {
+export function resolveModelApiKey(modelName: string): string {
   const provider = modelName.includes("/")
     ? modelName.split("/")[0]
     : undefined;
