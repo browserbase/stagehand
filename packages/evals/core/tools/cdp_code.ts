@@ -1,12 +1,18 @@
-import type {
-  CoreCapability,
-  CoreLocatorHandle,
-  CorePageHandle,
-  CoreSession,
-  CoreTool,
-  StartupProfile,
-  ToolStartInput,
-  ToolStartResult,
+import { EvalsError } from "../../errors.js";
+import type { EvalLogger } from "../../logger.js";
+import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
+import { prepareCoreBrowserTarget } from "../targets/index.js";
+import {
+  LLM_RUN_TOOL_NAME,
+  type LLMExposure,
+  type CoreCapability,
+  type CoreLocatorHandle,
+  type CorePageHandle,
+  type CoreSession,
+  type CoreTool,
+  type StartupProfile,
+  type ToolStartInput,
+  type ToolStartResult,
 } from "../contracts/tool.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
 import type {
@@ -1248,4 +1254,415 @@ export class CdpCodeTool implements CoreTool {
       },
     };
   }
+}
+
+type ActiveCdpPage = {
+  targetId: string;
+  sessionId: string;
+  url: string;
+};
+
+type CdpRuntime = {
+  readonly targetId: string;
+  readonly sessionId: string;
+  send<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<T>;
+  browser<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<T>;
+  on(
+    method: string,
+    listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
+  ): () => void;
+  off(
+    method: string,
+    listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
+  ): void;
+  once(
+    method: string,
+    listenerOrTimeout?:
+      | ((event: CdpEventMessage) => unknown | Promise<unknown>)
+      | number,
+    timeoutMs?: number,
+  ): Promise<CdpEventMessage> | (() => void);
+  waitForEvent(method: string, timeoutMs?: number): Promise<CdpEventMessage>;
+  wait(ms: number): Promise<void>;
+};
+
+/**
+ * cdp_code agent exposure: the agent writes code against a raw CDP runtime
+ * (page-scoped send, browser-level send, and event helpers) attached to a
+ * runner-provided CDP endpoint.
+ */
+export async function prepareLLMExposure(
+  plan: ExternalHarnessTaskPlan,
+  env: "LOCAL" | "BROWSERBASE",
+  logger: EvalLogger,
+  startupProfile?: StartupProfile,
+): Promise<LLMExposure> {
+  const resolvedProfile =
+    startupProfile ??
+    (env === "BROWSERBASE"
+      ? "runner_provided_browserbase_cdp"
+      : "runner_provided_local_cdp");
+  if (
+    resolvedProfile !== "runner_provided_local_cdp" &&
+    resolvedProfile !== "runner_provided_browserbase_cdp"
+  ) {
+    throw new EvalsError(
+      `cdp_code startup profile "${resolvedProfile}" is not valid for Claude Code. Use runner_provided_local_cdp or runner_provided_browserbase_cdp.`,
+    );
+  }
+
+  let connection: CdpConnection | undefined;
+  let targetCleanup: () => Promise<void> = async () => {};
+
+  try {
+    const target = await prepareCoreBrowserTarget({
+      environment: env,
+      toolSurface: "cdp_code",
+      startupProfile: resolvedProfile,
+    });
+    targetCleanup = target.cleanup;
+    if (!target.providedEndpoint?.url) {
+      throw new EvalsError(
+        `cdp_code requires a runner-provided CDP endpoint for startup profile "${resolvedProfile}".`,
+      );
+    }
+
+    const openConnection = await CdpConnection.connect(target.providedEndpoint);
+    connection = openConnection;
+    const activePage = await attachActiveCdpPage(openConnection);
+
+    logger.log({
+      category: "claude_code",
+      message: `Initialized cdp_code browser runtime for Claude Code run tool.`,
+      level: 1,
+      auxiliary: {
+        startupProfile: {
+          value: resolvedProfile,
+          type: "string",
+        },
+        environment: {
+          value: env,
+          type: "string",
+        },
+        targetId: {
+          value: activePage.targetId,
+          type: "string",
+        },
+        sessionId: {
+          value: activePage.sessionId,
+          type: "string",
+        },
+        ...(target.metadata && {
+          targetMetadata: {
+            value: JSON.stringify(target.metadata),
+            type: "object",
+          },
+        }),
+      },
+    });
+
+    return {
+      kind: "code_handles",
+      handles: { cdp: buildCdpRuntime(openConnection, activePage, logger) },
+      promptInstructions: buildCdpCodePromptInstructions(),
+      runTool: {
+        description: [
+          "Execute JavaScript against the initialized Chrome DevTools Protocol browser.",
+          "The snippet runs inside an async function with cdp, startUrl, task, and console in scope.",
+          "Use await directly. Return a JSON-serializable value when useful.",
+        ].join(" "),
+        codeParamDescription:
+          "JavaScript function body to execute. cdp/startUrl/task are already in scope.",
+        denyMessage: `Use Bash for inspection and ${LLM_RUN_TOOL_NAME} for CDP browser automation.`,
+        task: {
+          dataset: plan.dataset,
+          id: plan.taskId,
+          startUrl: plan.startUrl,
+          instruction: plan.instruction,
+        },
+      },
+      ...(target.metadata && { metadata: target.metadata }),
+      captureFinalState: async () => {
+        const artifact: { screenshot?: Buffer; url?: string } = {};
+        try {
+          const shot = await openConnection.send<{ data: string }>(
+            "Page.captureScreenshot",
+            {},
+            activePage.sessionId,
+          );
+          artifact.screenshot = Buffer.from(shot.data, "base64");
+        } catch {
+          // best-effort only
+        }
+        try {
+          const evaluated = await openConnection.send<{
+            result?: { value?: unknown };
+          }>(
+            "Runtime.evaluate",
+            { expression: "location.href", returnByValue: true },
+            activePage.sessionId,
+          );
+          const value = evaluated.result?.value;
+          if (typeof value === "string") artifact.url = value;
+        } catch {
+          // best-effort only
+        }
+        return artifact;
+      },
+      cleanup: async () => {
+        try {
+          await openConnection.close();
+        } catch {
+          // best-effort only
+        } finally {
+          await targetCleanup();
+        }
+      },
+    };
+  } catch (error) {
+    try {
+      await connection?.close();
+    } catch {
+      // best-effort only
+    }
+    await targetCleanup();
+    throw error;
+  }
+}
+
+function buildCdpCodePromptInstructions(): string {
+  return [
+    "Browser tool surface: cdp_code.",
+    `Use the ${LLM_RUN_TOOL_NAME} tool for browser automation. It exposes an initialized cdp object, startUrl, and task object.`,
+    "Use cdp.send(method, params) for page-scoped CDP commands and cdp.browser(method, params) for browser-level commands.",
+    "Helpers available: cdp.on(method, listener), cdp.once(method), cdp.waitForEvent(method, timeoutMs), cdp.wait(ms), cdp.targetId, cdp.sessionId.",
+    'The first browser action should usually be: const loaded = cdp.waitForEvent("Page.loadEventFired"); await cdp.send("Page.navigate", { url: startUrl }); await loaded.',
+    "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
+    "Do not edit repository files.",
+    "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+  ].join("\n");
+}
+
+function buildCdpRuntime(
+  connection: CdpConnection,
+  activePage: ActiveCdpPage,
+  logger: EvalLogger,
+): CdpRuntime {
+  const listenerUnsubscribes = new Map<
+    (event: CdpEventMessage) => unknown | Promise<unknown>,
+    () => void
+  >();
+  return {
+    targetId: activePage.targetId,
+    sessionId: activePage.sessionId,
+    send: <T = unknown>(
+      method: string,
+      params?: Record<string, unknown>,
+    ): Promise<T> => connection.send<T>(method, params, activePage.sessionId),
+    browser: <T = unknown>(
+      method: string,
+      params?: Record<string, unknown>,
+    ): Promise<T> => connection.send<T>(method, params),
+    on: (
+      method: string,
+      listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
+    ): (() => void) => {
+      const unsubscribe = onCdpEvent(
+        connection,
+        activePage.sessionId,
+        method,
+        listener,
+        logger,
+      );
+      listenerUnsubscribes.set(listener, unsubscribe);
+      return () => {
+        listenerUnsubscribes.delete(listener);
+        unsubscribe();
+      };
+    },
+    off: (
+      _method: string,
+      listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
+    ): void => {
+      const unsubscribe = listenerUnsubscribes.get(listener);
+      listenerUnsubscribes.delete(listener);
+      unsubscribe?.();
+    },
+    once: (
+      method: string,
+      listenerOrTimeout?:
+        | ((event: CdpEventMessage) => unknown | Promise<unknown>)
+        | number,
+      timeoutMs = 15_000,
+    ): Promise<CdpEventMessage> | (() => void) => {
+      if (typeof listenerOrTimeout === "function") {
+        const listener = listenerOrTimeout;
+        const unsubscribe = onCdpEvent(
+          connection,
+          activePage.sessionId,
+          method,
+          (event) => {
+            unsubscribe?.();
+            listenerUnsubscribes.delete(listener);
+            return listener(event);
+          },
+          logger,
+        );
+        listenerUnsubscribes.set(listener, unsubscribe);
+        return () => {
+          listenerUnsubscribes.delete(listener);
+          unsubscribe?.();
+        };
+      }
+      return waitForCdpEvent(
+        connection,
+        activePage.sessionId,
+        method,
+        listenerOrTimeout ?? timeoutMs,
+      );
+    },
+    waitForEvent: (
+      method: string,
+      timeoutMs = 15_000,
+    ): Promise<CdpEventMessage> =>
+      waitForCdpEvent(connection, activePage.sessionId, method, timeoutMs),
+    wait: sleep,
+  };
+}
+
+function onCdpEvent(
+  connection: CdpConnection,
+  sessionId: string,
+  method: string,
+  listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
+  logger: EvalLogger,
+): () => void {
+  return connection.onEvent((event) => {
+    if (
+      event.method !== method ||
+      (event.sessionId && event.sessionId !== sessionId)
+    ) {
+      return;
+    }
+    try {
+      const result = listener(event);
+      if (isPromiseLike(result)) {
+        result.catch((error: unknown) => {
+          logger.warn({
+            category: "claude_code",
+            message: `cdp event listener failed: ${error instanceof Error ? error.message : String(error)}`,
+            level: 1,
+          });
+        });
+      }
+    } catch (error) {
+      logger.warn({
+        category: "claude_code",
+        message: `cdp event listener failed: ${error instanceof Error ? error.message : String(error)}`,
+        level: 1,
+      });
+    }
+  });
+}
+
+async function attachActiveCdpPage(
+  connection: CdpConnection,
+): Promise<ActiveCdpPage> {
+  const targets = await connection.send<{
+    targetInfos: Array<{
+      targetId: string;
+      type: string;
+      url?: string;
+    }>;
+  }>("Target.getTargets");
+
+  const existingPage = targets.targetInfos.find(
+    (target) =>
+      target.type === "page" && !target.url?.startsWith("devtools://"),
+  );
+  const targetId =
+    existingPage?.targetId ??
+    (
+      await connection.send<{ targetId: string }>("Target.createTarget", {
+        url: "about:blank",
+      })
+    ).targetId;
+  const attached = await connection.send<{ sessionId: string }>(
+    "Target.attachToTarget",
+    {
+      targetId,
+      flatten: true,
+    },
+  );
+
+  await connection.send("Page.enable", {}, attached.sessionId);
+  await connection.send("Runtime.enable", {}, attached.sessionId);
+  await connection.send("DOM.enable", {}, attached.sessionId);
+  await connection.send(
+    "Page.setLifecycleEventsEnabled",
+    { enabled: true },
+    attached.sessionId,
+  );
+
+  return {
+    targetId,
+    sessionId: attached.sessionId,
+    url: existingPage?.url ?? "about:blank",
+  };
+}
+
+export function waitForCdpEvent(
+  connection: CdpConnection,
+  sessionId: string,
+  method: string,
+  timeoutMs: number,
+): Promise<CdpEventMessage> {
+  let timeout: NodeJS.Timeout | undefined;
+  let unsubscribe: (() => void) | undefined;
+  const promise = new Promise<CdpEventMessage>((resolve, reject) => {
+    const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
+      unsubscribe?.();
+    };
+    unsubscribe = connection.onEvent((event) => {
+      if (
+        event.method !== method ||
+        (event.sessionId && event.sessionId !== sessionId)
+      ) {
+        return;
+      }
+      cleanup();
+      resolve(event);
+    });
+    timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for CDP event "${method}"`));
+    }, timeoutMs);
+  });
+
+  // Claude-generated snippets often assign an event wait promise before a CDP
+  // action and may abandon it after another branch finishes. Keep the promise
+  // rejectable for awaited callers, but prevent abandoned waits from crashing
+  // the eval process as unhandled rejections.
+  promise.catch((): undefined => undefined);
+  return promise;
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> & {
+  catch: (handler: (error: unknown) => void) => unknown;
+} {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "then" in value &&
+    typeof (value as { then?: unknown }).then === "function" &&
+    "catch" in value &&
+    typeof (value as { catch?: unknown }).catch === "function"
+  );
 }
