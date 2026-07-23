@@ -32,8 +32,16 @@ export const noLooseJsonSchemaInProtocolOperations = defineRule({
 
       Property(node: ESTree.ObjectProperty) {
         const propertyName = keyName(node.key);
-        if (propertyName !== "paramsSchema" && propertyName !== "resultSchema") return;
+        if (propertyName !== "params" && propertyName !== "result") return;
         if (node.value.type === "Identifier" && canonicalSchemas.has(node.value.name)) return;
+        // The JSON-RPC envelope builders wrap registry entries (already validated at their
+        // definition sites) in the canonical wire-casing adapter; allow that one wrapper.
+        if (
+          node.value.type === "CallExpression" &&
+          node.value.callee.type === "Identifier" &&
+          node.value.callee.name === "wireSchema"
+        )
+          return;
 
         context.report({
           node: node.value,

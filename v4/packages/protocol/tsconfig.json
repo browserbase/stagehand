@@ -20,7 +20,6 @@
     "../extension/transports/**/*.ts",
     "../extension/types/**/*.ts",
     "../extension/understudy/**/*.ts",
-    "../extension/version.ts",
     "../sdk-ts/src/**/*.ts",
     "../sdk-ts/tests/**/*.ts",
     "../docs-v4/tests/**/*.ts",

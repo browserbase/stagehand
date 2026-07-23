@@ -21,11 +21,21 @@ function isProtocolSchemaModule(filename: string, source: string): boolean {
     return true;
   }
 
-  if (normalizedSource !== "./schemas") return false;
+  if (!normalizedSource.startsWith(".")) return false;
 
+  // Resolve the relative specifier against the importing file so parent-relative
+  // paths ("../schemas", "../../protocol/schemas") cannot slip past the guard.
   const directory = normalizedFilename.slice(0, normalizedFilename.lastIndexOf("/"));
+  const segments = directory.split("/");
+  for (const part of normalizedSource.split("/")) {
+    if (part === "." || part === "") continue;
+    if (part === "..") segments.pop();
+    else segments.push(part);
+  }
+  const resolved = segments.join("/");
   return (
-    directory.endsWith("/packages/protocol") || directory.endsWith("/packages/protocol/json-rpc")
+    resolved.endsWith("/packages/protocol/schemas") ||
+    resolved.endsWith("/packages/protocol/json-rpc/schemas")
   );
 }
 

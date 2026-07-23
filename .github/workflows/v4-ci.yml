@@ -20,6 +20,9 @@ jobs:
   typescript:
     name: TypeScript
     runs-on: ubuntu-latest
+    # External fork PRs run CI via the maintainer-approved external-contributor
+    # mirror flow (external-contributor-pr.yml), matching the root ci.yml pattern.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 20
     env:
       BROWSERBASE_API_KEY_CONFIGURED: ${{ secrets.BROWSERBASE_API_KEY != '' }}
@@ -27,14 +30,14 @@ jobs:
       run:
         working-directory: v4
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: voidzero-dev/setup-vp@v1
+      - uses: voidzero-dev/setup-vp@8a7496fd44e8a1b0a88a7459e36213b2fefc1d15 # v1
         with:
           node-version: "24"
           cache: true
 
-      - uses: browser-actions/setup-chrome@v2
+      - uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
         id: setup-chrome
         with:
           chrome-version: stable
@@ -62,19 +65,22 @@ jobs:
   python:
     name: Python
     runs-on: ubuntu-latest
+    # External fork PRs run CI via the maintainer-approved external-contributor
+    # mirror flow (external-contributor-pr.yml), matching the root ci.yml pattern.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 20
     defaults:
       run:
         working-directory: v4/packages/sdk-python
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: voidzero-dev/setup-vp@v1
+      - uses: voidzero-dev/setup-vp@8a7496fd44e8a1b0a88a7459e36213b2fefc1d15 # v1
         with:
           node-version: "24"
           cache: true
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
         with:
           # Read the v4 workspace's own packageManager pin (pnpm 11). Passing an explicit
           # version here conflicts with the ROOT package.json's packageManager (pnpm 9.15),
@@ -82,14 +88,14 @@ jobs:
           package_json_file: v4/package.json
           run_install: false
 
-      - uses: browser-actions/setup-chrome@v2
+      - uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
         id: setup-chrome
         with:
           chrome-version: stable
           install-dependencies: true
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version-file: v4/packages/sdk-python/.python-version
 
@@ -101,7 +107,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: v4/packages/sdk-python/uv.lock
 
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3
 
       - run: vp install
         working-directory: v4
