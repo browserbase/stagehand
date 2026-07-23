@@ -21,6 +21,7 @@ import {
   cleanupV4CodeBrowserbaseResourcesSync,
   type V4CodeBrowserbaseCleanupInput,
 } from "./v4CodeBrowserbaseCleanup.js";
+import type { V4CodeMetricsSnapshot } from "./v4CodeRuntime.js";
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
 const DEFAULT_EXECUTE_TIMEOUT_MS = 60_000;
@@ -41,6 +42,7 @@ export type V4CodeBridgeRequest =
       startUrl: string;
       task: Record<string, unknown>;
     }
+  | { id: number; type: "metrics" }
   | { id: number; type: "close" };
 
 export type V4CodeBridgeResponse =
@@ -93,6 +95,7 @@ export interface V4CodeController {
     task: Record<string, unknown>;
   }): Promise<unknown>;
   getBrowserbaseResources(): Readonly<V4CodeBrowserbaseResources> | undefined;
+  metrics(): Promise<V4CodeMetricsSnapshot>;
   close(): Promise<void>;
 }
 
@@ -477,6 +480,13 @@ class IpcV4CodeController implements V4CodeController {
       return undefined;
     }
     return { ...this.#browserbaseResources };
+  }
+
+  async metrics(): Promise<V4CodeMetricsSnapshot> {
+    return (await this.#request(
+      { type: "metrics" },
+      this.#closeTimeoutMs,
+    )) as V4CodeMetricsSnapshot;
   }
 
   close(): Promise<void> {

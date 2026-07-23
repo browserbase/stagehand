@@ -676,6 +676,76 @@ describe("deterministic V4 runtime", () => {
     ]);
   });
 
+  it("returns Stagehand metrics from AI mode", async () => {
+    const raw = createRawRuntime();
+    const metrics = vi.fn(async () => ({
+      actPromptTokens: 12,
+      actCompletionTokens: 4,
+      totalInferenceTimeMs: 340,
+    }));
+    class FakeStagehand {
+      readonly context = raw.context;
+      async init() {}
+      async close() {}
+      metrics = metrics;
+    }
+
+    const runtime = await initializeV4CodeRuntime({
+      sdkPath: makeSdkEntry(),
+      mode: "ai",
+      model: {
+        modelName: "anthropic/claude-sonnet-5",
+        apiKey: "test-key",
+      },
+      importModule: async () => ({ Stagehand: FakeStagehand }),
+    });
+
+    await expect(runtime.metrics()).resolves.toEqual({
+      available: true,
+      values: {
+        actPromptTokens: 12,
+        actCompletionTokens: 4,
+        totalInferenceTimeMs: 340,
+      },
+    });
+    expect(metrics).toHaveBeenCalledTimes(1);
+    await runtime.close();
+  });
+
+  it("guards the known upstream metrics stub without hiding other errors", async () => {
+    const raw = createRawRuntime();
+    const metrics = vi
+      .fn<() => Promise<unknown>>()
+      .mockRejectedValueOnce(
+        new Error("Method not implemented by the smoke runtime"),
+      )
+      .mockRejectedValueOnce(new Error("metrics transport failed"));
+    class FakeStagehand {
+      readonly context = raw.context;
+      async init() {}
+      async close() {}
+      metrics = metrics;
+    }
+
+    const runtime = await initializeV4CodeRuntime({
+      sdkPath: makeSdkEntry(),
+      mode: "ai",
+      model: {
+        modelName: "anthropic/claude-sonnet-5",
+        apiKey: "test-key",
+      },
+      importModule: async () => ({ Stagehand: FakeStagehand }),
+    });
+
+    await expect(runtime.metrics()).resolves.toEqual({
+      available: false,
+      values: {},
+      unavailableReason: "upstream_not_implemented",
+    });
+    await expect(runtime.metrics()).rejects.toThrow("metrics transport failed");
+    await runtime.close();
+  });
+
   it("rejects missing AI model configuration without affecting deterministic mode", async () => {
     await expect(
       initializeV4CodeRuntime({

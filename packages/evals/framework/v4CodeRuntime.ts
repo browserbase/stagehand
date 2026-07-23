@@ -128,7 +128,14 @@ export interface V4CodeRuntime {
   context: V4CodeContextFacade;
   stagehand?: V4AiStagehandFacade;
   browserbaseResources?: V4CodeBrowserbaseResources;
+  metrics(): Promise<V4CodeMetricsSnapshot>;
   close(): Promise<void>;
+}
+
+export interface V4CodeMetricsSnapshot {
+  available: boolean;
+  values: Record<string, number>;
+  unavailableReason?: "not_applicable" | "upstream_not_implemented";
 }
 
 type V4StagehandInstance = {
@@ -141,6 +148,7 @@ type V4StagehandInstance = {
     options?: unknown,
   ): Promise<unknown>;
   init(): Promise<unknown>;
+  metrics(): Promise<unknown>;
   close(): Promise<unknown>;
 };
 
@@ -265,6 +273,32 @@ export async function initializeV4CodeRuntime(input: {
     })();
     return closePromise;
   };
+  const metrics = async (): Promise<V4CodeMetricsSnapshot> => {
+    if (input.mode !== "ai") {
+      return {
+        available: false,
+        values: {},
+        unavailableReason: "not_applicable",
+      };
+    }
+    try {
+      return {
+        available: true,
+        values: normalizeV4StagehandMetrics(await stagehand.metrics()),
+      };
+    } catch (error) {
+      // TODO: Remove this compatibility guard after v4-spike implements
+      // stagehand.metrics in the extension runtime.
+      if (isV4MetricsNotImplementedError(error)) {
+        return {
+          available: false,
+          values: {},
+          unavailableReason: "upstream_not_implemented",
+        };
+      }
+      throw error;
+    }
+  };
 
   try {
     await stagehand.init();
@@ -283,6 +317,7 @@ export async function initializeV4CodeRuntime(input: {
       context,
       ...(stagehandFacade && { stagehand: stagehandFacade }),
       ...(browserbaseResources && { browserbaseResources }),
+      metrics,
       close,
     };
   } catch (error) {
@@ -817,6 +852,25 @@ function readString(target: UnknownRecord, key: string): string {
     throw new Error(`V4 runtime ${key} is not a string.`);
   }
   return value;
+}
+
+function normalizeV4StagehandMetrics(value: unknown): Record<string, number> {
+  const metrics = requireObject(value, "V4 Stagehand metrics");
+  const normalized: Record<string, number> = {};
+  for (const [key, entry] of Object.entries(metrics)) {
+    if (typeof entry !== "number" || !Number.isFinite(entry)) {
+      throw new Error(`V4 Stagehand metric ${key} is not a finite number.`);
+    }
+    normalized[key] = entry;
+  }
+  return normalized;
+}
+
+function isV4MetricsNotImplementedError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /method not implemented by the smoke runtime/i.test(error.message)
+  );
 }
 
 function resolveRuntimeModel(
