@@ -218,7 +218,14 @@ export type StagehandBrowserSession = {
 export type StagehandBrowserSessionFactory = (
   cdpUrl: string,
   logger: StagehandLogger,
+  lifecycle?: StagehandBrowserSessionLifecycle,
 ) => Promise<StagehandBrowserSession>;
+
+export type StagehandBrowserSessionLifecycle = {
+  onConnecting?(): void;
+  onConnected?(): void;
+  onDisconnected?(): void;
+};
 
 export type StagehandRuntimeAdapters = {
   browserSessionFactory?: StagehandBrowserSessionFactory;
@@ -257,6 +264,7 @@ export class StagehandRuntime {
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
+  private browserSessionGeneration = 0;
 
   constructor(
     readonly adapters: ResolvedStagehandRuntimeAdapters,
@@ -272,23 +280,43 @@ export class StagehandRuntime {
     };
   }
 
-  async configureLoopback(params: RuntimeConfigureParams): Promise<RuntimeConfigureResult> {
-    this.logger.setLevel(params.logLevel);
+  async configureLoopback(
+    params: Pick<RuntimeConfigureParams, "cdpUrl"> &
+      Partial<Omit<RuntimeConfigureParams, "cdpUrl">>,
+    lifecycle?: StagehandBrowserSessionLifecycle,
+  ): Promise<RuntimeConfigureResult> {
+    if (params.logLevel) this.logger.setLevel(params.logLevel);
     const { cdpUrl } = params;
+    const generation = ++this.browserSessionGeneration;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
     await previousSession?.close();
 
+    let browserSession: StagehandBrowserSession | undefined;
     try {
-      this.browserSession = await this.adapters.browserSessionFactory(cdpUrl, this.logger);
+      browserSession = await this.adapters.browserSessionFactory(cdpUrl, this.logger, lifecycle);
+      if (generation !== this.browserSessionGeneration) {
+        throw new Error("Stagehand browser session bootstrap was superseded");
+      }
+      this.browserSession = browserSession;
     } catch (error) {
-      await this.browserSession?.close();
-      this.browserSession = undefined;
+      await browserSession?.close();
+      if (generation === this.browserSessionGeneration) this.browserSession = undefined;
       throw error;
     }
 
     return { configured: true };
+  }
+
+  /** Returns this runtime to a fresh reservation while keeping the worker alive. */
+  async resetForReservation(): Promise<void> {
+    ++this.browserSessionGeneration;
+    const previousSession = this.browserSession;
+    this.browserSession = undefined;
+    this.pagesById.clear();
+    this.state.setState(StagehandRuntimeStateSchema.parse({ status: "created" }), true);
+    await previousSession?.close();
   }
 
   async initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
@@ -682,6 +710,7 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
+    ++this.browserSessionGeneration;
     const session = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
