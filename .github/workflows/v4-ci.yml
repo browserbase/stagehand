@@ -76,7 +76,10 @@ jobs:
 
       - uses: pnpm/action-setup@v6
         with:
-          version: "11.10.0"
+          # Read the v4 workspace's own packageManager pin (pnpm 11). Passing an explicit
+          # version here conflicts with the ROOT package.json's packageManager (pnpm 9.15),
+          # which pnpm/action-setup also reads — "Multiple versions of pnpm specified".
+          package_json_file: v4/package.json
           run_install: false
 
       - uses: browser-actions/setup-chrome@v2
