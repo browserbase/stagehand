@@ -342,7 +342,7 @@ async function tapElement(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         xpath: { value: xpath, type: "string" },
       },
     });
-    throw new StagehandClickError(ctx.xpath, msg);
+    throw new UnderstudyCommandException(msg, e);
   }
 }
 

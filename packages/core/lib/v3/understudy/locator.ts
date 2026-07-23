@@ -471,14 +471,18 @@ export class Locator {
       if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      await session.send<never>("Input.dispatchTouchEvent", {
-        type: "touchStart",
-        touchPoints: [{ x: cx, y: cy }],
-      } as Protocol.Input.DispatchTouchEventRequest);
-      await session.send<never>("Input.dispatchTouchEvent", {
-        type: "touchEnd",
-        touchPoints: [],
-      } as Protocol.Input.DispatchTouchEventRequest);
+      // Pipeline both events (like click) so a slow touchStart round trip on a
+      // remote session doesn't stretch the tap into a long press.
+      await Promise.all([
+        session.send<never>("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [{ x: cx, y: cy }],
+        } as Protocol.Input.DispatchTouchEventRequest),
+        session.send<never>("Input.dispatchTouchEvent", {
+          type: "touchEnd",
+          touchPoints: [],
+        } as Protocol.Input.DispatchTouchEventRequest),
+      ]);
     } finally {
       try {
         await session.send<never>("Runtime.releaseObject", { objectId });
