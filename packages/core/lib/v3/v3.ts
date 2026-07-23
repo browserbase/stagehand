@@ -226,6 +226,27 @@ export class V3 {
   }
 
   /**
+   * Whether coordinate pointer actions should actuate as touch instead of mouse.
+   *
+   * Resolved purely from configuration, so it is known before the first action and
+   * is stable for the whole run — a mobile session behaves like one from the very
+   * first click, and the answer does not depend on what page happened to be loaded.
+   * An explicit `useTouch` always wins; otherwise a Browserbase `os: "mobile" |
+   * "tablet"` session (which renders touch-gated mobile layouts) or a local session
+   * launched with `hasTouch` implies touch.
+   */
+  public get usesTouch(): boolean {
+    if (typeof this.opts.useTouch === "boolean") {
+      return this.opts.useTouch;
+    }
+    if (this.opts.env === "BROWSERBASE") {
+      const os = this.opts.browserbaseSessionCreateParams?.browserSettings?.os;
+      return os === "mobile" || os === "tablet";
+    }
+    return this.opts.localBrowserLaunchOptions?.hasTouch === true;
+  }
+
+  /**
    * Returns the configured viewport dimensions from launch options.
    * Falls back to default 1288x711 if not configured.
    */

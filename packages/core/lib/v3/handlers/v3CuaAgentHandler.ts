@@ -344,6 +344,42 @@ export class V3CuaAgentHandler {
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
+        // On a touch session the computer-use model still emits "click", but the
+        // browser renders the site's touch-gated mobile layout whose handlers only
+        // respond to touch/pointer events — a mouse click there registers as "no
+        // selection" (e.g. a size selector's "please choose a size"). So actuate a
+        // single LEFT click as a trusted touch tap instead. Non-left (context menu)
+        // and multi-click stay on the mouse path unchanged.
+        const isPrimarySingleClick =
+          button === "left" && ((clickCount as number) ?? 1) === 1;
+        if (isPrimarySingleClick) {
+          if (this.v3.usesTouch) {
+            if (recording) {
+              // Record the tap as a deterministic "tap" step so replay reproduces
+              // touch (dispatched via METHOD_HANDLER_MAP.tap -> locator.tap).
+              const xpath = await page.tap(x as number, y as number, {
+                returnXpath: true,
+              });
+              const normalized = ensureXPath(xpath);
+              if (normalized) {
+                const stagehandAction: Action = {
+                  selector: normalized,
+                  description: this.describePointerAction("tap", x, y),
+                  method: "tap",
+                  arguments: [],
+                };
+                this.recordCuaActStep(
+                  action,
+                  [stagehandAction],
+                  stagehandAction.description,
+                );
+              }
+            } else {
+              await page.tap(x as number, y as number);
+            }
+            return { success: true };
+          }
+        }
         if (recording) {
           const xpath = await page.click(x as number, y as number, {
             button: (button as "left" | "right" | "middle") ?? "left",

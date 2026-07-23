@@ -43,6 +43,20 @@ export interface V3Options {
   // Local Chromium (optional)
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
 
+  /**
+   * Actuate coordinate pointer actions as touch (a real `Input.dispatchTouchEvent`
+   * tap) instead of mouse input. Mobile layouts commonly gate their handlers on
+   * touch/pointer events, where a synthesized mouse click never registers — e.g. a
+   * size selector that keeps reporting "please choose a size".
+   *
+   * When omitted this is derived from the session: a Browserbase session with
+   * `browserSettings.os` of `"mobile"` or `"tablet"`, or a local session launched
+   * with `localBrowserLaunchOptions.hasTouch`. Set it explicitly to override that,
+   * which is also the way to opt in when resuming a session via
+   * `browserbaseSessionID` (where the original `browserSettings` are not known here).
+   */
+  useTouch?: boolean;
+
   model?: ModelConfiguration;
   llmClient?: LLMClient; // allow user to pass their own
   systemPrompt?: string;

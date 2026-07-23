@@ -1898,6 +1898,49 @@ export class Page {
   }
 
   /**
+   * Tap at absolute page coordinates (CSS pixels) with a real (trusted) touch.
+   * Mirrors {@link click} but synthesizes touch input via `Input.dispatchTouchEvent`
+   * instead of mouse input, so mobile layouts that gate their handlers on
+   * touch/pointer events (`pointerType: "touch"`) — where a synthesized mouse click
+   * never registers — respond correctly. Coordinates are relative to the viewport
+   * origin (top-left). Does not scroll. Requires a touch-capable (e.g. mobile) session.
+   */
+  @FlowLogger.wrapWithLogging({ eventType: "PageTap" })
+  async tap(
+    x: number,
+    y: number,
+    options?: { returnXpath?: boolean },
+  ): Promise<string> {
+    let xpathResult: string | undefined;
+    if (options?.returnXpath) {
+      // Resolve the deepest node at the tap coordinates so a recorded/replayed
+      // step can target it by XPath, mirroring click's returnXpath path.
+      try {
+        const hit = await resolveXpathForLocation(this, x, y);
+        if (hit) {
+          xpathResult = hit.absoluteXPath;
+        }
+      } catch {
+        // best-effort; fall through if resolution fails
+      }
+    }
+
+    // Keep the cursor overlay in sync with the action, like every other
+    // coordinate action (click/hover/drag), even though touch has no cursor.
+    await this.updateCursor(x, y);
+    await this.mainSession.send<never>("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y }],
+    } as Protocol.Input.DispatchTouchEventRequest);
+    await this.mainSession.send<never>("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    } as Protocol.Input.DispatchTouchEventRequest);
+
+    return xpathResult ?? "";
+  }
+
+  /**
    * Hover at absolute page coordinates (CSS pixels).
    * Dispatches mouseMoved via CDP Input domain on the top-level page target's
    * session.

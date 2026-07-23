@@ -48,9 +48,18 @@ export const clickTool = (v3: V3, provider?: string) =>
 
         // Only request XPath when caching is enabled to avoid unnecessary computation
         const shouldCollectXpath = v3.isAgentReplayActive();
-        const xpath = await page.click(processed.x, processed.y, {
-          returnXpath: shouldCollectXpath,
-        });
+        // On a touch session, actuate as a trusted tap rather than a mouse click:
+        // mobile layouts commonly gate their handlers on touch/pointer events, where
+        // a synthesized mouse click never registers (a size selector highlights but
+        // still reports "please choose a size"). Mirrors the CUA handler's routing.
+        const useTouch = v3.usesTouch;
+        const xpath = useTouch
+          ? await page.tap(processed.x, processed.y, {
+              returnXpath: shouldCollectXpath,
+            })
+          : await page.click(processed.x, processed.y, {
+              returnXpath: shouldCollectXpath,
+            });
 
         const screenshotBase64 = await waitAndCaptureScreenshot(page);
 
@@ -61,7 +70,9 @@ export const clickTool = (v3: V3, provider?: string) =>
             const action: Action = {
               selector: normalizedXpath,
               description: describe,
-              method: "click",
+              // Replay the same input kind that was recorded, so a cached mobile
+              // run does not silently fall back to a mouse click.
+              method: useTouch ? "tap" : "click",
               arguments: [],
             };
             v3.recordAgentReplayStep({

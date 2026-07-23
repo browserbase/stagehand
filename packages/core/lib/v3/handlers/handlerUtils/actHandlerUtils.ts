@@ -134,6 +134,7 @@ const METHOD_HANDLER_MAP: Record<
   type: typeText,
   press: pressKey,
   click: clickElement,
+  tap: tapElement,
   doubleClick,
   dragAndDrop,
   nextChunk: scrollToNextChunk,
@@ -316,6 +317,25 @@ async function clickElement(
     v3Logger({
       category: "action",
       message: "error performing click",
+      level: 0,
+      auxiliary: {
+        error: { value: msg, type: "string" },
+        xpath: { value: xpath, type: "string" },
+      },
+    });
+    throw new StagehandClickError(ctx.xpath, msg);
+  }
+}
+
+async function tapElement(ctx: UnderstudyMethodHandlerContext): Promise<void> {
+  const { locator, xpath } = ctx;
+  try {
+    await locator.tap();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    v3Logger({
+      category: "action",
+      message: "error performing tap",
       level: 0,
       auxiliary: {
         error: { value: msg, type: "string" },
