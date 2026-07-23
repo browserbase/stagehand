@@ -67,6 +67,7 @@ import type {
   GoogleModelNameSchema,
   GoogleServiceAccountAuthSchema,
   GoogleServiceAccountCredentialsSchema,
+  ImplementationInfoSchema,
   LocatorClickParamsSchema,
   LocatorClickResultSchema,
   LocatorCentroidResultSchema,
@@ -164,6 +165,7 @@ import type {
   ProxyConfigSchema,
   RuntimeConfigureParamsSchema,
   RuntimeConfigureResultSchema,
+  RuntimeDescriptorSchema,
   RuntimeLoopbackStatusResultSchema,
   RgbaColorSchema,
   StagehandActParamsSchema,
@@ -321,6 +323,8 @@ export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
 export type LocatorDescriptor = z.infer<typeof LocatorDescriptorSchema>;
 export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
 export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;
+export type ImplementationInfo = z.infer<typeof ImplementationInfoSchema>;
+export type RuntimeDescriptor = z.infer<typeof RuntimeDescriptorSchema>;
 export type RuntimeConfigureParams = z.infer<typeof RuntimeConfigureParamsSchema>;
 export type StagehandActParams = z.infer<typeof StagehandActParamsSchema>;
 export type StagehandObserveParams = z.infer<typeof StagehandObserveParamsSchema>;

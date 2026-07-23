@@ -593,6 +593,11 @@ describe("Stagehand worker clients", () => {
       __stagehand_runtime: {
         name: "stagehand",
         version: "stagehand.v4",
+        protocolVersion: 4,
+        serverInfo: {
+          name: "stagehand",
+          version: "4.0.0",
+        },
       },
       __stagehandReceiveFromHost: expect.any(Function),
     });

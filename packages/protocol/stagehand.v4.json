@@ -1013,6 +1013,14 @@
     "RuntimeConfigureParams": {
       "type": "object",
       "properties": {
+        "protocol_version": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "client_info": {
+          "$ref": "#/$defs/ImplementationInfo"
+        },
         "cdp_url": {
           "type": "string",
           "minLength": 1
@@ -1028,6 +1036,21 @@
         }
       },
       "required": ["cdp_url"],
+      "additionalProperties": false
+    },
+    "ImplementationInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["name", "version"],
       "additionalProperties": false
     },
     "TelemetryConfig": {

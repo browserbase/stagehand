@@ -705,6 +705,15 @@ class Idx(RootModel[StrictInt]):
     root: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
 
 
+class ImplementationInfo(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: Annotated[StrictStr, Field(min_length=1)]
+    version: Annotated[StrictStr, Field(min_length=1)]
+
+
 class JSONRPCErrorObject(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1850,6 +1859,10 @@ class RuntimeConfigureParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    protocol_version: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = (
+        None
+    )
+    client_info: Optional[ImplementationInfo] = None
     cdp_url: Annotated[StrictStr, Field(min_length=1)]
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}

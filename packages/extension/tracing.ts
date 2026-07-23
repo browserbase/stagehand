@@ -14,14 +14,14 @@ import {
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
 import { z } from "zod/v4";
+import { STAGEHAND_RUNTIME_VERSION } from "../protocol/schemas.js";
 import type { TelemetryConfig } from "../protocol/types.js";
-import { STAGEHAND_VERSION } from "./version.js";
 
 const STAGEHAND_TRACER_NAME = "@browserbasehq/stagehand";
 
 export const StagehandTracingRuntimeOptionsSchema = z.strictObject({
   serviceName: z.string().min(1).default("stagehand-service-worker"),
-  serviceVersion: z.string().min(1).default(STAGEHAND_VERSION),
+  serviceVersion: z.string().min(1).default(STAGEHAND_RUNTIME_VERSION),
   registerGlobals: z.boolean().default(true),
 });
 

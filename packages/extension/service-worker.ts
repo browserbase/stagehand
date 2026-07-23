@@ -3,6 +3,8 @@ import {
   StagehandMethods,
   StagehandNotifications,
 } from "../protocol/schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION, STAGEHAND_RUNTIME_VERSION } from "../protocol/schemas.js";
+import type { RuntimeDescriptor } from "../protocol/types.js";
 import { ChromeRuntimeClient } from "./clients/chromeRuntimeClient.js";
 import { RPCClient } from "./clients/rpcClient.js";
 import { RPCRouter } from "./rpcRouter.js";
@@ -11,11 +13,13 @@ import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
 import { V3Context } from "./understudy/context.js";
 
+type StagehandRuntimeMarker = RuntimeDescriptor & {
+  name: "stagehand";
+  version: "stagehand.v4";
+};
+
 export type StagehandServiceWorkerScope = {
-  __stagehand_runtime?: {
-    name: "stagehand";
-    version: "stagehand.v4";
-  };
+  __stagehand_runtime?: StagehandRuntimeMarker;
   __stagehandReceiveFromHost?: (raw: unknown) => Promise<void>;
 };
 
@@ -60,6 +64,11 @@ export function startStagehandServiceWorker(
   scope.__stagehand_runtime = {
     name: "stagehand",
     version: "stagehand.v4",
+    protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+    serverInfo: {
+      name: "stagehand",
+      version: STAGEHAND_RUNTIME_VERSION,
+    },
   };
   scope.__stagehandReceiveFromHost = (raw) => chromeRuntimeClient.receive(raw);
 

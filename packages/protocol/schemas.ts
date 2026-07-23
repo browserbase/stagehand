@@ -1301,6 +1301,25 @@ export const DEFAULT_TELEMETRY_CONFIG = {
   },
 };
 
+export const STAGEHAND_PROTOCOL_VERSION = 4;
+export const STAGEHAND_RUNTIME_VERSION = "4.0.0";
+
+export const ImplementationInfoSchema = z
+  .strictObject({
+    name: z.string().min(1),
+    version: z.string().min(1),
+  })
+  .meta({ id: "ImplementationInfo" });
+
+export const RuntimeDescriptorSchema = z
+  .looseObject({
+    protocolVersion: z.int().positive(),
+    serverInfo: ImplementationInfoSchema.extend({
+      name: z.literal("stagehand"),
+    }),
+  })
+  .meta({ id: "RuntimeDescriptor" });
+
 export const TelemetryConfigSchema = z
   .strictObject({
     traces: z
@@ -1333,6 +1352,8 @@ export const StagehandInitParamsSchema = z
 
 export const RuntimeConfigureParamsSchema = z
   .object({
+    protocolVersion: z.int().positive().optional(),
+    clientInfo: ImplementationInfoSchema.optional(),
     cdpUrl: z.string().min(1),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
   })

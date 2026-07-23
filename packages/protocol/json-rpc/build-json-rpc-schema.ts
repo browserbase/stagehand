@@ -9,7 +9,7 @@ import {
 } from "./schemas.ts";
 import { toWireJsonSchema } from "./wire-casing.ts";
 
-const STAGEHAND_PROTOCOL_VERSION = "stagehand.v4" as const;
+const PROTOCOL_DOCUMENT_ID = "stagehand.v4" as const;
 
 const methodEntries = Object.values(StagehandMethods);
 const notificationEntries = Object.values(StagehandNotifications);
@@ -83,13 +83,13 @@ function buildStagehandProtocolDocument(): Record<string, unknown> {
   const { $schema, ...document } = generated;
   return {
     $schema,
-    $id: `https://stagehand.dev/schema/${STAGEHAND_PROTOCOL_VERSION}.json`,
+    $id: `https://stagehand.dev/schema/${PROTOCOL_DOCUMENT_ID}.json`,
     ...document,
   };
 }
 
 await writeFile(
-  new URL(`../${STAGEHAND_PROTOCOL_VERSION}.json`, import.meta.url),
+  new URL(`../${PROTOCOL_DOCUMENT_ID}.json`, import.meta.url),
   `${JSON.stringify(buildStagehandProtocolDocument(), null, 2)}\n`,
   "utf8",
 );

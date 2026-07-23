@@ -32,3 +32,16 @@ Follow these steps to add a method to the protocol:
 6. Expose the method from the appropriate TypeScript SDK class using `client.send(StagehandMethods.example, params)`.
 7. Add protocol, server, and SDK tests for the method.
 8. Regenerate `stagehand.v4.json` with `vp run -w build:schema`, then run `vp run -w check` and `vp run -w test` from the repository root.
+
+## Runtime protocol versions
+
+Use `protocolVersion` as the only compatibility gate. Bump it only for breaking wire changes:
+
+| Bump for                       | Never bump for      |
+| ------------------------------ | ------------------- |
+| Renamed or removed parameters  | New methods         |
+| Removed or retyped result data | New optional fields |
+| Changed notification semantics |                     |
+| Transport changes              |                     |
+
+Keep `RuntimeDescriptorSchema` TypeScript-only. The runtime marker is read as a camel-cased JavaScript object through CDP, not through the snake-cased JSON-RPC schema artifact.
