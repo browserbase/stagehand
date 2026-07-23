@@ -1,0 +1,76 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Stagehand",
+  "colors": {
+    "primary": "#0B5D2A",
+    "light": "#00C851",
+    "dark": "#15803D"
+  },
+  "logo": {
+    "light": "/logo/light_logo.png",
+    "dark": "/logo/dark_logo.png",
+    "href": "https://stagehand.dev"
+  },
+  "favicon": "/images/favicon.svg",
+  "icons": {
+    "library": "fontawesome"
+  },
+  "appearance": {
+    "default": "system",
+    "strict": true
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting started",
+        "pages": ["index"]
+      },
+      {
+        "group": "First Steps",
+        "pages": [
+          "first-steps/introduction",
+          "first-steps/quickstart",
+          "first-steps/installation",
+          "first-steps/ai-rules"
+        ]
+      },
+      {
+        "group": "The Basics",
+        "pages": ["basics/act", "basics/extract", "basics/observe"]
+      },
+      {
+        "group": "SDK reference",
+        "pages": [
+          "reference/stagehand",
+          "reference/context",
+          "reference/clipboard",
+          "reference/page",
+          "reference/locator"
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Discord",
+          "href": "https://stagehand.dev/discord",
+          "icon": "discord"
+        },
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/browserbase/stagehand",
+          "icon": "github"
+        },
+        {
+          "anchor": "Changelog",
+          "href": "https://github.com/browserbase/stagehand/releases",
+          "icon": "scroll"
+        }
+      ]
+    }
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude", "mcp"]
+  }
+}

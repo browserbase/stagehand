@@ -1,0 +1,30 @@
+{
+  "name": "@browserbasehq/stagehand-v4-spike-sdk-ts",
+  "version": "0.0.0",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "test": "vp test run --root ../.. packages/sdk-ts/tests"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/core": "catalog:",
+    "chrome-launcher": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "publint": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

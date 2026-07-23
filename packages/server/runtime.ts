@@ -1,0 +1,779 @@
+import type {
+  BrowserGetVersionResult,
+  ClearCookieOptions,
+  ContextActivePageResult,
+  ContextAddCookiesParams,
+  ContextAddInitScriptParams,
+  ContextClearCookiesParams,
+  ContextClipboardClearParams,
+  ContextClipboardCopyParams,
+  ContextClipboardCutParams,
+  ContextClipboardPasteParams,
+  ContextClipboardReadTextParams,
+  ContextClipboardReadTextResult,
+  ContextClipboardWriteTextParams,
+  ContextCloseResult,
+  ContextCookiesParams,
+  ContextCookiesResult,
+  ContextGetDomainPolicyResult,
+  ContextNewPageParams,
+  ContextPagesResult,
+  ContextSetActivePageParams,
+  ContextSetDomainPolicyParams,
+  ContextSetExtraHTTPHeadersParams,
+  ContextVoidResult,
+  Cookie,
+  CookieFilter,
+  CookieParam,
+  DomainPolicy,
+  LLMGenerateParams,
+  LLMGenerateResult,
+  LoadState,
+  LocatorClickParams,
+  LocatorClickResult,
+  LocatorCentroidResult,
+  LocatorCountResult,
+  LocatorDescriptor,
+  LocatorFillParams,
+  LocatorFillResult,
+  LocatorHighlightParams,
+  LocatorHighlightResult,
+  LocatorHoverResult,
+  LocatorInnerHtmlResult,
+  LocatorInnerTextResult,
+  LocatorInputValueResult,
+  LocatorIsCheckedResult,
+  LocatorIsVisibleResult,
+  LocatorScrollToParams,
+  LocatorScrollToResult,
+  LocatorSelectOptionParams,
+  LocatorSelectOptionResult,
+  LocatorSendClickEventParams,
+  LocatorSendClickEventResult,
+  LocatorTextContentResult,
+  LocatorTypeParams,
+  LocatorTypeResult,
+  PageClickParams,
+  PageCloseResult,
+  PageCoordinateResult,
+  PageAddInitScriptParams,
+  PageDragAndDropParams,
+  PageDragAndDropResult,
+  PageEvaluateParams,
+  PageEvaluateResult,
+  PageGoBackParams,
+  PageGoForwardParams,
+  PageGotoParams,
+  PageHoverParams,
+  PageIdParams,
+  PageKeyPressParams,
+  PageNavigationOptions,
+  PageRef,
+  PageReloadParams,
+  PageScrollParams,
+  PageScreenshotOptions,
+  PageScreenshotParams,
+  PageScreenshotResult,
+  PageSetExtraHTTPHeadersParams,
+  PageSetViewportSizeParams,
+  PageSnapshotParams,
+  PageSnapshotOptions,
+  PageTitleResult,
+  PageTypeParams,
+  PageUrlResult,
+  PageVoidResult,
+  PageWaitForLoadStateParams,
+  PageWaitForSelectorParams,
+  PageWaitForSelectorResult,
+  PageWaitForTimeoutParams,
+  RuntimeConfigureParams,
+  RuntimeConfigureResult,
+  RuntimeLoopbackStatusResult,
+  StagehandInitParams,
+  StagehandInitResult,
+  SnapshotResult,
+} from "../protocol/types.js";
+import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
+import { createStore } from "zustand/vanilla";
+import type { StagehandLogEmitter } from "./logger.js";
+import { StagehandLogger } from "./logger.js";
+import * as llmService from "./services/llmService.js";
+import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runtimeState.js";
+import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
+import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
+import { Page } from "./understudy/page.js";
+
+export type UnderstudyRuntimePage = {
+  targetId(): string;
+  url(): string;
+  goto(url: string, options?: PageNavigationOptions): Promise<unknown>;
+  reload(options?: PageReloadParams["options"]): Promise<unknown>;
+  goBack(options?: PageNavigationOptions): Promise<unknown>;
+  goForward(options?: PageNavigationOptions): Promise<unknown>;
+  click(x: number, y: number, options?: PageClickParams["options"]): Promise<string>;
+  hover(x: number, y: number, options?: PageHoverParams["options"]): Promise<string>;
+  scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    options?: PageScrollParams["options"],
+  ): Promise<string>;
+  dragAndDrop(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    options?: PageDragAndDropParams["options"],
+  ): Promise<[string, string]>;
+  type(text: string, options?: PageTypeParams["options"]): Promise<void>;
+  keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
+  evaluate(expression: string): Promise<unknown>;
+  addInitScript(source: string): Promise<void>;
+  setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void>;
+  setViewportSize(
+    width: number,
+    height: number,
+    options?: PageSetViewportSizeParams["options"],
+  ): Promise<void>;
+  waitForLoadState(state: LoadState, timeout?: number): Promise<void>;
+  waitForTimeout(ms: number): Promise<void>;
+  waitForSelector(
+    selector: string,
+    options?: PageWaitForSelectorParams["options"],
+  ): Promise<boolean>;
+  screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array>;
+  snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
+  title(): Promise<string>;
+  close(): Promise<void> | void;
+  captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
+  deepLocator(selector: string): UnderstudyRuntimeLocator;
+};
+
+export type UnderstudyRuntimeScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
+  mask?: UnderstudyRuntimeLocator[];
+};
+
+export type UnderstudyRuntimeClearCookieOptions = {
+  name?: string | RegExp;
+  domain?: string | RegExp;
+  path?: string | RegExp;
+};
+
+export type UnderstudyRuntimeClipboardOptions = {
+  page?: UnderstudyRuntimePage;
+};
+
+export type UnderstudyRuntimeClipboardPasteOptions = UnderstudyRuntimeClipboardOptions & {
+  shortcut?: ContextClipboardPasteParams["shortcut"];
+};
+
+export type UnderstudyRuntimeClipboard = {
+  readText(options?: UnderstudyRuntimeClipboardOptions): Promise<string>;
+  writeText(text: string, options?: UnderstudyRuntimeClipboardOptions): Promise<void>;
+  clear(options?: UnderstudyRuntimeClipboardOptions): Promise<void>;
+  paste(options?: UnderstudyRuntimeClipboardPasteOptions): Promise<void>;
+  copy(options?: UnderstudyRuntimeClipboardOptions): Promise<void>;
+  cut(options?: UnderstudyRuntimeClipboardOptions): Promise<void>;
+};
+
+export type UnderstudyRuntimeLocator = {
+  click(options?: LocatorClickParams["options"]): Promise<void> | void;
+  hover(): Promise<void> | void;
+  fill(value: string): Promise<void> | void;
+  count(): Promise<number>;
+  isChecked(): Promise<boolean>;
+  inputValue(): Promise<string>;
+  isVisible(): Promise<boolean>;
+  innerText(): Promise<string>;
+  innerHtml(): Promise<string>;
+  textContent(): Promise<string>;
+  scrollTo(percent: LocatorScrollToParams["percent"]): Promise<void> | void;
+  centroid(): Promise<LocatorCentroidResult>;
+  highlight(options?: LocatorHighlightParams["options"]): Promise<void> | void;
+  sendClickEvent(options?: LocatorSendClickEventParams["options"]): Promise<void> | void;
+  type(text: string, options?: LocatorTypeParams["options"]): Promise<void> | void;
+  selectOption(values: LocatorSelectOptionParams["values"]): Promise<string[]>;
+  nth(index: number): UnderstudyRuntimeLocator;
+};
+
+export type StagehandBrowserSession = {
+  readonly connected: boolean;
+  getVersion(): Promise<BrowserGetVersionResult>;
+  pages(): UnderstudyRuntimePage[];
+  newPage(url?: string): Promise<UnderstudyRuntimePage>;
+  activePage(): Promise<UnderstudyRuntimePage | undefined>;
+  setActivePage(page: UnderstudyRuntimePage): Promise<void>;
+  addInitScript(source: string): Promise<void>;
+  setExtraHTTPHeaders(headers: ContextSetExtraHTTPHeadersParams["headers"]): Promise<void>;
+  getDomainPolicy(): DomainPolicy | null;
+  setDomainPolicy(policy: DomainPolicy | null): Promise<void>;
+  cookies(urls?: string | string[]): Promise<Cookie[]>;
+  addCookies(cookies: CookieParam[]): Promise<void>;
+  clearCookies(options?: UnderstudyRuntimeClearCookieOptions): Promise<void>;
+  readonly clipboard: UnderstudyRuntimeClipboard;
+  close(): Promise<void> | void;
+};
+
+export type StagehandBrowserSessionFactory = (
+  cdpUrl: string,
+  logger: StagehandLogger,
+) => Promise<StagehandBrowserSession>;
+
+export type StagehandRuntimeAdapters = {
+  browserSessionFactory?: StagehandBrowserSessionFactory;
+  emitLog?: StagehandLogEmitter;
+  clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
+};
+
+type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
+
+const defaultBrowserSessionFactory: StagehandBrowserSessionFactory = async () => {
+  throw new Error("Stagehand browser session factory is not configured");
+};
+const discardLog: StagehandLogEmitter = () => {};
+const unavailableClientLLM = async (): Promise<never> => {
+  throw new Error("The connected SDK did not register a client-side LLM");
+};
+
+export function createStagehandRuntime(
+  adapters: StagehandRuntimeAdapters = {},
+  tracing: StagehandTracing = createStagehandTracing(),
+): StagehandRuntime {
+  return new StagehandRuntime(
+    {
+      browserSessionFactory: adapters.browserSessionFactory ?? defaultBrowserSessionFactory,
+      emitLog: adapters.emitLog ?? discardLog,
+      clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
+    },
+    tracing,
+  );
+}
+
+export class StagehandRuntime {
+  readonly logger: StagehandLogger;
+  readonly state = createStore<StagehandRuntimeState>()(() =>
+    StagehandRuntimeStateSchema.parse({ status: "created" }),
+  );
+  browserSession?: StagehandBrowserSession;
+  pagesById = new Map<string, UnderstudyRuntimePage>();
+
+  constructor(
+    readonly adapters: ResolvedStagehandRuntimeAdapters,
+    readonly tracing: StagehandTracing,
+  ) {
+    this.logger = new StagehandLogger(tracing, adapters.emitLog);
+  }
+
+  loopbackStatus(): RuntimeLoopbackStatusResult {
+    return {
+      configured: this.browserSession !== undefined,
+      connected: this.browserSession?.connected ?? false,
+    };
+  }
+
+  async configureLoopback(params: RuntimeConfigureParams): Promise<RuntimeConfigureResult> {
+    const { cdpUrl } = params;
+    const previousSession = this.browserSession;
+    this.browserSession = undefined;
+    this.pagesById.clear();
+    await previousSession?.close();
+
+    try {
+      this.browserSession = await this.adapters.browserSessionFactory(cdpUrl, this.logger);
+    } catch (error) {
+      await this.browserSession?.close();
+      this.browserSession = undefined;
+      throw error;
+    }
+
+    return { configured: true };
+  }
+
+  async initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
+    if (this.state.getState().status !== "created") {
+      throw new Error("Stagehand has already been initialized");
+    }
+
+    const pages = await this.contextPages();
+    this.state.setState(
+      StagehandRuntimeStateSchema.parse({
+        status: "initialized",
+        initParams: params,
+      }),
+      true,
+    );
+
+    return {
+      initialized: true,
+      pages,
+    };
+  }
+
+  async browserGetVersion(): Promise<BrowserGetVersionResult> {
+    return await this.requireBrowserSession().getVersion();
+  }
+
+  async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {
+    const state = this.state.getState();
+    const model = state.status === "initialized" ? state.initParams.model : undefined;
+    if (!model) {
+      throw new Error("An LLM was not configured during Stagehand initialization");
+    }
+
+    return await llmService.generate(model, input, this.adapters.clientLLMGenerate);
+  }
+
+  async contextPages(): Promise<ContextPagesResult> {
+    const pages = this.requireBrowserSession().pages();
+    this.refreshPageRegistry(pages);
+    return pages.map((page) => this.pageRefForId(page.targetId()));
+  }
+
+  async contextNewPage(params: ContextNewPageParams): Promise<PageRef> {
+    const page = await this.requireBrowserSession().newPage(params.url);
+    this.registerPage(page);
+    return this.pageRefForId(page.targetId());
+  }
+
+  async contextActivePage(): Promise<ContextActivePageResult> {
+    const page = await this.requireBrowserSession().activePage();
+    if (!page) return null;
+    this.registerPage(page);
+    return pageRefFromUnderstudyPage(page);
+  }
+
+  async contextSetActivePage(params: ContextSetActivePageParams): Promise<ContextVoidResult> {
+    const page = this.resolvePage(params.pageId);
+    await this.requireBrowserSession().setActivePage(page);
+    return { ok: true };
+  }
+
+  async contextClose(): Promise<ContextCloseResult> {
+    await this.close();
+    return { closed: true };
+  }
+
+  async contextAddInitScript(params: ContextAddInitScriptParams): Promise<ContextVoidResult> {
+    await this.requireBrowserSession().addInitScript(params.source);
+    return { ok: true };
+  }
+
+  async contextSetExtraHTTPHeaders(
+    params: ContextSetExtraHTTPHeadersParams,
+  ): Promise<ContextVoidResult> {
+    await this.requireBrowserSession().setExtraHTTPHeaders(params.headers);
+    return { ok: true };
+  }
+
+  contextGetDomainPolicy(): ContextGetDomainPolicyResult {
+    return { policy: this.requireBrowserSession().getDomainPolicy() };
+  }
+
+  async contextSetDomainPolicy(params: ContextSetDomainPolicyParams): Promise<ContextVoidResult> {
+    await this.requireBrowserSession().setDomainPolicy(params.policy);
+    return { ok: true };
+  }
+
+  async contextCookies(params: ContextCookiesParams): Promise<ContextCookiesResult> {
+    return { cookies: await this.requireBrowserSession().cookies(params.urls) };
+  }
+
+  async contextAddCookies(params: ContextAddCookiesParams): Promise<ContextVoidResult> {
+    await this.requireBrowserSession().addCookies(params.cookies);
+    return { ok: true };
+  }
+
+  async contextClearCookies(params: ContextClearCookiesParams): Promise<ContextVoidResult> {
+    await this.requireBrowserSession().clearCookies(hydrateClearCookieOptions(params.options));
+    return { ok: true };
+  }
+
+  async contextClipboardReadText(
+    params: ContextClipboardReadTextParams,
+  ): Promise<ContextClipboardReadTextResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    return { text: await clipboard.readText(this.clipboardOptions(params.pageId)) };
+  }
+
+  async contextClipboardWriteText(
+    params: ContextClipboardWriteTextParams,
+  ): Promise<ContextVoidResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    await clipboard.writeText(params.text, this.clipboardOptions(params.pageId));
+    return { ok: true };
+  }
+
+  async contextClipboardClear(params: ContextClipboardClearParams): Promise<ContextVoidResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    await clipboard.clear(this.clipboardOptions(params.pageId));
+    return { ok: true };
+  }
+
+  async contextClipboardPaste(params: ContextClipboardPasteParams): Promise<ContextVoidResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    const pageOptions = this.clipboardOptions(params.pageId);
+    const options =
+      pageOptions || params.shortcut !== undefined
+        ? {
+            ...pageOptions,
+            ...(params.shortcut === undefined ? {} : { shortcut: params.shortcut }),
+          }
+        : undefined;
+    await clipboard.paste(options);
+    return { ok: true };
+  }
+
+  async contextClipboardCopy(params: ContextClipboardCopyParams): Promise<ContextVoidResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    await clipboard.copy(this.clipboardOptions(params.pageId));
+    return { ok: true };
+  }
+
+  async contextClipboardCut(params: ContextClipboardCutParams): Promise<ContextVoidResult> {
+    const clipboard = this.requireBrowserSession().clipboard;
+    await clipboard.cut(this.clipboardOptions(params.pageId));
+    return { ok: true };
+  }
+
+  async pageGoto(params: PageGotoParams): Promise<PageRef> {
+    const page = this.resolvePage(params.pageId);
+    await page.goto(params.url, params.options);
+    return pageRefFromUnderstudyPage(page);
+  }
+
+  async pageReload(params: PageReloadParams): Promise<PageRef> {
+    const page = this.resolvePage(params.pageId);
+    await page.reload(params.options);
+    return pageRefFromUnderstudyPage(page);
+  }
+
+  async pageGoBack(params: PageGoBackParams): Promise<PageRef> {
+    const page = this.resolvePage(params.pageId);
+    await page.goBack(params.options);
+    return pageRefFromUnderstudyPage(page);
+  }
+
+  async pageGoForward(params: PageGoForwardParams): Promise<PageRef> {
+    const page = this.resolvePage(params.pageId);
+    await page.goForward(params.options);
+    return pageRefFromUnderstudyPage(page);
+  }
+
+  async pageClick(params: PageClickParams): Promise<PageCoordinateResult> {
+    const { pageId, x, y, options } = params;
+    return { xpath: await this.resolvePage(pageId).click(x, y, options) };
+  }
+
+  async pageHover(params: PageHoverParams): Promise<PageCoordinateResult> {
+    const { pageId, x, y, options } = params;
+    return { xpath: await this.resolvePage(pageId).hover(x, y, options) };
+  }
+
+  async pageScroll(params: PageScrollParams): Promise<PageCoordinateResult> {
+    const { pageId, x, y, deltaX, deltaY, options } = params;
+    return {
+      xpath: await this.resolvePage(pageId).scroll(x, y, deltaX, deltaY, options),
+    };
+  }
+
+  async pageDragAndDrop(params: PageDragAndDropParams): Promise<PageDragAndDropResult> {
+    const { pageId, fromX, fromY, toX, toY, options } = params;
+    const [fromXpath, toXpath] = await this.resolvePage(pageId).dragAndDrop(
+      fromX,
+      fromY,
+      toX,
+      toY,
+      options,
+    );
+    return { fromXpath, toXpath };
+  }
+
+  async pageType(params: PageTypeParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).type(params.text, params.options);
+    return { ok: true };
+  }
+
+  async pageKeyPress(params: PageKeyPressParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).keyPress(params.key, params.options);
+    return { ok: true };
+  }
+
+  async pageEvaluate(params: PageEvaluateParams): Promise<PageEvaluateResult> {
+    const value = await this.resolvePage(params.pageId).evaluate(params.expression);
+    return {
+      value: value === undefined ? null : (value as PageEvaluateResult["value"]),
+    };
+  }
+
+  async pageAddInitScript(params: PageAddInitScriptParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).addInitScript(params.source);
+    return { ok: true };
+  }
+
+  async pageSetExtraHTTPHeaders(params: PageSetExtraHTTPHeadersParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).setExtraHTTPHeaders(params.headers);
+    return { ok: true };
+  }
+
+  async pageSetViewportSize(params: PageSetViewportSizeParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).setViewportSize(
+      params.width,
+      params.height,
+      params.options,
+    );
+    return { ok: true };
+  }
+
+  async pageWaitForLoadState(params: PageWaitForLoadStateParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).waitForLoadState(params.state, params.timeout);
+    return { ok: true };
+  }
+
+  async pageWaitForTimeout(params: PageWaitForTimeoutParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).waitForTimeout(params.ms);
+    return { ok: true };
+  }
+
+  async pageWaitForSelector(params: PageWaitForSelectorParams): Promise<PageWaitForSelectorResult> {
+    const matched = await this.resolvePage(params.pageId).waitForSelector(
+      params.selector,
+      params.options,
+    );
+    return { matched };
+  }
+
+  async pageScreenshot(params: PageScreenshotParams): Promise<PageScreenshotResult> {
+    const page = this.resolvePage(params.pageId);
+    let options: UnderstudyRuntimeScreenshotOptions | undefined;
+
+    if (params.options) {
+      const { mask, ...screenshotOptions } = params.options;
+      const resolvedMask = mask?.map((descriptor) => {
+        if (descriptor.pageId !== params.pageId) {
+          throw new TypeError("page.screenshot: mask locators must belong to the target page");
+        }
+        return this.resolveLocator(descriptor);
+      });
+      options = {
+        ...screenshotOptions,
+        ...(resolvedMask ? { mask: resolvedMask } : {}),
+      };
+    }
+
+    const bytes = await page.screenshot(options);
+    return {
+      data: bytesToBase64(bytes),
+      type: params.options?.type ?? "png",
+    };
+  }
+
+  async pageSnapshot(params: PageSnapshotParams): Promise<SnapshotResult> {
+    return await this.resolvePage(params.pageId).snapshot(params.options);
+  }
+
+  pageUrl(params: PageIdParams): PageUrlResult {
+    return {
+      url: this.resolvePage(params.pageId).url(),
+    };
+  }
+
+  async pageTitle(params: PageIdParams): Promise<PageTitleResult> {
+    return {
+      title: await this.resolvePage(params.pageId).title(),
+    };
+  }
+
+  async pageClose(params: PageIdParams): Promise<PageCloseResult> {
+    const page = this.resolvePage(params.pageId);
+    await page.close();
+    this.pagesById.delete(params.pageId);
+    return { closed: true };
+  }
+
+  async locatorClick(params: LocatorClickParams): Promise<LocatorClickResult> {
+    await this.resolveLocator(params).click(params.options);
+    return { clicked: true };
+  }
+
+  async locatorHover(params: LocatorDescriptor): Promise<LocatorHoverResult> {
+    await this.resolveLocator(params).hover();
+    return { hovered: true };
+  }
+
+  async locatorFill(params: LocatorFillParams): Promise<LocatorFillResult> {
+    await this.resolveLocator(params).fill(params.value);
+    return { filled: true };
+  }
+
+  async locatorCount(params: LocatorDescriptor): Promise<LocatorCountResult> {
+    return {
+      count: await this.resolveLocator(params).count(),
+    };
+  }
+
+  async locatorIsChecked(params: LocatorDescriptor): Promise<LocatorIsCheckedResult> {
+    return {
+      checked: await this.resolveLocator(params).isChecked(),
+    };
+  }
+
+  async locatorInputValue(params: LocatorDescriptor): Promise<LocatorInputValueResult> {
+    return {
+      value: await this.resolveLocator(params).inputValue(),
+    };
+  }
+
+  async locatorIsVisible(params: LocatorDescriptor): Promise<LocatorIsVisibleResult> {
+    return {
+      visible: await this.resolveLocator(params).isVisible(),
+    };
+  }
+
+  async locatorInnerText(params: LocatorDescriptor): Promise<LocatorInnerTextResult> {
+    return {
+      text: await this.resolveLocator(params).innerText(),
+    };
+  }
+
+  async locatorInnerHtml(params: LocatorDescriptor): Promise<LocatorInnerHtmlResult> {
+    return {
+      html: await this.resolveLocator(params).innerHtml(),
+    };
+  }
+
+  async locatorTextContent(params: LocatorDescriptor): Promise<LocatorTextContentResult> {
+    return {
+      textContent: await this.resolveLocator(params).textContent(),
+    };
+  }
+
+  async locatorScrollTo(params: LocatorScrollToParams): Promise<LocatorScrollToResult> {
+    await this.resolveLocator(params).scrollTo(params.percent);
+    return { scrolled: true };
+  }
+
+  async locatorCentroid(params: LocatorDescriptor): Promise<LocatorCentroidResult> {
+    return await this.resolveLocator(params).centroid();
+  }
+
+  async locatorHighlight(params: LocatorHighlightParams): Promise<LocatorHighlightResult> {
+    await this.resolveLocator(params).highlight(params.options);
+    return { highlighted: true };
+  }
+
+  async locatorSendClickEvent(
+    params: LocatorSendClickEventParams,
+  ): Promise<LocatorSendClickEventResult> {
+    await this.resolveLocator(params).sendClickEvent(params.options);
+    return { clicked: true };
+  }
+
+  async locatorType(params: LocatorTypeParams): Promise<LocatorTypeResult> {
+    await this.resolveLocator(params).type(params.text, params.options);
+    return { typed: true };
+  }
+
+  async locatorSelectOption(params: LocatorSelectOptionParams): Promise<LocatorSelectOptionResult> {
+    return {
+      values: await this.resolveLocator(params).selectOption(params.values),
+    };
+  }
+
+  async close(): Promise<void> {
+    const session = this.browserSession;
+    this.browserSession = undefined;
+    this.pagesById.clear();
+    try {
+      await session?.close();
+    } finally {
+      this.state.setState(StagehandRuntimeStateSchema.parse({ status: "closed" }), true);
+    }
+  }
+
+  pageRefForId(pageId: string): PageRef {
+    return pageRefFromUnderstudyPage(this.resolvePage(pageId));
+  }
+
+  resolvePage(pageId: string): UnderstudyRuntimePage {
+    const cachedPage = this.pagesById.get(pageId);
+    if (cachedPage) return cachedPage;
+
+    this.refreshPageRegistry(this.requireBrowserSession().pages());
+    const refreshedPage = this.pagesById.get(pageId);
+    if (refreshedPage) return refreshedPage;
+
+    throw new Error(`Stagehand page "${pageId}" was not found; call context.pages and retry`);
+  }
+
+  resolveUnderstudyPage(pageId: string): Page {
+    const page = this.resolvePage(pageId);
+    if (!(page instanceof Page)) {
+      throw new TypeError(`Stagehand page "${pageId}" is not backed by an Understudy page`);
+    }
+    return page;
+  }
+
+  resolveLocator(params: LocatorDescriptor): UnderstudyRuntimeLocator {
+    const locator = this.resolvePage(params.pageId).deepLocator(params.selector);
+    return params.nth === undefined ? locator : locator.nth(params.nth);
+  }
+
+  clipboardOptions(pageId?: string): UnderstudyRuntimeClipboardOptions | undefined {
+    return pageId === undefined ? undefined : { page: this.resolvePage(pageId) };
+  }
+
+  refreshPageRegistry(pages: UnderstudyRuntimePage[]): void {
+    const currentPageIds = new Set<string>();
+
+    for (const page of pages) {
+      const pageId = this.registerPage(page);
+      currentPageIds.add(pageId);
+    }
+
+    for (const pageId of this.pagesById.keys()) {
+      if (!currentPageIds.has(pageId)) this.pagesById.delete(pageId);
+    }
+  }
+
+  registerPage(page: UnderstudyRuntimePage): string {
+    const pageId = page.targetId();
+    this.pagesById.set(pageId, page);
+    return pageId;
+  }
+
+  requireBrowserSession(): StagehandBrowserSession {
+    if (!this.browserSession) {
+      throw new Error("Stagehand loopback CDP is not configured");
+    }
+
+    if (!this.browserSession.connected) {
+      throw new Error("Stagehand loopback CDP is disconnected");
+    }
+
+    return this.browserSession;
+  }
+}
+
+function pageRefFromUnderstudyPage(page: UnderstudyRuntimePage): PageRef {
+  return {
+    pageId: page.targetId(),
+    url: page.url(),
+  };
+}
+
+function hydrateClearCookieOptions(
+  options: ClearCookieOptions | undefined,
+): UnderstudyRuntimeClearCookieOptions | undefined {
+  if (options === undefined) return undefined;
+  return {
+    ...(options.name === undefined ? {} : { name: hydrateCookieFilter(options.name) }),
+    ...(options.domain === undefined ? {} : { domain: hydrateCookieFilter(options.domain) }),
+    ...(options.path === undefined ? {} : { path: hydrateCookieFilter(options.path) }),
+  };
+}
+
+function hydrateCookieFilter(filter: CookieFilter): string | RegExp {
+  if (typeof filter === "string") return filter;
+  return new RegExp(filter.source, filter.flags);
+}

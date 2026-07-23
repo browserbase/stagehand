@@ -1,0 +1,151 @@
+---
+title: "AI Rules"
+description: "Give your AI coding assistant the rules it needs to write correct Stagehand v4 code."
+---
+
+AI coding assistants often write Stagehand code from older APIs: putting `act`/`extract`/
+`observe` on `page`, using an `env` string, or calling methods that no longer exist. Drop
+the rules below into your editor's rules file (for example
+`.cursor/rules/stagehand.md`, `CLAUDE.md`, or `AGENTS.md`) so your assistant writes code
+that matches this SDK.
+
+<Note>
+  These rules cover the primitives available today: initialization, `act`, `extract`, and `observe`.
+  They intentionally omit APIs that don't exist in v4.
+</Note>
+
+<View title="TypeScript" icon="js">
+
+## TypeScript rules
+
+````markdown
+# Stagehand (TypeScript) rules
+
+You are writing browser automation with `@browserbasehq/stagehand` (v4).
+
+## Initialization
+
+- Import from the package: `import { Stagehand } from "@browserbasehq/stagehand";`
+- Construct with a `browser` source and a `model`, then `await stagehand.init()`.
+- `browser` is a discriminated union: `{ type: "local" }`, `{ type: "browserbase" }`
+  (default; requires `apiKey`), or `{ type: "cdp", cdpUrl }`.
+- Always `await stagehand.close()` in a `finally` block.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  browser: { type: "local", headless: true },
+  model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
+});
+await stagehand.init();
+const page = await stagehand.context.newPage();
+await page.goto("https://example.com");
+```
+
+## Pages
+
+- `act`, `extract`, and `observe` are methods on `stagehand`, NOT on `page`.
+- They run on the browser's active page by default. Pass `{ page }` to target a specific one.
+- Get a page from `stagehand.context.newPage()` or `stagehand.context.activePage()`, and use
+  it for deterministic controls like `page.goto(...)`.
+
+## Act: one action per call
+
+- `await stagehand.act("click the sign in button")` returns
+  `{ success, message, actionDescription, actions }`. Always check `result.success`.
+- Keep instructions to a single step. Chain multiple `act` calls for multi-step flows.
+- Pass secrets through `variables`, referenced as `%name%` in the instruction:
+  `await stagehand.act("type %password% into the password field", { variables: { password } })`.
+
+## Extract: typed data with Zod
+
+- `await stagehand.extract("instruction", zodSchema)` returns data validated against the schema.
+- Define the schema with `zod`: `z.object({ price: z.number() })`.
+- Scope large pages with `{ selector }` or `{ ignoreSelectors }`.
+
+## Observe: plan before acting
+
+- `await stagehand.observe("find the submit button")` returns an array of
+  `{ selector, description, method?, arguments? }`.
+- Use it to check an element exists or to preview what `act` will do.
+
+## Don't
+
+- Don't call `page.act` / `page.extract` / `page.observe` (they moved to `stagehand`).
+- Don't use an `env: "LOCAL" | "BROWSERBASE"` option. Use the `browser` source object instead.
+- Don't hardcode secrets; read them from environment variables and pass via `variables`.
+````
+
+</View>
+
+<View title="Python" icon="python">
+
+## Python rules
+
+````markdown
+# Stagehand (Python) rules
+
+You are writing async browser automation with `stagehand-v4`.
+
+## Initialization
+
+- Import: `from stagehand import Stagehand`
+- The SDK is async: everything is awaited inside `async def` and run with `asyncio.run`.
+- Construct with keyword args, then `await stagehand.init()`:
+
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    browser="local",           # or "browserbase" (default; needs an API key)
+    headless=True,
+    model="openai/gpt-5.4-mini",
+    model_api_key=os.environ["OPENAI_API_KEY"],
+)
+await stagehand.init()
+page = await stagehand.context.new_page()
+await page.goto("https://example.com")
+```
+
+- Always `await stagehand.close()` in a `finally` block.
+
+## Pages
+
+- `act`, `extract`, and `observe` are methods on `stagehand`, NOT on `page`.
+- They run on the active page by default; pass `page=` to target a specific one.
+- Use `page` objects for deterministic controls like `page.goto(...)`.
+
+## Act
+
+- `result = await stagehand.act("click the sign in button")`; check `result.success`.
+- One action per call. Pass secrets via `variables` with `%name%` placeholders.
+
+## Extract: typed data with Pydantic
+
+- Define a `pydantic.BaseModel` and pass it as `schema`:
+  `await stagehand.extract(instruction="...", schema=MyModel)`.
+
+## Observe
+
+- `actions = await stagehand.observe(instruction="find the submit button")` returns a list of
+  action objects. Use it to plan or verify before acting.
+
+## Don't
+
+- Don't put `act`/`extract`/`observe` on `page` (they moved to `stagehand`).
+- Don't hardcode secrets; use environment variables and `variables`.
+````
+
+</View>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Prompting best practices" icon="wand-magic-sparkles" href="#">
+    Write instructions that act, extract, and observe handle reliably.
+  </Card>
+  <Card title="SDK reference" icon="book" href="/reference/stagehand">
+    The full list of Stagehand methods and options.
+  </Card>
+</CardGroup>

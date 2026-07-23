@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "strictNullChecks": true,
+    "skipLibCheck": true,
+    "types": ["node", "chrome"]
+  },
+  "include": [
+    "tests/**/*.ts",
+    "../server/llm/LLMClient.ts",
+    "../server/llm/**/*.test-d.ts",
+    "../server/controllers/**/*.ts",
+    "../server/clients/**/*.ts",
+    "../server/rpcRouter.ts",
+    "../server/service-worker-lifecycle/**/*.ts",
+    "../server/service-worker.ts",
+    "../server/tests/**/*.ts",
+    "../server/services/**/*.ts",
+    "../server/transports/**/*.ts",
+    "../server/types/**/*.ts",
+    "../server/understudy/**/*.ts",
+    "../server/version.ts",
+    "../sdk-ts/src/**/*.ts",
+    "../sdk-ts/tests/**/*.ts",
+    "../docs/tests/**/*.ts",
+    "../../rules/ast-grep/**/*.ts"
+  ]
+}

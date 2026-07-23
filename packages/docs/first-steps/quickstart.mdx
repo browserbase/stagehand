@@ -1,0 +1,186 @@
+---
+title: "Quickstart"
+description: "Build your first Stagehand automation with act, extract, and observe."
+---
+
+This quickstart walks through a complete Stagehand script that launches a local browser,
+navigates to a page, and uses all three AI primitives. Pick your language using the selector.
+
+## 1. Install Stagehand
+
+<View title="TypeScript" icon="js">
+
+```bash
+pnpm add @browserbasehq/stagehand zod
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```bash
+uv pip install stagehand
+```
+
+</View>
+
+## 2. Set your model API key
+
+Stagehand needs an API key for the LLM provider it calls. Export it in your shell (or put
+it in a `.env` file).
+
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+<Tip>
+  To run on Browserbase cloud browsers instead of a local one, also set `BROWSERBASE_API_KEY`. See
+  [Browser configuration](#).
+</Tip>
+
+## 3. Write the script
+
+<View title="TypeScript" icon="js">
+
+```typescript
+import "dotenv/config";
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod";
+
+const stagehand = new Stagehand({
+  browser: { type: "local", headless: true },
+  model: {
+    modelName: "openai/gpt-5.4-mini",
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+});
+
+try {
+  await stagehand.init();
+
+  const page = await stagehand.context.newPage();
+  await page.goto("https://example.com");
+
+  // Observe: discover candidate actions before acting.
+  const actions = await stagehand.observe(
+    "Find the link that provides more information about Example Domain",
+  );
+  console.log(actions);
+
+  // Act: perform a natural-language action.
+  const result = await stagehand.act(
+    "Click the link that provides more information about Example Domain",
+  );
+  if (!result.success) {
+    throw new Error(`act() failed: ${result.message}`);
+  }
+
+  // Extract: pull structured, typed data.
+  const info = await stagehand.extract(
+    "Extract the page heading and description",
+    z.object({ heading: z.string(), description: z.string() }),
+  );
+  console.log(info);
+} finally {
+  await stagehand.close();
+}
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+import asyncio
+import os
+
+from pydantic import BaseModel
+from stagehand import Stagehand
+
+
+class PageInfo(BaseModel):
+    heading: str
+    description: str
+
+
+async def main() -> None:
+    stagehand = Stagehand(
+        browser="local",
+        headless=True,
+        model="openai/gpt-5.4-mini",
+        model_api_key=os.environ["OPENAI_API_KEY"],
+    )
+
+    try:
+        await stagehand.init()
+
+        page = await stagehand.context.new_page()
+        await page.goto("https://example.com")
+
+        # Observe: discover candidate actions before acting.
+        actions = await stagehand.observe(
+            instruction="Find the link that provides more information about Example Domain",
+        )
+        print(actions)
+
+        # Act: perform a natural-language action.
+        result = await stagehand.act(
+            "Click the link that provides more information about Example Domain"
+        )
+        if not result.success:
+            raise RuntimeError(f"act() failed: {result.message}")
+
+        # Extract: pull structured, typed data.
+        info = await stagehand.extract(
+            instruction="Extract the page heading and description",
+            schema=PageInfo,
+        )
+        print(info)
+    finally:
+        await stagehand.close()
+
+
+asyncio.run(main())
+```
+
+</View>
+
+## 4. Run it
+
+<View title="TypeScript" icon="js">
+
+```bash
+pnpm dlx tsx quickstart.ts
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```bash
+python quickstart.py
+```
+
+</View>
+
+You should see the observed actions, a successful `act()` result, and the extracted
+heading and description printed to your console.
+
+## Next steps
+
+Learn about the Stagehand primitives: act, extract, and observe.
+
+<CardGroup cols={2}>
+  <Card title="Act" icon="arrow-pointer" href="/basics/act">
+    Perform actions on pages with natural language.
+  </Card>
+  <Card title="Extract" icon="download" href="/basics/extract">
+    Pull typed data with schemas.
+  </Card>
+  <Card title="Observe" icon="eye" href="/basics/observe">
+    Plan actions before executing them.
+  </Card>
+  <Card title="Configure your browser" icon="window" href="#">
+    Run locally, on Browserbase, or over CDP.
+  </Card>
+</CardGroup>

@@ -1,0 +1,22 @@
+{
+  "name": "@browserbasehq/stagehand-v4-spike-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node json-rpc/build-json-rpc-schema.ts && vp fmt stagehand.v4.json --write",
+    "test": "vp test run --root ../.. packages/protocol/tests packages/protocol/json-rpc/tests"
+  },
+  "dependencies": {
+    "camelcase-keys": "catalog:",
+    "snakecase-keys": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/chrome": "catalog:",
+    "@types/node": "catalog:",
+    "chrome-launcher": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

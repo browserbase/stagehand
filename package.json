@@ -1,0 +1,42 @@
+{
+  "name": "v4-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "vp check && vp run -F ./packages/docs check",
+    "docs": "vp run --no-cache -F ./packages/docs dev",
+    "fmt": "vp fmt . --write",
+    "test": "vp run -F ./packages/sdk-ts build && vp run -r test && vp test run rules/ast-grep",
+    "build": "vp run -r build"
+  },
+  "devDependencies": {
+    "@ast-grep/lang-python": "catalog:",
+    "@ast-grep/napi": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/sdk-trace-web": "catalog:",
+    "@oxlint/plugins": "1.68.0",
+    "@types/chrome": "catalog:",
+    "dotenv": "catalog:",
+    "openai": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.10.0",
+      "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "^24.18.0",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

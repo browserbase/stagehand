@@ -1,0 +1,67 @@
+packages:
+  - packages/*
+
+catalogMode: prefer
+
+catalog:
+  "@ast-grep/lang-python": 0.0.6
+  "@ast-grep/napi": 0.44.1
+  "@mdx-js/mdx": 3.1.1
+  "@opentelemetry/api": 1.9.1
+  "@opentelemetry/core": 2.9.0
+  "@opentelemetry/exporter-trace-otlp-http": 0.220.0
+  "@opentelemetry/resources": 2.9.0
+  "@opentelemetry/sdk-trace-web": 2.9.0
+  "@opentelemetry/semantic-conventions": 1.43.0
+  "@types/node": ^24
+  typescript: ^5
+  vitest: ^4
+  vite: npm:@voidzero-dev/vite-plus-core@0.2.3
+  vite-plus: 0.2.3
+  zod: 4.4.3
+  devtools-protocol: ^0.0.1657692
+  chrome-launcher: ^1.2.1
+  ai: ^7.0.16
+  "@ai-sdk/provider": ^4.0.2
+  "@ai-sdk/openai": ^4.0.8
+  "@ai-sdk/anthropic": ^4.0.8
+  "@ai-sdk/google": ^4.0.8
+  "@ai-sdk/groq": ^4.0.5
+  "@ai-sdk/cerebras": ^3.0.5
+  camelcase-keys: ^10.0.2
+  snakecase-keys: ^9.0.2
+  zustand: ^5.0.14
+  "@types/chrome": ^0.2.2
+  dotenv: ^17.4.2
+  tsx: ^4.23.1
+  openai: ^6.48.0
+  "@browserbasehq/sdk": ^2.16.0
+  fflate: ^0.8.3
+  mint: 4.2.715
+  publint: ^0.3.8
+overrides:
+  vite: "catalog:"
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: "*"
+minimumReleaseAgeExclude:
+  - "@voidzero-dev/vite-plus-core@0.2.3"
+  - "@voidzero-dev/vite-plus-darwin-arm64@0.2.3"
+  - "@voidzero-dev/vite-plus-darwin-x64@0.2.3"
+  - "@voidzero-dev/vite-plus-linux-arm64-gnu@0.2.3"
+  - "@voidzero-dev/vite-plus-linux-arm64-musl@0.2.3"
+  - "@voidzero-dev/vite-plus-linux-x64-gnu@0.2.3"
+  - "@voidzero-dev/vite-plus-linux-x64-musl@0.2.3"
+  - "@voidzero-dev/vite-plus-win32-arm64-msvc@0.2.3"
+  - "@voidzero-dev/vite-plus-win32-x64-msvc@0.2.3"
+  - vite-plus@0.2.3
+allowBuilds:
+  "@ast-grep/lang-python": true
+  "@scarf/scarf": false
+  esbuild: true
+  keytar: false
+  protobufjs: false
+  puppeteer: false
+  sharp: true
