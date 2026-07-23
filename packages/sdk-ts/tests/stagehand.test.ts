@@ -6,7 +6,7 @@ import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { Stagehand } from "../src/index.js";
 import type { ResolvedBrowserSource } from "../src/browserSource.js";
 import { CDPConnectionClosedError } from "../src/cdpClient.js";
-import { RPCClient, type RPCClientOptions } from "../src/rpcClient.js";
+import { RPCClient } from "../src/rpcClient.js";
 import { createStagehandWithDependenciesForTest } from "../src/stagehand.js";
 
 type ProtocolCall = { method: string; params: unknown };
@@ -96,6 +96,7 @@ describe("Stagehand", () => {
     const resolveBrowserSource = vi.fn(async (): Promise<ResolvedBrowserSource> => {
       return {
         cdpUrl: "http://127.0.0.1:9222",
+        autoAttach: false,
         keepAlive: true,
       };
     });
@@ -137,18 +138,21 @@ describe("Stagehand", () => {
         },
       },
     });
-    expect(connectRpcClient).toHaveBeenCalledWith({
-      cdpUrl: "http://127.0.0.1:9222",
-      extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
-      serviceWorkerUrlIncludes: "service-worker.js",
-      logLevel: "info",
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
+    expect(connectRpcClient).toHaveBeenCalledWith(
+      {
+        cdpUrl: "http://127.0.0.1:9222",
+        extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
+        serviceWorkerUrlIncludes: "service-worker.js",
+        logLevel: "info",
+        telemetry: {
+          traces: {
+            endpoint: "https://example.com/v1/traces",
+            headers: {},
+          },
         },
       },
-    } satisfies RPCClientOptions);
+      { autoAttach: false },
+    );
     expect(pages[0]?.pageId).toBe("page-1");
     expect(rpcClient.calls).toStrictEqual([
       {
@@ -185,6 +189,7 @@ describe("Stagehand", () => {
           cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
           browserbaseSessionId: "session_123",
           preloadedExtension: true,
+          autoAttach: true,
           keepAlive: true,
         }),
         connectRpcClient,
@@ -193,18 +198,21 @@ describe("Stagehand", () => {
 
     await stagehand.init();
 
-    expect(connectRpcClient).toHaveBeenCalledWith({
-      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
-      logLevel: "info",
-      preloadedExtension: true,
-      serviceWorkerUrlIncludes: "service-worker.js",
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
+    expect(connectRpcClient).toHaveBeenCalledWith(
+      {
+        cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
+        logLevel: "info",
+        preloadedExtension: true,
+        serviceWorkerUrlIncludes: "service-worker.js",
+        telemetry: {
+          traces: {
+            endpoint: "https://example.com/v1/traces",
+            headers: {},
+          },
         },
       },
-    } satisfies RPCClientOptions);
+      { autoAttach: true },
+    );
 
     expect(rpcClient.calls).toStrictEqual([
       {
@@ -248,6 +256,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
+          autoAttach: false,
           keepAlive: true,
         }),
         connectRpcClient,
@@ -256,18 +265,21 @@ describe("Stagehand", () => {
 
     await stagehand.init();
 
-    expect(connectRpcClient).toHaveBeenCalledWith({
-      cdpUrl: "http://127.0.0.1:9222",
-      extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
-      logLevel: "info",
-      serviceWorkerUrlIncludes: "service-worker.js",
-      telemetry: {
-        traces: {
-          endpoint: "https://collector.example.com/v1/traces",
-          headers: { Authorization: "Bearer test" },
+    expect(connectRpcClient).toHaveBeenCalledWith(
+      {
+        cdpUrl: "http://127.0.0.1:9222",
+        extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
+        logLevel: "info",
+        serviceWorkerUrlIncludes: "service-worker.js",
+        telemetry: {
+          traces: {
+            endpoint: "https://collector.example.com/v1/traces",
+            headers: { Authorization: "Bearer test" },
+          },
         },
       },
-    } satisfies RPCClientOptions);
+      { autoAttach: false },
+    );
   });
 
   it("routes public runtime status and metrics methods through the protocol", async () => {
@@ -312,6 +324,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
+          autoAttach: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -360,6 +373,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
+          autoAttach: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -396,6 +410,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
+          autoAttach: true,
           keepAlive: false,
           close: closeBrowser,
         }),
@@ -440,6 +455,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
+          autoAttach: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -554,6 +570,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
+          autoAttach: true,
           keepAlive: true,
           close: closeBrowser,
         }),
@@ -577,6 +594,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
+          autoAttach: true,
           keepAlive: false,
           close: closeBrowser,
         }),
@@ -601,6 +619,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
+          autoAttach: true,
           keepAlive: false,
           close: async () => {
             throw cleanupError;

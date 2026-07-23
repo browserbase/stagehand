@@ -248,7 +248,7 @@ export class CDPClient {
         { name: STAGEHAND_SEND_TO_HOST_BINDING },
         attached.sessionId,
       );
-      await waitForRuntimeReady(client, attached.sessionId, {
+      await waitForRuntimeReceiver(client, attached.sessionId, {
         timeout: options.discoveryTimeoutMs,
         runtimeRequirement: options.runtimeRequirement,
         allowFallbackInstall: options.allowFallbackInstall,
@@ -385,17 +385,36 @@ export class CDPClient {
 
 type CDPCommandSender = Pick<CDPClient, "sendCommand">;
 
+type RuntimeWaitOptions = {
+  timeout: number;
+  pollIntervalMs?: number;
+  delayFn?: (ms: number) => Promise<void>;
+  nowFn?: () => number;
+  runtimeRequirement?: RuntimeRequirement;
+  allowFallbackInstall?: boolean;
+};
+
+export async function waitForRuntimeReceiver(
+  cdp: CDPCommandSender,
+  sessionId: string,
+  options: RuntimeWaitOptions,
+): Promise<void> {
+  await waitForRuntime(cdp, sessionId, options, false);
+}
+
 export async function waitForRuntimeReady(
   cdp: CDPCommandSender,
   sessionId: string,
-  options: {
-    timeout: number;
-    pollIntervalMs?: number;
-    delayFn?: (ms: number) => Promise<void>;
-    nowFn?: () => number;
-    runtimeRequirement?: RuntimeRequirement;
-    allowFallbackInstall?: boolean;
-  },
+  options: RuntimeWaitOptions,
+): Promise<void> {
+  await waitForRuntime(cdp, sessionId, options, true);
+}
+
+async function waitForRuntime(
+  cdp: CDPCommandSender,
+  sessionId: string,
+  options: RuntimeWaitOptions,
+  requireReady: boolean,
 ): Promise<void> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const delayFn = options.delayFn ?? delay;
@@ -423,11 +442,22 @@ export async function waitForRuntimeReady(
         );
         if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false)
           throw new StagehandRuntimeIncompatibleError(compatibility);
-        if (compatibility.kind === "compatible" && readiness.hasReceiver) return;
+        if (
+          compatibility.kind === "compatible" &&
+          readiness.hasReceiver &&
+          (!requireReady || isAutoAttachReady(readiness.marker))
+        )
+          return;
 
         lastError = `protocolVersion=${String(
           observedProtocolVersion(readiness.marker),
-        )}, __stagehandReceiveFromHost=${String(readiness.hasReceiver)}`;
+        )}, __stagehandReceiveFromHost=${String(readiness.hasReceiver)}${
+          requireReady
+            ? `, state=${String(markerField(readiness.marker, "state"))}, connected=${String(
+                markerField(readiness.marker, "connected"),
+              )}`
+            : ""
+        }`;
       }
     } catch (error) {
       if (error instanceof StagehandRuntimeIncompatibleError) throw error;
@@ -438,11 +468,20 @@ export async function waitForRuntimeReady(
   }
 
   throw new Error(
-    `Timed out waiting for the Stagehand extension runtime to become ready${
-      lastError ? ` (${lastError})` : ""
-    }`,
+    `Timed out waiting for the Stagehand extension ${
+      requireReady ? "runtime to become ready" : "runtime RPC receiver"
+    }${lastError ? ` (${lastError})` : ""}`,
     { cause: lastReadiness },
   );
+}
+
+function isAutoAttachReady(marker: unknown): boolean {
+  return markerField(marker, "state") === "ready" && markerField(marker, "connected") === true;
+}
+
+function markerField(marker: unknown, field: string): unknown {
+  if (typeof marker !== "object" || marker === null) return undefined;
+  return Reflect.get(marker, field);
 }
 
 export async function waitForPreloadedStagehandServiceWorker(

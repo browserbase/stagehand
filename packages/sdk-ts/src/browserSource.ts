@@ -11,12 +11,14 @@ export type { BrowserbaseSessionClient, BrowserbaseSessionClientFactory };
 
 type LocalBrowserSource = Extract<BrowserSource, { type: "local" }>;
 type LocalBrowserLaunchOptions = Omit<LocalBrowserSource, "type">;
+const DEFAULT_LOCAL_DEBUGGING_PORT = 9222;
 
 export type ResolvedBrowserSource = {
   cdpUrl: string;
   cdpHeaders?: Record<string, string>;
   browserbaseSessionId?: string;
   preloadedExtension?: boolean;
+  autoAttach: boolean;
   keepAlive: boolean;
   close?: () => Promise<void> | void;
 };
@@ -52,6 +54,7 @@ export async function resolveBrowserSource(
       cdpUrl: session.cdpUrl,
       browserbaseSessionId: session.sessionId,
       preloadedExtension: true,
+      autoAttach: true,
       keepAlive: browser.keepAlive ?? false,
       close: session.close,
     };
@@ -62,6 +65,8 @@ export async function resolveBrowserSource(
     const launched = await (dependencies.launchLocalBrowser ?? launchLocalBrowser)(launchOptions);
     return {
       cdpUrl: launched.cdpUrl,
+      autoAttach:
+        launchOptions.port === undefined || launchOptions.port === DEFAULT_LOCAL_DEBUGGING_PORT,
       keepAlive: launchOptions.keepAlive ?? false,
       close: launched.close,
     };
@@ -70,6 +75,7 @@ export async function resolveBrowserSource(
   return {
     cdpUrl: browser.cdpUrl,
     ...(browser.headers === undefined ? {} : { cdpHeaders: browser.headers }),
+    autoAttach: false,
     keepAlive: true,
   };
 }
@@ -92,7 +98,7 @@ async function launchLocalBrowser(
       ...(process.env.CI ? ["--no-sandbox"] : []),
     ],
     userDataDir: options.userDataDir,
-    port: options.port,
+    port: options.port ?? DEFAULT_LOCAL_DEBUGGING_PORT,
     logLevel: "silent",
   });
 

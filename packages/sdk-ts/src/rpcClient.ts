@@ -41,7 +41,7 @@ import {
 } from "../../protocol/schemas.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { z } from "zod/v4";
-import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
+import { CDPClient, type ServiceWorkerInfo, waitForRuntimeReady } from "./cdpClient.js";
 
 type PendingRequest = {
   method: RPCMethod;
@@ -398,7 +398,10 @@ export class RPCClient {
   }
 }
 
-export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClient> {
+export async function connectRPCClient(
+  input: RPCClientOptions,
+  { autoAttach }: { autoAttach: boolean } = { autoAttach: false },
+): Promise<RPCClient> {
   const options = RPCClientOptionsSchema.parse(input);
   const commandTimeoutMs = options.commandTimeoutMs ?? 10_000;
   const cdpClient = await CDPClient.connect({
@@ -416,13 +419,20 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
   const client = new RPCClient(cdpClient, commandTimeoutMs);
 
   try {
-    await client.send(StagehandMethods.runtimeConfigure, {
-      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-      clientInfo: STAGEHAND_SDK_CLIENT_INFO,
-      cdpUrl: cdpClient.webSocketDebuggerUrl,
-      telemetry: options.telemetry,
-      logLevel: options.logLevel,
-    });
+    if (autoAttach) {
+      if (!cdpClient.sessionId) throw new Error("Stagehand service worker is not attached");
+      await waitForRuntimeReady(cdpClient, cdpClient.sessionId, {
+        timeout: options.discoveryTimeoutMs ?? 10_000,
+      });
+    } else {
+      await client.send(StagehandMethods.runtimeConfigure, {
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: STAGEHAND_SDK_CLIENT_INFO,
+        cdpUrl: cdpClient.webSocketDebuggerUrl,
+        telemetry: options.telemetry,
+        logLevel: options.logLevel,
+      });
+    }
     return client;
   } catch (error) {
     client.close();

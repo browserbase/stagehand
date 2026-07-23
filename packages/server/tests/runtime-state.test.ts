@@ -39,6 +39,7 @@ describe("Stagehand runtime state", () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession(),
     });
+    const configureTracing = vi.spyOn(runtime.tracing, "configure").mockImplementation(() => {});
 
     await runtime.configureLoopback({
       cdpUrl: "ws://browser.example",
@@ -69,6 +70,13 @@ describe("Stagehand runtime state", () => {
           },
         },
         selfHeal: true,
+      },
+    });
+    expect(configureTracing).toHaveBeenCalledOnce();
+    expect(configureTracing).toHaveBeenCalledWith({
+      traces: {
+        endpoint: "https://collector.example.com/v1/traces",
+        headers: { Authorization: "Bearer test" },
       },
     });
   });

@@ -30,7 +30,10 @@ import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "./extensionAssets.js";
 
 type StagehandAdapters = {
   resolveBrowserSource?: (initParams: StagehandClientInitParams) => Promise<ResolvedBrowserSource>;
-  connectRpcClient?: (options: RPCClientOptions) => Promise<RPCClient>;
+  connectRpcClient?: (
+    options: RPCClientOptions,
+    runtime: { autoAttach: boolean },
+  ) => Promise<RPCClient>;
 };
 
 const stagehandAdapters = new WeakMap<Stagehand, StagehandAdapters>();
@@ -91,16 +94,19 @@ export class Stagehand {
     this.resolvedBrowser = browser;
 
     try {
-      const rpcClient = await (adapters.connectRpcClient ?? connectRPCClient)({
-        cdpUrl: browser.cdpUrl,
-        // TODO: Thread browser.cdpHeaders through CDP discovery and the WebSocket handshake.
-        ...(browser.preloadedExtension
-          ? { preloadedExtension: true as const }
-          : { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }),
-        serviceWorkerUrlIncludes: "service-worker.js",
-        telemetry: clientInitParams.telemetry,
-        logLevel: clientInitParams.logging.level,
-      });
+      const rpcClient = await (adapters.connectRpcClient ?? connectRPCClient)(
+        {
+          cdpUrl: browser.cdpUrl,
+          // TODO: Thread browser.cdpHeaders through CDP discovery and the WebSocket handshake.
+          ...(browser.preloadedExtension
+            ? { preloadedExtension: true as const }
+            : { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }),
+          serviceWorkerUrlIncludes: "service-worker.js",
+          telemetry: clientInitParams.telemetry,
+          logLevel: clientInitParams.logging.level,
+        },
+        { autoAttach: browser.autoAttach },
+      );
       this.rpcClient = rpcClient;
       this.removeNotificationListener = rpcClient.onNotification((notification) =>
         handleStagehandNotification(notification, clientInitParams.logging),
@@ -264,6 +270,7 @@ export function createStagehandWithClientForTest(client: RPCClient): Stagehand {
     {
       resolveBrowserSource: async () => ({
         cdpUrl: "test://stagehand",
+        autoAttach: false,
         keepAlive: true,
       }),
       connectRpcClient: async () => client,

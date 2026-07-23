@@ -325,6 +325,7 @@ export class StagehandRuntime {
     }
 
     const pages = await this.contextPages();
+    this.tracing.configure(params.telemetry);
     this.state.setState(
       StagehandRuntimeStateSchema.parse({
         status: "initialized",
