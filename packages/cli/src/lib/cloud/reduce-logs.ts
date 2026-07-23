@@ -79,8 +79,11 @@ export function reduceLogs(
       typeof p.type === "string" &&
       ["error", "warning", "assert"].includes(p.type)
     ) {
-      const text = (p.args ?? [])
-        .map((a) => a.description || a.value || "")
+      const text = (Array.isArray(p.args) ? p.args : [])
+        .map((a) =>
+          a && typeof a === "object" ? a.description || a.value || "" : "",
+        )
+        .filter(Boolean)
         .join(" ");
       if (text && !/^%[os]/.test(text))
         rec = {

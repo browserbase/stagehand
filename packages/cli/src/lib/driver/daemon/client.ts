@@ -125,7 +125,7 @@ export async function stopDriverDaemon(
       error instanceof CommandFailure &&
       error.telemetry.resultCode === "daemon_not_running"
     ) {
-      await cleanupDaemonFiles(session);
+      await cleanupStoppedDaemonFiles(session);
       return { stopped: false };
     }
     if (!force) throw error;
@@ -312,6 +312,16 @@ function isSocketConnectable(
 async function cleanupStaleDaemonFiles(session: string): Promise<void> {
   if (await isDaemonPidAlive(session)) return;
   await cleanupDaemonFiles(session, { includeLock: false });
+}
+
+async function cleanupStoppedDaemonFiles(session: string): Promise<void> {
+  const locked = await acquireLock(session);
+  if (!locked) return;
+  try {
+    await cleanupStaleDaemonFiles(session);
+  } finally {
+    await releaseLock(session);
+  }
 }
 
 async function acquireLock(
