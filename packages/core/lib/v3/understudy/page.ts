@@ -1898,6 +1898,26 @@ export class Page {
   }
 
   /**
+   * Tap at absolute page coordinates (CSS pixels) with a real (trusted) touch.
+   * Mirrors {@link click} but synthesizes touch input via `Input.dispatchTouchEvent`
+   * instead of mouse input, so mobile layouts that gate their handlers on
+   * touch/pointer events (`pointerType: "touch"`) — where a synthesized mouse click
+   * never registers — respond correctly. Coordinates are relative to the viewport
+   * origin (top-left). Does not scroll. Requires a touch-capable (e.g. mobile) session.
+   */
+  @FlowLogger.wrapWithLogging({ eventType: "PageTap" })
+  async tap(x: number, y: number): Promise<void> {
+    await this.mainSession.send<never>("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y }],
+    } as Protocol.Input.DispatchTouchEventRequest);
+    await this.mainSession.send<never>("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    } as Protocol.Input.DispatchTouchEventRequest);
+  }
+
+  /**
    * Hover at absolute page coordinates (CSS pixels).
    * Dispatches mouseMoved via CDP Input domain on the top-level page target's
    * session.
