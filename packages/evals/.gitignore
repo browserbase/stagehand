@@ -1,7 +1,8 @@
-# Type declarations generated from the linked v4-spike SDK checkout.
+# Type declarations generated from the v4 SDK checkout are COMMITTED
+# (.v4-sdk-types/) so typecheck works on fresh clones/CI without the
+# checkout. Regenerate whenever the checkout moves (V4_API_LOGS #16):
 # Regenerate (from the v4-spike root) with:
 #   pnpm exec tsc packages/sdk-ts/src/index.ts --declaration --emitDeclarationOnly \
 #     --module nodenext --moduleResolution nodenext --allowImportingTsExtensions \
 #     --esModuleInterop --skipLibCheck --outDir <stagehand>/packages/evals/.v4-sdk-types
-.v4-sdk-types/
 .rubric-cache/
