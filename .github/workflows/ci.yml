@@ -103,7 +103,6 @@ jobs:
               - 'pnpm-lock.yaml'
             server:
               - 'packages/server-v3/**'
-              - 'packages/server-v4/**'
               - 'packages/core/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
@@ -314,8 +313,6 @@ jobs:
             packages/evals/dist/**
             packages/server-v3/dist/**
             packages/server-v3/openapi.v3.yaml
-            packages/server-v4/dist/**
-            packages/server-v4/openapi.v4.yaml
           retention-days: 1
 
   run-cli-tests:

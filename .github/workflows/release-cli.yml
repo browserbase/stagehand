@@ -48,7 +48,7 @@ jobs:
           # Fail if any changeset references browse AND another package.
           # Mixed changesets must be split so both release flows get their bumps.
           for f in $CLI_CHANGESETS; do
-            if grep -qE '"@browserbasehq/(stagehand|stagehand-server-v3|stagehand-server-v4|stagehand-evals|stagehand-docs)"' "$f"; then
+            if grep -qE '"@browserbasehq/(stagehand|stagehand-server-v3|stagehand-evals|stagehand-docs)"' "$f"; then
               echo "::error::Mixed changeset found: $f references browse AND other packages. Split it into separate changesets so both release workflows can consume their respective bumps."
               exit 1
             fi

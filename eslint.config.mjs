@@ -14,7 +14,6 @@ export default [
   {
     files: [
       "packages/server-v3/scripts/**/*.{js,cjs,mjs,ts}",
-      "packages/server-v4/scripts/**/*.{js,cjs,mjs,ts}",
     ],
     languageOptions: { globals: globals.node },
   },
@@ -37,7 +36,6 @@ export default [
       "**/*.json",
       "stainless.yml",
       "packages/server-v3/openapi.v3.yaml",
-      "packages/server-v4/openapi.v4.yaml",
       "v4/**",
     ],
   },
