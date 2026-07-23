@@ -1906,7 +1906,28 @@ export class Page {
    * origin (top-left). Does not scroll. Requires a touch-capable (e.g. mobile) session.
    */
   @FlowLogger.wrapWithLogging({ eventType: "PageTap" })
-  async tap(x: number, y: number): Promise<void> {
+  async tap(
+    x: number,
+    y: number,
+    options?: { returnXpath?: boolean },
+  ): Promise<string> {
+    let xpathResult: string | undefined;
+    if (options?.returnXpath) {
+      // Resolve the deepest node at the tap coordinates so a recorded/replayed
+      // step can target it by XPath, mirroring click's returnXpath path.
+      try {
+        const hit = await resolveXpathForLocation(this, x, y);
+        if (hit) {
+          xpathResult = hit.absoluteXPath;
+        }
+      } catch {
+        // best-effort; fall through if resolution fails
+      }
+    }
+
+    // Keep the cursor overlay in sync with the action, like every other
+    // coordinate action (click/hover/drag), even though touch has no cursor.
+    await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchTouchEvent", {
       type: "touchStart",
       touchPoints: [{ x, y }],
@@ -1915,6 +1936,8 @@ export class Page {
       type: "touchEnd",
       touchPoints: [],
     } as Protocol.Input.DispatchTouchEventRequest);
+
+    return xpathResult ?? "";
   }
 
   /**

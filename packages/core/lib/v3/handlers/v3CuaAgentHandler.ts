@@ -345,26 +345,54 @@ export class V3CuaAgentHandler {
         // "click", but the browser renders the site's touch-gated mobile layout
         // whose handlers only respond to touch/pointer events — a mouse click there
         // registers as "no selection" (e.g. a size selector's "please choose a size").
-        // Actuate with a trusted touch tap instead. Detected once via userAgentData
-        // (Browserbase os:"mobile" reports maxTouchPoints:0 but userAgentData.mobile:true).
-        if (this.usesTouch === undefined) {
-          try {
-            this.usesTouch = await page.evaluate<boolean>(() =>
-              Boolean(
-                (
-                  navigator as unknown as {
-                    userAgentData?: { mobile?: boolean };
-                  }
-                ).userAgentData?.mobile,
-              ),
-            );
-          } catch {
-            this.usesTouch = false;
+        // So actuate a single LEFT click as a trusted touch tap instead. Non-left
+        // (context menu) and multi-click stay on the mouse path unchanged. Detected
+        // once via userAgentData (Browserbase os:"mobile" reports maxTouchPoints:0
+        // but userAgentData.mobile:true).
+        const isPrimarySingleClick =
+          button === "left" && ((clickCount as number) ?? 1) === 1;
+        if (isPrimarySingleClick) {
+          if (this.usesTouch === undefined) {
+            try {
+              this.usesTouch = await page.evaluate<boolean>(() =>
+                Boolean(
+                  (
+                    navigator as unknown as {
+                      userAgentData?: { mobile?: boolean };
+                    }
+                  ).userAgentData?.mobile,
+                ),
+              );
+            } catch {
+              this.usesTouch = false;
+            }
           }
-        }
-        if (this.usesTouch) {
-          await page.tap(x as number, y as number);
-          return { success: true };
+          if (this.usesTouch) {
+            if (recording) {
+              // Record the tap as a deterministic "tap" step so replay reproduces
+              // touch (dispatched via METHOD_HANDLER_MAP.tap -> locator.tap).
+              const xpath = await page.tap(x as number, y as number, {
+                returnXpath: true,
+              });
+              const normalized = ensureXPath(xpath);
+              if (normalized) {
+                const stagehandAction: Action = {
+                  selector: normalized,
+                  description: this.describePointerAction("tap", x, y),
+                  method: "tap",
+                  arguments: [],
+                };
+                this.recordCuaActStep(
+                  action,
+                  [stagehandAction],
+                  stagehandAction.description,
+                );
+              }
+            } else {
+              await page.tap(x as number, y as number);
+            }
+            return { success: true };
+          }
         }
         if (recording) {
           const xpath = await page.click(x as number, y as number, {

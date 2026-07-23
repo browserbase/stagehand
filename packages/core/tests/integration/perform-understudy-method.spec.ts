@@ -118,4 +118,27 @@ test.describe("tests performUnderstudyMethod", () => {
       .textContent();
     expect(droppedContent).toBe("TEXT: Hello from text");
   });
+
+  test("tap activates the target via a trusted touch", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/",
+    );
+
+    // "tap" dispatches Input.dispatchTouchEvent (touchStart+touchEnd); a tap on a
+    // control activates it (Chromium synthesizes the click), so the same success
+    // marker as the click test appears — exercising METHOD_HANDLER_MAP.tap ->
+    // locator.tap end to end.
+    await performUnderstudyMethod(
+      page,
+      page.mainFrame(),
+      "tap",
+      "/html/body/button",
+      [],
+      30000,
+    );
+
+    const isVisible = await page.locator("#success-msg").isVisible();
+    expect(isVisible).toBe(true);
+  });
 });
