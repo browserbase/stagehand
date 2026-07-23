@@ -18,6 +18,7 @@ import {
 } from "../types/public/model.js";
 import { ObserveTimeoutError } from "../types/public/sdkErrors.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
+import { withTimeout } from "../timeoutConfig.js";
 
 export class ObserveHandler {
   private readonly llmClient: LLMClient;
@@ -64,6 +65,17 @@ export class ObserveHandler {
   }
 
   async observe(params: ObserveHandlerParams): Promise<Action[]> {
+    return await withTimeout(
+      () => this.observeWithCancellation(params),
+      params.timeout,
+      "observe()",
+      { errorFactory: (ms) => new ObserveTimeoutError(ms) },
+    );
+  }
+
+  private async observeWithCancellation(
+    params: ObserveHandlerParams,
+  ): Promise<Action[]> {
     const {
       instruction,
       page,

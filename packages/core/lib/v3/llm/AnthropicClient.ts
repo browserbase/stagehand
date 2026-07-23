@@ -17,6 +17,7 @@ import {
 } from "./LLMClient.js";
 import { CreateChatCompletionResponseError } from "../types/public/sdkErrors.js";
 import { toJsonSchema } from "../zodCompat.js";
+import { getActiveAbortSignal } from "../cancellation.js";
 
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;
@@ -165,7 +166,7 @@ export class AnthropicClient extends LLMClient {
       anthropicTools.push(toolDefinition);
     }
 
-    const response = await this.client.messages.create({
+    const request = {
       model: this.modelName,
       max_tokens: options.maxOutputTokens || 8192,
       messages: formattedMessages,
@@ -174,7 +175,11 @@ export class AnthropicClient extends LLMClient {
         ? (systemMessage.content as string | TextBlockParam[]) // we can cast because we already filtered out image content
         : undefined,
       temperature: options.temperature,
-    });
+    };
+    const signal = getActiveAbortSignal();
+    const response = await (signal
+      ? this.client.messages.create(request, { signal })
+      : this.client.messages.create(request));
 
     logger({
       category: "anthropic",

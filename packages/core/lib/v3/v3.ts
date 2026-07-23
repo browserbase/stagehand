@@ -96,7 +96,12 @@ import { FlowLogger, type FlowLoggerContext } from "./flowlogger/FlowLogger.js";
 import { EventEmitterWithWildcardSupport } from "./flowlogger/EventEmitter.js";
 import { EventStore } from "./flowlogger/EventStore.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
-import { ActTimeoutError } from "./types/public/sdkErrors.js";
+import {
+  ActTimeoutError,
+  ExtractTimeoutError,
+  ObserveTimeoutError,
+} from "./types/public/sdkErrors.js";
+import { withTimeout } from "./timeoutConfig.js";
 
 const AUTO_MODEL_API_ONLY_MESSAGE = `model: "${AUTO_MODEL_NAME}" is only supported when running through the Stagehand API (env: "BROWSERBASE" with disableAPI: false and experimental: false). Specify a concrete model (e.g. "openai/gpt-5") instead.`;
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
@@ -1275,23 +1280,35 @@ export class V3 {
         // Use selector as provided to support XPath, CSS, and other engines
         const selector = input.selector;
         if (this.apiClient) {
-          actResult = await this.apiClient.act({
-            input,
-            options,
-            frameId: v3Page.mainFrameId(),
-          });
+          actResult = await withTimeout(
+            () =>
+              this.apiClient!.act({
+                input,
+                options,
+                frameId: v3Page.mainFrameId(),
+              }),
+            options?.timeout,
+            "act()",
+            { errorFactory: (ms) => new ActTimeoutError(ms) },
+          );
         } else {
           const ensureTimeRemaining = createTimeoutGuard(
             options?.timeout,
             (ms) => new ActTimeoutError(ms),
           );
-          actResult = await this.actHandler.takeDeterministicAction(
-            { ...input, selector },
-            v3Page,
-            this.domSettleTimeoutMs,
-            this.resolveLlmClient(options?.model),
-            ensureTimeRemaining,
-            options?.variables,
+          actResult = await withTimeout(
+            () =>
+              this.actHandler!.takeDeterministicAction(
+                { ...input, selector },
+                v3Page,
+                this.domSettleTimeoutMs,
+                this.resolveLlmClient(options?.model),
+                ensureTimeRemaining,
+                options?.variables,
+              ),
+            options?.timeout,
+            "act()",
+            { errorFactory: (ms) => new ActTimeoutError(ms) },
           );
         }
 
@@ -1366,7 +1383,12 @@ export class V3 {
       };
       if (this.apiClient) {
         const frameId = page.mainFrameId();
-        actResult = await this.apiClient.act({ input, options, frameId });
+        actResult = await withTimeout(
+          () => this.apiClient!.act({ input, options, frameId }),
+          options?.timeout,
+          "act()",
+          { errorFactory: (ms) => new ActTimeoutError(ms) },
+        );
       } else {
         actResult = await this.actHandler.act(handlerParams);
       }
@@ -1480,12 +1502,18 @@ export class V3 {
       let result: z.infer<typeof effectiveSchema> | { pageText: string };
       if (this.apiClient) {
         const frameId = page.mainFrameId();
-        result = await this.apiClient.extract({
-          instruction: handlerParams.instruction,
-          schema: handlerParams.schema,
-          options,
-          frameId,
-        });
+        result = await withTimeout(
+          () =>
+            this.apiClient!.extract({
+              instruction: handlerParams.instruction,
+              schema: handlerParams.schema,
+              options,
+              frameId,
+            }),
+          options?.timeout,
+          "extract()",
+          { errorFactory: (ms) => new ExtractTimeoutError(ms) },
+        );
       } else {
         result =
           await this.extractHandler.extract<StagehandZodSchema>(handlerParams);
@@ -1556,11 +1584,17 @@ export class V3 {
       let results: Action[];
       if (this.apiClient) {
         const frameId = page.mainFrameId();
-        results = await this.apiClient.observe({
-          instruction,
-          options,
-          frameId,
-        });
+        results = await withTimeout(
+          () =>
+            this.apiClient!.observe({
+              instruction,
+              options,
+              frameId,
+            }),
+          options?.timeout,
+          "observe()",
+          { errorFactory: (ms) => new ObserveTimeoutError(ms) },
+        );
       } else {
         results = await this.observeHandler.observe(handlerParams);
       }

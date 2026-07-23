@@ -26,6 +26,7 @@ import {
 } from "./handlerUtils/actHandlerUtils.js";
 import { createTimeoutGuard } from "./handlerUtils/timeoutGuard.js";
 import { resolveVariableValue } from "../agent/utils/variables.js";
+import { withTimeout } from "../timeoutConfig.js";
 
 type ActInferenceElement = {
   elementId?: string;
@@ -135,6 +136,17 @@ export class ActHandler {
   }
 
   async act(params: ActHandlerParams): Promise<ActResult> {
+    return await withTimeout(
+      () => this.actWithCancellation(params),
+      params.timeout,
+      "act()",
+      { errorFactory: (ms) => new ActTimeoutError(ms) },
+    );
+  }
+
+  private async actWithCancellation(
+    params: ActHandlerParams,
+  ): Promise<ActResult> {
     const { instruction, page, variables, timeout, model } = params;
 
     const llmClient = this.resolveLlmClient(model);

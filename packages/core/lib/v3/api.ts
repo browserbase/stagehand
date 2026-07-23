@@ -37,6 +37,7 @@ import type {
 import type { ModelConfiguration } from "./types/public/model.js";
 import { toJsonSchema } from "./zodCompat.js";
 import type { StagehandZodSchema } from "./zodCompat.js";
+import { combineAbortSignals, getActiveAbortSignal } from "./cancellation.js";
 
 // =============================================================================
 // Multi-region API URL mapping
@@ -974,6 +975,7 @@ export class StagehandAPIClient {
 
     const response = await this.fetchWithCookies(`${baseUrl}${path}`, {
       ...options,
+      signal: combineAbortSignals(getActiveAbortSignal(), options.signal),
       headers: {
         ...defaultHeaders,
         ...options.headers,

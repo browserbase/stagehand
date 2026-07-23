@@ -281,7 +281,7 @@ export class ActCache {
       };
     };
 
-    return await withTimeout(execute(), timeout, "act()");
+    return await withTimeout(() => execute(), timeout, "act()");
   }
 
   private haveActionsChanged(original: Action[], updated: Action[]): boolean {

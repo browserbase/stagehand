@@ -23,9 +23,12 @@ import { StagehandInvalidArgumentError } from "./v3/types/public/sdkErrors.js";
 // Re-export for backward compatibility
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient.js";
 
-function withLlmTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
+function withLlmTimeout<T>(
+  inference: () => Promise<T>,
+  operation: string,
+): Promise<T> {
   return withTimeout(
-    promise,
+    inference,
     getEnvTimeoutMs("LLM_MAX_MS"),
     `LLM ${operation}`,
   );
@@ -107,19 +110,20 @@ export async function extract<T extends StagehandZodObject>({
 
   const extractStartTime = Date.now();
   const extractionResponse = await withLlmTimeout(
-    llmClient.createChatCompletion<ExtractionResponse>({
-      options: {
-        messages: extractCallMessages,
-        response_model: {
-          schema,
-          name: "Extraction",
+    () =>
+      llmClient.createChatCompletion<ExtractionResponse>({
+        options: {
+          messages: extractCallMessages,
+          response_model: {
+            schema,
+            name: "Extraction",
+          },
+          top_p: 1,
+          frequency_penalty: 0,
+          presence_penalty: 0,
         },
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0,
-      },
-      logger,
-    }),
+        logger,
+      }),
     "extract",
   );
   const extractEndTime = Date.now();
@@ -173,19 +177,20 @@ export async function extract<T extends StagehandZodObject>({
 
   const metadataStartTime = Date.now();
   const metadataResponse = await withLlmTimeout(
-    llmClient.createChatCompletion<MetadataResponse>({
-      options: {
-        messages: metadataCallMessages,
-        response_model: {
-          name: "Metadata",
-          schema: metadataSchema,
+    () =>
+      llmClient.createChatCompletion<MetadataResponse>({
+        options: {
+          messages: metadataCallMessages,
+          response_model: {
+            name: "Metadata",
+            schema: metadataSchema,
+          },
+          top_p: 1,
+          frequency_penalty: 0,
+          presence_penalty: 0,
         },
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0,
-      },
-      logger,
-    }),
+        logger,
+      }),
     "extract metadata",
   );
   const metadataEndTime = Date.now();

@@ -11,6 +11,7 @@ import {
   CdpConnectionClosedError,
   PageNotFoundError,
 } from "../types/public/sdkErrors.js";
+import { getActiveAbortSignal } from "../cancellation.js";
 
 /**
  * CDP transport & session multiplexer
@@ -142,6 +143,9 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   async send<R = unknown>(method: string, params?: object): Promise<R> {
+    const signal = getActiveAbortSignal();
+    signal?.throwIfAborted();
+
     const id = this.nextId++;
     const payload = { id, method, params };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
@@ -450,6 +454,9 @@ export class CdpConnection implements CDPSessionLike {
     method: string,
     params?: object,
   ): Promise<R> {
+    const signal = getActiveAbortSignal();
+    signal?.throwIfAborted();
+
     const id = this.nextId++;
     const payload = { id, method, params, sessionId };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
