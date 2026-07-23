@@ -1,0 +1,117 @@
+import path from "path";
+import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
+import type { AvailableModel } from "@browserbasehq/stagehand";
+import { tasksConfig } from "../taskConfig.js";
+import { getPackageRootDir } from "../runtimePaths.js";
+import {
+  readJsonlFile,
+  parseJsonlRows,
+  applySampling,
+  normalizeAgentModelEntries,
+} from "../utils.js";
+
+export const buildOnlineMind2WebTestcases = (
+  models: string[] | AgentModelEntry[],
+): Testcase[] => {
+  const mind2webFilePath = path.join(
+    getPackageRootDir(),
+    "datasets",
+    "onlineMind2Web",
+    "onlineMind2Web.jsonl",
+  );
+
+  const lines = readJsonlFile(mind2webFilePath);
+
+  // Use EVAL_MAX_K if set, otherwise fall back to EVAL_ONLINEMIND2WEB_LIMIT or default to 25
+  const maxCases = process.env.EVAL_MAX_K
+    ? Number(process.env.EVAL_MAX_K)
+    : process.env.EVAL_ONLINEMIND2WEB_LIMIT
+      ? Number(process.env.EVAL_ONLINEMIND2WEB_LIMIT)
+      : 25;
+  const sampleCount = process.env.EVAL_ONLINEMIND2WEB_SAMPLE
+    ? Number(process.env.EVAL_ONLINEMIND2WEB_SAMPLE)
+    : undefined;
+
+  type Mind2WebRow = {
+    task_id: string;
+    confirmed_task: string;
+    website: string;
+    reference_length?: number;
+    level?: string;
+    [key: string]: unknown;
+  };
+
+  function isMind2WebRow(parsed: unknown): parsed is Mind2WebRow {
+    if (parsed === null || typeof parsed !== "object") return false;
+    const obj = parsed as Record<string, unknown>;
+    return (
+      typeof obj.task_id === "string" &&
+      typeof obj.confirmed_task === "string" &&
+      typeof obj.website === "string"
+    );
+  }
+
+  const candidates = parseJsonlRows(lines, isMind2WebRow);
+
+  // EVAL_ONLINEMIND2WEB_IDS restricts the suite to exactly those task ids,
+  // preserving the order given and ignoring sampling / limit knobs.
+  const explicitIds = process.env.EVAL_ONLINEMIND2WEB_IDS
+    ? process.env.EVAL_ONLINEMIND2WEB_IDS.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : null;
+  let rows: Mind2WebRow[];
+  if (explicitIds && explicitIds.length > 0) {
+    const byId = new Map(candidates.map((r) => [r.task_id, r]));
+    rows = explicitIds
+      .map((id) => byId.get(id))
+      .filter((r): r is Mind2WebRow => Boolean(r));
+  } else {
+    rows = applySampling(candidates, sampleCount, maxCases);
+  }
+
+  const allTestcases: Testcase[] = [];
+  for (const modelEntry of normalizeAgentModelEntries(models)) {
+    for (const row of rows) {
+      const input: EvalInput = {
+        name: "agent/onlineMind2Web",
+        modelName: modelEntry.modelName as AvailableModel,
+        agentMode: modelEntry.mode,
+        isCUA: modelEntry.mode === "cua",
+        params: {
+          task_id: row.task_id,
+          confirmed_task: row.confirmed_task,
+          website: row.website,
+          reference_length: row.reference_length,
+          level: row.level,
+        },
+      };
+      const taskCategories =
+        tasksConfig.find((t) => t.name === input.name)?.categories || [];
+      allTestcases.push({
+        input,
+        name: input.name,
+        tags: [
+          modelEntry.modelName,
+          modelEntry.mode,
+          "mind2web", // Simple dataset tag
+        ],
+        metadata: {
+          model: modelEntry.modelName as AvailableModel,
+          test: `${input.name}:${row.task_id}`,
+          tier: "bench",
+          task: input.name,
+          category: taskCategories[0] || "agent",
+          categories: taskCategories,
+          dataset: "onlineMind2Web",
+          task_id: row.task_id,
+          difficulty: row.level,
+          website: row.website,
+        },
+        expected: true,
+      });
+    }
+  }
+
+  return allTestcases;
+};
