@@ -1,4 +1,5 @@
-import { randomUUID } from "crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import type { V3Options, LogLine, Api } from "@browserbasehq/stagehand";
 import { V3 } from "@browserbasehq/stagehand";
 import type {
@@ -12,6 +13,11 @@ import type {
 const DEFAULT_MAX_CAPACITY = 100;
 const DEFAULT_TTL_MS = 0; // 0 = infinite (no TTL-based eviction)
 
+interface RequestLoggerScope {
+  logger?: (message: LogLine) => void;
+  active: boolean;
+}
+
 /**
  * Internal node for LRU linked list
  */
@@ -19,7 +25,9 @@ interface LruNode {
   sessionId: string;
   params: CreateSessionParams;
   stagehand: V3 | null;
-  loggerRef: { current?: (message: LogLine) => void };
+  initialization: Promise<V3> | null;
+  closePromise: Promise<void> | null;
+  deleted: boolean;
   expiry: number;
   prev: LruNode | null;
   next: LruNode | null;
@@ -51,7 +59,7 @@ export function withModelApiKeyFallback(
  * - LRU eviction when at capacity
  * - TTL-based expiration
  * - Lazy V3 instance creation
- * - Dynamic logger updates for streaming
+ * - Request-scoped streaming logs
  * - Automatic cleanup of evicted sessions
  *
  * This is the default implementation used when no custom store is provided.
@@ -64,6 +72,8 @@ export class InMemorySessionStore implements SessionStore {
   private maxCapacity: number;
   private ttlMs: number;
   private cleanupInterval: NodeJS.Timeout | null = null;
+  private mutationQueue: Promise<void> = Promise.resolve();
+  private readonly requestLogger = new AsyncLocalStorage<RequestLoggerScope>();
 
   constructor(config?: SessionCacheConfig) {
     this.maxCapacity = config?.maxCapacity ?? DEFAULT_MAX_CAPACITY;
@@ -72,54 +82,62 @@ export class InMemorySessionStore implements SessionStore {
   }
 
   /**
-   * Start periodic cleanup of expired sessions
+   * Serialize mutations to the map and LRU list. Browser shutdown happens
+   * after a node is detached so slow cleanup does not block unrelated sessions.
+   */
+  private async mutate<T>(operation: () => T): Promise<T> {
+    const result = this.mutationQueue.then(operation, operation);
+    this.mutationQueue = result.then(
+      (): void => undefined,
+      (): void => undefined,
+    );
+    return await result;
+  }
+
+  /**
+   * Start periodic cleanup of expired sessions.
    */
   private startCleanupInterval(): void {
-    // Run cleanup every minute
     this.cleanupInterval = setInterval(() => {
-      this.cleanupExpired();
+      void this.cleanupExpired().catch(console.error);
     }, 60_000);
-    // Allow process to exit gracefully even if this timer is still active
     this.cleanupInterval.unref();
   }
 
   /**
-   * Cleanup expired sessions
+   * Cleanup expired sessions.
    */
   private async cleanupExpired(): Promise<void> {
-    const now = Date.now();
-    const expiredIds: string[] = [];
+    const expired = await this.mutate(() => {
+      if (this.ttlMs <= 0) return [];
 
-    for (const [sessionId, node] of this.items.entries()) {
-      if (this.ttlMs > 0 && node.expiry <= now) {
-        expiredIds.push(sessionId);
+      const now = Date.now();
+      const nodes: LruNode[] = [];
+      for (const node of this.items.values()) {
+        if (node.expiry <= now) {
+          this.detachNode(node);
+          nodes.push(node);
+        }
       }
-    }
+      return nodes;
+    });
 
-    for (const sessionId of expiredIds) {
-      await this.deleteSession(sessionId);
-    }
+    await Promise.all(expired.map((node) => this.closeNode(node)));
   }
 
   /**
-   * Bump a node to the end of the LRU list (most recently used)
+   * Bump a node to the end of the LRU list (most recently used).
    */
   private bumpNode(node: LruNode): void {
-    // Update expiry
     node.expiry = this.ttlMs > 0 ? Date.now() + this.ttlMs : Infinity;
 
-    if (this.last === node) {
-      return; // Already most recent
-    }
+    if (this.last === node) return;
 
     const { prev, next } = node;
-
-    // Unlink from current position
     if (prev) prev.next = next;
     if (next) next.prev = prev;
     if (this.first === node) this.first = next;
 
-    // Link to end
     node.prev = this.last;
     node.next = null;
     if (this.last) this.last.next = node;
@@ -129,20 +147,104 @@ export class InMemorySessionStore implements SessionStore {
   }
 
   /**
-   * Evict the least recently used session
+   * Remove a node from cache state synchronously. Cleanup is deliberately
+   * separate because closing a browser may be slow.
    */
-  private async evictLru(): Promise<void> {
-    const lruNode = this.first;
-    if (!lruNode) return;
+  private detachNode(node: LruNode): void {
+    if (node.deleted) return;
 
-    await this.deleteSession(lruNode.sessionId);
+    node.deleted = true;
+    if (this.items.get(node.sessionId) === node) {
+      this.items.delete(node.sessionId);
+    }
+
+    const { prev, next } = node;
+    if (prev) prev.next = next;
+    if (next) next.prev = prev;
+    if (this.first === node) this.first = next;
+    if (this.last === node) this.last = prev;
+    node.prev = null;
+    node.next = null;
+  }
+
+  /**
+   * Close an initialized or initializing node exactly once.
+   */
+  private closeNode(node: LruNode): Promise<void> {
+    if (node.closePromise) return node.closePromise;
+
+    node.closePromise = (async () => {
+      if (node.initialization) {
+        try {
+          await node.initialization;
+        } catch {
+          // Initialization already performs best-effort cleanup on failure.
+        }
+      }
+
+      if (!node.stagehand) return;
+      try {
+        await node.stagehand.close();
+      } catch (error) {
+        console.error(
+          `Error closing stagehand for session ${node.sessionId}:`,
+          error,
+        );
+      } finally {
+        node.stagehand = null;
+      }
+    })();
+
+    return node.closePromise;
+  }
+
+  /**
+   * Initialize a node once. Concurrent callers share this promise.
+   */
+  private initializeNode(node: LruNode, ctx: RequestContext): Promise<V3> {
+    const initialization = this.runWithRequestContext(ctx, async () => {
+      const stagehand = this.createStagehand(
+        this.buildV3Options(node.params, ctx),
+      );
+      try {
+        await stagehand.init();
+      } catch (error) {
+        try {
+          await stagehand.close();
+        } catch {
+          // best-effort cleanup for failed init attempts
+        }
+        throw error;
+      }
+
+      if (node.deleted) {
+        try {
+          await stagehand.close();
+        } catch {
+          // best-effort cleanup for a session deleted during initialization
+        }
+        throw new Error(`Session not found: ${node.sessionId}`);
+      }
+
+      node.stagehand = stagehand;
+      return stagehand;
+    });
+
+    node.initialization = initialization;
+    void initialization.catch(() => {
+      if (!node.deleted && node.initialization === initialization) {
+        node.initialization = null;
+      }
+    });
+    return initialization;
+  }
+
+  protected createStagehand(options: V3Options): V3 {
+    return new V3(options);
   }
 
   async startSession(params: CreateSessionParams): Promise<SessionStartResult> {
-    // Generate session ID or use provided browserbase session ID
     const sessionId = params.browserbaseSessionID ?? randomUUID();
-
-    // Store the session
     await this.createSession(sessionId, params);
 
     return {
@@ -157,71 +259,81 @@ export class InMemorySessionStore implements SessionStore {
   }
 
   async hasSession(sessionId: string): Promise<boolean> {
-    const node = this.items.get(sessionId);
-    if (!node) return false;
+    const expired = await this.mutate(() => {
+      const node = this.items.get(sessionId);
+      if (!node) return null;
+      if (this.ttlMs > 0 && node.expiry <= Date.now()) {
+        this.detachNode(node);
+        return node;
+      }
+      return false;
+    });
 
-    // Check if expired
-    if (this.ttlMs > 0 && node.expiry <= Date.now()) {
-      await this.deleteSession(sessionId);
+    if (expired) {
+      await this.closeNode(expired);
       return false;
     }
-
-    return true;
+    return expired === false;
   }
 
   async getOrCreateStagehand(
     sessionId: string,
     ctx: RequestContext,
   ): Promise<V3> {
-    const node = this.items.get(sessionId);
+    const resolution = await this.mutate(() => {
+      const node = this.items.get(sessionId);
+      if (!node) {
+        throw new Error(`Session not found: ${sessionId}`);
+      }
 
-    if (!node) {
-      throw new Error(`Session not found: ${sessionId}`);
-    }
+      if (this.ttlMs > 0 && node.expiry <= Date.now()) {
+        this.detachNode(node);
+        return { expired: node } as const;
+      }
 
-    // Check if expired
-    if (this.ttlMs > 0 && node.expiry <= Date.now()) {
-      await this.deleteSession(sessionId);
+      this.bumpNode(node);
+      if (node.stagehand) {
+        return { stagehand: node.stagehand } as const;
+      }
+
+      if (!node.initialization) {
+        this.initializeNode(node, ctx);
+      }
+      return { initialization: node.initialization! } as const;
+    });
+
+    if ("expired" in resolution) {
+      await this.closeNode(resolution.expired);
       throw new Error(`Session expired: ${sessionId}`);
     }
+    if ("stagehand" in resolution) return resolution.stagehand;
+    return await resolution.initialization;
+  }
 
-    // Bump to most recently used
-    this.bumpNode(node);
+  async runWithRequestContext<T>(
+    ctx: RequestContext,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const scope: RequestLoggerScope = {
+      logger: ctx.logger,
+      active: true,
+    };
 
-    // Update logger reference for this request
-    if (ctx.logger) {
-      node.loggerRef.current = ctx.logger;
-    }
-
-    // If V3 instance exists, return it
-    if (node.stagehand) {
-      return node.stagehand;
-    }
-
-    // Create V3 instance (lazy initialization)
-    const options = this.buildV3Options(node.params, ctx, node.loggerRef);
-    const stagehand = new V3(options);
-    try {
-      await stagehand.init();
-    } catch (error) {
+    return await this.requestLogger.run(scope, async () => {
       try {
-        await stagehand.close();
-      } catch {
-        // best-effort cleanup for failed init attempts
+        return await operation();
+      } finally {
+        scope.active = false;
       }
-      throw error;
-    }
-    node.stagehand = stagehand;
-    return stagehand;
+    });
   }
 
   /**
-   * Build V3Options from stored params and request context
+   * Build V3Options from stored params and request context.
    */
   private buildV3Options(
     params: CreateSessionParams,
     ctx: RequestContext,
-    loggerRef: { current?: (message: LogLine) => void },
   ): V3Options {
     const isBrowserbase = params.browserType === "browserbase";
 
@@ -238,11 +350,9 @@ export class InMemorySessionStore implements SessionStore {
       selfHeal: params.selfHeal,
       domSettleTimeout: params.domSettleTimeoutMs,
       experimental: params.experimental,
-      // Wrap logger to use the ref so it can be updated per-request
       logger: (message: LogLine) => {
-        if (loggerRef.current) {
-          loggerRef.current(message);
-        }
+        const scope = this.requestLogger.getStore();
+        if (scope?.active) scope.logger?.(message);
       },
     };
 
@@ -269,94 +379,85 @@ export class InMemorySessionStore implements SessionStore {
     sessionId: string,
     params: CreateSessionParams,
   ): Promise<void> {
-    // Check if already exists
-    if (this.items.has(sessionId)) {
-      throw new Error(`Session already exists: ${sessionId}`);
-    }
+    const evicted = await this.mutate(() => {
+      if (this.items.has(sessionId)) {
+        throw new Error(`Session already exists: ${sessionId}`);
+      }
 
-    // Evict LRU if at capacity
-    if (this.maxCapacity > 0 && this.items.size >= this.maxCapacity) {
-      await this.evictLru();
-    }
+      const nodes: LruNode[] = [];
+      while (this.maxCapacity > 0 && this.items.size >= this.maxCapacity) {
+        if (!this.first) break;
+        const node = this.first;
+        this.detachNode(node);
+        nodes.push(node);
+      }
 
-    // Create new node
-    const node: LruNode = {
-      sessionId,
-      params,
-      stagehand: null, // Lazy initialization
-      loggerRef: {},
-      expiry: this.ttlMs > 0 ? Date.now() + this.ttlMs : Infinity,
-      prev: this.last,
-      next: null,
-    };
+      const node: LruNode = {
+        sessionId,
+        params,
+        stagehand: null,
+        initialization: null,
+        closePromise: null,
+        deleted: false,
+        expiry: this.ttlMs > 0 ? Date.now() + this.ttlMs : Infinity,
+        prev: this.last,
+        next: null,
+      };
 
-    this.items.set(sessionId, node);
+      this.items.set(sessionId, node);
+      if (this.last) this.last.next = node;
+      this.last = node;
+      if (!this.first) this.first = node;
+      return nodes;
+    });
 
-    // Link to end of list
-    if (this.last) this.last.next = node;
-    this.last = node;
-    if (!this.first) this.first = node;
+    await Promise.all(evicted.map((node) => this.closeNode(node)));
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    const node = this.items.get(sessionId);
-    if (!node) return;
+    const node = await this.mutate(() => {
+      const current = this.items.get(sessionId);
+      if (current) this.detachNode(current);
+      return current;
+    });
 
-    // Close V3 instance if it exists
-    if (node.stagehand) {
-      try {
-        await node.stagehand.close();
-      } catch (error) {
-        console.error(
-          `Error closing stagehand for session ${sessionId}:`,
-          error,
-        );
-      }
-    }
-
-    // Remove from map
-    this.items.delete(sessionId);
-
-    // Unlink from list
-    const { prev, next } = node;
-    if (prev) prev.next = next;
-    if (next) next.prev = prev;
-    if (this.first === node) this.first = next;
-    if (this.last === node) this.last = prev;
+    if (node) await this.closeNode(node);
   }
 
   async getSessionConfig(sessionId: string): Promise<CreateSessionParams> {
-    const node = this.items.get(sessionId);
-
-    if (!node) {
-      throw new Error(`Session not found: ${sessionId}`);
-    }
-
-    // Return the stored params (contains browser metadata needed downstream)
-    return node.params;
+    return await this.mutate(() => {
+      const node = this.items.get(sessionId);
+      if (!node) {
+        throw new Error(`Session not found: ${sessionId}`);
+      }
+      return node.params;
+    });
   }
 
-  updateCacheConfig(config: SessionCacheConfig): void {
-    if (config.maxCapacity !== undefined) {
-      if (config.maxCapacity <= 0) {
-        throw new Error("Max capacity must be greater than 0");
-      }
-      const previousCapacity = this.maxCapacity;
-      this.maxCapacity = config.maxCapacity;
-
-      // Evict excess if new capacity is smaller
-      if (this.maxCapacity < previousCapacity) {
-        const excess = this.items.size - this.maxCapacity;
-        for (let i = 0; i < excess; i++) {
-          // Fire and forget - don't await to match cloud behavior
-          this.evictLru().catch(console.error);
-        }
-      }
+  async updateCacheConfig(config: SessionCacheConfig): Promise<void> {
+    if (config.maxCapacity !== undefined && config.maxCapacity <= 0) {
+      throw new Error("Max capacity must be greater than 0");
     }
 
-    if (config.ttlMs !== undefined) {
-      this.ttlMs = config.ttlMs;
-    }
+    const evicted = await this.mutate(() => {
+      if (config.maxCapacity !== undefined) {
+        this.maxCapacity = config.maxCapacity;
+      }
+      if (config.ttlMs !== undefined) {
+        this.ttlMs = config.ttlMs;
+      }
+
+      const nodes: LruNode[] = [];
+      while (this.maxCapacity > 0 && this.items.size > this.maxCapacity) {
+        if (!this.first) break;
+        const node = this.first;
+        this.detachNode(node);
+        nodes.push(node);
+      }
+      return nodes;
+    });
+
+    await Promise.all(evicted.map((node) => this.closeNode(node)));
   }
 
   getCacheConfig(): SessionCacheConfig {
@@ -367,19 +468,21 @@ export class InMemorySessionStore implements SessionStore {
   }
 
   async destroy(): Promise<void> {
-    // Stop cleanup interval
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
     }
 
-    // Close all V3 instances
-    const sessionIds = Array.from(this.items.keys());
-    await Promise.all(sessionIds.map((id) => this.deleteSession(id)));
+    const nodes = await this.mutate(() => {
+      const current = Array.from(this.items.values());
+      for (const node of current) this.detachNode(node);
+      return current;
+    });
+    await Promise.all(nodes.map((node) => this.closeNode(node)));
   }
 
   /**
-   * Get the number of cached sessions
+   * Get the number of cached sessions.
    */
   get size(): number {
     return this.items.size;
