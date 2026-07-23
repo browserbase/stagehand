@@ -80,6 +80,18 @@ async function getLaunchArgs(
 }
 
 describe("launchLocalChrome ignoreDefaultArgs", () => {
+  it("kills Chrome when debugger discovery fails after launch", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("not ready")));
+    const { launchLocalChrome } = await import("../../lib/v3/launch/local.js");
+
+    await expect(launchLocalChrome({ connectTimeoutMs: 1 })).rejects.toThrow(
+      /Timed out waiting/,
+    );
+
+    const chrome = await launchMock.mock.results[0].value;
+    expect(chrome.kill).toHaveBeenCalledOnce();
+  });
+
   it("does not set ignoreDefaultFlags when ignoreDefaultArgs is omitted", async () => {
     const args = await getLaunchArgs({});
     expect(args.ignoreDefaultFlags).toBe(false);

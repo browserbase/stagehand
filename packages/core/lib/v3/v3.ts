@@ -276,6 +276,7 @@ export class V3 {
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
   private keepAlive?: boolean;
+  private ownsBrowserbaseSession = false;
   private shutdownSupervisor: ShutdownSupervisorHandle | null = null;
 
   public stagehandMetrics: StagehandMetrics = {
@@ -329,21 +330,6 @@ export class V3 {
     this.stagehandLogger = new StagehandLogger(loggerOptions, opts.logger);
     this.stagehandLogger.setVerbosity(this.verbose);
 
-    // Also bind to AsyncLocalStorage for v3Logger() calls from handlers
-    // This maintains backward compatibility with code that uses v3Logger() directly
-    try {
-      if (this.externalLogger) {
-        // Use external logger directly when provided
-        bindInstanceLogger(this.instanceId, this.externalLogger);
-      } else {
-        // Fall back to stagehandLogger when no external logger
-        bindInstanceLogger(this.instanceId, (line) => {
-          this.stagehandLogger.log(line);
-        });
-      }
-    } catch {
-      // ignore
-    }
     const { modelName, clientOptions, middleware } = resolveModelConfiguration(
       opts.model,
     );
@@ -443,6 +429,19 @@ export class V3 {
     // stays alive until this bus is garbage-collected with the rest of the V3
     // object graph.
     this.bus.on("*", this.eventStore.emit);
+
+    // Bind only after all constructor work that may throw has completed.
+    try {
+      bindInstanceLogger(
+        this.instanceId,
+        this.externalLogger ??
+          ((line) => {
+            this.stagehandLogger.log(line);
+          }),
+      );
+    } catch {
+      // ignore
+    }
 
     // Track instance for global process guard handling
     V3._instances.add(this);
@@ -1012,11 +1011,22 @@ export class V3 {
           }
 
           const keepAlive = this.keepAlive === true;
-          const { ws, chrome } = await launchLocalChrome({
-            ...lbo,
-            userDataDir,
-            handleSIGINT: !keepAlive,
-          });
+          let launched: Awaited<ReturnType<typeof launchLocalChrome>>;
+          try {
+            launched = await launchLocalChrome({
+              ...lbo,
+              userDataDir,
+              handleSIGINT: !keepAlive,
+            });
+          } catch (error) {
+            await cleanupLocalBrowser({
+              userDataDir,
+              createdTempProfile: createdTemp,
+              preserveUserDataDir: !!lbo.preserveUserDataDir,
+            });
+            throw error;
+          }
+          const { ws, chrome } = launched;
           if (keepAlive) {
             try {
               chrome.process?.unref?.();
@@ -1024,12 +1034,8 @@ export class V3 {
               // best-effort: avoid keeping the event loop alive
             }
           }
-          this.ctx = await V3Context.create(ws, {
-            env: "LOCAL",
-            localBrowserLaunchOptions: lbo,
-          });
-          this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
-          this.ctx.conn.onTransportClosed(this._onCdpClosed);
+          // Publish ownership before any subsequent await so init cleanup can
+          // always kill Chrome and remove an SDK-created profile.
           this.state = {
             kind: "LOCAL",
             chrome,
@@ -1038,7 +1044,6 @@ export class V3 {
             createdTempProfile: createdTemp,
             preserveUserDataDir: !!lbo.preserveUserDataDir,
           };
-          this.resetBrowserbaseSessionMetadata();
           const chromePid = chrome.process?.pid ?? chrome.pid;
           if (!keepAlive && chromePid) {
             this.startShutdownSupervisor({
@@ -1049,6 +1054,13 @@ export class V3 {
               preserveUserDataDir: !!lbo.preserveUserDataDir,
             });
           }
+          this.ctx = await V3Context.create(ws, {
+            env: "LOCAL",
+            localBrowserLaunchOptions: lbo,
+          });
+          this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
+          this.ctx.conn.onTransportClosed(this._onCdpClosed);
+          this.resetBrowserbaseSessionMetadata();
 
           // Post-connect settings (downloads and viewport) if provided
           await this._applyPostConnectLocalOptions(lbo);
@@ -1057,6 +1069,9 @@ export class V3 {
 
         if (this.opts.env === "BROWSERBASE") {
           const { apiKey, projectId } = this.requireBrowserbaseCreds();
+          const browserbaseSessionWasSupplied =
+            this.opts.browserbaseSessionID !== undefined;
+          this.ownsBrowserbaseSession = !browserbaseSessionWasSupplied;
           this.logger({
             category: "init",
             message: "Starting browserbase session",
@@ -1136,13 +1151,15 @@ export class V3 {
             effectiveSessionParams,
             this.opts.browserbaseSessionID,
           );
-          this.ctx = await V3Context.create(ws, {
-            env: "BROWSERBASE",
-            apiClient: this.apiClient,
-          });
-          this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
-          this.ctx.conn.onTransportClosed(this._onCdpClosed);
-          this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
+          // Publish ownership before connecting CDP so a failed context
+          // bootstrap can release a newly-created Browserbase session.
+          this.state = {
+            kind: "BROWSERBASE",
+            sessionId,
+            ws,
+            bb,
+            ownsSession: this.ownsBrowserbaseSession,
+          };
           this.browserbaseSessionId = sessionId;
           if (!keepAlive && !this.disableAPI) {
             this.startShutdownSupervisor({
@@ -1152,6 +1169,12 @@ export class V3 {
               projectId,
             });
           }
+          this.ctx = await V3Context.create(ws, {
+            env: "BROWSERBASE",
+            apiClient: this.apiClient,
+          });
+          this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
+          this.ctx.conn.onTransportClosed(this._onCdpClosed);
 
           await this._ensureBrowserbaseDownloadsEnabled();
 
@@ -1196,13 +1219,13 @@ export class V3 {
         throw new StagehandInitError(`Unsupported env: ${neverEnv}`);
       });
     } catch (error) {
-      // Cleanup instanceLoggers map on init failure to prevent memory leak
-      if (this.externalLogger) {
-        try {
-          unbindInstanceLogger(this.instanceId);
-        } catch {
-          // ignore cleanup errors
-        }
+      try {
+        await this.close({
+          force: true,
+          cleanupOwnedResources: true,
+        });
+      } catch {
+        // best-effort cleanup; preserve the original initialization error
       }
       throw error;
     }
@@ -1595,12 +1618,18 @@ export class V3 {
   }
 
   /** Best-effort cleanup of context and launched resources. */
-  async close(opts?: { force?: boolean }): Promise<void> {
+  async close(opts?: {
+    force?: boolean;
+    cleanupOwnedResources?: boolean;
+  }): Promise<void> {
     // If we're already closing and this isn't a forced close, no-op.
     if (this._isClosing && !opts?.force) return;
     this._isClosing = true;
 
-    const keepAlive = this.keepAlive === true;
+    const preserveOwnedResources =
+      this.keepAlive === true && !opts?.cleanupOwnedResources;
+    const browserbaseState =
+      this.state.kind === "BROWSERBASE" ? this.state : null;
 
     // Unhook CDP transport close handler BEFORE ending the API session.
     // apiClient.end() can cause the hosted API to terminate the Browserbase
@@ -1615,10 +1644,31 @@ export class V3 {
       // ignore
     }
 
-    // End Browserbase session via API when keepAlive is not enabled
-    if (!keepAlive && this.apiClient) {
+    // End a managed Browserbase session via the Stagehand API.
+    let endedViaApi = false;
+    if (
+      !preserveOwnedResources &&
+      this.apiClient &&
+      (!opts?.cleanupOwnedResources || this.ownsBrowserbaseSession)
+    ) {
       try {
         await this.apiClient.end();
+        endedViaApi = true;
+      } catch {
+        // best-effort cleanup
+      }
+    }
+
+    if (
+      !preserveOwnedResources &&
+      !endedViaApi &&
+      browserbaseState?.ownsSession
+    ) {
+      try {
+        await browserbaseState.bb.sessions.update(browserbaseState.sessionId, {
+          status: "REQUEST_RELEASE",
+          ...(this.opts.projectId ? { projectId: this.opts.projectId } : {}),
+        });
       } catch {
         // best-effort cleanup
       }
@@ -1639,8 +1689,8 @@ export class V3 {
         // ignore
       }
 
-      // Kill local Chrome and clean up temp profile when keepAlive is not enabled
-      if (!keepAlive && this.state.kind === "LOCAL") {
+      // Kill owned local Chrome and clean up its temporary profile.
+      if (!preserveOwnedResources && this.state.kind === "LOCAL") {
         const localState = this.state;
         await cleanupLocalBrowser({
           killChrome: () => localState.chrome.kill(),
@@ -1657,6 +1707,7 @@ export class V3 {
       this.ctx = null;
       this._isClosing = false;
       this.resetBrowserbaseSessionMetadata();
+      this.ownsBrowserbaseSession = false;
       try {
         unbindInstanceLogger(this.instanceId);
       } catch {
