@@ -84,16 +84,6 @@ function createRawRuntime() {
   class RawPage {
     readonly rpcClient = { secret: true };
     readonly pageId: string;
-    readonly act = vi.fn(async (instruction: string) => ({
-      success: true,
-      message: instruction,
-    }));
-    readonly extract = vi.fn(async (_instruction: string, schema: z.ZodType) =>
-      schema.parse({ heading: "Example Domain" }),
-    );
-    readonly observe = vi.fn(async (instruction: string) => [
-      { description: instruction },
-    ]);
     currentUrl = "about:blank";
 
     constructor(pageId: string) {
@@ -196,7 +186,46 @@ function createRawRuntime() {
     async clearCookies() {}
   }
 
-  return { context: new RawContext() };
+  const context = new RawContext();
+  const stagehand = {
+    context,
+    rpcClient: { secret: true },
+    init: vi.fn(async () => {}),
+    close: vi.fn(async () => {}),
+    act: vi.fn(
+      async (
+        instruction: string,
+        options?: { page?: RawPage; [key: string]: unknown },
+      ) => ({
+        success: true,
+        message: instruction,
+        pageId: options?.page?.pageId ?? context.active.pageId,
+      }),
+    ),
+    extract: vi.fn(
+      async (
+        _instruction: string,
+        schema: z.ZodType,
+        options?: { page?: RawPage; [key: string]: unknown },
+      ) => {
+        void options;
+        return schema.parse({ heading: "Example Domain" });
+      },
+    ),
+    observe: vi.fn(
+      async (
+        instruction?: string,
+        options?: { page?: RawPage; [key: string]: unknown },
+      ) => [
+        {
+          description: instruction,
+          pageId: options?.page?.pageId ?? context.active.pageId,
+        },
+      ],
+    ),
+  };
+
+  return { context, stagehand };
 }
 
 describe("deterministic V4 runtime", () => {
@@ -434,29 +463,46 @@ describe("deterministic V4 runtime", () => {
     });
   });
 
-  it("exposes positional AI methods and z without exposing Stagehand internals", async () => {
+  it("exposes Stagehand-scoped AI methods and z without exposing internals", async () => {
     const raw = createRawRuntime();
-    const { context, wrapPage } = createV4CodeFacades(raw.context, "ai");
+    const { context, wrapPage, stagehand } = createV4CodeFacades(
+      raw.context,
+      "ai",
+      raw.stagehand,
+    );
     const page = wrapPage(await raw.context.activePage());
 
     const result = await executeV4CodeSnippet({
       code: `
-        const extracted = await page.extract(
+        const second = await context.newPage();
+        const extracted = await stagehand.extract(
           "Extract the heading",
           z.object({ heading: z.string() }),
+          { page },
         );
-        const observed = await page.observe("Find the more information link");
-        const acted = await page.act("Click the more information link");
+        const observed = await stagehand.observe(
+          "Find the more information link",
+          { page: second },
+        );
+        const acted = await stagehand.act(
+          "Click the more information link",
+          { page: second },
+        );
         return {
           extracted,
           observed,
           acted,
-          stagehand: typeof stagehand,
+          pageAct: typeof page.act,
+          stagehandType: typeof stagehand,
+          stagehandRpc: typeof stagehand.rpcClient,
+          stagehandInit: typeof stagehand.init,
+          stagehandClose: typeof stagehand.close,
+          stagehandContext: typeof stagehand.context,
           pageRpc: typeof page.rpcClient,
           contextRpc: typeof context.rpcClient,
         };
       `,
-      runtime: { page, context },
+      runtime: { page, context, stagehand },
       mode: "ai",
       startUrl: "https://example.com",
       task: {},
@@ -465,27 +511,41 @@ describe("deterministic V4 runtime", () => {
 
     expect(result).toEqual({
       extracted: { heading: "Example Domain" },
-      observed: [{ description: "Find the more information link" }],
+      observed: [
+        {
+          description: "Find the more information link",
+          pageId: "page-2",
+        },
+      ],
       acted: {
         success: true,
         message: "Click the more information link",
+        pageId: "page-2",
       },
-      stagehand: "undefined",
+      pageAct: "undefined",
+      stagehandType: "object",
+      stagehandRpc: "undefined",
+      stagehandInit: "undefined",
+      stagehandClose: "undefined",
+      stagehandContext: "undefined",
       pageRpc: "undefined",
       contextRpc: "undefined",
     });
-    expect(raw.context.active.act).toHaveBeenCalledWith(
+    expect(raw.stagehand.act).toHaveBeenCalledWith(
       "Click the more information link",
+      { page: raw.context.pagesList[1] },
     );
-    expect(raw.context.active.act.mock.calls[0]).toHaveLength(1);
-    expect(raw.context.active.observe).toHaveBeenCalledWith(
+    expect(raw.stagehand.observe).toHaveBeenCalledWith(
       "Find the more information link",
+      { page: raw.context.pagesList[1] },
     );
-    expect(raw.context.active.observe.mock.calls[0]).toHaveLength(1);
-    expect(raw.context.active.extract.mock.calls[0]).toHaveLength(2);
-    expect(raw.context.active.extract.mock.calls[0]?.[0]).toBe(
+    expect(raw.stagehand.extract.mock.calls[0]).toHaveLength(3);
+    expect(raw.stagehand.extract.mock.calls[0]?.[0]).toBe(
       "Extract the heading",
     );
+    expect(raw.stagehand.extract.mock.calls[0]?.[2]).toEqual({
+      page: raw.context.pagesList[0],
+    });
   });
 
   it("cleans up when V4 initialization fails", async () => {

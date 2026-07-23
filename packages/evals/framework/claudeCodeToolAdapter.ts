@@ -1374,14 +1374,14 @@ function buildV4CodePromptInstructions(
   void plan;
   return [
     `Browser tool surface: ${mode === "ai" ? "v4_code" : "v4_code_deterministic"}.`,
-    `Use the ${RUN_TOOL_NAME} tool for browser automation. It exposes initialized ${mode === "ai" ? "AI-enabled" : "deterministic"} Stagehand V4 page and context facades, plus startUrl and task${mode === "ai" ? ", with z (Zod) available for schemas" : ""}.`,
+    `Use the ${RUN_TOOL_NAME} tool for browser automation. It exposes initialized ${mode === "ai" ? "AI-enabled" : "deterministic"} Stagehand V4 page and context facades, plus startUrl and task${mode === "ai" ? ", a narrow stagehand facade for AI methods, and z (Zod) for schemas" : ""}.`,
     "The page facade supports goto, reload, goBack, goForward, click, hover, scroll, dragAndDrop, type, keyPress, evaluate, addInitScript, setExtraHTTPHeaders, setViewportSize, waitForLoadState, waitForTimeout, waitForSelector, screenshot, snapshot, url, title, close, and locator.",
     "For selector-based actions use await page.locator('css selector').click(), fill(value), type(text), hover(), or selectOption(values). page.click(x, y) and page.hover(x, y) are coordinate-based; page.type(text) types into the currently focused element.",
     "Inspect the DOM with await page.evaluate(() => document.body.innerText) or locator text methods. Browser globals such as document exist only inside the function passed to page.evaluate().",
     "The context facade supports pages, newPage, activePage, setActivePage, clipboard, addInitScript, setExtraHTTPHeaders, domain policy, and cookie methods. context.close is intentionally unavailable because the harness owns cleanup.",
     mode === "ai"
-      ? "AI methods use the exact positional signatures await page.act(instruction), await page.observe(instruction), and await page.extract(instruction, schema). Build extraction schemas with z, for example: await page.extract('Extract the heading', z.object({ heading: z.string() }))."
-      : "AI methods act, extract, and observe are intentionally omitted from the provided facade. No model or AI provider credential is configured in this mode.",
+      ? "AI methods belong to the stagehand facade: await stagehand.act(instruction, options?), await stagehand.observe(instruction?, options?), and await stagehand.extract(instruction, schema, options?). Build extraction schemas with z, for example: await stagehand.extract('Extract the heading', z.object({ heading: z.string() })). To target a non-active page, pass its facade in options, for example { page }."
+      : "The stagehand facade, z, and AI methods act, extract, and observe are intentionally omitted. No model or AI provider credential is configured in this mode.",
     "Stagehand internals and RPC objects are omitted. This is an API-surface distinction, not a hostile-code security sandbox.",
     "The first browser action should usually be: await page.goto(startUrl, { waitUntil: 'domcontentloaded' }).",
     "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
