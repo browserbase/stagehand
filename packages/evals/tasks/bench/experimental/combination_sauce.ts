@@ -22,9 +22,7 @@ export default defineBenchTask(
 
       await v3.act("click on 'login'");
 
-      const observations = await v3.observe(
-        "find all the 'add to cart' buttons",
-      );
+      const observations = await v3.observe("find all the 'add to cart' buttons");
 
       const url = page.url();
 

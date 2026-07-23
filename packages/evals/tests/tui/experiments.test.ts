@@ -98,17 +98,10 @@ describe("experiments compare", () => {
   });
 
   it("passes the headless default output path to the renderer", async () => {
-    spawnMock.mockImplementation((_command: string, args: string[]) =>
-      makeChildProcess(args),
-    );
+    spawnMock.mockImplementation((_command: string, args: string[]) => makeChildProcess(args));
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await handleExperiments([
-      "compare",
-      "all-5afdff86",
-      "all-80219877",
-      "--headless",
-    ]);
+    await handleExperiments(["compare", "all-5afdff86", "all-80219877", "--headless"]);
 
     const args = spawnMock.mock.calls[0][1] as string[];
     expect(args).toContain("--out");

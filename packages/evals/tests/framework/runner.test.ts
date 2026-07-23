@@ -1,9 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { DiscoveredTask } from "../../framework/types.js";
-import {
-  resolveBenchModelEntries,
-  type RunEvalsOptions,
-} from "../../framework/runner.js";
+import { resolveBenchModelEntries, type RunEvalsOptions } from "../../framework/runner.js";
 
 vi.mock("playwright", () => ({
   chromium: {},

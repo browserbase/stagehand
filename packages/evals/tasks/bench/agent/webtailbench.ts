@@ -1,10 +1,7 @@
 import { normalizeRubric, type TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import {
-  evaluationResultToSuccess,
-  runWithVerifier,
-} from "../../../framework/verifierAdapter.js";
+import { evaluationResultToSuccess, runWithVerifier } from "../../../framework/verifierAdapter.js";
 
 /**
  * WebTailBench bench task.
@@ -60,16 +57,15 @@ export default defineBenchTask(
         precomputedRubric: normalizeRubric(params.precomputed_rubric),
       };
 
-      const { evaluationResult, trajectory, trajectoryDir, rubric } =
-        await runWithVerifier({
-          v3,
-          agent,
-          taskSpec,
-          dataset: "webtailbench",
-          agentOptions: {
-            maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
-          },
-        });
+      const { evaluationResult, trajectory, trajectoryDir, rubric } = await runWithVerifier({
+        v3,
+        agent,
+        taskSpec,
+        dataset: "webtailbench",
+        agentOptions: {
+          maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+        },
+      });
 
       const successMode = process.env.EVAL_SUCCESS_MODE;
 

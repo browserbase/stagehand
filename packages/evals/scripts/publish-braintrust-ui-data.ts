@@ -104,14 +104,7 @@ const PROVIDER_LABELS = new Map<string, string>([
   ["xai", "xAI"],
 ]);
 
-const PROVIDER_PREFIXES = [
-  "anthropic",
-  "browserbase",
-  "google",
-  "moonshot",
-  "openai",
-  "xai",
-];
+const PROVIDER_PREFIXES = ["anthropic", "browserbase", "google", "moonshot", "openai", "xai"];
 
 const COST_METRIC_KEYS = [
   "agent_cost_usd",
@@ -205,10 +198,7 @@ const MODEL_PRICING_USD_PER_1M_TOKENS = new Map<string, ModelPricing>([
   ["gpt-5.4", { input: 2.5, cachedInput: 0.25, output: 15 }],
   ["openai/gpt-5.4-mini", { input: 0.75, cachedInput: 0.075, output: 4.5 }],
   ["gpt-5.4-mini", { input: 0.75, cachedInput: 0.075, output: 4.5 }],
-  [
-    "google/gemini-3-flash-preview",
-    { input: 0.5, cachedInput: 0.05, output: 3 },
-  ],
+  ["google/gemini-3-flash-preview", { input: 0.5, cachedInput: 0.05, output: 3 }],
   ["gemini-3-flash-preview", { input: 0.5, cachedInput: 0.05, output: 3 }],
   [
     "google/gemini-2.5-computer-use-preview-10-2025",
@@ -355,8 +345,7 @@ function readEnv(name: string): string | undefined {
 
 function getUpstashCredentials(required: boolean): UpstashCredentials | null {
   const url = readEnv("UPSTASH_REDIS_REST_URL") ?? readEnv("KV_REST_API_URL");
-  const token =
-    readEnv("UPSTASH_REDIS_REST_TOKEN") ?? readEnv("KV_REST_API_TOKEN");
+  const token = readEnv("UPSTASH_REDIS_REST_TOKEN") ?? readEnv("KV_REST_API_TOKEN");
 
   if (url && token) {
     return {
@@ -375,15 +364,10 @@ function getUpstashCredentials(required: boolean): UpstashCredentials | null {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : undefined;
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
 }
 
-function readString(
-  record: Record<string, unknown> | undefined,
-  key: string,
-): string | undefined {
+function readString(record: Record<string, unknown> | undefined, key: string): string | undefined {
   const value = record?.[key];
   return typeof value === "string" && value.trim() ? value : undefined;
 }
@@ -420,19 +404,13 @@ function humanize(value: string): string {
     .filter(Boolean);
   return words
     .map((word) =>
-      word.length <= 3
-        ? word.toUpperCase()
-        : word.charAt(0).toUpperCase() + word.slice(1),
+      word.length <= 3 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1),
     )
     .join(" ");
 }
 
 function benchmarkSource(benchCase: BenchCaseRow): string | undefined {
-  return (
-    benchCase.dataset ??
-    benchCase.suite.replace(/^agent\//, "") ??
-    benchCase.category
-  );
+  return benchCase.dataset ?? benchCase.suite.replace(/^agent\//, "") ?? benchCase.category;
 }
 
 function isKnownBenchmarkKey(value: string): boolean {
@@ -441,15 +419,12 @@ function isKnownBenchmarkKey(value: string): boolean {
 
 function isPlainAgentRun(cases: BenchCaseRow[]): boolean {
   return cases.every(
-    (benchCase) =>
-      benchCase.category === "agent" || benchCase.suite.startsWith("agent/"),
+    (benchCase) => benchCase.category === "agent" || benchCase.suite.startsWith("agent/"),
   );
 }
 
 function uniqueValues(values: Array<string | undefined>): string[] {
-  return [
-    ...new Set(values.filter((value): value is string => Boolean(value))),
-  ];
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
 
 function inferBenchmark(cases: BenchCaseRow[]): { key: string; label: string } {
@@ -478,15 +453,11 @@ function inferBenchmark(cases: BenchCaseRow[]): { key: string; label: string } {
   }
 
   if (keys.length === 0) {
-    throw new Error(
-      "Could not infer benchmark key from Braintrust bench cases.",
-    );
+    throw new Error("Could not infer benchmark key from Braintrust bench cases.");
   }
 
   if (keys.length > 1) {
-    throw new Error(
-      `Expected one benchmark per Braintrust experiment, found: ${keys.join(", ")}.`,
-    );
+    throw new Error(`Expected one benchmark per Braintrust experiment, found: ${keys.join(", ")}.`);
   }
 
   const key = keys[0];
@@ -507,10 +478,7 @@ function inferProviderFromModel(model: string): string | undefined {
 
 function displayModelName(model: string): string {
   const [prefix, ...rest] = model.split("/");
-  if (
-    rest.length > 0 &&
-    PROVIDER_PREFIXES.includes(prefix.trim().toLowerCase())
-  ) {
+  if (rest.length > 0 && PROVIDER_PREFIXES.includes(prefix.trim().toLowerCase())) {
     return rest.join("/");
   }
   return model;
@@ -533,20 +501,13 @@ function inferModel(cases: BenchCaseRow[]): {
     throw new Error("Could not infer model from Braintrust bench cases.");
   }
   if (models.length > 1) {
-    throw new Error(
-      `Expected one model per Braintrust experiment, found: ${models.join(", ")}.`,
-    );
+    throw new Error(`Expected one model per Braintrust experiment, found: ${models.join(", ")}.`);
   }
 
   const model = models[0];
-  const explicitProviders = uniqueValues(
-    cases.map((benchCase) => benchCase.provider),
-  );
-  const explicitProvider =
-    explicitProviders.length === 1 ? explicitProviders[0] : undefined;
-  const providerKey = slugify(
-    explicitProvider ?? inferProviderFromModel(model) ?? "unknown",
-  );
+  const explicitProviders = uniqueValues(cases.map((benchCase) => benchCase.provider));
+  const explicitProvider = explicitProviders.length === 1 ? explicitProviders[0] : undefined;
+  const providerKey = slugify(explicitProvider ?? inferProviderFromModel(model) ?? "unknown");
 
   return {
     modelName: displayModelName(model),
@@ -556,10 +517,7 @@ function inferModel(cases: BenchCaseRow[]): {
 }
 
 function modelGroupKey(benchCase: BenchCaseRow): string {
-  return [
-    benchCase.model ?? "unknown-model",
-    benchCase.agentMode ?? "default",
-  ].join("\0");
+  return [benchCase.model ?? "unknown-model", benchCase.agentMode ?? "default"].join("\0");
 }
 
 function groupCasesByModel(cases: BenchCaseRow[]): BenchCaseRow[][] {
@@ -609,10 +567,7 @@ function caseSpeedMs(benchCase: BenchCaseRow): number | undefined {
   return firstMetric(benchCase.metrics, TESTED_RUN_INFERENCE_MS_KEYS);
 }
 
-function firstMetric(
-  metrics: Record<string, number>,
-  keys: string[],
-): number | undefined {
+function firstMetric(metrics: Record<string, number>, keys: string[]): number | undefined {
   for (const key of keys) {
     const value = metrics[key];
     if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -633,28 +588,17 @@ function estimatedTokenCost(benchCase: BenchCaseRow): number | undefined {
   // Only use metrics emitted by the tested agent/harness. Braintrust scorer
   // spans and task logs can contain verifier model usage, usually Gemini, and
   // must not be billed as the evaluated model.
-  const inputTokens = firstMetric(
-    benchCase.metrics,
-    TESTED_RUN_INPUT_TOKEN_KEYS,
-  );
-  const cachedInputTokens =
-    firstMetric(benchCase.metrics, TESTED_RUN_CACHED_INPUT_TOKEN_KEYS) ?? 0;
-  const outputTokens = firstMetric(
-    benchCase.metrics,
-    TESTED_RUN_OUTPUT_TOKEN_KEYS,
-  );
+  const inputTokens = firstMetric(benchCase.metrics, TESTED_RUN_INPUT_TOKEN_KEYS);
+  const cachedInputTokens = firstMetric(benchCase.metrics, TESTED_RUN_CACHED_INPUT_TOKEN_KEYS) ?? 0;
+  const outputTokens = firstMetric(benchCase.metrics, TESTED_RUN_OUTPUT_TOKEN_KEYS);
 
   if (inputTokens === undefined && outputTokens === undefined) {
     return undefined;
   }
 
-  const billableInputTokens = Math.max(
-    (inputTokens ?? 0) - cachedInputTokens,
-    0,
-  );
+  const billableInputTokens = Math.max((inputTokens ?? 0) - cachedInputTokens, 0);
   const pricing =
-    basePricing.longContext &&
-    (inputTokens ?? 0) > basePricing.longContext.thresholdTokens
+    basePricing.longContext && (inputTokens ?? 0) > basePricing.longContext.thresholdTokens
       ? basePricing.longContext
       : basePricing;
   const inputCost =
@@ -666,9 +610,7 @@ function estimatedTokenCost(benchCase: BenchCaseRow): number | undefined {
 }
 
 function experimentTimestamp(experiment: ExperimentData): number {
-  const createdAt = experiment.createdAt
-    ? Date.parse(experiment.createdAt)
-    : Number.NaN;
+  const createdAt = experiment.createdAt ? Date.parse(experiment.createdAt) : Number.NaN;
   return Number.isFinite(createdAt) ? createdAt : Date.now();
 }
 
@@ -696,9 +638,7 @@ function benchmarkRow(
   const durations = cases
     .map((benchCase) => caseSpeedMs(benchCase) ?? benchCase.durationMs)
     .filter((value): value is number => typeof value === "number");
-  const costs = cases
-    .map(caseCost)
-    .filter((value): value is number => typeof value === "number");
+  const costs = cases.map(caseCost).filter((value): value is number => typeof value === "number");
   const totalCost =
     costs.length > 0
       ? round(
@@ -706,9 +646,7 @@ function benchmarkRow(
           6,
         )
       : null;
-  const agentModes = uniqueValues(
-    cases.map((benchCase) => benchCase.agentMode),
-  );
+  const agentModes = uniqueValues(cases.map((benchCase) => benchCase.agentMode));
   const agentMode = agentModes.length === 1 ? agentModes[0] : undefined;
 
   return {
@@ -717,10 +655,8 @@ function benchmarkRow(
     provider: model.provider,
     providerKey: model.providerKey,
     accuracy: passPercent,
-    speedSeconds:
-      durations.length > 0 ? round((mean(durations) ?? 0) / 1000) : null,
-    costPerTask:
-      totalCost !== null && total > 0 ? round(totalCost / total, 6) : null,
+    speedSeconds: durations.length > 0 ? round((mean(durations) ?? 0) / 1000) : null,
+    costPerTask: totalCost !== null && total > 0 ? round(totalCost / total, 6) : null,
     totalCost,
     timestamp: experimentTimestamp(experiment),
     experimentName: experiment.experimentName,
@@ -732,16 +668,12 @@ function benchmarkRow(
 
 function toBenchmarkUpdate(experiment: ExperimentData): BenchmarkUpdate {
   if (experiment.mode !== "bench" || experiment.benchCases.length === 0) {
-    throw new Error(
-      `Experiment "${experiment.experimentName}" is not a benchmark experiment.`,
-    );
+    throw new Error(`Experiment "${experiment.experimentName}" is not a benchmark experiment.`);
   }
 
   const benchmark = inferBenchmark(experiment.benchCases);
   const total = experiment.benchCases.length;
-  const passed = experiment.benchCases.filter(
-    (benchCase) => benchCase.success,
-  ).length;
+  const passed = experiment.benchCases.filter((benchCase) => benchCase.success).length;
   const passPercent = total > 0 ? round((passed / total) * 100) : 0;
   const groups = groupCasesByModel(experiment.benchCases);
 
@@ -750,11 +682,7 @@ function toBenchmarkUpdate(experiment: ExperimentData): BenchmarkUpdate {
     label: benchmark.label,
     experimentId: experiment.experimentId,
     rows: groups.map((cases) =>
-      benchmarkRow(
-        experiment,
-        cases,
-        rowIdForModelGroup(experiment.experimentId, groups, cases),
-      ),
+      benchmarkRow(experiment, cases, rowIdForModelGroup(experiment.experimentId, groups, cases)),
     ),
     summary: {
       passed,
@@ -809,9 +737,7 @@ function sanitizeBenchmark(value: unknown): UiBenchmark | undefined {
   const key = readString(record, "key");
   const label = readString(record, "label");
   const rows = Array.isArray(record.rows)
-    ? record.rows
-        .map(sanitizeRow)
-        .filter((row): row is UiBenchmarkRow => Boolean(row))
+    ? record.rows.map(sanitizeRow).filter((row): row is UiBenchmarkRow => Boolean(row))
     : [];
 
   if (!key || !label) return undefined;
@@ -877,9 +803,7 @@ function upsertResult(
       }
     : { id: datasetId, timestamp, benchmarks: [] };
 
-  let benchmark = dataset.benchmarks.find(
-    (candidate) => candidate.key === update.key,
-  );
+  let benchmark = dataset.benchmarks.find((candidate) => candidate.key === update.key);
   if (!benchmark) {
     benchmark = { key: update.key, label: update.label, rows: [] };
     dataset.benchmarks.push(benchmark);
@@ -922,18 +846,12 @@ function parseRedisValue(value: unknown): unknown {
   }
 }
 
-async function upstashGet(
-  credentials: UpstashCredentials,
-  key: string,
-): Promise<unknown | null> {
-  const response = await fetch(
-    `${credentials.url}/get/${encodeURIComponent(key)}`,
-    {
-      headers: {
-        Authorization: `Bearer ${credentials.token}`,
-      },
+async function upstashGet(credentials: UpstashCredentials, key: string): Promise<unknown | null> {
+  const response = await fetch(`${credentials.url}/get/${encodeURIComponent(key)}`, {
+    headers: {
+      Authorization: `Bearer ${credentials.token}`,
     },
-  );
+  });
 
   if (!response.ok) {
     throw new Error(
@@ -942,20 +860,14 @@ async function upstashGet(
   }
 
   const body = (await response.json()) as { result?: unknown };
-  return body.result === undefined || body.result === null
-    ? null
-    : parseRedisValue(body.result);
+  return body.result === undefined || body.result === null ? null : parseRedisValue(body.result);
 }
 
 async function upstashSetMany(
   credentials: UpstashCredentials,
   entries: Array<{ key: string; value: UiDataset }>,
 ): Promise<void> {
-  const commands = entries.map(({ key, value }) => [
-    "SET",
-    key,
-    JSON.stringify(value),
-  ]);
+  const commands = entries.map(({ key, value }) => ["SET", key, JSON.stringify(value)]);
   const response = await fetch(`${credentials.url}/pipeline`, {
     method: "POST",
     headers: {
@@ -966,9 +878,7 @@ async function upstashSetMany(
   });
 
   if (!response.ok) {
-    throw new Error(
-      `Upstash pipeline failed (${response.status}): ${await response.text()}`,
-    );
+    throw new Error(`Upstash pipeline failed (${response.status}): ${await response.text()}`);
   }
 }
 
@@ -996,9 +906,7 @@ async function main(): Promise<void> {
   const now = Date.now();
   const merged = upsertResult(existing, update, args.datasetId, now);
   const keys = [args.key];
-  const writes: Array<{ key: string; value: UiDataset }> = [
-    { key: args.key, value: merged },
-  ];
+  const writes: Array<{ key: string; value: UiDataset }> = [{ key: args.key, value: merged }];
 
   if (args.writeExperimentKey) {
     const experimentKey = `${args.experimentKeyPrefix}:${update.experimentId}`;

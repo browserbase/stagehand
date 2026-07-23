@@ -8,12 +8,7 @@ import path from "node:path";
 const exec = promisify(execFile);
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const CLI_PATH = path.join(repoRoot, "packages", "evals", "cli.ts");
-const SOURCE_CONFIG = path.join(
-  repoRoot,
-  "packages",
-  "evals",
-  "evals.config.json",
-);
+const SOURCE_CONFIG = path.join(repoRoot, "packages", "evals", "evals.config.json");
 
 // File-level snapshot/restore: any `evals run …` invocation through the
 // real CLI writes `_meta.firstRunCompletedAt` into the source config
@@ -27,9 +22,7 @@ afterAll(() => {
   fs.writeFileSync(SOURCE_CONFIG, __fileLevelConfigSnapshot);
 });
 
-async function runCli(
-  args: string[],
-): Promise<{ stdout: string; stderr: string; code: number }> {
+async function runCli(args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
     const { stdout, stderr } = await exec(
       process.execPath,
@@ -188,14 +181,11 @@ describe("CLI entrypoint", () => {
     },
   ];
 
-  it.each(helpCases)(
-    "accepts $args as a help invocation",
-    async ({ args, contains }) => {
-      const { stdout, code } = await runCli(args);
-      expect(code).toBe(0);
-      expect(stdout).toContain(contains);
-    },
-  );
+  it.each(helpCases)("accepts $args as a help invocation", async ({ args, contains }) => {
+    const { stdout, code } = await runCli(args);
+    expect(code).toBe(0);
+    expect(stdout).toContain(contains);
+  });
 
   it("does not mark first-run complete for nested help invocations", async () => {
     resetSourceWelcomeMeta();
@@ -215,12 +205,7 @@ describe("CLI entrypoint", () => {
   // `config set <key> <value>` must surface a parse/value error, not silently
   // print help — otherwise `--help` would be a magical sentinel anywhere.
   it("does not swallow `--help` as a value in `config set`", async () => {
-    const { stdout, stderr, code } = await runCli([
-      "config",
-      "set",
-      "trials",
-      "--help",
-    ]);
+    const { stdout, stderr, code } = await runCli(["config", "set", "trials", "--help"]);
     expect(code).toBe(1);
     const output = stdout + stderr;
     expect(output).not.toContain("Commands:");
@@ -265,16 +250,9 @@ describe("CLI entrypoint", () => {
   });
 
   it("rejects --preview combined with --dry-run", async () => {
-    const { stdout, stderr, code } = await runCli([
-      "run",
-      "act",
-      "--dry-run",
-      "--preview",
-    ]);
+    const { stdout, stderr, code } = await runCli(["run", "act", "--dry-run", "--preview"]);
     expect(code).toBe(1);
-    expect(stdout + stderr).toContain(
-      "--preview and --dry-run are mutually exclusive",
-    );
+    expect(stdout + stderr).toContain("--preview and --dry-run are mutually exclusive");
   });
 
   it("fails fast on unknown flags instead of consuming the target", async () => {
@@ -291,23 +269,16 @@ describe("CLI entrypoint", () => {
   });
 
   it("returns a non-zero exit code for invalid targets", async () => {
-    const { stdout, stderr, code } = await runCli([
-      "run",
-      "nonexistent_eval_xyz",
-    ]);
+    const { stdout, stderr, code } = await runCli(["run", "nonexistent_eval_xyz"]);
 
     expect(code).toBe(1);
-    expect(stdout + stderr).toContain(
-      'No tasks found matching "nonexistent_eval_xyz"',
-    );
+    expect(stdout + stderr).toContain('No tasks found matching "nonexistent_eval_xyz"');
   });
 
   it("prints the source config path in source mode", async () => {
     const { stdout, code } = await runCli(["config", "path"]);
     expect(code).toBe(0);
-    expect(stdout.trim()).toBe(
-      path.join(repoRoot, "packages", "evals", "evals.config.json"),
-    );
+    expect(stdout.trim()).toBe(path.join(repoRoot, "packages", "evals", "evals.config.json"));
   });
 
   it("treats `>` as equivalent to a space separator (argv form)", async () => {
@@ -361,13 +332,7 @@ describe.sequential("core config", () => {
 
   it("persists tool via `config core set tool`", async () => {
     resetConfig();
-    const setResult = await runCli([
-      "config",
-      "core",
-      "set",
-      "tool",
-      "understudy_code",
-    ]);
+    const setResult = await runCli(["config", "core", "set", "tool", "understudy_code"]);
     expect(setResult.code).toBe(0);
     expect(setResult.stdout).toContain("Set core.tool to understudy_code");
 
@@ -379,11 +344,7 @@ describe.sequential("core config", () => {
     resetConfig();
     await runCli(["config", "core", "set", "tool", "understudy_code"]);
 
-    const { stdout, code } = await runCli([
-      "run",
-      "navigation/open",
-      "--dry-run",
-    ]);
+    const { stdout, code } = await runCli(["run", "navigation/open", "--dry-run"]);
     expect(code).toBe(0);
     const payload = JSON.parse(stdout);
     expect(payload.runOptions.coreToolSurface).toBe("understudy_code");
@@ -427,9 +388,7 @@ describe.sequential("core config", () => {
       "tool_create_browserbase",
     ]);
     expect(code).toBe(1);
-    expect(stdout + stderr).toContain(
-      'Tool "cdp_code" does not support startup',
-    );
+    expect(stdout + stderr).toContain('Tool "cdp_code" does not support startup');
   }, 30_000);
 
   it("auto-resets startup when a tool change invalidates it", async () => {
@@ -437,13 +396,7 @@ describe.sequential("core config", () => {
     // cdp_code supports tool_attach_local_cdp; browse_cli does not.
     await runCli(["config", "core", "set", "tool", "cdp_code"]);
     await runCli(["config", "core", "set", "startup", "tool_attach_local_cdp"]);
-    const { stdout, code } = await runCli([
-      "config",
-      "core",
-      "set",
-      "tool",
-      "browse_cli",
-    ]);
+    const { stdout, code } = await runCli(["config", "core", "set", "tool", "browse_cli"]);
     expect(code).toBe(0);
     expect(stdout).toContain("Resetting startup");
 

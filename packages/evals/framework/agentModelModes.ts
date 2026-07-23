@@ -1,7 +1,4 @@
-import {
-  AVAILABLE_CUA_MODELS,
-  type AgentToolMode,
-} from "@browserbasehq/stagehand";
+import { AVAILABLE_CUA_MODELS, type AgentToolMode } from "@browserbasehq/stagehand";
 
 // Mirrors packages/core/lib/v3/types/private/agent.ts. Keep this local until
 // core exposes a public model-capability helper.
@@ -18,14 +15,10 @@ export function isCuaCapableModel(modelName: string): boolean {
 }
 
 export function isHybridCapableModel(modelName: string): boolean {
-  return HYBRID_CAPABLE_MODEL_PATTERNS.some((pattern) =>
-    modelName.includes(pattern),
-  );
+  return HYBRID_CAPABLE_MODEL_PATTERNS.some((pattern) => modelName.includes(pattern));
 }
 
-export function inferDefaultStagehandAgentMode(
-  modelName: string,
-): AgentToolMode {
+export function inferDefaultStagehandAgentMode(modelName: string): AgentToolMode {
   if (isHybridCapableModel(modelName)) return "hybrid";
   if (isCuaCapableModel(modelName)) return "cua";
   return "dom";

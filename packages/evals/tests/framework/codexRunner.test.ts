@@ -19,20 +19,13 @@ const plan: ExternalHarnessTaskPlan = {
 
 describe("codex runner helpers", () => {
   it("normalizes provider-prefixed models for Codex", () => {
-    expect(normalizeCodexModel("openai/gpt-5.4-mini" as AvailableModel)).toBe(
-      "gpt-5.4-mini",
-    );
+    expect(normalizeCodexModel("openai/gpt-5.4-mini" as AvailableModel)).toBe("gpt-5.4-mini");
     expect(normalizeCodexModel("gpt-5.4" as AvailableModel)).toBe("gpt-5.4");
-    expect(normalizeCodexModel("codex/default" as AvailableModel)).toBe(
-      "gpt-5.4-mini",
-    );
+    expect(normalizeCodexModel("codex/default" as AvailableModel)).toBe("gpt-5.4-mini");
   });
 
   it("builds a browser task prompt with structured result instructions", () => {
-    const prompt = buildCodexPrompt(
-      plan,
-      "Use browse only. Discover usage with browse -h.",
-    );
+    const prompt = buildCodexPrompt(plan, "Use browse only. Discover usage with browse -h.");
 
     expect(prompt).toContain("Dataset: webvoyager");
     expect(prompt).toContain("Task ID: wv-1");
@@ -44,11 +37,7 @@ describe("codex runner helpers", () => {
   });
 
   it("parses direct JSON results", () => {
-    expect(
-      parseCodexResult(
-        '{"success":true,"summary":"done","finalAnswer":"clicked"}',
-      ),
-    ).toEqual({
+    expect(parseCodexResult('{"success":true,"summary":"done","finalAnswer":"clicked"}')).toEqual({
       success: true,
       summary: "done",
       finalAnswer: "clicked",
@@ -58,9 +47,7 @@ describe("codex runner helpers", () => {
 
   it("parses legacy EVAL_RESULT marker JSON", () => {
     expect(
-      parseCodexResult(
-        'assistant text\nEVAL_RESULT: {"success":true,"summary":"done"}',
-      ),
+      parseCodexResult('assistant text\nEVAL_RESULT: {"success":true,"summary":"done"}'),
     ).toMatchObject({
       success: true,
       summary: "done",

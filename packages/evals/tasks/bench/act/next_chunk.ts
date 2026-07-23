@@ -11,13 +11,9 @@ export default defineBenchTask(
       await v3.act("click on the all filters button");
 
       const { initialScrollTop, chunkHeight } = await page.evaluate(() => {
-        const container = document.querySelector(
-          "#advancedFilters > div",
-        ) as HTMLElement;
+        const container = document.querySelector("#advancedFilters > div") as HTMLElement;
         if (!container) {
-          console.warn(
-            "Could not find #advancedFilters > div. Returning 0 for measurements.",
-          );
+          console.warn("Could not find #advancedFilters > div. Returning 0 for measurements.");
           return { initialScrollTop: 0, chunkHeight: 0 };
         }
         return {
@@ -31,9 +27,7 @@ export default defineBenchTask(
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const newScrollTop = await page.evaluate(() => {
-        const container = document.querySelector(
-          "#advancedFilters > div",
-        ) as HTMLElement;
+        const container = document.querySelector("#advancedFilters > div") as HTMLElement;
         return container?.scrollTop ?? 0;
       });
 

@@ -40,8 +40,6 @@ describe("RubricCache", () => {
 
     await expect(cache.read(taskB)).resolves.toBeUndefined();
     await expect(cache.read(taskA)).resolves.toEqual(rubric);
-    expect(warn).toHaveBeenCalledWith(
-      "[rubric-cache] task-id mismatch for task:a; regenerating",
-    );
+    expect(warn).toHaveBeenCalledWith("[rubric-cache] task-id mismatch for task:a; regenerating");
   });
 });

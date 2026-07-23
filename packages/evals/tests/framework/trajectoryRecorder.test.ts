@@ -18,12 +18,10 @@ afterEach(async () => {
 });
 
 function makeTempDir(): Promise<string> {
-  return fs
-    .mkdtemp(path.join(os.tmpdir(), "trajectory-recorder-"))
-    .then((dir) => {
-      tempDirs.push(dir);
-      return dir;
-    });
+  return fs.mkdtemp(path.join(os.tmpdir(), "trajectory-recorder-")).then((dir) => {
+    tempDirs.push(dir);
+    return dir;
+  });
 }
 
 function makeTaskSpec(): TaskSpec {
@@ -148,12 +146,8 @@ describe("TrajectoryRecorder", () => {
       actionName: "extract",
       toolOutput: { ok: true, result: { economy: "$100", business: "$250" } },
     });
-    expect(trajectory.steps[0].probeEvidence.screenshot).toEqual(
-      probeScreenshot,
-    );
-    expect(trajectory.steps[1].probeEvidence.screenshot).toEqual(
-      probeScreenshot,
-    );
+    expect(trajectory.steps[0].probeEvidence.screenshot).toEqual(probeScreenshot);
+    expect(trajectory.steps[1].probeEvidence.screenshot).toEqual(probeScreenshot);
     expect(trajectory.steps[0].agentEvidence.modalities).toEqual(
       expect.arrayContaining([
         { type: "image", bytes: screenshot, mediaType: "image/png" },
@@ -163,18 +157,14 @@ describe("TrajectoryRecorder", () => {
     // Both actions were chosen from the same agent screenshot (one screenshot,
     // two step_finished), so the second step must carry that frame too.
     expect(trajectory.steps[1].agentEvidence.modalities).toEqual(
-      expect.arrayContaining([
-        { type: "image", bytes: screenshot, mediaType: "image/png" },
-      ]),
+      expect.arrayContaining([{ type: "image", bytes: screenshot, mediaType: "image/png" }]),
     );
     expect(trajectory.finalAnswer).toBe("Business is $150 more than economy.");
     expect(trajectory.finalObservation).toMatchObject({
       url: "https://example.com/complete",
       ariaTree: "RootWebArea\nStaticText: Complete",
     });
-    expect(trajectory.finalObservation?.screenshot).toEqual(
-      Buffer.from("final-screen"),
-    );
+    expect(trajectory.finalObservation?.screenshot).toEqual(Buffer.from("final-screen"));
   });
 
   it("persists trajectory files and evaluator results", async () => {
@@ -201,12 +191,7 @@ describe("TrajectoryRecorder", () => {
       explanation: "The task was completed.",
     });
 
-    const taskDir = path.join(
-      outputRoot,
-      "test-group",
-      "recorder-task",
-      "run-1",
-    );
+    const taskDir = path.join(outputRoot, "test-group", "recorder-task", "run-1");
     await expect(fs.readdir(taskDir)).resolves.toEqual(
       expect.arrayContaining([
         "core.log",
@@ -217,45 +202,35 @@ describe("TrajectoryRecorder", () => {
         "trajectory.json",
       ]),
     );
-    await expect(
-      fs.readFile(path.join(taskDir, "screenshots", "probe", "1.png")),
-    ).resolves.toEqual(screenshot);
+    await expect(fs.readFile(path.join(taskDir, "screenshots", "probe", "1.png"))).resolves.toEqual(
+      screenshot,
+    );
     await expect(
       fs.readFile(path.join(taskDir, "screenshots", "probe", "final.png")),
     ).resolves.toEqual(Buffer.from("final-screen"));
-    await expect(
-      fs.readFile(path.join(taskDir, "screenshots", "agent", "1.png")),
-    ).resolves.toEqual(screenshot);
+    await expect(fs.readFile(path.join(taskDir, "screenshots", "agent", "1.png"))).resolves.toEqual(
+      screenshot,
+    );
     await expect(
       fs.readFile(path.join(taskDir, "scores", "result.json"), "utf8"),
     ).resolves.toContain('"outcomeSuccess": true');
 
-    const trajectory = JSON.parse(
-      await fs.readFile(path.join(taskDir, "trajectory.json"), "utf8"),
-    );
-    expect(trajectory.steps[0].probeEvidence.screenshotPath).toBe(
-      "screenshots/probe/1.png",
-    );
-    expect(trajectory.finalObservation.screenshotPath).toBe(
-      "screenshots/probe/final.png",
-    );
+    const trajectory = JSON.parse(await fs.readFile(path.join(taskDir, "trajectory.json"), "utf8"));
+    expect(trajectory.steps[0].probeEvidence.screenshotPath).toBe("screenshots/probe/1.png");
+    expect(trajectory.finalObservation.screenshotPath).toBe("screenshots/probe/final.png");
     expect(trajectory.steps[0].agentEvidence.modalities).toContainEqual({
       type: "image",
       imagePath: "screenshots/agent/1.png",
       mediaType: "image/png",
     });
 
-    const taskData = JSON.parse(
-      await fs.readFile(path.join(taskDir, "task_data.json"), "utf8"),
-    );
+    const taskData = JSON.parse(await fs.readFile(path.join(taskDir, "task_data.json"), "utf8"));
     expect(taskData.result).toMatchObject({
       outcomeSuccess: true,
       explanation: "The task was completed.",
     });
 
-    const metadata = JSON.parse(
-      await fs.readFile(path.join(taskDir, "metadata.json"), "utf8"),
-    );
+    const metadata = JSON.parse(await fs.readFile(path.join(taskDir, "metadata.json"), "utf8"));
     expect(metadata.attempt).toBe(1);
   });
 
@@ -295,9 +270,7 @@ describe("TrajectoryRecorder", () => {
       fs.readFile(path.join(secondDir, "screenshots", "agent", "1.png")),
     ).resolves.toEqual(Buffer.from("second"));
 
-    const secondMeta = JSON.parse(
-      await fs.readFile(path.join(secondDir, "metadata.json"), "utf8"),
-    );
+    const secondMeta = JSON.parse(await fs.readFile(path.join(secondDir, "metadata.json"), "utf8"));
     expect(secondMeta.attempt).toBe(2);
     expect(secondMeta.runDir).toBe("run-1-2");
   });
@@ -350,9 +323,7 @@ describe("TrajectoryRecorder", () => {
     await expect(fs.readdir(runDir)).resolves.toEqual(
       expect.arrayContaining(["trajectory.json", "scores"]),
     );
-    await expect(fs.readdir(path.join(runDir, "scores"))).resolves.toEqual([
-      "result.json",
-    ]);
+    await expect(fs.readdir(path.join(runDir, "scores"))).resolves.toEqual(["result.json"]);
   });
 
   it("persistResult() before finish() keeps the score (result persistence is order-free)", async () => {
@@ -374,29 +345,19 @@ describe("TrajectoryRecorder", () => {
     });
     await recorder.finish({ status: "complete" });
 
-    const runDir = path.join(
-      outputRoot,
-      "test-group",
-      "recorder-task",
-      "run-1",
-    );
+    const runDir = path.join(outputRoot, "test-group", "recorder-task", "run-1");
     // The score written BEFORE finish() must survive finish().
     await expect(
       fs.readFile(path.join(runDir, "scores", "result.json"), "utf8"),
     ).resolves.toContain('"outcomeSuccess": true');
     // ...and the trajectory files must still all be there.
     await expect(fs.readdir(runDir)).resolves.toEqual(
-      expect.arrayContaining([
-        "metadata.json",
-        "scores",
-        "task_data.json",
-        "trajectory.json",
-      ]),
+      expect.arrayContaining(["metadata.json", "scores", "task_data.json", "trajectory.json"]),
     );
     // Exactly one run dir: the reversed order must not split the reservation.
-    await expect(
-      fs.readdir(path.join(outputRoot, "test-group", "recorder-task")),
-    ).resolves.toEqual(["run-1"]);
+    await expect(fs.readdir(path.join(outputRoot, "test-group", "recorder-task"))).resolves.toEqual(
+      ["run-1"],
+    );
   });
 
   it("two concurrent recorders with the same runId reserve distinct dirs", async () => {
@@ -414,17 +375,11 @@ describe("TrajectoryRecorder", () => {
     };
     const [a, b] = [make(), make()];
 
-    await Promise.all([
-      a.finish({ status: "complete" }),
-      b.finish({ status: "complete" }),
-    ]);
+    await Promise.all([a.finish({ status: "complete" }), b.finish({ status: "complete" })]);
 
     expect(a.directory).not.toBe(b.directory);
     const taskDir = path.join(outputRoot, "test-group", "recorder-task");
-    await expect(fs.readdir(taskDir).then((d) => d.sort())).resolves.toEqual([
-      "run-1",
-      "run-1-2",
-    ]);
+    await expect(fs.readdir(taskDir).then((d) => d.sort())).resolves.toEqual(["run-1", "run-1-2"]);
   });
 
   it("writes under the group captured at construction, not the current env", async () => {
@@ -443,9 +398,7 @@ describe("TrajectoryRecorder", () => {
     process.env.EVAL_TRAJECTORY_GROUP = "experiment-b";
     await recorder.finish({ status: "complete" });
 
-    expect(recorder.directory).toContain(
-      path.join("experiment-a", "recorder-task"),
-    );
+    expect(recorder.directory).toContain(path.join("experiment-a", "recorder-task"));
     await expect(
       fs.readdir(path.join(outputRoot, "experiment-a", "recorder-task")),
     ).resolves.toEqual(["run-1"]);

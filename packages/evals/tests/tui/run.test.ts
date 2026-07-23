@@ -75,9 +75,7 @@ describe("deriveCategoryFilter", () => {
       }),
     ]);
 
-    expect(deriveCategoryFilter(registry, "core:navigation")).toBe(
-      "navigation",
-    );
+    expect(deriveCategoryFilter(registry, "core:navigation")).toBe("navigation");
   });
 
   it("does not treat direct suite task names as categories", () => {
@@ -215,13 +213,13 @@ describe("deriveCategoryFilter", () => {
     const payload = JSON.parse(String(log.mock.calls[0][0]));
     expect(payload.runOptions.agentModes).toEqual(["dom", "hybrid"]);
     expect(payload.matrix).toHaveLength(2);
-    expect(
-      payload.matrix.map((row: { agentMode: string }) => row.agentMode),
-    ).toEqual(["dom", "hybrid"]);
+    expect(payload.matrix.map((row: { agentMode: string }) => row.agentMode)).toEqual([
+      "dom",
+      "hybrid",
+    ]);
     expect(
       payload.matrix.map(
-        (row: { harnessConfig: { agentMode: string; isCUA: boolean } }) =>
-          row.harnessConfig,
+        (row: { harnessConfig: { agentMode: string; isCUA: boolean } }) => row.harnessConfig,
       ),
     ).toEqual([
       expect.objectContaining({ agentMode: "dom", isCUA: false }),
@@ -456,16 +454,10 @@ describe("deriveCategoryFilter", () => {
       registry,
     );
 
-    const output = log.mock.calls
-      .map(([line]) => stripAnsi(String(line)))
-      .join("\n");
+    const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
     expect(output).toContain("Running: agent");
-    expect(output).toContain(
-      "Plan: 2 tasks × 1 model × 2 modes × 4 trials = 16 runs",
-    );
-    expect(output).toContain(
-      "Env: BROWSERBASE  Harness: stagehand  Concurrency: 25",
-    );
+    expect(output).toContain("Plan: 2 tasks × 1 model × 2 modes × 4 trials = 16 runs");
+    expect(output).toContain("Env: BROWSERBASE  Harness: stagehand  Concurrency: 25");
     expect(runEvalsMock).toHaveBeenCalledOnce();
   });
 });
@@ -501,9 +493,7 @@ describe("buildCombinations (preview column-pruning)", () => {
     expect(columns).toEqual(["category"]);
     // 2 unique categories → 2 combinations.
     expect(rows).toHaveLength(2);
-    const counts = Object.fromEntries(
-      rows.map((r) => [String(r.values.category), r.runs]),
-    );
+    const counts = Object.fromEntries(rows.map((r) => [String(r.values.category), r.runs]));
     expect(counts).toEqual({ actions: 2, tabs: 1 });
   });
 

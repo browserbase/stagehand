@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/");
 
       const observations = await v3.observe("find the main header of the page");
 
@@ -42,9 +40,7 @@ export default defineBenchTask(
 
       for (const observation of observations) {
         try {
-          const obsId = await page
-            .locator(observation.selector)
-            .backendNodeId();
+          const obsId = await page.locator(observation.selector).backendNodeId();
           for (const [candSel, candId] of candidateIds) {
             if (candId === obsId) {
               foundMatch = true;

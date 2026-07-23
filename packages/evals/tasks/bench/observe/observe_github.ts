@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/github/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/github/");
 
       const observations = await v3.observe(
         "find the scrollable element that holds the repos file tree.",
@@ -51,9 +49,7 @@ export default defineBenchTask(
 
       for (const observation of observations) {
         try {
-          const obsId = await page
-            .locator(observation.selector)
-            .backendNodeId();
+          const obsId = await page.locator(observation.selector).backendNodeId();
           for (const [candSel, candId] of candidateIds) {
             if (candId === obsId) {
               foundMatch = true;

@@ -6,9 +6,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/zillow/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/zillow/");
 
       const real_estate_listings = await v3.extract(
         "Extract EACH AND EVERY HOME PRICE AND ADDRESS ON THE PAGE. DO NOT MISS ANY OF THEM.",

@@ -25,8 +25,7 @@ export default defineBenchTask(
       const extractedNumber = parseInt(total_results.replace(/[^\d]/g, ""), 10);
 
       const isWithinRange =
-        extractedNumber >= expectedNumber - 1000 &&
-        extractedNumber <= expectedNumber + 1000;
+        extractedNumber >= expectedNumber - 1000 && extractedNumber <= expectedNumber + 1000;
 
       if (!isWithinRange) {
         logger.error({

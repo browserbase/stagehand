@@ -7,11 +7,8 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/hamilton-weather/",
-      );
-      const xpath =
-        "/html/body[1]/div[5]/main[1]/article[1]/div[6]/div[2]/div[1]/table[1]";
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/hamilton-weather/");
+      const xpath = "/html/body[1]/div[5]/main[1]/article[1]/div[6]/div[2]/div[1]/table[1]";
 
       const weatherData = await v3.extract(
         "extract the weather data for Sun, Feb 23 at 11PM",
@@ -38,30 +35,17 @@ export default defineBenchTask(
 
       // Check that every field matches the expected value
       const isWeatherCorrect =
-        compareStrings(
-          weatherData.temperature,
-          expectedWeatherData.temperature,
-          0.9,
-        ).meetsThreshold &&
+        compareStrings(weatherData.temperature, expectedWeatherData.temperature, 0.9)
+          .meetsThreshold &&
         compareStrings(
           weatherData.weather_description,
           expectedWeatherData.weather_description,
           0.9,
         ).meetsThreshold &&
-        compareStrings(weatherData.wind, expectedWeatherData.wind, 0.9)
-          .meetsThreshold &&
-        compareStrings(weatherData.humidity, expectedWeatherData.humidity, 0.9)
-          .meetsThreshold &&
-        compareStrings(
-          weatherData.barometer,
-          expectedWeatherData.barometer,
-          0.9,
-        ).meetsThreshold &&
-        compareStrings(
-          weatherData.visibility,
-          expectedWeatherData.visibility,
-          0.9,
-        ).meetsThreshold;
+        compareStrings(weatherData.wind, expectedWeatherData.wind, 0.9).meetsThreshold &&
+        compareStrings(weatherData.humidity, expectedWeatherData.humidity, 0.9).meetsThreshold &&
+        compareStrings(weatherData.barometer, expectedWeatherData.barometer, 0.9).meetsThreshold &&
+        compareStrings(weatherData.visibility, expectedWeatherData.visibility, 0.9).meetsThreshold;
 
       return {
         _success: isWeatherCorrect,

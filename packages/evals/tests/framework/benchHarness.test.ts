@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  claudeCodeHarness,
-  codexHarness,
-  getBenchHarness,
-} from "../../framework/benchHarness.js";
+import { claudeCodeHarness, codexHarness, getBenchHarness } from "../../framework/benchHarness.js";
 
 describe("bench harness registry", () => {
   it("registers claude_code as a concrete executable harness", () => {

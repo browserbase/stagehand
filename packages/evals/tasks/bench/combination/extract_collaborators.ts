@@ -16,29 +16,19 @@ export default defineBenchTask(
         z.object({
           contributors: z.array(
             z.object({
-              github_username: z
-                .string()
-                .describe("the github username of the contributor"),
+              github_username: z.string().describe("the github username of the contributor"),
               commits: z.number().describe("number of commits contributed"),
             }),
           ),
         }),
       );
 
-      const EXPECTED_CONTRIBUTORS = [
-        "zpao",
-        "gaearon",
-        "sebmarkbage",
-        "acdlite",
-        "sophiebits",
-      ];
+      const EXPECTED_CONTRIBUTORS = ["zpao", "gaearon", "sebmarkbage", "acdlite", "sophiebits"];
       return {
         _success:
           contributors.length === EXPECTED_CONTRIBUTORS.length &&
           contributors.every(
-            (c, i) =>
-              EXPECTED_CONTRIBUTORS[i] === c.github_username &&
-              c.commits >= 1000,
+            (c, i) => EXPECTED_CONTRIBUTORS[i] === c.github_username && c.commits >= 1000,
           ),
         contributors,
         debugUrl,

@@ -145,10 +145,7 @@ function parsePositiveInteger(raw: string, optionName: string): number {
   return parsed;
 }
 
-function normalizeEnvironment(
-  raw: string,
-  source: string,
-): "local" | "browserbase" {
+function normalizeEnvironment(raw: string, source: string): "local" | "browserbase" {
   const normalized = raw.toLowerCase();
   if (normalized !== "local" && normalized !== "browserbase") {
     throw new Error(`${source} must be "local" or "browserbase"`);
@@ -194,10 +191,7 @@ function parseFilter(raw: string): [string, string] {
   return [key, value];
 }
 
-function readPositiveInteger(
-  value: number | undefined | null,
-  source: string,
-): number | undefined {
+function readPositiveInteger(value: number | undefined | null, source: string): number | undefined {
   if (value === undefined || value === null) return undefined;
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${source} must be a positive integer`);
@@ -283,9 +277,7 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         case "success": {
           const v = value.toLowerCase() as SuccessMode;
           if (!SUCCESS_MODES.has(v)) {
-            throw new Error(
-              `--success must be one of: outcome, process, both (got "${value}")`,
-            );
+            throw new Error(`--success must be one of: outcome, process, both (got "${value}")`);
           }
           flags.success = v;
           break;
@@ -354,10 +346,7 @@ export function applyBenchmarkShorthand(
     }
   }
 
-  if (
-    !SUPPORTED_BENCHMARKS.has(benchmarkName) &&
-    !LEGACY_ONLY_BENCHMARKS.has(benchmarkName)
-  ) {
+  if (!SUPPORTED_BENCHMARKS.has(benchmarkName) && !LEGACY_ONLY_BENCHMARKS.has(benchmarkName)) {
     throw new Error(
       `Unknown benchmark "${benchmarkName}". Supported: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
     );
@@ -405,11 +394,7 @@ export function resolveRunOptions(
   };
 
   const rawEnv =
-    flags.env ??
-    env.STAGEHAND_BROWSER_TARGET ??
-    defaults.env ??
-    env.EVAL_ENV ??
-    "local";
+    flags.env ?? env.STAGEHAND_BROWSER_TARGET ?? defaults.env ?? env.EVAL_ENV ?? "local";
   const envLower = normalizeEnvironment(rawEnv, "Environment");
   const environment = envLower === "browserbase" ? "BROWSERBASE" : "LOCAL";
 
@@ -419,12 +404,9 @@ export function resolveRunOptions(
     envOverrides,
   } = applyBenchmarkShorthand(flags.target, flags);
 
-  const model =
-    flags.model ?? defaults.model ?? env.EVAL_MODEL_OVERRIDE ?? undefined;
-  const provider =
-    flags.provider ?? defaults.provider ?? env.EVAL_PROVIDER ?? undefined;
-  const useApi =
-    flags.api ?? defaults.api ?? (env.USE_API ?? "").toLowerCase() === "true";
+  const model = flags.model ?? defaults.model ?? env.EVAL_MODEL_OVERRIDE ?? undefined;
+  const provider = flags.provider ?? defaults.provider ?? env.EVAL_PROVIDER ?? undefined;
+  const useApi = flags.api ?? defaults.api ?? (env.USE_API ?? "").toLowerCase() === "true";
   const trials =
     flags.trials ??
     readPositiveInteger(defaults.trials, "defaults.trials") ??
@@ -438,12 +420,8 @@ export function resolveRunOptions(
 
   const datasetFilter = shorthandDatasetFilter ?? env.EVAL_DATASET ?? undefined;
   const harness = parseBenchHarness(flags.harness ?? DEFAULT_BENCH_HARNESS);
-  const agentMode = flags.agentMode
-    ? normalizeAgentMode(flags.agentMode)
-    : undefined;
-  const agentModes = agentMode
-    ? undefined
-    : (flags.agentModes ?? defaults.agentModes ?? undefined);
+  const agentMode = flags.agentMode ? normalizeAgentMode(flags.agentMode) : undefined;
+  const agentModes = agentMode ? undefined : (flags.agentModes ?? defaults.agentModes ?? undefined);
 
   envOverrides.EVAL_ENV = environment;
   envOverrides.USE_API = String(Boolean(useApi));
@@ -461,9 +439,7 @@ export function resolveRunOptions(
   const envSuccess = (env.EVAL_SUCCESS_MODE ?? "").toLowerCase();
   const successMode: SuccessMode =
     flags.success ??
-    (SUCCESS_MODES.has(envSuccess as SuccessMode)
-      ? (envSuccess as SuccessMode)
-      : "outcome");
+    (SUCCESS_MODES.has(envSuccess as SuccessMode) ? (envSuccess as SuccessMode) : "outcome");
   envOverrides.EVAL_SUCCESS_MODE = successMode;
 
   return {
@@ -513,9 +489,7 @@ export async function withEnvOverrides<T>(
 ): Promise<T> {
   // Restore the run-stamped keys too, not just the ones we set: otherwise a run's
   // trajectory group survives the command that created it.
-  const keys = [
-    ...new Set([...Object.keys(overrides), ...RUN_STAMPED_ENV_KEYS]),
-  ];
+  const keys = [...new Set([...Object.keys(overrides), ...RUN_STAMPED_ENV_KEYS])];
   const previous: Record<string, string | undefined> = {};
   for (const key of keys) {
     previous[key] = process.env[key];

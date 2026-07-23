@@ -156,9 +156,7 @@ export async function reserveTrajectoryDir(
       // Dir is taken by a previous/concurrent run — try the next suffix.
     }
   }
-  throw new Error(
-    `reserveTrajectoryDir: exhausted ${MAX_ATTEMPTS} attempts for ${base}`,
-  );
+  throw new Error(`reserveTrajectoryDir: exhausted ${MAX_ATTEMPTS} attempts for ${base}`);
 }
 
 /**
@@ -167,10 +165,7 @@ export async function reserveTrajectoryDir(
  * entrypoint writes the experiment link to the same place tasks write to.
  */
 export function resolveTrajectoryRoot(): string {
-  return (
-    process.env.EVAL_TRAJECTORY_ROOT ||
-    path.join(process.cwd(), ".trajectories")
-  );
+  return process.env.EVAL_TRAJECTORY_ROOT || path.join(process.cwd(), ".trajectories");
 }
 
 /** True when `dir` exists and is a directory. Never throws. */
@@ -206,10 +201,7 @@ export async function writeExperimentLink(
   try {
     // Deliberately NOT mkdir — see the doc comment.
     if (!(await isDirectory(dir))) return;
-    await fs.writeFile(
-      path.join(dir, "experiment.json"),
-      JSON.stringify(payload, null, 2),
-    );
+    await fs.writeFile(path.join(dir, "experiment.json"), JSON.stringify(payload, null, 2));
   } catch {
     // Cross-link is auxiliary; never fail a run over it.
   }
@@ -242,10 +234,7 @@ export async function writeTrajectoryMetadata(
   if (Object.keys(meta).length === 0) return;
   try {
     await fs.mkdir(directory, { recursive: true });
-    await fs.writeFile(
-      path.join(directory, "metadata.json"),
-      JSON.stringify(meta, null, 2),
-    );
+    await fs.writeFile(path.join(directory, "metadata.json"), JSON.stringify(meta, null, 2));
   } catch {
     // Metadata is auxiliary; never fail a run over it.
   }

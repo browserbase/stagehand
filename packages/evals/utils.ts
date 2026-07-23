@@ -58,10 +58,7 @@ export function compareStrings(
   expected: string,
   similarityThreshold: number = 0.85,
 ): { similarity: number; meetsThreshold: boolean } {
-  const similarity = jaroWinkler.similarity(
-    normalizeString(actual),
-    normalizeString(expected),
-  );
+  const similarity = jaroWinkler.similarity(normalizeString(actual), normalizeString(expected));
   return {
     similarity,
     meetsThreshold: similarity >= similarityThreshold,
@@ -104,10 +101,7 @@ export function generateExperimentName({
 
 function clipLogLine(line: string): string {
   const terminalWidth = process.stdout.columns;
-  const maxWidth =
-    typeof terminalWidth === "number" && terminalWidth > 8
-      ? terminalWidth - 1
-      : 119;
+  const maxWidth = typeof terminalWidth === "number" && terminalWidth > 8 ? terminalWidth - 1 : 119;
 
   if (line.length <= maxWidth) {
     return line;
@@ -145,10 +139,7 @@ export function logLineToString(logLine: LogLine): string {
   }
 }
 
-export function dedent(
-  strings: TemplateStringsArray,
-  ...values: unknown[]
-): string {
+export function dedent(strings: TemplateStringsArray, ...values: unknown[]): string {
   // Interleave raw strings with substitution values
   const raw = strings.raw;
   let result = "";

@@ -6,9 +6,7 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/");
 
       const extraction = await v3.extract(
         "extract the link to the 'contact us' page",

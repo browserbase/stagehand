@@ -6,9 +6,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/");
       await new Promise((resolve) => setTimeout(resolve, 5000));
       const result = await v3.extract(
         "Extract the part number of all the coolant and antifreeze products in the 'economy' category. " +
@@ -23,13 +21,7 @@ export default defineBenchTask(
       );
 
       const coolantProducts = result.coolant_products;
-      const expectedPartNumbers = [
-        "GREEN5050GAL",
-        "719009",
-        "AF3300",
-        "AF3100",
-        "MV5050GAL",
-      ];
+      const expectedPartNumbers = ["GREEN5050GAL", "719009", "AF3300", "AF3100", "MV5050GAL"];
       const expectedLength = expectedPartNumbers.length;
 
       if (coolantProducts.length !== expectedLength) {
@@ -57,8 +49,7 @@ export default defineBenchTask(
       }
 
       const missingParts = expectedPartNumbers.filter(
-        (expectedPart) =>
-          !coolantProducts.some((p) => p.part_number === expectedPart),
+        (expectedPart) => !coolantProducts.some((p) => p.part_number === expectedPart),
       );
 
       if (missingParts.length > 0) {

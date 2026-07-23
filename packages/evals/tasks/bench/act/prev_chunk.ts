@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
       await new Promise((resolve) => setTimeout(resolve, 2000));
       const { initialScrollTop, chunkHeight } = await page.evaluate(() => {
         const halfPage = document.body.scrollHeight / 2;

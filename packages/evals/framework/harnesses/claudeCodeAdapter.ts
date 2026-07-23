@@ -23,11 +23,7 @@
  *     steps we have. The verifier flags evidence_insufficient on criteria it
  *     can't ground.
  */
-import type {
-  ProbeEvidence,
-  TaskSpec,
-  Trajectory,
-} from "@browserbasehq/stagehand";
+import type { ProbeEvidence, TaskSpec, Trajectory } from "@browserbasehq/stagehand";
 import {
   buildTrajectory,
   type NormalizedToolCall,
@@ -66,13 +62,8 @@ interface ToolResultBlock {
   isError: boolean;
 }
 
-export class ClaudeCodeTrajectoryAdapter
-  implements TrajectoryAdapter<ClaudeCodeRunResult>
-{
-  fromHarnessResult(
-    result: ClaudeCodeRunResult,
-    taskSpec: TaskSpec,
-  ): Trajectory {
+export class ClaudeCodeTrajectoryAdapter implements TrajectoryAdapter<ClaudeCodeRunResult> {
+  fromHarnessResult(result: ClaudeCodeRunResult, taskSpec: TaskSpec): Trajectory {
     const toolUses: ToolUseBlock[] = [];
     const toolResults = new Map<string, ToolResultBlock>();
     const trailingTextParts: string[] = [];
@@ -112,9 +103,7 @@ export class ClaudeCodeTrajectoryAdapter
           if (blockType === "tool_use") {
             const id = typeof block.id === "string" ? block.id : "";
             const name = typeof block.name === "string" ? block.name : "tool";
-            const input = isRecord(block.input)
-              ? (block.input as Record<string, unknown>)
-              : {};
+            const input = isRecord(block.input) ? (block.input as Record<string, unknown>) : {};
             toolUses.push({
               id,
               name,
@@ -137,8 +126,7 @@ export class ClaudeCodeTrajectoryAdapter
           if (!isRecord(block)) continue;
           const blockType = String(block.type ?? "");
           if (blockType !== "tool_result") continue;
-          const toolUseId =
-            typeof block.tool_use_id === "string" ? block.tool_use_id : "";
+          const toolUseId = typeof block.tool_use_id === "string" ? block.tool_use_id : "";
           const isError = block.is_error === true;
           const { text, raw, images } = extractToolResultContent(block.content);
           toolResults.set(toolUseId, {
@@ -156,8 +144,7 @@ export class ClaudeCodeTrajectoryAdapter
     const toolCalls: NormalizedToolCall[] = toolUses.map((use) => {
       const matched = toolResults.get(use.id);
       const ok = matched ? !matched.isError : true;
-      const resultPayload =
-        matched?.raw !== undefined ? matched.raw : (matched?.text ?? "");
+      const resultPayload = matched?.raw !== undefined ? matched.raw : (matched?.text ?? "");
       return {
         name: use.name,
         args: use.input,
@@ -171,9 +158,7 @@ export class ClaudeCodeTrajectoryAdapter
 
     const trailing = trailingTextParts.join("\n").trim();
     const finalAnswer =
-      result.finalAnswer ??
-      resultMessageText ??
-      (trailing.length > 0 ? trailing : undefined);
+      result.finalAnswer ?? resultMessageText ?? (trailing.length > 0 ? trailing : undefined);
 
     // Anchor the closing frame with the most recent screenshot the agent
     // captured. Claude Code doesn't run a post-task probe, so the last
@@ -259,13 +244,8 @@ function decodeAnthropicImageBlock(
   const source = block.source;
   if (!isRecord(source)) return undefined;
   // Base64 source: { type: "base64", media_type, data }
-  if (
-    source.type === "base64" &&
-    typeof source.data === "string" &&
-    source.data.length > 0
-  ) {
-    const mediaType =
-      typeof source.media_type === "string" ? source.media_type : "image/png";
+  if (source.type === "base64" && typeof source.data === "string" && source.data.length > 0) {
+    const mediaType = typeof source.media_type === "string" ? source.media_type : "image/png";
     try {
       return { bytes: Buffer.from(source.data, "base64"), mediaType };
     } catch {

@@ -57,11 +57,7 @@ function makeTempEntryDir(defaults?: Record<string, unknown>): string {
   tempDirs.push(dir);
   fs.writeFileSync(
     path.join(dir, "evals.config.json"),
-    JSON.stringify(
-      { defaults: defaults ?? { env: "local", trials: 3 }, benchmarks: {} },
-      null,
-      2,
-    ),
+    JSON.stringify({ defaults: defaults ?? { env: "local", trials: 3 }, benchmarks: {} }, null, 2),
   );
   return dir;
 }
@@ -70,13 +66,9 @@ async function runDoctorJson(
   entryDir: string,
 ): Promise<{ exit: number; report: DoctorJsonReport }> {
   const chunks: string[] = [];
-  const spy = vi
-    .spyOn(console, "log")
-    .mockImplementation((...args: unknown[]) => {
-      chunks.push(
-        args.map((a) => (typeof a === "string" ? a : String(a))).join(" "),
-      );
-    });
+  const spy = vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+    chunks.push(args.map((a) => (typeof a === "string" ? a : String(a))).join(" "));
+  });
   let exit: number;
   try {
     exit = await handleDoctor(["--json"], entryDir);

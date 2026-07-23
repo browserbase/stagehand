@@ -49,15 +49,13 @@ export default defineBenchTask(
 
       // Check that the first entry, last entry, and total number match expectations
       const isFirstCorrect =
-        JSON.stringify(allotteeList[0]) ===
-        JSON.stringify(allottees_expected_first);
+        JSON.stringify(allotteeList[0]) === JSON.stringify(allottees_expected_first);
       const isLastCorrect =
         JSON.stringify(allotteeList[allotteeList.length - 1]) ===
         JSON.stringify(allottees_expected_last);
       const isLengthCorrect = allotteeList.length === expected_length;
 
-      const isRegulationsCorrect =
-        isFirstCorrect && isLastCorrect && isLengthCorrect;
+      const isRegulationsCorrect = isFirstCorrect && isLastCorrect && isLengthCorrect;
 
       return {
         _success: isRegulationsCorrect,

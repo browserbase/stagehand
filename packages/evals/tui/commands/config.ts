@@ -93,12 +93,7 @@ export function readConfig(entryDir: string): ConfigFile {
       _meta: raw._meta ?? undefined,
     };
   } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
       throw new Error(`Missing config file: ${configPath}`, { cause: error });
     }
 
@@ -134,17 +129,11 @@ export function printConfig(entryDir: string): void {
   console.log(`    ${cyan("verbose")}      ${defaults.verbose ?? false}`);
   console.log(
     `    ${cyan("agentModes")}   ${
-      defaults.agentModes?.length
-        ? defaults.agentModes.join(",")
-        : gray("(default per model)")
+      defaults.agentModes?.length ? defaults.agentModes.join(",") : gray("(default per model)")
     }`,
   );
-  console.log(
-    `    ${cyan("model")}        ${defaults.model ?? gray("(default per category)")}`,
-  );
-  console.log(
-    `    ${cyan("provider")}     ${defaults.provider ?? gray("(all)")}`,
-  );
+  console.log(`    ${cyan("model")}        ${defaults.model ?? gray("(default per category)")}`);
+  console.log(`    ${cyan("provider")}     ${defaults.provider ?? gray("(all)")}`);
 
   const env = process.env;
   const overrides: string[] = [];
@@ -165,10 +154,7 @@ export function printConfig(entryDir: string): void {
   console.log("");
 }
 
-export async function handleConfig(
-  args: string[],
-  entryDir: string,
-): Promise<void> {
+export async function handleConfig(args: string[], entryDir: string): Promise<void> {
   if (args.length === 0) {
     printConfig(entryDir);
     return;
@@ -293,9 +279,7 @@ function parseValue(
     try {
       return parseAgentModes(raw);
     } catch (error) {
-      console.error(
-        red(error instanceof Error ? `  ${error.message}` : String(error)),
-      );
+      console.error(red(error instanceof Error ? `  ${error.message}` : String(error)));
       return parseError;
     }
   }

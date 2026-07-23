@@ -32,9 +32,7 @@ const readEvalSummary = (summaryPath: string): EvalSummary | null => {
   try {
     return JSON.parse(fs.readFileSync(summaryPath, "utf8")) as EvalSummary;
   } catch (error) {
-    console.warn(
-      `Failed to parse eval summary at ${summaryPath}: ${String(error)}`,
-    );
+    console.warn(`Failed to parse eval summary at ${summaryPath}: ${String(error)}`);
     return null;
   }
 };
@@ -47,11 +45,7 @@ const escapeXml = (value: string) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&apos;");
 
-const writeEvalJunit = (
-  summaryPath: string,
-  outputPath: string,
-  category: string,
-) => {
+const writeEvalJunit = (summaryPath: string, outputPath: string, category: string) => {
   const summary = readEvalSummary(summaryPath);
   const passed = summary?.passed ?? [];
   const failed = summary?.failed ?? [];
@@ -95,11 +89,7 @@ const writeEvalJunit = (
   fs.writeFileSync(outputPath, xml);
 };
 
-const writeEvalCtrf = (
-  summaryPath: string,
-  outputPath: string,
-  category: string,
-) => {
+const writeEvalCtrf = (summaryPath: string, outputPath: string, category: string) => {
   const timestamp = new Date().toISOString();
   const summary = readEvalSummary(summaryPath);
   if (summary) {
@@ -178,8 +168,7 @@ const inferRuntimeFromPath = (value: string) => {
   return null;
 };
 const inferRuntimeFromExecution = () =>
-  inferRuntimeFromPath(getCurrentFilePath()) ??
-  inferRuntimeFromPath(process.cwd());
+  inferRuntimeFromPath(getCurrentFilePath()) ?? inferRuntimeFromPath(process.cwd());
 const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 const listRequested = rawArgs.includes("--list");
 const stripCliArg = (values: string[]) => {
@@ -234,9 +223,7 @@ if (
 }
 
 const runtime: Runtime =
-  (strippedCli.cliPath
-    ? inferRuntimeFromPath(resolveRepoRelative(strippedCli.cliPath))
-    : null) ??
+  (strippedCli.cliPath ? inferRuntimeFromPath(resolveRepoRelative(strippedCli.cliPath)) : null) ??
   inferRuntimeFromExecution() ??
   "source";
 
@@ -264,15 +251,12 @@ if (args.includes("--help") || args.includes("-h") || args[0] === "help") {
 
 const hasRun = args[0] === "run";
 const argsAfterRun = hasRun ? args.slice(1) : args;
-const target =
-  argsAfterRun.find((arg) => !arg.startsWith("-"))?.trim() || "all";
+const target = argsAfterRun.find((arg) => !arg.startsWith("-"))?.trim() || "all";
 const safeTarget = toSafeName(target);
 const cliArgs = hasRun ? args : ["run", ...args];
 
 const baseNodeOptions = "--enable-source-maps";
-const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions]
-  .filter(Boolean)
-  .join(" ");
+const nodeOptions = [process.env.NODE_OPTIONS, baseNodeOptions].filter(Boolean).join(" ");
 
 const coverageDir = resolveRepoRelative(
   process.env.NODE_V8_COVERAGE ?? `${repoRoot}/coverage/evals/${safeTarget}`,

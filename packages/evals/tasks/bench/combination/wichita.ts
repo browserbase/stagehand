@@ -6,9 +6,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/wichita/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/wichita/");
 
       await v3.act('Click on "Show Closed/Awarded/Cancelled bids"');
 

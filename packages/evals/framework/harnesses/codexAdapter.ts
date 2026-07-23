@@ -44,9 +44,7 @@ export interface CodexRunResult {
   usage?: Partial<Trajectory["usage"]>;
 }
 
-export class CodexTrajectoryAdapter
-  implements TrajectoryAdapter<CodexRunResult>
-{
+export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult> {
   fromHarnessResult(result: CodexRunResult, taskSpec: TaskSpec): Trajectory {
     const toolCalls: NormalizedToolCall[] = [];
     let pendingReasoning = "";
@@ -60,9 +58,7 @@ export class CodexTrajectoryAdapter
       const itemType = String(item.type ?? "");
 
       if (itemType === "reasoning" && typeof item.text === "string") {
-        pendingReasoning = pendingReasoning
-          ? `${pendingReasoning}\n${item.text}`
-          : item.text;
+        pendingReasoning = pendingReasoning ? `${pendingReasoning}\n${item.text}` : item.text;
         continue;
       }
 
@@ -101,12 +97,10 @@ function normalizeItem(
 ): NormalizedToolCall | undefined {
   if (itemType === "command_execution") {
     const command = typeof item.command === "string" ? item.command : "";
-    const exitCode =
-      typeof item.exit_code === "number" ? item.exit_code : undefined;
+    const exitCode = typeof item.exit_code === "number" ? item.exit_code : undefined;
     const status = String(item.status ?? "");
     const ok = exitCode === 0 || status === "completed";
-    const output =
-      typeof item.aggregated_output === "string" ? item.aggregated_output : "";
+    const output = typeof item.aggregated_output === "string" ? item.aggregated_output : "";
     // Use the leading token as the action name (`bash`, `browse`, etc.) when
     // possible; falls back to `command_execution`.
     const leading = command.split(/\s+/, 1)[0] || "command_execution";
@@ -116,10 +110,7 @@ function normalizeItem(
       result: output,
       ok,
       ...(!ok && {
-        error:
-          exitCode !== undefined
-            ? `exit code ${exitCode}`
-            : `command status ${status}`,
+        error: exitCode !== undefined ? `exit code ${exitCode}` : `command status ${status}`,
       }),
       reasoning: reasoning || undefined,
     };
@@ -128,9 +119,7 @@ function normalizeItem(
   if (itemType === "mcp_tool_call") {
     const server = typeof item.server === "string" ? item.server : "mcp";
     const tool = typeof item.tool === "string" ? item.tool : "tool";
-    const args = isRecord(item.arguments)
-      ? (item.arguments as Record<string, unknown>)
-      : {};
+    const args = isRecord(item.arguments) ? (item.arguments as Record<string, unknown>) : {};
     const status = String(item.status ?? "");
     const ok = status !== "failed";
     const mcpResult = isRecord(item.result) ? item.result : undefined;
@@ -200,8 +189,7 @@ function normalizeItem(
   }
 
   if (itemType === "error") {
-    const message =
-      typeof item.message === "string" ? item.message : "codex error item";
+    const message = typeof item.message === "string" ? item.message : "codex error item";
     return {
       name: "error",
       args: {},

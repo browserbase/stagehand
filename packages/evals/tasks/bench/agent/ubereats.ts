@@ -2,10 +2,7 @@ import type { TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";
-import {
-  runWithVerifier,
-  evaluationResultToSuccess,
-} from "../../../framework/verifierAdapter.js";
+import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/ubereats" },
@@ -22,9 +19,7 @@ export default defineBenchTask(
         id: "agent/ubereats",
         instruction,
         initUrl,
-        precomputedRubric: adHocRubric(
-          "Did the agent make it to the login page?",
-        ),
+        precomputedRubric: adHocRubric("Did the agent make it to the login page?"),
       };
 
       const { evaluationResult, trajectoryDir } = await runWithVerifier({

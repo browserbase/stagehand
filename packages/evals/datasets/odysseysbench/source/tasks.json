@@ -175,10 +175,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Law and Government > Government",
-      "Finance > Insurance"
-    ],
+    "categories": ["Law and Government > Government", "Finance > Insurance"],
     "num_categories": 2
   },
   {
@@ -209,9 +206,7 @@
         "weight": 0.24
       }
     },
-    "categories": [
-      "Food and Drink > Cooking and Recipes"
-    ],
+    "categories": ["Food and Drink > Cooking and Recipes"],
     "num_categories": 1
   },
   {
@@ -566,10 +561,7 @@
         "weight": 0.15
       }
     },
-    "categories": [
-      "Arts & Entertainment > Books and Literature",
-      "Finance > Finance - Other"
-    ],
+    "categories": ["Arts & Entertainment > Books and Literature", "Finance > Finance - Other"],
     "num_categories": 2
   },
   {
@@ -824,10 +816,7 @@
         "weight": 0.2
       }
     },
-    "categories": [
-      "Community and Society > Philanthropy",
-      "Reference Materials > Maps"
-    ],
+    "categories": ["Community and Society > Philanthropy", "Reference Materials > Maps"],
     "num_categories": 2
   },
   {
@@ -946,10 +935,7 @@
         "weight": 0.26
       }
     },
-    "categories": [
-      "Science and Education > Math",
-      "Health > Nutrition Diets and Fitness"
-    ],
+    "categories": ["Science and Education > Math", "Health > Nutrition Diets and Fitness"],
     "num_categories": 2
   },
   {
@@ -980,9 +966,7 @@
         "weight": 0.22
       }
     },
-    "categories": [
-      "Science and Education > Education"
-    ],
+    "categories": ["Science and Education > Education"],
     "num_categories": 1
   },
   {
@@ -1291,9 +1275,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Health > Nutrition Diets and Fitness"
-    ],
+    "categories": ["Health > Nutrition Diets and Fitness"],
     "num_categories": 1
   },
   {
@@ -1437,10 +1419,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Finance > Finance - Other",
-      "Law and Government > Government"
-    ],
+    "categories": ["Finance > Finance - Other", "Law and Government > Government"],
     "num_categories": 2
   },
   {
@@ -1850,9 +1829,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Business and Consumer Services > Real Estate"
-    ],
+    "categories": ["Business and Consumer Services > Real Estate"],
     "num_categories": 1
   },
   {
@@ -1996,9 +1973,7 @@
         "weight": 0.08
       }
     },
-    "categories": [
-      "Health > Health - Other"
-    ],
+    "categories": ["Health > Health - Other"],
     "num_categories": 1
   },
   {
@@ -2123,10 +2098,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Health > Health - Other",
-      "Health > Medicine"
-    ],
+    "categories": ["Health > Health - Other", "Health > Medicine"],
     "num_categories": 2
   },
   {
@@ -2252,9 +2224,7 @@
         "weight": 0.15
       }
     },
-    "categories": [
-      "Business and Consumer Services > Real Estate"
-    ],
+    "categories": ["Business and Consumer Services > Real Estate"],
     "num_categories": 1
   },
   {
@@ -2329,10 +2299,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Law and Government > Legal",
-      "Business and Consumer Services > Real Estate"
-    ],
+    "categories": ["Law and Government > Legal", "Business and Consumer Services > Real Estate"],
     "num_categories": 2
   },
   {
@@ -2446,9 +2413,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Travel and Tourism > Accommodation and Hotels"
-    ],
+    "categories": ["Travel and Tourism > Accommodation and Hotels"],
     "num_categories": 1
   },
   {
@@ -2696,9 +2661,7 @@
         "weight": 0.08
       }
     },
-    "categories": [
-      "Community and Society > Philanthropy"
-    ],
+    "categories": ["Community and Society > Philanthropy"],
     "num_categories": 1
   },
   {
@@ -3102,9 +3065,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Science and Education > Education"
-    ],
+    "categories": ["Science and Education > Education"],
     "num_categories": 1
   },
   {
@@ -3145,9 +3106,7 @@
         "weight": 0.05
       }
     },
-    "categories": [
-      "News & Media Publishers"
-    ],
+    "categories": ["News & Media Publishers"],
     "num_categories": 1
   },
   {
@@ -3305,9 +3264,7 @@
         "weight": 0.14
       }
     },
-    "categories": [
-      "Health > Nutrition Diets and Fitness"
-    ],
+    "categories": ["Health > Nutrition Diets and Fitness"],
     "num_categories": 1
   },
   {
@@ -3589,10 +3546,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Vehicles > Makes and Models",
-      "Finance > Banking Credit and Lending"
-    ],
+    "categories": ["Vehicles > Makes and Models", "Finance > Banking Credit and Lending"],
     "num_categories": 2
   },
   {
@@ -3716,10 +3670,7 @@
         "weight": 0.18
       }
     },
-    "categories": [
-      "Sports > Baseball",
-      "Travel and Tourism > Travel and Tourism - Other"
-    ],
+    "categories": ["Sports > Baseball", "Travel and Tourism > Travel and Tourism - Other"],
     "num_categories": 2
   },
   {
@@ -3760,10 +3711,7 @@
         "weight": 0.15
       }
     },
-    "categories": [
-      "Sports > Basketball",
-      "Travel and Tourism > Travel and Tourism - Other"
-    ],
+    "categories": ["Sports > Basketball", "Travel and Tourism > Travel and Tourism - Other"],
     "num_categories": 2
   },
   {
@@ -3804,10 +3752,7 @@
         "weight": 0.14
       }
     },
-    "categories": [
-      "Sports > Baseball",
-      "Travel and Tourism > Travel and Tourism - Other"
-    ],
+    "categories": ["Sports > Baseball", "Travel and Tourism > Travel and Tourism - Other"],
     "num_categories": 2
   },
   {
@@ -3927,10 +3872,7 @@
         "weight": 0.09
       }
     },
-    "categories": [
-      "Arts & Entertainment > Music",
-      "Ecommerce & Shopping > Tickets"
-    ],
+    "categories": ["Arts & Entertainment > Music", "Ecommerce & Shopping > Tickets"],
     "num_categories": 2
   },
   {
@@ -4163,10 +4105,7 @@
         "weight": 0.08
       }
     },
-    "categories": [
-      "Science and Education > Universities and Colleges",
-      "Health > Medicine"
-    ],
+    "categories": ["Science and Education > Universities and Colleges", "Health > Medicine"],
     "num_categories": 2
   },
   {
@@ -4365,10 +4304,7 @@
         "weight": 0.15
       }
     },
-    "categories": [
-      "Sports > Baseball",
-      "Travel and Tourism > Travel and Tourism - Other"
-    ],
+    "categories": ["Sports > Baseball", "Travel and Tourism > Travel and Tourism - Other"],
     "num_categories": 2
   },
   {
@@ -4544,9 +4480,7 @@
         "weight": 0.16
       }
     },
-    "categories": [
-      "Business and Consumer Services > Moving & Relocation"
-    ],
+    "categories": ["Business and Consumer Services > Moving & Relocation"],
     "num_categories": 1
   },
   {
@@ -4651,10 +4585,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Health > Medicine",
-      "Science and Education > Science and Education - Other"
-    ],
+    "categories": ["Health > Medicine", "Science and Education > Science and Education - Other"],
     "num_categories": 2
   },
   {
@@ -4700,9 +4631,7 @@
         "weight": 0.08
       }
     },
-    "categories": [
-      "Business and Consumer Services > Real Estate"
-    ],
+    "categories": ["Business and Consumer Services > Real Estate"],
     "num_categories": 1
   },
   {
@@ -4797,9 +4726,7 @@
         "weight": 0.08
       }
     },
-    "categories": [
-      "Science and Education > Education"
-    ],
+    "categories": ["Science and Education > Education"],
     "num_categories": 1
   },
   {
@@ -4845,9 +4772,7 @@
         "weight": 0.06
       }
     },
-    "categories": [
-      "Business and Consumer Services > Real Estate"
-    ],
+    "categories": ["Business and Consumer Services > Real Estate"],
     "num_categories": 1
   },
   {
@@ -4952,10 +4877,7 @@
         "weight": 0.08
       }
     },
-    "categories": [
-      "Health > Medicine",
-      "Health > Health - Other"
-    ],
+    "categories": ["Health > Medicine", "Health > Health - Other"],
     "num_categories": 2
   },
   {
@@ -5041,10 +4963,7 @@
         "weight": 0.1
       }
     },
-    "categories": [
-      "Health > Medicine",
-      "Health > Health - Other"
-    ],
+    "categories": ["Health > Medicine", "Health > Health - Other"],
     "num_categories": 2
   },
   {
@@ -5130,10 +5049,7 @@
         "weight": 0.12
       }
     },
-    "categories": [
-      "Food and Drink > Restaurants and Delivery",
-      "Food and Drink > Beverages"
-    ],
+    "categories": ["Food and Drink > Restaurants and Delivery", "Food and Drink > Beverages"],
     "num_categories": 2
   },
   {
@@ -5174,12 +5090,10 @@
         "weight": 0.16
       }
     },
-    "categories": [
-      "Food and Drink > Cooking and Recipes"
-    ],
+    "categories": ["Food and Drink > Cooking and Recipes"],
     "num_categories": 1
   },
-{
+  {
     "confirmed_task": "I’m trying to buy a genuinely good budget suitcase for a future trip, and I don’t want a fake bargain that only looks good because one eBay listing has stars. Start on eBay with suitcase listings under $100, but then broaden into a real shopping decision: find 10 total live suitcase options under $100 from public product or listing pages across eBay and other major public retailers or marketplaces if needed, with at least 4 of the options coming from eBay. Keep this focused on actual suitcases rather than backpacks or duffels, and prefer recognizable luggage brands when they fit the budget, but include lesser-known brands too if the value looks strong. For each option, compare the visible price, estimated shipping if shown, size category, dimensions, weight, hard-side versus soft-side, wheel configuration, visible customer rating and review count, and return policy or seller/retailer protection if that is shown; if any field is missing, just mark it as not shown. I also want you to sanity-check quality instead of trusting one marketplace blindly, so for the most promising 5 options, look for the same model or a closely matching product page on another public site to verify specs or to see whether the price and review story still look good. As you work, keep the strongest 3 candidate product pages open, plus at least 2 comparison or evidence tabs that helped you rule things in or out, so I can inspect the reasoning visually. At the end, recommend exactly 1 best overall suitcase under $100, exactly 2 runner-up picks for different priorities like lowest cost or best reviews, and briefly explain the tradeoffs that made you choose them.",
     "level": "hard",
     "reference_length": 7,

@@ -4,11 +4,7 @@
  * - buildCoreContext(): starts a core tool surface, provides page + tool + assert + metrics
  * - buildBenchContext(): full V3 init with model/agent support (wraps existing initV3)
  */
-import type {
-  AvailableModel,
-  ClientOptions,
-  LLMClient,
-} from "@browserbasehq/stagehand";
+import type { AvailableModel, ClientOptions, LLMClient } from "@browserbasehq/stagehand";
 import { type V3InitResult, initV3 } from "../initV3.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { coreFixtureRoutes } from "../core/fixtures/index.js";
@@ -38,9 +34,7 @@ export function resolveDefaultCoreStartupProfile(
 ): StartupProfile {
   switch (toolSurface) {
     case "browse_cli":
-      return environment === "BROWSERBASE"
-        ? "tool_create_browserbase"
-        : "tool_launch_local";
+      return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
     case "understudy_code":
     case "playwright_code":
     case "cdp_code":
@@ -72,8 +66,7 @@ export async function buildCoreContext(
   const toolSurface = options.toolSurface ?? "understudy_code";
   const tool = getCoreTool(toolSurface);
   const startupProfile =
-    options.startupProfile ??
-    resolveDefaultCoreStartupProfile(toolSurface, environment);
+    options.startupProfile ?? resolveDefaultCoreStartupProfile(toolSurface, environment);
 
   if (!tool.supportedStartupProfiles.includes(startupProfile)) {
     throw new Error(
@@ -156,9 +149,7 @@ export interface BenchContextResult {
  * Wraps the existing initV3 logic, providing the same shape that
  * legacy EvalFunction tasks expect.
  */
-export async function buildBenchContext(
-  options: BenchContextOptions,
-): Promise<BenchContextResult> {
+export async function buildBenchContext(options: BenchContextOptions): Promise<BenchContextResult> {
   const logger = options.logger ?? new EvalLogger();
   const v3Result = await initV3({
     logger,

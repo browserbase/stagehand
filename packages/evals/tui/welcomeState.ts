@@ -11,11 +11,7 @@
  * config inherits the source marker on first build.
  */
 
-import {
-  readConfig,
-  writeConfig,
-  type WelcomeMeta,
-} from "./commands/config.js";
+import { readConfig, writeConfig, type WelcomeMeta } from "./commands/config.js";
 
 export const CURRENT_SCHEMA_VERSION = 1;
 

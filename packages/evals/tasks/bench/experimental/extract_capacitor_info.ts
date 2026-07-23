@@ -7,9 +7,7 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/capacitor/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/capacitor/");
 
       const result = await v3.extract(
         "Extract the ECCN Code, RoHS Status, and Impedance.",
@@ -52,9 +50,7 @@ export default defineBenchTask(
         };
       }
 
-      if (
-        normalizeString(RoHS_Status) !== normalizeString(expected.RoHS_Status)
-      ) {
+      if (normalizeString(RoHS_Status) !== normalizeString(expected.RoHS_Status)) {
         logger.error({
           message: "RoHS Status extracted does not match expected",
           level: 0,

@@ -17,9 +17,7 @@ export default defineBenchTask(
         z.object({
           snowshoeing_regions: z.array(
             z.object({
-              region_name: z
-                .string()
-                .describe("The name of the snowshoeing region"),
+              region_name: z.string().describe("The name of the snowshoeing region"),
               trails: z
                 .array(
                   z.object({

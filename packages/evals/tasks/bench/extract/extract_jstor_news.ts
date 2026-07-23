@@ -12,12 +12,9 @@ export default defineBenchTask(
   }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/jstor/",
-        {
-          waitUntil: "load",
-        },
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/jstor/", {
+        waitUntil: "load",
+      });
       await v3.act("close the cookie");
 
       const result = await v3.extract(
@@ -25,12 +22,8 @@ export default defineBenchTask(
         z.object({
           reports: z.array(
             z.object({
-              report_name: z
-                .string()
-                .describe("The name or title of the news report."),
-              publish_date: z
-                .string()
-                .describe("The date the news report was published."),
+              report_name: z.string().describe("The name or title of the news report."),
+              publish_date: z.string().describe("The date the news report was published."),
             }),
           ),
         }),
@@ -101,10 +94,8 @@ export default defineBenchTask(
       }
 
       const lastItemMatches =
-        reports[reports.length - 1].report_name ===
-          expectedLastItem.report_name &&
-        reports[reports.length - 1].publish_date ===
-          expectedLastItem.publish_date;
+        reports[reports.length - 1].report_name === expectedLastItem.report_name &&
+        reports[reports.length - 1].publish_date === expectedLastItem.publish_date;
 
       if (!lastItemMatches) {
         logger.error({

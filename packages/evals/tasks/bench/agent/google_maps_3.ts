@@ -2,10 +2,7 @@ import type { TaskSpec } from "@browserbasehq/stagehand";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";
-import {
-  runWithVerifier,
-  evaluationResultToSuccess,
-} from "../../../framework/verifierAdapter.js";
+import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
 export default defineBenchTask(
   { name: "agent/google_maps_3" },
@@ -15,8 +12,7 @@ export default defineBenchTask(
       const page = v3.context.pages()[0];
       await page.goto(initUrl);
 
-      const instruction =
-        "Search for locksmiths open now but not open 24 hours in Texas City.";
+      const instruction = "Search for locksmiths open now but not open 24 hours in Texas City.";
 
       const taskSpec: TaskSpec = {
         id: "agent/google_maps_3",

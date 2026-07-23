@@ -12,9 +12,7 @@ export default defineBenchTask(
 
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/");
 
       const observeResult: Action = {
         method: "click",
@@ -35,8 +33,7 @@ export default defineBenchTask(
       }
       return {
         _success: false,
-        message:
-          "unable to click element on website that blocks JS click events",
+        message: "unable to click element on website that blocks JS click events",
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

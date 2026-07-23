@@ -27,10 +27,7 @@ export type ReplOptions = {
   quiet?: boolean;
 };
 
-export async function startRepl(
-  entryDir: string,
-  options: ReplOptions = {},
-): Promise<void> {
+export async function startRepl(entryDir: string, options: ReplOptions = {}): Promise<void> {
   const quiet = options.quiet === true;
   const noWelcome = quiet || Boolean(process.env.EVALS_NO_WELCOME);
 
@@ -111,10 +108,7 @@ export async function startRepl(
   let lastEscAt = 0;
   const DOUBLE_ESC_WINDOW_MS = 1500;
 
-  const onKeypress = (
-    _str: string,
-    key: { name?: string; ctrl?: boolean } | undefined,
-  ): void => {
+  const onKeypress = (_str: string, key: { name?: string; ctrl?: boolean } | undefined): void => {
     if (!key || key.name !== "escape") return;
     if (!abortRef.current) {
       // Idle Esc: pop one level if we're inside a context.
@@ -134,9 +128,7 @@ export async function startRepl(
       abortRef.current.abort("aggressive");
     } else {
       console.log(
-        yellow(
-          "\n  ⚠ Aborting after current task… (press Esc again to abort immediately)",
-        ),
+        yellow("\n  ⚠ Aborting after current task… (press Esc again to abort immediately)"),
       );
       abortRef.current.abort("cooperative");
     }

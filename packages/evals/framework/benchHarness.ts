@@ -22,10 +22,7 @@ import {
   type PreparedClaudeCodeToolAdapter,
 } from "./claudeCodeToolAdapter.js";
 import { runCodexAgent } from "./codexRunner.js";
-import {
-  prepareCodexToolAdapter,
-  type PreparedCodexToolAdapter,
-} from "./codexToolAdapter.js";
+import { prepareCodexToolAdapter, type PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
@@ -127,14 +124,7 @@ function resolveProvider(modelName: AvailableModel): string | undefined {
 
 export const stagehandHarness: BenchHarness = {
   harness: "stagehand",
-  supportedTaskKinds: [
-    "act",
-    "extract",
-    "observe",
-    "agent",
-    "combination",
-    "suite",
-  ],
+  supportedTaskKinds: ["act", "extract", "observe", "agent", "combination", "suite"],
   supportsApi: true,
   async start({
     task,
@@ -159,9 +149,7 @@ export const stagehandHarness: BenchHarness = {
       const logFn = (line: LogLine) => logger.log(line);
       const apiKey = loadApiKeyFromEnv(provider, logFn);
       if (!apiKey) {
-        throw new EvalsError(
-          `USE_API=true but no API key found for provider "${provider}".`,
-        );
+        throw new EvalsError(`USE_API=true but no API key found for provider "${provider}".`);
       }
       const { initV3 } = await import("../initV3.js");
       v3Result = await initV3({
@@ -214,10 +202,7 @@ export const stagehandHarness: BenchHarness = {
           try {
             await v3Result.v3.close();
           } catch (closeError) {
-            console.error(
-              `Warning: Error closing V3 instance for ${input.name}:`,
-              closeError,
-            );
+            console.error(`Warning: Error closing V3 instance for ${input.name}:`, closeError);
           }
         }
         await endBrowserbaseSession(v3Result?.v3);
@@ -230,12 +215,7 @@ export const claudeCodeHarness: BenchHarness = {
   harness: "claude_code",
   supportedTaskKinds: ["agent", "suite"],
   supportsApi: false,
-  async execute({
-    input,
-    row,
-    logger,
-    signal,
-  }: BenchHarnessExecuteInput): Promise<TaskResult> {
+  async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
     const plan = buildExternalHarnessTaskPlan(input);
     if (row.config.harness !== "claude_code") {
       throw new EvalsError(
@@ -286,17 +266,10 @@ export const codexHarness: BenchHarness = {
   harness: "codex",
   supportedTaskKinds: ["agent", "suite"],
   supportsApi: false,
-  async execute({
-    input,
-    row,
-    logger,
-    signal,
-  }: BenchHarnessExecuteInput): Promise<TaskResult> {
+  async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
     const plan = buildExternalHarnessTaskPlan(input);
     if (row.config.harness !== "codex") {
-      throw new EvalsError(
-        `Expected codex harness config, received "${row.config.harness}".`,
-      );
+      throw new EvalsError(`Expected codex harness config, received "${row.config.harness}".`);
     }
     // Everything past carrier construction runs inside one try/finally so a
     // failure at any point — adapter preparation included — cleans up both

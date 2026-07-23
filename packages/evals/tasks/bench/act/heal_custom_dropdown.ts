@@ -14,9 +14,7 @@ export default defineBenchTask(
 
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/");
 
       await v3.act({
         description: "The 'Select a country' dropdown",

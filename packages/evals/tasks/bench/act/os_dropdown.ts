@@ -10,16 +10,10 @@ export default defineBenchTask(
 
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/nested-dropdown/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/nested-dropdown/");
 
-      await v3.act(
-        "choose 'Smog Check Technician' from the 'License Type' dropdown",
-      );
-      const selectedOption = await page
-        .locator("#licenseType >> option:checked")
-        .textContent();
+      await v3.act("choose 'Smog Check Technician' from the 'License Type' dropdown");
+      const selectedOption = await page.locator("#licenseType >> option:checked").textContent();
 
       if (selectedOption === "Smog Check Technician") {
         return {

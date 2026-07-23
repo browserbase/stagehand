@@ -4,11 +4,7 @@ import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
 import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
 import { buildOdysseysBenchTestcases } from "../suites/odysseysbench.js";
-import {
-  getAgentModelEntries,
-  getModelList,
-  type AgentModelEntry,
-} from "../taskConfig.js";
+import { getAgentModelEntries, getModelList, type AgentModelEntry } from "../taskConfig.js";
 import type { Testcase } from "../types/evals.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { DiscoveredTask } from "./types.js";
@@ -24,21 +20,13 @@ import {
   resolveClaudeCodeStartupProfile,
   resolveClaudeCodeToolSurface,
 } from "./claudeCodeToolAdapter.js";
-import {
-  resolveCodexStartupProfile,
-  resolveCodexToolSurface,
-} from "./codexToolAdapter.js";
-import {
-  inferDefaultStagehandAgentMode,
-  isCuaCapableModel,
-} from "./agentModelModes.js";
+import { resolveCodexStartupProfile, resolveCodexToolSurface } from "./codexToolAdapter.js";
+import { inferDefaultStagehandAgentMode, isCuaCapableModel } from "./agentModelModes.js";
 
 const DEFAULT_CLAUDE_CODE_MODELS: AvailableModel[] = [
   "anthropic/claude-sonnet-4-6" as AvailableModel,
 ];
-const DEFAULT_CODEX_MODELS: AvailableModel[] = [
-  "openai/gpt-5.4-mini" as AvailableModel,
-];
+const DEFAULT_CODEX_MODELS: AvailableModel[] = ["openai/gpt-5.4-mini" as AvailableModel];
 
 export interface BenchPlanOptions {
   environment?: "LOCAL" | "BROWSERBASE";
@@ -90,13 +78,9 @@ export function resolveBenchModelEntries(
     "categoryFilter" | "modelOverride" | "agentMode" | "agentModes" | "harness"
   >,
 ): BenchModelResolution {
-  const effectiveCategory = inferEffectiveBenchCategory(
-    benchTasks,
-    options.categoryFilter,
-  );
+  const effectiveCategory = inferEffectiveBenchCategory(benchTasks, options.categoryFilter);
   const isAgentCategory =
-    effectiveCategory === "agent" ||
-    effectiveCategory === "external_agent_benchmarks";
+    effectiveCategory === "agent" || effectiveCategory === "external_agent_benchmarks";
   const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
   const requestedAgentModes =
     harness === "stagehand" ? resolveRequestedAgentModes(options) : undefined;
@@ -105,11 +89,7 @@ export function resolveBenchModelEntries(
     const baseModes =
       isAgentCategory && requestedAgentModes
         ? requestedAgentModes
-        : [
-            harness === "stagehand"
-              ? resolveAgentModeForModel(options.modelOverride)
-              : "hybrid",
-          ];
+        : [harness === "stagehand" ? resolveAgentModeForModel(options.modelOverride) : "hybrid"];
     const modelEntries = uniqueAgentModelEntries(
       baseModes.map((mode) => ({
         modelName: options.modelOverride,
@@ -130,11 +110,7 @@ export function resolveBenchModelEntries(
     };
   }
 
-  const modelEntries = resolveDefaultModelEntries(
-    harness,
-    effectiveCategory,
-    isAgentCategory,
-  );
+  const modelEntries = resolveDefaultModelEntries(harness, effectiveCategory, isAgentCategory);
 
   return {
     effectiveCategory,
@@ -171,9 +147,7 @@ function expandAgentEntriesForRequestedModes(
   return uniqueAgentModelEntries(expanded);
 }
 
-function uniqueAgentModelEntries(
-  entries: AgentModelEntry[],
-): AgentModelEntry[] {
+function uniqueAgentModelEntries(entries: AgentModelEntry[]): AgentModelEntry[] {
   const seen = new Set<string>();
   return entries.filter((entry) => {
     const key = `${entry.modelName}:${entry.mode}`;
@@ -204,24 +178,21 @@ function resolveDefaultModelEntries(
   isAgentCategory: boolean,
 ): AgentModelEntry[] {
   if (harness === "claude_code") {
-    return readModelListEnv(
-      "EVAL_CLAUDE_CODE_MODELS",
-      DEFAULT_CLAUDE_CODE_MODELS,
-    ).map((modelName) => ({
-      modelName,
-      mode: "hybrid",
-      cua: false,
-    }));
-  }
-
-  if (harness === "codex") {
-    return readModelListEnv("EVAL_CODEX_MODELS", DEFAULT_CODEX_MODELS).map(
+    return readModelListEnv("EVAL_CLAUDE_CODE_MODELS", DEFAULT_CLAUDE_CODE_MODELS).map(
       (modelName) => ({
         modelName,
         mode: "hybrid",
         cua: false,
       }),
     );
+  }
+
+  if (harness === "codex") {
+    return readModelListEnv("EVAL_CODEX_MODELS", DEFAULT_CODEX_MODELS).map((modelName) => ({
+      modelName,
+      mode: "hybrid",
+      cua: false,
+    }));
   }
 
   return isAgentCategory
@@ -233,10 +204,7 @@ function resolveDefaultModelEntries(
       }));
 }
 
-function readModelListEnv(
-  key: string,
-  fallback: AvailableModel[],
-): AvailableModel[] {
+function readModelListEnv(key: string, fallback: AvailableModel[]): AvailableModel[] {
   const raw = process.env[key];
   if (!raw) return fallback;
   const values = raw
@@ -289,10 +257,7 @@ export function buildBenchMatrixRow(
   const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
   const environment = options.environment ?? "LOCAL";
   const useApi = Boolean(options.useApi);
-  const toolSurface = resolveBenchRowToolSurface(
-    harness,
-    options.coreToolSurface,
-  );
+  const toolSurface = resolveBenchRowToolSurface(harness, options.coreToolSurface);
   const startupProfile = resolveBenchRowStartupProfile(
     harness,
     toolSurface,
@@ -377,16 +342,9 @@ export function generateBenchTestcases(
   benchTasks: DiscoveredTask[],
   options: BenchPlanOptions,
 ): Testcase[] {
-  const { isAgentCategory, modelEntries } = resolveBenchModelEntries(
-    benchTasks,
-    options,
-  );
+  const { isAgentCategory, modelEntries } = resolveBenchModelEntries(benchTasks, options);
 
-  const suiteTestcases = generateSuiteTestcases(
-    benchTasks,
-    options,
-    modelEntries,
-  );
+  const suiteTestcases = generateSuiteTestcases(benchTasks, options, modelEntries);
   const allTestcases = [...suiteTestcases.testcases];
 
   if (options.harness === "claude_code" || options.harness === "codex") {
@@ -410,16 +368,13 @@ export function generateBenchTestcases(
         model,
         options,
         undefined,
-        isAgentCategory && rowUsesStagehand(options)
-          ? entry.mode === "cua"
-          : undefined,
+        isAgentCategory && rowUsesStagehand(options) ? entry.mode === "cua" : undefined,
         isAgentCategory && rowUsesStagehand(options)
           ? (options.agentMode ?? entry.mode)
           : undefined,
       );
       const agentMode = row.agentMode;
-      const includeStagehandAgentMode =
-        isAgentCategory && rowUsesStagehand(options) && agentMode;
+      const includeStagehandAgentMode = isAgentCategory && rowUsesStagehand(options) && agentMode;
       allTestcases.push({
         input: {
           name: task.name,
@@ -485,18 +440,10 @@ function resolveBenchRowStartupProfile(
   requested?: StartupProfile,
 ): StartupProfile | undefined {
   if (harness === "claude_code") {
-    return resolveClaudeCodeStartupProfile(
-      toolSurface ?? "browse_cli",
-      environment,
-      requested,
-    );
+    return resolveClaudeCodeStartupProfile(toolSurface ?? "browse_cli", environment, requested);
   }
   if (harness === "codex") {
-    return resolveCodexStartupProfile(
-      toolSurface ?? "browse_cli",
-      environment,
-      requested,
-    );
+    return resolveCodexStartupProfile(toolSurface ?? "browse_cli", environment, requested);
   }
   return requested;
 }
@@ -533,9 +480,7 @@ export function generateSuiteTestcases(
     if (!datasetFilter || datasetFilter === datasetName) {
       const task = remaining[idx];
       testcases.push(
-        ...builder(modelEntries).map((testcase) =>
-          withBenchMetadata(testcase, task, options),
-        ),
+        ...builder(modelEntries).map((testcase) => withBenchMetadata(testcase, task, options)),
       );
     }
     remaining.splice(idx, 1);
@@ -550,9 +495,7 @@ function withBenchMetadata(
   options: BenchPlanOptions,
 ): Testcase {
   const isStagehand = rowUsesStagehand(options);
-  const agentMode = isStagehand
-    ? (options.agentMode ?? testcase.input.agentMode)
-    : undefined;
+  const agentMode = isStagehand ? (options.agentMode ?? testcase.input.agentMode) : undefined;
   const row = buildBenchMatrixRow(
     task,
     testcase.input.modelName,
@@ -561,9 +504,7 @@ function withBenchMetadata(
     agentMode === "cua",
     agentMode,
   );
-  const tags = testcase.tags.filter(
-    (tag) => tag !== "dom" && tag !== "hybrid" && tag !== "cua",
-  );
+  const tags = testcase.tags.filter((tag) => tag !== "dom" && tag !== "hybrid" && tag !== "cua");
   if (isStagehand && agentMode) tags.push(agentMode);
   const inputWithoutStagehandMode = { ...testcase.input };
   delete inputWithoutStagehandMode.agentMode;

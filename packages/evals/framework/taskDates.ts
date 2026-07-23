@@ -15,11 +15,7 @@
  * the label because a year-less "Dec 1" would read as ~11 months in the future.
  */
 export function previousMonthFirstDayLabel(now: Date = new Date()): string {
-  const firstOfPreviousMonth = new Date(
-    now.getFullYear(),
-    now.getMonth() - 1,
-    1,
-  );
+  const firstOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   return firstOfPreviousMonth.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",

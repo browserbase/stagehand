@@ -7,9 +7,7 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/baptist-health/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/baptist-health/");
 
       const result = await v3.extract(
         "Extract the address, phone number, and fax number of the healthcare location.",
@@ -35,11 +33,7 @@ export default defineBenchTask(
         actual: string;
       }> = [];
 
-      const compareField = (
-        actualVal: string,
-        expectedVal: string,
-        fieldName: string,
-      ) => {
+      const compareField = (actualVal: string, expectedVal: string, fieldName: string) => {
         const { similarity, meetsThreshold } = compareStrings(
           actualVal,
           expectedVal,

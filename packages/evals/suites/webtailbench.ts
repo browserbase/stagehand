@@ -9,9 +9,7 @@ import {
   normalizeAgentModelEntries,
 } from "../utils.js";
 
-export const buildWebTailBenchTestcases = (
-  models: string[] | AgentModelEntry[],
-): Testcase[] => {
+export const buildWebTailBenchTestcases = (models: string[] | AgentModelEntry[]): Testcase[] => {
   const webtailbenchFilePath =
     getPackageRootDir() + "/datasets/webtailbench/WebTailBench_data.jsonl";
 
@@ -59,9 +57,7 @@ export const buildWebTailBenchTestcases = (
   let rows: WebTailBenchRow[];
   if (explicitIds && explicitIds.length > 0) {
     const byId = new Map(candidates.map((r) => [r.id, r]));
-    rows = explicitIds
-      .map((id) => byId.get(id))
-      .filter((r): r is WebTailBenchRow => Boolean(r));
+    rows = explicitIds.map((id) => byId.get(id)).filter((r): r is WebTailBenchRow => Boolean(r));
   } else {
     rows = applySampling(candidates, sampleCount, maxCases);
   }
@@ -82,8 +78,7 @@ export const buildWebTailBenchTestcases = (
           precomputed_rubric: normalizeRubric(row.precomputed_rubric),
         },
       };
-      const taskCategories =
-        tasksConfig.find((t) => t.name === input.name)?.categories || [];
+      const taskCategories = tasksConfig.find((t) => t.name === input.name)?.categories || [];
       allTestcases.push({
         input,
         name: input.name,

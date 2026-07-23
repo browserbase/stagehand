@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
       await v3.act("Scroll 50% down the page");
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -21,8 +19,7 @@ export default defineBenchTask(
       });
 
       const halfwayScroll = scrollInfo.scrollHeight / 2;
-      const halfwayReached =
-        Math.abs(scrollInfo.scrollTop - halfwayScroll) <= 200;
+      const halfwayReached = Math.abs(scrollInfo.scrollTop - halfwayScroll) <= 200;
       const evaluationResult = halfwayReached
         ? {
             _success: true,

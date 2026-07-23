@@ -79,9 +79,7 @@ export async function resolveRubricTraced(
         rubric = await evaluator.generateRubric(taskSpec);
         source = "generated";
       } else {
-        const cache = new RubricCache(
-          cacheRoot ? { dataset, cacheRoot } : { dataset },
-        );
+        const cache = new RubricCache(cacheRoot ? { dataset, cacheRoot } : { dataset });
         const cached = await cache.read(taskSpec);
         if (cached) {
           rubric = cached;
@@ -239,10 +237,7 @@ export async function gradeExternalTrajectory({
       dataset: verifier.dataset,
     });
     const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
-    const verifiedSuccess = evaluationResultToSuccess(
-      evaluationResult,
-      successMode,
-    );
+    const verifiedSuccess = evaluationResultToSuccess(evaluationResult, successMode);
 
     const { directory: trajectoryDir } = await persistAdapterTrajectory({
       trajectory: hydratedTrajectory,
@@ -309,8 +304,7 @@ function stringifyVerifierError(value: unknown): string {
 export async function runWithVerifier(
   opts: RunWithVerifierOptions,
 ): Promise<RunWithVerifierResult> {
-  const { v3, agent, taskSpec, dataset, agentOptions, runId, trajectoryRoot } =
-    opts;
+  const { v3, agent, taskSpec, dataset, agentOptions, runId, trajectoryRoot } = opts;
   const evaluator = new V3Evaluator(v3, { backend: "verifier" });
 
   // ── Resolve rubric ──────────────────────────────────────────────────────
@@ -393,19 +387,13 @@ export async function runWithVerifier(
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : undefined;
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
 }
 
-function usageMetrics(
-  usage: AgentResult["usage"] | undefined,
-): Record<string, number> {
+function usageMetrics(usage: AgentResult["usage"] | undefined): Record<string, number> {
   if (!usage) return {};
   return Object.fromEntries(
-    Object.entries(usage).filter(
-      (e): e is [string, number] => typeof e[1] === "number",
-    ),
+    Object.entries(usage).filter((e): e is [string, number] => typeof e[1] === "number"),
   );
 }
 
@@ -422,11 +410,7 @@ export type EvalSuccessMode = "outcome" | "process" | "both";
 export function resolveEvalSuccessMode(mode: unknown): EvalSuccessMode {
   if (typeof mode !== "string") return "outcome";
   const normalized = mode.trim().toLowerCase();
-  if (
-    normalized === "outcome" ||
-    normalized === "process" ||
-    normalized === "both"
-  ) {
+  if (normalized === "outcome" || normalized === "process" || normalized === "both") {
     return normalized;
   }
   return "outcome";
@@ -440,8 +424,7 @@ export function evaluationResultToSuccess(
   const resolvedMode = resolveEvalSuccessMode(mode);
   const outcomeOk = result.outcomeSuccess;
   const processOk =
-    typeof result.processScore === "number" &&
-    result.processScore >= processThreshold;
+    typeof result.processScore === "number" && result.processScore >= processThreshold;
   switch (resolvedMode) {
     case "outcome":
       return outcomeOk;

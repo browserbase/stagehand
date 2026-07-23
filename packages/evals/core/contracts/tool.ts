@@ -1,20 +1,7 @@
 import type { EvalLogger } from "../../logger.js";
-import type {
-  ActionTarget,
-  FocusedTarget,
-  TargetKind,
-  WaitSpec,
-} from "./targets.js";
-import type {
-  PageRepresentation,
-  RepresentationOpts,
-} from "./representation.js";
-import type {
-  Artifact,
-  BrowserOwnership,
-  ConnectionMode,
-  EnvironmentName,
-} from "./results.js";
+import type { ActionTarget, FocusedTarget, TargetKind, WaitSpec } from "./targets.js";
+import type { PageRepresentation, RepresentationOpts } from "./representation.js";
+import type { Artifact, BrowserOwnership, ConnectionMode, EnvironmentName } from "./results.js";
 
 export type ToolSurface =
   | "understudy_code"
@@ -111,16 +98,10 @@ export interface CorePageHandle {
   scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void>;
 
   type(text: string): Promise<void>;
-  type(
-    target: string | ActionTarget | FocusedTarget,
-    text: string,
-  ): Promise<void>;
+  type(target: string | ActionTarget | FocusedTarget, text: string): Promise<void>;
 
   press(key: string): Promise<void>;
-  press(
-    target: string | ActionTarget | FocusedTarget,
-    key: string,
-  ): Promise<void>;
+  press(target: string | ActionTarget | FocusedTarget, key: string): Promise<void>;
 
   represent?(opts?: RepresentationOpts): Promise<PageRepresentation>;
 }
@@ -165,12 +146,7 @@ export interface ToolStartResult {
 export interface CoreTool {
   id: ToolSurface;
   surface: "code" | "mcp" | "cli";
-  family:
-    | "understudy"
-    | "playwright"
-    | "cdp"
-    | "stagehand_cli"
-    | "chrome_devtools";
+  family: "understudy" | "playwright" | "cdp" | "stagehand_cli" | "chrome_devtools";
   supportedStartupProfiles: StartupProfile[];
   supportedCapabilities: CoreCapability[];
   supportedTargetKinds: TargetKind[];

@@ -197,9 +197,7 @@ function buildTasksConfigFromFS(): TaskConfig[] {
 
 const tasksConfig = buildTasksConfigFromFS();
 
-const tasksByName = tasksConfig.reduce<
-  Record<string, { categories: string[] }>
->((acc, task) => {
+const tasksByName = tasksConfig.reduce<Record<string, { categories: string[] }>>((acc, task) => {
   acc[task.name] = {
     categories: task.categories,
   };
@@ -213,9 +211,7 @@ const tasksByName = tasksConfig.reduce<
 export function validateEvalName(evalName: string): void {
   if (evalName && !tasksByName[evalName]) {
     console.error(`Error: Evaluation "${evalName}" does not exist.`);
-    console.error(
-      `Available tasks: ${Object.keys(tasksByName).slice(0, 20).join(", ")}...`,
-    );
+    console.error(`Available tasks: ${Object.keys(tasksByName).slice(0, 20).join(", ")}...`);
     process.exit(1);
   }
 }
@@ -226,11 +222,7 @@ export function validateEvalName(evalName: string): void {
 
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
-  : [
-      "google/gemini-2.5-flash",
-      "openai/gpt-4.1-mini",
-      "anthropic/claude-haiku-4-5",
-    ];
+  : ["google/gemini-2.5-flash", "openai/gpt-4.1-mini", "anthropic/claude-haiku-4-5"];
 
 const DEFAULT_AGENT_MODELS_STANDARD = [
   "anthropic/claude-haiku-4-5",
@@ -244,10 +236,7 @@ const DEFAULT_AGENT_MODELS_CUA = [
   "google/gemini-3-flash-preview",
 ] satisfies readonly AvailableCuaModel[];
 
-const DEFAULT_AGENT_MODEL_MODES = [
-  "dom",
-  "hybrid",
-] as const satisfies readonly AgentToolMode[];
+const DEFAULT_AGENT_MODEL_MODES = ["dom", "hybrid"] as const satisfies readonly AgentToolMode[];
 
 const isCuaModel = (modelName: string): boolean =>
   (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName);
@@ -321,9 +310,7 @@ const getModelList = (category?: string): string[] => {
   }
 
   if (provider) {
-    return ALL_EVAL_MODELS.filter((model) =>
-      filterModelByProvider(model, provider),
-    );
+    return ALL_EVAL_MODELS.filter((model) => filterModelByProvider(model, provider));
   }
 
   return DEFAULT_EVAL_MODELS;
@@ -349,9 +336,7 @@ const filterModelByProvider = (model: string, provider: string): boolean => {
   } else if (provider === "cerebras") {
     return modelLower.startsWith("cerebras");
   }
-  console.warn(
-    `Unknown provider specified or model doesn't match: ${provider}`,
-  );
+  console.warn(`Unknown provider specified or model doesn't match: ${provider}`);
   return false;
 };
 

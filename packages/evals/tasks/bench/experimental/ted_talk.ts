@@ -7,20 +7,15 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://www.ted.com/talks/sir_ken_robinson_do_schools_kill_creativity",
-        {
-          waitUntil: "domcontentloaded",
-        },
-      );
+      await page.goto("https://www.ted.com/talks/sir_ken_robinson_do_schools_kill_creativity", {
+        waitUntil: "domcontentloaded",
+      });
 
       await v3.act("scroll 10% down the page");
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      await v3.act(
-        "Click the link that takes you to the page about the 'Culture' topic",
-      );
+      await v3.act("Click the link that takes you to the page about the 'Culture' topic");
 
       const playlists = await v3.extract(
         "Extract the video playlist titles and the number of talks in each playlist. This info is in the Video Playlists about Culture section of the webpage.",
@@ -29,9 +24,7 @@ export default defineBenchTask(
             .array(
               z.object({
                 title: z.string().describe("Title of the playlist"),
-                num_talks: z
-                  .number()
-                  .describe("Number of talks in the playlist"),
+                num_talks: z.number().describe("Number of talks in the playlist"),
               }),
             )
             .describe("List of culture video playlists"),
@@ -40,8 +33,7 @@ export default defineBenchTask(
 
       const expectedPlaylists = [
         {
-          title:
-            "Talks that celebrate the boundless creativity of an open mind",
+          title: "Talks that celebrate the boundless creativity of an open mind",
           num_talks: 6,
         },
         {
@@ -75,8 +67,7 @@ export default defineBenchTask(
       const missingPlaylists = expectedPlaylists.filter((expected) =>
         playlists.playlists.every(
           (extracted) =>
-            normalizeString(extracted.title) !==
-              normalizeString(expected.title) ||
+            normalizeString(extracted.title) !== normalizeString(expected.title) ||
             extracted.num_talks !== expected.num_talks,
         ),
       );

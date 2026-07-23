@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/new-tab/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/new-tab/");
 
       await v3.act("click the button to open the other page");
 
@@ -21,9 +19,7 @@ export default defineBenchTask(
       const extraction2 = await v3.extract({ page: page2 });
 
       const extraction1Success = extraction1.pageText.includes("Welcome!");
-      const extraction2Success = extraction2.pageText.includes(
-        "You’re on the other page",
-      );
+      const extraction2Success = extraction2.pageText.includes("You’re on the other page");
 
       return {
         _success: extraction1Success && extraction2Success,

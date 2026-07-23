@@ -279,17 +279,14 @@ function printHelp(): void {
   console.log(chalk.green("  evals run all\n"));
 
   console.log(chalk.dim("  # Run specific category"));
-  console.log(
-    chalk.green("  evals run act") + chalk.cyan(" -e browserbase -t 5\n"),
-  );
+  console.log(chalk.green("  evals run act") + chalk.cyan(" -e browserbase -t 5\n"));
 
   console.log(chalk.dim("  # Run specific eval"));
   console.log(chalk.green("  evals run login\n"));
 
   console.log(chalk.dim("  # Run benchmark"));
   console.log(
-    chalk.green("  evals run benchmark:onlineMind2Web") +
-      chalk.cyan(" -l 10 -f difficulty=easy\n"),
+    chalk.green("  evals run benchmark:onlineMind2Web") + chalk.cyan(" -l 10 -f difficulty=easy\n"),
   );
 
   console.log(chalk.dim("  # Configure defaults"));
@@ -297,27 +294,17 @@ function printHelp(): void {
   console.log(chalk.green("  evals config set trials 5\n"));
 
   console.log(chalk.magenta.underline("Options"));
-  console.log(
-    chalk.cyan("  -e, --env".padEnd(20)) + "Environment: local|browserbase",
-  );
-  console.log(
-    chalk.cyan("  -t, --trials".padEnd(20)) + "Number of trials per eval",
-  );
-  console.log(
-    chalk.cyan("  -c, --concurrency".padEnd(20)) + "Max parallel sessions",
-  );
+  console.log(chalk.cyan("  -e, --env".padEnd(20)) + "Environment: local|browserbase");
+  console.log(chalk.cyan("  -t, --trials".padEnd(20)) + "Number of trials per eval");
+  console.log(chalk.cyan("  -c, --concurrency".padEnd(20)) + "Max parallel sessions");
   console.log(chalk.cyan("  -m, --model".padEnd(20)) + "Model override");
   console.log(chalk.cyan("  -p, --provider".padEnd(20)) + "Provider override");
   console.log(chalk.cyan("  --api".padEnd(20)) + "Use Stagehand API\n");
 
   console.log(chalk.dim("  Benchmark-specific:"));
   console.log(chalk.cyan("  -l, --limit".padEnd(20)) + "Max tasks to run");
-  console.log(
-    chalk.cyan("  -s, --sample".padEnd(20)) + "Random sample before limit",
-  );
-  console.log(
-    chalk.cyan("  -f, --filter".padEnd(20)) + "Benchmark filters (key=value)\n",
-  );
+  console.log(chalk.cyan("  -s, --sample".padEnd(20)) + "Random sample before limit");
+  console.log(chalk.cyan("  -f, --filter".padEnd(20)) + "Benchmark filters (key=value)\n");
 }
 
 function handleConfig(args: string[]): void {
@@ -339,9 +326,7 @@ function handleConfig(args: string[]): void {
 
     if (!(key in config.defaults)) {
       console.error(chalk.red(`Error: Unknown config key "${key}"`));
-      console.log(
-        chalk.dim(`Valid keys: ${Object.keys(config.defaults).join(", ")}`),
-      );
+      console.log(chalk.dim(`Valid keys: ${Object.keys(config.defaults).join(", ")}`));
       process.exit(1);
     }
 
@@ -415,9 +400,7 @@ function handleConfig(args: string[]): void {
     console.log(CONFIG_PATH);
   } else {
     console.error(chalk.red("Error: Invalid config command"));
-    console.log(
-      chalk.dim("Usage: evals config [set <key> <value> | reset [key] | path]"),
-    );
+    console.log(chalk.dim("Usage: evals config [set <key> <value> | reset [key] | path]"));
     process.exit(1);
   }
 }
@@ -454,9 +437,7 @@ function handleList(args: string[]): void {
         grouped.get(t.category)!.push(t.name);
       }
       for (const [cat, tasks] of grouped) {
-        console.log(
-          `  ${chalk.cyan(cat)} ${chalk.dim(`(${tasks.length} evals)`)}`,
-        );
+        console.log(`  ${chalk.cyan(cat)} ${chalk.dim(`(${tasks.length} evals)`)}`);
       }
       console.log("");
     }
@@ -478,17 +459,13 @@ function handleList(args: string[]): void {
   Array.from(categories.entries())
     .filter(([cat]) => !cat.includes("external_agent_benchmarks"))
     .forEach(([category, tasks]) => {
-      console.log(
-        `  ${chalk.cyan(category)} ${chalk.dim(`(${tasks.length} evals)`)}`,
-      );
+      console.log(`  ${chalk.cyan(category)} ${chalk.dim(`(${tasks.length} evals)`)}`);
     });
 
   console.log(chalk.magenta.underline("\nBenchmarks"));
   Object.keys(config.benchmarks).forEach((name) => {
     const shorthand = `b:${name}`;
-    console.log(
-      `  ${chalk.cyan(shorthand.padEnd(20))} ${chalk.dim(`benchmark:${name}`)}`,
-    );
+    console.log(`  ${chalk.cyan(shorthand.padEnd(20))} ${chalk.dim(`benchmark:${name}`)}`);
   });
 
   if (args.includes("--detailed") || args.includes("-d")) {
@@ -502,11 +479,7 @@ function handleList(args: string[]): void {
       }
     });
   } else {
-    console.log(
-      chalk.yellow(
-        "\n💡 Tip: Use 'evals list --detailed' to see all individual tasks",
-      ),
-    );
+    console.log(chalk.yellow("\n💡 Tip: Use 'evals list --detailed' to see all individual tasks"));
   }
 }
 
@@ -554,9 +527,7 @@ function parseArgs(rawArgs: string[]): {
         const value = rawArgs[++i];
         if (value && !value.startsWith("-")) {
           // Parse numbers
-          if (
-            ["trials", "concurrency", "limit", "sample"].includes(optionName)
-          ) {
+          if (["trials", "concurrency", "limit", "sample"].includes(optionName)) {
             options[optionName] = parseInt(value, 10);
           } else {
             options[optionName] = value;
@@ -576,13 +547,8 @@ function handleRun(args: string[]): void {
   const { options, target, filters } = parseArgs(args);
 
   // Merge with defaults
-  const stagehandTarget = (process.env.STAGEHAND_BROWSER_TARGET ?? "")
-    .toLowerCase()
-    .trim();
-  if (
-    !options.env &&
-    (stagehandTarget === "local" || stagehandTarget === "browserbase")
-  ) {
+  const stagehandTarget = (process.env.STAGEHAND_BROWSER_TARGET ?? "").toLowerCase().trim();
+  if (!options.env && (stagehandTarget === "local" || stagehandTarget === "browserbase")) {
     options.env = stagehandTarget;
   }
   const finalOptions = { ...config.defaults, ...options };
@@ -668,9 +634,7 @@ function handleRun(args: string[]): void {
       if (!config.benchmarks[benchmarkName]) {
         console.error(chalk.red(`Error: Unknown benchmark "${benchmarkName}"`));
         console.log(
-          chalk.dim(
-            `Available benchmarks: ${Object.keys(config.benchmarks).join(", ")}`,
-          ),
+          chalk.dim(`Available benchmarks: ${Object.keys(config.benchmarks).join(", ")}`),
         );
         process.exit(1);
       }
@@ -691,15 +655,11 @@ function handleRun(args: string[]): void {
       // Set benchmark-specific options
       if (options.limit) {
         env.EVAL_MAX_K = String(options.limit);
-        env[`EVAL_${benchmarkName.toUpperCase()}_LIMIT`] = String(
-          options.limit,
-        );
+        env[`EVAL_${benchmarkName.toUpperCase()}_LIMIT`] = String(options.limit);
       }
 
       if (options.sample) {
-        env[`EVAL_${benchmarkName.toUpperCase()}_SAMPLE`] = String(
-          options.sample,
-        );
+        env[`EVAL_${benchmarkName.toUpperCase()}_SAMPLE`] = String(options.sample);
       }
 
       // Apply filters
@@ -758,12 +718,7 @@ function handleRun(args: string[]): void {
       process.exit(buildCode || 1);
     }
 
-    const compiledEvalPath = path.resolve(
-      moduleDir,
-      "..",
-      "esm",
-      "index.eval.js",
-    );
+    const compiledEvalPath = path.resolve(moduleDir, "..", "esm", "index.eval.js");
     // When built to packages/evals/dist/cli/cli.js, moduleDir is packages/evals/dist/cli/
     // Source is at packages/evals/index.eval.ts from repo root
     const sourceEvalPath = path.resolve(

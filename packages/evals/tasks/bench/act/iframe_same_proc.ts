@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc/");
 
       await v3.act("type 'stagehand' into the 'your name' field");
 
@@ -19,9 +17,7 @@ export default defineBenchTask(
 
       const iframe = page.frameLocator("iframe");
 
-      const nameValue: string = await iframe
-        .locator('input[placeholder="Alice"]')
-        .inputValue();
+      const nameValue: string = await iframe.locator('input[placeholder="Alice"]').inputValue();
 
       const colorValue: string = await iframe.locator("select").inputValue();
 

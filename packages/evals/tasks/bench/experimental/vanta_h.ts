@@ -7,9 +7,7 @@ export default defineBenchTask(
       const page = v3.context.pages()[0];
       await page.goto("https://www.vanta.com/");
 
-      const observations = await v3.observe(
-        "click the buy now button if it is available",
-      );
+      const observations = await v3.observe("click the buy now button if it is available");
 
       // we should have no saved observation since the element shouldn't exist
       return {

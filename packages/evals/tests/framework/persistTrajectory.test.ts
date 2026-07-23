@@ -3,11 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { loadTrajectoryFromDisk } from "@browserbasehq/stagehand";
-import type {
-  EvaluationResult,
-  TaskSpec,
-  Trajectory,
-} from "@browserbasehq/stagehand";
+import type { EvaluationResult, TaskSpec, Trajectory } from "@browserbasehq/stagehand";
 import { describe, expect, it } from "vitest";
 
 import { persistAdapterTrajectory } from "../../framework/harnesses/persistTrajectory.js";
@@ -17,9 +13,7 @@ const AGENT_PNG = Buffer.from("fake-agent-bytes-5678", "utf8");
 
 describe("persistAdapterTrajectory", () => {
   it("round-trips probe and agent image evidence through loadTrajectoryFromDisk", async () => {
-    const tmpRoot = await fs.mkdtemp(
-      path.join(os.tmpdir(), "persist-adapter-roundtrip-"),
-    );
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "persist-adapter-roundtrip-"));
 
     try {
       const taskSpec: TaskSpec = {
@@ -61,27 +55,23 @@ describe("persistAdapterTrajectory", () => {
       await expect(
         fs.readFile(path.join(directory, "scores", "result.json"), "utf8"),
       ).resolves.toContain('"outcomeSuccess": true');
-      await expect(
-        fs.readFile(path.join(directory, "task_data.json"), "utf8"),
-      ).resolves.toContain('"result"');
+      await expect(fs.readFile(path.join(directory, "task_data.json"), "utf8")).resolves.toContain(
+        '"result"',
+      );
 
       const loaded = await loadTrajectoryFromDisk(directory);
       const step = loaded.steps[0];
       const imageModality = step.agentEvidence.modalities.find(
         (
           modality,
-        ): modality is Extract<
-          (typeof step.agentEvidence.modalities)[number],
-          { type: "image" }
-        > => modality.type === "image",
+        ): modality is Extract<(typeof step.agentEvidence.modalities)[number], { type: "image" }> =>
+          modality.type === "image",
       );
       const textModality = step.agentEvidence.modalities.find(
         (
           modality,
-        ): modality is Extract<
-          (typeof step.agentEvidence.modalities)[number],
-          { type: "text" }
-        > => modality.type === "text",
+        ): modality is Extract<(typeof step.agentEvidence.modalities)[number], { type: "text" }> =>
+          modality.type === "text",
       );
 
       expect(step.probeEvidence.screenshot).toEqual(PROBE_PNG);

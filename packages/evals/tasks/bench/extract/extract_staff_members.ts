@@ -6,9 +6,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/");
 
       const result = await v3.extract(
         "extract a list of ALL the staff members on this page, with their name and their job title",
@@ -95,8 +93,7 @@ export default defineBenchTask(
 
       const lastItemExists = staff_members.some(
         (member) =>
-          member.name === expectedLastItem.name &&
-          member.job_title === expectedLastItem.job_title,
+          member.name === expectedLastItem.name && member.job_title === expectedLastItem.job_title,
       );
 
       if (!lastItemExists) {

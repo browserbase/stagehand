@@ -9,9 +9,7 @@ const summaryPath = path.join(getRepoRootDir(), "eval-summary.json");
 let originalSummary: string | undefined;
 
 beforeEach(() => {
-  originalSummary = fs.existsSync(summaryPath)
-    ? fs.readFileSync(summaryPath, "utf8")
-    : undefined;
+  originalSummary = fs.existsSync(summaryPath) ? fs.readFileSync(summaryPath, "utf8") : undefined;
 });
 
 afterEach(() => {
@@ -38,10 +36,7 @@ function makeResult(name: string, success: boolean): SummaryResult {
 describe("generateSummary", () => {
   it("preserves cross-cutting categories for category-qualified task names", async () => {
     await generateSummary(
-      [
-        makeResult("observe/observe_github", true),
-        makeResult("observe/observe_github", false),
-      ],
+      [makeResult("observe/observe_github", true), makeResult("observe/observe_github", false)],
       "regression-3fb31541",
       "https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/regression-3fb31541",
     );
@@ -58,10 +53,7 @@ describe("generateSummary", () => {
 
   it("includes Braintrust scores when provided", async () => {
     await generateSummary(
-      [
-        makeResult("observe/observe_github", true),
-        makeResult("observe/observe_github", false),
-      ],
+      [makeResult("observe/observe_github", true), makeResult("observe/observe_github", false)],
       "regression-b0b8a8f2",
       "https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/regression-b0b8a8f2",
       {

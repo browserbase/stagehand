@@ -16,10 +16,7 @@ export default defineBenchTask(
 
       const url = page.url();
 
-      if (
-        url.includes("hotel-h10-tribeca-madrid") &&
-        url.includes("trivago.com")
-      ) {
+      if (url.includes("hotel-h10-tribeca-madrid") && url.includes("trivago.com")) {
         return {
           _success: true,
           observations: url,

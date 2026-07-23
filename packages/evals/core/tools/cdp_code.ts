@@ -9,11 +9,7 @@ import type {
   ToolStartResult,
 } from "../contracts/tool.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
-import type {
-  ActionTarget,
-  TargetKind,
-  WaitSpec,
-} from "../contracts/targets.js";
+import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
 import { loadWsModule } from "../runtime/coreDeps.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -85,36 +81,34 @@ function keyEventPayload(key: string): {
   code: string;
   windowsVirtualKeyCode: number;
 } {
-  const specialKeys: Record<
-    string,
-    { key: string; code: string; windowsVirtualKeyCode: number }
-  > = {
-    Enter: { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 },
-    Tab: { key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 },
-    Escape: { key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 },
-    Backspace: {
-      key: "Backspace",
-      code: "Backspace",
-      windowsVirtualKeyCode: 8,
-    },
-    Space: { key: " ", code: "Space", windowsVirtualKeyCode: 32 },
-    ArrowUp: { key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38 },
-    ArrowDown: {
-      key: "ArrowDown",
-      code: "ArrowDown",
-      windowsVirtualKeyCode: 40,
-    },
-    ArrowLeft: {
-      key: "ArrowLeft",
-      code: "ArrowLeft",
-      windowsVirtualKeyCode: 37,
-    },
-    ArrowRight: {
-      key: "ArrowRight",
-      code: "ArrowRight",
-      windowsVirtualKeyCode: 39,
-    },
-  };
+  const specialKeys: Record<string, { key: string; code: string; windowsVirtualKeyCode: number }> =
+    {
+      Enter: { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 },
+      Tab: { key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 },
+      Escape: { key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 },
+      Backspace: {
+        key: "Backspace",
+        code: "Backspace",
+        windowsVirtualKeyCode: 8,
+      },
+      Space: { key: " ", code: "Space", windowsVirtualKeyCode: 32 },
+      ArrowUp: { key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38 },
+      ArrowDown: {
+        key: "ArrowDown",
+        code: "ArrowDown",
+        windowsVirtualKeyCode: 40,
+      },
+      ArrowLeft: {
+        key: "ArrowLeft",
+        code: "ArrowLeft",
+        windowsVirtualKeyCode: 37,
+      },
+      ArrowRight: {
+        key: "ArrowRight",
+        code: "ArrowRight",
+        windowsVirtualKeyCode: 39,
+      },
+    };
 
   const special = specialKeys[key];
   if (special) return special;
@@ -148,9 +142,7 @@ async function resolveWebSocketEndpoint(input: {
   };
 
   if (!payload.webSocketDebuggerUrl) {
-    throw new Error(
-      `CDP endpoint ${baseUrl} did not return webSocketDebuggerUrl`,
-    );
+    throw new Error(`CDP endpoint ${baseUrl} did not return webSocketDebuggerUrl`);
   }
 
   return payload.webSocketDebuggerUrl;
@@ -185,8 +177,7 @@ export class CdpConnection {
       this.handleMessage(data);
     });
     this.ws.on("error", (error: unknown) => {
-      const resolved =
-        error instanceof Error ? error : new Error(String(error));
+      const resolved = error instanceof Error ? error : new Error(String(error));
       this.rejectAll(resolved);
     });
     this.ws.on("close", () => {
@@ -209,10 +200,7 @@ export class CdpConnection {
       send: (data: string, cb?: (error?: Error) => void) => void;
       close: () => void;
     }>((resolve, reject) => {
-      const socket = new WebSocket(
-        wsUrl,
-        input.headers ? { headers: input.headers } : {},
-      );
+      const socket = new WebSocket(wsUrl, input.headers ? { headers: input.headers } : {});
       socket.once("open", () => resolve(socket));
       socket.once("error", (error: unknown) => {
         reject(error instanceof Error ? error : new Error(String(error)));
@@ -266,11 +254,7 @@ export class CdpConnection {
 
   private handleMessage(raw: unknown): void {
     const data =
-      typeof raw === "string"
-        ? raw
-        : Buffer.isBuffer(raw)
-          ? raw.toString("utf8")
-          : String(raw);
+      typeof raw === "string" ? raw : Buffer.isBuffer(raw) ? raw.toString("utf8") : String(raw);
     const message = JSON.parse(data) as
       | {
           id: number;
@@ -289,9 +273,7 @@ export class CdpConnection {
         error?: { message?: string };
       };
       if (commandMessage.error) {
-        pending.reject(
-          new Error(commandMessage.error.message ?? "CDP command failed"),
-        );
+        pending.reject(new Error(commandMessage.error.message ?? "CDP command failed"));
         return;
       }
       pending.resolve(commandMessage.result);
@@ -422,10 +404,7 @@ class CdpPageHandle implements CorePageHandle {
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
   ): Promise<R> {
-    const expression = buildCdpEvaluationExpression(
-      pageFunctionOrExpression,
-      arg,
-    );
+    const expression = buildCdpEvaluationExpression(pageFunctionOrExpression, arg);
 
     const response = (await this.connection.send(
       "Runtime.evaluate",
@@ -542,9 +521,7 @@ class CdpPageHandle implements CorePageHandle {
       await sleep(POLL_INTERVAL_MS);
     }
 
-    throw new Error(
-      `Timed out waiting for selector "${selector}" to be ${expectedState}`,
-    );
+    throw new Error(`Timed out waiting for selector "${selector}" to be ${expectedState}`);
   }
 
   async waitForTimeout(ms: number): Promise<void> {
@@ -555,10 +532,7 @@ class CdpPageHandle implements CorePageHandle {
     return new CdpLocatorHandle(this, selector);
   }
 
-  async click(
-    targetOrX: string | ActionTarget | number,
-    y?: number,
-  ): Promise<void> {
+  async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
@@ -568,9 +542,7 @@ class CdpPageHandle implements CorePageHandle {
     }
 
     const target =
-      typeof targetOrX === "string"
-        ? ({ kind: "selector", value: targetOrX } as const)
-        : targetOrX;
+      typeof targetOrX === "string" ? ({ kind: "selector", value: targetOrX } as const) : targetOrX;
 
     switch (target.kind) {
       case "selector": {
@@ -582,16 +554,11 @@ class CdpPageHandle implements CorePageHandle {
         await this.dispatchMouseClick(target.x, target.y);
         return;
       default:
-        throw new Error(
-          `cdp_code does not support click target kind "${target.kind}" yet`,
-        );
+        throw new Error(`cdp_code does not support click target kind "${target.kind}" yet`);
     }
   }
 
-  async hover(
-    targetOrX: string | ActionTarget | number,
-    y?: number,
-  ): Promise<void> {
+  async hover(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
@@ -601,9 +568,7 @@ class CdpPageHandle implements CorePageHandle {
     }
 
     const target =
-      typeof targetOrX === "string"
-        ? ({ kind: "selector", value: targetOrX } as const)
-        : targetOrX;
+      typeof targetOrX === "string" ? ({ kind: "selector", value: targetOrX } as const) : targetOrX;
 
     switch (target.kind) {
       case "selector": {
@@ -615,18 +580,11 @@ class CdpPageHandle implements CorePageHandle {
         await this.dispatchMouseMove(target.x, target.y);
         return;
       default:
-        throw new Error(
-          `cdp_code does not support hover target kind "${target.kind}" yet`,
-        );
+        throw new Error(`cdp_code does not support hover target kind "${target.kind}" yet`);
     }
   }
 
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-  ): Promise<void> {
+  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
     await this.dispatchMouseMove(x, y);
     await this.connection.send(
       "Input.dispatchMouseEvent",
@@ -672,9 +630,7 @@ class CdpPageHandle implements CorePageHandle {
         await this.insertText(text);
         return;
       default:
-        throw new Error(
-          `cdp_code does not support type target kind "${target.kind}" yet`,
-        );
+        throw new Error(`cdp_code does not support type target kind "${target.kind}" yet`);
     }
   }
 
@@ -709,9 +665,7 @@ class CdpPageHandle implements CorePageHandle {
         await this.dispatchKey(key);
         return;
       default:
-        throw new Error(
-          `cdp_code does not support press target kind "${target.kind}" yet`,
-        );
+        throw new Error(`cdp_code does not support press target kind "${target.kind}" yet`);
     }
   }
 
@@ -754,9 +708,7 @@ class CdpPageHandle implements CorePageHandle {
       const rect = first.getBoundingClientRect();
       const style = window.getComputedStyle(first);
       const visible =
-        (rect.width > 0 ||
-          rect.height > 0 ||
-          first.getClientRects().length > 0) &&
+        (rect.width > 0 || rect.height > 0 || first.getClientRects().length > 0) &&
         style.visibility !== "hidden" &&
         style.display !== "none";
 
@@ -777,13 +729,7 @@ class CdpPageHandle implements CorePageHandle {
 
   async fillSelector(selector: string, value: string): Promise<void> {
     const filled = await this.evaluate(
-      ({
-        rawSelector,
-        nextValue,
-      }: {
-        rawSelector: string;
-        nextValue: string;
-      }) => {
+      ({ rawSelector, nextValue }: { rawSelector: string; nextValue: string }) => {
         function queryOne(selectorInput: string): HTMLElement | null {
           if (selectorInput.startsWith("xpath=")) {
             const expression = selectorInput.slice("xpath=".length);
@@ -794,9 +740,7 @@ class CdpPageHandle implements CorePageHandle {
               XPathResult.FIRST_ORDERED_NODE_TYPE,
               null,
             );
-            return result.singleNodeValue instanceof HTMLElement
-              ? result.singleNodeValue
-              : null;
+            return result.singleNodeValue instanceof HTMLElement ? result.singleNodeValue : null;
           }
           return document.querySelector(selectorInput);
         }
@@ -855,9 +799,7 @@ class CdpPageHandle implements CorePageHandle {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       try {
-        const readyState = await this.evaluate<string>(
-          () => document.readyState,
-        );
+        const readyState = await this.evaluate<string>(() => document.readyState);
         if (waitUntil === "domcontentloaded") {
           if (readyState === "interactive" || readyState === "complete") {
             return;
@@ -895,9 +837,7 @@ class CdpPageHandle implements CorePageHandle {
             XPathResult.FIRST_ORDERED_NODE_TYPE,
             null,
           );
-          return result.singleNodeValue instanceof HTMLElement
-            ? result.singleNodeValue
-            : null;
+          return result.singleNodeValue instanceof HTMLElement ? result.singleNodeValue : null;
         }
         return document.querySelector(selectorInput);
       }
@@ -914,9 +854,7 @@ class CdpPageHandle implements CorePageHandle {
     }
   }
 
-  private async centerForSelector(
-    selector: string,
-  ): Promise<{ x: number; y: number }> {
+  private async centerForSelector(selector: string): Promise<{ x: number; y: number }> {
     const inspection = await this.inspectSelector(selector);
     if (!inspection.center) {
       throw new Error(`Unable to resolve selector "${selector}"`);
@@ -964,11 +902,7 @@ class CdpPageHandle implements CorePageHandle {
   }
 
   private async insertText(text: string): Promise<void> {
-    await this.connection.send(
-      "Input.insertText",
-      { text },
-      this.state.sessionId,
-    );
+    await this.connection.send("Input.insertText", { text }, this.state.sessionId);
   }
 
   private async dispatchKey(key: string): Promise<void> {
@@ -1036,9 +970,7 @@ class CdpSession implements CoreSession {
   }
 
   async listPages(): Promise<CorePageHandle[]> {
-    return [...this.pages.values()].map(
-      (state) => new CdpPageHandle(this.connection, state),
-    );
+    return [...this.pages.values()].map((state) => new CdpPageHandle(this.connection, state));
   }
 
   async activePage(): Promise<CorePageHandle> {
@@ -1124,9 +1056,7 @@ class CdpSession implements CoreSession {
     this.activePageId = firstPage ?? null;
   }
 
-  private async listPageTargets(): Promise<
-    Array<{ targetId: string; url: string }>
-  > {
+  private async listPageTargets(): Promise<Array<{ targetId: string; url: string }>> {
     const response = (await this.connection.send("Target.getTargets")) as {
       targetInfos: Array<{
         targetId: string;
@@ -1137,9 +1067,7 @@ class CdpSession implements CoreSession {
 
     return response.targetInfos
       .filter(
-        (targetInfo) =>
-          targetInfo.type === "page" &&
-          !targetInfo.url?.startsWith("devtools://"),
+        (targetInfo) => targetInfo.type === "page" && !targetInfo.url?.startsWith("devtools://"),
       )
       .map((targetInfo) => ({
         targetId: targetInfo.targetId,
@@ -1147,10 +1075,7 @@ class CdpSession implements CoreSession {
       }));
   }
 
-  private async attachPage(
-    targetId: string,
-    initialUrl = "about:blank",
-  ): Promise<CdpPageState> {
+  private async attachPage(targetId: string, initialUrl = "about:blank"): Promise<CdpPageState> {
     if (this.pages.has(targetId)) {
       return this.pages.get(targetId)!;
     }
@@ -1209,14 +1134,8 @@ export class CdpCodeTool implements CoreTool {
     "tool_attach_local_cdp",
     "tool_attach_browserbase",
   ];
-  readonly supportedCapabilities: CoreCapability[] = [
-    ...SUPPORTED_CAPABILITIES,
-  ];
-  readonly supportedTargetKinds: TargetKind[] = [
-    "selector",
-    "coords",
-    "focused",
-  ];
+  readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
+  readonly supportedTargetKinds: TargetKind[] = ["selector", "coords", "focused"];
 
   async start(input: ToolStartInput): Promise<ToolStartResult> {
     if (!input.providedEndpoint) {
@@ -1235,11 +1154,8 @@ export class CdpCodeTool implements CoreTool {
         await session.close();
       },
       metadata: {
-        environment:
-          input.environment === "BROWSERBASE" ? "browserbase" : "local",
-        browserOwnership: input.startupProfile.startsWith("runner_provided")
-          ? "runner"
-          : "tool",
+        environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
+        browserOwnership: input.startupProfile.startsWith("runner_provided") ? "runner" : "tool",
         connectionMode: connectionModeFromProfile(
           input.startupProfile,
           input.providedEndpoint.kind,

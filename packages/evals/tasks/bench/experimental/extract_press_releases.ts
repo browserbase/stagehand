@@ -9,9 +9,7 @@ export default defineBenchTask(
       items: z.array(
         z.object({
           title: z.string().describe("The title of the press release"),
-          publish_date: z
-            .string()
-            .describe("The date the press release was published"),
+          publish_date: z.string().describe("The date the press release was published"),
         }),
       ),
     });
@@ -20,9 +18,7 @@ export default defineBenchTask(
 
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/press-releases/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/press-releases/");
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
       const rawResult = await v3.extract(
@@ -39,8 +35,7 @@ export default defineBenchTask(
         publish_date: "Dec 4, 2024",
       };
       const expectedLastItem: PressRelease = {
-        title:
-          "Fox Sued by New York City Pension Funds Over Election Falsehoods",
+        title: "Fox Sued by New York City Pension Funds Over Election Falsehoods",
         publish_date: "Nov 12, 2023",
       };
 
@@ -70,20 +65,12 @@ export default defineBenchTask(
 
       const isItemMatch = (item: PressRelease, expected: PressRelease) => {
         const titleComparison = compareStrings(item.title, expected.title, 0.9);
-        const dateComparison = compareStrings(
-          item.publish_date,
-          expected.publish_date,
-          0.9,
-        );
+        const dateComparison = compareStrings(item.publish_date, expected.publish_date, 0.9);
         return titleComparison.meetsThreshold && dateComparison.meetsThreshold;
       };
 
-      const foundFirstItem = items.some((item) =>
-        isItemMatch(item, expectedFirstItem),
-      );
-      const foundLastItem = items.some((item) =>
-        isItemMatch(item, expectedLastItem),
-      );
+      const foundFirstItem = items.some((item) => isItemMatch(item, expectedFirstItem));
+      const foundLastItem = items.some((item) => isItemMatch(item, expectedLastItem));
 
       return {
         _success: foundFirstItem && foundLastItem,

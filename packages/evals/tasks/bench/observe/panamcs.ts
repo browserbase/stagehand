@@ -5,9 +5,7 @@ export default defineBenchTask(
   async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/");
 
       const observations = await v3.observe("click the 'about us' link");
 
@@ -23,18 +21,12 @@ export default defineBenchTask(
 
       const expectedLocator = `#menu > li:nth-child(1) > a`;
 
-      const expectedResult = await page
-        .locator(expectedLocator)
-        .first()
-        .innerText();
+      const expectedResult = await page.locator(expectedLocator).first().innerText();
 
       let foundMatch = false;
       for (const observation of observations) {
         try {
-          const observationResult = await page
-            .locator(observation.selector)
-            .first()
-            .innerText();
+          const observationResult = await page.locator(observation.selector).first().innerText();
 
           if (observationResult === expectedResult) {
             foundMatch = true;

@@ -32,9 +32,7 @@ function parsePositiveIntEnv(value: string | undefined): number | undefined {
   return Number.isInteger(n) && n > 0 ? n : undefined;
 }
 
-export const buildOdysseysBenchTestcases = (
-  models: string[] | AgentModelEntry[],
-): Testcase[] => {
+export const buildOdysseysBenchTestcases = (models: string[] | AgentModelEntry[]): Testcase[] => {
   const odysseysbenchFilePath =
     getPackageRootDir() + "/datasets/odysseysbench/OdysseysBench_data.jsonl";
 
@@ -47,9 +45,7 @@ export const buildOdysseysBenchTestcases = (
     parsePositiveIntEnv(process.env.EVAL_MAX_K) ??
     parsePositiveIntEnv(process.env.EVAL_ODYSSEYSBENCH_LIMIT) ??
     25;
-  const sampleCount = parsePositiveIntEnv(
-    process.env.EVAL_ODYSSEYSBENCH_SAMPLE,
-  );
+  const sampleCount = parsePositiveIntEnv(process.env.EVAL_ODYSSEYSBENCH_SAMPLE);
 
   type OdysseysBenchRow = {
     task_id: string;
@@ -69,9 +65,7 @@ export const buildOdysseysBenchTestcases = (
   function isOdysseysBenchRow(parsed: unknown): parsed is OdysseysBenchRow {
     if (parsed === null || typeof parsed !== "object") return false;
     const obj = parsed as Record<string, unknown>;
-    return (
-      typeof obj.task_id === "string" && typeof obj.confirmed_task === "string"
-    );
+    return typeof obj.task_id === "string" && typeof obj.confirmed_task === "string";
   }
 
   const candidates = parseJsonlRows(lines, isOdysseysBenchRow);
@@ -87,9 +81,7 @@ export const buildOdysseysBenchTestcases = (
   let rows: OdysseysBenchRow[];
   if (explicitIds && explicitIds.length > 0) {
     const byId = new Map(candidates.map((r) => [r.task_id, r]));
-    rows = explicitIds
-      .map((id) => byId.get(id))
-      .filter((r): r is OdysseysBenchRow => Boolean(r));
+    rows = explicitIds.map((id) => byId.get(id)).filter((r): r is OdysseysBenchRow => Boolean(r));
   } else {
     // Optional difficulty filter, applied before sampling.
     const levelFilter = process.env.EVAL_ODYSSEYSBENCH_LEVEL
@@ -122,8 +114,7 @@ export const buildOdysseysBenchTestcases = (
           precomputed_rubric: normalizeRubric(row.precomputed_rubric),
         },
       };
-      const taskCategories =
-        tasksConfig.find((t) => t.name === input.name)?.categories || [];
+      const taskCategories = tasksConfig.find((t) => t.name === input.name)?.categories || [];
       allTestcases.push({
         input,
         name: input.name,

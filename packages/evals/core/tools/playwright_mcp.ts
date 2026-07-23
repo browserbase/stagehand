@@ -1,11 +1,7 @@
 import { resolveLocalChromeExecutablePath } from "../targets/localChrome.js";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
-import type {
-  ActionTarget,
-  TargetKind,
-  WaitSpec,
-} from "../contracts/targets.js";
+import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
 import type {
   CoreCapability,
   CoreLocatorHandle,
@@ -16,11 +12,7 @@ import type {
   ToolStartInput,
   ToolStartResult,
 } from "../contracts/tool.js";
-import {
-  extractMcpImage,
-  resolvePnpmCommand,
-  StdioMcpRuntime,
-} from "./mcpUtils.js";
+import { extractMcpImage, resolvePnpmCommand, StdioMcpRuntime } from "./mcpUtils.js";
 
 const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "session",
@@ -114,9 +106,7 @@ function parsePlaywrightListedPages(text: string): ListedPlaywrightPage[] {
   const lines = text.split(/\r?\n/);
 
   for (const line of lines) {
-    const match = line.match(
-      /^\s*-\s*(\d+):\s*(\(current\)\s*)?\[[^\]]*]\(([^)]+)\)/,
-    );
+    const match = line.match(/^\s*-\s*(\d+):\s*(\(current\)\s*)?\[[^\]]*]\(([^)]+)\)/);
     if (!match) continue;
     pages.push({
       index: Number(match[1]),
@@ -128,9 +118,7 @@ function parsePlaywrightListedPages(text: string): ListedPlaywrightPage[] {
   return pages.sort((left, right) => left.index - right.index);
 }
 
-function parsePlaywrightSnapshotEntries(
-  text: string,
-): PlaywrightSnapshotEntry[] {
+function parsePlaywrightSnapshotEntries(text: string): PlaywrightSnapshotEntry[] {
   const entries: PlaywrightSnapshotEntry[] = [];
   const lines = text.split(/\r?\n/);
 
@@ -179,9 +167,7 @@ function scorePlaywrightSnapshotEntry(
 
   if (query.name) {
     const expected = normalizeText(query.name);
-    const candidates = [entry.name, entry.text]
-      .map(normalizeText)
-      .filter(Boolean);
+    const candidates = [entry.name, entry.text].map(normalizeText).filter(Boolean);
     if (!candidates.length) {
       return -1;
     }
@@ -196,9 +182,7 @@ function scorePlaywrightSnapshotEntry(
 
   if (query.text) {
     const expected = normalizeText(query.text);
-    const candidates = [entry.text, entry.name]
-      .map(normalizeText)
-      .filter(Boolean);
+    const candidates = [entry.text, entry.name].map(normalizeText).filter(Boolean);
     if (!candidates.length) {
       return -1;
     }
@@ -321,9 +305,7 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
     return this.runtime.callText("browser_snapshot", {});
   }
 
-  private async describeSelectorTarget(
-    selector: string,
-  ): Promise<PlaywrightSnapshotQuery> {
+  private async describeSelectorTarget(selector: string): Promise<PlaywrightSnapshotQuery> {
     return this.runCodeJson<PlaywrightSnapshotQuery>(`
       async (page) => {
         const selector = ${selectorExpression(selector)};
@@ -376,9 +358,7 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
   }
 
   private async resolveTargetRef(
-    target:
-      | string
-      | Extract<ActionTarget, { kind: "selector" | "role_name" | "text" }>,
+    target: string | Extract<ActionTarget, { kind: "selector" | "role_name" | "text" }>,
   ): Promise<string> {
     const query =
       typeof target === "string"
@@ -426,9 +406,7 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
       if (this.cachedUrl !== previousUrl) {
         const desiredState = historyWaitUntil(opts?.waitUntil);
         while (Date.now() < deadline) {
-          const readyState = await this.runCodeJson<
-            "loading" | "interactive" | "complete"
-          >(`
+          const readyState = await this.runCodeJson<"loading" | "interactive" | "complete">(`
             async (page) => JSON.stringify(await page.evaluate(() => document.readyState))
           `);
           if (
@@ -584,12 +562,10 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
       case "selector":
         await this.runCode(`
           async (page) => {
-            await page.waitForSelector(${selectorExpression(spec.selector)}, ${serialize(
-              {
-                timeout: spec.timeoutMs,
-                state: spec.state,
-              },
-            )});
+            await page.waitForSelector(${selectorExpression(spec.selector)}, ${serialize({
+              timeout: spec.timeoutMs,
+              state: spec.state,
+            })});
             return JSON.stringify(true);
           }
         `);
@@ -645,16 +621,13 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
     action: "click" | "hover",
   ): Promise<void> {
     const normalized =
-      typeof target === "string"
-        ? ({ kind: "selector", value: target } as const)
-        : target;
+      typeof target === "string" ? ({ kind: "selector", value: target } as const) : target;
 
     switch (normalized.kind) {
       case "selector":
-        await this.runtime.callTool(
-          action === "click" ? "browser_click" : "browser_hover",
-          { ref: await this.resolveTargetRef(normalized.value) },
-        );
+        await this.runtime.callTool(action === "click" ? "browser_click" : "browser_hover", {
+          ref: await this.resolveTargetRef(normalized.value),
+        });
         return;
       case "coords":
         await this.runCode(`
@@ -664,16 +637,14 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
         `);
         return;
       case "role_name":
-        await this.runtime.callTool(
-          action === "click" ? "browser_click" : "browser_hover",
-          { ref: await this.resolveTargetRef(normalized) },
-        );
+        await this.runtime.callTool(action === "click" ? "browser_click" : "browser_hover", {
+          ref: await this.resolveTargetRef(normalized),
+        });
         return;
       case "text":
-        await this.runtime.callTool(
-          action === "click" ? "browser_click" : "browser_hover",
-          { ref: await this.resolveTargetRef(normalized) },
-        );
+        await this.runtime.callTool(action === "click" ? "browser_click" : "browser_hover", {
+          ref: await this.resolveTargetRef(normalized),
+        });
         return;
       default:
         throw new Error(
@@ -682,10 +653,7 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
     }
   }
 
-  async click(
-    targetOrX: string | ActionTarget | number,
-    y?: number,
-  ): Promise<void> {
+  async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
@@ -703,10 +671,7 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
     await this.performTargetedAction(targetOrX, "click");
   }
 
-  async hover(
-    targetOrX: string | ActionTarget | number,
-    y?: number,
-  ): Promise<void> {
+  async hover(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
@@ -722,12 +687,7 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
     await this.performTargetedAction(targetOrX, "hover");
   }
 
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-  ): Promise<void> {
+  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
     await this.runCode(`
       async (page) => {
         await page.mouse.move(${x}, ${y});
@@ -789,9 +749,7 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
         });
         return;
       default:
-        throw new Error(
-          `playwright_mcp does not support type target kind "${target.kind}" yet`,
-        );
+        throw new Error(`playwright_mcp does not support type target kind "${target.kind}" yet`);
     }
   }
 
@@ -844,9 +802,7 @@ class PlaywrightMcpPageHandle implements CorePageHandle {
         await this.runtime.callTool("browser_press_key", { key });
         return;
       default:
-        throw new Error(
-          `playwright_mcp does not support press target kind "${target.kind}" yet`,
-        );
+        throw new Error(`playwright_mcp does not support press target kind "${target.kind}" yet`);
     }
   }
 
@@ -929,10 +885,7 @@ class PlaywrightMcpSession implements CoreSession {
     }
 
     if (!this.activePageId && listed[0]) {
-      this.activePageId = this.findOrCreatePage(
-        listed[0].index,
-        listed[0].url,
-      ).id;
+      this.activePageId = this.findOrCreatePage(listed[0].index, listed[0].url).id;
     }
   }
 
@@ -963,9 +916,7 @@ class PlaywrightMcpSession implements CoreSession {
     await this.runtime.callTool("browser_tabs", { action: "new" });
     await this.syncPages();
 
-    const pages = [...this.pagesByIndex.values()].sort(
-      (left, right) => left.index - right.index,
-    );
+    const pages = [...this.pagesByIndex.values()].sort((left, right) => left.index - right.index);
     const created = pages[pages.length - 1];
     if (!created) {
       throw new Error("browser_tabs(new) did not create a page");
@@ -1045,9 +996,7 @@ function buildPlaywrightMcpArgs(input: ToolStartInput): string[] {
     }
 
     args.push("--cdp-endpoint", input.providedEndpoint.url);
-    for (const [key, value] of Object.entries(
-      input.providedEndpoint.headers ?? {},
-    )) {
+    for (const [key, value] of Object.entries(input.providedEndpoint.headers ?? {})) {
       args.push("--cdp-header", `${key}:${value}`);
     }
   } else if (input.startupProfile === "tool_launch_local") {
@@ -1079,9 +1028,7 @@ export class PlaywrightMcpTool implements CoreTool {
     "tool_attach_local_cdp",
     "tool_attach_browserbase",
   ];
-  readonly supportedCapabilities: CoreCapability[] = [
-    ...SUPPORTED_CAPABILITIES,
-  ];
+  readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
   readonly supportedTargetKinds: TargetKind[] = [
     "selector",
     "coords",
@@ -1104,11 +1051,8 @@ export class PlaywrightMcpTool implements CoreTool {
         await session.close();
       },
       metadata: {
-        environment:
-          input.environment === "BROWSERBASE" ? "browserbase" : "local",
-        browserOwnership: input.startupProfile.startsWith("runner_provided")
-          ? "runner"
-          : "tool",
+        environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
+        browserOwnership: input.startupProfile.startsWith("runner_provided") ? "runner" : "tool",
         connectionMode: connectionModeFromProfile(
           input.startupProfile,
           input.providedEndpoint?.kind,

@@ -19,14 +19,10 @@ export default defineBenchTask(
         z.object({
           tablespoons_olive_oil: z
             .number()
-            .describe(
-              "the number of tablespoons of olive oil needed for the steak",
-            ),
+            .describe("the number of tablespoons of olive oil needed for the steak"),
           teaspoons_lemon_juice: z
             .number()
-            .describe(
-              "the number of teaspoons of lemon juice needed for the mushroom pan sauce",
-            ),
+            .describe("the number of teaspoons of lemon juice needed for the mushroom pan sauce"),
         }),
         { selector: selector },
       );

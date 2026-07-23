@@ -6,9 +6,7 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
       const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
       const selector = "/html/body/div/ul[5]/li[28]";
       const company = await v3.extract(
         "Extract the name of the company that comes after 'Coframe'.",
@@ -32,8 +30,7 @@ export default defineBenchTask(
 
       if (nameMatches) {
         logger.error({
-          message:
-            "extracted company name matches the company name that we SHOULD NOT get",
+          message: "extracted company name matches the company name that we SHOULD NOT get",
           level: 0,
           auxiliary: {
             expected: {
@@ -48,8 +45,7 @@ export default defineBenchTask(
         });
         return {
           _success: false,
-          error:
-            "extracted company name matches the company name that we SHOULD NOT get",
+          error: "extracted company name matches the company name that we SHOULD NOT get",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,

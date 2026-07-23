@@ -76,9 +76,7 @@ const args = process.argv.slice(2);
     shuttingDown = true;
     const code = signal === "SIGINT" ? 130 : 143;
     try {
-      const { cleanupActiveRunResources } = await import(
-        "./framework/runner.js"
-      );
+      const { cleanupActiveRunResources } = await import("./framework/runner.js");
       await cleanupActiveRunResources();
     } catch {
       // ignore
@@ -110,10 +108,7 @@ const args = process.argv.slice(2);
     const readline = await import("node:readline");
     const wasRaw = process.stdin.isRaw;
     readline.emitKeypressEvents(process.stdin);
-    const onKeypress = (
-      _str: string,
-      key: { name?: string; ctrl?: boolean } | undefined,
-    ): void => {
+    const onKeypress = (_str: string, key: { name?: string; ctrl?: boolean } | undefined): void => {
       if (!key) return;
       if (key.name === "escape") void handleSignal("SIGINT");
       else if (key.ctrl && key.name === "c") void handleSignal("SIGINT");
@@ -140,9 +135,7 @@ const args = process.argv.slice(2);
       return;
     }
 
-    const { buildCommandTree, dispatch, tokenizeArgv } = await import(
-      "./tui/commandTree.js"
-    );
+    const { buildCommandTree, dispatch, tokenizeArgv } = await import("./tui/commandTree.js");
 
     let registry: TaskRegistry | null = null;
     const getRegistry = async (): Promise<TaskRegistry> => {

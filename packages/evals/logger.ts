@@ -31,8 +31,7 @@ function parseLogLine(logLine: LogLine): LogLineEval {
 
       for (const [key, entry] of Object.entries(logLine.auxiliary)) {
         try {
-          parsedAuxiliary[key] =
-            entry.type === "object" ? JSON.parse(entry.value) : entry.value;
+          parsedAuxiliary[key] = entry.type === "object" ? JSON.parse(entry.value) : entry.value;
         } catch (parseError) {
           console.warn(`Failed to parse auxiliary entry ${key}:`, parseError);
           // If parsing fails, use the raw value
