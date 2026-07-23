@@ -2,9 +2,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod/v4";
 import {
+  createV4CodeFacades,
   createV4DeterministicFacades,
+  executeV4CodeSnippet,
   executeV4DeterministicSnippet,
+  initializeV4CodeRuntime,
   initializeV4DeterministicRuntime,
   loadV4StagehandConstructor,
   resolveV4SdkPath,
@@ -80,9 +84,6 @@ function createRawRuntime() {
   class RawPage {
     readonly rpcClient = { secret: true };
     readonly pageId: string;
-    readonly act = vi.fn();
-    readonly extract = vi.fn();
-    readonly observe = vi.fn();
     currentUrl = "about:blank";
 
     constructor(pageId: string) {
@@ -185,7 +186,46 @@ function createRawRuntime() {
     async clearCookies() {}
   }
 
-  return { context: new RawContext() };
+  const context = new RawContext();
+  const stagehand = {
+    context,
+    rpcClient: { secret: true },
+    init: vi.fn(async () => {}),
+    close: vi.fn(async () => {}),
+    act: vi.fn(
+      async (
+        instruction: string,
+        options?: { page?: RawPage; [key: string]: unknown },
+      ) => ({
+        success: true,
+        message: instruction,
+        pageId: options?.page?.pageId ?? context.active.pageId,
+      }),
+    ),
+    extract: vi.fn(
+      async (
+        _instruction: string,
+        schema: z.ZodType,
+        options?: { page?: RawPage; [key: string]: unknown },
+      ) => {
+        void options;
+        return schema.parse({ heading: "Example Domain" });
+      },
+    ),
+    observe: vi.fn(
+      async (
+        instruction?: string,
+        options?: { page?: RawPage; [key: string]: unknown },
+      ) => [
+        {
+          description: instruction,
+          pageId: options?.page?.pageId ?? context.active.pageId,
+        },
+      ],
+    ),
+  };
+
+  return { context, stagehand };
 }
 
 describe("deterministic V4 runtime", () => {
@@ -301,6 +341,52 @@ describe("deterministic V4 runtime", () => {
     ]);
   });
 
+  it("initializes AI mode with the selected model credentials and headers", async () => {
+    const raw = createRawRuntime();
+    const constructorOptions: unknown[] = [];
+    class FakeStagehand {
+      readonly context = raw.context;
+      constructor(options: unknown) {
+        constructorOptions.push(options);
+      }
+      async init() {}
+      async close() {}
+    }
+
+    const runtime = await initializeV4CodeRuntime({
+      sdkPath: makeSdkEntry(),
+      mode: "ai",
+      model: {
+        modelName: "anthropic/claude-sonnet-5",
+        apiKey: "test-key",
+        headers: { "anthropic-dangerous-direct-browser-access": "true" },
+      },
+      importModule: async () => ({ Stagehand: FakeStagehand }),
+    });
+    await runtime.close();
+
+    expect(constructorOptions).toEqual([
+      {
+        browser: { type: "local", headless: true },
+        model: {
+          modelName: "anthropic/claude-sonnet-5",
+          apiKey: "test-key",
+          headers: { "anthropic-dangerous-direct-browser-access": "true" },
+        },
+      },
+    ]);
+  });
+
+  it("rejects missing AI model configuration without affecting deterministic mode", async () => {
+    await expect(
+      initializeV4CodeRuntime({
+        sdkPath: makeSdkEntry(),
+        mode: "ai",
+        importModule: async () => ({ Stagehand: class {} }),
+      }),
+    ).rejects.toThrow(/requires a model name and provider API key/);
+  });
+
   it("executes snippets with wrapped pages and contexts", async () => {
     const raw = createRawRuntime();
     const { context, wrapPage } = createV4DeterministicFacades(raw.context);
@@ -354,6 +440,7 @@ describe("deterministic V4 runtime", () => {
         contextClose: typeof context.close,
         clipboardRpc: typeof context.clipboard.rpcClient,
         stagehand: typeof stagehand,
+        zod: typeof z,
         locatorRpc: typeof page.locator("button").rpcClient,
       };`,
       runtime: { page, context },
@@ -371,7 +458,93 @@ describe("deterministic V4 runtime", () => {
       contextClose: "undefined",
       clipboardRpc: "undefined",
       stagehand: "undefined",
+      zod: "undefined",
       locatorRpc: "undefined",
+    });
+  });
+
+  it("exposes Stagehand-scoped AI methods and z without exposing internals", async () => {
+    const raw = createRawRuntime();
+    const { context, wrapPage, stagehand } = createV4CodeFacades(
+      raw.context,
+      "ai",
+      raw.stagehand,
+    );
+    const page = wrapPage(await raw.context.activePage());
+
+    const result = await executeV4CodeSnippet({
+      code: `
+        const second = await context.newPage();
+        const extracted = await stagehand.extract(
+          "Extract the heading",
+          z.object({ heading: z.string() }),
+          { page },
+        );
+        const observed = await stagehand.observe(
+          "Find the more information link",
+          { page: second },
+        );
+        const acted = await stagehand.act(
+          "Click the more information link",
+          { page: second },
+        );
+        return {
+          extracted,
+          observed,
+          acted,
+          pageAct: typeof page.act,
+          stagehandType: typeof stagehand,
+          stagehandRpc: typeof stagehand.rpcClient,
+          stagehandInit: typeof stagehand.init,
+          stagehandClose: typeof stagehand.close,
+          stagehandContext: typeof stagehand.context,
+          pageRpc: typeof page.rpcClient,
+          contextRpc: typeof context.rpcClient,
+        };
+      `,
+      runtime: { page, context, stagehand },
+      mode: "ai",
+      startUrl: "https://example.com",
+      task: {},
+      console,
+    });
+
+    expect(result).toEqual({
+      extracted: { heading: "Example Domain" },
+      observed: [
+        {
+          description: "Find the more information link",
+          pageId: "page-2",
+        },
+      ],
+      acted: {
+        success: true,
+        message: "Click the more information link",
+        pageId: "page-2",
+      },
+      pageAct: "undefined",
+      stagehandType: "object",
+      stagehandRpc: "undefined",
+      stagehandInit: "undefined",
+      stagehandClose: "undefined",
+      stagehandContext: "undefined",
+      pageRpc: "undefined",
+      contextRpc: "undefined",
+    });
+    expect(raw.stagehand.act).toHaveBeenCalledWith(
+      "Click the more information link",
+      { page: raw.context.pagesList[1] },
+    );
+    expect(raw.stagehand.observe).toHaveBeenCalledWith(
+      "Find the more information link",
+      { page: raw.context.pagesList[1] },
+    );
+    expect(raw.stagehand.extract.mock.calls[0]).toHaveLength(3);
+    expect(raw.stagehand.extract.mock.calls[0]?.[0]).toBe(
+      "Extract the heading",
+    );
+    expect(raw.stagehand.extract.mock.calls[0]?.[2]).toEqual({
+      page: raw.context.pagesList[0],
     });
   });
 

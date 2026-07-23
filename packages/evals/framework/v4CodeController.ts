@@ -8,7 +8,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { getRepoRootDir } from "../runtimePaths.js";
-import { STAGEHAND_V4_SDK_PATH_ENV, resolveV4SdkPath } from "./v4CodeConfig.js";
+import {
+  STAGEHAND_V4_SDK_PATH_ENV,
+  resolveV4SdkPath,
+  type V4CodeMode,
+  type V4CodeModelConfig,
+} from "./v4CodeConfig.js";
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
 const DEFAULT_EXECUTE_TIMEOUT_MS = 60_000;
@@ -16,7 +21,12 @@ const DEFAULT_CLOSE_TIMEOUT_MS = 5_000;
 const CHILD_EXIT_GRACE_MS = 1_000;
 
 export type V4CodeBridgeRequest =
-  | { id: number; type: "init"; sdkPath: string; userDataDir?: string }
+  | ({
+      id: number;
+      type: "init";
+      sdkPath: string;
+      userDataDir?: string;
+    } & ({ mode: "deterministic" } | { mode: "ai"; model: V4CodeModelConfig }))
   | {
       id: number;
       type: "execute";
@@ -78,6 +88,8 @@ export type V4CodeBridgeFork = (
 ) => ChildProcess;
 
 export interface StartV4CodeControllerInput {
+  mode?: V4CodeMode;
+  model?: V4CodeModelConfig;
   sdkPath?: string;
   bridgePath?: string;
   forkProcess?: V4CodeBridgeFork;
@@ -99,6 +111,8 @@ type PendingRequest = {
 export async function startV4CodeController(
   input: StartV4CodeControllerInput = {},
 ): Promise<V4CodeController> {
+  const mode = input.mode ?? "deterministic";
+  const model = resolveControllerModel(mode, input.model);
   const sdkPath = input.sdkPath ?? resolveV4SdkPath();
   const bridgePath = input.bridgePath ?? resolveV4CodeBridgePath();
   const forkProcess = input.forkProcess ?? nodeFork;
@@ -159,7 +173,12 @@ export async function startV4CodeController(
   });
 
   try {
-    await controller.initialize(sdkPath, browserUserDataDir);
+    await controller.initialize({
+      sdkPath,
+      userDataDir: browserUserDataDir,
+      mode,
+      model,
+    });
     return controller;
   } catch (error) {
     await controller.abort();
@@ -251,9 +270,27 @@ class IpcV4CodeController implements V4CodeController {
     child.once("error", (error) => this.#fail(error));
   }
 
-  async initialize(sdkPath: string, userDataDir?: string): Promise<void> {
+  async initialize(input: {
+    sdkPath: string;
+    userDataDir?: string;
+    mode: V4CodeMode;
+    model?: V4CodeModelConfig;
+  }): Promise<void> {
     const result = await this.#request(
-      { type: "init", sdkPath, ...(userDataDir && { userDataDir }) },
+      input.mode === "ai"
+        ? {
+            type: "init",
+            sdkPath: input.sdkPath,
+            ...(input.userDataDir && { userDataDir: input.userDataDir }),
+            mode: "ai",
+            model: requireControllerModel(input.model),
+          }
+        : {
+            type: "init",
+            sdkPath: input.sdkPath,
+            ...(input.userDataDir && { userDataDir: input.userDataDir }),
+            mode: "deterministic",
+          },
       this.#startupTimeoutMs,
     );
     if (
@@ -497,6 +534,30 @@ function requireDirectory(value: string, name: string): string {
     throw new Error(`${name} does not point to a directory: ${resolved}`);
   }
   return resolved;
+}
+
+function resolveControllerModel(
+  mode: V4CodeMode,
+  model: V4CodeModelConfig | undefined,
+): V4CodeModelConfig | undefined {
+  if (mode === "ai") return requireControllerModel(model);
+  if (model) {
+    throw new Error(
+      "Deterministic V4 code must not receive model configuration.",
+    );
+  }
+  return undefined;
+}
+
+function requireControllerModel(
+  model: V4CodeModelConfig | undefined,
+): V4CodeModelConfig {
+  if (!model?.modelName.trim() || !model.apiKey.trim()) {
+    throw new Error(
+      "AI-enabled V4 code requires a model name and provider API key.",
+    );
+  }
+  return model;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

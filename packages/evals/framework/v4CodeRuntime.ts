@@ -1,5 +1,7 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { z } from "zod/v4";
+import type { V4CodeMode, V4CodeModelConfig } from "./v4CodeConfig.js";
 export { STAGEHAND_V4_SDK_PATH_ENV, resolveV4SdkPath } from "./v4CodeConfig.js";
 
 type UnknownRecord = Record<string, unknown>;
@@ -57,6 +59,23 @@ export interface V4DeterministicPageFacade {
   locator(selector: string): V4DeterministicLocatorFacade;
 }
 
+export interface V4AiMethodOptions {
+  page?: V4DeterministicPageFacade;
+  [key: string]: unknown;
+}
+
+export interface V4AiStagehandFacade {
+  act(instruction: string, options?: V4AiMethodOptions): Promise<unknown>;
+  observe(instruction?: string, options?: V4AiMethodOptions): Promise<unknown>;
+  extract(
+    instruction: string,
+    schema: z.ZodType,
+    options?: V4AiMethodOptions,
+  ): Promise<unknown>;
+}
+
+export type V4CodePageFacade = V4DeterministicPageFacade;
+
 export interface V4DeterministicContextFacade {
   readonly clipboard: V4DeterministicClipboardFacade;
   pages(): Promise<V4DeterministicPageFacade[]>;
@@ -70,6 +89,17 @@ export interface V4DeterministicContextFacade {
   cookies(...args: unknown[]): Promise<unknown>;
   addCookies(...args: unknown[]): Promise<unknown>;
   clearCookies(...args: unknown[]): Promise<unknown>;
+}
+
+export interface V4CodeContextFacade
+  extends Omit<
+    V4DeterministicContextFacade,
+    "pages" | "newPage" | "activePage" | "setActivePage"
+  > {
+  pages(): Promise<V4CodePageFacade[]>;
+  newPage(...args: unknown[]): Promise<V4CodePageFacade>;
+  activePage(): Promise<V4CodePageFacade | undefined>;
+  setActivePage(page: V4CodePageFacade): Promise<void>;
 }
 
 export interface V4DeterministicClipboardFacade {
@@ -87,14 +117,30 @@ export interface V4DeterministicRuntime {
   close(): Promise<void>;
 }
 
+export interface V4CodeRuntime {
+  mode: V4CodeMode;
+  page: V4CodePageFacade;
+  context: V4CodeContextFacade;
+  stagehand?: V4AiStagehandFacade;
+  close(): Promise<void>;
+}
+
 type V4StagehandInstance = {
   context: unknown;
+  act(input: string, options?: unknown): Promise<unknown>;
+  observe(instruction?: string, options?: unknown): Promise<unknown>;
+  extract(
+    instruction: string,
+    schema: z.ZodType,
+    options?: unknown,
+  ): Promise<unknown>;
   init(): Promise<unknown>;
   close(): Promise<unknown>;
 };
 
 type V4StagehandConstructor = new (options: {
   browser: { type: "local"; headless: true; userDataDir?: string };
+  model?: V4CodeModelConfig;
 }) => V4StagehandInstance;
 
 export async function loadV4StagehandConstructor(
@@ -116,6 +162,25 @@ export async function initializeV4DeterministicRuntime(input: {
   userDataDir?: string;
   importModule?: V4SdkModuleImporter;
 }): Promise<V4DeterministicRuntime> {
+  const runtime = await initializeV4CodeRuntime({
+    ...input,
+    mode: "deterministic",
+  });
+  return {
+    page: runtime.page as V4DeterministicPageFacade,
+    context: runtime.context as V4DeterministicContextFacade,
+    close: runtime.close,
+  };
+}
+
+export async function initializeV4CodeRuntime(input: {
+  sdkPath: string;
+  userDataDir?: string;
+  mode: V4CodeMode;
+  model?: V4CodeModelConfig;
+  importModule?: V4SdkModuleImporter;
+}): Promise<V4CodeRuntime> {
+  const model = resolveRuntimeModel(input.mode, input.model);
   const Stagehand = await loadV4StagehandConstructor(
     input.sdkPath,
     input.importModule,
@@ -126,6 +191,7 @@ export async function initializeV4DeterministicRuntime(input: {
       headless: true,
       ...(input.userDataDir && { userDataDir: input.userDataDir }),
     },
+    ...(model && { model }),
   });
   let closePromise: Promise<void> | undefined;
 
@@ -138,12 +204,22 @@ export async function initializeV4DeterministicRuntime(input: {
 
   try {
     await stagehand.init();
-    const { context } = createV4DeterministicFacades(stagehand.context);
+    const { context, stagehand: stagehandFacade } = createV4CodeFacades(
+      stagehand.context,
+      input.mode,
+      stagehand,
+    );
     const page =
       (await context.activePage()) ??
       (await context.pages())[0] ??
       (await context.newPage());
-    return { page, context, close };
+    return {
+      mode: input.mode,
+      page,
+      context,
+      ...(stagehandFacade && { stagehand: stagehandFacade }),
+      close,
+    };
   } catch (error) {
     try {
       await close();
@@ -162,8 +238,23 @@ export function createV4DeterministicFacades(rawContext: unknown): {
   context: V4DeterministicContextFacade;
   wrapPage: (rawPage: unknown) => V4DeterministicPageFacade;
 } {
+  return createV4CodeFacades(rawContext, "deterministic") as {
+    context: V4DeterministicContextFacade;
+    wrapPage: (rawPage: unknown) => V4DeterministicPageFacade;
+  };
+}
+
+export function createV4CodeFacades(
+  rawContext: unknown,
+  mode: V4CodeMode,
+  rawStagehand?: unknown,
+): {
+  context: V4CodeContextFacade;
+  wrapPage: (rawPage: unknown) => V4CodePageFacade;
+  stagehand?: V4AiStagehandFacade;
+} {
   const contextTarget = requireObject(rawContext, "V4 browser context");
-  const pagesByRaw = new WeakMap<object, V4DeterministicPageFacade>();
+  const pagesByRaw = new WeakMap<object, V4CodePageFacade>();
   const rawPagesByFacade = new WeakMap<object, object>();
   const locatorsByRaw = new WeakMap<object, V4DeterministicLocatorFacade>();
   const rawLocatorsByFacade = new WeakMap<object, object>();
@@ -201,12 +292,12 @@ export function createV4DeterministicFacades(rawContext: unknown): {
     return facade;
   };
 
-  const wrapPage = (rawPage: unknown): V4DeterministicPageFacade => {
+  const wrapPage = (rawPage: unknown): V4CodePageFacade => {
     const pageTarget = requireObject(rawPage, "V4 page");
     const existing = pagesByRaw.get(pageTarget);
     if (existing) return existing;
 
-    const facade: V4DeterministicPageFacade = {
+    const facade: V4CodePageFacade = {
       pageId: readString(pageTarget, "pageId"),
       goto: async (...args) => {
         await invoke(pageTarget, "goto", args);
@@ -278,7 +369,7 @@ export function createV4DeterministicFacades(rawContext: unknown): {
   };
   Object.freeze(clipboard);
 
-  const context: V4DeterministicContextFacade = {
+  const context: V4CodeContextFacade = {
     clipboard,
     pages: async () => {
       const pages = await invoke(contextTarget, "pages", []);
@@ -299,7 +390,7 @@ export function createV4DeterministicFacades(rawContext: unknown): {
       const rawPage = rawPagesByFacade.get(page);
       if (!rawPage) {
         throw new Error(
-          "context.setActivePage() requires a page returned by this deterministic V4 context.",
+          "context.setActivePage() requires a page returned by this V4 context.",
         );
       }
       await invoke(contextTarget, "setActivePage", [rawPage]);
@@ -324,9 +415,7 @@ export function createV4DeterministicFacades(rawContext: unknown): {
     }
     const rawPage = rawPagesByFacade.get(options.page);
     if (!rawPage) {
-      throw new Error(
-        "clipboard page must come from this deterministic V4 context.",
-      );
+      throw new Error("clipboard page must come from this V4 context.");
     }
     return { ...options, page: rawPage };
   }
@@ -347,7 +436,28 @@ export function createV4DeterministicFacades(rawContext: unknown): {
     return [{ ...options, mask }, ...rest];
   }
 
-  return { context, wrapPage };
+  const stagehand =
+    mode === "ai"
+      ? createV4AiStagehandFacade(rawStagehand, unwrapStagehandOptions)
+      : undefined;
+
+  function unwrapStagehandOptions(options: unknown): unknown {
+    if (!isRecord(options) || options.page === undefined) return options;
+    if (!isObject(options.page)) {
+      throw new Error("Stagehand page must be a V4 page facade.");
+    }
+    const rawPage = rawPagesByFacade.get(options.page);
+    if (!rawPage) {
+      throw new Error("Stagehand page must come from this V4 context.");
+    }
+    return { ...options, page: rawPage };
+  }
+
+  return {
+    context,
+    wrapPage,
+    ...(stagehand && { stagehand }),
+  };
 }
 
 export async function executeV4DeterministicSnippet(input: {
@@ -357,25 +467,74 @@ export async function executeV4DeterministicSnippet(input: {
   task: Record<string, unknown>;
   console: Pick<Console, "log" | "warn" | "error">;
 }): Promise<unknown> {
+  return executeV4CodeSnippet({ ...input, mode: "deterministic" });
+}
+
+export async function executeV4CodeSnippet(input: {
+  code: string;
+  runtime: Pick<V4CodeRuntime, "page" | "context" | "stagehand">;
+  mode: V4CodeMode;
+  startUrl: string;
+  task: Record<string, unknown>;
+  console: Pick<Console, "log" | "warn" | "error">;
+}): Promise<unknown> {
   const AsyncFunction = Object.getPrototypeOf(async function () {})
     .constructor as new (
     ...args: string[]
   ) => (...values: unknown[]) => Promise<unknown>;
-  const fn = new AsyncFunction(
-    "page",
-    "context",
-    "startUrl",
-    "task",
-    "console",
-    input.code,
-  );
-  return fn(
+  const names = ["page", "context", "startUrl", "task", "console"];
+  const values: unknown[] = [
     input.runtime.page,
     input.runtime.context,
     input.startUrl,
     input.task,
     input.console,
-  );
+  ];
+  if (input.mode === "ai") {
+    if (!input.runtime.stagehand) {
+      throw new Error("AI-enabled V4 snippets require a Stagehand facade.");
+    }
+    names.push("stagehand", "z");
+    values.push(input.runtime.stagehand, z);
+  }
+  const fn = new AsyncFunction(...names, input.code);
+  return fn(...values);
+}
+
+function createV4AiStagehandFacade(
+  rawStagehand: unknown,
+  unwrapOptions: (options: unknown) => unknown,
+): V4AiStagehandFacade {
+  const stagehandTarget = requireObject(rawStagehand, "V4 Stagehand instance");
+  const facade: V4AiStagehandFacade = {
+    act: (instruction, options) =>
+      invoke(
+        stagehandTarget,
+        "act",
+        options === undefined
+          ? [instruction]
+          : [instruction, unwrapOptions(options)],
+      ),
+    observe: (instruction, options) =>
+      invoke(
+        stagehandTarget,
+        "observe",
+        options === undefined
+          ? instruction === undefined
+            ? []
+            : [instruction]
+          : [instruction, unwrapOptions(options)],
+      ),
+    extract: (instruction, schema, options) =>
+      invoke(
+        stagehandTarget,
+        "extract",
+        options === undefined
+          ? [instruction, schema]
+          : [instruction, schema, unwrapOptions(options)],
+      ),
+  };
+  return Object.freeze(facade);
 }
 
 async function defaultV4SdkImporter(
@@ -417,6 +576,26 @@ function readString(target: UnknownRecord, key: string): string {
     throw new Error(`V4 runtime ${key} is not a string.`);
   }
   return value;
+}
+
+function resolveRuntimeModel(
+  mode: V4CodeMode,
+  model: V4CodeModelConfig | undefined,
+): V4CodeModelConfig | undefined {
+  if (mode === "deterministic") {
+    if (model) {
+      throw new Error(
+        "Deterministic V4 runtime must not receive model configuration.",
+      );
+    }
+    return undefined;
+  }
+  if (!model?.modelName.trim() || !model.apiKey.trim()) {
+    throw new Error(
+      "AI-enabled V4 runtime requires a model name and provider API key.",
+    );
+  }
+  return model;
 }
 
 function isObject(value: unknown): value is object {
