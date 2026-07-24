@@ -49,7 +49,9 @@ overrides:
   vite: "catalog:"
 allowBuilds:
   "@ast-grep/lang-python": true
+  "@google/genai": false
   "@scarf/scarf": false
+  bufferutil: false
   esbuild: true
   keytar: false
   protobufjs: false
