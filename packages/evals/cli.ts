@@ -37,7 +37,6 @@ dotenv.config({ quiet: true } as dotenv.DotenvConfigOptions);
 // mode (node running dist/cli/cli.js) this is what lets task files load.
 await (async () => {
   try {
-    // @ts-expect-error — tsx's subpath export doesn't resolve under `moduleResolution: "node"`; resolved at runtime.
     const tsxApi = (await import("tsx/esm/api")) as {
       register: () => unknown;
     };
