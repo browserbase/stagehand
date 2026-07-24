@@ -42,6 +42,11 @@ export interface CodexRunResult {
   status?: Trajectory["status"];
   /** Optional usage to fold into Trajectory.usage. */
   usage?: Partial<Trajectory["usage"]>;
+  /**
+   * Harness-observed terminal page state (captured through the tool surface
+   * after the agent finished) — anchors the verifier's final observation.
+   */
+  terminalArtifact?: { screenshot?: Buffer; url?: string };
 }
 
 export class CodexTrajectoryAdapter
@@ -88,6 +93,14 @@ export class CodexTrajectoryAdapter
       finalAnswer,
       status: result.status ?? "complete",
       usage: result.usage,
+      ...(result.terminalArtifact?.screenshot && {
+        finalObservation: {
+          screenshot: result.terminalArtifact.screenshot,
+          ...(result.terminalArtifact.url && {
+            url: result.terminalArtifact.url,
+          }),
+        },
+      }),
     });
   }
 }
