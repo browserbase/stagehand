@@ -42,7 +42,8 @@ build:
 changeset:
     vp exec changeset
 
-version:
+# Prefixed with `_` because this internal recipe is only used to generate release versions and changelogs.
+_version:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -z "${GITHUB_TOKEN:-}" ]]; then
