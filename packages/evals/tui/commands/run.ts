@@ -291,6 +291,7 @@ export async function runCommand(
           agentModes: options.agentModes,
           harness: options.harness,
           sdk: options.sdk,
+          isolateTasks: options.isolate,
           categoryFilter,
           datasetFilter: options.datasetFilter,
           coreToolSurface: options.coreToolSurface as ToolSurface | undefined,

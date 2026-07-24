@@ -173,6 +173,11 @@ export interface RunEvalsOptions {
   agentModes?: AgentToolMode[];
   harness?: Harness;
   /**
+   * Run each bench task in its own child process so a hard crash (OOM,
+   * hung SDK, unhandled rejection) fails only that task. Set by --isolate.
+   */
+  isolateTasks?: boolean;
+  /**
    * Which Stagehand SDK drives bench tasks. When set explicitly (v3 or v4),
    * the run is treated as part of an SDK comparison: the Braintrust
    * experiment name gains sdk/env/model/date segments and metadata carries
@@ -273,6 +278,10 @@ async function executeTask(
 ): Promise<TaskResult> {
   if (task.tier === "core") {
     return executeCoreTask(input, task, options);
+  }
+  if (options.isolateTasks) {
+    const { executeBenchTaskIsolated } = await import("./benchTaskIsolation.js");
+    return executeBenchTaskIsolated(input, task, options);
   }
   return executeBenchTask(input, task, options);
 }
