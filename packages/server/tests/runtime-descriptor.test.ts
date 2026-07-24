@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
-import { RuntimeDescriptorSchema, STAGEHAND_RUNTIME_VERSION } from "../../protocol/schemas.ts";
+import { RuntimeDescriptorSchema } from "../../protocol/schemas.ts";
 import {
   startStagehandServiceWorker,
   type StagehandServiceWorkerScope,
 } from "../service-worker.ts";
+import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 
 describe("runtime descriptor", () => {
   it("publishes a valid runtime descriptor", () => {

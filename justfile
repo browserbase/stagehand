@@ -55,10 +55,10 @@ _version:
     uv --directory "{{python_dir}}" lock
     vp exec tsx scripts/release/sync-python-version.ts --check
 
+# Builds the commit-addressed bundle used by pull request preview automation.
+_preview commit:
+    vp exec tsx scripts/release/build-preview.ts "{{commit}}"
+
 _publish-typescript:
     vp run -F ./packages/sdk-ts build
     vp exec changeset publish
-
-_publish-typescript-canary commit:
-    vp run -F ./packages/sdk-ts build
-    vp exec tsx scripts/release/publish-typescript-canary.ts "{{commit}}"

@@ -1,0 +1,241 @@
+name: Preview
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build preview bundle
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "24"
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: packages/sdk-python/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: packages/sdk-python
+          enable-cache: true
+          cache-dependency-glob: packages/sdk-python/uv.lock
+
+      - uses: extractions/setup-just@v3
+
+      - run: vp install
+
+      - name: Build preview
+        run: just _preview "$PREVIEW_SHA"
+        env:
+          PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+          STAGEHAND_PREVIEW_PULL_REQUEST: ${{ github.event.pull_request.number }}
+
+      - run: vp exec tsx scripts/release/verify-preview.ts dist/preview
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stagehand-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: dist/preview
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish preview
+    needs: build
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIEW_PR: ${{ github.event.pull_request.number }}
+      PREVIEW_REPOSITORY: ${{ github.repository }}
+      PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: stagehand-preview-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: dist/preview
+
+      - name: Read preview manifest
+        id: preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST="$(find dist/preview -maxdepth 1 -type f -name 'stagehand-preview-*.json' -print -quit)"
+          test -n "$MANIFEST"
+          echo "manifest=$MANIFEST" >> "$GITHUB_OUTPUT"
+          echo "tag=$(jq -r '.tag' "$MANIFEST")" >> "$GITHUB_OUTPUT"
+          echo "manifest-url=https://github.com/$PREVIEW_REPOSITORY/releases/download/$(jq -r '.tag' "$MANIFEST")/$(basename "$MANIFEST")" >> "$GITHUB_OUTPUT"
+          echo "typescript-install=$(jq -r '.artifacts.typescript.install' "$MANIFEST")" >> "$GITHUB_OUTPUT"
+          echo "python-install=$(jq -r '.artifacts.python.install' "$MANIFEST")" >> "$GITHUB_OUTPUT"
+          echo "extension-url=$(jq -r '.artifacts.extension.url' "$MANIFEST")" >> "$GITHUB_OUTPUT"
+          echo "extension-sha256=$(jq -r '.artifacts.extension.sha256' "$MANIFEST")" >> "$GITHUB_OUTPUT"
+
+      - name: Publish preview release
+        id: release
+        shell: bash
+        env:
+          MANIFEST: ${{ steps.preview.outputs.manifest }}
+          TAG: ${{ steps.preview.outputs.tag }}
+        run: |
+          set -euo pipefail
+          EXISTING_RELEASE="false"
+          if IS_DRAFT="$(gh release view "$TAG" --repo "$PREVIEW_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
+            if [[ "$IS_DRAFT" == "true" ]]; then
+              gh release delete "$TAG" --repo "$PREVIEW_REPOSITORY" --yes --cleanup-tag
+            else
+              EXISTING_RELEASE="true"
+            fi
+          fi
+
+          if [[ "$EXISTING_RELEASE" == "false" ]]; then
+            gh release create "$TAG" \
+              --repo "$PREVIEW_REPOSITORY" \
+              --target "$PREVIEW_SHA" \
+              --title "Stagehand preview for PR #$PREVIEW_PR" \
+              --notes "Commit-addressed preview for $PREVIEW_SHA. This is not a stable release." \
+              --draft
+            gh release upload "$TAG" dist/preview/* --repo "$PREVIEW_REPOSITORY"
+
+            VERIFY_DIRECTORY="$(mktemp -d)"
+            gh release download "$TAG" --repo "$PREVIEW_REPOSITORY" --dir "$VERIFY_DIRECTORY"
+            while IFS=$'\t' read -r FILE SHA256; do
+              echo "$SHA256  $VERIFY_DIRECTORY/$FILE" | sha256sum --check --status
+            done < <(jq -r '.artifacts[] | [.file, .sha256] | @tsv' "$MANIFEST")
+            gh release edit "$TAG" --repo "$PREVIEW_REPOSITORY" --draft=false --prerelease
+          fi
+
+      - name: Verify public downloads
+        shell: bash
+        env:
+          MANIFEST_URL: ${{ steps.preview.outputs.manifest-url }}
+        run: |
+          set -euo pipefail
+          PUBLIC_DIRECTORY="$(mktemp -d)"
+          MANIFEST_FILE="$PUBLIC_DIRECTORY/$(basename "$MANIFEST_URL")"
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 2 \
+            "$MANIFEST_URL" --output "$MANIFEST_FILE"
+          while IFS=$'\t' read -r FILE URL SHA256; do
+            curl --fail --location --retry 5 --retry-all-errors --retry-delay 2 \
+              "$URL" --output "$PUBLIC_DIRECTORY/$FILE"
+            echo "$SHA256  $PUBLIC_DIRECTORY/$FILE" | sha256sum --check --status
+          done < <(jq -r '.artifacts[] | [.file, .url, .sha256] | @tsv' "$MANIFEST_FILE")
+
+      - name: Update pull request comment
+        uses: actions/github-script@v8
+        env:
+          EXTENSION_SHA256: ${{ steps.preview.outputs.extension-sha256 }}
+          EXTENSION_URL: ${{ steps.preview.outputs.extension-url }}
+          MANIFEST_URL: ${{ steps.preview.outputs.manifest-url }}
+          PYTHON_INSTALL: ${{ steps.preview.outputs.python-install }}
+          TYPESCRIPT_INSTALL: ${{ steps.preview.outputs.typescript-install }}
+        with:
+          script: |
+            const marker = "<!-- stagehand-preview -->";
+            const body = [
+              marker,
+              `Stagehand preview for [\`${process.env.PREVIEW_SHA}\`](https://github.com/${process.env.PREVIEW_REPOSITORY}/commit/${process.env.PREVIEW_SHA}):`,
+              "",
+              `- [Preview manifest](${process.env.MANIFEST_URL})`,
+              `- [Extension ZIP](${process.env.EXTENSION_URL}) (\`sha256:${process.env.EXTENSION_SHA256}\`)`,
+              `- TypeScript: \`${process.env.TYPESCRIPT_INSTALL}\``,
+              `- Python: \`${process.env.PYTHON_INSTALL}\``,
+              "",
+              "This preview is replaced when the pull request changes and removed when it closes.",
+            ].join("\n");
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Remove superseded previews
+        shell: bash
+        env:
+          CURRENT_TAG: ${{ steps.preview.outputs.tag }}
+        run: |
+          set -euo pipefail
+          PREFIX="preview-pr-$PREVIEW_PR-"
+          while read -r TAG; do
+            if [[ "$TAG" != "$CURRENT_TAG" ]]; then
+              gh release delete "$TAG" --repo "$PREVIEW_REPOSITORY" --yes --cleanup-tag
+            fi
+          done < <(
+            gh api --paginate "repos/$PREVIEW_REPOSITORY/releases?per_page=100" \
+              --jq ".[] | select(.tag_name | startswith(\"$PREFIX\")) | .tag_name"
+          )
+
+  cleanup:
+    name: Remove closed preview
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIEW_PR: ${{ github.event.pull_request.number }}
+      PREVIEW_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Delete preview release and tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX="preview-pr-$PREVIEW_PR-"
+          while read -r TAG; do
+            gh release delete "$TAG" --repo "$PREVIEW_REPOSITORY" --yes --cleanup-tag
+          done < <(
+            gh api --paginate "repos/$PREVIEW_REPOSITORY/releases?per_page=100" \
+              --jq ".[] | select(.tag_name | startswith(\"$PREFIX\")) | .tag_name"
+          )

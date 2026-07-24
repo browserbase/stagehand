@@ -65,14 +65,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish TypeScript canary
-        if: steps.changesets.outputs.published != 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git checkout "$GITHUB_SHA"
-          just _publish-typescript-canary "$GITHUB_SHA"
-
   python-release-status:
     name: Check Python release status
     needs: release-typescript

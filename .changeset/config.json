@@ -16,10 +16,5 @@
   "privatePackages": {
     "version": true,
     "tag": false
-  },
-  "snapshot": {
-    "useCalculatedVersion": true,
-    "prereleaseTemplate": "alpha-{commit}",
-    "tag": "alpha"
   }
 }

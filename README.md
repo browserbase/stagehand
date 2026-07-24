@@ -30,3 +30,17 @@ Run the documentation:
 ```bash
 just docs
 ```
+
+## Contributing
+
+Before opening a pull request, run:
+
+```bash
+just check
+just test
+```
+
+After the initial v4 release, pull requests that change a released package should
+include release intent with `just changeset`. Package versions, previews, and
+publishing are coordinated from the root workflow; see
+[RELEASING.md](./RELEASING.md) for the complete lifecycle.
