@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { EvalsError } from "../errors.js";
-import type { TaskResult } from "./types.js";
+import type { BenchTaskMeta, TaskMeta, TaskResult } from "./types.js";
 
 export interface LoadedTaskDefinition {
   __taskDefinition: true;
-  meta: unknown;
+  meta: TaskMeta | BenchTaskMeta;
   fn: (ctx: unknown) => Promise<unknown>;
 }
 
