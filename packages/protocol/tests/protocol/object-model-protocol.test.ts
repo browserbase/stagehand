@@ -16,6 +16,8 @@ describe("Stagehand object-model protocol", () => {
 
   it("defines stagehand init as a JSON-RPC method", () => {
     const params = StagehandMethods.stagehandInit.params.parse({
+      protocolVersion: 4,
+      clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       apiKey: "bb_key",
       browser: {
         type: "browserbase",
@@ -27,6 +29,8 @@ describe("Stagehand object-model protocol", () => {
     });
 
     expect(params).toStrictEqual({
+      protocolVersion: 4,
+      clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       apiKey: "bb_key",
       browser: {
         type: "browserbase",
@@ -66,6 +70,8 @@ describe("Stagehand object-model protocol", () => {
   it("rejects model names without a provider prefix", () => {
     expect(() =>
       StagehandMethods.stagehandInit.params.parse({
+        protocolVersion: 4,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         model: { modelName: "gpt-5-mini" },
       }),
     ).toThrow();
@@ -543,8 +549,12 @@ describe("Stagehand object-model protocol", () => {
 
   it("accepts telemetry configuration as protocol data", () => {
     expect(
-      StagehandMethods.runtimeConfigure.params.parse({
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+      StagehandMethods.stagehandInit.params.parse({
+        protocolVersion: 4,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+        browserConnection: {
+          cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+        },
         telemetry: {
           traces: {
             endpoint: "https://otel.example.com/v1/traces",

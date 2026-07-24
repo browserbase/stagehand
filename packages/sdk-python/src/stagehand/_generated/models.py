@@ -148,6 +148,14 @@ class Browser(StrEnum):
     safari = "safari"
 
 
+class BrowserConnection(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    cdp_url: Annotated[StrictStr, Field(min_length=1)]
+
+
 class BrowserGetVersionResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1815,30 +1823,6 @@ class RgbaColor(WireModel):
     a: Optional[StrictFloat] = None
 
 
-class RuntimeConfigureParams(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    protocol_version: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = (
-        None
-    )
-    client_info: Optional[ImplementationInfo] = None
-    cdp_url: Annotated[StrictStr, Field(min_length=1)]
-    telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
-        "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
-    }
-    log_level: LogLevel = LogLevel.info
-
-
-class RuntimeConfigureResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    configured: Literal[True]
-
-
 class RuntimeLoopbackStatusResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1909,12 +1893,16 @@ class StagehandInitParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    protocol_version: Literal[4]
+    client_info: ImplementationInfo
+    browser_connection: Optional[BrowserConnection] = None
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     browser: Optional[BrowserbaseBrowserSource] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
     }
+    log_level: LogLevel = LogLevel.info
     system_prompt: Optional[StrictStr] = None
     self_heal: Optional[StrictBool] = None
     dom_settle_timeout_ms: Annotated[

@@ -10,7 +10,11 @@ import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
 import { wireSchema } from "../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods } from "../protocol/schema-registry.js";
-import type { StagehandRpcRequest } from "../protocol/types.js";
+import type {
+  StagehandInitParams,
+  StagehandInitResult,
+  StagehandRpcRequest,
+} from "../protocol/types.js";
 import { z } from "zod/v4";
 import { createBrowserController } from "./controllers/browserController.js";
 import { createContextController } from "./controllers/contextController.js";
@@ -28,7 +32,7 @@ export type HandlerContext = {
 };
 
 export type RPCRouterOptions = {
-  beforeRuntimeConfigure?: () => void;
+  initializeStagehand?: (params: StagehandInitParams) => Promise<StagehandInitResult>;
 };
 
 export class RPCRouter {
@@ -41,11 +45,14 @@ export class RPCRouter {
 
   constructor(
     readonly runtime: StagehandRuntime,
-    private readonly options: RPCRouterOptions = {},
+    options: RPCRouterOptions = {},
   ) {
     this.runtimeController = createRuntimeController(runtime);
     this.browserController = createBrowserController(runtime);
-    this.stagehandController = createStagehandController(runtime);
+    this.stagehandController = createStagehandController(
+      runtime,
+      options.initializeStagehand ? { initialize: options.initializeStagehand } : {},
+    );
     this.contextController = createContextController(runtime);
     this.pageController = createPageController(runtime);
     this.locatorController = createLocatorController(runtime);
@@ -96,11 +103,6 @@ export class RPCRouter {
           parseParams(StagehandMethods.ping, request.params),
           context,
         );
-      case "runtime.configure": {
-        const params = parseParams(StagehandMethods.runtimeConfigure, request.params);
-        this.options.beforeRuntimeConfigure?.();
-        return this.runtimeController.configure(params, context);
-      }
       case "runtime.loopback_status":
         return this.runtimeController.loopbackStatus(
           parseParams(StagehandMethods.runtimeLoopbackStatus, request.params),

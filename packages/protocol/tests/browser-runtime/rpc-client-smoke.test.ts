@@ -36,6 +36,13 @@ describe("Stagehand service worker RPC client smoke", () => {
       commandTimeoutMs: 15_000,
       logLevel: "debug",
     });
+    await rpcClient.send(StagehandMethods.stagehandInit, {
+      protocolVersion: 4,
+      clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+      browserConnection: {
+        cdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? `http://127.0.0.1:${chrome.port}`,
+      },
+    });
   }, 45_000);
 
   afterAll(async () => {
@@ -68,8 +75,8 @@ describe("Stagehand service worker RPC client smoke", () => {
       jsonrpc: "2.0",
       method: "stagehand.log",
       params: {
-        level: "debug",
-        message: "runtime.configure",
+        level: "info",
+        message: "stagehand.init",
         data: {},
       },
     });

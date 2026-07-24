@@ -17,9 +17,10 @@ class FakeRPCClient extends RPCClient {
   responses = new Map<string, unknown[]>();
   notificationListeners = new Set<(notification: StagehandRpcNotification) => void>();
 
-  constructor() {
+  constructor(webSocketDebuggerUrl?: string) {
     super(
       {
+        ...(webSocketDebuggerUrl ? { webSocketDebuggerUrl } : {}),
         serviceWorker: {
           targetId: "worker-target",
           url: "chrome-extension://stagehand/service-worker.js",
@@ -89,7 +90,7 @@ describe("Stagehand", () => {
   });
 
   it("initializes through browser source resolution and RPC client connection", async () => {
-    const rpcClient = new FakeRPCClient();
+    const rpcClient = new FakeRPCClient("ws://127.0.0.1:9222/devtools/browser/exact-session");
     rpcClient.queueResponse(StagehandMethods.contextPages, [
       { pageId: "page-1", url: "about:blank" },
     ]);
@@ -143,13 +144,6 @@ describe("Stagehand", () => {
         cdpUrl: "http://127.0.0.1:9222",
         extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
         serviceWorkerUrlIncludes: "service-worker.js",
-        logLevel: "info",
-        telemetry: {
-          traces: {
-            endpoint: "https://example.com/v1/traces",
-            headers: {},
-          },
-        },
       },
       { autoAttach: false },
     );
@@ -158,6 +152,12 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
+          protocolVersion: 4,
+          clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          logLevel: "info",
+          browserConnection: {
+            cdpUrl: "ws://127.0.0.1:9222/devtools/browser/exact-session",
+          },
           apiKey: "bb_key",
           telemetry: {
             traces: {
@@ -204,12 +204,6 @@ describe("Stagehand", () => {
         logLevel: "info",
         preloadedExtension: true,
         serviceWorkerUrlIncludes: "service-worker.js",
-        telemetry: {
-          traces: {
-            endpoint: "https://example.com/v1/traces",
-            headers: {},
-          },
-        },
       },
       { autoAttach: true },
     );
@@ -218,6 +212,8 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
+          protocolVersion: 4,
+          clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
           apiKey: "bb_key",
           browser: {
             type: "browserbase",
@@ -271,6 +267,15 @@ describe("Stagehand", () => {
         extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
         logLevel: "info",
         serviceWorkerUrlIncludes: "service-worker.js",
+      },
+      { autoAttach: false },
+    );
+    expect(rpcClient.calls[0]).toMatchObject({
+      method: "stagehand.init",
+      params: {
+        protocolVersion: 4,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+        browserConnection: { cdpUrl: "http://127.0.0.1:9222" },
         telemetry: {
           traces: {
             endpoint: "https://collector.example.com/v1/traces",
@@ -278,8 +283,7 @@ describe("Stagehand", () => {
           },
         },
       },
-      { autoAttach: false },
-    );
+    });
   });
 
   it("routes public runtime status and metrics methods through the protocol", async () => {
@@ -387,6 +391,9 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
+          protocolVersion: 4,
+          clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          browserConnection: { cdpUrl: "http://127.0.0.1:9222" },
           model: { source: "client" },
           telemetry: {
             traces: {
@@ -426,6 +433,8 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
+          protocolVersion: 4,
+          clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
           telemetry: {
             traces: {
               endpoint: "https://example.com/v1/traces",

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
+import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.js";
 import type {
   StagehandBrowserSession,
   StagehandBrowserSessionFactory,
@@ -90,6 +91,8 @@ describe("resident runtime lifecycle", () => {
 
     await lifecycle.bootstrap();
     await runtime.initialize({
+      protocolVersion: 4,
+      clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       model: { modelName: "openai/gpt-5" },
       telemetry: { traces: { endpoint: "http://127.0.0.1:4318/v1/traces", headers: {} } },
     });
@@ -101,12 +104,19 @@ describe("resident runtime lifecycle", () => {
     expect(runtime.pagesById.size).toBe(0);
     expect(runtime.state.getState()).toStrictEqual({ status: "created" });
     await expect(
-      new RPCRouter(runtime).handle({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "stagehand.init",
-        params: {},
-      }),
+      new RPCRouter(runtime, {
+        initializeStagehand: (params) => lifecycle.initialize(params),
+      }).handle(
+        StagehandRpcRequestSchema.parse({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "stagehand.init",
+          params: {
+            protocol_version: 4,
+            client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          },
+        }),
+      ),
     ).resolves.toMatchObject({ initialized: true });
     expect(lifecycle.marker.state).toBe("ready");
     expect(resolution).toBe(2);
@@ -190,7 +200,7 @@ describe("resident runtime lifecycle", () => {
     expect(lifecycle.marker.state).toBe("ready");
   });
 
-  it("lets runtime.configure supersede an unresolved resident bootstrap", async () => {
+  it("lets stagehand.init with a browser connection supersede resident bootstrap", async () => {
     const resolvedDebuggerUrl = deferred<string>();
     const resident = createSession();
     const configured = createSession();
@@ -202,33 +212,37 @@ describe("resident runtime lifecycle", () => {
       resolveDebuggerUrl: async () => await resolvedDebuggerUrl.promise,
     });
     const router = new RPCRouter(runtime, {
-      beforeRuntimeConfigure: () => lifecycle.disableAutoBootstrap(),
+      initializeStagehand: (params) => lifecycle.initialize(params),
     });
 
     const bootstrap = lifecycle.bootstrap();
     await vi.waitFor(() => expect(lifecycle.marker.state).toBe("resolving-cdp"));
-    await router.handle({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9333/devtools/browser/configured",
-        telemetry: {
-          traces: { endpoint: "http://127.0.0.1:4318/v1/traces", headers: {} },
+    const initialization = router.handle(
+      StagehandRpcRequestSchema.parse({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "stagehand.init",
+        params: {
+          protocol_version: 4,
+          client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          browser_connection: {
+            cdp_url: "ws://127.0.0.1:9333/devtools/browser/configured",
+          },
         },
-      },
-    });
+      }),
+    );
     resolvedDebuggerUrl.resolve("ws://127.0.0.1:9222/devtools/browser/resident");
     await bootstrap;
+    await initialization;
 
     expect(browserSessionFactory).toHaveBeenCalledOnce();
     expect(browserSessionFactory).toHaveBeenCalledWith(
       "ws://127.0.0.1:9333/devtools/browser/configured",
       runtime.logger,
-      undefined,
+      expect.any(Object),
     );
     expect(runtime.browserSession).toBe(configured.session);
     expect(resident.close).not.toHaveBeenCalled();
-    expect(lifecycle.marker).toMatchObject({ state: "disconnected", connected: false });
+    expect(lifecycle.marker).toMatchObject({ state: "ready", connected: true });
   });
 });

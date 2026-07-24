@@ -20,12 +20,14 @@ from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
+    BrowserConnection,
     BrowserGetVersionResult,
     ClientModelReference,
     EmptyParams,
     ExternalProxyConfig,
     ExtractOptions,
     ExtractResult,
+    ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
     ModelConfig,
@@ -428,8 +430,7 @@ class Stagehand:
                     extension_dir=str(extension_dir),
                     service_worker_url_includes="service-worker.js",
                     cdp_connect_timeout_ms=browser.connect_timeout_ms or 10_000,
-                    telemetry=self.init_params.telemetry,
-                    log_level=self.init_params.logging.level,
+                    require_runtime_ready=browser.auto_attach,
                 )
                 self._rpc_client = rpc_client
                 self._remove_notification_listener = rpc_client.on_notification(
@@ -450,9 +451,12 @@ class Stagehand:
                         generate,
                     )
 
+                browser_cdp_url = rpc_client.browser_web_socket_debugger_url
+                if not browser.auto_attach and browser_cdp_url is None:
+                    raise RuntimeError("The browser CDP WebSocket URL is unavailable")
                 await rpc_client.send(
                     "stagehand.init",
-                    self._worker_init_params(),
+                    self._worker_init_params(None if browser.auto_attach else browser_cdp_url),
                     StagehandInitResult,
                 )
                 self._browser_context = BrowserContext(rpc_client)
@@ -606,7 +610,7 @@ class Stagehand:
             )
         return self._rpc_client
 
-    def _worker_init_params(self) -> StagehandInitParams:
+    def _worker_init_params(self, browser_cdp_url: str | None) -> StagehandInitParams:
         values = self.init_params.model_dump(
             exclude={"browser", "logging", "model"},
             exclude_unset=True,
@@ -615,6 +619,14 @@ class Stagehand:
             values["model"] = ClientModelReference(source="client")
         elif self.init_params.model is not None:
             values["model"] = self.init_params.model
+        values["protocol_version"] = 4
+        values["log_level"] = self.init_params.logging.level
+        values["client_info"] = ImplementationInfo(
+            name="stagehand-sdk-python",
+            version="0.1.0",
+        )
+        if browser_cdp_url is not None:
+            values["browser_connection"] = BrowserConnection(cdp_url=browser_cdp_url)
         return StagehandInitParams.model_validate(values)
 
     async def _handle_stagehand_notification(self, notification: StagehandLog) -> None:

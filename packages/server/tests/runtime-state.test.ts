@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { StagehandBrowserSession } from "../runtime.js";
 import { createStagehandRuntime } from "../runtime.js";
 
+const clientMetadata = {
+  protocolVersion: 4 as const,
+  clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+};
+
 function createBrowserSession(
   overrides: Partial<StagehandBrowserSession> = {},
 ): StagehandBrowserSession {
@@ -43,12 +48,9 @@ describe("Stagehand runtime state", () => {
 
     await runtime.configureLoopback({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
     await runtime.initialize({
+      ...clientMetadata,
       model: { modelName: "openai/gpt-5" },
       telemetry: {
         traces: {
@@ -62,6 +64,7 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({
       status: "initialized",
       initParams: {
+        ...clientMetadata,
         model: { modelName: "openai/gpt-5" },
         telemetry: {
           traces: {
@@ -93,14 +96,11 @@ describe("Stagehand runtime state", () => {
 
     await runtime.configureLoopback({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
 
     await expect(
       runtime.initialize({
+        ...clientMetadata,
         telemetry: {
           traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
         },
@@ -117,12 +117,9 @@ describe("Stagehand runtime state", () => {
 
     await runtime.configureLoopback({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
     await runtime.initialize({
+      ...clientMetadata,
       model: { modelName: "openai/gpt-5", apiKey: "secret" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
@@ -143,6 +140,7 @@ describe("Stagehand runtime state", () => {
 
     await runtime.configureLoopback({ cdpUrl: "ws://browser.example" });
     await runtime.initialize({
+      ...clientMetadata,
       model: { modelName: "openai/gpt-5" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },

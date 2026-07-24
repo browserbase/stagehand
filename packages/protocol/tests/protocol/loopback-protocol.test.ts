@@ -2,33 +2,18 @@ import { describe, expect, it } from "vitest";
 import { StagehandMethods, StagehandRpcRequestSchema } from "../../schema-registry.js";
 
 describe("Stagehand loopback protocol", () => {
-  it("defines runtime.configure as a JSON-RPC method", () => {
-    const params = StagehandMethods.runtimeConfigure.params.parse({
-      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-    });
-
-    expect(params).toStrictEqual({
-      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      logLevel: "info",
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
-    });
-
-    expect(
-      StagehandMethods.runtimeConfigure.result.parse({
-        configured: true,
+  it("does not expose a separate runtime.configure method", () => {
+    expect(Object.values(StagehandMethods).map((method) => method.name)).not.toContain(
+      "runtime.configure",
+    );
+    expect(() =>
+      StagehandRpcRequestSchema.parse({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "runtime.configure",
+        params: {},
       }),
-    ).toStrictEqual({
-      configured: true,
-    });
-  });
-
-  it("rejects runtime.configure without a CDP URL", () => {
-    expect(() => StagehandMethods.runtimeConfigure.params.parse({})).toThrow();
+    ).toThrow();
   });
 
   it("defines runtime.loopback_status as a JSON-RPC method", () => {
@@ -68,37 +53,12 @@ describe("Stagehand loopback protocol", () => {
       StagehandRpcRequestSchema.parse({
         jsonrpc: "2.0",
         id: 1,
-        method: "runtime.configure",
-        params: {
-          cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-        },
-      }),
-    ).toStrictEqual({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-        logLevel: "info",
-        telemetry: {
-          traces: {
-            endpoint: "https://example.com/v1/traces",
-            headers: {},
-          },
-        },
-      },
-    });
-
-    expect(
-      StagehandRpcRequestSchema.parse({
-        jsonrpc: "2.0",
-        id: 2,
         method: "browser.get_version",
         params: {},
       }),
     ).toStrictEqual({
       jsonrpc: "2.0",
-      id: 2,
+      id: 1,
       method: "browser.get_version",
       params: {},
     });

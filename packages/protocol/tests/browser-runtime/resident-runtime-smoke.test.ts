@@ -90,7 +90,12 @@ describe("resident Stagehand service worker", () => {
     ).toBe(false);
     stopListening();
 
-    await expect(activeRpcClient.send(StagehandMethods.stagehandInit, {})).resolves.toMatchObject({
+    await expect(
+      activeRpcClient.send(StagehandMethods.stagehandInit, {
+        protocolVersion: 4,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+      }),
+    ).resolves.toMatchObject({
       initialized: true,
     });
     await expect(

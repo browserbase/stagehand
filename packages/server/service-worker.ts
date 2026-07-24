@@ -82,7 +82,7 @@ export function startStagehandServiceWorker(
   rpcClient = new RPCClient(
     chromeRuntimeClient,
     new RPCRouter(activeRuntime, {
-      beforeRuntimeConfigure: () => residentRuntime.disableAutoBootstrap(),
+      initializeStagehand: (params) => residentRuntime.initialize(params),
     }),
   );
   scope.__stagehand_runtime = residentRuntime.marker;

@@ -1,5 +1,6 @@
 import type {
   BrowserGetVersionResult,
+  BrowserConnection,
   ClearCookieOptions,
   ContextActivePageResult,
   ContextAddCookiesParams,
@@ -86,8 +87,6 @@ import type {
   PageWaitForSelectorParams,
   PageWaitForSelectorResult,
   PageWaitForTimeoutParams,
-  RuntimeConfigureParams,
-  RuntimeConfigureResult,
   RuntimeLoopbackStatusResult,
   StagehandInitParams,
   StagehandInitResult,
@@ -281,11 +280,9 @@ export class StagehandRuntime {
   }
 
   async configureLoopback(
-    params: Pick<RuntimeConfigureParams, "cdpUrl"> &
-      Partial<Omit<RuntimeConfigureParams, "cdpUrl">>,
+    params: BrowserConnection,
     lifecycle?: StagehandBrowserSessionLifecycle,
-  ): Promise<RuntimeConfigureResult> {
-    if (params.logLevel) this.logger.setLevel(params.logLevel);
+  ): Promise<void> {
     const { cdpUrl } = params;
     const generation = ++this.browserSessionGeneration;
     const previousSession = this.browserSession;
@@ -305,8 +302,6 @@ export class StagehandRuntime {
       if (generation === this.browserSessionGeneration) this.browserSession = undefined;
       throw error;
     }
-
-    return { configured: true };
   }
 
   /** Returns this runtime to a fresh reservation while keeping the worker alive. */

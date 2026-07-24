@@ -10,6 +10,8 @@ ResultT = TypeVar("ResultT", bound=BaseModel)
 
 
 class RecordingRPCClient:
+    browser_web_socket_debugger_url = "ws://resolved.example/devtools/browser/1"
+
     def __init__(self, responses: dict[str, object] | None = None) -> None:
         self.responses = responses or {}
         self.calls: list[tuple[str, BaseModel, object]] = []

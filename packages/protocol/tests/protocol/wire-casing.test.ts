@@ -334,6 +334,8 @@ describe("JSON-RPC wire casing", () => {
   it("preserves arbitrary map keys while encoding nested configuration", () => {
     const definition = StagehandMethods.stagehandInit;
     const apiValue = {
+      protocolVersion: 4 as const,
+      clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       apiKey: "bb_key",
       browser: {
         type: "browserbase" as const,
@@ -354,6 +356,8 @@ describe("JSON-RPC wire casing", () => {
     };
 
     const wireValue = {
+      protocol_version: 4,
+      client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
       api_key: "bb_key",
       browser: {
         type: "browserbase",

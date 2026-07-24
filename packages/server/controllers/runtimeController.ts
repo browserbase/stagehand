@@ -1,4 +1,4 @@
-import type { EmptyParams, RuntimeConfigureParams } from "../../protocol/types.js";
+import type { EmptyParams } from "../../protocol/types.js";
 import type { HandlerContext } from "../rpcRouter.js";
 import type { StagehandRuntime } from "../runtime.js";
 
@@ -11,13 +11,6 @@ export function createRuntimeController(runtime: StagehandRuntime) {
     };
   }
 
-  async function configure(params: RuntimeConfigureParams, { logger }: HandlerContext) {
-    logger.setLevel(params.logLevel);
-    logger.debug("runtime.configure", {});
-    runtime.tracing.configure(params.telemetry);
-    return runtime.configureLoopback(params);
-  }
-
   async function loopbackStatus(_params: EmptyParams, { logger }: HandlerContext) {
     logger.debug("runtime.loopback_status", {});
     return runtime.loopbackStatus();
@@ -25,7 +18,6 @@ export function createRuntimeController(runtime: StagehandRuntime) {
 
   return {
     ping,
-    configure,
     loopbackStatus,
   };
 }

@@ -552,10 +552,8 @@ async function createConfiguredHandler(
   await handle({
     jsonrpc: "2.0",
     id: 1,
-    method: "runtime.configure",
-    params: {
-      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-    },
+    method: "stagehand.init",
+    params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
   });
 
   return handle;
@@ -568,16 +566,17 @@ async function createConfiguredRuntime(session: FakeBrowserSession) {
 
   await runtime.configureLoopback({
     cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-    logLevel: "info",
-    telemetry: {
-      traces: {
-        endpoint: "https://example.com/v1/traces",
-        headers: {},
-      },
-    },
   });
 
   return runtime;
+}
+
+function configuredInitParams(cdpUrl: string) {
+  return {
+    protocol_version: 4,
+    client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
+    browser_connection: { cdp_url: cdpUrl },
+  };
 }
 
 describe("Stagehand worker clients", () => {
@@ -762,7 +761,7 @@ describe("Stagehand worker clients", () => {
     });
   });
 
-  it("configures the browser session and reports connected status", async () => {
+  it("configures the browser session during stagehand.init and reports connected status", async () => {
     const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
       browserSessionFactory: async () => {
@@ -776,16 +775,15 @@ describe("Stagehand worker clients", () => {
       handle({
         jsonrpc: "2.0",
         id: 1,
-        method: "runtime.configure",
-        params: {
-          cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-        },
+        method: "stagehand.init",
+        params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 1,
       result: {
-        configured: true,
+        initialized: true,
+        pages: [],
       },
     });
 
@@ -808,7 +806,7 @@ describe("Stagehand worker clients", () => {
     });
   });
 
-  it("closes the previous browser session when reconfigured", async () => {
+  it("rejects a second stagehand.init without replacing the browser session", async () => {
     const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
       browserSessionFactory: async () => {
@@ -821,23 +819,20 @@ describe("Stagehand worker clients", () => {
     await handle({
       jsonrpc: "2.0",
       id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/first",
-      },
+      method: "stagehand.init",
+      params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/first"),
     });
-    await handle({
-      jsonrpc: "2.0",
-      id: 2,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/second",
-      },
-    });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "stagehand.init",
+        params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/second"),
+      }),
+    ).resolves.toMatchObject({ error: { message: "Stagehand has already been initialized" } });
 
-    expect(sessions).toHaveLength(2);
-    expect(sessions[0]?.closed).toBe(true);
-    expect(sessions[1]?.closed).toBe(false);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.closed).toBe(false);
   });
 
   it("closes the browser session on stagehand.close", async () => {
@@ -849,10 +844,8 @@ describe("Stagehand worker clients", () => {
     await handle({
       jsonrpc: "2.0",
       id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      },
+      method: "stagehand.init",
+      params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
     });
 
     await expect(
@@ -904,10 +897,8 @@ describe("Stagehand worker clients", () => {
     await handle({
       jsonrpc: "2.0",
       id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      },
+      method: "stagehand.init",
+      params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
     });
 
     await expect(
@@ -965,10 +956,8 @@ describe("Stagehand worker clients", () => {
     await handle({
       jsonrpc: "2.0",
       id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      },
+      method: "stagehand.init",
+      params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
     });
 
     await expect(
@@ -1003,10 +992,8 @@ describe("Stagehand worker clients", () => {
     await handle({
       jsonrpc: "2.0",
       id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      },
+      method: "stagehand.init",
+      params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
     });
 
     await expect(

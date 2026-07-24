@@ -1,5 +1,10 @@
 import { STAGEHAND_PROTOCOL_VERSION, STAGEHAND_RUNTIME_VERSION } from "../../protocol/schemas.js";
-import type { RuntimeDescriptor } from "../../protocol/types.js";
+import type {
+  BrowserConnection,
+  RuntimeDescriptor,
+  StagehandInitParams,
+  StagehandInitResult,
+} from "../../protocol/types.js";
 import type { StagehandRuntime } from "../runtime.js";
 
 export type ResidentRuntimeState =
@@ -70,12 +75,32 @@ export class ResidentRuntimeLifecycle {
     return tracked;
   }
 
-  /** Gives an explicit runtime.configure call ownership of the browser connection. */
-  disableAutoBootstrap(): void {
-    this.autoBootstrapEnabled = false;
-    ++this.generation;
-    this.bootstrapPromise = undefined;
-    this.publish("disconnected", false, this.marker.timings);
+  initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
+    if (this.runtime.state.getState().status !== "created") {
+      return Promise.reject(new Error("Stagehand has already been initialized"));
+    }
+
+    if (params.browserConnection) {
+      const browserConnection = params.browserConnection;
+      this.autoBootstrapEnabled = false;
+      const generation = ++this.generation;
+      this.bootstrapPromise = undefined;
+      this.publish("disconnected", false, this.marker.timings);
+      return this.enqueue(() =>
+        this.runConfiguredInitialization(generation, params, browserConnection),
+      );
+    }
+
+    const generation = this.generation;
+    return this.enqueue(async () => {
+      if (generation !== this.generation || !this.autoBootstrapEnabled) {
+        throw new Error("Resident runtime bootstrap was superseded");
+      }
+      if (this.marker.state !== "ready" || !this.runtime.loopbackStatus().connected) {
+        await this.runBootstrap(generation, false);
+      }
+      return await this.runtime.initialize(params);
+    });
   }
 
   reset(): Promise<void> {
@@ -85,17 +110,67 @@ export class ResidentRuntimeLifecycle {
     return this.enqueue(() => this.runBootstrap(generation, true));
   }
 
-  private enqueue(operation: () => Promise<void>): Promise<void> {
+  private enqueue<Result>(operation: () => Promise<Result>): Promise<Result> {
     const guardedOperation = async () => {
       try {
-        await operation();
+        return await operation();
       } catch (error) {
         this.marker.connected = false;
         throw error;
       }
     };
     const result = this.operationTail.then(guardedOperation, guardedOperation);
-    this.operationTail = result.catch(() => {});
+    this.operationTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  private async runConfiguredInitialization(
+    generation: number,
+    params: StagehandInitParams,
+    browserConnection: BrowserConnection,
+  ): Promise<StagehandInitResult> {
+    if (this.runtime.state.getState().status !== "created") {
+      throw new Error("Stagehand has already been initialized");
+    }
+
+    await this.runtime.resetForReservation();
+    if (generation !== this.generation) {
+      throw new Error("Stagehand browser session bootstrap was superseded");
+    }
+
+    this.publish("connecting-cdp", false, {});
+    let connectStartedAt = this.now();
+    await this.runtime.configureLoopback(browserConnection, {
+      onConnecting: () => {
+        connectStartedAt = this.now();
+      },
+      onConnected: () => {
+        if (generation === this.generation) this.publish("bootstrapping", true, {});
+      },
+      onDisconnected: () => {
+        if (generation === this.generation) {
+          this.publish("disconnected", false, this.marker.timings);
+        }
+      },
+    });
+
+    if (generation !== this.generation) {
+      await this.runtime.resetForReservation();
+      throw new Error("Stagehand browser session bootstrap was superseded");
+    }
+    if (!this.runtime.loopbackStatus().connected) {
+      await this.runtime.resetForReservation();
+      throw new Error("Stagehand browser session disconnected during bootstrap");
+    }
+
+    const result = await this.runtime.initialize(params);
+    this.publish("ready", true, {
+      connectAndBootstrapMs: this.now() - connectStartedAt,
+      totalMs: this.now() - this.startedAt,
+    });
     return result;
   }
 
