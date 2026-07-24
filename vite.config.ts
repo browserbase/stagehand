@@ -38,6 +38,7 @@ export default defineConfig({
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/server/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",
+      "scripts/release/**/*.test.ts",
     ],
     typecheck: {
       enabled: true,
@@ -53,6 +54,7 @@ export default defineConfig({
         "packages/server/understudy/**/*.test.ts",
         "packages/server/llm/**/*.test-d.ts",
         "rules/ast-grep/**/*.test.ts",
+        "scripts/release/**/*.test.ts",
       ],
       tsconfig: "packages/protocol/tsconfig.json",
     },

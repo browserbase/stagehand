@@ -10,6 +10,7 @@ generate:
 
 check:
     vp exec tsx scripts/release/check-changesets.ts
+    vp exec tsx scripts/release/consolidate-changelogs.ts --check
     vp exec tsx scripts/release/sync-python-version.ts --check
     vp run check
     uv --directory {{python_dir}} lock --check
@@ -48,6 +49,7 @@ version:
         export GITHUB_TOKEN="$(gh auth token)"
     fi
     vp exec changeset version
+    vp exec tsx scripts/release/consolidate-changelogs.ts
     vp exec tsx scripts/release/sync-python-version.ts
     uv --directory "{{python_dir}}" lock
     vp exec tsx scripts/release/sync-python-version.ts --check
