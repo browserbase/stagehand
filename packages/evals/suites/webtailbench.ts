@@ -12,7 +12,10 @@ import {
 export const buildWebTailBenchTestcases = (
   models: string[] | AgentModelEntry[],
 ): Testcase[] => {
+  // EVAL_WEBTAILBENCH_FILE mirrors EVAL_GAIA_FILE/EVAL_WEBVOYAGER_FILE: the
+  // stock file is category-ordered, so `-l N` alone only ever reaches flights.
   const webtailbenchFilePath =
+    process.env.EVAL_WEBTAILBENCH_FILE ||
     getPackageRootDir() + "/datasets/webtailbench/WebTailBench_data.jsonl";
 
   const lines = readJsonlFile(webtailbenchFilePath);
