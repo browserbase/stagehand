@@ -68,6 +68,8 @@ def main() -> None:
         output_directory = SDK_ROOT / "dist"
         output_directory.mkdir(exist_ok=True)
         for existing_distribution in (
+            *output_directory.glob("stagehand-*.whl"),
+            *output_directory.glob("stagehand-*.tar.gz"),
             *output_directory.glob("stagehand_v4-*.whl"),
             *output_directory.glob("stagehand_v4-*.tar.gz"),
         ):
