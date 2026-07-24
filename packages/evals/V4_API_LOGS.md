@@ -95,6 +95,11 @@ coexist with v3-based code in one process regardless of the consumer's zod
 version.
 
 ### 14. extract() mangles snake_case schema keys (wire-casing bug)
+**Re-confirmed at v4-spike HEAD `93af925` (2026-07-23)** with a minimal
+standalone repro (`{ repo_name: z.string() }` → OpenAI rejects: "Missing
+'repoName'"). Still accounts for both extract-task failures in the
+post-migration compatibility sweep (`extract_aigrant_targeted`,
+`extract_github_commits`).
 
 Extract schemas whose property names are snake_case fail on v4 with an
 OpenAI structured-outputs rejection. Reproduced standalone with the
@@ -159,6 +164,46 @@ after pulling new v4-spike commits (new `zustand` dep, unbuilt dist).
 the server package is reinstalled + rebuilt. Suggestion for the v4 team:
 have `init()` surface "extension bundle missing/stale at <path>" instead of
 a generic runtime-ready timeout.
+
+### 18. Anthropic models unusable: browser-origin CORS rejection (blocking)
+
+Every `act`/`extract`/`observe` with an `anthropic/*` model fails with
+
+    CORS requests must set 'anthropic-dangerous-direct-browser-access' header
+
+because the extension runtime calls the Anthropic API from a browser origin
+and the server's provider factory (`packages/server/llm/aiSdkClient.ts`,
+`createAnthropic(connection)`) does not opt in with that header. OpenAI and
+Google permit browser CORS, which masks the gap in default testing.
+Reproduced 2026-07-23 on both LOCAL and BROWSERBASE at HEAD `93af925`.
+**Interim fix (local patch in the v4-spike checkout, uncommitted):** pass
+`headers: { "anthropic-dangerous-direct-browser-access": "true" }` in the
+anthropic case of `createAiSdkLanguageModel`. Verified after patching:
+anthropic act succeeds standalone, and `replay/gaia` passes 2/2 LOCAL trials
+with `anthropic/claude-haiku-4-5`.
+**For the v4 team:** either ship this header in the anthropic provider path
+or route Anthropic calls off-origin; also note the browser-origin
+architecture makes every provider's CORS policy a hard dependency.
+
+### 19. BROWSERBASE act clicks fail: "Stagehand extension world not ready" (blocking)
+
+On BROWSERBASE sessions (preloaded extension path), every `act` click on
+docs.browserbase.com fails at selector resolution with
+
+    Stagehand extension world not ready for frame <id>; checked contexts: 3, 4;
+    diagnostics: 3={"ready":false,"marker":false,"domApi":"undefined"}, ...
+
+thrown by `ExecutionContextRegistry.waitForExtensionWorld` in the session's
+service worker. The LLM plan step succeeds (observe returns the right
+element); only the extension-world injection into the page frame is missing.
+Deterministic: 2/2 runs on `combination/instructions`, different frame IDs
+each run. The identical flow on LOCAL (extension loaded from the fresh
+`packages/server/dist` build) succeeds — `combination/instructions` passes —
+so the suspect is the Browserbase-side preloaded extension build/injection,
+not the task or the SDK client. Observed 2026-07-23 with
+`openai/gpt-4.1-mini`.
+**Workaround:** run v4 evals with `-e local` until the preloaded-extension
+path is fixed or Browserbase ships a matching extension build.
 
 ## Ergonomic friction (non-blocking)
 
