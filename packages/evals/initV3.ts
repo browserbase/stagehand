@@ -44,6 +44,8 @@ type InitV3Args = {
   actTimeoutMs?: number; // retained for parity (v3 agent tools don't use this globally)
   modelName: AvailableModel;
   verbose?: boolean;
+  /** Task-declared custom system prompt, forwarded to V3Options.systemPrompt. */
+  systemPrompt?: string;
 };
 
 export type V3InitResult = {
@@ -65,6 +67,7 @@ export async function initV3({
   agentMode,
   isCUA,
   verbose = false,
+  systemPrompt,
 }: InitV3Args): Promise<V3InitResult> {
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
@@ -116,6 +119,7 @@ export async function initV3({
     browserbaseSessionCreateParams:
       configOverrides?.browserbaseSessionCreateParams,
     browserbaseSessionID: configOverrides?.browserbaseSessionID,
+    systemPrompt,
     selfHeal: true,
     disablePino: true,
     disableAPI: process.env.USE_API !== "true", // Negate: USE_API=true → disableAPI=false

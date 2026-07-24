@@ -1,5 +1,6 @@
 import { EvalsError } from "../errors.js";
 import { EvalLogger } from "../logger.js";
+import { flattenError } from "./flattenError.js";
 import type { EvalInput } from "../types/evals.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { RunEvalsOptions } from "./runner.js";
@@ -13,10 +14,14 @@ function withBenchSessionUrls(
   result: TaskResult,
   ctx: BenchHarnessContext | undefined,
 ): TaskResult {
-  if (!ctx) return result;
+  // Every task result funnels through here — flatten Error instances so the
+  // failure reason survives JSON serialization into Braintrust rows.
+  const flattened =
+    result.error === undefined ? result : { ...result, error: flattenError(result.error) };
+  if (!ctx) return flattened;
 
   return {
-    ...result,
+    ...flattened,
     sessionUrl: result.sessionUrl || ctx.sessionUrl || undefined,
     debugUrl: result.debugUrl || ctx.debugUrl || undefined,
   };
@@ -54,18 +59,25 @@ export async function executeBenchTask(
       });
     }
 
+    // Load the task module before starting the harness: init-time meta
+    // (e.g. a custom systemPrompt) must reach the Stagehand constructor.
+    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
+    const taskMeta = taskModule.definition?.meta;
+    const systemPrompt =
+      taskMeta && "systemPrompt" in taskMeta ? taskMeta.systemPrompt : undefined;
+
     const startedHarness = await harness.start({
       task,
       input,
       row,
       logger,
       verbose: options.verbose,
+      systemPrompt,
     });
     cleanup = onceAsync(startedHarness.cleanup);
     unregisterCleanup = registerActiveRunCleanup(cleanup);
 
     harnessCtx = startedHarness.ctx;
-    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
     if (taskModule.definition) {
       const ctx = {
         v3: harnessCtx.v3,
@@ -119,10 +131,7 @@ export async function executeBenchTask(
     return withBenchSessionUrls(
       {
         _success: false,
-        error:
-          error instanceof Error
-            ? JSON.parse(JSON.stringify(error, null, 2))
-            : String(error),
+        error: flattenError(error),
         logs: logger.getLogs(),
       },
       harnessCtx,

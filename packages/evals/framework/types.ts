@@ -42,6 +42,12 @@ export interface TaskMeta {
 export interface BenchTaskMeta extends TaskMeta {
   /** Override the default model list for this specific task. */
   models?: string[];
+  /**
+   * Custom system prompt passed to the Stagehand instance at init time
+   * (v3 `V3Options.systemPrompt` / v4 `StagehandInitParams.systemPrompt`).
+   * Used by tasks that test instruction-following (e.g. combination/instructions).
+   */
+  systemPrompt?: string;
 }
 
 /** Context provided to core (tier 1) tasks. */

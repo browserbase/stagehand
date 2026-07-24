@@ -39,6 +39,8 @@ export interface BenchHarnessStartInput {
   row: BenchMatrixRow;
   logger: EvalLogger;
   verbose?: boolean;
+  /** Task-declared init-time system prompt (from BenchTaskMeta.systemPrompt). */
+  systemPrompt?: string;
 }
 
 export interface BenchHarnessExecuteInput extends BenchHarnessStartInput {
@@ -147,6 +149,7 @@ export const stagehandHarness: BenchHarness = {
     row,
     logger,
     verbose,
+    systemPrompt,
   }: BenchHarnessStartInput): Promise<StartedBenchHarness> {
     let v3Result: V3InitResult | undefined;
     const createAgent = isAgentTask(task);
@@ -175,6 +178,7 @@ export const stagehandHarness: BenchHarness = {
       const v4Result = await initV4({
         logger,
         modelName: input.modelName,
+        systemPrompt,
         configOverrides: { env: config.environment },
       });
       return {
@@ -218,16 +222,22 @@ export const stagehandHarness: BenchHarness = {
         agentMode,
         isCUA,
         verbose,
+        systemPrompt,
         configOverrides: { env: config.environment },
       });
     } else {
       let llmClient: LLMClient | undefined;
       if (input.modelName.includes("/")) {
         const firstSlashIndex = input.modelName.indexOf("/");
+        const subProvider = input.modelName.substring(0, firstSlashIndex);
+        // Resolve the key through the evals alias list (GEMINI_API_KEY etc.)
+        // instead of relying on the AI SDK's single canonical env var.
+        const apiKey = loadApiKeyFromEnv(subProvider, (line) => logger.log(line));
         llmClient = new AISdkClientWrapped({
           model: getAISDKLanguageModel(
-            input.modelName.substring(0, firstSlashIndex),
+            subProvider,
             input.modelName.substring(firstSlashIndex + 1),
+            apiKey ? { apiKey } : undefined,
           ),
         });
       }
@@ -240,6 +250,7 @@ export const stagehandHarness: BenchHarness = {
         agentMode,
         isCUA,
         verbose,
+        systemPrompt,
         configOverrides: { env: config.environment },
       });
     }
