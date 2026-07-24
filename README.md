@@ -51,3 +51,13 @@ formatting, and internal refactors do not need a Changeset.
 Changesets maintains the release pull request on `main`. Merging it publishes the
 TypeScript SDK to npm and the Python SDK to PyPI. Underscored `just` recipes are
 internal CI commands.
+
+### Pull request previews
+
+Add the `preview` label to build the TypeScript package, Python wheel, and
+extension ZIP without publishing them. The workflow keeps one authenticated
+artifact and one comment up to date with the pull request. Removing the label or
+closing the pull request removes both.
+
+Previews do not change committed versions or changelogs, publish releases, or
+deploy a Browserbase environment.
