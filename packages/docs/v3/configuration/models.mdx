@@ -35,6 +35,77 @@ When only a Browserbase API key is provided (without a provider-specific API key
   Model Gateway requires Browserbase-hosted browsers. It does not work with `env: "LOCAL"`.
 </Note>
 
+### Auto Model Router
+
+Don't want to pick a model at all? Set `model: "auto"` and Browserbase chooses one for you on every call.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "auto",
+  // Only BROWSERBASE_API_KEY is needed — no provider key
+});
+
+await stagehand.init();
+```
+
+With `model: "auto"`, the Stagehand API selects the model for each `act`, `extract`, and `observe` call on your behalf, balancing accuracy, speed, and cost for that specific task. Selection happens server-side, so your code never pins a model name and automatically picks up new models as they're added.
+
+Because the router matches each call to the cheapest model that can handle it — instead of sending every request to one frontier model — teams typically see **30–40% lower inference cost** with no change to their automation code.
+
+<Note>
+  Auto Model Router runs on Model Gateway, so inference is billed to your Browserbase API key at market-price tokens. You don't need any provider accounts or keys.
+</Note>
+
+#### Requirements
+
+`"auto"` delegates model selection to the Stagehand API, so it only works when your session actually runs through that API. Stagehand throws at construction time if any of the following bypass it:
+
+| Requirement | Why |
+| ----------- | --- |
+| `env: "BROWSERBASE"` | Model selection happens server-side; `env: "LOCAL"` has no API to route through |
+| `disableAPI: false` (default) | `disableAPI: true` forces local inference, which has no model to resolve |
+| `experimental: false` (default) | Experimental mode bypasses the API |
+| No `llmClient` | A custom client replaces API-side inference entirely |
+
+<Warning>
+  Unlike a concrete model, `"auto"` has no local fallback. If the Stagehand API is unavailable for a session, `init()` throws instead of silently falling back to local inference.
+</Warning>
+
+#### Per-call routing
+
+You can also opt into the router for individual calls while keeping a concrete default model — useful for letting cheap steps route themselves while pinning a known-good model everywhere else:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "openai/gpt-5", // default for every call
+});
+
+// This one call is routed automatically
+const { extraction } = await stagehand.extract("get the page headline", {
+  model: "auto",
+});
+```
+
+Per-call overrides never inherit the session model's provider or API key — the server picks the provider. Explicit options are still passed through:
+
+```typescript
+await stagehand.observe("find the login button", {
+  model: { modelName: "auto", temperature: 0.5 },
+});
+```
+
+<Note>
+  `stagehand.agent()` supports `"auto"` in the default `dom` and `hybrid` modes. It is **not** supported with `mode: "cua"`, which requires an explicit [CUA model](/v3/configuration/models#agent-models-with-cua-support).
+</Note>
+
+<Tip>
+  Auto Model Router works with [caching](/v3/best-practices/caching), but replay is handled by the API's server-side cache rather than the local cache — there's no local client available to self-heal a stale cached action. Pin a concrete model if you need local cache replay.
+</Tip>
+
 ### Switching models
 
 With Model Gateway, switching between providers is just a config change — no new accounts, API keys, or code rewiring required:
@@ -961,6 +1032,7 @@ The following models work without the `provider/` prefix in the model parameter 
 | Provider   | Environment Variable           |
 | ---------- | ------------------------------ |
 | Model Gateway | `BROWSERBASE_API_KEY` (no provider key needed) |
+| Auto Model Router (`model: "auto"`) | `BROWSERBASE_API_KEY` (no provider key needed) |
 | Google     | `GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY` |
 | Vertex | Service account credentials (see [setup](#first-class-models)) |
 | Anthropic  | `ANTHROPIC_API_KEY`            |
@@ -987,6 +1059,22 @@ The following models work without the `provider/` prefix in the model parameter 
 - Verify the model name exists in the provider's documentation
 - Check model name is spelled correctly
 - Ensure your Model API key can access the model
+</Accordion>
+
+<Accordion title="Error: model 'auto' is only supported through the Stagehand API">
+**Error:** `model: "auto" is only supported when running through the Stagehand API`
+
+[Auto Model Router](#auto-model-router) resolves the model server-side, so the session has to run through the Stagehand API.
+
+**Solutions:**
+
+- Use `env: "BROWSERBASE"` — `"auto"` does not work with `env: "LOCAL"`
+- Remove `disableAPI: true`
+- Remove `experimental: true`
+- Remove any custom `llmClient` — it replaces API-side inference
+- Or specify a concrete model instead, e.g. `model: "openai/gpt-5"`
+
+A related error at init — `model: "auto" requires the Stagehand API, but it is unavailable for this session` — means the API declined the session. Unlike a concrete model, `"auto"` has no local fallback, so pin a model to proceed.
 </Accordion>
 
 <Accordion title="Model doesn't support structured outputs">
