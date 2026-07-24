@@ -70,6 +70,7 @@ const RPCClientOptionsBaseSchema = z
     serviceWorkerUrlIncludes: z.string().min(1).optional(),
     discoveryTimeoutMs: z.number().int().positive().optional(),
     commandTimeoutMs: z.number().int().positive().optional(),
+    requestTimeoutMs: z.number().int().positive().optional(),
     cdpConnectTimeoutMs: z.number().int().positive().optional(),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     logLevel: RuntimeConfigureParamsSchema.shape.logLevel,
@@ -414,7 +415,9 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
     cdpConnectTimeoutMs: options.cdpConnectTimeoutMs ?? 10_000,
     commandTimeoutMs,
   });
-  const client = new RPCClient(cdpClient, commandTimeoutMs);
+  // Stagehand RPC requests wrap act/extract/observe LLM round trips, which
+  // routinely outlive the CDP command timeout — cap them separately.
+  const client = new RPCClient(cdpClient, options.requestTimeoutMs ?? 180_000);
 
   try {
     await client.send(StagehandMethods.runtimeConfigure, {
