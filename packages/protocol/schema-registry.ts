@@ -432,7 +432,12 @@ export const StagehandMethodSchema = z
 const stagehandRpcRequestSchemas = Object.values(StagehandMethods).map((method) =>
   JSONRPCRequestSchema.extend({
     method: z.literal(method.name),
-    params: wireSchema(method.params),
+    // paramsWire rides along so request decoding preserves the same opaque
+    // key paths as response encoding — without it, user-controlled keys
+    // (e.g. snake_case extract schema properties) get camelcased on the
+    // way in. Widening `method` to access it would collapse the per-method
+    // literal types, so narrow with `in` instead.
+    params: wireSchema(method.params, "paramsWire" in method ? method.paramsWire : undefined),
   }),
 );
 
