@@ -20,7 +20,6 @@ from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
-    BrowserConnection,
     BrowserGetVersionResult,
     ClientModelReference,
     EmptyParams,
@@ -430,7 +429,6 @@ class Stagehand:
                     extension_dir=str(extension_dir),
                     service_worker_url_includes="service-worker.js",
                     cdp_connect_timeout_ms=browser.connect_timeout_ms or 10_000,
-                    require_runtime_ready=browser.auto_attach,
                 )
                 self._rpc_client = rpc_client
                 self._remove_notification_listener = rpc_client.on_notification(
@@ -626,7 +624,7 @@ class Stagehand:
             version="0.1.0",
         )
         if browser_cdp_url is not None:
-            values["browser_connection"] = BrowserConnection(cdp_url=browser_cdp_url)
+            values["browser_cdp_url"] = browser_cdp_url
         return StagehandInitParams.model_validate(values)
 
     async def _handle_stagehand_notification(self, notification: StagehandLog) -> None:

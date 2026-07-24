@@ -1312,17 +1312,11 @@ export const TelemetryConfigSchema = z
   })
   .meta({ id: "TelemetryConfig" });
 
-export const BrowserConnectionSchema = z
-  .strictObject({
-    cdpUrl: z.string().min(1),
-  })
-  .meta({ id: "BrowserConnection" });
-
 export const StagehandInitParamsSchema = z
   .object({
     protocolVersion: z.literal(STAGEHAND_PROTOCOL_VERSION),
     clientInfo: ImplementationInfoSchema,
-    browserConnection: BrowserConnectionSchema.optional(),
+    browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
     browser: BrowserbaseBrowserSourceSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),

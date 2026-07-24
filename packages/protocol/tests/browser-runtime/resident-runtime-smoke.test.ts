@@ -36,17 +36,14 @@ describe("resident Stagehand service worker", () => {
   beforeAll(async () => {
     const extensionId = unpackedExtensionId(extensionDir);
     chrome = await launchChrome(extensionId);
-    rpcClient = await connectRPCClient(
-      {
-        cdpUrl: `http://127.0.0.1:${DEBUGGING_PORT}`,
-        extensionDir,
-        serviceWorkerUrlIncludes: "service-worker.js",
-        discoveryTimeoutMs: COMMAND_TIMEOUT_MS,
-        commandTimeoutMs: COMMAND_TIMEOUT_MS,
-        cdpConnectTimeoutMs: COMMAND_TIMEOUT_MS,
-      },
-      { autoAttach: true },
-    );
+    rpcClient = await connectRPCClient({
+      cdpUrl: `http://127.0.0.1:${DEBUGGING_PORT}`,
+      extensionDir,
+      serviceWorkerUrlIncludes: "service-worker.js",
+      discoveryTimeoutMs: COMMAND_TIMEOUT_MS,
+      commandTimeoutMs: COMMAND_TIMEOUT_MS,
+      cdpConnectTimeoutMs: COMMAND_TIMEOUT_MS,
+    });
     cdp = rpcClient.cdp as CDPClient;
     await expect(cdp.sendCommand("Extensions.getExtensions")).resolves.toMatchObject({
       extensions: [expect.objectContaining({ id: extensionId, enabled: true })],

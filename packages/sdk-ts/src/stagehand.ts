@@ -30,10 +30,7 @@ import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "./extensionAssets.js";
 
 type StagehandAdapters = {
   resolveBrowserSource?: (initParams: StagehandClientInitParams) => Promise<ResolvedBrowserSource>;
-  connectRpcClient?: (
-    options: RPCClientOptions,
-    runtime: { autoAttach: boolean },
-  ) => Promise<RPCClient>;
+  connectRpcClient?: (options: RPCClientOptions) => Promise<RPCClient>;
 };
 
 const stagehandAdapters = new WeakMap<Stagehand, StagehandAdapters>();
@@ -98,17 +95,14 @@ export class Stagehand {
     this.resolvedBrowser = browser;
 
     try {
-      const rpcClient = await (adapters.connectRpcClient ?? connectRPCClient)(
-        {
-          cdpUrl: browser.cdpUrl,
-          // TODO: Thread browser.cdpHeaders through CDP discovery and the WebSocket handshake.
-          ...(browser.preloadedExtension
-            ? { preloadedExtension: true as const }
-            : { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }),
-          serviceWorkerUrlIncludes: "service-worker.js",
-        },
-        { autoAttach: browser.autoAttach },
-      );
+      const rpcClient = await (adapters.connectRpcClient ?? connectRPCClient)({
+        cdpUrl: browser.cdpUrl,
+        // TODO: Thread browser.cdpHeaders through CDP discovery and the WebSocket handshake.
+        ...(browser.preloadedExtension
+          ? { preloadedExtension: true as const }
+          : { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }),
+        serviceWorkerUrlIncludes: "service-worker.js",
+      });
       this.rpcClient = rpcClient;
       this.removeNotificationListener = rpcClient.onNotification((notification) =>
         handleStagehandNotification(notification, clientInitParams.logging),
@@ -247,6 +241,9 @@ function stagehandInitParamsForWorker(
   if (browser.type === "browserbase" && !resolvedBrowser.browserbaseSessionId) {
     throw new Error("Resolved Browserbase source is missing its session ID");
   }
+  if (!resolvedBrowser.autoAttach && !rpcClient.browserWebSocketDebuggerUrl) {
+    throw new Error("The browser CDP WebSocket URL is unavailable");
+  }
 
   return StagehandInitParamsSchema.parse({
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
@@ -255,9 +252,7 @@ function stagehandInitParamsForWorker(
     ...(resolvedBrowser.autoAttach
       ? {}
       : {
-          browserConnection: {
-            cdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? resolvedBrowser.cdpUrl,
-          },
+          browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl,
         }),
     ...protocolParams,
     ...(browser.type === "browserbase"

@@ -1,6 +1,5 @@
 import type {
   BrowserGetVersionResult,
-  BrowserConnection,
   ClearCookieOptions,
   ContextActivePageResult,
   ContextAddCookiesParams,
@@ -280,7 +279,7 @@ export class StagehandRuntime {
   }
 
   async configureLoopback(
-    params: BrowserConnection,
+    params: { cdpUrl: string },
     lifecycle?: StagehandBrowserSessionLifecycle,
   ): Promise<void> {
     const { cdpUrl } = params;

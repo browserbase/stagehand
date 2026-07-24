@@ -119,7 +119,7 @@ export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.unwrap()
 export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.omit({
   protocolVersion: true,
   clientInfo: true,
-  browserConnection: true,
+  browserCdpUrl: true,
   logLevel: true,
 })
   .extend({

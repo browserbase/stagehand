@@ -17,10 +17,10 @@ class FakeRPCClient extends RPCClient {
   responses = new Map<string, unknown[]>();
   notificationListeners = new Set<(notification: StagehandRpcNotification) => void>();
 
-  constructor(webSocketDebuggerUrl?: string) {
+  constructor(webSocketDebuggerUrl = "ws://127.0.0.1:9222/devtools/browser/test") {
     super(
       {
-        ...(webSocketDebuggerUrl ? { webSocketDebuggerUrl } : {}),
+        webSocketDebuggerUrl,
         serviceWorker: {
           targetId: "worker-target",
           url: "chrome-extension://stagehand/service-worker.js",
@@ -139,14 +139,11 @@ describe("Stagehand", () => {
         },
       },
     });
-    expect(connectRpcClient).toHaveBeenCalledWith(
-      {
-        cdpUrl: "http://127.0.0.1:9222",
-        extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
-        serviceWorkerUrlIncludes: "service-worker.js",
-      },
-      { autoAttach: false },
-    );
+    expect(connectRpcClient).toHaveBeenCalledWith({
+      cdpUrl: "http://127.0.0.1:9222",
+      extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
+      serviceWorkerUrlIncludes: "service-worker.js",
+    });
     expect(pages[0]?.pageId).toBe("page-1");
     expect(rpcClient.calls).toStrictEqual([
       {
@@ -155,9 +152,7 @@ describe("Stagehand", () => {
           protocolVersion: 4,
           clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
           logLevel: "info",
-          browserConnection: {
-            cdpUrl: "ws://127.0.0.1:9222/devtools/browser/exact-session",
-          },
+          browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/exact-session",
           apiKey: "bb_key",
           telemetry: {
             traces: {
@@ -198,15 +193,11 @@ describe("Stagehand", () => {
 
     await stagehand.init();
 
-    expect(connectRpcClient).toHaveBeenCalledWith(
-      {
-        cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
-        logLevel: "info",
-        preloadedExtension: true,
-        serviceWorkerUrlIncludes: "service-worker.js",
-      },
-      { autoAttach: true },
-    );
+    expect(connectRpcClient).toHaveBeenCalledWith({
+      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
+      preloadedExtension: true,
+      serviceWorkerUrlIncludes: "service-worker.js",
+    });
 
     expect(rpcClient.calls).toStrictEqual([
       {
@@ -214,6 +205,7 @@ describe("Stagehand", () => {
         params: {
           protocolVersion: 4,
           clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          logLevel: "info",
           apiKey: "bb_key",
           browser: {
             type: "browserbase",
@@ -261,21 +253,18 @@ describe("Stagehand", () => {
 
     await stagehand.init();
 
-    expect(connectRpcClient).toHaveBeenCalledWith(
-      {
-        cdpUrl: "http://127.0.0.1:9222",
-        extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
-        logLevel: "info",
-        serviceWorkerUrlIncludes: "service-worker.js",
-      },
-      { autoAttach: false },
-    );
+    expect(connectRpcClient).toHaveBeenCalledWith({
+      cdpUrl: "http://127.0.0.1:9222",
+      extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
+      serviceWorkerUrlIncludes: "service-worker.js",
+    });
     expect(rpcClient.calls[0]).toMatchObject({
       method: "stagehand.init",
       params: {
         protocolVersion: 4,
         clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
-        browserConnection: { cdpUrl: "http://127.0.0.1:9222" },
+        logLevel: "info",
+        browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
         telemetry: {
           traces: {
             endpoint: "https://collector.example.com/v1/traces",
@@ -393,7 +382,7 @@ describe("Stagehand", () => {
         params: {
           protocolVersion: 4,
           clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
-          browserConnection: { cdpUrl: "http://127.0.0.1:9222" },
+          browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
           model: { source: "client" },
           telemetry: {
             traces: {

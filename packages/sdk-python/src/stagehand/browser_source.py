@@ -40,7 +40,6 @@ _DEFAULT_CHROME_FLAGS = (
     "--disable-domain-reliability",
     "--propagate-iph-for-testing",
 )
-_DEFAULT_LOCAL_DEBUGGING_PORT = 9222
 
 
 @dataclass
@@ -163,7 +162,7 @@ async def _launch_local_browser(options: LocalBrowserSource) -> ResolvedBrowserS
     return ResolvedBrowserSource(
         cdp_url=f"http://127.0.0.1:{port}",
         keep_alive=options.keep_alive or False,
-        auto_attach=port == _DEFAULT_LOCAL_DEBUGGING_PORT,
+        auto_attach=False,
         connect_timeout_ms=options.connect_timeout_ms,
         _close_callback=close,
     )

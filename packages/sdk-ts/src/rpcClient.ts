@@ -34,7 +34,7 @@ import {
 } from "../../protocol/schema-registry.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { z } from "zod/v4";
-import { CDPClient, type ServiceWorkerInfo, waitForRuntimeReady } from "./cdpClient.js";
+import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
 
 type PendingRequest = {
   method: RPCMethod;
@@ -387,10 +387,7 @@ export class RPCClient {
   }
 }
 
-export async function connectRPCClient(
-  input: RPCClientOptions,
-  { autoAttach }: { autoAttach: boolean } = { autoAttach: false },
-): Promise<RPCClient> {
+export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClient> {
   const options = RPCClientOptionsSchema.parse(input);
   const commandTimeoutMs = options.commandTimeoutMs ?? 10_000;
   const cdpClient = await CDPClient.connect({
@@ -407,18 +404,7 @@ export async function connectRPCClient(
   });
   const client = new RPCClient(cdpClient, commandTimeoutMs);
 
-  try {
-    if (autoAttach) {
-      if (!cdpClient.sessionId) throw new Error("Stagehand service worker is not attached");
-      await waitForRuntimeReady(cdpClient, cdpClient.sessionId, {
-        timeout: options.discoveryTimeoutMs ?? 10_000,
-      });
-    }
-    return client;
-  } catch (error) {
-    client.close();
-    throw error;
-  }
+  return client;
 }
 
 export function getTraceContextFields(requestContext: Context): {

@@ -466,7 +466,6 @@ async def connect_rpc_client(
     discovery_timeout_ms: int = 10_000,
     command_timeout_ms: int = 10_000,
     cdp_connect_timeout_ms: int = 10_000,
-    require_runtime_ready: bool = False,
 ) -> RPCClient:
     from .cdp_client import CDPClient
 
@@ -478,6 +477,5 @@ async def connect_rpc_client(
         discovery_timeout_ms=discovery_timeout_ms,
         command_timeout_ms=command_timeout_ms,
         cdp_connect_timeout_ms=cdp_connect_timeout_ms,
-        require_runtime_ready=require_runtime_ready,
     )
     return RPCClient(cdp, request_timeout_ms=command_timeout_ms)

@@ -575,7 +575,7 @@ function configuredInitParams(cdpUrl: string) {
   return {
     protocol_version: 4,
     client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
-    browser_connection: { cdp_url: cdpUrl },
+    browser_cdp_url: cdpUrl,
   };
 }
 

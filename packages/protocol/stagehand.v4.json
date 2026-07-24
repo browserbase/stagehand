@@ -1257,8 +1257,9 @@
         "client_info": {
           "$ref": "#/$defs/ImplementationInfo"
         },
-        "browser_connection": {
-          "$ref": "#/$defs/BrowserConnection"
+        "browser_cdp_url": {
+          "type": "string",
+          "minLength": 1
         },
         "api_key": {
           "type": "string",
@@ -1334,19 +1335,6 @@
       "required": [
         "name",
         "version"
-      ],
-      "additionalProperties": false
-    },
-    "BrowserConnection": {
-      "type": "object",
-      "properties": {
-        "cdp_url": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "cdp_url"
       ],
       "additionalProperties": false
     },

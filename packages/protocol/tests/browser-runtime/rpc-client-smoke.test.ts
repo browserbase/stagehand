@@ -39,9 +39,7 @@ describe("Stagehand service worker RPC client smoke", () => {
     await rpcClient.send(StagehandMethods.stagehandInit, {
       protocolVersion: 4,
       clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
-      browserConnection: {
-        cdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? `http://127.0.0.1:${chrome.port}`,
-      },
+      browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? `http://127.0.0.1:${chrome.port}`,
     });
   }, 45_000);
 

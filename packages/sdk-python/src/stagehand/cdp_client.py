@@ -104,7 +104,6 @@ class CDPClient:
         discovery_timeout_ms: int = 10_000,
         command_timeout_ms: int = 10_000,
         cdp_connect_timeout_ms: int = 10_000,
-        require_runtime_ready: bool = False,
     ) -> CDPClient:
         if bool(extension_dir) == bool(extension_id):
             raise ValueError("Exactly one of extension_dir or extension_id is required")
@@ -146,11 +145,7 @@ class CDPClient:
                 {"name": STAGEHAND_SEND_TO_HOST_BINDING},
                 session_id=session_id,
             )
-            await client._wait_for_runtime_ready(
-                session_id,
-                discovery_timeout_ms,
-                require_ready=require_runtime_ready,
-            )
+            await client._wait_for_runtime_receiver(session_id, discovery_timeout_ms)
             return client
         except BaseException:
             await client.close()
@@ -414,13 +409,7 @@ class CDPClient:
             f"Observed targets: {observed}"
         )
 
-    async def _wait_for_runtime_ready(
-        self,
-        session_id: str,
-        timeout_ms: int,
-        *,
-        require_ready: bool,
-    ) -> None:
+    async def _wait_for_runtime_receiver(self, session_id: str, timeout_ms: int) -> None:
         started = time.monotonic()
         last_error = ""
 
@@ -447,9 +436,7 @@ class CDPClient:
                     if isinstance(value, Mapping):
                         has_receiver = value.get("hasReceiver") is True
                         compatible, detail = _negotiate_runtime(value.get("marker"))
-                        marker = value.get("marker")
-                        is_ready = isinstance(marker, Mapping) and marker.get("state") == "ready"
-                        if compatible and has_receiver and (not require_ready or is_ready):
+                        if compatible and has_receiver:
                             return
                         last_error = f"runtime {detail}, __stagehandReceiveFromHost={has_receiver}"
             except Exception as error:

@@ -67,6 +67,42 @@ describe("resident runtime lifecycle", () => {
     });
   });
 
+  it("queues stagehand.init behind an in-progress resident bootstrap", async () => {
+    const created = deferred<StagehandBrowserSession>();
+    const { session } = createSession();
+    const browserSessionFactory: StagehandBrowserSessionFactory = vi.fn(
+      async () => await created.promise,
+    );
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    const lifecycle = new ResidentRuntimeLifecycle(runtime, {
+      resolveDebuggerUrl: async () => "ws://127.0.0.1:9222/devtools/browser/resident",
+    });
+
+    const bootstrap = lifecycle.bootstrap();
+    await vi.waitFor(() => expect(browserSessionFactory).toHaveBeenCalledOnce());
+    let initialized = false;
+    const initialization = lifecycle
+      .initialize({
+        protocolVersion: 4,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+        telemetry: {
+          traces: { endpoint: "https://example.com/v1/traces", headers: {} },
+        },
+      })
+      .then((result) => {
+        initialized = true;
+        return result;
+      });
+
+    await Promise.resolve();
+    expect(initialized).toBe(false);
+
+    created.resolve(session);
+    await bootstrap;
+    await expect(initialization).resolves.toMatchObject({ initialized: true });
+    expect(runtime.state.getState().status).toBe("initialized");
+  });
+
   it("reset closes the old session and clears page and initialization state", async () => {
     const page = {
       targetId: () => "page-before-reset",
@@ -225,9 +261,7 @@ describe("resident runtime lifecycle", () => {
         params: {
           protocol_version: 4,
           client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
-          browser_connection: {
-            cdp_url: "ws://127.0.0.1:9333/devtools/browser/configured",
-          },
+          browser_cdp_url: "ws://127.0.0.1:9333/devtools/browser/configured",
         },
       }),
     );

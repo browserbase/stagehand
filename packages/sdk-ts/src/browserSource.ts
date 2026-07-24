@@ -11,7 +11,6 @@ export type { BrowserbaseSessionClient, BrowserbaseSessionClientFactory };
 
 type LocalBrowserSource = Extract<BrowserSource, { type: "local" }>;
 type LocalBrowserLaunchOptions = Omit<LocalBrowserSource, "type">;
-const DEFAULT_LOCAL_DEBUGGING_PORT = 9222;
 
 export type ResolvedBrowserSource = {
   cdpUrl: string;
@@ -65,8 +64,7 @@ export async function resolveBrowserSource(
     const launched = await (dependencies.launchLocalBrowser ?? launchLocalBrowser)(launchOptions);
     return {
       cdpUrl: launched.cdpUrl,
-      autoAttach:
-        launchOptions.port === undefined || launchOptions.port === DEFAULT_LOCAL_DEBUGGING_PORT,
+      autoAttach: false,
       keepAlive: launchOptions.keepAlive ?? false,
       close: launched.close,
     };
@@ -98,7 +96,7 @@ async function launchLocalBrowser(
       ...(process.env.CI ? ["--no-sandbox"] : []),
     ],
     userDataDir: options.userDataDir,
-    port: options.port ?? DEFAULT_LOCAL_DEBUGGING_PORT,
+    ...(options.port === undefined ? {} : { port: options.port }),
     logLevel: "silent",
   });
 

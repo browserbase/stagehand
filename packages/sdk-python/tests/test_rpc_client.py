@@ -474,7 +474,6 @@ async def test_connect_rpc_client_passes_cdp_options_without_sending_an_rpc(
             "discovery_timeout_ms": 1_001,
             "command_timeout_ms": 1_002,
             "cdp_connect_timeout_ms": 1_003,
-            "require_runtime_ready": False,
         }
         transport = FakeCDPClient.instances[-1]
         assert transport.sent == []

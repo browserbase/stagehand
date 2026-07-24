@@ -148,14 +148,6 @@ class Browser(StrEnum):
     safari = "safari"
 
 
-class BrowserConnection(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    cdp_url: Annotated[StrictStr, Field(min_length=1)]
-
-
 class BrowserGetVersionResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1895,7 +1887,7 @@ class StagehandInitParams(WireModel):
     )
     protocol_version: Literal[4]
     client_info: ImplementationInfo
-    browser_connection: Optional[BrowserConnection] = None
+    browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     browser: Optional[BrowserbaseBrowserSource] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None

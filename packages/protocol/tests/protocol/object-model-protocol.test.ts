@@ -552,9 +552,7 @@ describe("Stagehand object-model protocol", () => {
       StagehandMethods.stagehandInit.params.parse({
         protocolVersion: 4,
         clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
-        browserConnection: {
-          cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-        },
+        browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         telemetry: {
           traces: {
             endpoint: "https://otel.example.com/v1/traces",

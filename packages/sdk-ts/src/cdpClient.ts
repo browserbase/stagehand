@@ -399,22 +399,13 @@ export async function waitForRuntimeReceiver(
   sessionId: string,
   options: RuntimeWaitOptions,
 ): Promise<void> {
-  await waitForRuntime(cdp, sessionId, options, false);
-}
-
-export async function waitForRuntimeReady(
-  cdp: CDPCommandSender,
-  sessionId: string,
-  options: RuntimeWaitOptions,
-): Promise<void> {
-  await waitForRuntime(cdp, sessionId, options, true);
+  await waitForRuntime(cdp, sessionId, options);
 }
 
 async function waitForRuntime(
   cdp: CDPCommandSender,
   sessionId: string,
   options: RuntimeWaitOptions,
-  requireReady: boolean,
 ): Promise<void> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const delayFn = options.delayFn ?? delay;
@@ -442,22 +433,11 @@ async function waitForRuntime(
         );
         if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false)
           throw new StagehandRuntimeIncompatibleError(compatibility);
-        if (
-          compatibility.kind === "compatible" &&
-          readiness.hasReceiver &&
-          (!requireReady || isAutoAttachReady(readiness.marker))
-        )
-          return;
+        if (compatibility.kind === "compatible" && readiness.hasReceiver) return;
 
         lastError = `protocolVersion=${String(
           observedProtocolVersion(readiness.marker),
-        )}, __stagehandReceiveFromHost=${String(readiness.hasReceiver)}${
-          requireReady
-            ? `, state=${String(markerField(readiness.marker, "state"))}, connected=${String(
-                markerField(readiness.marker, "connected"),
-              )}`
-            : ""
-        }`;
+        )}, __stagehandReceiveFromHost=${String(readiness.hasReceiver)}`;
       }
     } catch (error) {
       if (error instanceof StagehandRuntimeIncompatibleError) throw error;
@@ -468,20 +448,11 @@ async function waitForRuntime(
   }
 
   throw new Error(
-    `Timed out waiting for the Stagehand extension ${
-      requireReady ? "runtime to become ready" : "runtime RPC receiver"
-    }${lastError ? ` (${lastError})` : ""}`,
+    `Timed out waiting for the Stagehand extension runtime RPC receiver${
+      lastError ? ` (${lastError})` : ""
+    }`,
     { cause: lastReadiness },
   );
-}
-
-function isAutoAttachReady(marker: unknown): boolean {
-  return markerField(marker, "state") === "ready" && markerField(marker, "connected") === true;
-}
-
-function markerField(marker: unknown, field: string): unknown {
-  if (typeof marker !== "object" || marker === null) return undefined;
-  return Reflect.get(marker, field);
 }
 
 export async function waitForPreloadedStagehandServiceWorker(

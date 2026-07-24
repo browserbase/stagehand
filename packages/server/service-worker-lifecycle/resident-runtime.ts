@@ -1,6 +1,5 @@
 import { STAGEHAND_PROTOCOL_VERSION, STAGEHAND_RUNTIME_VERSION } from "../../protocol/schemas.js";
 import type {
-  BrowserConnection,
   RuntimeDescriptor,
   StagehandInitParams,
   StagehandInitResult,
@@ -80,14 +79,14 @@ export class ResidentRuntimeLifecycle {
       return Promise.reject(new Error("Stagehand has already been initialized"));
     }
 
-    if (params.browserConnection) {
-      const browserConnection = params.browserConnection;
+    if (params.browserCdpUrl) {
+      const browserCdpUrl = params.browserCdpUrl;
       this.autoBootstrapEnabled = false;
       const generation = ++this.generation;
       this.bootstrapPromise = undefined;
       this.publish("disconnected", false, this.marker.timings);
       return this.enqueue(() =>
-        this.runConfiguredInitialization(generation, params, browserConnection),
+        this.runConfiguredInitialization(generation, params, browserCdpUrl),
       );
     }
 
@@ -130,7 +129,7 @@ export class ResidentRuntimeLifecycle {
   private async runConfiguredInitialization(
     generation: number,
     params: StagehandInitParams,
-    browserConnection: BrowserConnection,
+    browserCdpUrl: string,
   ): Promise<StagehandInitResult> {
     if (this.runtime.state.getState().status !== "created") {
       throw new Error("Stagehand has already been initialized");
@@ -143,19 +142,22 @@ export class ResidentRuntimeLifecycle {
 
     this.publish("connecting-cdp", false, {});
     let connectStartedAt = this.now();
-    await this.runtime.configureLoopback(browserConnection, {
-      onConnecting: () => {
-        connectStartedAt = this.now();
+    await this.runtime.configureLoopback(
+      { cdpUrl: browserCdpUrl },
+      {
+        onConnecting: () => {
+          connectStartedAt = this.now();
+        },
+        onConnected: () => {
+          if (generation === this.generation) this.publish("bootstrapping", true, {});
+        },
+        onDisconnected: () => {
+          if (generation === this.generation) {
+            this.publish("disconnected", false, this.marker.timings);
+          }
+        },
       },
-      onConnected: () => {
-        if (generation === this.generation) this.publish("bootstrapping", true, {});
-      },
-      onDisconnected: () => {
-        if (generation === this.generation) {
-          this.publish("disconnected", false, this.marker.timings);
-        }
-      },
-    });
+    );
 
     if (generation !== this.generation) {
       await this.runtime.resetForReservation();

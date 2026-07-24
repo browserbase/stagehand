@@ -96,7 +96,7 @@ describe("resolveBrowserSource", () => {
       ),
     ).resolves.toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
-      autoAttach: true,
+      autoAttach: false,
       keepAlive: true,
       close,
     });

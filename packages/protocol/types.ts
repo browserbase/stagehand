@@ -15,7 +15,6 @@ import type {
   AzureEntraIdAuthSchema,
   AzureModelProviderOptionsSchema,
   AzureProviderOptionsSchema,
-  BrowserConnectionSchema,
   BrowserGetVersionResultSchema,
   BrowserbaseBrowserSettingsSchema,
   BrowserbaseBrowserSourceSchema,
@@ -319,7 +318,6 @@ export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
 export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
 export type LocatorDescriptor = z.infer<typeof LocatorDescriptorSchema>;
 export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
-export type BrowserConnection = z.infer<typeof BrowserConnectionSchema>;
 export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;
 export type ImplementationInfo = z.infer<typeof ImplementationInfoSchema>;
 export type RuntimeDescriptor = z.infer<typeof RuntimeDescriptorSchema>;

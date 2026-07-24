@@ -5,7 +5,6 @@ import {
   StagehandRuntimeIncompatibleError,
   waitForPreloadedStagehandServiceWorker,
   waitForRuntimeReceiver,
-  waitForRuntimeReady,
   waitForServiceWorker,
 } from "../../../sdk-ts/src/cdpClient.ts";
 
@@ -587,64 +586,6 @@ describe("waitForRuntimeReceiver", () => {
         delayFn: async () => {},
       }),
     ).resolves.toBeUndefined();
-  });
-});
-
-describe("waitForRuntimeReady", () => {
-  it("waits for auto-attach after the compatible RPC receiver is installed", async () => {
-    let now = 0;
-    const readiness = [
-      {
-        marker: { ...runtimeMarker(4), state: "connecting-cdp", connected: false },
-        hasReceiver: true,
-      },
-      {
-        marker: { ...runtimeMarker(4), state: "ready", connected: true },
-        hasReceiver: true,
-      },
-    ];
-    const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
-      result: { value: readiness.shift() },
-    }));
-
-    await expect(
-      waitForRuntimeReady(cdp, "worker-session", {
-        pollIntervalMs: 5,
-        timeout: 100,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
-        },
-      }),
-    ).resolves.toBeUndefined();
-
-    expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(2);
-  });
-
-  it("does not treat an installed receiver as auto-attach readiness", async () => {
-    let now = 0;
-    const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
-      result: {
-        value: {
-          marker: { ...runtimeMarker(4), state: "resolving-cdp", connected: false },
-          hasReceiver: true,
-        },
-      },
-    }));
-
-    const error = await rejectedError(
-      waitForRuntimeReady(cdp, "worker-session", {
-        pollIntervalMs: 1,
-        timeout: 1,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
-        },
-      }),
-    );
-
-    expect(error.message).toContain("runtime to become ready");
-    expect(error.message).toContain("state=resolving-cdp, connected=false");
   });
 });
 
