@@ -112,6 +112,10 @@ export function printRunHelp(): void {
       `${cyan("-f, --filter")} ${dim("key=value")}`,
       `Benchmark-specific filter ${gray("(repeatable)")}`,
     ),
+    row(
+      cyan("--isolate"),
+      `Run each bench task in its own child process ${gray("(crash isolation)")}`,
+    ),
     "",
     `  ${bold("Inspect:")}`,
     "",

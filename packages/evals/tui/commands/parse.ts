@@ -48,6 +48,8 @@ export interface RunFlags {
   success?: SuccessMode;
   /** Spawn the pre-refactor index.eval.ts runner instead of the unified path. */
   legacy?: boolean;
+  /** Run each bench task in its own child process (crash isolation). */
+  isolate?: boolean;
   /** Which Stagehand SDK drives bench tasks: v3 (default) or v4. */
   sdk?: "v3" | "v4";
 }
@@ -98,6 +100,8 @@ export interface ResolvedRunOptions {
   dryRun: boolean;
   preview: boolean;
   verbose: boolean;
+  /** Run each bench task in its own child process (crash isolation). */
+  isolate?: boolean;
 }
 
 /**
@@ -113,7 +117,7 @@ const SUPPORTED_BENCHMARKS = new Set([
 
 const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "osworld"]);
 
-const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "legacy"]);
+const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "legacy", "isolate"]);
 const VALUE_FLAGS = new Set([
   "trials",
   "concurrency",
@@ -236,6 +240,7 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         else if (name === "dry-run") flags.dryRun = true;
         else if (name === "preview") flags.preview = true;
         else if (name === "legacy") flags.legacy = true;
+        else if (name === "isolate") flags.isolate = true;
         i++;
         continue;
       }
@@ -511,6 +516,7 @@ export function resolveRunOptions(
     dryRun: flags.dryRun ?? false,
     preview: flags.preview ?? false,
     verbose: defaults.verbose ?? false,
+    isolate: flags.isolate ?? false,
   };
 }
 
