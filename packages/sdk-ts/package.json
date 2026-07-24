@@ -1,6 +1,25 @@
 {
-  "name": "@browserbasehq/stagehand-v4-spike-sdk-ts",
-  "version": "0.0.0",
+  "name": "@browserbasehq/stagehand",
+  "version": "4.0.0",
+  "description": "Browserbase's SDK for building browser agents",
+  "keywords": [
+    "ai",
+    "automation",
+    "browser",
+    "testing",
+    "web-scraping"
+  ],
+  "homepage": "https://stagehand.dev",
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "license": "MIT",
+  "author": "Browserbase",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/sdk-ts"
+  },
   "files": [
     "dist"
   ],
@@ -10,6 +29,9 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "test": "vp test run --root ../.. packages/sdk-ts/tests"

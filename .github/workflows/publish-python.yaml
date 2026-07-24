@@ -1,0 +1,112 @@
+name: Publish Python SDK
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Python distributions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.package-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "24"
+          cache: true
+
+      - uses: browser-actions/setup-chrome@v2
+        id: setup-chrome
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: packages/sdk-python/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: packages/sdk-python
+          enable-cache: true
+          cache-dependency-glob: packages/sdk-python/uv.lock
+
+      - uses: extractions/setup-just@v3
+
+      - run: just install
+      - run: just build
+
+      - name: Read package version
+        id: package-version
+        run: |
+          VERSION="$(python -c 'import tomllib; print(tomllib.load(open("packages/sdk-python/pyproject.toml", "rb"))["project"]["version"])')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test installed Python wheel
+        run: >-
+          uv run --isolated --no-project
+          --with packages/sdk-python/dist/*.whl
+          python packages/sdk-python/scripts/smoke.py
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+      - name: Smoke test installed Python source distribution
+        run: >-
+          uv run --isolated --no-project
+          --with packages/sdk-python/dist/*.tar.gz
+          python -c "from pathlib import Path; import stagehand; assert (Path(stagehand.__file__).parent / '_extension' / 'manifest.json').is_file()"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: packages/sdk-python/dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish Python distributions
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+
+      - run: uv publish --trusted-publishing always dist/*
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Tag Python release
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          TAG="stagehand-python@$VERSION"
+          if git rev-parse --verify --quiet "refs/tags/$TAG"; then
+            echo "$TAG already exists"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"

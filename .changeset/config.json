@@ -1,0 +1,25 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "ignore": [],
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "access": "public",
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "browserbase/stagehand"
+    }
+  ],
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  },
+  "snapshot": {
+    "useCalculatedVersion": true,
+    "prereleaseTemplate": "alpha-{commit}",
+    "tag": "alpha"
+  }
+}

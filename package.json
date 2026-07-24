@@ -1,7 +1,17 @@
 {
-  "name": "v4-spike",
-  "version": "0.0.0",
+  "name": "stagehand-workspace",
+  "version": "4.0.0",
   "private": true,
+  "description": "Stagehand monorepo workspace",
+  "homepage": "https://stagehand.dev",
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git"
+  },
   "type": "module",
   "scripts": {
     "check": "vp check && vp run -F ./packages/docs check",
@@ -13,10 +23,13 @@
   "devDependencies": {
     "@ast-grep/lang-python": "catalog:",
     "@ast-grep/napi": "catalog:",
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/sdk-trace-web": "catalog:",
     "@oxlint/plugins": "1.68.0",
     "@types/chrome": "catalog:",
+    "@types/node": "catalog:",
     "dotenv": "catalog:",
     "openai": "catalog:",
     "tsx": "catalog:",

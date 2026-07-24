@@ -9,6 +9,9 @@ generate:
     uv --directory {{python_dir}} run --locked python scripts/generate.py
 
 check:
+    vp exec tsx scripts/release/check-changesets.ts
+    vp exec tsx scripts/release/consolidate-changelogs.ts --check
+    vp exec tsx scripts/release/sync-python-version.ts --check
     vp run check
     uv --directory {{python_dir}} lock --check
     uv --directory {{python_dir}} run --locked python scripts/generate.py --check
@@ -35,3 +38,27 @@ fmt:
 build:
     vp run build
     uv --directory {{python_dir}} run --locked python scripts/build.py
+
+changeset:
+    vp exec changeset
+
+# Prefixed with `_` because this internal recipe is only used to generate release versions and changelogs.
+_version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+        export GITHUB_TOKEN="$(gh auth token)"
+    fi
+    vp exec changeset version
+    vp exec tsx scripts/release/consolidate-changelogs.ts
+    vp exec tsx scripts/release/sync-python-version.ts
+    uv --directory "{{python_dir}}" lock
+    vp exec tsx scripts/release/sync-python-version.ts --check
+
+_publish-typescript:
+    vp run -F ./packages/sdk-ts build
+    vp exec changeset publish
+
+_publish-typescript-canary commit:
+    vp run -F ./packages/sdk-ts build
+    vp exec tsx scripts/release/publish-typescript-canary.ts "{{commit}}"

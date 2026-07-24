@@ -1,29 +1,38 @@
-name: Publish Python SDK
+name: Release
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
-  contents: read
+  contents: write
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build Python distributions
+  release-typescript:
+    name: Release TypeScript SDK
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - uses: voidzero-dev/setup-vp@v1
         with:
           node-version: "24"
           cache: true
 
-      - uses: browser-actions/setup-chrome@v2
-        id: setup-chrome
+      - uses: actions/setup-node@v6
         with:
-          chrome-version: stable
-          install-dependencies: true
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -41,44 +50,53 @@ jobs:
       - uses: extractions/setup-just@v3
 
       - run: just install
+      - run: just check
       - run: just build
 
-      - name: Smoke test installed Python wheel
-        run: >-
-          uv run --isolated --no-project
-          --with packages/sdk-python/dist/*.whl
-          python packages/sdk-python/scripts/smoke.py
+      - name: Create release pull request or publish TypeScript
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: just _version
+          publish: just _publish-typescript
+          title: Release Stagehand packages
+          commit: release Stagehand packages
         env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Smoke test installed Python source distribution
-        run: >-
-          uv run --isolated --no-project
-          --with packages/sdk-python/dist/*.tar.gz
-          python -c "from pathlib import Path; import stagehand; assert (Path(stagehand.__file__).parent / '_extension' / 'manifest.json').is_file()"
+      - name: Publish TypeScript canary
+        if: steps.changesets.outputs.published != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git checkout "$GITHUB_SHA"
+          just _publish-typescript-canary "$GITHUB_SHA"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: python-distributions
-          path: packages/sdk-python/dist/*
-          if-no-files-found: error
-
-  publish:
-    name: Publish Python distributions
-    needs: build
+  python-release-status:
+    name: Check Python release status
+    needs: release-typescript
     runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
+    timeout-minutes: 10
+    outputs:
+      should-publish: ${{ steps.status.outputs.should-publish }}
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: python-distributions
-          path: dist
+      - uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          version: "0.11.29"
+          node-version: "24"
+          cache: true
 
-      - run: uv publish --trusted-publishing always dist/*
+      - run: vp install
+
+      - name: Check PyPI
+        id: status
+        run: echo "should-publish=$(vp exec tsx scripts/release/python-publish-status.ts)" >> "$GITHUB_OUTPUT"
+
+  publish-python:
+    name: Release Python SDK
+    needs: python-release-status
+    if: needs.python-release-status.outputs.should-publish == 'true'
+    uses: ./.github/workflows/publish-python.yaml
+    secrets: inherit

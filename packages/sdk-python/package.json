@@ -1,0 +1,6 @@
+{
+  "name": "@browserbasehq/stagehand-python",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Changesets version proxy for the Stagehand Python SDK"
+}

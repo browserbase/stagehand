@@ -5,7 +5,7 @@ export default defineConfig({
     tasks: {
       build: {
         command: "vp pack",
-        dependsOn: ["@browserbasehq/stagehand-v4-spike-server#build"],
+        dependsOn: ["@browserbasehq/stagehand-server#build"],
       },
     },
   },
