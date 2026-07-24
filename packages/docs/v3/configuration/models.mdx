@@ -9,7 +9,11 @@ import { V3Banner } from '/snippets/v3-banner.mdx';
 
 
 <Callout icon="sparkles" color="#FFC107" iconType="regular">
-  **(NEW) Model Gateway** — Use your Browserbase API key to access top models from OpenAI, Anthropic, and Google. One key, one bill, no provider accounts needed. [Read the blog](https://www.browserbase.com/blog/model-gateway)
+  **(NEW) Model Router** — Stop picking models. Set `model: "auto"` and Browserbase selects the right one for every call, cutting inference cost 30–40% with no code changes. [Jump to setup](#model-router)
+</Callout>
+
+<Callout icon="sparkles" color="#FFC107" iconType="regular">
+  **Model Gateway** — Use your Browserbase API key to access top models from OpenAI, Anthropic, and Google. One key, one bill, no provider accounts needed. [Read the blog](https://www.browserbase.com/blog/model-gateway)
 </Callout>
 
 ## Model Gateway
@@ -35,7 +39,7 @@ When only a Browserbase API key is provided (without a provider-specific API key
   Model Gateway requires Browserbase-hosted browsers. It does not work with `env: "LOCAL"`.
 </Note>
 
-### Auto Model Router
+### Model Router
 
 Don't want to pick a model at all? Set `model: "auto"` and Browserbase chooses one for you on every call.
 
@@ -56,7 +60,7 @@ With `model: "auto"`, the Stagehand API selects the model for each `act`, `extra
 Because the router matches each call to the cheapest model that can handle it (instead of sending every request to one frontier model), teams typically see **30–40% lower inference cost** with no change to their automation code.
 
 <Note>
-  Auto Model Router runs on Model Gateway, so inference is billed to your Browserbase API key at market-price tokens. You don't need any provider accounts or keys.
+  Model Router runs on Model Gateway, so inference is billed to your Browserbase API key at market-price tokens. You don't need any provider accounts or keys.
 </Note>
 
 #### Requirements
@@ -103,7 +107,7 @@ await stagehand.observe("find the login button", {
 </Note>
 
 <Tip>
-  Auto Model Router works with [caching](/v3/best-practices/caching), but replay is handled by the API's server-side cache rather than the local cache. There's no local client available to self-heal a stale cached action. Pin a concrete model if you need local cache replay.
+  Model Router works with [caching](/v3/best-practices/caching), but replay is handled by the API's server-side cache rather than the local cache. There's no local client available to self-heal a stale cached action. Pin a concrete model if you need local cache replay.
 </Tip>
 
 ### Switching models
@@ -1032,7 +1036,7 @@ The following models work without the `provider/` prefix in the model parameter 
 | Provider   | Environment Variable           |
 | ---------- | ------------------------------ |
 | Model Gateway | `BROWSERBASE_API_KEY` (no provider key needed) |
-| Auto Model Router (`model: "auto"`) | `BROWSERBASE_API_KEY` (no provider key needed) |
+| Model Router (`model: "auto"`) | `BROWSERBASE_API_KEY` (no provider key needed) |
 | Google     | `GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY` |
 | Vertex | Service account credentials (see [setup](#first-class-models)) |
 | Anthropic  | `ANTHROPIC_API_KEY`            |
@@ -1064,7 +1068,7 @@ The following models work without the `provider/` prefix in the model parameter 
 <Accordion title="Error: model 'auto' is only supported through the Stagehand API">
 **Error:** `model: "auto" is only supported when running through the Stagehand API`
 
-[Auto Model Router](#auto-model-router) resolves the model server-side, so the session has to run through the Stagehand API.
+[Model Router](#model-router) resolves the model server-side, so the session has to run through the Stagehand API.
 
 **Solutions:**
 
