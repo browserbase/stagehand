@@ -53,7 +53,7 @@ await stagehand.init();
 
 With `model: "auto"`, the Stagehand API selects the model for each `act`, `extract`, and `observe` call on your behalf, balancing accuracy, speed, and cost for that specific task. Selection happens server-side, so your code never pins a model name and automatically picks up new models as they're added.
 
-Because the router matches each call to the cheapest model that can handle it — instead of sending every request to one frontier model — teams typically see **30–40% lower inference cost** with no change to their automation code.
+Because the router matches each call to the cheapest model that can handle it (instead of sending every request to one frontier model), teams typically see **30–40% lower inference cost** with no change to their automation code.
 
 <Note>
   Auto Model Router runs on Model Gateway, so inference is billed to your Browserbase API key at market-price tokens. You don't need any provider accounts or keys.
@@ -76,7 +76,7 @@ Because the router matches each call to the cheapest model that can handle it �
 
 #### Per-call routing
 
-You can also opt into the router for individual calls while keeping a concrete default model — useful for letting cheap steps route themselves while pinning a known-good model everywhere else:
+You can also opt into the router for individual calls while keeping a concrete default model. This is useful for letting cheap steps route themselves while pinning a known-good model everywhere else:
 
 ```typescript
 const stagehand = new Stagehand({
@@ -90,7 +90,7 @@ const { extraction } = await stagehand.extract("get the page headline", {
 });
 ```
 
-Per-call overrides never inherit the session model's provider or API key — the server picks the provider. Explicit options are still passed through:
+Per-call overrides never inherit the session model's provider or API key. The server picks the provider. Explicit options are still passed through:
 
 ```typescript
 await stagehand.observe("find the login button", {
