@@ -1,0 +1,11 @@
+{
+  "name": "v4-vs-playwright",
+  "description": "WebVoyager under claude_code with only the tool surface varying: Stagehand v4 code mode vs Playwright code mode. Same harness, same model, same LLMJ grader — score deltas are attributable to the tool surface.",
+  "target": { "kind": "suite", "suite": "webvoyager", "limit": 5 },
+  "matrix": {
+    "models": ["anthropic/claude-haiku-4-5"],
+    "harnesses": ["claude_code"],
+    "toolSurfaces": ["v4_code", "playwright_code"]
+  },
+  "trials": 1
+}
