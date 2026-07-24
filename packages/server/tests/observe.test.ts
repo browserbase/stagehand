@@ -1,5 +1,5 @@
 import { trace } from "@opentelemetry/api";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
 import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";

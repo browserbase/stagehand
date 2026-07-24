@@ -1033,6 +1033,11 @@
             }
           },
           "$ref": "#/$defs/TelemetryConfig"
+        },
+        "log_level": {
+          "default": "info",
+          "type": "string",
+          "enum": ["off", "error", "warn", "info", "debug"]
         }
       },
       "required": ["cdp_url"],

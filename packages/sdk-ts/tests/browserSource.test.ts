@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import { resolveBrowserSource, type BrowserbaseSessionClient } from "../src/browserSource.js";
 
 describe("resolveBrowserSource", () => {

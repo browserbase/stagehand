@@ -15,9 +15,12 @@ catalog:
   "@opentelemetry/semantic-conventions": 1.43.0
   "@types/node": ^24
   typescript: ^5
-  vitest: ^4
-  vite: npm:@voidzero-dev/vite-plus-core@0.2.3
-  vite-plus: 0.2.3
+  oxfmt: 0.57.0
+  oxlint: 1.72.0
+  oxlint-tsgolint: 0.24.0
+  tsdown: 0.22.3
+  vite: 8.1.3
+  vitest: 4.1.9
   zod: 4.4.3
   devtools-protocol: ^0.0.1657692
   chrome-launcher: ^1.2.1
@@ -41,22 +44,6 @@ catalog:
   publint: ^0.3.8
 overrides:
   vite: "catalog:"
-peerDependencyRules:
-  allowAny:
-    - vite
-  allowedVersions:
-    vite: "*"
-minimumReleaseAgeExclude:
-  - "@voidzero-dev/vite-plus-core@0.2.3"
-  - "@voidzero-dev/vite-plus-darwin-arm64@0.2.3"
-  - "@voidzero-dev/vite-plus-darwin-x64@0.2.3"
-  - "@voidzero-dev/vite-plus-linux-arm64-gnu@0.2.3"
-  - "@voidzero-dev/vite-plus-linux-arm64-musl@0.2.3"
-  - "@voidzero-dev/vite-plus-linux-x64-gnu@0.2.3"
-  - "@voidzero-dev/vite-plus-linux-x64-musl@0.2.3"
-  - "@voidzero-dev/vite-plus-win32-arm64-msvc@0.2.3"
-  - "@voidzero-dev/vite-plus-win32-x64-msvc@0.2.3"
-  - vite-plus@0.2.3
 allowBuilds:
   "@ast-grep/lang-python": true
   "@scarf/scarf": false

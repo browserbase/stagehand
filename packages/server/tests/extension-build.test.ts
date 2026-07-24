@@ -3,7 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { unzipSync, zipSync, type Zippable } from "fflate";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import serverPackageJson from "../package.json" with { type: "json" };
 

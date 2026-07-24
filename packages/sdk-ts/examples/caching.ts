@@ -2,15 +2,18 @@ import "dotenv/config";
 import { z } from "zod/v4";
 import { Stagehand } from "../src/index.js";
 
+const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;
+if (!BROWSERBASE_API_KEY || !OPENAI_API_KEY) throw new Error();
+
 // Server-side caching requires a Browserbase browser session.
 const stagehand = new Stagehand({
-  apiKey: requireEnvironmentVariable("BROWSERBASE_API_KEY"),
+  apiKey: BROWSERBASE_API_KEY,
   browser: {
     type: "browserbase",
   },
   model: {
     modelName: "openai/gpt-5.4-mini",
-    apiKey: requireEnvironmentVariable("OPENAI_API_KEY"),
+    apiKey: OPENAI_API_KEY,
   },
 });
 
@@ -53,10 +56,4 @@ try {
   console.log(JSON.stringify(second.result, null, 2));
 } finally {
   await stagehand.close();
-}
-
-function requireEnvironmentVariable(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required`);
-  return value;
 }

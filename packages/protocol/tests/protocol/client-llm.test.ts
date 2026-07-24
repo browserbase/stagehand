@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { encodeWireValue, wireSchema } from "../../json-rpc/wire-casing.js";
 import { StagehandMethods } from "../../schema-registry.js";
 import {

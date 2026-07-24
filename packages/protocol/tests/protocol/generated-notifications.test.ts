@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 const schemaUrl = new URL("../../stagehand.v4.json", import.meta.url);
 

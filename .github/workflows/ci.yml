@@ -21,10 +21,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: voidzero-dev/setup-vp@v1
+      - uses: pnpm/action-setup@v6
+        with:
+          version: "11.10.0"
+          run_install: false
+
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
-          cache: true
+          cache: pnpm
 
       - uses: browser-actions/setup-chrome@v2
         id: setup-chrome
@@ -32,19 +37,18 @@ jobs:
           chrome-version: stable
           install-dependencies: true
 
-      - run: vp install
-      - run: vp run -F ./packages/protocol build
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
-      # The root check also runs Mintlify validation, link/a11y checks, and the
-      # SDK-reference conformance tests from the docs workspace.
-      - run: vp run -w check
-      - run: vp run -F ./packages/sdk-ts build
-      - run: vp test run
+      # TODO(docs-migration): Restore Mintlify validation, link/a11y checks,
+      # and SDK-reference conformance tests after v3 docs are added in Stagehand.
+      - run: pnpm check
+      - run: pnpm exec vitest run
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
       - name: Browserbase smoke test
         run: >-
-          vp test run --root .
+          pnpm exec vitest run --root .
           packages/sdk-ts/tests/browser-runtime/stagehand-browserbase-smoke.test.ts
         env:
           BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
@@ -60,15 +64,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version: "24"
-          cache: true
-
       - uses: pnpm/action-setup@v6
         with:
           version: "11.10.0"
           run_install: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
 
       - uses: browser-actions/setup-chrome@v2
         id: setup-chrome
@@ -91,7 +95,7 @@ jobs:
 
       - uses: extractions/setup-just@v3
 
-      - run: vp install
+      - run: pnpm install --frozen-lockfile
         working-directory: ${{ github.workspace }}
       - run: uv sync --locked --dev
       - run: uv lock --check

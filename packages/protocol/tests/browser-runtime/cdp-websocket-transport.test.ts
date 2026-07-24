@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browserWebSocketFactory } from "../../../server/understudy/browserWebSocketTransport.js";
 import { CdpConnection } from "../../../server/understudy/cdp.js";
 
@@ -128,5 +128,50 @@ describe("CdpConnection browser WebSocket transport", () => {
     socket.receive(JSON.stringify({ id: "not-a-number", result: {} }));
 
     await expect(pending).rejects.toThrow("socket-message-error");
+  });
+
+  it("only downgrades a missing-context releaseObject response", async () => {
+    const debug = vi.fn();
+    const error = vi.fn();
+    const connection = await CdpConnection.connect("ws://cdp.test", browserWebSocketFactory, {
+      debug,
+      error,
+    });
+    const socket = latestSocket();
+
+    const releaseObject = connection.send("Runtime.releaseObject", { objectId: "stale-object" });
+    const evaluate = connection.send("Runtime.evaluate", { expression: "1" });
+
+    socket.receive(
+      JSON.stringify({
+        id: requestId(socket, 0),
+        error: { code: -32000, message: "Cannot find context with specified id" },
+      }),
+    );
+    socket.receive(
+      JSON.stringify({
+        id: requestId(socket, 1),
+        error: { code: -32000, message: "Cannot find context with specified id" },
+      }),
+    );
+
+    await expect(releaseObject).rejects.toThrow("-32000 Cannot find context with specified id");
+    await expect(evaluate).rejects.toThrow("-32000 Cannot find context with specified id");
+
+    expect(debug).toHaveBeenCalledWith("CDP releaseObject cleanup raced with context destruction", {
+      requestId: requestId(socket, 0),
+      method: "Runtime.releaseObject",
+      error: "-32000 Cannot find context with specified id",
+      targetId: null,
+    });
+    expect(error).toHaveBeenCalledOnce();
+    expect(error).toHaveBeenCalledWith("CDP response failed", {
+      requestId: requestId(socket, 1),
+      method: "Runtime.evaluate",
+      error: "-32000 Cannot find context with specified id",
+      targetId: null,
+    });
+
+    await connection.close();
   });
 });

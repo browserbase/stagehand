@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../../cdp.js";
 import { getDomTreeWithFallback, hydrateDomTree } from "./domTree.js";
 

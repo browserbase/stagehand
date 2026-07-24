@@ -1,5 +1,5 @@
 import ts from "typescript";
-import type { Plugin } from "vite-plus";
+import type { Plugin } from "vite";
 
 // Remove this pre-transform once Oxc can lower TypeScript 5 standard decorators.
 export function instrumentedDecoratorBuild(): Plugin {

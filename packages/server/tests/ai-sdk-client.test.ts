@@ -1,5 +1,5 @@
 import { Output, generateText } from "ai";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAiSdkLanguageModel, generateWithAiSdk } from "../llm/aiSdkClient.js";
 import * as llmService from "../services/llmService.js";
 

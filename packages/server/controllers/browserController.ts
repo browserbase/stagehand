@@ -4,7 +4,7 @@ import type { StagehandRuntime } from "../runtime.js";
 
 export function createBrowserController(runtime: StagehandRuntime) {
   async function getVersion(_params: EmptyParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] browser.get_version", {});
+    logger.debug("browser.get_version", {});
     return runtime.browserGetVersion();
   }
 

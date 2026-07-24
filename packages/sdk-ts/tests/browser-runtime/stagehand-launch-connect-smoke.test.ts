@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { LLMGenerateResult } from "../../../protocol/types.js";
 import { Stagehand, type BrowserContext, type Page } from "../../src/index.js";
@@ -12,16 +12,8 @@ type FixtureServer = {
 describe("Stagehand TS SDK launch/connect smoke", () => {
   let fixtureServer: FixtureServer | undefined;
   let stagehand: Stagehand | undefined;
-  let restoreConsole: (() => void) | undefined;
 
   beforeAll(async () => {
-    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
-    restoreConsole = () => {
-      debug.mockRestore();
-      info.mockRestore();
-    };
-
     fixtureServer = await startFixtureServer();
     stagehand = new Stagehand({
       browser: {
@@ -119,17 +111,16 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
           };
         },
       },
+      logging: {
+        level: "off",
+      },
     });
     await stagehand.init();
   }, 45_000);
 
   afterAll(async () => {
-    try {
-      await stagehand?.close();
-      await fixtureServer?.close();
-    } finally {
-      restoreConsole?.();
-    }
+    await stagehand?.close();
+    await fixtureServer?.close();
   });
 
   it("drives a real browser through the public TS object model", async () => {

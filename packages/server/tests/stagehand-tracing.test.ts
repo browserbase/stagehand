@@ -6,7 +6,7 @@ import {
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-web";
 import { ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it } from "vitest";
 import serverPackageJson from "../package.json" with { type: "json" };
 import { createStagehandTracing, createStagehandTracingRuntime } from "../tracing.ts";
 

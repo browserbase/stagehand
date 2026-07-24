@@ -4,7 +4,7 @@ import {
   SimpleSpanProcessor,
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-web";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
 import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
@@ -59,7 +59,9 @@ describe("Stagehand RPC router", () => {
     );
     await tracing.forceFlush();
 
-    const span = spans.getFinishedSpans().find((candidate) => candidate.name === "ping");
+    const span = spans
+      .getFinishedSpans()
+      .find((candidate) => candidate.name === "ping" && candidate.kind === SpanKind.SERVER);
     expect(span?.spanContext().traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
     expect(span?.parentSpanContext?.spanId).toBe("00f067aa0ba902b7");
     expect(span?.parentSpanContext?.isRemote).toBe(true);
@@ -82,7 +84,9 @@ describe("Stagehand RPC router", () => {
     ).rejects.toThrow();
     await tracing.forceFlush();
 
-    const span = spans.getFinishedSpans().find((candidate) => candidate.name === "page.url");
+    const span = spans
+      .getFinishedSpans()
+      .find((candidate) => candidate.name === "page.url" && candidate.kind === SpanKind.SERVER);
     expect(span?.status.code).toBe(SpanStatusCode.ERROR);
     expect(span?.attributes["error.type"]).toBeDefined();
     await tracing.shutdown();
@@ -110,7 +114,7 @@ describe("Stagehand RPC router", () => {
     expect(lifecycle.slice(-2)).toStrictEqual(["ended:stagehand.close", "shutdown"]);
   });
 
-  it("keeps emitted logs under the JSON-RPC request span", async () => {
+  it("keeps filtered log spans under the JSON-RPC request span", async () => {
     const spans = new InMemorySpanExporter();
     const tracing = configuredTracing(
       createStagehandTracingRuntime(
@@ -123,8 +127,12 @@ describe("Stagehand RPC router", () => {
     await router.handle(request({ id: 14, method: "ping", params: {} }));
     await tracing.forceFlush();
 
-    const requestSpan = spans.getFinishedSpans().find((span) => span.name === "ping");
-    const logSpan = spans.getFinishedSpans().find((span) => span.name === "[stagehand] ping");
+    const requestSpan = spans
+      .getFinishedSpans()
+      .find((span) => span.name === "ping" && span.kind === SpanKind.SERVER);
+    const logSpan = spans
+      .getFinishedSpans()
+      .find((span) => span.attributes["stagehand.span.type"] === "log");
     expect(logSpan?.spanContext().traceId).toBe(requestSpan?.spanContext().traceId);
     expect(logSpan?.parentSpanContext?.spanId).toBe(requestSpan?.spanContext().spanId);
     await tracing.shutdown();

@@ -14,10 +14,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: voidzero-dev/setup-vp@v1
+      - uses: pnpm/action-setup@v6
+        with:
+          version: "11.10.0"
+          run_install: false
+
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
-          cache: true
+          cache: pnpm
 
       - uses: browser-actions/setup-chrome@v2
         id: setup-chrome

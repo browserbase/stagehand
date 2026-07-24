@@ -305,7 +305,7 @@ async function takeDeterministicAction({
       };
     }
 
-    context.logger.info("Error performing action; reprocessing the page and trying again", {
+    context.logger.debug("Error performing action; reprocessing the page and trying again", {
       category: "action",
       error: message,
       action: JSON.stringify(action),
@@ -404,7 +404,7 @@ function normalizeActInferenceElement(
 
     const targetXpath = trimTrailingTextNode(xpathMap[targetElementId as EncodedId]);
     if (!targetXpath) {
-      logger.info("Drag-and-drop target element lookup failed", {
+      logger.debug("Drag-and-drop target element lookup failed", {
         category: "action",
         targetElementId,
         sourceElementId: element.elementId,

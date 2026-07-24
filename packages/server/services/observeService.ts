@@ -76,7 +76,7 @@ export async function observe({
     });
     ensureTimeRemaining();
 
-    logger.info("Captured accessibility snapshot for observation", {
+    logger.debug("Captured accessibility snapshot for observation", {
       category: "observation",
     });
 

@@ -20,6 +20,7 @@ import {
   StagehandClientObserveOptionsSchema,
   type StagehandClientActOptions,
   type StagehandClientExtractOptions,
+  type ResolvedStagehandClientLoggingConfig,
   type ResolvedStagehandClientInitParams,
   type StagehandClientInitParams,
   type StagehandClientObserveOptions,
@@ -98,9 +99,12 @@ export class Stagehand {
           : { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }),
         serviceWorkerUrlIncludes: "service-worker.js",
         telemetry: clientInitParams.telemetry,
+        logLevel: clientInitParams.logging.level,
       });
       this.rpcClient = rpcClient;
-      this.removeNotificationListener = rpcClient.onNotification(renderStagehandNotification);
+      this.removeNotificationListener = rpcClient.onNotification((notification) =>
+        handleStagehandNotification(notification, clientInitParams.logging),
+      );
       if (clientInitParams.model && "generate" in clientInitParams.model) {
         this.removeClientLLMHandler = rpcClient.onRequest(
           StagehandMethods.llmGenerate,
@@ -228,7 +232,7 @@ function stagehandInitParamsForWorker(
   initParams: ResolvedStagehandClientInitParams,
   resolvedBrowser: ResolvedBrowserSource,
 ) {
-  const { browser, model, ...protocolParams } = initParams;
+  const { browser, logging: _logging, model, ...protocolParams } = initParams;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
   if (browser.type === "browserbase" && !resolvedBrowser.browserbaseSessionId) {
@@ -267,27 +271,47 @@ export function createStagehandWithClientForTest(client: RPCClient): Stagehand {
   );
 }
 
-function renderStagehandNotification(notification: StagehandRpcNotification): void {
-  const { level, message, data } = notification.params;
+const LOG_LEVEL_PRIORITY = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+  off: Number.POSITIVE_INFINITY,
+} as const;
 
-  switch (level) {
-    case "debug":
-      // oxlint-disable-next-line no-console -- This is the SDK's intentional terminal log sink.
-      console.debug(message, data);
-      break;
-    case "info":
-      // oxlint-disable-next-line no-console -- This is the SDK's intentional terminal log sink.
-      console.info(message, data);
-      break;
-    case "warn":
-      // oxlint-disable-next-line no-console -- This is the SDK's intentional terminal log sink.
-      console.warn(message, data);
-      break;
-    case "error":
-      // oxlint-disable-next-line no-console -- This is the SDK's intentional terminal log sink.
-      console.error(message, data);
-      break;
+function handleStagehandNotification(
+  notification: StagehandRpcNotification,
+  logging: ResolvedStagehandClientLoggingConfig,
+): void {
+  const log = notification.params;
+  if (LOG_LEVEL_PRIORITY[log.level] < LOG_LEVEL_PRIORITY[logging.level]) return;
+
+  process.stderr.write(renderStagehandLog(log, logging.format) + "\n");
+  if (!logging.onLog) return;
+
+  try {
+    const result = logging.onLog(log);
+    if (result instanceof Promise) {
+      void result.catch(reportOnLogError);
+    }
+  } catch (error) {
+    reportOnLogError(error);
   }
+}
+
+function renderStagehandLog(
+  log: StagehandRpcNotification["params"],
+  format: ResolvedStagehandClientLoggingConfig["format"],
+): string {
+  if (format === "json") return JSON.stringify(log);
+
+  const data = Object.keys(log.data).length === 0 ? "" : ` ${JSON.stringify(log.data)}`;
+  return `[stagehand] ${log.level.toUpperCase()} ${log.message}${data}`;
+}
+
+function reportOnLogError(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`[stagehand] ERROR onLog callback failed: ${message}\n`);
 }
 
 export function createStagehandWithDependenciesForTest(

@@ -1,6 +1,9 @@
 import "dotenv/config";
 import { Stagehand } from "../src/index.js";
 
+const { OPENAI_API_KEY } = process.env;
+if (!OPENAI_API_KEY) throw new Error();
+
 const stagehand = new Stagehand({
   browser: {
     type: "local",
@@ -8,7 +11,7 @@ const stagehand = new Stagehand({
   },
   model: {
     modelName: "openai/gpt-5.4-mini",
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: OPENAI_API_KEY,
   },
 });
 

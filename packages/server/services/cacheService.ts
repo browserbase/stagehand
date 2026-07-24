@@ -213,7 +213,7 @@ export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
     try {
       const result = await onHit(getResponse.value);
       result.cacheStatus = "HIT";
-      logger.info("Cache hit", {
+      logger.debug("Cache hit", {
         category: "cache",
         method,
         cacheKey: getResponse.cacheKey ?? "",
@@ -230,7 +230,7 @@ export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
       });
     }
   } else if (getResponse) {
-    logger.info("Cache miss", {
+    logger.debug("Cache miss", {
       category: "cache",
       method,
       cacheKey: getResponse.cacheKey ?? "",
@@ -248,7 +248,7 @@ export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
         value: outcome.cacheValue,
         llmUsage: outcome.llmUsage,
       });
-      logger.info(setResponse.written ? "Cache write completed" : "Cache write skipped", {
+      logger.debug(setResponse.written ? "Cache write completed" : "Cache write skipped", {
         category: "cache",
         method,
         cacheKey: setResponse.cacheKey ?? "",
@@ -319,7 +319,7 @@ async function collectCdpTree(
     if (selector) {
       focusBackendNodeId = await resolveBackendNodeId(mainFrame, selector);
       if (focusBackendNodeId === undefined) {
-        logger.info("Cache skipped: focus selector did not resolve to a node", {
+        logger.debug("Cache skipped: focus selector did not resolve to a node", {
           category: "cache",
           selector,
         });

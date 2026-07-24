@@ -283,7 +283,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       } as T;
 
       // Log LLM response for structured generation
-      logger.info("LLM response", {
+      logger.debug("LLM response", {
         category: "aisdk",
         requestId: llmRequestId,
         model: this.modelId,

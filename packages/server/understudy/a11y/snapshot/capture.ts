@@ -170,7 +170,7 @@ export async function tryScopedSnapshot(
   if (!requestedFocus) return null;
 
   const logScopeFallback = () => {
-    logger.info("Unable to narrow scope with selector; falling back to the full DOM", {
+    logger.warn("Unable to narrow scope with selector; falling back to the full DOM", {
       selector: options?.focusSelector?.trim() ?? "",
     });
   };

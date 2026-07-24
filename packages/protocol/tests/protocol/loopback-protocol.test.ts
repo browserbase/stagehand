@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { StagehandMethods, StagehandRpcRequestSchema } from "../../schema-registry.js";
 
 describe("Stagehand loopback protocol", () => {
@@ -9,6 +9,7 @@ describe("Stagehand loopback protocol", () => {
 
     expect(params).toStrictEqual({
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+      logLevel: "info",
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
@@ -78,6 +79,7 @@ describe("Stagehand loopback protocol", () => {
       method: "runtime.configure",
       params: {
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+        logLevel: "info",
         telemetry: {
           traces: {
             endpoint: "https://example.com/v1/traces",

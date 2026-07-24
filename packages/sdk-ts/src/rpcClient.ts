@@ -35,6 +35,7 @@ import {
 } from "../../protocol/schema-registry.js";
 import {
   DEFAULT_TELEMETRY_CONFIG,
+  RuntimeConfigureParamsSchema,
   STAGEHAND_PROTOCOL_VERSION,
   TelemetryConfigSchema,
 } from "../../protocol/schemas.js";
@@ -70,6 +71,7 @@ const RPCClientOptionsBaseSchema = z
     commandTimeoutMs: z.number().int().positive().optional(),
     cdpConnectTimeoutMs: z.number().int().positive().optional(),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
+    logLevel: RuntimeConfigureParamsSchema.shape.logLevel,
   })
   .strict();
 
@@ -419,6 +421,7 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
       clientInfo: STAGEHAND_SDK_CLIENT_INFO,
       cdpUrl: cdpClient.webSocketDebuggerUrl,
       telemetry: options.telemetry,
+      logLevel: options.logLevel,
     });
     return client;
   } catch (error) {

@@ -7,6 +7,13 @@ from pydantic import BaseModel
 
 from stagehand import Stagehand
 
+BROWSERBASE_API_KEY = os.environ["BROWSERBASE_API_KEY"]
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+if not BROWSERBASE_API_KEY:
+    raise RuntimeError
+if not OPENAI_API_KEY:
+    raise RuntimeError
+
 
 class Company(BaseModel):
     name: str
@@ -20,10 +27,10 @@ class Companies(BaseModel):
 async def main() -> None:
     # Server-side caching requires a Browserbase browser session.
     stagehand = Stagehand(
-        api_key=os.environ["BROWSERBASE_API_KEY"],
+        api_key=BROWSERBASE_API_KEY,
         browser="browserbase",
         model="openai/gpt-5.4-mini",
-        model_api_key=os.environ["OPENAI_API_KEY"],
+        model_api_key=OPENAI_API_KEY,
     )
 
     try:

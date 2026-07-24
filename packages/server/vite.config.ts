@@ -1,7 +1,7 @@
 import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { zipSync, type Zippable } from "fflate";
-import { defineConfig } from "vite-plus";
+import { defineConfig } from "vite";
 import { instrumentedDecoratorBuild } from "./instrumentedDecoratorBuild.ts";
 import packageJson from "./package.json" with { type: "json" };
 

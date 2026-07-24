@@ -4,10 +4,10 @@ Stagehand is the AI browser automation framework.
 
 ## Setup
 
-Install [Vite+](https://viteplus.dev/guide/), [just](https://github.com/casey/just), and [uv](https://docs.astral.sh/uv/):
+Install [Node.js 24](https://nodejs.org/), [pnpm](https://pnpm.io/installation), [just](https://github.com/casey/just), and [uv](https://docs.astral.sh/uv/):
 
 ```bash
-curl -fsSL https://vite.plus | bash
+corepack enable pnpm
 brew install just uv
 ```
 

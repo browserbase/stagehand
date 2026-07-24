@@ -464,6 +464,7 @@ async def connect_rpc_client(
     command_timeout_ms: int = 10_000,
     cdp_connect_timeout_ms: int = 10_000,
     telemetry: models.TelemetryConfig | None = None,
+    log_level: str = "info",
 ) -> RPCClient:
     from .cdp_client import CDPClient
 
@@ -480,6 +481,7 @@ async def connect_rpc_client(
     configure = models.RuntimeConfigureParams(
         cdp_url=cdp.web_socket_debugger_url,
         **({"telemetry": telemetry} if telemetry is not None else {}),
+        log_level=models.LogLevel(log_level),
     )
 
     try:

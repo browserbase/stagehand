@@ -21,7 +21,11 @@ from stagehand import (
     Stagehand,
 )
 
-openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+if not OPENAI_API_KEY:
+    raise RuntimeError
+
+openai = AsyncOpenAI(api_key=OPENAI_API_KEY)
 generation_names: list[str] = []
 
 

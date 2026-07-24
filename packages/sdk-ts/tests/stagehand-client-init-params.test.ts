@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { StagehandInitParamsSchema } from "../../protocol/schemas.js";
 import {
   StagehandClientActOptionsSchema,
@@ -14,6 +14,10 @@ const defaultTelemetry = {
     endpoint: "https://example.com/v1/traces",
     headers: {},
   },
+};
+const defaultLogging = {
+  level: "info",
+  format: "pretty",
 };
 
 describe("Stagehand client method options", () => {
@@ -40,6 +44,7 @@ describe("Stagehand client browser sources", () => {
     ).toStrictEqual({
       apiKey: "bb_key",
       browser: { type: "browserbase" },
+      logging: defaultLogging,
       telemetry: defaultTelemetry,
     });
   });
@@ -63,6 +68,7 @@ describe("Stagehand client browser sources", () => {
         region: "eu-central-1",
         userMetadata: { suite: "smoke" },
       },
+      logging: defaultLogging,
       telemetry: defaultTelemetry,
     });
   });
@@ -125,6 +131,7 @@ describe("Stagehand client browser sources", () => {
         keepAlive: true,
         userDataDir: "/tmp/stagehand-profile",
       },
+      logging: defaultLogging,
       telemetry: defaultTelemetry,
     });
   });
@@ -144,6 +151,7 @@ describe("Stagehand client browser sources", () => {
         cdpUrl: "wss://browser.example/devtools/browser/session",
         headers: { Authorization: "Bearer secret" },
       },
+      logging: defaultLogging,
       telemetry: defaultTelemetry,
     });
   });
@@ -165,6 +173,7 @@ describe("Stagehand client browser sources", () => {
     ).toStrictEqual({
       apiKey: "bb_key",
       browser: { type: "local" },
+      logging: defaultLogging,
       telemetry: defaultTelemetry,
     });
   });
@@ -184,6 +193,7 @@ describe("Stagehand client browser sources", () => {
         type: "cdp",
         cdpUrl: "wss://browser.example/devtools/browser/session",
       },
+      logging: defaultLogging,
       telemetry: defaultTelemetry,
     });
   });
@@ -250,11 +260,12 @@ describe("Stagehand client browser sources", () => {
       },
       selfHeal: true,
     });
+    const { logging: _logging, ...protocolParams } = clientInitParams;
 
     expect(() => StagehandInitParamsSchema.parse(clientInitParams)).toThrow();
     expect(
       StagehandInitParamsSchema.parse({
-        ...clientInitParams,
+        ...protocolParams,
         browser: {
           ...clientInitParams.browser,
           sessionId: "session_123",
@@ -270,6 +281,32 @@ describe("Stagehand client browser sources", () => {
       telemetry: defaultTelemetry,
       selfHeal: true,
     });
+  });
+
+  it("uses info and pretty terminal logs by default", () => {
+    const parsed = StagehandClientInitParamsSchema.parse({
+      browser: { type: "local" },
+    });
+
+    expect(parsed.logging).toStrictEqual(defaultLogging);
+  });
+
+  it("accepts debug JSON logs and a structured onLog callback", () => {
+    const onLog = () => {};
+    const parsed = StagehandClientInitParamsSchema.parse({
+      browser: { type: "local" },
+      logging: {
+        level: "debug",
+        format: "json",
+        onLog,
+      },
+    });
+
+    expect(parsed.logging).toMatchObject({
+      level: "debug",
+      format: "json",
+    });
+    expect(parsed.logging.onLog).toBeTypeOf("function");
   });
 
   it("keeps local and CDP browser connection settings out of the worker schema", () => {

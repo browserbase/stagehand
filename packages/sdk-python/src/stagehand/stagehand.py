@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import builtins
-import logging
+import inspect
+import json
+import sys
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
@@ -59,13 +61,13 @@ from .client_models import (
     LocalProxyConfig,
     LocalViewport,
     StagehandClientInitParams,
+    StagehandClientLoggingConfig,
     _cache_config,
     _model_config,
 )
 from .page import Page
 from .rpc_client import RPCClient, connect_rpc_client
 
-_LOGGER = logging.getLogger("stagehand")
 ResultModel = TypeVar("ResultModel", bound=BaseModel)
 
 
@@ -108,6 +110,7 @@ class Stagehand:
         self_heal: bool | None = None,
         dom_settle_timeout_ms: int | None = None,
         cache: Cache | None = None,
+        logging: StagehandClientLoggingConfig | None = None,
     ) -> None: ...
 
     @overload
@@ -127,6 +130,7 @@ class Stagehand:
         self_heal: bool | None = None,
         dom_settle_timeout_ms: int | None = None,
         cache: Cache | None = None,
+        logging: StagehandClientLoggingConfig | None = None,
     ) -> None: ...
 
     @overload
@@ -153,6 +157,7 @@ class Stagehand:
         self_heal: bool | None = None,
         dom_settle_timeout_ms: int | None = None,
         cache: Cache | None = None,
+        logging: StagehandClientLoggingConfig | None = None,
     ) -> None: ...
 
     def __init__(
@@ -202,6 +207,7 @@ class Stagehand:
         self_heal: bool | None = None,
         dom_settle_timeout_ms: int | None = None,
         cache: Cache | None = None,
+        logging: StagehandClientLoggingConfig | None = None,
     ) -> None:
         if browser == "browserbase":
             browser_source = BrowserbaseBrowserSource.model_validate({
@@ -339,6 +345,7 @@ class Stagehand:
                 ("self_heal", self_heal),
                 ("dom_settle_timeout_ms", dom_settle_timeout_ms),
                 ("cache", _cache_config(cache) if cache is not None else None),
+                ("logging", logging),
             )
             if value is not None
         }
@@ -422,12 +429,13 @@ class Stagehand:
                     service_worker_url_includes="service-worker.js",
                     cdp_connect_timeout_ms=browser.connect_timeout_ms or 10_000,
                     telemetry=self.init_params.telemetry,
+                    log_level=self.init_params.logging.level,
                 )
                 self._rpc_client = rpc_client
                 self._remove_notification_listener = rpc_client.on_notification(
                     "stagehand.log",
                     StagehandLog,
-                    _render_stagehand_notification,
+                    self._handle_stagehand_notification,
                 )
                 client_llm = self.init_params.model
                 if isinstance(client_llm, ClientLLM):
@@ -600,7 +608,7 @@ class Stagehand:
 
     def _worker_init_params(self) -> StagehandInitParams:
         values = self.init_params.model_dump(
-            exclude={"browser", "model"},
+            exclude={"browser", "logging", "model"},
             exclude_unset=True,
         )
         if isinstance(self.init_params.model, ClientLLM):
@@ -608,6 +616,22 @@ class Stagehand:
         elif self.init_params.model is not None:
             values["model"] = self.init_params.model
         return StagehandInitParams.model_validate(values)
+
+    async def _handle_stagehand_notification(self, notification: StagehandLog) -> None:
+        logging = self.init_params.logging
+        if not _is_log_level_enabled(notification.level.value, logging.level):
+            return
+
+        sys.stderr.write(_render_stagehand_log(notification, logging.format) + "\n")
+        if logging.on_log is None:
+            return
+
+        try:
+            result = logging.on_log(notification)
+            if inspect.isawaitable(result):
+                await result
+        except Exception as error:
+            sys.stderr.write(f"[stagehand] ERROR on_log callback failed: {error}\n")
 
     async def _release_resources(self) -> None:
         if self._remove_client_llm_handler is not None:
@@ -630,11 +654,28 @@ class Stagehand:
                 await browser.close()
 
 
-def _render_stagehand_notification(notification: StagehandLog) -> None:
-    level = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warn": logging.WARNING,
-        "error": logging.ERROR,
-    }[notification.level.value]
-    _LOGGER.log(level, "%s %s", notification.message, notification.data)
+_LOG_LEVEL_PRIORITY = {
+    "debug": 10,
+    "info": 20,
+    "warn": 30,
+    "error": 40,
+    "off": float("inf"),
+}
+
+
+def _is_log_level_enabled(level: str, threshold: str) -> bool:
+    return _LOG_LEVEL_PRIORITY[level] >= _LOG_LEVEL_PRIORITY[threshold]
+
+
+def _render_stagehand_log(notification: StagehandLog, format_: str) -> str:
+    data = notification.data.model_dump(mode="json")
+    record = {
+        "level": notification.level.value,
+        "message": notification.message,
+        "data": data,
+    }
+    if format_ == "json":
+        return json.dumps(record, separators=(",", ":"))
+
+    suffix = "" if not data else f" {json.dumps(data, separators=(',', ':'))}"
+    return f"[stagehand] {notification.level.value.upper()} {notification.message}{suffix}"

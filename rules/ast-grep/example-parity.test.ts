@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import python from "@ast-grep/lang-python";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 registerDynamicLanguage({ python });
 

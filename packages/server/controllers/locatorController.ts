@@ -13,82 +13,82 @@ import type { StagehandRuntime } from "../runtime.js";
 
 export function createLocatorController(runtime: StagehandRuntime) {
   async function click(params: LocatorClickParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.click", {});
+    logger.debug("locator.click", {});
     return runtime.locatorClick(params);
   }
 
   async function fill(params: LocatorFillParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.fill", {});
+    logger.debug("locator.fill", {});
     return runtime.locatorFill(params);
   }
 
   async function hover(params: LocatorDescriptor, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.hover", {});
+    logger.debug("locator.hover", {});
     return runtime.locatorHover(params);
   }
 
   async function count(params: LocatorDescriptor, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.count", {});
+    logger.debug("locator.count", {});
     return runtime.locatorCount(params);
   }
 
   async function isChecked(params: LocatorDescriptor, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.is_checked", {});
+    logger.debug("locator.is_checked", {});
     return runtime.locatorIsChecked(params);
   }
 
   async function inputValue(params: LocatorDescriptor, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.input_value", {});
+    logger.debug("locator.input_value", {});
     return runtime.locatorInputValue(params);
   }
 
   async function isVisible(params: LocatorDescriptor, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.is_visible", {});
+    logger.debug("locator.is_visible", {});
     return runtime.locatorIsVisible(params);
   }
 
   async function innerText(params: LocatorDescriptor, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.inner_text", {});
+    logger.debug("locator.inner_text", {});
     return runtime.locatorInnerText(params);
   }
 
   async function innerHtml(params: LocatorDescriptor, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.inner_html", {});
+    logger.debug("locator.inner_html", {});
     return runtime.locatorInnerHtml(params);
   }
 
   async function textContent(params: LocatorDescriptor, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.text_content", {});
+    logger.debug("locator.text_content", {});
     return runtime.locatorTextContent(params);
   }
 
   async function scrollTo(params: LocatorScrollToParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.scroll_to", {});
+    logger.debug("locator.scroll_to", {});
     return runtime.locatorScrollTo(params);
   }
 
   async function centroid(params: LocatorDescriptor, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.centroid", {});
+    logger.debug("locator.centroid", {});
     return runtime.locatorCentroid(params);
   }
 
   async function highlight(params: LocatorHighlightParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.highlight", {});
+    logger.debug("locator.highlight", {});
     return runtime.locatorHighlight(params);
   }
 
   async function sendClickEvent(params: LocatorSendClickEventParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.send_click_event", {});
+    logger.debug("locator.send_click_event", {});
     return runtime.locatorSendClickEvent(params);
   }
 
   async function type(params: LocatorTypeParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.type", {});
+    logger.debug("locator.type", {});
     return runtime.locatorType(params);
   }
 
   async function selectOption(params: LocatorSelectOptionParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] locator.select_option", {});
+    logger.debug("locator.select_option", {});
     return runtime.locatorSelectOption(params);
   }
 

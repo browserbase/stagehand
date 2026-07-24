@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getChromePath, launch, Launcher, type LaunchedChrome } from "chrome-launcher";
-import { build } from "vite-plus";
-import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
+import { build } from "vite";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.js";
 import { StagehandMethods } from "../../schema-registry.js";
@@ -34,6 +34,7 @@ describe("Stagehand service worker RPC client smoke", () => {
       serviceWorkerUrlIncludes: "service-worker.js",
       discoveryTimeoutMs: 15_000,
       commandTimeoutMs: 15_000,
+      logLevel: "debug",
     });
   }, 45_000);
 
@@ -67,8 +68,8 @@ describe("Stagehand service worker RPC client smoke", () => {
       jsonrpc: "2.0",
       method: "stagehand.log",
       params: {
-        level: "info",
-        message: "[stagehand] runtime.configure",
+        level: "debug",
+        message: "runtime.configure",
         data: {},
       },
     });
@@ -88,8 +89,8 @@ describe("Stagehand service worker RPC client smoke", () => {
       jsonrpc: "2.0",
       method: "stagehand.log",
       params: {
-        level: "info",
-        message: "[stagehand] ping",
+        level: "debug",
+        message: "ping",
         data: {},
       },
     });

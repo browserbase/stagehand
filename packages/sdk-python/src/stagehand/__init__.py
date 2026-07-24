@@ -46,6 +46,7 @@ from .client_models import (
     LLMGenerateCallback,
     LLMGenerateInput,
     LLMGenerateOutput,
+    StagehandClientLoggingConfig,
 )
 from .locator import Locator
 from .page import Page
@@ -89,6 +90,7 @@ __all__ = [
     "Scale",
     "ScreenshotType",
     "Stagehand",
+    "StagehandClientLoggingConfig",
     "StagehandMetrics",
     "StagehandPingResult",
     "State",

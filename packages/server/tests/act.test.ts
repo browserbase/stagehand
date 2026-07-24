@@ -1,5 +1,5 @@
 import { trace } from "@opentelemetry/api";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
 import {

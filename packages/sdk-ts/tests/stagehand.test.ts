@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
@@ -126,6 +126,10 @@ describe("Stagehand", () => {
         type: "cdp",
         cdpUrl: "http://127.0.0.1:9222",
       },
+      logging: {
+        level: "info",
+        format: "pretty",
+      },
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
@@ -137,6 +141,7 @@ describe("Stagehand", () => {
       cdpUrl: "http://127.0.0.1:9222",
       extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
       serviceWorkerUrlIncludes: "service-worker.js",
+      logLevel: "info",
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
@@ -190,6 +195,7 @@ describe("Stagehand", () => {
 
     expect(connectRpcClient).toHaveBeenCalledWith({
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
+      logLevel: "info",
       preloadedExtension: true,
       serviceWorkerUrlIncludes: "service-worker.js",
       telemetry: {
@@ -253,6 +259,7 @@ describe("Stagehand", () => {
     expect(connectRpcClient).toHaveBeenCalledWith({
       cdpUrl: "http://127.0.0.1:9222",
       extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
+      logLevel: "info",
       serviceWorkerUrlIncludes: "service-worker.js",
       telemetry: {
         traces: {
@@ -419,8 +426,8 @@ describe("Stagehand", () => {
     expect(() => stagehand.context).toThrow("Call stagehand.init() before using context");
   });
 
-  it("renders streamed Stagehand logs and removes the listener when Stagehand closes", async () => {
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+  it("prints info and higher logs while hiding debug by default", async () => {
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const rpcClient = new FakeRPCClient();
     rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
     const stagehand = createStagehandWithDependenciesForTest(
@@ -444,19 +451,93 @@ describe("Stagehand", () => {
       jsonrpc: "2.0",
       method: "stagehand.log",
       params: {
+        level: "debug",
+        message: "CDP call",
+        data: { method: "Page.navigate" },
+      },
+    });
+    rpcClient.emitNotification({
+      jsonrpc: "2.0",
+      method: "stagehand.log",
+      params: {
         level: "info",
         message: "Page opened",
         data: { pageId: "page-1" },
       },
     });
+    rpcClient.emitNotification({
+      jsonrpc: "2.0",
+      method: "stagehand.log",
+      params: {
+        level: "warn",
+        message: "Selector fallback",
+        data: {},
+      },
+    });
+    rpcClient.emitNotification({
+      jsonrpc: "2.0",
+      method: "stagehand.log",
+      params: {
+        level: "error",
+        message: "Action failed",
+        data: { retryable: false },
+      },
+    });
 
-    expect(info).toHaveBeenCalledWith("Page opened", { pageId: "page-1" });
+    expect(stderr.mock.calls.map(([line]) => line)).toStrictEqual([
+      '[stagehand] INFO Page opened {"pageId":"page-1"}\n',
+      "[stagehand] WARN Selector fallback\n",
+      '[stagehand] ERROR Action failed {"retryable":false}\n',
+    ]);
     expect(rpcClient.notificationListenerCount).toBe(1);
 
     await stagehand.close();
 
     expect(rpcClient.notificationListenerCount).toBe(0);
-    info.mockRestore();
+    stderr.mockRestore();
+  });
+
+  it("writes one JSON object and calls onLog with the structured event", async () => {
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const onLog = vi.fn();
+    const rpcClient = new FakeRPCClient();
+    const stagehand = createStagehandWithDependenciesForTest(
+      {
+        browser: {
+          type: "cdp",
+          cdpUrl: "http://127.0.0.1:9222",
+        },
+        logging: {
+          level: "debug",
+          format: "json",
+          onLog,
+        },
+      },
+      {
+        resolveBrowserSource: async () => ({
+          cdpUrl: "http://127.0.0.1:9222",
+          keepAlive: true,
+        }),
+        connectRpcClient: async () => rpcClient,
+      },
+    );
+    const log = {
+      level: "debug" as const,
+      message: "CDP call",
+      data: { method: "Page.navigate" },
+    };
+
+    await stagehand.init();
+    rpcClient.emitNotification({
+      jsonrpc: "2.0",
+      method: "stagehand.log",
+      params: log,
+    });
+
+    expect(stderr).toHaveBeenCalledWith(`${JSON.stringify(log)}\n`);
+    expect(onLog).toHaveBeenCalledWith(log);
+
+    stderr.mockRestore();
   });
 
   it("does not close a keepAlive browser source", async () => {

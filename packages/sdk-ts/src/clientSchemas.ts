@@ -16,6 +16,8 @@ import {
   ModelConfigSchema,
   ObserveOptionsSchema,
   StagehandInitParamsSchema,
+  StagehandLogLevelSchema,
+  StagehandLogSchema,
 } from "../../protocol/schemas.js";
 import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
 import { Page } from "./page.js";
@@ -70,6 +72,29 @@ export const ClientLLMSchema = z
   .strict()
   .meta({ id: "ClientLLM" });
 
+export const StagehandClientLogLevelSchema = z
+  .union([StagehandLogLevelSchema, z.literal("off")])
+  .meta({ id: "StagehandClientLogLevel" });
+
+export const StagehandClientLogFormatSchema = z
+  .enum(["pretty", "json"])
+  .meta({ id: "StagehandClientLogFormat" });
+
+export const StagehandClientOnLogSchema = z
+  .function({
+    input: [StagehandLogSchema],
+    output: z.union([z.void(), z.promise(z.void())]),
+  })
+  .meta({ id: "StagehandClientOnLog" });
+
+export const StagehandClientLoggingConfigSchema = z
+  .strictObject({
+    level: StagehandClientLogLevelSchema.default("info"),
+    format: StagehandClientLogFormatSchema.default("pretty"),
+    onLog: StagehandClientOnLogSchema.optional(),
+  })
+  .meta({ id: "StagehandClientLoggingConfig" });
+
 export const StagehandClientActOptionsSchema = ActOptionsSchema.unwrap()
   .extend({
     page: z.instanceof(Page).optional(),
@@ -94,6 +119,10 @@ export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.unwrap()
 export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.extend({
   browser: BrowserSourceSchema.default({ type: "browserbase" }),
   model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
+  logging: StagehandClientLoggingConfigSchema.default({
+    level: "info",
+    format: "pretty",
+  }),
 })
   .strict()
   .superRefine((params, context) => {
@@ -108,6 +137,10 @@ export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.extend(
   .meta({ id: "StagehandClientInitParams" });
 
 export type ClientLLM = z.infer<typeof ClientLLMSchema>;
+export type StagehandClientLoggingConfig = z.input<typeof StagehandClientLoggingConfigSchema>;
+export type ResolvedStagehandClientLoggingConfig = z.output<
+  typeof StagehandClientLoggingConfigSchema
+>;
 export type StagehandClientActOptions = z.input<typeof StagehandClientActOptionsSchema>;
 export type StagehandClientObserveOptions = z.input<typeof StagehandClientObserveOptionsSchema>;
 export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtractOptionsSchema>;

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import type { StagehandBrowserSession } from "../runtime.js";
 import { createStagehandRuntime } from "../runtime.js";
 
@@ -42,6 +42,7 @@ describe("Stagehand runtime state", () => {
 
     await runtime.configureLoopback({
       cdpUrl: "ws://browser.example",
+      logLevel: "info",
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
       },
@@ -84,6 +85,7 @@ describe("Stagehand runtime state", () => {
 
     await runtime.configureLoopback({
       cdpUrl: "ws://browser.example",
+      logLevel: "info",
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
       },
@@ -107,6 +109,7 @@ describe("Stagehand runtime state", () => {
 
     await runtime.configureLoopback({
       cdpUrl: "ws://browser.example",
+      logLevel: "info",
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
       },

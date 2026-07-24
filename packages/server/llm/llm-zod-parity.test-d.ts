@@ -1,4 +1,4 @@
-import { expectTypeOf } from "vite-plus/test";
+import { expectTypeOf } from "vitest";
 import {
   ChatCompletionOptionsSchema,
   ChatMessageContentSchema,

@@ -14,18 +14,18 @@ import * as observeService from "../services/observeService.js";
 
 export function createStagehandController(runtime: StagehandRuntime) {
   async function init(params: StagehandInitParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] stagehand.init", {});
+    logger.info("stagehand.init", {});
     return await runtime.initialize(params);
   }
 
   async function close(_params: EmptyParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] stagehand.close", {});
+    logger.info("stagehand.close", {});
     await runtime.close();
     return { closed: true as const };
   }
 
   async function act(params: StagehandActParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] stagehand.act", {});
+    logger.debug("stagehand.act", {});
     const state = runtime.state.getState();
     if (state.status !== "initialized") {
       throw new Error("Stagehand must be initialized before acting");
@@ -50,7 +50,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
   }
 
   async function observe(params: StagehandObserveParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] stagehand.observe", {});
+    logger.debug("stagehand.observe", {});
     const state = runtime.state.getState();
     if (state.status !== "initialized") {
       throw new Error("Stagehand must be initialized before observing");
@@ -73,7 +73,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
   }
 
   async function extract(params: StagehandExtractParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] stagehand.extract", {});
+    logger.debug("stagehand.extract", {});
     const state = runtime.state.getState();
     if (state.status !== "initialized") {
       throw new Error("Stagehand must be initialized before extracting");
@@ -96,7 +96,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
   }
 
   async function metrics(_params: EmptyParams, { logger }: HandlerContext): Promise<never> {
-    logger.info("[stagehand] stagehand.metrics", {});
+    logger.debug("stagehand.metrics", {});
     throw new Error("Method not implemented by the smoke runtime");
   }
 

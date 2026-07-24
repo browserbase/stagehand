@@ -1,7 +1,7 @@
 import { trace } from "@opentelemetry/api";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import type { StagehandLog } from "../../protocol/types.js";
 import { performUnderstudyMethod } from "../handlers/handlerUtils/actHandlerUtils.js";
 import { StagehandLogger } from "../logger.js";
@@ -33,6 +33,7 @@ describe("Stagehand legacy logging migration", () => {
       shutdown: async () => {},
     };
     const logger = new StagehandLogger(tracing, (log) => logs.push(log));
+    logger.setLevel("debug");
     const frame = {
       evaluate: async () => "https://example.com",
     } as unknown as Frame;
@@ -47,6 +48,25 @@ describe("Stagehand legacy logging migration", () => {
         data: expect.objectContaining({ error: "Method unsupported not supported" }) as object,
       }),
     );
+  });
+
+  it("emits info and higher logs while filtering debug by default", () => {
+    const logs: StagehandLog[] = [];
+    const logger = new StagehandLogger(
+      { tracer: trace.getTracer("stagehand-logging-level-test") },
+      (log) => logs.push(log),
+    );
+
+    logger.debug("hidden", {});
+    logger.info("visible info", {});
+    logger.warn("visible warning", {});
+    logger.error("visible error", {});
+
+    expect(logs.map(({ level, message }) => ({ level, message }))).toStrictEqual([
+      { level: "info", message: "visible info" },
+      { level: "warn", message: "visible warning" },
+      { level: "error", message: "visible error" },
+    ]);
   });
 });
 

@@ -1335,6 +1335,7 @@ export const RuntimeConfigureParamsSchema = z
     clientInfo: ImplementationInfoSchema.optional(),
     cdpUrl: z.string().min(1),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
+    logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
   })
   .strict()
   .meta({ id: "RuntimeConfigureParams" });

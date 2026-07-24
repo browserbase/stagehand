@@ -4,13 +4,17 @@ import os
 
 from stagehand import Stagehand
 
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+if not OPENAI_API_KEY:
+    raise RuntimeError
+
 
 async def main() -> None:
     stagehand = Stagehand(
         browser="local",
         headless=True,
         model="openai/gpt-5.4-mini",
-        model_api_key=os.environ["OPENAI_API_KEY"],
+        model_api_key=OPENAI_API_KEY,
     )
 
     try:

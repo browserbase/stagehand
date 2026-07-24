@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 const sdkRoot = new URL("..", import.meta.url);
@@ -17,7 +17,7 @@ describe("published TypeScript SDK", () => {
     const consumerDirectory = path.join(temporaryRoot, "consumer with spaces");
 
     try {
-      await execFileAsync("vp", ["pm", "pack", "--out", tarballPath], {
+      await execFileAsync("pnpm", ["pack", "--out", tarballPath], {
         cwd: sdkRoot,
       });
       await mkdir(consumerDirectory);
@@ -36,7 +36,7 @@ describe("published TypeScript SDK", () => {
           2,
         )}\n`,
       );
-      await execFileAsync("vp", ["install", "--prefer-offline", "--ignore-scripts"], {
+      await execFileAsync("pnpm", ["install", "--prefer-offline", "--ignore-scripts"], {
         cwd: consumerDirectory,
       });
       await writeFile(

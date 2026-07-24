@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node json-rpc/build-json-rpc-schema.ts && vp fmt stagehand.v4.json --write",
-    "test": "vp test run --root ../.. packages/protocol/tests packages/protocol/json-rpc/tests"
+    "build": "node json-rpc/build-json-rpc-schema.ts && oxfmt --write stagehand.v4.json",
+    "test": "vitest run --root ../.. packages/protocol/tests packages/protocol/json-rpc/tests"
   },
   "dependencies": {
     "camelcase-keys": "catalog:",
@@ -16,7 +16,9 @@
     "@types/chrome": "catalog:",
     "@types/node": "catalog:",
     "chrome-launcher": "catalog:",
+    "oxfmt": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }

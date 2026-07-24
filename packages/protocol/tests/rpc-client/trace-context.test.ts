@@ -1,5 +1,5 @@
 import { ROOT_CONTEXT, TraceFlags, createTraceState, trace } from "@opentelemetry/api";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { getTraceContextFields } from "../../../sdk-ts/src/rpcClient.ts";
 
 describe("RPC client trace context", () => {

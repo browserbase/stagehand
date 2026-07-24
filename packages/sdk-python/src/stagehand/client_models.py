@@ -18,6 +18,7 @@ from ._generated.models import (
     ModelConfig,
     ProxyConfig,
     StagehandInitParams,
+    StagehandLog,
 )
 from ._validation import WireModel
 
@@ -109,6 +110,7 @@ BrowserSource = Annotated[
 LLMGenerateInput = LLMStructuredGenerateParams | LLMMessageGenerateParams
 LLMGenerateOutput = LLMStructuredGenerateResult | LLMMessageGenerateResult
 LLMGenerateCallback = Callable[[LLMGenerateInput], Awaitable[LLMGenerateOutput]]
+StagehandOnLog = Callable[[StagehandLog], None | Awaitable[None]]
 
 
 class ClientLLM(WireModel):
@@ -117,9 +119,18 @@ class ClientLLM(WireModel):
     generate: LLMGenerateCallback
 
 
+class StagehandClientLoggingConfig(WireModel):
+    model_config = ConfigDict(extra="forbid")
+
+    level: Literal["off", "error", "warn", "info", "debug"] = "info"
+    format: Literal["pretty", "json"] = "pretty"
+    on_log: StagehandOnLog | None = None
+
+
 class StagehandClientInitParams(StagehandInitParams):
     browser: BrowserSource = BrowserbaseBrowserSource(type="browserbase")
     model: ModelConfig | ClientLLM | None = None
+    logging: StagehandClientLoggingConfig = Field(default_factory=StagehandClientLoggingConfig)
 
     @model_validator(mode="after")
     def require_browserbase_api_key(self) -> StagehandClientInitParams:

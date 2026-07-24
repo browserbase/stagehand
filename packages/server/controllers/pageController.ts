@@ -25,62 +25,62 @@ import type { StagehandRuntime } from "../runtime.js";
 
 export function createPageController(runtime: StagehandRuntime) {
   async function goto(params: PageGotoParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.goto", {});
+    logger.debug("page.goto", {});
     return runtime.pageGoto(params);
   }
 
   async function reload(params: PageReloadParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.reload", {});
+    logger.debug("page.reload", {});
     return runtime.pageReload(params);
   }
 
   async function goBack(params: PageGoBackParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.go_back", {});
+    logger.debug("page.go_back", {});
     return runtime.pageGoBack(params);
   }
 
   async function goForward(params: PageGoForwardParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.go_forward", {});
+    logger.debug("page.go_forward", {});
     return runtime.pageGoForward(params);
   }
 
   async function click(params: PageClickParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.click", {});
+    logger.debug("page.click", {});
     return runtime.pageClick(params);
   }
 
   async function hover(params: PageHoverParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.hover", {});
+    logger.debug("page.hover", {});
     return runtime.pageHover(params);
   }
 
   async function scroll(params: PageScrollParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.scroll", {});
+    logger.debug("page.scroll", {});
     return runtime.pageScroll(params);
   }
 
   async function dragAndDrop(params: PageDragAndDropParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.drag_and_drop", {});
+    logger.debug("page.drag_and_drop", {});
     return runtime.pageDragAndDrop(params);
   }
 
   async function type(params: PageTypeParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.type", {});
+    logger.debug("page.type", {});
     return runtime.pageType(params);
   }
 
   async function keyPress(params: PageKeyPressParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.key_press", {});
+    logger.debug("page.key_press", {});
     return runtime.pageKeyPress(params);
   }
 
   async function evaluate(params: PageEvaluateParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.evaluate", {});
+    logger.debug("page.evaluate", {});
     return runtime.pageEvaluate(params);
   }
 
   async function addInitScript(params: PageAddInitScriptParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.add_init_script", {});
+    logger.debug("page.add_init_script", {});
     return runtime.pageAddInitScript(params);
   }
 
@@ -88,52 +88,52 @@ export function createPageController(runtime: StagehandRuntime) {
     params: PageSetExtraHTTPHeadersParams,
     { logger }: HandlerContext,
   ) {
-    logger.info("[stagehand] page.set_extra_http_headers", {});
+    logger.debug("page.set_extra_http_headers", {});
     return runtime.pageSetExtraHTTPHeaders(params);
   }
 
   async function setViewportSize(params: PageSetViewportSizeParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.set_viewport_size", {});
+    logger.debug("page.set_viewport_size", {});
     return runtime.pageSetViewportSize(params);
   }
 
   async function waitForLoadState(params: PageWaitForLoadStateParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.wait_for_load_state", {});
+    logger.debug("page.wait_for_load_state", {});
     return runtime.pageWaitForLoadState(params);
   }
 
   async function waitForTimeout(params: PageWaitForTimeoutParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.wait_for_timeout", {});
+    logger.debug("page.wait_for_timeout", {});
     return runtime.pageWaitForTimeout(params);
   }
 
   async function waitForSelector(params: PageWaitForSelectorParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.wait_for_selector", {});
+    logger.debug("page.wait_for_selector", {});
     return runtime.pageWaitForSelector(params);
   }
 
   async function screenshot(params: PageScreenshotParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.screenshot", {});
+    logger.debug("page.screenshot", {});
     return runtime.pageScreenshot(params);
   }
 
   async function snapshot(params: PageSnapshotParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.snapshot", {});
+    logger.debug("page.snapshot", {});
     return runtime.pageSnapshot(params);
   }
 
   async function url(params: PageIdParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.url", {});
+    logger.debug("page.url", {});
     return runtime.pageUrl(params);
   }
 
   async function title(params: PageIdParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.title", {});
+    logger.debug("page.title", {});
     return runtime.pageTitle(params);
   }
 
   async function close(params: PageIdParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] page.close", {});
+    logger.debug("page.close", {});
     return runtime.pageClose(params);
   }
 

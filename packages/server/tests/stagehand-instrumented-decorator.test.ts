@@ -1,6 +1,6 @@
 import { SpanStatusCode } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-web";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it } from "vitest";
 import { Instrumented } from "../instrumentedDecorator.js";
 import { StagehandLogger } from "../logger.js";
 import { createStagehandTracingRuntime } from "../tracing.js";

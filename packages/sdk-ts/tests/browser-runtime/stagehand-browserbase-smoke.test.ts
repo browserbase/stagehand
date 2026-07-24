@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Stagehand } from "../../src/index.js";
 
 const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;

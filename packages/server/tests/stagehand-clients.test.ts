@@ -1,5 +1,5 @@
 import { trace } from "@opentelemetry/api";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import { JSONRPCRequestSchema, JSONRPCResponseSchema } from "../../protocol/json-rpc/schemas.ts";
 import type { JSONRPCResponse } from "../../protocol/json-rpc/types.ts";
 import {
@@ -565,6 +565,7 @@ async function createConfiguredRuntime(session: FakeBrowserSession) {
 
   await runtime.configureLoopback({
     cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+    logLevel: "info",
     telemetry: {
       traces: {
         endpoint: "https://example.com/v1/traces",
@@ -601,7 +602,7 @@ describe("Stagehand worker clients", () => {
     });
   });
 
-  it("streams Stagehand logs and responses through the shared RPC binding", async () => {
+  it("returns responses without streaming debug logs at the default info level", async () => {
     const messages: unknown[] = [];
     const scope: {
       [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
@@ -632,15 +633,7 @@ describe("Stagehand worker clients", () => {
     });
     expect(
       messages.find((message) => StagehandRpcNotificationSchema.safeParse(message).success),
-    ).toStrictEqual({
-      jsonrpc: "2.0",
-      method: "stagehand.log",
-      params: {
-        level: "info",
-        message: "[stagehand] ping",
-        data: {},
-      },
-    });
+    ).toBeUndefined();
   });
 
   it("rejects malformed JSON-RPC before it reaches the request handler", async () => {

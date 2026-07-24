@@ -1,15 +1,15 @@
 python_dir := "packages/sdk-python"
 
 install:
-    vp install
+    pnpm install
     uv --directory {{python_dir}} sync --locked
 
 generate:
-    vp run -F ./packages/protocol build
+    pnpm --filter ./packages/protocol build
     uv --directory {{python_dir}} run --locked python scripts/generate.py
 
 check:
-    vp run check
+    pnpm check
     uv --directory {{python_dir}} lock --check
     uv --directory {{python_dir}} run --locked python scripts/generate.py --check
     uv --directory {{python_dir}} run --locked ruff format --check .
@@ -17,21 +17,23 @@ check:
     uv --directory {{python_dir}} run --locked ty check
 
 test:
-    vp run test
+    pnpm test
     uv --directory {{python_dir}} run --locked pytest
 
-docs:
-    vp run docs
+# TODO(docs-migration): Re-enable after restoring v3 docs in Stagehand.
+# docs:
+#     pnpm docs
 
 example name="act":
-    vp run -F ./packages/sdk-ts build
-    vp exec tsx "packages/sdk-ts/examples/{{name}}.ts"
+    pnpm --filter ./packages/server build
+    pnpm --filter ./packages/sdk-ts build
+    pnpm exec tsx "packages/sdk-ts/examples/{{name}}.ts"
 
 fmt:
-    vp run fmt
+    pnpm fmt
     uv --directory {{python_dir}} run --locked ruff check --fix .
     uv --directory {{python_dir}} run --locked ruff format .
 
 build:
-    vp run build
+    pnpm build
     uv --directory {{python_dir}} run --locked python scripts/build.py

@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vp build --config vite.config.ts",
-    "test": "vp run build && vp test run --root ../.. packages/server/tests"
+    "build": "vite build --config vite.config.ts",
+    "test": "pnpm run build && vitest run --root ../.. packages/server/tests"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "catalog:",
@@ -30,6 +30,7 @@
     "@types/node": "catalog:",
     "fflate": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

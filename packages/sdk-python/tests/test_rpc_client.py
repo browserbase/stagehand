@@ -488,6 +488,7 @@ async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
             "method": "runtime.configure",
             "params": {
                 "cdp_url": "ws://resolved.example/devtools/browser/1",
+                "log_level": "info",
                 "telemetry": {
                     "traces": {
                         "endpoint": "https://example.com/v1/traces",

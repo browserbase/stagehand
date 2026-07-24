@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import { bytesToBase64, normalizeInputFiles, toBytes } from "./fileUploadUtils.js";

@@ -76,6 +76,17 @@ const CdpEventSchema = z.object({
 const RawMessageSchema = z.union([CdpResponseSchema, CdpEventSchema]);
 type RawMessage = z.infer<typeof RawMessageSchema>;
 
+function isExpectedReleaseObjectCleanupError(
+  method: string,
+  error: { code: number; message: string },
+): boolean {
+  return (
+    method === "Runtime.releaseObject" &&
+    error.code === -32000 &&
+    error.message.includes("Cannot find context with specified id")
+  );
+}
+
 export class CdpConnection implements CDPSessionLike {
   messageQueue: Promise<void> = Promise.resolve();
   nextId = 1;
@@ -302,12 +313,19 @@ export class CdpConnection implements CDPSessionLike {
       this.inflight.delete(msg.id);
 
       if ("error" in msg && msg.error) {
-        this.logger.error("CDP response failed", {
+        const data = {
           requestId: msg.id,
           method: rec.method,
           error: `${msg.error.code} ${msg.error.message}`,
           targetId: this.targetIdForSession(rec.sessionId),
-        });
+        };
+
+        if (isExpectedReleaseObjectCleanupError(rec.method, msg.error)) {
+          this.logger.debug("CDP releaseObject cleanup raced with context destruction", data);
+        } else {
+          this.logger.error("CDP response failed", data);
+        }
+
         rec.reject(new Error(`${msg.error.code} ${msg.error.message}`));
       } else {
         this.logger.debug("CDP response", {

@@ -9,8 +9,11 @@ import type {
 } from "../../protocol/types.js";
 import { Stagehand } from "../src/index.js";
 
+const { OPENAI_API_KEY } = process.env;
+if (!OPENAI_API_KEY) throw new Error();
+
 const openai = new OpenAI({
-  apiKey: requireEnvironmentVariable("OPENAI_API_KEY"),
+  apiKey: OPENAI_API_KEY,
 });
 const generationNames: string[] = [];
 
@@ -126,10 +129,4 @@ function messageText(content: LLMMessageContentBlock | LLMMessageContentBlock[])
       return block.text;
     })
     .join("\n");
-}
-
-function requireEnvironmentVariable(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required`);
-  return value;
 }

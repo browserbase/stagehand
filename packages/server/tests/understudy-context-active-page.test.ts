@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import type { ChromeTabTargetController } from "../understudy/chromeTabs.ts";
 import { V3Context } from "../understudy/context.ts";
 import type { Page } from "../understudy/page.ts";

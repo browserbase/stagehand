@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import type { CDPSessionLike } from "../understudy/cdp.js";
 import { ExecutionContextRegistry } from "../understudy/executionContextRegistry.js";
 

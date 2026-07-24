@@ -1,4 +1,4 @@
-import { expectTypeOf } from "vite-plus/test";
+import { expectTypeOf } from "vitest";
 import { z } from "zod/v4";
 import { StagehandLogSchema } from "../../schemas.js";
 

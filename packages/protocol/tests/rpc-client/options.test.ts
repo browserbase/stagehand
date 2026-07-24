@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { connectRPCClient, RPCClientOptionsSchema } from "../../../sdk-ts/src/rpcClient.ts";
 
 describe("RPCClientOptionsSchema", () => {
@@ -11,6 +11,7 @@ describe("RPCClientOptionsSchema", () => {
     ).toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
       extensionDir: "/tmp/stagehand-extension",
+      logLevel: "info",
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
@@ -29,6 +30,7 @@ describe("RPCClientOptionsSchema", () => {
     ).toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
       extensionId: "abcdefghijklmnopabcdefghijklmnop",
+      logLevel: "info",
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
@@ -46,6 +48,7 @@ describe("RPCClientOptionsSchema", () => {
       }),
     ).toStrictEqual({
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
+      logLevel: "info",
       preloadedExtension: true,
       telemetry: {
         traces: {

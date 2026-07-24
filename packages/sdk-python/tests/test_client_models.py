@@ -7,6 +7,7 @@ from stagehand.client_models import (
     CdpBrowserSource,
     LocalBrowserSource,
     StagehandClientInitParams,
+    StagehandClientLoggingConfig,
 )
 
 
@@ -34,3 +35,27 @@ def test_client_configuration_rejects_unknown_sdk_options() -> None:
         StagehandClientInitParams.model_validate({
             "browser": {"type": "local", "headless": True, "unknown": True}
         })
+
+
+def test_client_logging_uses_info_and_pretty_output_by_default() -> None:
+    params = StagehandClientInitParams.model_validate({"browser": {"type": "local"}})
+
+    assert params.logging == StagehandClientLoggingConfig(level="info", format="pretty")
+
+
+def test_client_logging_accepts_json_output_and_a_structured_callback() -> None:
+    def on_log(_: object) -> None:
+        pass
+
+    params = StagehandClientInitParams.model_validate({
+        "browser": {"type": "local"},
+        "logging": {
+            "level": "debug",
+            "format": "json",
+            "on_log": on_log,
+        },
+    })
+
+    assert params.logging.level == "debug"
+    assert params.logging.format == "json"
+    assert params.logging.on_log is on_log

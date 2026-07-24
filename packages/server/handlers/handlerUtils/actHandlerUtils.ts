@@ -87,7 +87,7 @@ export async function performUnderstudyMethod(
           return;
         }
 
-        spanLogger.info("Chosen method is invalid", {
+        spanLogger.debug("Chosen method is invalid", {
           category: "action",
           method,
         });
@@ -97,7 +97,7 @@ export async function performUnderstudyMethod(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
-    logger.info("Error performing method", {
+    logger.debug("Error performing method", {
       category: "action",
       error: msg,
       stack: stack ?? null,
@@ -205,7 +205,7 @@ async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
     await locator.fill(args[0] ?? "");
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.info("Error filling element", {
+    logger.debug("Error filling element", {
       category: "action",
       error: msg,
       xpath,
@@ -220,7 +220,7 @@ async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
     await locator.type(args[0] ?? "");
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.info("Error typing into element", {
+    logger.debug("Error typing into element", {
       category: "action",
       error: msg,
       xpath,
@@ -233,7 +233,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { args, xpath, page, logger } = ctx;
   const key = args[0] ?? "";
   try {
-    logger.info("Pressing key", {
+    logger.debug("Pressing key", {
       category: "action",
       key,
       xpath,
@@ -241,7 +241,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
     await page.keyPress(key);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger.info("Error pressing key", {
+    logger.debug("Error pressing key", {
       category: "action",
       error: msg,
       key,
@@ -545,7 +545,7 @@ export async function waitForDomNetworkQuiet(
         if (now - m.start > 2_000) {
           inflight.delete(id);
           meta.delete(id);
-          logger.info("Forcing completion of stalled iframe document", {
+          logger.debug("Forcing completion of stalled iframe document", {
             category: "dom",
             url: (m.url ?? "").slice(0, 120),
           });
@@ -558,7 +558,7 @@ export async function waitForDomNetworkQuiet(
 
     const guard = setTimeout(() => {
       if (inflight.size) {
-        logger.info("DOM settle timeout reached with network requests still pending", {
+        logger.debug("DOM settle timeout reached with network requests still pending", {
           category: "dom",
           count: inflight.size,
         });

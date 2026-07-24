@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import * as JsonRpcSchemas from "../../json-rpc/schemas.js";
 import * as SchemaRegistry from "../../schema-registry.js";

@@ -1264,6 +1264,14 @@ class LocatorTypeResult(WireModel):
     typed: Literal[True]
 
 
+class LogLevel(StrEnum):
+    off = "off"
+    error = "error"
+    warn = "warn"
+    info = "info"
+    debug = "debug"
+
+
 class Mode(StrEnum):
     auto = "auto"
     required = "required"
@@ -1820,6 +1828,7 @@ class RuntimeConfigureParams(WireModel):
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
     }
+    log_level: LogLevel = LogLevel.info
 
 
 class RuntimeConfigureResult(WireModel):

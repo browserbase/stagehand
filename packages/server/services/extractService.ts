@@ -134,10 +134,6 @@ export async function extract({
       output = (output as Record<string, unknown>)[wrapKey] as z.infer<z.ZodObject>;
     }
 
-    const resultString = JSON.stringify(output) ?? "undefined";
-    const resultPreview =
-      resultString.length > 200 ? resultString.slice(0, 200) + "..." : resultString;
-
     logger.info(
       completed
         ? "Extraction completed successfully"
@@ -147,7 +143,6 @@ export async function extract({
         promptTokens: prompt_tokens,
         completionTokens: completion_tokens,
         inferenceTimeMs: inference_time_ms,
-        result: resultPreview,
       },
     );
 

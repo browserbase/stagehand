@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { StagehandMethods, StagehandNotifications } from "../../schema-registry.js";
 import { DEFAULT_TELEMETRY_CONFIG } from "../../schemas.js";

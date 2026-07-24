@@ -32,6 +32,7 @@ from stagehand._generated.models import (
     StagehandExtractParams,
     StagehandInitParams,
     StagehandInitResult,
+    StagehandLog,
     StagehandMetrics,
     StagehandObserveParams,
     StagehandPingResult,
@@ -43,6 +44,7 @@ from stagehand.client_models import (
     CdpBrowserSource,
     LocalBrowserSource,
     StagehandClientInitParams,
+    StagehandClientLoggingConfig,
 )
 from stagehand.rpc_client import RPCClient
 
@@ -97,6 +99,93 @@ def test_stagehand_constructor_rejects_incomplete_flattened_options() -> None:
         Stagehand(browser="local", proxy_username="user")
     with pytest.raises(TypeError, match="model connection options"):
         Stagehand(browser="local", model_api_key="model-key")
+
+
+@pytest.mark.asyncio
+async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    recording = RecordingRPCClient({
+        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
+    })
+    connect_args: dict[str, object] = {}
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
+
+    async def connect(**kwargs: object) -> RPCClient:
+        connect_args.update(kwargs)
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+    await stagehand.init()
+    _, listener = recording.notifications["stagehand.log"]
+    notification_listener = cast(Callable[[StagehandLog], Awaitable[None]], listener)
+
+    for log in [
+        {"level": "debug", "message": "CDP call", "data": {"method": "Page.navigate"}},
+        {"level": "info", "message": "Page opened", "data": {"pageId": "page-1"}},
+        {"level": "warn", "message": "Selector fallback", "data": {}},
+        {"level": "error", "message": "Action failed", "data": {"retryable": False}},
+    ]:
+        await notification_listener(StagehandLog.model_validate(log))
+
+    assert connect_args["log_level"] == "info"
+    assert capsys.readouterr().err.splitlines() == [
+        '[stagehand] INFO Page opened {"pageId":"page-1"}',
+        "[stagehand] WARN Selector fallback",
+        '[stagehand] ERROR Action failed {"retryable":false}',
+    ]
+
+
+@pytest.mark.asyncio
+async def test_stagehand_writes_one_json_object_and_calls_on_log_with_the_structured_event(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    recording = RecordingRPCClient({
+        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
+    })
+    received: list[StagehandLog] = []
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
+
+    async def connect(**_: object) -> RPCClient:
+        return cast(RPCClient, recording)
+
+    async def on_log(log: StagehandLog) -> None:
+        received.append(log)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    stagehand = Stagehand(
+        browser="cdp",
+        cdp_url="test://browser",
+        logging=StagehandClientLoggingConfig(
+            level="debug",
+            format="json",
+            on_log=on_log,
+        ),
+    )
+    await stagehand.init()
+    _, listener = recording.notifications["stagehand.log"]
+    notification_listener = cast(Callable[[StagehandLog], Awaitable[None]], listener)
+    log = StagehandLog.model_validate({
+        "level": "debug",
+        "message": "CDP call",
+        "data": {"method": "Page.navigate"},
+    })
+
+    await notification_listener(log)
+
+    assert capsys.readouterr().err == (
+        '{"level":"debug","message":"CDP call","data":{"method":"Page.navigate"}}\n'
+    )
+    assert received == [log]
 
 
 @pytest.mark.asyncio

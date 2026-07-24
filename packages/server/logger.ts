@@ -5,6 +5,15 @@ import type { StagehandLog, StagehandLogData, StagehandLogLevel } from "../proto
 import type { StagehandTracing } from "./tracing.js";
 
 export type StagehandLogEmitter = (log: StagehandLog) => void;
+export type StagehandLogThreshold = StagehandLogLevel | "off";
+
+const LOG_LEVEL_PRIORITY = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+  off: Number.POSITIVE_INFINITY,
+} as const satisfies Record<StagehandLogThreshold, number>;
 
 const StagehandSpanSchema = z.strictObject({
   name: z.string().min(1),
@@ -12,14 +21,23 @@ const StagehandSpanSchema = z.strictObject({
 });
 
 export class StagehandLogger {
+  private threshold: StagehandLogThreshold;
+
   constructor(
     readonly tracing: Pick<StagehandTracing, "tracer">,
     readonly emitLog: StagehandLogEmitter,
     readonly parentContext?: Context,
-  ) {}
+    threshold: StagehandLogThreshold = "info",
+  ) {
+    this.threshold = threshold;
+  }
 
   withContext(parentContext: Context): StagehandLogger {
-    return new StagehandLogger(this.tracing, this.emitLog, parentContext);
+    return new StagehandLogger(this.tracing, this.emitLog, parentContext, this.threshold);
+  }
+
+  setLevel(threshold: StagehandLogThreshold): void {
+    this.threshold = threshold;
   }
 
   debug(message: string, data: StagehandLogData): void {
@@ -85,6 +103,7 @@ export class StagehandLogger {
     );
 
     span.end();
+    if (LOG_LEVEL_PRIORITY[level] < LOG_LEVEL_PRIORITY[this.threshold]) return;
     this.emitLog(log);
   }
 }

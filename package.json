@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "vp check && vp run -F ./packages/docs check",
-    "docs": "vp run --no-cache -F ./packages/docs dev",
-    "fmt": "vp fmt . --write",
-    "test": "vp run -F ./packages/sdk-ts build && vp run -r test && vp test run rules/ast-grep",
-    "build": "vp run -r build"
+    "check": "oxfmt --check . && oxlint . && tsc --noEmit -p packages/protocol/tsconfig.json",
+    "docs": "pnpm --filter ./packages/docs dev",
+    "fmt": "oxfmt --write .",
+    "test": "pnpm --filter ./packages/server build && pnpm --filter ./packages/sdk-ts build && pnpm --recursive --if-present test && vitest run rules/ast-grep",
+    "build": "pnpm --filter ./packages/protocol build && pnpm --filter ./packages/server build && pnpm --filter ./packages/sdk-ts build"
   },
   "devDependencies": {
     "@ast-grep/lang-python": "catalog:",
@@ -19,10 +19,13 @@
     "@types/chrome": "catalog:",
     "dotenv": "catalog:",
     "openai": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "vitest": "catalog:"
   },
   "devEngines": {
     "packageManager": {

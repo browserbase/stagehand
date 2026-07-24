@@ -213,7 +213,7 @@ export class V3Context {
       if (!(err instanceof TimeoutError)) {
         throw err;
       }
-      this.logger.info(
+      this.logger.debug(
         "No open browser pages found after connect; creating an initial blank page",
         {
           category: "ctx",

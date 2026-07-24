@@ -273,6 +273,7 @@ export class StagehandRuntime {
   }
 
   async configureLoopback(params: RuntimeConfigureParams): Promise<RuntimeConfigureResult> {
+    this.logger.setLevel(params.logLevel);
     const { cdpUrl } = params;
     const previousSession = this.browserSession;
     this.browserSession = undefined;

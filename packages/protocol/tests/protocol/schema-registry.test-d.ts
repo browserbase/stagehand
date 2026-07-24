@@ -1,4 +1,4 @@
-import { expectTypeOf } from "vite-plus/test";
+import { expectTypeOf } from "vitest";
 import type { z } from "zod/v4";
 import {
   StagehandMethodSchema,

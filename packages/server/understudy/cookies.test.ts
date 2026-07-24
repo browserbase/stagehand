@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { CookieParam } from "../../protocol/types.js";
 import { filterCookies, normalizeCookieParams } from "./cookies.js";

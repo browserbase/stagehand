@@ -4,7 +4,7 @@ import type { StagehandRuntime } from "../runtime.js";
 
 export function createRuntimeController(runtime: StagehandRuntime) {
   async function ping(_params: EmptyParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] ping", {});
+    logger.debug("ping", {});
     return {
       ok: true as const,
       runtime: "service_worker" as const,
@@ -12,13 +12,14 @@ export function createRuntimeController(runtime: StagehandRuntime) {
   }
 
   async function configure(params: RuntimeConfigureParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] runtime.configure", {});
+    logger.setLevel(params.logLevel);
+    logger.debug("runtime.configure", {});
     runtime.tracing.configure(params.telemetry);
     return runtime.configureLoopback(params);
   }
 
   async function loopbackStatus(_params: EmptyParams, { logger }: HandlerContext) {
-    logger.info("[stagehand] runtime.loopback_status", {});
+    logger.debug("runtime.loopback_status", {});
     return runtime.loopbackStatus();
   }
 

@@ -12,7 +12,8 @@
     }
   },
   "scripts": {
-    "test": "vp test run --root ../.. packages/sdk-ts/tests"
+    "build": "tsdown",
+    "test": "vitest run --root ../.. packages/sdk-ts/tests"
   },
   "dependencies": {
     "@browserbasehq/sdk": "catalog:",
@@ -22,7 +23,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "publint": "catalog:"
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=22.18.0"
