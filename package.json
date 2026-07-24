@@ -31,6 +31,7 @@
     "@types/chrome": "catalog:",
     "@types/node": "catalog:",
     "dotenv": "catalog:",
+    "esbuild": "catalog:",
     "openai": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",

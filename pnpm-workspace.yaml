@@ -35,6 +35,7 @@ catalog:
   zustand: ^5.0.14
   "@types/chrome": ^0.2.2
   dotenv: ^17.4.2
+  esbuild: 0.28.1
   tsx: ^4.23.1
   openai: ^6.48.0
   "@browserbasehq/sdk": ^2.16.0
