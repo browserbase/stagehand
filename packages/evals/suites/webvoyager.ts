@@ -13,12 +13,12 @@ import {
 export const buildWebVoyagerTestcases = (
   models: string[] | AgentModelEntry[],
 ): Testcase[] => {
-  const voyagerFilePath = path.join(
-    getPackageRootDir(),
-    "datasets",
-    "webvoyager",
-    "WebVoyager_data.jsonl",
-  );
+  // EVAL_WEBVOYAGER_FILE mirrors EVAL_GAIA_FILE: point runs at a curated
+  // slice (the stock file is site-ordered, so `-l N` alone only ever
+  // reaches Allrecipes).
+  const voyagerFilePath =
+    process.env.EVAL_WEBVOYAGER_FILE ||
+    path.join(getPackageRootDir(), "datasets", "webvoyager", "WebVoyager_data.jsonl");
 
   const lines = readJsonlFile(voyagerFilePath);
 

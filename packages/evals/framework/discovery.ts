@@ -123,7 +123,15 @@ function getTierRoots(
   sdk: EvalSdk = "v3",
 ): string[] {
   if (tier === "bench") {
-    return [path.join(tasksRoot, sdk === "v4" ? "bench-v4" : "bench")];
+    if (sdk === "v4") {
+      // tasks/bench-v4 is the single canonical v4 suite (the tasks land in
+      // the stagehand repo — STG-2671). The migration-window copy inside the
+      // v4-spike checkout was verified to be a strict subset and deleted
+      // (2026-07-23), so there is exactly one root and no shadow-copy
+      // semantics to reason about.
+      return [path.join(tasksRoot, "bench-v4")];
+    }
+    return [path.join(tasksRoot, "bench")];
   }
 
   const packageRoot = path.dirname(tasksRoot);
@@ -276,6 +284,11 @@ export async function discoverTasks(
           isLegacy,
           models,
         };
+
+        // A tier can have multiple roots (v4: the v4-spike copy plus
+        // bench-v4) holding the same task under the same name; the first
+        // root wins so the task runs once.
+        if (byName.has(task.name)) continue;
 
         tasks.push(task);
         byName.set(task.name, task);
