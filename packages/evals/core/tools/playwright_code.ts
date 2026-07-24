@@ -5,16 +5,22 @@ import {
   type Locator,
   type Page,
 } from "playwright";
+import { EvalsError } from "../../errors.js";
+import type { EvalLogger } from "../../logger.js";
+import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
+import { prepareCoreBrowserTarget } from "../targets/index.js";
 import { resolveLocalChromeExecutablePath } from "../targets/localChrome.js";
-import type {
-  CoreCapability,
-  CoreLocatorHandle,
-  CorePageHandle,
-  CoreSession,
-  CoreTool,
-  StartupProfile,
-  ToolStartInput,
-  ToolStartResult,
+import {
+  LLM_RUN_TOOL_NAME,
+  type LLMExposure,
+  type CoreCapability,
+  type CoreLocatorHandle,
+  type CorePageHandle,
+  type CoreSession,
+  type CoreTool,
+  type StartupProfile,
+  type ToolStartInput,
+  type ToolStartResult,
 } from "../contracts/tool.js";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
@@ -643,4 +649,143 @@ export class PlaywrightCodeTool implements CoreTool {
       },
     };
   }
+}
+
+/**
+ * playwright_code agent exposure: the agent writes code against an
+ * initialized Playwright page/context/browser connected over a
+ * runner-provided CDP endpoint.
+ */
+export async function prepareLLMExposure(
+  plan: ExternalHarnessTaskPlan,
+  env: "LOCAL" | "BROWSERBASE",
+  logger: EvalLogger,
+  startupProfile?: StartupProfile,
+): Promise<LLMExposure> {
+  const resolvedProfile =
+    startupProfile ??
+    (env === "BROWSERBASE"
+      ? "runner_provided_browserbase_cdp"
+      : "runner_provided_local_cdp");
+  if (
+    resolvedProfile !== "runner_provided_local_cdp" &&
+    resolvedProfile !== "runner_provided_browserbase_cdp"
+  ) {
+    throw new EvalsError(
+      `playwright_code startup profile "${resolvedProfile}" is not valid for Claude Code. Use runner_provided_local_cdp or runner_provided_browserbase_cdp.`,
+    );
+  }
+
+  let browser: Browser | undefined;
+  let targetCleanup: () => Promise<void> = async () => {};
+
+  try {
+    const target = await prepareCoreBrowserTarget({
+      environment: env,
+      toolSurface: "playwright_code",
+      startupProfile: resolvedProfile,
+    });
+    targetCleanup = target.cleanup;
+    if (!target.providedEndpoint?.url) {
+      throw new EvalsError(
+        `playwright_code requires a runner-provided CDP endpoint for startup profile "${resolvedProfile}".`,
+      );
+    }
+
+    const connectedBrowser = await chromium.connectOverCDP(
+      target.providedEndpoint.url,
+      { headers: target.providedEndpoint.headers },
+    );
+    browser = connectedBrowser;
+    const context =
+      connectedBrowser.contexts()[0] ?? (await connectedBrowser.newContext());
+    const page = context.pages()[0] ?? (await context.newPage());
+
+    logger.log({
+      category: "claude_code",
+      message: `Initialized playwright_code browser runtime for Claude Code run tool.`,
+      level: 1,
+      auxiliary: {
+        startupProfile: {
+          value: resolvedProfile,
+          type: "string",
+        },
+        environment: {
+          value: env,
+          type: "string",
+        },
+        ...(target.metadata && {
+          targetMetadata: {
+            value: JSON.stringify(target.metadata),
+            type: "object",
+          },
+        }),
+      },
+    });
+
+    return {
+      kind: "code_handles",
+      handles: { page, context, browser: connectedBrowser },
+      promptInstructions: buildPlaywrightCodePromptInstructions(),
+      runTool: {
+        description: [
+          "Execute JavaScript against the initialized Playwright browser.",
+          "The snippet runs inside an async function with page, context, browser, startUrl, task, and console in scope.",
+          "Use await directly. Return a JSON-serializable value when useful.",
+        ].join(" "),
+        codeParamDescription:
+          "JavaScript function body to execute. page/context/browser/startUrl/task are already in scope.",
+        denyMessage: `Use Bash for inspection and ${LLM_RUN_TOOL_NAME} for browser automation.`,
+        task: {
+          dataset: plan.dataset,
+          id: plan.taskId,
+          startUrl: plan.startUrl,
+          instruction: plan.instruction,
+        },
+      },
+      ...(target.metadata && { metadata: target.metadata }),
+      captureFinalState: async () => {
+        const artifact: { screenshot?: Buffer; url?: string } = {};
+        try {
+          artifact.screenshot = await page.screenshot();
+        } catch {
+          // best-effort only
+        }
+        try {
+          artifact.url = page.url();
+        } catch {
+          // best-effort only
+        }
+        return artifact;
+      },
+      cleanup: async () => {
+        try {
+          await connectedBrowser.close();
+        } catch {
+          // best-effort only
+        } finally {
+          await targetCleanup();
+        }
+      },
+    };
+  } catch (error) {
+    try {
+      await browser?.close();
+    } catch {
+      // best-effort only
+    }
+    await targetCleanup();
+    throw error;
+  }
+}
+
+function buildPlaywrightCodePromptInstructions(): string {
+  return [
+    "Browser tool surface: playwright_code.",
+    `Use the ${LLM_RUN_TOOL_NAME} tool for browser automation. It exposes an initialized Playwright page, context, browser, startUrl, and task object.`,
+    "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
+    "The first browser action should usually be: await page.goto(startUrl, { waitUntil: 'domcontentloaded' }).",
+    "Do not edit repository files.",
+    "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+  ].join("\n");
 }

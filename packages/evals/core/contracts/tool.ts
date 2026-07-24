@@ -18,6 +18,7 @@ import type {
 
 export type ToolSurface =
   | "understudy_code"
+  | "v4_code"
   | "playwright_code"
   | "cdp_code"
   | "playwright_mcp"
@@ -167,6 +168,7 @@ export interface CoreTool {
   surface: "code" | "mcp" | "cli";
   family:
     | "understudy"
+    | "stagehand_v4"
     | "playwright"
     | "cdp"
     | "stagehand_cli"
@@ -175,4 +177,81 @@ export interface CoreTool {
   supportedCapabilities: CoreCapability[];
   supportedTargetKinds: TargetKind[];
   start(input: ToolStartInput): Promise<ToolStartResult>;
+}
+
+/**
+ * The MCP server / tool name a `code_handles` exposure is mounted under by an
+ * agent harness. Surfaces reference the tool name in their prompt
+ * instructions; the harness mounts the single "run" tool under the server.
+ */
+export const LLM_RUN_TOOL_SERVER = "stagehand_browser";
+export const LLM_RUN_TOOL_NAME = `mcp__${LLM_RUN_TOOL_SERVER}__run`;
+
+/**
+ * `code_handles` only: the surface-specific pieces of the harness's single
+ * "run" tool. The harness owns the tool mechanics (timeouts, result
+ * stringification, logging); the surface owns the copy the model sees and
+ * the values bound into the snippet scope.
+ */
+export interface LLMRunToolSpec {
+  /** MCP tool description shown to the model. */
+  description: string;
+  /** Description of the tool's `code` parameter. */
+  codeParamDescription: string;
+  /** Denial message when the model requests a tool outside the allowlist. */
+  denyMessage: string;
+  /** Value bound to `task` in the snippet scope. */
+  task: Record<string, unknown>;
+  /**
+   * Value bound to `console` in the snippet scope. Defaults to the
+   * harness's logger-backed console when omitted.
+   */
+  console?: Pick<Console, "log" | "warn" | "error">;
+}
+
+/**
+ * Harness-observed terminal state of a run, captured through the surface
+ * itself after the agent finishes. This is what grounds grading in the task
+ * artifact: the verifier's final-screenshot anchor comes from the harness's
+ * own observation of the page, not from whatever image the agent chose to
+ * return (code surfaces stringify tool results, so agent-returned images
+ * don't exist there at all).
+ */
+export interface TerminalArtifact {
+  screenshot?: Buffer;
+  url?: string;
+}
+
+/**
+ * A harness-agnostic description of how an agent harness (claude_code,
+ * codex, ...) mounts a tool surface. Each surface implements this once;
+ * harness drivers keep exactly three mount points and no surface knowledge:
+ * - `code_handles` -> wrap `handles` in the harness's single run tool
+ * - `mcp_server`   -> mount `mcpServers` config directly
+ * - `cli`          -> spawn `command` with env
+ */
+export interface LLMExposure {
+  kind: "code_handles" | "mcp_server" | "cli";
+  /**
+   * code_handles: named values placed in the run-tool snippet scope. The
+   * harness derives the snippet argument names from these keys (plus
+   * startUrl, task, and console). Names, not order, bind the values.
+   */
+  handles?: Record<string, unknown>;
+  promptInstructions: string;
+  /** mcp_server: mounted as-is by the harness. */
+  mcpServers?: Record<string, unknown>;
+  /** cli: spawned with env by the harness. */
+  command?: { bin: string; env: Record<string, string> };
+  /** code_handles: surface-specific run-tool copy and snippet bindings. */
+  runTool?: LLMRunToolSpec;
+  /** Extra surface facts (session URLs etc.) that flow through to the harness. */
+  metadata?: Record<string, unknown>;
+  /**
+   * Capture the terminal page state (screenshot + URL) for artifact-grounded
+   * grading. Called by the harness after the agent finishes, before cleanup.
+   * Best-effort: implementations should swallow per-field failures.
+   */
+  captureFinalState?: () => Promise<TerminalArtifact>;
+  cleanup: () => Promise<void>;
 }

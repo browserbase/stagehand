@@ -58,7 +58,17 @@ describe("claude code tool adapter resolution", () => {
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool browse_cli, playwright_code, or cdp_code/,
+      /supports --tool browse_cli, playwright_code, cdp_code, or v4_code/,
+    );
+  });
+
+  it("accepts v4_code with SDK-owned startup profiles", () => {
+    expect(resolveClaudeCodeToolSurface("v4_code")).toBe("v4_code");
+    expect(resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE")).toBe(
+      "tool_create_browserbase",
+    );
+    expect(resolveClaudeCodeStartupProfile("v4_code", "LOCAL")).toBe(
+      "tool_launch_local",
     );
   });
 
