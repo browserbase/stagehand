@@ -410,7 +410,7 @@ importers:
         version: 5.2.6
       '@t3-oss/env-core':
         specifier: ^0.13.8
-        version: 0.13.8(arktype@2.1.27)(typescript@5.9.3)(zod@4.2.1)
+        version: 0.13.8(arktype@2.1.27)(typescript@5.9.3)(zod@4.4.3)
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
@@ -422,7 +422,7 @@ importers:
         version: 4.5.1
       fastify-zod-openapi:
         specifier: ^5.5.0
-        version: 5.5.0(@fastify/swagger-ui@5.2.6)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1)
+        version: 5.5.0(@fastify/swagger-ui@5.2.6)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.4.3)
       http-status-codes:
         specifier: ^2.3.0
         version: 2.3.0
@@ -439,8 +439,8 @@ importers:
         specifier: ^11.1.1
         version: 11.1.1
       zod:
-        specifier: ^4.2.1
-        version: 4.2.1
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 22.13.1
@@ -453,7 +453,7 @@ importers:
         version: 3.0.1
       openai:
         specifier: 4.87.1
-        version: 4.87.1(ws@8.21.0(bufferutil@4.0.9))(zod@4.2.1)
+        version: 4.87.1(ws@8.21.0(bufferutil@4.0.9))(zod@4.4.3)
       postject:
         specifier: 1.0.0-alpha.6
         version: 1.0.0-alpha.6
@@ -10324,11 +10324,11 @@ snapshots:
     dependencies:
       defer-to-connect: 2.0.1
 
-  '@t3-oss/env-core@0.13.8(arktype@2.1.27)(typescript@5.9.3)(zod@4.2.1)':
+  '@t3-oss/env-core@0.13.8(arktype@2.1.27)(typescript@5.9.3)(zod@4.4.3)':
     optionalDependencies:
       arktype: 2.1.27
       typescript: 5.9.3
-      zod: 4.2.1
+      zod: 4.4.3
 
   '@tootallnate/quickjs-emscripten@0.23.0': {}
 
@@ -10688,7 +10688,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@20.17.32)(@vitest/coverage-v8@4.1.9)(jsdom@29.1.1)(vite@7.3.5(@types/node@20.17.32)(jiti@2.6.1)(tsx@4.19.4)(yaml@2.9.0))
+      vitest: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@20.17.32)(@vitest/coverage-v8@4.1.9)(jsdom@29.1.1)(vite@7.3.5(@types/node@20.17.32)(jiti@2.6.1)(tsx@4.22.4)(yaml@2.9.0))
 
   '@vitest/expect@4.1.9':
     dependencies:
@@ -12339,14 +12339,14 @@ snapshots:
 
   fastify-plugin@5.1.0: {}
 
-  fastify-zod-openapi@5.5.0(@fastify/swagger-ui@5.2.6)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.2.1):
+  fastify-zod-openapi@5.5.0(@fastify/swagger-ui@5.2.6)(@fastify/swagger@9.6.1)(fastify@5.8.5)(zod@4.4.3):
     dependencies:
       '@fastify/error': 4.2.0
       fast-json-stringify: 6.1.1
       fastify: 5.8.5
       fastify-plugin: 5.1.0
-      zod: 4.2.1
-      zod-openapi: 5.4.5(zod@4.2.1)
+      zod: 4.4.3
+      zod-openapi: 5.4.5(zod@4.4.3)
     optionalDependencies:
       '@fastify/swagger': 9.6.1
       '@fastify/swagger-ui': 5.2.6
@@ -14513,7 +14513,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  openai@4.87.1(ws@8.21.0(bufferutil@4.0.9))(zod@4.2.1):
+  openai@4.87.1(ws@8.21.0(bufferutil@4.0.9))(zod@4.4.3):
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -14524,7 +14524,7 @@ snapshots:
       node-fetch: 2.7.0
     optionalDependencies:
       ws: 8.21.0(bufferutil@4.0.9)
-      zod: 4.2.1
+      zod: 4.4.3
     transitivePeerDependencies:
       - encoding
 
@@ -16870,9 +16870,9 @@ snapshots:
       compress-commons: 6.0.2
       readable-stream: 4.7.0
 
-  zod-openapi@5.4.5(zod@4.2.1):
+  zod-openapi@5.4.5(zod@4.4.3):
     dependencies:
-      zod: 4.2.1
+      zod: 4.4.3
 
   zod-to-json-schema@3.20.4(zod@3.24.0):
     dependencies:
