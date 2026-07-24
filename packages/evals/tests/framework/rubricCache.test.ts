@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Rubric, TaskSpec } from "@browserbasehq/stagehand";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type { Rubric, TaskSpec } from "stagehand-v3";
 
 import { RubricCache } from "../../framework/rubricCache.js";
 

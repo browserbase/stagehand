@@ -1,25 +1,21 @@
 {
   "name": "@browserbasehq/stagehand-evals",
-  "version": "2.1.0",
+  "version": "4.0.0",
   "private": true,
   "description": "Evaluation suite for Stagehand",
   "bin": {
     "evals": "./dist/cli/cli.js"
   },
   "type": "module",
-  "main": "./",
   "scripts": {
-    "typecheck": "pnpm -w --dir ../.. exec tsc -p packages/evals/tsconfig.json --noEmit",
-    "build": "pnpm --filter @browserbasehq/stagehand-evals run --parallel \"/^build:(esm|cli)$/\"",
+    "build": "pnpm run --parallel \"/^build:(esm|cli)$/\"",
     "build:esm": "tsx scripts/build-esm.ts",
     "build:cli": "tsx scripts/build-cli.ts",
-    "test": "pnpm -w --dir ../.. exec turbo run test:evals --filter=@browserbasehq/stagehand-evals --",
-    "test:unit": "vitest run",
+    "test": "vp test run --root ../.. packages/evals/tests",
     "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
+    "eval": "tsx cli.ts",
     "evals:old": "tsx cli-legacy.ts",
-    "report:core": "tsx scripts/render-braintrust-core-report.ts",
-    "lint": "pnpm -w --dir ../.. exec prettier --check packages/evals && pnpm -w --dir ../.. exec eslint packages/evals && pnpm run typecheck",
-    "format": "prettier --write ."
+    "report:core": "tsx scripts/render-braintrust-core-report.ts"
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
@@ -31,16 +27,18 @@
     "openai": "^4.104.0",
     "playwright": ">=1.55.1 <1.57.0",
     "sharp": "^0.34.5",
-    "tsx": "*",
-    "zod": "^4.2.1"
+    "stagehand-v3": "npm:@browserbasehq/stagehand@3.7.1",
+    "tsx": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^25.6.2",
+    "@types/node": "catalog:",
     "braintrust": "^0.4.10",
     "chalk": "^5.4.1",
+    "esbuild": "catalog:",
     "gray-matter": "^4.0.3",
     "string-comparison": "^1.3.0",
-    "vite": "^7.3.5",
-    "vitest": "^4.1.9"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

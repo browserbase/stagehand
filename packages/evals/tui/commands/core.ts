@@ -112,7 +112,7 @@ async function setCoreKey(entryDir: string, key: CoreKey, value: string): Promis
   const validTools = listCoreTools();
 
   const config = readConfig(entryDir);
-  const core: CoreConfigSection = { ...(config.core ?? {}) };
+  const core: CoreConfigSection = { ...config.core };
 
   if (key === "tool") {
     if (!validTools.includes(value as (typeof validTools)[number])) {
@@ -173,7 +173,7 @@ function resetCoreKey(entryDir: string, key: CoreKey | undefined): void {
     return;
   }
 
-  const core: CoreConfigSection = { ...(config.core ?? {}) };
+  const core: CoreConfigSection = { ...config.core };
   core[key] = undefined;
   config.core = pruneCore(core);
   writeConfig(entryDir, config);

@@ -1,5 +1,5 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { Action } from "@browserbasehq/stagehand";
+import { Action } from "stagehand-v3";
 
 /**
  * This eval attempts to click on an element that should not pass the playwright actionability check

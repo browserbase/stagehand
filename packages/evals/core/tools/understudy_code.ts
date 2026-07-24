@@ -1,4 +1,4 @@
-import type { V3 } from "@browserbasehq/stagehand";
+import type { V3 } from "stagehand-v3";
 import { endBrowserbaseSession } from "../../browserbaseCleanup.js";
 import { initV3, type V3InitResult } from "../../initV3.js";
 import type {

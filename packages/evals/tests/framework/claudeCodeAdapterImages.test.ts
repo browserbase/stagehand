@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { claudeCodeAdapter } from "../../framework/harnesses/claudeCodeAdapter.js";
-import type { TaskSpec } from "@browserbasehq/stagehand";
+import type { TaskSpec } from "stagehand-v3";
 
 const taskSpec: TaskSpec = {
   id: "test/image-evidence",

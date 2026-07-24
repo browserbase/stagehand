@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 const spawnMock = vi.hoisted(() => vi.fn());
 

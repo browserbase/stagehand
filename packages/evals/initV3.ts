@@ -15,8 +15,8 @@ import type {
   ModelConfiguration,
   V3Options,
   AgentModelConfig,
-} from "@browserbasehq/stagehand";
-import { loadApiKeyFromEnv, modelToAgentProviderMap, V3 } from "@browserbasehq/stagehand";
+} from "stagehand-v3";
+import { loadApiKeyFromEnv, modelToAgentProviderMap, V3 } from "stagehand-v3";
 import { getEnv } from "./env.js";
 import { EvalLogger } from "./logger.js";
 
@@ -92,7 +92,7 @@ export async function initV3({
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
     localBrowserLaunchOptions: {
-      ...(configOverrides?.localBrowserLaunchOptions ?? {}),
+      ...configOverrides?.localBrowserLaunchOptions,
       headless: configOverrides?.localBrowserLaunchOptions?.headless ?? false,
       args: configOverrides?.localBrowserLaunchOptions?.args ?? configOverrides?.chromeFlags,
     },

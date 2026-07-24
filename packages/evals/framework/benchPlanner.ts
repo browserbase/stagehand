@@ -1,4 +1,4 @@
-import type { AgentToolMode, AvailableModel } from "@browserbasehq/stagehand";
+import type { AgentToolMode, AvailableModel } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";

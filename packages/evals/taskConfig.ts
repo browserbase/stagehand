@@ -15,7 +15,7 @@ import {
   type AvailableCuaModel,
   type AvailableModel,
   providerEnvVarMap,
-} from "@browserbasehq/stagehand";
+} from "stagehand-v3";
 import { AgentModelEntry } from "./types/evals.js";
 import { getCurrentDirPath } from "./runtimePaths.js";
 

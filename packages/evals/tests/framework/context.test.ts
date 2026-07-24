@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { resolveDefaultCoreStartupProfile } from "../../framework/context.js";
 import { prepareCoreBrowserTarget } from "../../core/targets/index.js";
 

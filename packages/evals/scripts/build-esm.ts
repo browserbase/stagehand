@@ -24,7 +24,7 @@ fs.rmSync(`${repoRoot}/packages/evals/dist/esm`, {
   force: true,
 });
 // Evals run from dist/esm JS, but still need config/assets/datasets on disk.
-run(["exec", "tsc", "-p", "packages/evals/tsconfig.json"]);
+run(["exec", "tsc", "-p", "packages/evals/tsconfig.build.json"]);
 
 fs.mkdirSync(`${repoRoot}/packages/evals/dist/esm`, { recursive: true });
 fs.writeFileSync(`${repoRoot}/packages/evals/dist/esm/package.json`, '{\n  "type": "module"\n}\n');

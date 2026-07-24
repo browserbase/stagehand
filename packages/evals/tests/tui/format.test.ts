@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import { padRight, separator, stripAnsi } from "../../tui/format.js";
 
 const originalColumns = process.stdout.columns;

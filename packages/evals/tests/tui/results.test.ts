@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { printModelSummary } from "../../tui/results.js";
 import type { SummaryResult } from "../../types/evals.js";
 

@@ -23,7 +23,7 @@
  *     steps we have. The verifier flags evidence_insufficient on criteria it
  *     can't ground.
  */
-import type { ProbeEvidence, TaskSpec, Trajectory } from "@browserbasehq/stagehand";
+import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import {
   buildTrajectory,
   type NormalizedToolCall,

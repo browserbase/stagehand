@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
+import { shouldPersistTrajectory } from "stagehand-v3";
 
 /**
  * Local-persistence grouping for trajectories. The entrypoint stamps a run-scoped

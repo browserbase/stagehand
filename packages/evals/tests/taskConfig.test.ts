@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AgentProvider, AVAILABLE_CUA_MODELS, providerEnvVarMap } from "@browserbasehq/stagehand";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
+import { AgentProvider, AVAILABLE_CUA_MODELS, providerEnvVarMap } from "stagehand-v3";
 
 type TaskConfigModule = typeof import("../taskConfig.js");
 

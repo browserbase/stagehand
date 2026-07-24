@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import { describe, expect, it } from "vite-plus/test";
+import type { AvailableModel } from "stagehand-v3";
 import type { DiscoveredTask } from "../../framework/types.js";
 import { buildBenchMatrixRow, generateBenchTestcases } from "../../framework/benchPlanner.js";
 import { withEnvOverrides } from "../../tui/commands/parse.js";

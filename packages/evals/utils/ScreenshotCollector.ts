@@ -1,4 +1,4 @@
-import { V3 } from "@browserbasehq/stagehand";
+import { V3 } from "stagehand-v3";
 import sharp from "sharp";
 import { ScreenshotCollectorOptions } from "../types/screenshotCollector.js";
 

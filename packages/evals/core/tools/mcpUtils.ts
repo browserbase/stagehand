@@ -2,7 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { accessSync, realpathSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { connectToMCPServer } from "@browserbasehq/stagehand";
+import { connectToMCPServer } from "stagehand-v3";
 
 type McpTextContent = {
   type: "text";

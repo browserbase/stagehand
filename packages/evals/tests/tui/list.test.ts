@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { printList } from "../../tui/commands/list.js";
 import type { TaskRegistry } from "../../framework/types.js";
 

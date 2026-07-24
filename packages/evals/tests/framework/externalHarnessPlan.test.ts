@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import { describe, expect, it } from "vite-plus/test";
+import type { AvailableModel } from "stagehand-v3";
 import { buildExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 
 const modelName = "anthropic/claude-sonnet-4-20250514" as AvailableModel;

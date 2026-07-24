@@ -40,7 +40,7 @@ export function markFirstRunComplete(entryDir: string): void {
     const config = readConfig(entryDir);
     if (config._meta?.firstRunCompletedAt) return;
     config._meta = {
-      ...(config._meta ?? {}),
+      ...config._meta,
       firstRunCompletedAt: new Date().toISOString(),
       version: CURRENT_SCHEMA_VERSION,
     };

@@ -12,8 +12,8 @@
  */
 import { logLineToString } from "./utils.js";
 import { LogLineEval } from "./types/evals.js";
-import { LogLine } from "@browserbasehq/stagehand";
-import type { V3 } from "@browserbasehq/stagehand";
+import { LogLine } from "stagehand-v3";
+import type { V3 } from "stagehand-v3";
 
 /**
  * parseLogLine:

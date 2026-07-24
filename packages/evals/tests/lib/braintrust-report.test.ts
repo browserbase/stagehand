@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const braintrustMock = vi.hoisted(() => ({
   rows: new Map<string, { id: string; name: string; created?: string }>(),

@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Rubric, TaskSpec, Trajectory, TrajectoryStep } from "@browserbasehq/stagehand";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type { Rubric, TaskSpec, Trajectory, TrajectoryStep } from "stagehand-v3";
 
 import { gradeExternalTrajectory } from "../../framework/verifierAdapter.js";
 import { EvalLogger } from "../../logger.js";
@@ -11,8 +11,8 @@ const mockState = vi.hoisted(() => ({
   } as Record<string, unknown>,
 }));
 
-vi.mock("@browserbasehq/stagehand", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@browserbasehq/stagehand")>();
+vi.mock("stagehand-v3", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("stagehand-v3")>();
   class FakeV3Evaluator {
     async verify() {
       return mockState.evaluationResult;

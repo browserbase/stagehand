@@ -1,4 +1,4 @@
-import { normalizeRubric, type TaskSpec } from "@browserbasehq/stagehand";
+import { normalizeRubric, type TaskSpec } from "stagehand-v3";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { evaluationResultToSuccess, runWithVerifier } from "../../../framework/verifierAdapter.js";

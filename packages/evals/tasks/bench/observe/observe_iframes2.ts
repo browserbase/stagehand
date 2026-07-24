@@ -1,5 +1,5 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { Action } from "@browserbasehq/stagehand";
+import { Action } from "stagehand-v3";
 
 export default defineBenchTask(
   { name: "observe_iframes2" },

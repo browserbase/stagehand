@@ -18,6 +18,12 @@ export default defineConfig({
     },
     overrides: [
       {
+        files: ["packages/evals/**/*.ts"],
+        rules: {
+          "no-console": "off",
+        },
+      },
+      {
         files: ["packages/sdk-ts/examples/**/*.ts"],
         rules: {
           "no-console": "off",
@@ -36,6 +42,7 @@ export default defineConfig({
       "packages/docs/tests/**/*.test.ts",
       "packages/server/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
+      "packages/evals/tests/**/*.test.ts",
       "packages/server/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",
     ],
@@ -50,6 +57,7 @@ export default defineConfig({
         "packages/server/tests/**/*.test.ts",
         "packages/sdk-ts/tests/**/*.test.ts",
         "packages/sdk-ts/tests/**/*.test-d.ts",
+        "packages/evals/tests/**/*.test.ts",
         "packages/server/understudy/**/*.test.ts",
         "packages/server/llm/**/*.test-d.ts",
         "rules/ast-grep/**/*.test.ts",

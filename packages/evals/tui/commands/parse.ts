@@ -18,7 +18,7 @@ import {
   parseBenchHarness,
   type Harness,
 } from "../../framework/benchTypes.js";
-import type { AgentToolMode } from "@browserbasehq/stagehand";
+import type { AgentToolMode } from "stagehand-v3";
 
 export interface RunFlags {
   target?: string;

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { handleDoctor } from "../../tui/commands/doctor.js";
 import { __resetPackageEnvCacheForTests } from "../../tui/welcomeStatus.js";
 

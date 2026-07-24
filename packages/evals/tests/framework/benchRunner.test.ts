@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import type { AvailableModel } from "stagehand-v3";
 import { executeBenchTask } from "../../framework/benchRunner.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 

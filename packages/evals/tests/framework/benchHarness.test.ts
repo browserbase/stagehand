@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { claudeCodeHarness, codexHarness, getBenchHarness } from "../../framework/benchHarness.js";
 
 describe("bench harness registry", () => {

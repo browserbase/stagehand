@@ -8,9 +8,9 @@
  * This module replaces the monolithic task execution logic in index.eval.ts
  * while preserving backward compatibility with legacy EvalFunction tasks.
  */
-import type { AvailableModel } from "@browserbasehq/stagehand";
-import type { AgentToolMode } from "@browserbasehq/stagehand";
-import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
+import type { AvailableModel } from "stagehand-v3";
+import type { AgentToolMode } from "stagehand-v3";
+import { shouldPersistTrajectory } from "stagehand-v3";
 import { AssertionError } from "./assertions.js";
 import { EvalLogger } from "../logger.js";
 import { EvalsError } from "../errors.js";

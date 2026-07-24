@@ -2,9 +2,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { loadTrajectoryFromDisk } from "@browserbasehq/stagehand";
-import type { EvaluationResult, TaskSpec, Trajectory } from "@browserbasehq/stagehand";
-import { describe, expect, it } from "vitest";
+import { loadTrajectoryFromDisk } from "stagehand-v3";
+import type { EvaluationResult, TaskSpec, Trajectory } from "stagehand-v3";
+import { describe, expect, it } from "vite-plus/test";
 
 import { persistAdapterTrajectory } from "../../framework/harnesses/persistTrajectory.js";
 

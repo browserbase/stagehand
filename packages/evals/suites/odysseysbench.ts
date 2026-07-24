@@ -1,5 +1,5 @@
 import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
-import { normalizeRubric, type AvailableModel } from "@browserbasehq/stagehand";
+import { normalizeRubric, type AvailableModel } from "stagehand-v3";
 import { tasksConfig } from "../taskConfig.js";
 import { getPackageRootDir } from "../runtimePaths.js";
 import {

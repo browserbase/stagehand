@@ -13,7 +13,7 @@ import {
   redactInlineImagePayloads,
   shouldPersistTrajectory,
   writeTrajectoryDir,
-} from "@browserbasehq/stagehand";
+} from "stagehand-v3";
 import type {
   AgentEvidence,
   AgentEvidenceEvent,
@@ -28,7 +28,7 @@ import type {
   TrajectoryStep,
   TrajectoryUsage,
   EvaluationResult,
-} from "@browserbasehq/stagehand";
+} from "stagehand-v3";
 
 export interface TrajectoryRecorderOptions {
   taskSpec: TaskSpec;
@@ -196,7 +196,7 @@ export class TrajectoryRecorder {
       finalAnswer: opts.finalAnswer ?? this.finalAnswerEvent?.message,
       ...(this.finalObservation ? { finalObservation: this.finalObservation } : {}),
       status: opts.status,
-      usage: { ...ZERO_USAGE, ...(opts.usage ?? {}) },
+      usage: { ...ZERO_USAGE, ...opts.usage },
     };
 
     if (this.persistEnabled) {
