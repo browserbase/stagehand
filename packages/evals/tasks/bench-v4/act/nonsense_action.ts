@@ -1,22 +1,15 @@
 import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
 export default defineBenchV4Task(
-  { name: "instructions" },
+  { name: "nonsense_action" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://docs.browserbase.com/");
+      await page.goto("https://www.homedepot.com/");
 
-      await stagehand.act("secret12345");
-
-      await page.waitForLoadState("domcontentloaded");
-
-      const url = await page.url();
-
-      const isCorrectUrl =
-        url === "https://docs.browserbase.com/introduction/what-is-browserbase";
+      const result = await stagehand.act("what is the capital of the moon?");
 
       return {
-        _success: isCorrectUrl,
+        _success: !result.success, // We expect this to fail
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
