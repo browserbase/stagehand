@@ -58,7 +58,7 @@ jobs:
         uses: changesets/action@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: just version
+          version: just _version
           publish: just _publish-typescript
           title: Release Stagehand packages
           commit: release Stagehand packages
