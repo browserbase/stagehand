@@ -44,6 +44,12 @@ export interface ClaudeCodeRunResult {
   status?: Trajectory["status"];
   /** Optional usage to fold into Trajectory.usage. */
   usage?: Partial<Trajectory["usage"]>;
+  /**
+   * Harness-observed terminal page state (screenshot + URL captured through
+   * the tool surface after the agent finished). Preferred over any
+   * agent-returned image as the verifier's final-observation anchor.
+   */
+  terminalArtifact?: { screenshot?: Buffer; url?: string };
 }
 
 interface ToolUseBlock {
@@ -175,17 +181,31 @@ export class ClaudeCodeTrajectoryAdapter
       resultMessageText ??
       (trailing.length > 0 ? trailing : undefined);
 
-    // Anchor the closing frame with the most recent screenshot the agent
-    // captured. Claude Code doesn't run a post-task probe, so the last
-    // tool_result image is the best proxy for "terminal observation" — without
-    // it the verifier's final-screenshot anchor (evidence.ts:136-143) is empty.
+    // Anchor the closing frame for the verifier. Preference order:
+    // 1. The harness-observed terminal artifact (screenshot + URL captured
+    //    through the tool surface after the agent finished) — grading is
+    //    grounded in what actually happened on the page, independent of the
+    //    agent's self-report. Code surfaces stringify tool results, so this
+    //    is the ONLY screenshot source for v4_code/playwright_code/cdp_code.
+    // 2. Fallback: the most recent image the agent returned from a tool call
+    //    (browse_cli), the pre-existing best proxy — without any anchor the
+    //    verifier's final-screenshot slot (evidence.ts:136-143) is empty.
     let finalObservation: ProbeEvidence | undefined;
-    for (let i = toolUses.length - 1; i >= 0; i--) {
-      const matched = toolResults.get(toolUses[i].id);
-      const lastImage = matched?.images[matched.images.length - 1];
-      if (lastImage) {
-        finalObservation = { screenshot: lastImage.bytes };
-        break;
+    if (result.terminalArtifact?.screenshot) {
+      finalObservation = {
+        screenshot: result.terminalArtifact.screenshot,
+        ...(result.terminalArtifact.url && {
+          url: result.terminalArtifact.url,
+        }),
+      };
+    } else {
+      for (let i = toolUses.length - 1; i >= 0; i--) {
+        const matched = toolResults.get(toolUses[i].id);
+        const lastImage = matched?.images[matched.images.length - 1];
+        if (lastImage) {
+          finalObservation = { screenshot: lastImage.bytes };
+          break;
+        }
       }
     }
 

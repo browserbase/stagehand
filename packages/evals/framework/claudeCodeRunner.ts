@@ -256,6 +256,13 @@ export async function runClaudeCodeAgent({
 
   // Build a Trajectory from the SDK message stream and grade it with the
   // rubric verifier; any failure in that path folds into `verifierError`.
+  // Artifact-grounded grading: the harness observes the terminal page state
+  // itself (screenshot + URL through the tool surface) so the verifier's
+  // final-observation anchor never depends on what the agent chose to
+  // return. Code surfaces stringify tool results, so without this the
+  // verifier had no terminal screenshot at all.
+  const terminalArtifact = await toolAdapter?.captureFinalState?.();
+
   return gradeExternalTrajectory({
     buildTrajectory: () =>
       claudeCodeAdapter.fromHarnessResult(
@@ -268,6 +275,7 @@ export async function runClaudeCodeAgent({
             output_tokens: tokenUsage.outputTokens,
             cached_input_tokens: tokenUsage.cacheReadInputTokens,
           },
+          ...(terminalArtifact && { terminalArtifact }),
         },
         verifier.taskSpec,
       ),
