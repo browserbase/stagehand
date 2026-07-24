@@ -7,13 +7,7 @@
  *
  * A third tier ("interpret") is planned but not yet implemented.
  */
-import type {
-  AgentToolMode,
-  AgentInstance,
-  AvailableModel,
-  LogLine,
-  V3,
-} from "@browserbasehq/stagehand";
+import type { AgentToolMode, AgentInstance, AvailableModel, LogLine, V3 } from "stagehand-v3";
 import type {
   CorePageHandle,
   CoreSession,

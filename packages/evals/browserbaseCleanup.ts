@@ -1,4 +1,4 @@
-import type { V3 } from "@browserbasehq/stagehand";
+import type { V3 } from "stagehand-v3";
 
 const CLOSE_TIMEOUT_MS = 5_000;
 

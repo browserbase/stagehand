@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { bold, dim, cyan, gray, green, red } from "../format.js";
 import { parseAgentModes } from "./parse.js";
-import type { AgentToolMode } from "@browserbasehq/stagehand";
+import type { AgentToolMode } from "stagehand-v3";
 
 type Defaults = {
   env?: string | null;

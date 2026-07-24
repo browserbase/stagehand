@@ -12,7 +12,7 @@ function makeTempEntryDir(initial?: Record<string, unknown>): string {
   tempDirs.push(dir);
   fs.writeFileSync(
     path.join(dir, "evals.config.json"),
-    JSON.stringify({ defaults: {}, benchmarks: {}, ...(initial ?? {}) }, null, 2),
+    JSON.stringify({ defaults: {}, benchmarks: {}, ...initial }, null, 2),
   );
   return dir;
 }

@@ -1,4 +1,4 @@
-import type { AgentToolMode, AvailableModel } from "@browserbasehq/stagehand";
+import type { AgentToolMode, AvailableModel } from "stagehand-v3";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 
 export type Harness = "stagehand" | "claude_code" | "codex";

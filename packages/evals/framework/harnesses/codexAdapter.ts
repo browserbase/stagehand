@@ -26,7 +26,7 @@
  *     query in args.
  *   - todo_list items → not surfaced as tool calls (they aren't actions).
  */
-import type { TaskSpec, Trajectory } from "@browserbasehq/stagehand";
+import type { TaskSpec, Trajectory } from "stagehand-v3";
 import {
   buildTrajectory,
   type NormalizedToolCall,

@@ -15,7 +15,7 @@ import { discoverTasks, resolveTarget } from "../../framework/discovery.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 import { buildBenchMatrixRow, generateBenchTestcases } from "../../framework/benchPlanner.js";
 import type { StartupProfile, ToolSurface } from "../../core/contracts/tool.js";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import type { AvailableModel } from "stagehand-v3";
 import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";

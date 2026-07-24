@@ -17,7 +17,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 
-import type { Rubric, TaskSpec } from "@browserbasehq/stagehand";
+import type { Rubric, TaskSpec } from "stagehand-v3";
 
 export interface RubricCacheOptions {
   /**

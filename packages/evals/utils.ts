@@ -8,7 +8,7 @@
  *   and eval name or category.
  */
 import fs from "fs";
-import { LogLine } from "@browserbasehq/stagehand";
+import { LogLine } from "stagehand-v3";
 import stringComparison from "string-comparison";
 import type { AgentModelEntry } from "./types/evals.js";
 import { inferDefaultStagehandAgentMode } from "./framework/agentModelModes.js";

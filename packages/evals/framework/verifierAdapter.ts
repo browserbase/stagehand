@@ -9,7 +9,7 @@ import {
   type TaskSpec,
   type Trajectory,
   type V3,
-} from "@browserbasehq/stagehand";
+} from "stagehand-v3";
 
 import type { EvalLogger } from "../logger.js";
 import { tracedSpan } from "./braintrust.js";

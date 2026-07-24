@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { TaskSpec } from "@browserbasehq/stagehand";
+import type { TaskSpec } from "stagehand-v3";
 
 import { TrajectoryRecorder } from "../../framework/trajectoryRecorder.js";
 

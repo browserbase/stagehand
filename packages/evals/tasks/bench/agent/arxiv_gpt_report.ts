@@ -1,5 +1,5 @@
 // agent often fails on this one
-import type { TaskSpec } from "@browserbasehq/stagehand";
+import type { TaskSpec } from "stagehand-v3";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";

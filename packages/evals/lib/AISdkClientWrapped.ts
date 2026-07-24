@@ -19,7 +19,7 @@ import {
   LLMClient,
   LogLine,
   toJsonSchema,
-} from "@browserbasehq/stagehand";
+} from "stagehand-v3";
 
 type WrappedAI = ReturnType<(typeof import("braintrust"))["wrapAISDK"]>;
 

@@ -16,7 +16,7 @@ import {
   loadTrajectoryFromDisk,
   nextResultFilename,
   type AvailableModel,
-} from "@browserbasehq/stagehand";
+} from "stagehand-v3";
 
 import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
 

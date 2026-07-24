@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { AgentToolMode, AvailableModel } from "@browserbasehq/stagehand";
-import type { LogLine } from "@browserbasehq/stagehand";
-import type { AgentInstance } from "@browserbasehq/stagehand";
+import type { AgentToolMode, AvailableModel } from "stagehand-v3";
+import type { LogLine } from "stagehand-v3";
+import type { AgentInstance } from "stagehand-v3";
 import type { EvalCase } from "braintrust";
-import type { V3 } from "@browserbasehq/stagehand";
+import type { V3 } from "stagehand-v3";
 import { EvalLogger } from "../logger.js";
 
 export type StagehandInitResult = {

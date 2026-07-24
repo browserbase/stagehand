@@ -1,4 +1,4 @@
-import type { TaskSpec } from "@browserbasehq/stagehand";
+import type { TaskSpec } from "stagehand-v3";
 
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";

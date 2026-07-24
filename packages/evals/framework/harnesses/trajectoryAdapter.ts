@@ -5,7 +5,7 @@ import type {
   TaskSpec,
   Trajectory,
   TrajectoryStep,
-} from "@browserbasehq/stagehand";
+} from "stagehand-v3";
 
 /**
  * Pure converter from a harness-specific result to a verifier Trajectory.

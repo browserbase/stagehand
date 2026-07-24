@@ -1,13 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { shouldPersistTrajectory, writeTrajectoryDir } from "@browserbasehq/stagehand";
+import { shouldPersistTrajectory, writeTrajectoryDir } from "stagehand-v3";
 import {
   reserveTrajectoryDir,
   resolveTrajectoryDir,
   resolveTrajectoryRoot,
   writeTrajectoryMetadata,
 } from "../trajectoryGroup.js";
-import type { EvaluationResult, TaskSpec, Trajectory } from "@browserbasehq/stagehand";
+import type { EvaluationResult, TaskSpec, Trajectory } from "stagehand-v3";
 
 export interface PersistAdapterTrajectoryOptions {
   trajectory: Trajectory;

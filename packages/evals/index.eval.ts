@@ -44,7 +44,7 @@ import {
   loadApiKeyFromEnv,
   LogLine,
   getAISDKLanguageModel,
-} from "@browserbasehq/stagehand";
+} from "stagehand-v3";
 import { AISdkClientWrapped } from "./lib/AISdkClientWrapped.js";
 import { getEnv } from "./env.js";
 const env = getEnv();

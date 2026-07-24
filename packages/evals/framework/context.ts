@@ -4,7 +4,7 @@
  * - buildCoreContext(): starts a core tool surface, provides page + tool + assert + metrics
  * - buildBenchContext(): full V3 init with model/agent support (wraps existing initV3)
  */
-import type { AvailableModel, ClientOptions, LLMClient } from "@browserbasehq/stagehand";
+import type { AvailableModel, ClientOptions, LLMClient } from "stagehand-v3";
 import { type V3InitResult, initV3 } from "../initV3.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { coreFixtureRoutes } from "../core/fixtures/index.js";
@@ -102,7 +102,7 @@ export async function buildCoreContext(
       surface: tool.surface,
       metadata: {
         ...toolResult.metadata,
-        ...(targetResult.metadata ?? {}),
+        ...targetResult.metadata,
       },
     },
     assert: createAssertHelpers(),
