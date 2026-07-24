@@ -1928,14 +1928,18 @@ export class Page {
     // Keep the cursor overlay in sync with the action, like every other
     // coordinate action (click/hover/drag), even though touch has no cursor.
     await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [{ x, y }],
-    } as Protocol.Input.DispatchTouchEventRequest);
-    await this.mainSession.send<never>("Input.dispatchTouchEvent", {
-      type: "touchEnd",
-      touchPoints: [],
-    } as Protocol.Input.DispatchTouchEventRequest);
+    // Pipeline both events (like click) so a slow touchStart round trip on a
+    // remote session doesn't stretch the tap into a long press.
+    await Promise.all([
+      this.mainSession.send<never>("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x, y }],
+      } as Protocol.Input.DispatchTouchEventRequest),
+      this.mainSession.send<never>("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      } as Protocol.Input.DispatchTouchEventRequest),
+    ]);
 
     return xpathResult ?? "";
   }
