@@ -3,8 +3,8 @@ package stagehand
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -55,13 +55,13 @@ func (c *recordingProtocolClient) close() error {
 	return nil
 }
 
-func TestDefaultInitStopsAtExplicitBrowserTODO(t *testing.T) {
+func TestDefaultInitRequiresBrowserbaseAPIKey(t *testing.T) {
 	t.Parallel()
 
-	client := New(StagehandClientInitParams{Browser: LocalBrowserSource{Headless: true}})
+	client := New(StagehandClientInitParams{})
 	err := client.Init(context.Background())
-	if !errors.Is(err, ErrBrowserSourceNotImplemented) {
-		t.Fatalf("Init() error = %v, want ErrBrowserSourceNotImplemented", err)
+	if err == nil || !strings.Contains(err.Error(), "Browserbase API key is required") {
+		t.Fatalf("Init() error = %v, want Browserbase API key error", err)
 	}
 }
 

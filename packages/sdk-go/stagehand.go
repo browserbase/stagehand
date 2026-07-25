@@ -197,8 +197,10 @@ func (s *Stagehand) Init(ctx context.Context) error {
 
 	rpc, err := s.adapters.connectProtocol(ctx, browser, s.initParams.Telemetry)
 	if err != nil {
-		_ = s.releaseBrowser(ctx)
-		return fmt.Errorf("connect protocol: %w", err)
+		return errors.Join(
+			fmt.Errorf("connect protocol: %w", err),
+			s.releaseBrowser(ctx),
+		)
 	}
 	s.rpc = rpc
 	onLog := func(StagehandLog) {}
@@ -255,7 +257,16 @@ func (s *Stagehand) workerInitParams(browser resolvedBrowserSource) StagehandIni
 		model := ServerModel(*s.initParams.Model)
 		params.Model = &model
 	}
-	if source, ok := s.initParams.Browser.(BrowserbaseClientBrowserSource); ok {
+	var source *BrowserbaseClientBrowserSource
+	switch browser := s.initParams.Browser.(type) {
+	case BrowserbaseClientBrowserSource:
+		source = &browser
+	case *BrowserbaseClientBrowserSource:
+		source = browser
+	case nil:
+		source = &BrowserbaseClientBrowserSource{}
+	}
+	if source != nil {
 		params.Browser = &BrowserbaseBrowserSource{
 			BrowserSettings: source.BrowserSettings,
 			ExtensionID:     source.ExtensionID,
@@ -344,10 +355,16 @@ func (s *Stagehand) releaseBrowser(ctx context.Context) error {
 	}
 	browser := s.browser
 	s.browser = nil
-	if browser.keepAlive || browser.close == nil {
-		return nil
+
+	var browserErr error
+	if !browser.keepAlive && browser.close != nil {
+		browserErr = browser.close(ctx)
 	}
-	return browser.close(ctx)
+	var cleanupErr error
+	if browser.cleanup != nil {
+		cleanupErr = browser.cleanup()
+	}
+	return errors.Join(browserErr, cleanupErr)
 }
 
 func newStagehandWithClient(initParams StagehandClientInitParams, rpc protocolClient) *Stagehand {
