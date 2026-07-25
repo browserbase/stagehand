@@ -709,6 +709,10 @@ class ImplementationInfo(WireModel):
     version: Annotated[StrictStr, Field(min_length=1)]
 
 
+class Input(RootModel[StrictStr]):
+    root: Annotated[StrictStr, Field(min_length=1)]
+
+
 class JSONRPCErrorObject(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1885,7 +1889,7 @@ class StagehandActParams(WireModel):
         validate_by_name=True,
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
-    input: Annotated[StrictStr, Field(min_length=1)]
+    input: Union[Input, Action]
     options: Optional[ActOptions] = None
 
 

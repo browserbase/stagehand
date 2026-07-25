@@ -1623,8 +1623,15 @@
           "minLength": 1
         },
         "input": {
-          "type": "string",
-          "minLength": 1
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "$ref": "#/$defs/Action"
+            }
+          ]
         },
         "options": {
           "$ref": "#/$defs/ActOptions"
@@ -1632,6 +1639,37 @@
       },
       "required": ["page_id", "input"],
       "additionalProperties": false
+    },
+    "Action": {
+      "type": "object",
+      "properties": {
+        "selector": {
+          "type": "string",
+          "description": "CSS selector or XPath for the element",
+          "example": "[data-testid='submit-button']"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the action",
+          "example": "Click the submit button"
+        },
+        "method": {
+          "description": "The method to execute (click, fill, etc.)",
+          "example": "click",
+          "type": "string"
+        },
+        "arguments": {
+          "description": "Arguments to pass to the method",
+          "example": ["Hello World"],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["selector", "description"],
+      "additionalProperties": false,
+      "description": "Action object returned by observe and used by act"
     },
     "ActOptions": {
       "type": "object",
@@ -1774,37 +1812,6 @@
       },
       "required": ["success", "message", "action_description", "actions"],
       "additionalProperties": false
-    },
-    "Action": {
-      "type": "object",
-      "properties": {
-        "selector": {
-          "type": "string",
-          "description": "CSS selector or XPath for the element",
-          "example": "[data-testid='submit-button']"
-        },
-        "description": {
-          "type": "string",
-          "description": "Human-readable description of the action",
-          "example": "Click the submit button"
-        },
-        "method": {
-          "description": "The method to execute (click, fill, etc.)",
-          "example": "click",
-          "type": "string"
-        },
-        "arguments": {
-          "description": "Arguments to pass to the method",
-          "example": ["Hello World"],
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": ["selector", "description"],
-      "additionalProperties": false,
-      "description": "Action object returned by observe and used by act"
     },
     "CacheStatus": {
       "type": "string",
