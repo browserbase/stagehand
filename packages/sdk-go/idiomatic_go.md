@@ -256,16 +256,17 @@ The `add-go` model PR adopts the narrow hybrid, without modifying the canonical 
 
 This is deliberately schema projection, not output patching: Omissis output is accepted as generated or generation fails. The only custom logic is the part Go cannot express as native tagged unions.
 
-### Remaining concerns for the client PR
+### Remaining concerns for the client
 
 - Model-only Omissis output does not enforce required fields, `const`, regexes, formats, numeric bounds, or `additionalProperties: false`. Union constructors enforce the critical discriminators, but complete local JSON Schema validation remains a separate decision. The server can remain authoritative, or the client can add a Draft 2020-12 validator at its request/response boundary.
 - A Go pointer cannot distinguish an omitted field from an explicitly present JSON `null`. The current protocol models collapse those states. Add a presence wrapper only if the client finds a method where that distinction changes behavior.
 - Omissis emits schema `const` properties as ordinary Go fields. Later client-facing constructors should set constants for browser sources, response formats, and similar tagged objects; callers constructing generated structs directly can still set invalid strings.
-- Required fields are ordinary zero-valued Go fields. The thin client must decide whether to validate outbound params locally or rely on RPC errors; generated structs alone do not prove a required string was supplied.
+- Required fields are ordinary zero-valued Go fields. The thin client currently relies on authoritative RPC errors rather than duplicating protocol validation; generated structs alone do not prove a required string was supplied.
 - The module path is `github.com/browserbase/stagehand/packages/sdk-go`, matching the module's `packages/sdk-go` directory inside `github.com/browserbase/stagehand`. Releases from this layout will need subdirectory-prefixed Go tags such as `packages/sdk-go/v0.1.0`.
-- Dynamic extract/evaluate payloads intentionally remain `json.RawMessage`. The client should add generic decode helpers rather than weakening them to `any`.
+- Dynamic extract/evaluate payloads intentionally remain `json.RawMessage`. `ExtractAs` provides caller-selected typed decoding without weakening the generated protocol boundary to `any`.
 - Single-string-or-array values and single-block-or-array LLM content normalize to arrays when marshalled. Arrays are schema-valid and give callers one stable Go representation, but byte-for-byte preservation of the input shape is not promised.
 - The handwritten union layer is part of the public model API. Before v1, evaluate constructor/accessor naming against the first thin-client implementation and real examples.
+- Browser source resolution and the CDP-backed JSON-RPC transport are intentionally stubbed in the first thin-client pass. Examples compile and exercise the public surface, but cannot complete `Stagehand.Init` until that bootstrap layer is implemented.
 
 Conclusion: Omissis is suitable for the generated struct/enum layer, but not as a validator or union generator. The projection-plus-union boundary keeps custom code small, explicit, and testable while retaining the canonical Draft 2020-12 schema.
 

@@ -223,6 +223,9 @@ catalogs:
     '@ai-sdk/provider':
       specifier: ^4.0.2
       version: 4.0.2
+    '@ast-grep/lang-go':
+      specifier: 0.0.6
+      version: 0.0.6
     '@ast-grep/lang-python':
       specifier: 0.0.6
       version: 0.0.6
@@ -318,6 +321,9 @@ importers:
 
   .:
     devDependencies:
+      '@ast-grep/lang-go':
+        specifier: 'catalog:'
+        version: 0.0.6
       '@ast-grep/lang-python':
         specifier: 'catalog:'
         version: 0.0.6
@@ -552,6 +558,14 @@ packages:
   '@ai-sdk/provider@4.0.2':
     resolution: {integrity: sha512-pfPoy9J1B1xV7cqJ8MYHOsDYrMv5tR3+EMNfI249OhkD2uRakvav3Fo7XpD2luuN/YNCBY7KfEQc7vEV7KEtyw==}
     engines: {node: '>=22'}
+
+  '@ast-grep/lang-go@0.0.6':
+    resolution: {integrity: sha512-PZap9Rp6t+YKbLjRnFRF5aGBX3/HV9s5Rp7ZPsCM+o3tlTZDo1IqDYnFu+Oeh5Razs2U8K8ccPSJ+GBxalVhWg==}
+    peerDependencies:
+      tree-sitter-cli: 0.25.8
+    peerDependenciesMeta:
+      tree-sitter-cli:
+        optional: true
 
   '@ast-grep/lang-python@0.0.6':
     resolution: {integrity: sha512-eF/bEBspmrxdVuPNihvZDyyJx5qtIpGEMz9l1nNQmrji7NZcUiRNC8WwzYyQCBdy1mj8HZ0Tn4I2q3gp/6Bkiw==}
@@ -2304,6 +2318,10 @@ snapshots:
   '@ai-sdk/provider@4.0.2':
     dependencies:
       json-schema: 0.4.0
+
+  '@ast-grep/lang-go@0.0.6':
+    dependencies:
+      '@ast-grep/setup-lang': 0.0.6
 
   '@ast-grep/lang-python@0.0.6':
     dependencies:
