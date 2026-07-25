@@ -1,8 +1,5 @@
 import { z } from "zod/v4";
 import {
-  ActOptionsSchema,
-  ActResultSchema,
-  ActionSchema,
   AzureEntraIdAuthSchema,
   AzureModelProviderOptionsSchema,
   BrowserbaseSessionCreateParamsSchema,
@@ -429,25 +426,6 @@ export const SessionEndResponseSchema = z
   })
   .strict()
   .meta({ id: "SessionEndResponse" });
-
-export const ActRequestSchema = z
-  .object({
-    input: z.string().or(ActionSchema).meta({
-      description: "Natural language instruction or Action object",
-      example: "Click the login button",
-    }),
-    options: ActOptionsSchema,
-    frameId: z.string().nullish().meta({
-      description: "Target frame ID for the action",
-    }),
-    streamResponse: z.boolean().optional().meta({
-      description: "Whether to stream the response via SSE",
-      example: true,
-    }),
-  })
-  .meta({ id: "ActRequest" });
-
-export const ActResponseSchema = wrapResponse(ActResultSchema, "ActResponse");
 
 export const ExtractRequestSchema = z
   .object({

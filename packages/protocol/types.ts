@@ -189,8 +189,6 @@ import type {
   VertexProviderOptionsSchema,
 } from "./schemas.js";
 import type {
-  ActRequestSchema,
-  ActResponseSchema,
   AISDKApiKeyProviderSchema,
   AnthropicClientOptionsSchema,
   ApiKeyAuthSchema,
@@ -460,8 +458,6 @@ export type VertexResolvedProviderClientOptions = z.infer<
   typeof VertexResolvedProviderClientOptionsSchema
 >;
 
-export type ActRequest = z.infer<typeof ActRequestSchema>;
-export type ActResponse = z.infer<typeof ActResponseSchema>;
 export type BrowserConfig = z.infer<typeof BrowserConfigSchema>;
 export type BrowserbaseBrowserSettings = z.infer<typeof BrowserbaseBrowserSettingsSchema>;
 export type BrowserbaseContext = z.infer<typeof BrowserbaseContextSchema>;

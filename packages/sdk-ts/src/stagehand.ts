@@ -140,7 +140,9 @@ export class Stagehand {
     this.closePromise = undefined;
   }
 
-  async act(input: string, options?: StagehandClientActOptions): Promise<ActResultData> {
+  async act(instruction: string, options?: StagehandClientActOptions): Promise<ActResultData>;
+  async act(action: Action, options?: StagehandClientActOptions): Promise<ActResultData>;
+  async act(input: string | Action, options?: StagehandClientActOptions): Promise<ActResultData> {
     const { page, ...protocolOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");

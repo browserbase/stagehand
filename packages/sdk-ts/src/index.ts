@@ -15,6 +15,8 @@ export { Page, type ScreenshotOptions } from "./page.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand } from "./stagehand.js";
 export type {
+  Action,
+  ActResultData,
   BrowserGetVersionResult,
   RuntimeLoopbackStatusResult,
   StagehandMetrics,
