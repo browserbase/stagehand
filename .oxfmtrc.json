@@ -1,1 +1,3 @@
-{}
+{
+  "ignorePatterns": ["packages/docs/**"]
+}
