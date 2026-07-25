@@ -168,7 +168,7 @@ vercel env add BROWSERBASE_API_KEY
 vercel env add GOOGLE_API_KEY
 ```
 
-See also: [Browser Environment](/configuration/environment) for details on required variables.
+See also: [Browser Configuration](/v3/configuration/browser) for details on required variables.
 
 ### 9. Test locally
 
@@ -231,4 +231,3 @@ Hit the same endpoint on a schedule by extending `vercel.json`:
 - **No local browsers needed** with `env: "BROWSERBASE"`. [Browserbase](https://www.browserbase.com/) provides the browsers.
 - **Fast functionality**: Offload browser work to Browserbase and return JSON promptly.
 - **Long-running tasks**: Raise `maxDuration` and/or consider Edge runtime limits depending on plan.
-
