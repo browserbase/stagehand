@@ -30,11 +30,11 @@ describe("TypeScript SDK runtime portability", () => {
     }
 
     expect(references.sort()).toStrictEqual([
-      'localBrowserLauncher.ts: Node module: "node:child_process"',
-      'localBrowserLauncher.ts: Node module: "node:fs/promises"',
-      'localBrowserLauncher.ts: Node module: "node:os"',
-      'localBrowserLauncher.ts: Node module: "node:path"',
-      'localBrowserLauncher.ts: Node module: "node:process"',
+      'runtime/node/localBrowserLauncher.ts: Node module: "node:child_process"',
+      'runtime/node/localBrowserLauncher.ts: Node module: "node:fs/promises"',
+      'runtime/node/localBrowserLauncher.ts: Node module: "node:os"',
+      'runtime/node/localBrowserLauncher.ts: Node module: "node:path"',
+      'runtime/node/localBrowserLauncher.ts: Node module: "node:process"',
     ]);
   });
 

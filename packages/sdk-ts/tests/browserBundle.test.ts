@@ -9,7 +9,7 @@ describe("TypeScript SDK browser bundle", () => {
       build: {
         write: false,
         lib: {
-          entry: new URL("../src/index.ts", import.meta.url).pathname,
+          entry: new URL("../src/runtime/web/index.ts", import.meta.url).pathname,
           formats: ["es"],
         },
       },
@@ -28,5 +28,6 @@ describe("TypeScript SDK browser bundle", () => {
     expect(code).not.toMatch(/(?:from\s*|import\()\s*["']node:/);
     expect(code).not.toContain("@browserbasehq/sdk");
     expect(code).not.toMatch(/\bBuffer\b/);
+    expect(code).not.toContain("Local browser sources are unavailable in this runtime");
   });
 });

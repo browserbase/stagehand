@@ -8,7 +8,7 @@ import { build } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.js";
-import { loadStagehandExtension } from "../../../sdk-ts/src/localBrowserLauncher.js";
+import { loadStagehandExtension } from "../../../sdk-ts/src/runtime/node/localBrowserLauncher.js";
 import { StagehandMethods } from "../../schema-registry.js";
 import type { StagehandRpcNotification } from "../../types.js";
 

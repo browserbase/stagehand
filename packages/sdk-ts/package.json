@@ -5,15 +5,37 @@
     "dist"
   ],
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "workerd": {
+        "types": "./dist/web/index.d.ts",
+        "default": "./dist/web/index.js"
+      },
+      "deno": {
+        "types": "./dist/web/index.d.ts",
+        "default": "./dist/web/index.js"
+      },
+      "bun": {
+        "types": "./dist/web/index.d.ts",
+        "default": "./dist/web/index.js"
+      },
+      "browser": {
+        "types": "./dist/web/index.d.ts",
+        "default": "./dist/web/index.js"
+      },
+      "node": {
+        "types": "./dist/node/index.d.ts",
+        "default": "./dist/node/index.js"
+      },
+      "types": "./dist/web/index.d.ts",
+      "default": "./dist/web/index.js"
     }
   },
   "scripts": {
+    "build": "pnpm --dir ../server run build && pnpm run build:extension-archive && tsdown",
     "build:extension-archive": "node scripts/build-extension-archive.ts",
-    "build": "tsdown",
+    "test:package-resolution": "pnpm run build && node scripts/test-package-resolution.mjs",
     "test": "vitest run --root ../.. packages/sdk-ts/tests"
   },
   "dependencies": {

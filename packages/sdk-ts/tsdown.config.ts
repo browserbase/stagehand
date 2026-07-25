@@ -1,10 +1,13 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: "src/index.ts",
+  entry: {
+    "node/index": "src/runtime/node/index.ts",
+    "web/index": "src/runtime/web/index.ts",
+  },
   format: ["esm"],
-  platform: "node",
-  target: "node22",
+  platform: "neutral",
+  target: "es2022",
   dts: {
     sourcemap: true,
   },
@@ -23,11 +26,11 @@ export default defineConfig({
   copy: [
     {
       from: "../server/artifacts/stagehand-extension.zip",
-      to: "dist/assets",
+      to: "dist/node/assets",
     },
     {
       from: "../server/dist",
-      to: "dist",
+      to: "dist/node",
       rename: "extension",
     },
   ],

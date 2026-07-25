@@ -12,7 +12,7 @@ import type {
 } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { BrowserContext } from "./browserContext.js";
-import { resolveBrowserSource, type ResolvedBrowserSource } from "./browserSource.js";
+import type { ResolvedBrowserSource } from "./browserSource.shared.js";
 import {
   StagehandClientActOptionsSchema,
   StagehandClientExtractOptionsSchema,
@@ -28,13 +28,13 @@ import {
 import { CDPConnectionClosedError } from "./cdpClient.js";
 
 type StagehandAdapters = {
-  resolveBrowserSource?: (initParams: StagehandClientInitParams) => Promise<ResolvedBrowserSource>;
+  resolveBrowserSource: (
+    initParams: ResolvedStagehandClientInitParams,
+  ) => Promise<ResolvedBrowserSource>;
   connectRpcClient?: (options: RPCClientOptions) => Promise<RPCClient>;
 };
 
-const stagehandAdapters = new WeakMap<Stagehand, StagehandAdapters>();
-
-export class Stagehand {
+export class Stagehand<InitParams> {
   browserContext: BrowserContext | undefined;
   isInitialized = false;
   rpcClient: RPCClient | undefined;
@@ -43,7 +43,11 @@ export class Stagehand {
   private resolvedBrowser: ResolvedBrowserSource | undefined;
   closePromise: Promise<void> | undefined;
 
-  constructor(readonly initParams: StagehandClientInitParams) {}
+  constructor(
+    readonly initParams: InitParams,
+    private readonly resolvedInitParams: ResolvedStagehandClientInitParams,
+    private readonly adapters: StagehandAdapters,
+  ) {}
 
   get context(): BrowserContext {
     if (!this.browserContext) {
@@ -84,13 +88,12 @@ export class Stagehand {
       return;
     }
 
-    const clientInitParams = StagehandClientInitParamsSchema.parse(this.initParams);
-    const adapters = stagehandAdapters.get(this) ?? {};
-    const browser = await (adapters.resolveBrowserSource ?? resolveBrowserSource)(clientInitParams);
+    const clientInitParams = this.resolvedInitParams;
+    const browser = await this.adapters.resolveBrowserSource(clientInitParams);
     this.resolvedBrowser = browser;
 
     try {
-      const rpcClient = await (adapters.connectRpcClient ?? connectRPCClient)({
+      const rpcClient = await (this.adapters.connectRpcClient ?? connectRPCClient)({
         cdpUrl: browser.cdpUrl,
         // TODO: Thread browser.cdpHeaders through CDP discovery and the WebSocket handshake.
         serviceWorkerUrlIncludes: "service-worker.js",
@@ -224,6 +227,8 @@ export class Stagehand {
   }
 }
 
+export { Stagehand as StagehandCore };
+
 function stagehandInitParamsForWorker(
   initParams: ResolvedStagehandClientInitParams,
   resolvedBrowser: ResolvedBrowserSource,
@@ -249,7 +254,9 @@ function stagehandInitParamsForWorker(
   });
 }
 
-export function createStagehandWithClientForTest(client: RPCClient): Stagehand {
+export function createStagehandWithClientForTest(
+  client: RPCClient,
+): Stagehand<StagehandClientInitParams> {
   return createStagehandWithDependenciesForTest(
     {
       browser: {
@@ -313,8 +320,6 @@ function reportOnLogError(error: unknown): void {
 export function createStagehandWithDependenciesForTest(
   initParams: StagehandClientInitParams,
   adapters: StagehandAdapters,
-): Stagehand {
-  const stagehand = new Stagehand(initParams);
-  stagehandAdapters.set(stagehand, adapters);
-  return stagehand;
+): Stagehand<StagehandClientInitParams> {
+  return new Stagehand(initParams, StagehandClientInitParamsSchema.parse(initParams), adapters);
 }

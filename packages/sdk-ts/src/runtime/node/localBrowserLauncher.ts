@@ -62,7 +62,10 @@ const DEFAULT_CHROME_FLAGS = [
   "--disable-domain-reliability",
   "--propagate-iph-for-testing",
 ] as const;
-const STAGEHAND_EXTENSION_PATH = new URL("../../server/dist", import.meta.url).pathname;
+const STAGEHAND_EXTENSION_PATH = new URL(
+  import.meta.url.includes("/dist/node/") ? "./extension" : "../../../../server/dist",
+  import.meta.url,
+).pathname;
 
 export async function launchLocalBrowser(
   options: LocalBrowserLaunchOptions,

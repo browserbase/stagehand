@@ -3,7 +3,7 @@ import {
   launchLocalBrowser,
   type LocalBrowserNodeRuntime,
   type LocalBrowserProcess,
-} from "../src/localBrowserLauncher.js";
+} from "../src/runtime/node/localBrowserLauncher.js";
 
 describe("local browser launcher", () => {
   it("launches Chrome with portable options and reads its assigned debugger port", async () => {
