@@ -10,6 +10,7 @@ install:
 generate:
     pnpm --filter ./packages/protocol build
     uv --directory {{python_dir}} run --locked python scripts/generate.py
+    pnpm --filter ./packages/server build
     go -C {{go_dir}} generate ./...
 
 check:
@@ -20,6 +21,8 @@ check:
     uv --directory {{python_dir}} run --locked ruff check .
     uv --directory {{python_dir}} run --locked ty check
     go -C {{go_generator_dir}} run . --check
+    pnpm --filter ./packages/server build
+    go -C {{go_dir}} run ./internal/extensionpack --check
     test -z "$(gofmt -l $(find {{go_dir}} -name '*.go' -type f))"
     go -C {{go_dir}} vet ./...
     go -C {{go_generator_dir}} vet ./...
@@ -48,5 +51,6 @@ fmt:
 build:
     pnpm build
     uv --directory {{python_dir}} run --locked python scripts/build.py
+    go -C {{go_dir}} run ./internal/extensionpack --check
     go -C {{go_dir}} build ./...
-    go -C {{go_generator_dir}} build ./...
+    go -C {{go_generator_dir}} build -o /dev/null .

@@ -12,7 +12,6 @@ type BrowserSource interface {
 }
 
 // LocalBrowserSource configures a Chromium process launched by the SDK.
-// Browser launching is the one intentionally deferred part of this client PR.
 type LocalBrowserSource struct {
 	Args                []string
 	ExecutablePath      string
@@ -21,20 +20,28 @@ type LocalBrowserSource struct {
 	PreserveUserDataDir bool
 	Headless            bool
 	Devtools            bool
-	ChromiumSandbox     bool
+	ChromiumSandbox     *bool
+	IgnoreDefaultArgs   *IgnoreDefaultArgs
 	Proxy               *LocalProxyConfig
 	Locale              string
 	Viewport            *LocalViewport
-	DeviceScaleFactor   float64
+	DeviceScaleFactor   *float64
 	HasTouch            bool
 	IgnoreHTTPSErrors   bool
 	ConnectTimeoutMs    int
 	DownloadsPath       string
-	AcceptDownloads     bool
+	AcceptDownloads     *bool
 	KeepAlive           bool
 }
 
 func (LocalBrowserSource) isBrowserSource() {}
+
+// IgnoreDefaultArgs selects which of Stagehand's default Chrome arguments to
+// omit. All takes precedence over Args.
+type IgnoreDefaultArgs struct {
+	All  bool
+	Args []string
+}
 
 // LocalProxyConfig configures an upstream proxy for a local browser.
 type LocalProxyConfig struct {
