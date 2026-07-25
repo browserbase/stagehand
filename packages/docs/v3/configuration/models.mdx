@@ -9,11 +9,11 @@ import { V3Banner } from '/snippets/v3-banner.mdx';
 
 
 <Callout icon="sparkles" color="#FFC107" iconType="regular">
-  **(NEW) Model Router** — Stop picking models. Set `model: "auto"` and Browserbase selects the right one for every call, cutting inference cost 30–40% with no code changes. [Jump to setup](#model-router)
+  **(NEW) Model Router:** Stop picking models. Set `model: "auto"` and Browserbase selects the right one for every call, cutting inference cost 30–40% with no code changes. [Jump to setup](#model-router)
 </Callout>
 
 <Callout icon="sparkles" color="#FFC107" iconType="regular">
-  **Model Gateway** — Use your Browserbase API key to access top models from OpenAI, Anthropic, and Google. One key, one bill, no provider accounts needed. [Read the blog](https://www.browserbase.com/blog/model-gateway)
+  **Model Gateway:** Use your Browserbase API key to access top models from OpenAI, Anthropic, and Google. One key, one bill, no provider accounts needed. [Read the blog](https://www.browserbase.com/blog/model-gateway)
 </Callout>
 
 ## Model Gateway
@@ -49,7 +49,7 @@ import { Stagehand } from "@browserbasehq/stagehand";
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   model: "auto",
-  // Only BROWSERBASE_API_KEY is needed — no provider key
+  // Only BROWSERBASE_API_KEY is needed (no provider key)
 });
 
 await stagehand.init();
@@ -1072,13 +1072,13 @@ The following models work without the `provider/` prefix in the model parameter 
 
 **Solutions:**
 
-- Use `env: "BROWSERBASE"` — `"auto"` does not work with `env: "LOCAL"`
+- Use `env: "BROWSERBASE"`. `"auto"` does not work with `env: "LOCAL"`
 - Remove `disableAPI: true`
 - Remove `experimental: true`
-- Remove any custom `llmClient` — it replaces API-side inference
+- Remove any custom `llmClient`. It replaces API-side inference
 - Or specify a concrete model instead, e.g. `model: "openai/gpt-5"`
 
-A related error at init — `model: "auto" requires the Stagehand API, but it is unavailable for this session` — means the API declined the session. Unlike a concrete model, `"auto"` has no local fallback, so pin a model to proceed.
+A related error at init, `model: "auto" requires the Stagehand API, but it is unavailable for this session`, means the API declined the session. Unlike a concrete model, `"auto"` has no local fallback, so pin a model to proceed.
 </Accordion>
 
 <Accordion title="Model doesn't support structured outputs">
