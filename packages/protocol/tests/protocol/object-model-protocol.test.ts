@@ -23,7 +23,7 @@ describe("Stagehand object-model protocol", () => {
         region: "eu-central-1",
         userMetadata: { suite: "smoke" },
       },
-      model: { modelName: "openai/gpt-5-mini" },
+      model: { modelName: "openai/gpt-5-mini", apiKey: "model_key" },
     });
 
     expect(params).toStrictEqual({
@@ -34,7 +34,7 @@ describe("Stagehand object-model protocol", () => {
         region: "eu-central-1",
         userMetadata: { suite: "smoke" },
       },
-      model: { modelName: "openai/gpt-5-mini" },
+      model: { modelName: "openai/gpt-5-mini", apiKey: "model_key" },
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
@@ -69,6 +69,62 @@ describe("Stagehand object-model protocol", () => {
         model: { modelName: "gpt-5-mini" },
       }),
     ).toThrow();
+  });
+
+  it("represents Browserbase-managed model routing in the model name", () => {
+    for (const modelName of ["browserbase/auto", "browserbase/openai/gpt-5-mini"] as const) {
+      expect(
+        StagehandMethods.stagehandInit.params.parse({
+          apiKey: "bb_key",
+          model: { modelName },
+        }),
+      ).toMatchObject({
+        model: { modelName },
+      });
+    }
+  });
+
+  it("reuses the supported provider model names for Browserbase routing", () => {
+    expect(
+      StagehandMethods.stagehandInit.params.parse({
+        apiKey: "bb_key",
+        model: { modelName: "browserbase/anthropic/claude-sonnet-4-6" },
+      }),
+    ).toMatchObject({
+      model: { modelName: "browserbase/anthropic/claude-sonnet-4-6" },
+    });
+
+    expect(() =>
+      StagehandMethods.stagehandInit.params.parse({
+        apiKey: "bb_key",
+        model: { modelName: "browserbase/openai/not-a-supported-model" },
+      }),
+    ).toThrow();
+  });
+
+  it("requires provider credentials for direct models", () => {
+    expect(() =>
+      StagehandMethods.stagehandInit.params.parse({
+        model: { modelName: "openai/gpt-5-mini" },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects direct-provider credentials and headers on Browserbase models", () => {
+    for (const model of [
+      { modelName: "browserbase/auto", apiKey: "model_key" },
+      {
+        modelName: "browserbase/openai/gpt-5-mini",
+        headers: { authorization: "Bearer provider-key" },
+      },
+    ]) {
+      expect(() =>
+        StagehandMethods.stagehandInit.params.parse({
+          apiKey: "bb_key",
+          model,
+        }),
+      ).toThrow();
+    }
   });
 
   it("requires a per-call model override to be a complete model configuration", () => {

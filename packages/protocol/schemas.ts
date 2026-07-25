@@ -195,7 +195,7 @@ export const CerebrasModelNameSchema = z
   .templateLiteral(["cerebras/", CerebrasModelIdSchema])
   .meta({ id: "CerebrasModelName" });
 
-export const ModelNameSchema = z
+export const ProviderModelNameSchema = z
   .union([
     OpenAIModelNameSchema,
     AnthropicModelNameSchema,
@@ -204,9 +204,26 @@ export const ModelNameSchema = z
     CerebrasModelNameSchema,
   ])
   .meta({
-    id: "ModelName",
+    id: "ProviderModelName",
     description: "An explicitly supported model name with its provider prefix",
   });
+
+export const BrowserbaseModelNameSchema = z
+  .union([
+    z.literal("browserbase/auto"),
+    z.templateLiteral(["browserbase/", ProviderModelNameSchema]),
+  ])
+  .meta({
+    id: "BrowserbaseModelName",
+    description:
+      "A Browserbase-routed model name: browserbase/auto or browserbase/<provider>/<model>",
+  });
+
+export const ModelNameSchema = z.union([ProviderModelNameSchema, BrowserbaseModelNameSchema]).meta({
+  id: "ModelName",
+  description:
+    "A directly accessed provider model or a model routed through Browserbase-managed inference",
+});
 
 export const CookieSchema = z
   .object({
@@ -825,14 +842,43 @@ const ModelConnectionSchema = z
   .strict()
   .meta({ id: "ModelConnection" });
 
-export const KnownModelConfigSchema = ModelConnectionSchema.extend({
-  modelName: ModelNameSchema.meta({
-    description: "An explicitly supported model name with its provider prefix",
-    example: "openai/gpt-5.4-mini",
-  }),
-})
+export const KnownModelConfigSchema = z
+  .object({
+    modelName: ProviderModelNameSchema.meta({
+      description: "An explicitly supported model accessed through its provider",
+      example: "openai/gpt-5.4-mini",
+    }),
+    apiKey: z.string().min(1).meta({
+      description: "API key for the model provider",
+      example: "sk-some-openai-api-key",
+    }),
+    headers: z.record(z.string(), z.string()).optional().meta({
+      description: "Custom headers sent with every request to the model provider",
+    }),
+  })
   .strict()
   .meta({ id: "KnownModelConfig" });
+
+/**
+ * The optional-never fields keep `ModelConfig` property narrowing compatible
+ * with existing consumers. They are intentionally absent from the Zod object,
+ * so strict runtime and generated schemas reject provider credentials.
+ */
+type BrowserbaseModelConfig = {
+  modelName: z.infer<typeof BrowserbaseModelNameSchema>;
+  apiKey?: never;
+  headers?: never;
+};
+
+export const BrowserbaseModelConfigSchema = z
+  .object({
+    modelName: BrowserbaseModelNameSchema.meta({
+      description: "A model routed through Browserbase-managed inference",
+      example: "browserbase/openai/gpt-5.4-mini",
+    }),
+  })
+  .strict()
+  .meta({ id: "BrowserbaseModelConfig" }) as z.ZodType<BrowserbaseModelConfig>;
 
 export const CustomModelConfigSchema = ModelConnectionSchema.extend({
   modelName: z.string().min(1).meta({
@@ -848,7 +894,7 @@ export const CustomModelConfigSchema = ModelConnectionSchema.extend({
   .meta({ id: "CustomModelConfig" });
 
 export const ModelConfigSchema = z
-  .union([KnownModelConfigSchema, CustomModelConfigSchema])
+  .union([KnownModelConfigSchema, BrowserbaseModelConfigSchema, CustomModelConfigSchema])
   .meta({ id: "ModelConfig" });
 
 /** Serializable reference to an LLM implemented by the connected Stagehand client. */

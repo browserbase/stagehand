@@ -343,6 +343,7 @@ describe("JSON-RPC wire casing", () => {
       },
       model: {
         modelName: "openai/gpt-5-mini",
+        apiKey: "model_key",
         headers: { doNotRenameMe: "value" },
       },
       telemetry: {
@@ -363,6 +364,7 @@ describe("JSON-RPC wire casing", () => {
       },
       model: {
         model_name: "openai/gpt-5-mini",
+        api_key: "model_key",
         headers: { doNotRenameMe: "value" },
       },
       telemetry: {

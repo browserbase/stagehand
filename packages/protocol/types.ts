@@ -21,6 +21,8 @@ import type {
   BrowserbaseContextSchema,
   BrowserbaseFingerprintSchema,
   BrowserbaseFingerprintScreenSchema,
+  BrowserbaseModelConfigSchema,
+  BrowserbaseModelNameSchema,
   BrowserbaseProxyConfigSchema,
   BrowserbaseProxyGeolocationSchema,
   BrowserbaseRegionSchema,
@@ -120,6 +122,7 @@ import type {
   MouseButtonSchema,
   ModelConfigSchema,
   ModelNameSchema,
+  ProviderModelNameSchema,
   ModelProviderSchema,
   GroqModelIdSchema,
   GroqModelNameSchema,
@@ -271,7 +274,10 @@ export type AnthropicModelName = z.infer<typeof AnthropicModelNameSchema>;
 export type GoogleModelName = z.infer<typeof GoogleModelNameSchema>;
 export type GroqModelName = z.infer<typeof GroqModelNameSchema>;
 export type CerebrasModelName = z.infer<typeof CerebrasModelNameSchema>;
+export type ProviderModelName = z.infer<typeof ProviderModelNameSchema>;
+export type BrowserbaseModelName = z.infer<typeof BrowserbaseModelNameSchema>;
 export type KnownModelConfig = z.infer<typeof KnownModelConfigSchema>;
+export type BrowserbaseModelConfig = z.infer<typeof BrowserbaseModelConfigSchema>;
 export type CustomModelConfig = z.infer<typeof CustomModelConfigSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type ModelName = z.infer<typeof ModelNameSchema>;
