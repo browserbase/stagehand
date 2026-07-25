@@ -1,42 +1,67 @@
 import { describe, expect, it, vi } from "vitest";
+import { strFromU8, unzipSync, zipSync } from "fflate";
 import {
-  createBrowserbaseExtensionClient,
+  loadStagehandExtensionArchive,
   provisionBrowserbaseExtension,
   type BrowserbaseExtensionClient,
 } from "../src/browserbaseExtension.js";
 
-describe("Browserbase extension client", () => {
-  it("maps extension upload and deletion to the official SDK surface", async () => {
-    const create = vi.fn(async () => ({ id: "ext_uploaded" }));
-    const remove = vi.fn(async () => {});
-    const createSdk = vi.fn(() => ({
-      extensions: { create, delete: remove },
-    }));
-    const client = createBrowserbaseExtensionClient("bb_key", createSdk);
+describe("Browserbase extension archive", () => {
+  it("loads the bundled extension without exposing filesystem APIs", async () => {
+    const archive = await loadStagehandExtensionArchive();
+    const files = unzipSync(new Uint8Array(await archive.arrayBuffer()));
 
-    await expect(client.uploadExtension(import.meta.filename)).resolves.toStrictEqual({
-      id: "ext_uploaded",
+    expect(Object.keys(files)).toContain("manifest.json");
+    expect(JSON.parse(strFromU8(files["manifest.json"]!))).toMatchObject({
+      manifest_version: 3,
     });
-    await client.deleteExtension("ext_uploaded");
+    expect(archive.type).toBe("application/zip");
+  });
 
-    expect(createSdk).toHaveBeenCalledWith("bb_key");
-    expect(create).toHaveBeenCalledWith({ file: expect.anything() });
-    expect(remove).toHaveBeenCalledWith("ext_uploaded", {
-      headers: { "Content-Type": null },
+  it("loads an extension archive over fetch in web runtimes", async () => {
+    const archiveBytes = zipSync({
+      "manifest.json": new TextEncoder().encode('{"manifest_version":3}'),
     });
+    const fetchArchive = vi.fn(async () => new Response(archiveBytes));
+
+    const archive = await loadStagehandExtensionArchive(
+      new URL("https://assets.example.test/stagehand-extension.zip"),
+      { fetch: fetchArchive },
+    );
+
+    expect(fetchArchive).toHaveBeenCalledWith(
+      new URL("https://assets.example.test/stagehand-extension.zip"),
+    );
+    expect(new Uint8Array(await archive.arrayBuffer())).toStrictEqual(archiveBytes);
+  });
+
+  it("rejects failed and empty archive responses", async () => {
+    await expect(
+      loadStagehandExtensionArchive(new URL("https://assets.example.test/missing.zip"), {
+        fetch: async () => new Response(null, { status: 404, statusText: "Not Found" }),
+      }),
+    ).rejects.toThrow("404 Not Found");
+
+    await expect(
+      loadStagehandExtensionArchive(new URL("https://assets.example.test/empty.zip"), {
+        fetch: async () => new Response(new Uint8Array()),
+      }),
+    ).rejects.toThrow("archive is empty");
   });
 });
 
 describe("Browserbase extension provisioning", () => {
-  it("uploads the prebuilt archive and owns remote cleanup", async () => {
-    const archivePath = import.meta.filename;
-    const uploadExtension = vi.fn(async () => ({ id: " ext_uploaded " }));
+  it("uploads in-memory bytes and owns remote cleanup", async () => {
+    const archive = new Blob(["zip"], { type: "application/zip" });
+    const uploadExtension = vi.fn(async (uploadedArchive: Blob) => {
+      expect(uploadedArchive).toBe(archive);
+      return { id: " ext_uploaded " };
+    });
     const deleteExtension = vi.fn(async () => {});
     const client: BrowserbaseExtensionClient = { uploadExtension, deleteExtension };
 
-    const provisioned = await provisionBrowserbaseExtension(client, archivePath);
+    const provisioned = await provisionBrowserbaseExtension(client, async () => archive);
     expect(provisioned.extensionId).toBe("ext_uploaded");
-    expect(uploadExtension).toHaveBeenCalledWith(archivePath);
 
     await provisioned.cleanup();
     await provisioned.cleanup();
@@ -53,7 +78,7 @@ describe("Browserbase extension provisioning", () => {
       async deleteExtension() {},
     };
 
-    const error = await provisionBrowserbaseExtension(client, import.meta.filename).catch(
+    const error = await provisionBrowserbaseExtension(client, async () => new Blob(["zip"])).catch(
       (caught: unknown) => caught,
     );
     expect(error).toBeInstanceOf(Error);
@@ -71,8 +96,8 @@ describe("Browserbase extension provisioning", () => {
       async deleteExtension() {},
     };
 
-    await expect(provisionBrowserbaseExtension(client, import.meta.filename)).rejects.toThrow(
-      "empty extension ID",
-    );
+    await expect(
+      provisionBrowserbaseExtension(client, async () => new Blob(["zip"])),
+    ).rejects.toThrow("empty extension ID");
   });
 });

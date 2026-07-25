@@ -26,7 +26,6 @@ import {
   type StagehandClientObserveOptions,
 } from "./clientSchemas.js";
 import { CDPConnectionClosedError } from "./cdpClient.js";
-import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "./extensionAssets.js";
 
 type StagehandAdapters = {
   resolveBrowserSource?: (initParams: StagehandClientInitParams) => Promise<ResolvedBrowserSource>;
@@ -94,9 +93,6 @@ export class Stagehand {
       const rpcClient = await (adapters.connectRpcClient ?? connectRPCClient)({
         cdpUrl: browser.cdpUrl,
         // TODO: Thread browser.cdpHeaders through CDP discovery and the WebSocket handshake.
-        ...(browser.preloadedExtension
-          ? { preloadedExtension: true as const }
-          : { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }),
         serviceWorkerUrlIncludes: "service-worker.js",
         telemetry: clientInitParams.telemetry,
         logLevel: clientInitParams.logging.level,

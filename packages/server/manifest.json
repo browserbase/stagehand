@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "Stagehand Runtime",
   "version": "0.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxtMeGdFKj8ex1iFwI+LvOhz/vPGWbaDTcg8UYjAAcxUc8S61zUGF9SZYk2d9NOC0g2MlZQ4BlAiVMpqcEZfb8mCaEhDjtRNWETb2AlJ4uJKrmE/czKmfaRQlcPQ1ycafQt0+FDqsf2cKpM41DIqgPRqYa9v/6Fi7YmHCTWkizqAfqiVp47g+Tv/VIiDoHl5QOvOOi49FkAPKQOwjwWrTAvSgx5JI1Fwnpr13K/P1tGITwpEEwFFtcAQ+7lFpkwCfHrUtPCYjLfGpORoab9E5vtOAjDA6mgNc42UeoR3u96M/M1P/K5pJ7zFMEcnjTSEFhGTFhD0HFr4cVSHpzu2+KQIDAQAB",
   "minimum_chrome_version": "116",
   "permissions": ["debugger", "offscreen", "scripting", "tabs"],
   "host_permissions": ["<all_urls>"],

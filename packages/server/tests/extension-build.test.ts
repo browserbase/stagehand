@@ -16,6 +16,7 @@ const expectedManifestVersion = serverPackageJson.version.replace(/[+-].*$/u, ""
 const ManifestSchema = z.looseObject({
   manifest_version: z.literal(3),
   name: z.string(),
+  key: z.string(),
   version: z.string(),
   minimum_chrome_version: z.literal("116"),
   permissions: z.array(z.string()),
@@ -72,6 +73,7 @@ describe("extension build", () => {
     expect(manifest).toMatchObject({
       manifest_version: 3,
       name: "Stagehand Runtime",
+      key: expect.any(String),
       version: expectedManifestVersion,
       minimum_chrome_version: "116",
       background: {

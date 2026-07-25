@@ -1,10 +1,6 @@
-import { readFile } from "node:fs/promises";
 import { z } from "zod/v4";
 
-export type InitScriptSource<Arg> =
-  | string
-  | { path?: string; content?: string }
-  | ((arg: Arg) => unknown);
+export type InitScriptSource<Arg> = string | { content: string } | ((arg: Arg) => unknown);
 
 export function normalizeEvaluationExpression<R, Arg>(
   expression: string | ((arg: Arg) => R | Promise<R>),
@@ -31,22 +27,14 @@ export async function normalizeInitScriptSource<Arg>(
   if (typeof script === "string") return script;
 
   if (!script || typeof script !== "object") {
-    throw new TypeError(
-      `${caller}: provide a string, function, or an object with exactly one of path or content.`,
-    );
+    throw new TypeError(`${caller}: provide a string, function, or an object with content.`);
   }
 
-  const hasContent = typeof script.content === "string";
-  const hasPath = typeof script.path === "string" && script.path.trim().length > 0;
-  if (hasContent === hasPath) {
-    throw new TypeError(`${caller}: provide an object with exactly one of path or content.`);
+  if (typeof script.content !== "string") {
+    throw new TypeError(`${caller}: provide an object with content.`);
   }
 
-  if (hasContent) return script.content as string;
-
-  const filePath = script.path as string;
-  const source = await readFile(filePath, "utf8");
-  return `${source}\n//# sourceURL=${filePath.replace(/\n/g, "")}`;
+  return script.content;
 }
 
 function serializeArgument(arg: unknown, caller: string): string {

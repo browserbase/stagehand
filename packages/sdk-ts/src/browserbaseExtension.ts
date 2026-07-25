@@ -1,57 +1,52 @@
-import { createReadStream } from "node:fs";
-import Browserbase from "@browserbasehq/sdk";
-import { STAGEHAND_EXTENSION_ARCHIVE_PATH } from "./extensionAssets.js";
+import { stagehandExtensionArchiveDataUrl } from "./generated/stagehandExtensionArchive.generated.js";
+
+const STAGEHAND_EXTENSION_FILE_NAME = "stagehand-extension.zip";
 
 export type BrowserbaseExtensionClient = {
-  uploadExtension(archivePath: string): Promise<{ id: string }>;
+  uploadExtension(archive: Blob): Promise<{ id: string }>;
   deleteExtension(extensionId: string): Promise<void>;
 };
+
+export type BrowserbaseExtensionArchiveLoader = () => Promise<Blob>;
 
 export type ProvisionedBrowserbaseExtension = {
   extensionId: string;
   cleanup(): Promise<void>;
 };
 
-export type BrowserbaseExtensionSdk = {
-  extensions: {
-    create(params: { file: ReturnType<typeof createReadStream> }): Promise<{ id: string }>;
-    delete(
-      extensionId: string,
-      options?: { headers?: Record<string, string | null> },
-    ): Promise<void>;
-  };
+type ExtensionArchiveLoaderDependencies = {
+  fetch?: typeof globalThis.fetch;
 };
 
-type BrowserbaseSdkFactory = (apiKey: string) => BrowserbaseExtensionSdk;
+export async function loadStagehandExtensionArchive(
+  archiveUrl: string | URL = stagehandExtensionArchiveDataUrl,
+  dependencies: ExtensionArchiveLoaderDependencies = {},
+): Promise<Blob> {
+  const fetchArchive = dependencies.fetch ?? globalThis.fetch;
+  const response = await fetchArchive(archiveUrl);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load the Stagehand extension archive: ${response.status} ${response.statusText}`,
+    );
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
 
-export function createBrowserbaseExtensionClient(
-  apiKey: string,
-  createSdk: BrowserbaseSdkFactory = (key) => new Browserbase({ apiKey: key }),
-): BrowserbaseExtensionClient {
-  const browserbase = createSdk(apiKey);
-  return {
-    async uploadExtension(archivePath) {
-      const extension = await browserbase.extensions.create({
-        file: createReadStream(archivePath),
-      });
-      return { id: extension.id };
-    },
-    async deleteExtension(extensionId) {
-      await browserbase.extensions.delete(extensionId, {
-        headers: { "Content-Type": null },
-      });
-    },
-  };
+  if (bytes.byteLength === 0) {
+    throw new Error("The Stagehand extension archive is empty");
+  }
+
+  const copiedBytes = Uint8Array.from(bytes);
+  return new Blob([copiedBytes.buffer], { type: "application/zip" });
 }
 
 export async function provisionBrowserbaseExtension(
   client: BrowserbaseExtensionClient,
-  archivePath = STAGEHAND_EXTENSION_ARCHIVE_PATH,
+  loadArchive: BrowserbaseExtensionArchiveLoader = loadStagehandExtensionArchive,
 ): Promise<ProvisionedBrowserbaseExtension> {
   let uploaded: { id: string };
 
   try {
-    uploaded = await client.uploadExtension(archivePath);
+    uploaded = await client.uploadExtension(await loadArchive());
   } catch (error) {
     throw new Error("Failed to upload the Stagehand extension to Browserbase", { cause: error });
   }
@@ -70,4 +65,8 @@ export async function provisionBrowserbaseExtension(
       cleaned = true;
     },
   };
+}
+
+export function stagehandExtensionFileName(): string {
+  return STAGEHAND_EXTENSION_FILE_NAME;
 }

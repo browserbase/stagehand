@@ -1,6 +1,3 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { normalizeEvaluationExpression, normalizeInitScriptSource } from "../src/pageScripts.js";
 
@@ -35,25 +32,11 @@ describe("page script normalization", () => {
     );
   });
 
-  it("reads init script paths and appends a source URL", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "stagehand-page-script-"));
-    const filePath = path.join(directory, "init.js");
-
-    try {
-      await writeFile(filePath, "globalThis.fromPath = true", "utf8");
-      await expect(normalizeInitScriptSource({ path: filePath })).resolves.toBe(
-        `globalThis.fromPath = true\n//# sourceURL=${filePath}`,
-      );
-    } finally {
-      await rm(directory, { recursive: true });
-    }
-  });
-
-  it("rejects ambiguous init script sources and non-JSON arguments", async () => {
-    await expect(normalizeInitScriptSource({})).rejects.toThrow("exactly one of path or content");
-    await expect(
-      normalizeInitScriptSource({ path: "init.js", content: "globalThis.ready = true" }),
-    ).rejects.toThrow("exactly one of path or content");
+  it("rejects invalid init script sources and non-JSON arguments", async () => {
+    await expect(normalizeInitScriptSource({} as never)).rejects.toThrow("object with content");
+    await expect(normalizeInitScriptSource({ path: "init.js" } as never)).rejects.toThrow(
+      "object with content",
+    );
     await expect(
       normalizeInitScriptSource("globalThis.ready = true", { ignored: true }),
     ).rejects.toThrow("'arg' is only supported when passing a function");

@@ -8,6 +8,7 @@ import { build } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.js";
+import { loadStagehandExtension } from "../../../sdk-ts/src/localBrowserLauncher.js";
 import { StagehandMethods } from "../../schema-registry.js";
 import type { StagehandRpcNotification } from "../../types.js";
 
@@ -19,18 +20,18 @@ type FixtureServer = {
 };
 
 describe("Stagehand service worker RPC client smoke", () => {
-  let extensionDir: string | undefined;
+  let extensionPath: string | undefined;
   let fixtureServer: FixtureServer | undefined;
   let chrome: LaunchedChrome | undefined;
   let rpcClient: RPCClient | undefined;
 
   beforeAll(async () => {
-    extensionDir = await createFullGraphSmokeExtension();
+    extensionPath = await createFullGraphSmokeExtension();
     fixtureServer = await startFixtureServer();
     chrome = await launchChrome(fixtureServer.url);
+    await loadStagehandExtension(`http://127.0.0.1:${chrome.port}`, extensionPath);
     rpcClient = await connectRPCClient({
       cdpUrl: `http://127.0.0.1:${chrome.port}`,
-      extensionDir,
       serviceWorkerUrlIncludes: "service-worker.js",
       discoveryTimeoutMs: 15_000,
       commandTimeoutMs: 15_000,
@@ -42,7 +43,7 @@ describe("Stagehand service worker RPC client smoke", () => {
     rpcClient?.close();
     chrome?.kill();
     await fixtureServer?.close();
-    if (extensionDir) await rm(extensionDir, { force: true, recursive: true });
+    if (extensionPath) await rm(extensionPath, { force: true, recursive: true });
   });
 
   it("discovers the Stagehand service worker in a real Chromium session", () => {
@@ -491,11 +492,11 @@ describe("Stagehand service worker RPC client smoke", () => {
 });
 
 async function createFullGraphSmokeExtension(): Promise<string> {
-  const extensionDir = await mkdtemp(path.join(tmpdir(), "stagehand-full-graph-extension-"));
+  const extensionPath = await mkdtemp(path.join(tmpdir(), "stagehand-full-graph-extension-"));
   const outputFiles = await readdir(stagehandExtensionDistDir);
   await Promise.all(
     outputFiles.map((file) =>
-      cp(path.join(stagehandExtensionDistDir, file), path.join(extensionDir, file), {
+      cp(path.join(stagehandExtensionDistDir, file), path.join(extensionPath, file), {
         recursive: true,
       }),
     ),
@@ -506,7 +507,7 @@ async function createFullGraphSmokeExtension(): Promise<string> {
   );
   const serverModulePath = (relativePath: string): string =>
     fileURLToPath(new URL(`../../../server/${relativePath}`, import.meta.url));
-  const workerEntryPath = path.join(extensionDir, "stagehand-full-graph-entry.ts");
+  const workerEntryPath = path.join(extensionPath, "stagehand-full-graph-entry.ts");
 
   await writeFile(
     workerEntryPath,
@@ -534,7 +535,7 @@ async function createFullGraphSmokeExtension(): Promise<string> {
     build: {
       emptyOutDir: false,
       minify: false,
-      outDir: extensionDir,
+      outDir: extensionPath,
       target: "es2022",
       rolldownOptions: {
         input: workerEntryPath,
@@ -543,12 +544,12 @@ async function createFullGraphSmokeExtension(): Promise<string> {
     },
   });
   await rm(workerEntryPath, { force: true });
-  await assertWorkerBundleIsV8Only(extensionDir);
-  return extensionDir;
+  await assertWorkerBundleIsV8Only(extensionPath);
+  return extensionPath;
 }
 
-async function assertWorkerBundleIsV8Only(extensionDir: string): Promise<void> {
-  const outputFiles = await readdir(extensionDir, { recursive: true });
+async function assertWorkerBundleIsV8Only(extensionPath: string): Promise<void> {
+  const outputFiles = await readdir(extensionPath, { recursive: true });
   const forbidden = [
     "__vite-browser-external",
     'from "node:',
@@ -558,7 +559,7 @@ async function assertWorkerBundleIsV8Only(extensionDir: string): Promise<void> {
   ];
 
   for (const relativePath of outputFiles.filter((file) => file.endsWith(".js"))) {
-    const source = await readFile(path.join(extensionDir, relativePath), "utf8");
+    const source = await readFile(path.join(extensionPath, relativePath), "utf8");
     for (const token of forbidden) {
       if (source.includes(token)) {
         throw new Error(`Worker bundle ${relativePath} contains forbidden Node token ${token}`);

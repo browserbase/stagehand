@@ -29,9 +29,6 @@ export type ServiceWorkerInfo = {
 
 export type CDPClientOptions = {
   cdpUrl: string;
-  extensionDir?: string;
-  extensionId?: string;
-  preloadedExtension?: true;
   serviceWorkerUrlIncludes?: string;
   discoveryTimeoutMs: number;
   commandTimeoutMs: number;
@@ -96,6 +93,8 @@ export class StagehandRuntimeIncompatibleError extends Error {
     this.reason = compatibility.reason;
   }
 }
+
+const STAGEHAND_EXTENSION_ID = "klfndpbcijdaeeochdedfokeplfanpic";
 
 const CDPErrorSchema = z.looseObject({
   code: z.int(),
@@ -205,34 +204,15 @@ export class CDPClient {
     const client = new CDPClient(socket, webSocketDebuggerUrl, options.commandTimeoutMs);
 
     try {
-      let serviceWorker: TargetInfo;
-      let attached: { sessionId: string };
-      let extensionId: string | undefined;
-
-      if (options.preloadedExtension) {
-        const discovered = await waitForPreloadedStagehandServiceWorker(client, {
-          urlIncludes: options.serviceWorkerUrlIncludes,
-          timeout: options.discoveryTimeoutMs,
-          runtimeRequirement: options.runtimeRequirement,
-          allowFallbackInstall: options.allowFallbackInstall,
-        });
-        serviceWorker = discovered.serviceWorker;
-        attached = { sessionId: discovered.sessionId };
-        extensionId = extensionIdFromUrl(serviceWorker.url);
-      } else {
-        extensionId = options.extensionDir
-          ? await loadUnpackedExtension(client, options.extensionDir)
-          : options.extensionId;
-        serviceWorker = await waitForServiceWorker(client, {
-          extensionId,
-          urlIncludes: options.serviceWorkerUrlIncludes,
-          timeout: options.discoveryTimeoutMs,
-        });
-        attached = await client.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
-          targetId: serviceWorker.targetId,
-          flatten: true,
-        });
-      }
+      const discovered = await waitForPreloadedStagehandServiceWorker(client, {
+        urlIncludes: options.serviceWorkerUrlIncludes,
+        timeout: options.discoveryTimeoutMs,
+        runtimeRequirement: options.runtimeRequirement,
+        allowFallbackInstall: options.allowFallbackInstall,
+      });
+      const serviceWorker = discovered.serviceWorker;
+      const attached = { sessionId: discovered.sessionId };
+      const extensionId = extensionIdFromUrl(serviceWorker.url);
 
       client.sessionId = attached.sessionId;
       client.attachedServiceWorker = {
@@ -450,6 +430,7 @@ export async function waitForPreloadedStagehandServiceWorker(
   options: {
     urlIncludes?: string;
     timeout: number;
+    activationDelayMs?: number;
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
     nowFn?: () => number;
@@ -457,12 +438,14 @@ export async function waitForPreloadedStagehandServiceWorker(
     allowFallbackInstall?: boolean;
   },
 ): Promise<{ serviceWorker: TargetInfo; sessionId: string }> {
+  const activationDelayMs = options.activationDelayMs ?? 1_000;
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const delayFn = options.delayFn ?? delay;
   const nowFn = options.nowFn ?? Date.now;
   const startedAt = nowFn();
   const workerUrlIncludes = options.urlIncludes ?? "service-worker.js";
   let lastTargets: TargetInfo[] = [];
+  let activationTargetId: string | undefined;
   const lastReadinessByTarget = new Map<string, z.output<typeof RuntimeReadinessEnvelopeSchema>>();
   let lastIncompatibility: Extract<RuntimeCompatibility, { kind: "incompatible" }> | undefined;
 
@@ -494,6 +477,11 @@ export async function waitForPreloadedStagehandServiceWorker(
           );
           if (compatibility.kind === "compatible" && readiness.hasReceiver) {
             keepAttached = true;
+            if (activationTargetId) {
+              await cdp
+                .sendCommand("Target.closeTarget", { targetId: activationTargetId })
+                .catch(() => undefined);
+            }
             return { serviceWorker, sessionId };
           }
 
@@ -510,7 +498,22 @@ export async function waitForPreloadedStagehandServiceWorker(
       }
     }
 
+    if (!activationTargetId && nowFn() - startedAt >= activationDelayMs) {
+      const activation = await cdp
+        .sendCommand<{ targetId?: string }>("Target.createTarget", {
+          url: `chrome-extension://${STAGEHAND_EXTENSION_ID}/wake-service-worker.html`,
+        })
+        .catch(() => undefined);
+      activationTargetId = activation?.targetId;
+    }
+
     await delayFn(pollIntervalMs);
+  }
+
+  if (activationTargetId) {
+    await cdp
+      .sendCommand("Target.closeTarget", { targetId: activationTargetId })
+      .catch(() => undefined);
   }
 
   if (options.allowFallbackInstall === false && lastIncompatibility) {
@@ -564,98 +567,6 @@ function extensionIdFromUrl(url: string): string | undefined {
   return match?.[1];
 }
 
-export async function waitForServiceWorker(
-  cdp: CDPCommandSender,
-  options: {
-    extensionId?: string;
-    urlIncludes?: string;
-    timeout: number;
-    activationDelayMs?: number;
-    pollIntervalMs?: number;
-    delayFn?: (ms: number) => Promise<void>;
-  },
-): Promise<TargetInfo> {
-  const startedAt = Date.now();
-  const activationDelayMs = options.activationDelayMs ?? 1_000;
-  const pollIntervalMs = options.pollIntervalMs ?? 100;
-  const delayFn = options.delayFn ?? delay;
-  const workerUrlIncludes = options.urlIncludes ?? "service-worker.js";
-  let lastTargets: TargetInfo[] = [];
-  let activationTargetId: string | undefined;
-
-  while (Date.now() - startedAt < options.timeout) {
-    const targets = await cdp.sendCommand<{ targetInfos: TargetInfo[] }>("Target.getTargets");
-    lastTargets = targets.targetInfos;
-    const serviceWorker = targets.targetInfos.find(
-      (target) =>
-        target.type === "service_worker" &&
-        target.url.startsWith("chrome-extension://") &&
-        (options.extensionId
-          ? target.url.startsWith(`chrome-extension://${options.extensionId}/`)
-          : true) &&
-        target.url.includes(workerUrlIncludes),
-    );
-
-    if (serviceWorker) {
-      if (activationTargetId) {
-        await cdp
-          .sendCommand("Target.closeTarget", { targetId: activationTargetId })
-          .catch(() => {});
-      }
-      return serviceWorker;
-    }
-
-    if (options.extensionId && !activationTargetId && Date.now() - startedAt >= activationDelayMs) {
-      const activation = await cdp
-        .sendCommand<{ targetId?: string }>("Target.createTarget", {
-          url: `chrome-extension://${options.extensionId}/wake-service-worker.html`,
-        })
-        .catch(() => undefined);
-      activationTargetId = activation?.targetId;
-    }
-
-    await delayFn(pollIntervalMs);
-  }
-
-  if (activationTargetId) {
-    await cdp.sendCommand("Target.closeTarget", { targetId: activationTargetId }).catch(() => {});
-  }
-
-  throw new Error(
-    `Timed out discovering the Stagehand service worker target. Observed targets: ${lastTargets
-      .map((target) => `${target.type}:${target.url}`)
-      .join(", ")}`,
-  );
-}
-
-export async function loadUnpackedExtension(
-  cdp: CDPCommandSender,
-  extensionDir: string,
-): Promise<string> {
-  let loaded: { id?: string };
-
-  try {
-    loaded = await cdp.sendCommand<{ id?: string }>("Extensions.loadUnpacked", {
-      path: extensionDir,
-    });
-  } catch (error) {
-    if (isExtensionsLoadUnpackedUnavailable(error)) {
-      throw new Error(
-        "This Chrome build does not support Extensions.loadUnpacked. Launch with --load-extension and connect using extensionId instead.",
-        { cause: error },
-      );
-    }
-
-    throw error;
-  }
-
-  if (!loaded.id) {
-    throw new Error("Extensions.loadUnpacked did not return an extension id");
-  }
-
-  return loaded.id;
-}
-
 export async function resolveBrowserWebSocketUrl(
   cdpUrl: string,
   options: ResolveBrowserWebSocketUrlOptions = {},
@@ -696,29 +607,19 @@ export async function resolveBrowserWebSocketUrl(
   );
 }
 
-async function messageDataToString(data: unknown): Promise<string> {
+export async function messageDataToString(data: unknown): Promise<string> {
   if (typeof data === "string") return data;
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString("utf8");
+  if (data instanceof ArrayBuffer) return new TextDecoder().decode(data);
   if (data instanceof Blob) return data.text();
+  if (ArrayBuffer.isView(data)) {
+    return new TextDecoder().decode(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+  }
 
-  const view = data as ArrayBufferView;
-  return Buffer.from(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength).toString("utf8");
+  throw new TypeError("CDP WebSocket received an unsupported message type");
 }
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isExtensionsLoadUnpackedUnavailable(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-
-  const cause = CDPCommandErrorCauseSchema.safeParse(error.cause);
-  if (!cause.success) return false;
-
-  return (
-    cause.data.method === "Extensions.loadUnpacked" &&
-    (cause.data.code === -32601 || /method not found|wasn't found/i.test(cause.data.message))
-  );
 }
 
 function asError(error: unknown): Error {

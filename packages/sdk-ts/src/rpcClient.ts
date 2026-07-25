@@ -75,23 +75,7 @@ const RPCClientOptionsBaseSchema = z
   })
   .strict();
 
-export const RPCClientOptionsSchema = z.union([
-  RPCClientOptionsBaseSchema.extend({
-    extensionDir: z.string().min(1),
-    extensionId: z.never().optional(),
-    preloadedExtension: z.never().optional(),
-  }).strict(),
-  RPCClientOptionsBaseSchema.extend({
-    extensionId: z.string().min(1),
-    extensionDir: z.never().optional(),
-    preloadedExtension: z.never().optional(),
-  }).strict(),
-  RPCClientOptionsBaseSchema.extend({
-    preloadedExtension: z.literal(true),
-    extensionDir: z.never().optional(),
-    extensionId: z.never().optional(),
-  }).strict(),
-]);
+export const RPCClientOptionsSchema = RPCClientOptionsBaseSchema;
 
 export type RPCClientOptions = z.input<typeof RPCClientOptionsSchema>;
 
@@ -291,11 +275,7 @@ export class RPCClient {
       return;
     }
 
-    const parentContext = W3C_TRACE_CONTEXT_PROPAGATOR.extract(
-      ROOT_CONTEXT,
-      request,
-      defaultTextMapGetter,
-    );
+    const parentContext = extractTraceContextFields(request);
     const span = TRACER.startSpan(
       request.method,
       {
@@ -403,9 +383,6 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
   const commandTimeoutMs = options.commandTimeoutMs ?? 10_000;
   const cdpClient = await CDPClient.connect({
     cdpUrl: options.cdpUrl,
-    ...(options.extensionDir ? { extensionDir: options.extensionDir } : {}),
-    ...(options.extensionId ? { extensionId: options.extensionId } : {}),
-    ...(options.preloadedExtension ? { preloadedExtension: true as const } : {}),
     ...(options.serviceWorkerUrlIncludes
       ? { serviceWorkerUrlIncludes: options.serviceWorkerUrlIncludes }
       : {}),
@@ -439,6 +416,13 @@ export function getTraceContextFields(requestContext: Context): {
   W3C_TRACE_CONTEXT_PROPAGATOR.inject(requestContext, fields, defaultTextMapSetter);
 
   return fields;
+}
+
+export function extractTraceContextFields(carrier: {
+  traceparent?: string;
+  tracestate?: string;
+}): Context {
+  return W3C_TRACE_CONTEXT_PROPAGATOR.extract(ROOT_CONTEXT, carrier, defaultTextMapGetter);
 }
 
 function markSpanError(span: Span, error: unknown): void {

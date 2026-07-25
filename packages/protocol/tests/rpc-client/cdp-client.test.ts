@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
   StagehandRuntimeIncompatibleError,
   waitForPreloadedStagehandServiceWorker,
   waitForRuntimeReady,
-  waitForServiceWorker,
 } from "../../../sdk-ts/src/cdpClient.ts";
 
 type CdpCall = {
@@ -114,115 +112,6 @@ describe("resolveBrowserWebSocketUrl", () => {
   });
 });
 
-describe("loadUnpackedExtension", () => {
-  it("returns the id from Extensions.loadUnpacked", async () => {
-    const cdp = new FakeCdp().on("Extensions.loadUnpacked", () => ({ id: "stagehandext" }));
-
-    await expect(loadUnpackedExtension(cdp, "/tmp/stagehand-extension")).resolves.toBe(
-      "stagehandext",
-    );
-    expect(cdp.calls).toStrictEqual([
-      {
-        method: "Extensions.loadUnpacked",
-        params: { path: "/tmp/stagehand-extension" },
-        sessionId: undefined,
-      },
-    ]);
-  });
-
-  it("returns a clear error when Extensions.loadUnpacked is unavailable", async () => {
-    const cdp = new FakeCdp().on("Extensions.loadUnpacked", () => {
-      throw new Error("Method not found", {
-        cause: {
-          code: -32601,
-          message: "Method not found",
-          method: "Extensions.loadUnpacked",
-        },
-      });
-    });
-
-    await expect(loadUnpackedExtension(cdp, "/tmp/stagehand-extension")).rejects.toThrow(
-      "Launch with --load-extension",
-    );
-  });
-
-  it("rejects loadUnpacked responses without an extension id", async () => {
-    const cdp = new FakeCdp().on("Extensions.loadUnpacked", () => ({}));
-
-    await expect(loadUnpackedExtension(cdp, "/tmp/stagehand-extension")).rejects.toThrow(
-      "did not return an extension id",
-    );
-  });
-});
-
-describe("waitForServiceWorker", () => {
-  it("discovers a preloaded extension service worker by extension id", async () => {
-    const worker = target("stagehand-worker", "chrome-extension://stagehandext/service-worker.js");
-    const cdp = new FakeCdp().on("Target.getTargets", () => ({
-      targetInfos: [
-        target("wrong-worker", "chrome-extension://otherext/service-worker.js"),
-        worker,
-      ],
-    }));
-
-    await expect(
-      waitForServiceWorker(cdp, {
-        extensionId: "stagehandext",
-        timeout: 1_000,
-        delayFn: async () => {},
-      }),
-    ).resolves.toStrictEqual(worker);
-  });
-
-  it("uses service-worker.js as the default worker URL match", async () => {
-    const worker = target("stagehand-worker", "chrome-extension://stagehandext/service-worker.js");
-    const cdp = new FakeCdp().on("Target.getTargets", () => ({
-      targetInfos: [
-        target("legacy-worker", "chrome-extension://stagehandext/service_worker.js"),
-        worker,
-      ],
-    }));
-
-    await expect(
-      waitForServiceWorker(cdp, {
-        timeout: 1_000,
-        delayFn: async () => {},
-      }),
-    ).resolves.toStrictEqual(worker);
-  });
-
-  it("wakes lazy MV3 workers with the options page and closes the activation target", async () => {
-    const worker = target("stagehand-worker", "chrome-extension://stagehandext/service-worker.js");
-    const targetLists: TargetInfo[][] = [[], [worker]];
-    const cdp = new FakeCdp()
-      .on("Target.getTargets", () => ({ targetInfos: targetLists.shift() ?? [worker] }))
-      .on("Target.createTarget", () => ({ targetId: "activation-page" }))
-      .on("Target.closeTarget", () => ({ success: true }));
-
-    await expect(
-      waitForServiceWorker(cdp, {
-        activationDelayMs: 0,
-        extensionId: "stagehandext",
-        timeout: 1_000,
-        delayFn: async () => {},
-      }),
-    ).resolves.toStrictEqual(worker);
-
-    expect(cdp.calls).toContainEqual(
-      expect.objectContaining({
-        method: "Target.createTarget",
-        params: { url: "chrome-extension://stagehandext/wake-service-worker.html" },
-      }),
-    );
-    expect(cdp.calls).toContainEqual(
-      expect.objectContaining({
-        method: "Target.closeTarget",
-        params: { targetId: "activation-page" },
-      }),
-    );
-  });
-});
-
 describe("waitForPreloadedStagehandServiceWorker", () => {
   it("probes candidate workers and returns the one with the Stagehand runtime", async () => {
     const wrongWorker = target("wrong-worker", "chrome-extension://otherext/service-worker.js");
@@ -264,6 +153,47 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       sessionId: undefined,
     });
     expect(cdp.calls.some((call) => call.method === "Extensions.loadUnpacked")).toBe(false);
+  });
+
+  it("wakes a dormant Stagehand extension and closes the activation page", async () => {
+    const worker = target("stagehand-worker", "chrome-extension://stagehand/service-worker.js");
+    const targetLists: TargetInfo[][] = [[], [worker]];
+    let now = 0;
+    const cdp = new FakeCdp()
+      .on("Target.getTargets", () => ({ targetInfos: targetLists.shift() ?? [worker] }))
+      .on("Target.createTarget", () => ({ targetId: "activation-page" }))
+      .on("Target.attachToTarget", () => ({ sessionId: "stagehand-session" }))
+      .on("Runtime.evaluate", () => ({ result: { value: readyRuntime() } }))
+      .on("Target.closeTarget", () => ({ success: true }));
+
+    await expect(
+      waitForPreloadedStagehandServiceWorker(cdp, {
+        activationDelayMs: 0,
+        timeout: 1_000,
+        nowFn: () => now,
+        delayFn: async (ms) => {
+          now += ms;
+        },
+      }),
+    ).resolves.toStrictEqual({
+      serviceWorker: worker,
+      sessionId: "stagehand-session",
+    });
+
+    expect(cdp.calls).toContainEqual(
+      expect.objectContaining({
+        method: "Target.createTarget",
+        params: {
+          url: "chrome-extension://klfndpbcijdaeeochdedfokeplfanpic/wake-service-worker.html",
+        },
+      }),
+    );
+    expect(cdp.calls).toContainEqual(
+      expect.objectContaining({
+        method: "Target.closeTarget",
+        params: { targetId: "activation-page" },
+      }),
+    );
   });
 
   it("skips a stale Stagehand runtime and selects the compatible version", async () => {

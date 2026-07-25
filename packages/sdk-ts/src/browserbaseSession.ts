@@ -1,12 +1,20 @@
-import Browserbase from "@browserbasehq/sdk";
+import { up } from "up-fetch";
+import { z } from "zod/v4";
 import type { BrowserbaseSessionCreateParams } from "../../protocol/types.js";
 import {
-  createBrowserbaseExtensionClient,
   provisionBrowserbaseExtension,
+  stagehandExtensionFileName,
+  type BrowserbaseExtensionArchiveLoader,
   type BrowserbaseExtensionClient,
-  type BrowserbaseExtensionSdk,
   type ProvisionedBrowserbaseExtension,
 } from "./browserbaseExtension.js";
+
+const DEFAULT_BROWSERBASE_API_URL = "https://api.browserbase.com";
+const BrowserbaseExtensionResponseSchema = z.looseObject({ id: z.string() });
+const BrowserbaseSessionResponseSchema = z.looseObject({
+  id: z.string(),
+  connectUrl: z.string(),
+});
 
 export type BrowserbaseSessionClient = {
   createSession(
@@ -23,28 +31,31 @@ export type BrowserbaseApiClient = BrowserbaseExtensionClient & {
   releaseSession(sessionId: string): Promise<void>;
 };
 
+export type BrowserbaseApiClientOptions = {
+  baseUrl?: string;
+  fetch?: typeof globalThis.fetch;
+  timeout?: number;
+};
+
 type BrowserbaseSessionClientDependencies = {
   browserbase?: BrowserbaseApiClient;
+  browserbaseApi?: BrowserbaseApiClientOptions;
+  loadExtensionArchive?: BrowserbaseExtensionArchiveLoader;
   provisionExtension?: (
     client: BrowserbaseExtensionClient,
   ) => Promise<ProvisionedBrowserbaseExtension>;
 };
 
-type BrowserbaseSdk = BrowserbaseExtensionSdk & {
-  sessions: {
-    create(params: Browserbase.SessionCreateParams): Promise<{ id: string; connectUrl: string }>;
-    update(sessionId: string, params: { status: "REQUEST_RELEASE" }): Promise<unknown>;
-  };
-};
-
-type BrowserbaseSdkFactory = (apiKey: string) => BrowserbaseSdk;
-
 export function createBrowserbaseSessionClient(
   apiKey: string,
   dependencies: BrowserbaseSessionClientDependencies = {},
 ): BrowserbaseSessionClient {
-  const browserbase = dependencies.browserbase ?? createBrowserbaseApiClient(apiKey);
-  const provisionExtension = dependencies.provisionExtension ?? provisionBrowserbaseExtension;
+  const browserbase =
+    dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, dependencies.browserbaseApi);
+  const provisionExtension =
+    dependencies.provisionExtension ??
+    ((client: BrowserbaseExtensionClient) =>
+      provisionBrowserbaseExtension(client, dependencies.loadExtensionArchive));
 
   return {
     async createSession(params) {
@@ -108,19 +119,45 @@ export function createBrowserbaseSessionClient(
 
 export function createBrowserbaseApiClient(
   apiKey: string,
-  createSdk: BrowserbaseSdkFactory = (key) => new Browserbase({ apiKey: key }),
+  options: BrowserbaseApiClientOptions = {},
 ): BrowserbaseApiClient {
-  const sdk = createSdk(apiKey);
-  const extensionClient = createBrowserbaseExtensionClient(apiKey, () => sdk);
+  const fetchBrowserbase = up(options.fetch ?? globalThis.fetch, () => ({
+    baseUrl: options.baseUrl ?? DEFAULT_BROWSERBASE_API_URL,
+    headers: { "X-BB-API-Key": apiKey },
+    timeout: options.timeout ?? 60_000,
+  }));
 
   return {
-    ...extensionClient,
+    async uploadExtension(archive) {
+      const formData = new FormData();
+      formData.append("file", archive, stagehandExtensionFileName());
+      const extension = await fetchBrowserbase("/v1/extensions", {
+        method: "POST",
+        body: formData,
+        schema: BrowserbaseExtensionResponseSchema,
+      });
+      return { id: extension.id };
+    },
+    async deleteExtension(extensionId) {
+      await fetchBrowserbase(`/v1/extensions/${encodeURIComponent(extensionId)}`, {
+        method: "DELETE",
+        schema: z.null(),
+      });
+    },
     async createSession(params) {
-      const session = await sdk.sessions.create(params as Browserbase.SessionCreateParams);
+      const session = await fetchBrowserbase("/v1/sessions", {
+        method: "POST",
+        body: params,
+        schema: BrowserbaseSessionResponseSchema,
+      });
       return { id: session.id, connectUrl: session.connectUrl };
     },
     async releaseSession(sessionId) {
-      await sdk.sessions.update(sessionId, { status: "REQUEST_RELEASE" });
+      await fetchBrowserbase(`/v1/sessions/${encodeURIComponent(sessionId)}`, {
+        method: "POST",
+        body: { status: "REQUEST_RELEASE" },
+        schema: z.unknown(),
+      });
     },
   };
 }

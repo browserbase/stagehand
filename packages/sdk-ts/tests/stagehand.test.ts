@@ -139,7 +139,6 @@ describe("Stagehand", () => {
     });
     expect(connectRpcClient).toHaveBeenCalledWith({
       cdpUrl: "http://127.0.0.1:9222",
-      extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
       serviceWorkerUrlIncludes: "service-worker.js",
       logLevel: "info",
       telemetry: {
@@ -196,7 +195,6 @@ describe("Stagehand", () => {
     expect(connectRpcClient).toHaveBeenCalledWith({
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
       logLevel: "info",
-      preloadedExtension: true,
       serviceWorkerUrlIncludes: "service-worker.js",
       telemetry: {
         traces: {
@@ -258,7 +256,6 @@ describe("Stagehand", () => {
 
     expect(connectRpcClient).toHaveBeenCalledWith({
       cdpUrl: "http://127.0.0.1:9222",
-      extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
       logLevel: "info",
       serviceWorkerUrlIncludes: "service-worker.js",
       telemetry: {

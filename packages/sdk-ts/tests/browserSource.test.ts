@@ -23,7 +23,6 @@ describe("resolveBrowserSource", () => {
     ).resolves.toStrictEqual({
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/new-session",
       browserbaseSessionId: "new-session",
-      preloadedExtension: true,
       keepAlive: false,
       close,
     });

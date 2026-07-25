@@ -1,6 +1,3 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
@@ -610,7 +607,7 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("returns screenshot bytes, writes paths locally, and serializes masks", async () => {
+  it("returns portable screenshot bytes and serializes masks", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "iVBORw0KGgo=",
@@ -618,30 +615,21 @@ describe("Stagehand TS object wrapper", () => {
     });
     const page = new Page(client, { pageId: "page-1" });
     const mask = page.locator("[data-secret]");
-    const directory = await mkdtemp(path.join(tmpdir(), "stagehand-screenshot-"));
-    const screenshotPath = path.join(directory, "screenshot.png");
+    const bytes = await page.screenshot({
+      fullPage: true,
+      mask: [mask],
+    });
 
-    try {
-      const bytes = await page.screenshot({
-        fullPage: true,
-        mask: [mask],
-        path: screenshotPath,
-      });
-
-      expect(bytes).toStrictEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-      expect(await readFile(screenshotPath)).toStrictEqual(bytes);
-      expect(client.calls).toStrictEqual([
-        requestCall(StagehandMethods.pageScreenshot, {
-          pageId: "page-1",
-          options: {
-            fullPage: true,
-            mask: [{ pageId: "page-1", selector: "[data-secret]" }],
-          },
-        }),
-      ]);
-    } finally {
-      await rm(directory, { recursive: true });
-    }
+    expect(bytes).toStrictEqual(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageScreenshot, {
+        pageId: "page-1",
+        options: {
+          fullPage: true,
+          mask: [{ pageId: "page-1", selector: "[data-secret]" }],
+        },
+      }),
+    ]);
   });
 
   it("routes page snapshots and preserves opaque map keys", async () => {

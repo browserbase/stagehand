@@ -1,4 +1,3 @@
-import { writeFile } from "node:fs/promises";
 import type {
   LoadState,
   PageClickParams,
@@ -29,7 +28,6 @@ import type { RPCClient } from "./rpcClient.js";
 
 export type ScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
   mask?: Locator[];
-  path?: string;
 };
 
 export class Page {
@@ -221,8 +219,8 @@ export class Page {
     return result.matched;
   }
 
-  async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
-    const { path, mask, ...screenshotOptions } = options ?? {};
+  async screenshot(options?: ScreenshotOptions): Promise<Uint8Array> {
+    const { mask, ...screenshotOptions } = options ?? {};
     const result = await this.rpcClient.send(StagehandMethods.pageScreenshot, {
       pageId: this.pageId,
       options: {
@@ -230,9 +228,7 @@ export class Page {
         ...(mask ? { mask: mask.map((locator) => locator.descriptor) } : {}),
       },
     });
-    const bytes = Buffer.from(result.data, "base64");
-    if (path) await writeFile(path, bytes);
-    return bytes;
+    return decodeBase64(result.data);
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
@@ -266,4 +262,13 @@ export class Page {
       selector,
     });
   }
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
 }

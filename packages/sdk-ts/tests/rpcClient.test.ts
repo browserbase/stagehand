@@ -1,9 +1,15 @@
+import { ROOT_CONTEXT, createTraceState, trace, TraceFlags } from "@opentelemetry/api";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod/v4";
 import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { RPCClient, type CDPTransport } from "../src/rpcClient.js";
+import {
+  extractTraceContextFields,
+  getTraceContextFields,
+  RPCClient,
+  type CDPTransport,
+} from "../src/rpcClient.js";
 
 const UppercaseMethod = {
   name: "test.uppercase",
@@ -58,6 +64,29 @@ class ManualCDPTransport implements CDPTransport {
 }
 
 describe("RPCClient", () => {
+  it("round-trips W3C trace context without Node-specific telemetry code", () => {
+    const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+    const spanId = "00f067aa0ba902b7";
+    const requestContext = trace.setSpanContext(ROOT_CONTEXT, {
+      traceId,
+      spanId,
+      traceFlags: TraceFlags.SAMPLED,
+      traceState: createTraceState("vendor=value"),
+    });
+
+    const fields = getTraceContextFields(requestContext);
+    expect(fields).toStrictEqual({
+      traceparent: `00-${traceId}-${spanId}-01`,
+      tracestate: "vendor=value",
+    });
+    expect(trace.getSpanContext(extractTraceContextFields(fields))).toMatchObject({
+      traceId,
+      spanId,
+      traceFlags: TraceFlags.SAMPLED,
+      isRemote: true,
+    });
+  });
+
   it("accepts page methods without SDK wrapper methods", async () => {
     const cdp = new FakeCDPTransport({ matched: true });
     const client = new RPCClient(cdp, 1_000);
