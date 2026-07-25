@@ -40,7 +40,7 @@ catalog:
   openai: ^6.48.0
   "@browserbasehq/sdk": ^2.16.0
   fflate: ^0.8.3
-  mint: 4.2.715
+  mint: 4.2.742
   publint: ^0.3.8
 overrides:
   vite: "catalog:"
@@ -52,3 +52,12 @@ allowBuilds:
   protobufjs: false
   puppeteer: false
   sharp: true
+minimumReleaseAgeExclude:
+  - "@mintlify/cli@4.0.1345"
+  - "@mintlify/common@1.0.1046"
+  - "@mintlify/link-rot@3.0.1239"
+  - "@mintlify/prebuild@1.0.1194"
+  - "@mintlify/previewing@4.0.1263"
+  - "@mintlify/scraping@4.0.911"
+  - "@mintlify/validation@0.1.801"
+  - mint@4.2.742
