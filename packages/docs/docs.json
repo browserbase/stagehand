@@ -21,6 +21,42 @@
   "navigation": {
     "versions": [
       {
+        "version": "v4",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": ["v4/index"]
+          },
+          {
+            "group": "First Steps",
+            "pages": [
+              "v4/first-steps/introduction",
+              "v4/first-steps/quickstart",
+              "v4/first-steps/installation",
+              "v4/first-steps/ai-rules"
+            ]
+          },
+          {
+            "group": "The Basics",
+            "pages": ["v4/basics/act", "v4/basics/extract", "v4/basics/observe"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["v4/configuration/logging"]
+          },
+          {
+            "group": "SDK reference",
+            "pages": [
+              "v4/reference/stagehand",
+              "v4/reference/context",
+              "v4/reference/clipboard",
+              "v4/reference/page",
+              "v4/reference/locator"
+            ]
+          }
+        ]
+      },
+      {
         "version": "v3",
         "dropdowns": [
           {
@@ -403,11 +439,27 @@
   "redirects": [
     {
       "source": "/first-steps/:slug*",
-      "destination": "/v3/first-steps/:slug*"
+      "destination": "/v4/first-steps/:slug*"
+    },
+    {
+      "source": "/basics/act",
+      "destination": "/v4/basics/act"
+    },
+    {
+      "source": "/basics/extract",
+      "destination": "/v4/basics/extract"
+    },
+    {
+      "source": "/basics/observe",
+      "destination": "/v4/basics/observe"
     },
     {
       "source": "/basics/:slug*",
       "destination": "/v3/basics/:slug*"
+    },
+    {
+      "source": "/configuration/logging",
+      "destination": "/v4/configuration/logging"
     },
     {
       "source": "/configuration/:slug*",
@@ -440,6 +492,10 @@
     {
       "source": "/references/:slug*",
       "destination": "/v3/references/:slug*"
+    },
+    {
+      "source": "/reference/:slug*",
+      "destination": "/v4/reference/:slug*"
     },
     {
       "source": "/migrations/:slug*",

@@ -1,0 +1,123 @@
+---
+title: "Logging"
+description: "Control terminal output and forward structured Stagehand logs."
+---
+
+Stagehand writes `info`, `warn`, and `error` logs to stderr by default. In `pretty` format,
+each event is rendered as a single line:
+
+```text
+[stagehand] INFO Starting observation {"category":"observation","instruction":"Find the Learn more link"}
+```
+
+## Configure terminal output
+
+Set `level` to control which logs Stagehand sends from the runtime. Set `format` to choose
+human-readable or newline-delimited JSON terminal output.
+
+<View title="TypeScript" icon="js">
+
+```typescript
+const stagehand = new Stagehand({
+  // ...
+  logging: {
+    level: "info",
+    format: "pretty",
+  },
+});
+```
+
+| Option   | Default  | Values                                  |
+| -------- | -------- | --------------------------------------- |
+| `level`  | `info`   | `debug`, `info`, `warn`, `error`, `off` |
+| `format` | `pretty` | `pretty`, `json`                        |
+
+`format` only changes the built-in terminal output. It does not change structured logs passed
+to a callback.
+
+## Forward structured logs
+
+Use `onLog` in TypeScript or `on_log` in Python to send each displayed log to a file or your
+application logger. The callback is additive: Stagehand continues to write its normal terminal
+output.
+
+```typescript
+import { createWriteStream } from "node:fs";
+
+const logFile = createWriteStream("stagehand.jsonl", { flags: "a" });
+
+const stagehand = new Stagehand({
+  // ...
+  logging: {
+    level: "info",
+    format: "pretty",
+    onLog(log) {
+      logFile.write(`${JSON.stringify(log)}\n`);
+    },
+  },
+});
+```
+
+</View>
+
+<View title="Python" icon="python">
+
+```python
+stagehand = Stagehand(
+    # ...
+    logging=StagehandClientLoggingConfig(
+        level="info",
+        format="pretty",
+    ),
+)
+```
+
+| Option   | Default  | Values                                  |
+| -------- | -------- | --------------------------------------- |
+| `level`  | `info`   | `debug`, `info`, `warn`, `error`, `off` |
+| `format` | `pretty` | `pretty`, `json`                        |
+
+`format` only changes the built-in terminal output. It does not change structured logs passed
+to a callback.
+
+## Forward structured logs
+
+Use `onLog` in TypeScript or `on_log` in Python to send each displayed log to a file or your
+application logger. The callback is additive: Stagehand continues to write its normal terminal
+output.
+
+```python
+log_file = open("stagehand.jsonl", "a", encoding="utf-8")
+
+stagehand = Stagehand(
+    # ...
+    logging=StagehandClientLoggingConfig(
+        level="info",
+        format="pretty",
+        on_log=lambda log: print(log.model_dump_json(), file=log_file),
+    ),
+)
+```
+
+</View>
+
+Each callback receives the event as a structured log:
+
+```json
+{
+  "level": "info",
+  "message": "Starting observation",
+  "data": {
+    "category": "observation",
+    "instruction": "Find the Learn more link"
+  }
+}
+```
+
+Close or flush your destination when your application exits.
+
+<Note>
+  Logging and OpenTelemetry serve different purposes. Logging controls runtime events sent to your
+  terminal and callback. Telemetry exports Stagehand spans through your configured OpenTelemetry
+  endpoint.
+</Note>

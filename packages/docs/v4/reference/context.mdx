@@ -1,0 +1,630 @@
+---
+title: "context"
+description: "Manage pages, cookies, headers, policies, and clipboard access within a browser context."
+icon: "window"
+---
+
+Use `BrowserContext` to coordinate pages and browser state that is shared across them.
+
+<View title="TypeScript" icon="js">
+
+## Quick start
+
+```typescript
+const context = stagehand.context;
+const page = await context.newPage();
+```
+
+## pages()
+
+Return every open page in the browser context.
+
+```typescript
+const pages = await stagehand.context.pages();
+```
+
+<ResponseField name="result" type="Promise<Page[]>">
+  The operation result.
+</ResponseField>
+
+## newPage()
+
+Create a new page in the browser context.
+
+```typescript
+const page = await stagehand.context.newPage({ url: "https://example.com" });
+```
+
+<ParamField path="options" type="ContextNewPageParams" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.url" type="string" optional>
+    The URL to open.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<Page>">
+  The operation result.
+</ResponseField>
+
+## activePage()
+
+Return the page that is currently active.
+
+```typescript
+const page = await stagehand.context.activePage();
+```
+
+<ResponseField name="result" type="Promise<Page | undefined>">
+  The operation result.
+</ResponseField>
+
+## setActivePage()
+
+Make a page the active page in the browser context.
+
+```typescript
+await stagehand.context.setActivePage(page);
+```
+
+<ParamField path="page" type="Page">
+  The page to make active.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## close()
+
+Close the remote browser context.
+
+```typescript
+await stagehand.context.close();
+```
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## addInitScript()
+
+Run a script before scripts on every newly created page.
+
+```typescript
+await stagehand.context.addInitScript(() => {
+  window.localStorage.clear();
+});
+```
+
+<ParamField path="script" type="InitScriptSource<Arg>">
+  A function or source string to evaluate.
+</ParamField>
+
+<ParamField path="arg" type="Arg" optional>
+  An optional argument passed to the script.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## setExtraHTTPHeaders()
+
+Set additional HTTP headers for every page in the context.
+
+```typescript
+await stagehand.context.setExtraHTTPHeaders({ "x-test": "true" });
+```
+
+<ParamField path="headers" type="Record<string, string>">
+  HTTP header names and values.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## getDomainPolicy()
+
+Return the context's current domain policy.
+
+```typescript
+const policy = await stagehand.context.getDomainPolicy();
+```
+
+<ResponseField name="result" type="Promise<DomainPolicy | null>">
+  The operation result.
+
+<ResponseField name="result.allowedDomains" type="string[]" optional>
+  Domains that the context may access.
+</ResponseField>
+
+  <ResponseField name="result.blockedDomains" type="string[]" optional>
+    Domains that the context must reject.
+  </ResponseField>
+</ResponseField>
+
+## setDomainPolicy()
+
+Set or clear the context's domain policy.
+
+```typescript
+await stagehand.context.setDomainPolicy(null);
+```
+
+<ParamField path="policy" type="DomainPolicy | null">
+  The policy to apply, or null/None to clear it.
+
+<ParamField path="policy.allowedDomains" type="string[]" optional>
+  Domains that the context may access.
+</ParamField>
+
+  <ParamField path="policy.blockedDomains" type="string[]" optional>
+    Domains that the context must reject.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## cookies()
+
+Return cookies, optionally filtered to one or more URLs.
+
+```typescript
+const cookies = await stagehand.context.cookies("https://example.com");
+```
+
+<ParamField path="urls" type="string | string[]" optional>
+  A URL or collection of URLs used to filter cookies.
+</ParamField>
+
+<ResponseField name="result" type="Promise<Cookie[]>">
+  The operation result.
+
+<ResponseField name="result.name" type="string">
+  The cookie name.
+</ResponseField>
+
+<ResponseField name="result.value" type="string">
+  The cookie value.
+</ResponseField>
+
+<ResponseField name="result.domain" type="string">
+  The cookie domain.
+</ResponseField>
+
+<ResponseField name="result.path" type="string">
+  The cookie path.
+</ResponseField>
+
+<ResponseField name="result.expires" type="number">
+  The cookie expiration time.
+</ResponseField>
+
+<ResponseField name="result.httpOnly" type="boolean">
+  Whether the cookie is restricted to HTTP requests.
+</ResponseField>
+
+<ResponseField name="result.secure" type="boolean">
+  Whether the cookie requires HTTPS.
+</ResponseField>
+
+  <ResponseField name="result.sameSite" type="string">
+    The cookie SameSite policy.
+  </ResponseField>
+</ResponseField>
+
+## addCookies()
+
+Add cookies to the browser context.
+
+```typescript
+await stagehand.context.addCookies([cookie]);
+```
+
+<ParamField path="cookies" type="CookieParam[]">
+  The cookies to add.
+
+<ParamField path="cookies.domain" type="string" optional>
+  The cookie domain.
+</ParamField>
+
+<ParamField path="cookies.expires" type="number" optional>
+  The cookie expiration time.
+</ParamField>
+
+<ParamField path="cookies.httpOnly" type="boolean" optional>
+  Whether the cookie is restricted to HTTP requests.
+</ParamField>
+
+<ParamField path="cookies.name" type="string">
+  The cookie name.
+</ParamField>
+
+<ParamField path="cookies.path" type="string" optional>
+  The cookie path.
+</ParamField>
+
+<ParamField path="cookies.sameSite" type="string" optional>
+  The cookie SameSite policy.
+</ParamField>
+
+<ParamField path="cookies.secure" type="boolean" optional>
+  Whether the cookie requires HTTPS.
+</ParamField>
+
+<ParamField path="cookies.url" type="string" optional>
+  The URL scope.
+</ParamField>
+
+  <ParamField path="cookies.value" type="string">
+    The cookie value.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## clearCookies()
+
+Clear cookies that match optional name, domain, and path filters.
+
+```typescript
+await stagehand.context.clearCookies({ domain: "example.com" });
+```
+
+<ParamField path="options" type="ClearCookieOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.domain" type="CookieFilter" optional>
+    The cookie domain.
+
+    <ParamField path="options.domain.flags" type="string" optional>
+      Regular-expression flags.
+    </ParamField>
+
+    <ParamField path="options.domain.source" type="string">
+      The regular-expression source.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.name" type="CookieFilter" optional>
+    The cookie name.
+
+    <ParamField path="options.name.flags" type="string" optional>
+      Regular-expression flags.
+    </ParamField>
+
+    <ParamField path="options.name.source" type="string">
+      The regular-expression source.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.path" type="CookieFilter" optional>
+    The cookie path.
+
+    <ParamField path="options.path.flags" type="string" optional>
+      Regular-expression flags.
+    </ParamField>
+
+    <ParamField path="options.path.source" type="string">
+      The regular-expression source.
+    </ParamField>
+
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+</View>
+
+<View title="Python" icon="python">
+
+## Quick start
+
+```python
+context = stagehand.context
+page = await context.new_page()
+```
+
+## pages()
+
+Return every open page in the browser context.
+
+```python
+pages = await stagehand.context.pages()
+```
+
+<ResponseField name="result" type="list[Page]">
+  The operation result.
+</ResponseField>
+
+## new_page()
+
+Create a new page in the browser context.
+
+```python
+page = await stagehand.context.new_page(url="https://example.com")
+```
+
+<ParamField path="url" type="str | None" optional>
+  The initial URL for the new page.
+</ParamField>
+
+<ResponseField name="result" type="Page">
+  The operation result.
+</ResponseField>
+
+## active_page()
+
+Return the page that is currently active.
+
+```python
+page = await stagehand.context.active_page()
+```
+
+<ResponseField name="result" type="Page | None">
+  The operation result.
+</ResponseField>
+
+## set_active_page()
+
+Make a page the active page in the browser context.
+
+```python
+await stagehand.context.set_active_page(page)
+```
+
+<ParamField path="page" type="Page">
+  The page to make active.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## close()
+
+Close the remote browser context.
+
+```python
+await stagehand.context.close()
+```
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## add_init_script()
+
+Run a script before scripts on every newly created page.
+
+```python
+await stagehand.context.add_init_script("window.localStorage.clear()")
+```
+
+<ParamField path="source" type="str | Path">
+  JavaScript source or a path to a JavaScript file.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## set_extra_http_headers()
+
+Set additional HTTP headers for every page in the context.
+
+```python
+await stagehand.context.set_extra_http_headers({"x-test": "true"})
+```
+
+<ParamField path="headers" type="Mapping[str, str]">
+  HTTP header names and values.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## get_domain_policy()
+
+Return the context's current domain policy.
+
+```python
+policy = await stagehand.context.get_domain_policy()
+```
+
+<ResponseField name="result" type="DomainPolicy | None">
+  The operation result.
+
+<ResponseField name="result.allowed_domains" type="list[str]" optional>
+  Domains that the context may access.
+</ResponseField>
+
+  <ResponseField name="result.blocked_domains" type="list[str]" optional>
+    Domains that the context must reject.
+  </ResponseField>
+</ResponseField>
+
+## set_domain_policy()
+
+Set or clear the context's domain policy.
+
+```python
+await stagehand.context.set_domain_policy(None)
+```
+
+<ParamField path="policy" type="DomainPolicy | None">
+  The policy to apply, or null/None to clear it.
+
+<ParamField path="policy.allowed_domains" type="list[str]" optional>
+  Domains that the context may access.
+</ParamField>
+
+  <ParamField path="policy.blocked_domains" type="list[str]" optional>
+    Domains that the context must reject.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## cookies()
+
+Return cookies, optionally filtered to one or more URLs.
+
+```python
+cookies = await stagehand.context.cookies("https://example.com")
+```
+
+<ParamField path="urls" type="str | Sequence[str] | None" optional>
+  A URL or collection of URLs used to filter cookies.
+</ParamField>
+
+<ResponseField name="result" type="list[Cookie]">
+  The operation result.
+
+<ResponseField name="result.name" type="str">
+  The cookie name.
+</ResponseField>
+
+<ResponseField name="result.value" type="str">
+  The cookie value.
+</ResponseField>
+
+<ResponseField name="result.domain" type="str">
+  The cookie domain.
+</ResponseField>
+
+<ResponseField name="result.path" type="str">
+  The cookie path.
+</ResponseField>
+
+<ResponseField name="result.expires" type="float">
+  The cookie expiration time.
+</ResponseField>
+
+<ResponseField name="result.http_only" type="bool">
+  Whether the cookie is restricted to HTTP requests.
+</ResponseField>
+
+<ResponseField name="result.secure" type="bool">
+  Whether the cookie requires HTTPS.
+</ResponseField>
+
+  <ResponseField name="result.same_site" type="str">
+    The cookie SameSite policy.
+  </ResponseField>
+</ResponseField>
+
+## add_cookies()
+
+Add cookies to the browser context.
+
+```python
+await stagehand.context.add_cookies([cookie])
+```
+
+<ParamField path="cookies" type="Sequence[CookieParam]">
+  The cookies to add.
+
+<ParamField path="cookies.domain" type="str" optional>
+  The cookie domain.
+</ParamField>
+
+<ParamField path="cookies.expires" type="float" optional>
+  The cookie expiration time.
+</ParamField>
+
+<ParamField path="cookies.http_only" type="bool" optional>
+  Whether the cookie is restricted to HTTP requests.
+</ParamField>
+
+<ParamField path="cookies.name" type="str">
+  The cookie name.
+</ParamField>
+
+<ParamField path="cookies.path" type="str" optional>
+  The cookie path.
+</ParamField>
+
+<ParamField path="cookies.same_site" type="str" optional>
+  The cookie SameSite policy.
+</ParamField>
+
+<ParamField path="cookies.secure" type="bool" optional>
+  Whether the cookie requires HTTPS.
+</ParamField>
+
+<ParamField path="cookies.url" type="str" optional>
+  The URL scope.
+</ParamField>
+
+  <ParamField path="cookies.value" type="str">
+    The cookie value.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## clear_cookies()
+
+Clear cookies that match optional name, domain, and path filters.
+
+```python
+await stagehand.context.clear_cookies(domain="example.com")
+```
+
+<ParamField path="name" type="str | Pattern[str] | None" optional>
+  A cookie name or regular-expression filter.
+
+<ParamField path="name.flags" type="str" optional>
+  Regular-expression flags.
+</ParamField>
+
+  <ParamField path="name.source" type="str">
+    The regular-expression source.
+  </ParamField>
+</ParamField>
+
+<ParamField path="domain" type="str | Pattern[str] | None" optional>
+  A cookie domain or regular-expression filter.
+
+<ParamField path="domain.flags" type="str" optional>
+  Regular-expression flags.
+</ParamField>
+
+  <ParamField path="domain.source" type="str">
+    The regular-expression source.
+  </ParamField>
+</ParamField>
+
+<ParamField path="path" type="str | Pattern[str] | None" optional>
+  A cookie path or regular-expression filter.
+
+<ParamField path="path.flags" type="str" optional>
+  Regular-expression flags.
+</ParamField>
+
+  <ParamField path="path.source" type="str">
+    The regular-expression source.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+</View>
