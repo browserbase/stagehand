@@ -9,10 +9,12 @@ function createChromeApi(overrides: {
   getContexts?: () => Promise<unknown[]>;
 }) {
   const createDocument = vi.fn(overrides.createDocument ?? (async () => {}));
+  const closeDocument = vi.fn(async () => {});
   const getContexts = vi.fn(overrides.getContexts ?? (async () => []));
   const chromeApi: ServiceWorkerHeartbeatChrome = {
     offscreen: {
       createDocument,
+      closeDocument,
     },
     runtime: {
       getContexts,
@@ -24,7 +26,7 @@ function createChromeApi(overrides: {
       onCreated: { addListener: vi.fn() },
     },
   };
-  return { chromeApi, createDocument, getContexts };
+  return { chromeApi, closeDocument, createDocument, getContexts };
 }
 
 describe("service worker heartbeat manager", () => {
@@ -66,5 +68,19 @@ describe("service worker heartbeat manager", () => {
 
     finishCreation?.();
     await Promise.all([startupEnsure, tabEnsure]);
+  });
+
+  it("starts and stops the offscreen heartbeat with activation", async () => {
+    const { chromeApi, closeDocument, createDocument } = createChromeApi({});
+    const manager = createServiceWorkerHeartbeatManager(chromeApi);
+
+    manager.install();
+    expect(createDocument).not.toHaveBeenCalled();
+
+    await manager.start();
+    expect(createDocument).toHaveBeenCalledOnce();
+
+    await manager.stop();
+    expect(closeDocument).toHaveBeenCalledOnce();
   });
 });

@@ -7,7 +7,10 @@ import { ChromeRuntimeClient } from "./clients/chromeRuntimeClient.js";
 import { RPCClient } from "./clients/rpcClient.js";
 import { RPCRouter } from "./rpcRouter.js";
 import { installServiceWorkerHeartbeat } from "./service-worker-lifecycle/heartbeat-manager.js";
-import { resolveLocalDebuggerUrl } from "./service-worker-lifecycle/local-debugger.js";
+import {
+  createPid2WebSocketFactory,
+  STAGEHAND_PID2_WEBSOCKET_URL,
+} from "./service-worker-lifecycle/pid2-transport.js";
 import {
   ResidentRuntimeLifecycle,
   type StagehandRuntimeMarker,
@@ -18,6 +21,7 @@ import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { V3Context } from "./understudy/context.js";
 
 const RESIDENT_BOOTSTRAP_ATTEMPTS = 3;
+const RESIDENT_BOOTSTRAP_RETRY_DELAYS_MS = [100, 250] as const;
 
 export type StagehandServiceWorkerScope = {
   __stagehand_runtime?: StagehandRuntimeMarker;
@@ -26,7 +30,7 @@ export type StagehandServiceWorkerScope = {
 
 export type StartStagehandServiceWorkerOptions = {
   autoBootstrap?: boolean;
-  resolveDebuggerUrl?: () => Promise<string>;
+  resolveResidentWebSocketUrl?: () => Promise<string>;
   startedAt?: number;
 };
 
@@ -37,6 +41,8 @@ export function startStagehandServiceWorker(
   options: StartStagehandServiceWorkerOptions = {},
 ): RPCClient {
   const chromeRuntimeClient = new ChromeRuntimeClient(scope, STAGEHAND_SEND_TO_HOST_BINDING);
+  const receiverReady = deferred();
+  const heartbeat = installServiceWorkerHeartbeat();
   let rpcClient: RPCClient | undefined;
   const activeRuntime =
     runtime ??
@@ -50,12 +56,20 @@ export function startStagehandServiceWorker(
         }
         const fallbackLocatorScriptSource = await locatorRuntimeResponse.text();
         lifecycle?.onConnecting?.();
+        const residentConnection = cdpUrl === STAGEHAND_PID2_WEBSOCKET_URL;
+        const websocketFactory = residentConnection
+          ? createPid2WebSocketFactory(browserWebSocketFactory, async (activation) => {
+              await lifecycle?.onActivation?.(activation.activationEpoch);
+            })
+          : browserWebSocketFactory;
         return V3Context.create(cdpUrl, {
-          websocketFactory: browserWebSocketFactory,
+          websocketFactory,
           logger,
           blankPageUrl: chrome.runtime.getURL("blank.html"),
           fallbackLocatorScriptSource,
           chromeTabs: new ChromeTabTargetAdapter(chrome),
+          ensureInitialPage: !residentConnection,
+          deferPageInstrumentation: residentConnection,
           ...(lifecycle?.onConnected ? { onConnected: () => lifecycle.onConnected?.() } : {}),
           ...(lifecycle?.onDisconnected
             ? { onDisconnected: () => lifecycle.onDisconnected?.() }
@@ -76,7 +90,11 @@ export function startStagehandServiceWorker(
     });
 
   const residentRuntime = new ResidentRuntimeLifecycle(activeRuntime, {
-    resolveDebuggerUrl: options.resolveDebuggerUrl ?? resolveLocalDebuggerUrl,
+    resolveResidentWebSocketUrl:
+      options.resolveResidentWebSocketUrl ?? (() => Promise.resolve(STAGEHAND_PID2_WEBSOCKET_URL)),
+    waitForRpcReceiver: () => receiverReady.promise,
+    onActive: async () => await heartbeat?.start(),
+    onInactive: async () => await heartbeat?.stop(),
     ...(options.startedAt === undefined ? {} : { startedAt: options.startedAt }),
   });
   rpcClient = new RPCClient(
@@ -87,6 +105,7 @@ export function startStagehandServiceWorker(
   );
   scope.__stagehand_runtime = residentRuntime.marker;
   scope.__stagehandReceiveFromHost = (raw) => chromeRuntimeClient.receive(raw);
+  receiverReady.resolve();
 
   if (options.autoBootstrap ?? typeof chrome !== "undefined") {
     void bootstrapResidentRuntime(residentRuntime).catch((error: unknown) => {
@@ -98,9 +117,19 @@ export function startStagehandServiceWorker(
   return rpcClient;
 }
 
+function deferred(): { promise: Promise<void>; resolve(): void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 async function bootstrapResidentRuntime(lifecycle: ResidentRuntimeLifecycle): Promise<void> {
   let lastError: unknown = new Error("Resident runtime bootstrap failed");
   for (let attempt = 0; attempt < RESIDENT_BOOTSTRAP_ATTEMPTS; attempt += 1) {
+    const retryDelay = RESIDENT_BOOTSTRAP_RETRY_DELAYS_MS[attempt - 1];
+    if (retryDelay !== undefined) await delay(retryDelay);
     try {
       await lifecycle.bootstrap();
       return;
@@ -111,8 +140,11 @@ async function bootstrapResidentRuntime(lifecycle: ResidentRuntimeLifecycle): Pr
   throw lastError;
 }
 
+async function delay(milliseconds: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
+
 if (typeof chrome !== "undefined") {
   const startedAt = performance.now();
-  installServiceWorkerHeartbeat();
   startStagehandServiceWorker(undefined, undefined, { startedAt });
 }

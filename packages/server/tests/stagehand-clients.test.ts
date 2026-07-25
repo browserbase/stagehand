@@ -607,13 +607,19 @@ describe("Stagehand worker clients", () => {
   it("retries resident bootstrap after a bounded resolver failure", async () => {
     const session = new FakeBrowserSession();
     const runtime = createStagehandRuntime(
-      { browserSessionFactory: async () => session },
+      {
+        browserSessionFactory: async (_url, _logger, lifecycle) => {
+          await lifecycle?.onActivation?.("reservation-a");
+          lifecycle?.onConnected?.();
+          return session;
+        },
+      },
       testTracing,
     );
-    const resolveDebuggerUrl = vi
+    const resolveResidentWebSocketUrl = vi
       .fn<() => Promise<string>>()
-      .mockRejectedValueOnce(new Error("Debugger is still starting"))
-      .mockResolvedValueOnce("ws://127.0.0.1:9222/devtools/browser/session");
+      .mockRejectedValueOnce(new Error("pid2 is still starting"))
+      .mockResolvedValueOnce("ws://127.0.0.1:8083/stagehand/v1");
     const scope: StagehandServiceWorkerScope & {
       [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
     } = {
@@ -622,13 +628,45 @@ describe("Stagehand worker clients", () => {
 
     startStagehandServiceWorker(scope, runtime, {
       autoBootstrap: true,
-      resolveDebuggerUrl,
+      resolveResidentWebSocketUrl,
     });
 
     await vi.waitFor(() => {
       expect(scope.__stagehand_runtime).toMatchObject({ state: "ready", connected: true });
     });
-    expect(resolveDebuggerUrl).toHaveBeenCalledTimes(2);
+    expect(resolveResidentWebSocketUrl).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not publish ready while bootstrap is pending even though the receiver is installed", async () => {
+    const session = new FakeBrowserSession();
+    let finishBootstrap: (() => void) | undefined;
+    const runtime = createStagehandRuntime(
+      {
+        browserSessionFactory: async (_url, _logger, lifecycle) => {
+          await lifecycle?.onActivation?.("reservation-a");
+          lifecycle?.onConnected?.();
+          await new Promise<void>((resolve) => {
+            finishBootstrap = resolve;
+          });
+          return session;
+        },
+      },
+      testTracing,
+    );
+    const scope: StagehandServiceWorkerScope & {
+      [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
+    } = {
+      [STAGEHAND_SEND_TO_HOST_BINDING]: () => {},
+    };
+
+    startStagehandServiceWorker(scope, runtime, { autoBootstrap: true });
+    await vi.waitFor(() => expect(scope.__stagehand_runtime?.state).toBe("bootstrapping"));
+
+    expect(scope.__stagehandReceiveFromHost).toEqual(expect.any(Function));
+    expect(scope.__stagehand_runtime?.state).not.toBe("ready");
+
+    finishBootstrap?.();
+    await vi.waitFor(() => expect(scope.__stagehand_runtime?.state).toBe("ready"));
   });
 
   it("returns responses without streaming debug logs at the default info level", async () => {

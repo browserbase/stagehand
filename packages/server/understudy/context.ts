@@ -1,7 +1,7 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
-import { CdpConnection } from "./cdp.js";
+import { CdpConnection, STAGEHAND_WEB_TARGET_FILTER } from "./cdp.js";
 import type { CDPSessionLike, CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
 import { executionContexts } from "./executionContextRegistry.js";
@@ -60,11 +60,12 @@ function hasInjectableDOM(url: string | undefined): boolean {
 }
 
 function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
-  // Top-level pages should always be tracked — the initial URL may be a
-  // non-web scheme (e.g. chrome://newtab/) but the user can navigate to
-  // web content, and the target identity stays the same.
-  if (info.type === "page") return false;
+  if (info.type === "page") return !hasInjectableDOM(info.url);
   return info.type !== "iframe" || !hasInjectableDOM(info.url);
+}
+
+export function isSupportedWebTarget(info: Protocol.Target.TargetInfo): boolean {
+  return !isNonWebTarget(info);
 }
 
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
@@ -96,6 +97,7 @@ export class V3Context {
     readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
     readonly blankPageUrl: string = "about:blank",
     readonly fallbackLocatorScriptSource: string | null = null,
+    private deferPageInstrumentation = false,
   ) {}
 
   readonly _targetSessionListeners = new Set<SessionId>();
@@ -167,6 +169,8 @@ export class V3Context {
       logger: StagehandLogger;
       onConnected?(): void;
       onDisconnected?(): void;
+      ensureInitialPage?: boolean;
+      deferPageInstrumentation?: boolean;
     },
   ): Promise<V3Context> {
     const connectTask = async () => {
@@ -185,16 +189,19 @@ export class V3Context {
           opts?.localBrowserLaunchOptions ?? null,
           opts.blankPageUrl,
           opts.fallbackLocatorScriptSource,
+          opts.deferPageInstrumentation ?? false,
         );
         await ctx.bootstrap();
-        // Allow connectTimeoutMs to also govern how long we wait for the first
-        // top-level page to appear.  On slow machines the browser may need more
-        // time after the CDP socket is open before the initial page registers.
-        const firstPageTimeoutMs = Math.max(
-          opts?.localBrowserLaunchOptions?.connectTimeoutMs ?? 0,
-          DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS,
-        );
-        await ctx.ensureFirstTopLevelPage(firstPageTimeoutMs);
+        if (opts.ensureInitialPage ?? true) {
+          // Allow connectTimeoutMs to also govern how long we wait for the first
+          // top-level page to appear. On slow machines the browser may need more
+          // time after the CDP socket is open before the initial page registers.
+          const firstPageTimeoutMs = Math.max(
+            opts?.localBrowserLaunchOptions?.connectTimeoutMs ?? 0,
+            DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS,
+          );
+          await ctx.ensureFirstTopLevelPage(firstPageTimeoutMs);
+        }
         return ctx;
       } catch (error) {
         await conn.close();
@@ -212,6 +219,13 @@ export class V3Context {
       }
     }
     return false;
+  }
+
+  /** Complete page-domain setup only when the client begins Stagehand initialization. */
+  async prepareForInitialization(): Promise<void> {
+    if (!this.deferPageInstrumentation) return;
+    this.deferPageInstrumentation = false;
+    await Promise.all(this.pages().map((page) => page.prepareForInitialization()));
   }
 
   async ensureFirstTopLevelPage(timeout: number): Promise<void> {
@@ -639,6 +653,7 @@ export class V3Context {
     const targets = await this.conn.getTargets();
     for (const t of targets) {
       if (t.attached) continue; // auto-attach already handled this target
+      if (!isSupportedWebTarget(t)) continue;
       try {
         await this.conn.attachToTarget(t.targetId);
       } catch {
@@ -646,7 +661,9 @@ export class V3Context {
       }
     }
 
-    const topLevelTargetIds = targets.filter((t) => isTopLevelPage(t)).map((t) => t.targetId);
+    const topLevelTargetIds = targets
+      .filter((target) => isTopLevelPage(target) && isSupportedWebTarget(target))
+      .map((target) => target.targetId);
     await this.waitForInitialTopLevelTargets(topLevelTargetIds);
   }
 
@@ -667,10 +684,14 @@ export class V3Context {
     // They still need to be resumed so we don't leave them paused by
     // waitForDebuggerOnStart. Trying to initialize these targets can throw or
     // corrupt their internal state (e.g. Chrome's PDF viewer).
-    if (isNonWebTarget(info)) {
+    const isStagehandBlankPage =
+      info.type === "page" &&
+      (info.url === this.blankPageUrl || this.pendingCreatedTargetUrl.has(info.targetId));
+    if (isNonWebTarget(info) && !isStagehandBlankPage) {
       const session = this.conn.getSession(sessionId);
       if (session) {
         await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+        await session.close().catch(() => {});
       }
       return;
     }
@@ -752,12 +773,14 @@ export class V3Context {
     // - register init scripts.
     // Commands are sent in-order on the same session before resume.
     const corePreResumeOps = [
-      queuePreResume("Page.enable"),
-      queuePreResume("Runtime.enable"),
+      ...(this.deferPageInstrumentation
+        ? []
+        : [queuePreResume("Page.enable"), queuePreResume("Runtime.enable")]),
       queuePreResume("Target.setAutoAttach", {
         autoAttach: true,
         waitForDebuggerOnStart: true,
         flatten: true,
+        filter: STAGEHAND_WEB_TARGET_FILTER,
       }),
     ];
     const headerPreResumeOps: Array<{
@@ -875,7 +898,9 @@ export class V3Context {
     try {
       // Best-effort lifecycle events; do not block top-level page registration
       // on this optional signal stream.
-      void session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => {});
+      if (!this.deferPageInstrumentation) {
+        void session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => {});
+      }
 
       // Top-level handling
       if (isTopLevelPage(info)) {
@@ -893,6 +918,7 @@ export class V3Context {
             this.apiClient,
             this.localBrowserLaunchOptions,
             this.env === "BROWSERBASE",
+            this.deferPageInstrumentation,
           );
         } catch (error) {
           createError = error;

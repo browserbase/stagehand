@@ -5,12 +5,17 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
   messageHandlers = new Set<(data: string) => void>();
   errorHandlers = new Set<(error: Error) => void>();
   messageQueue: Promise<void> = Promise.resolve();
+  pendingMessages: string[] = [];
 
   constructor(readonly socket: WebSocket) {
     this.socket.addEventListener("message", (event) => {
       this.messageQueue = this.messageQueue
         .then(async () => {
           const data = await browserWebSocketMessageToString(event.data as unknown);
+          if (this.messageHandlers.size === 0) {
+            this.pendingMessages.push(data);
+            return;
+          }
           for (const handler of this.messageHandlers) handler(data);
         })
         .catch((error: unknown) => {
@@ -39,8 +44,12 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
     });
   }
 
-  onMessage(handler: (data: string) => void): void {
+  onMessage(handler: (data: string) => void): () => void {
     this.messageHandlers.add(handler);
+    if (this.pendingMessages.length > 0) {
+      this.messageQueue = this.messageQueue.then(() => this.flushPendingMessages());
+    }
+    return () => this.messageHandlers.delete(handler);
   }
 
   onClose(handler: (event: CdpWebSocketCloseEvent) => void): void {
@@ -58,6 +67,18 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
           : "CDP websocket error";
       handler(new Error(message));
     });
+  }
+
+  private flushPendingMessages(): void {
+    const pendingMessages = this.pendingMessages;
+    this.pendingMessages = [];
+    for (let index = 0; index < pendingMessages.length; index += 1) {
+      if (this.messageHandlers.size === 0) {
+        this.pendingMessages.push(...pendingMessages.slice(index));
+        return;
+      }
+      for (const handler of this.messageHandlers) handler(pendingMessages[index]!);
+    }
   }
 }
 

@@ -14,14 +14,17 @@ describe("runtime descriptor", () => {
     expect(RuntimeDescriptorSchema.parse(scope.__stagehand_runtime)).toStrictEqual(
       scope.__stagehand_runtime,
     );
-    expect(scope.__stagehand_runtime).toStrictEqual({
+    expect(scope.__stagehand_runtime).toMatchObject({
+      name: "stagehand",
+      version: "4.0.0",
       protocolVersion: 4,
       serverInfo: {
         name: "stagehand",
         version: "4.0.0",
       },
-      state: "starting",
+      state: "connecting",
       connected: false,
+      runtimeInstanceId: expect.any(String),
       timings: {},
     });
   });

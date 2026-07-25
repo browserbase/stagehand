@@ -100,6 +100,7 @@ export class Page {
     public readonly logger: StagehandLogger,
     apiClient?: StagehandAPIClient | null,
     browserIsRemote = false,
+    deferInstrumentation = false,
   ) {
     this.pageId = _targetId;
     this.apiClient = apiClient ?? null;
@@ -120,8 +121,20 @@ export class Page {
       this.logger,
     );
 
-    this.networkManager = new NetworkManager();
+    this.networkManager = new NetworkManager(!deferInstrumentation);
     this.networkManager.trackSession(this.mainSession);
+  }
+
+  /** Enable domains intentionally deferred while the resident runtime was only becoming ready. */
+  public async prepareForInitialization(): Promise<void> {
+    await Promise.all(
+      [...this.sessions.values()].map(async (session) => {
+        await session.send("Page.enable");
+        await session.send("Runtime.enable");
+        await session.send("Page.setLifecycleEventsEnabled", { enabled: true });
+      }),
+    );
+    await this.networkManager.enable();
   }
 
   // Send a single init script to a specific CDP session.
@@ -200,19 +213,31 @@ export class Page {
     apiClient?: StagehandAPIClient | null,
     localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
     browserIsRemote = false,
+    deferInstrumentation = false,
   ): Promise<Page> {
     // Context already issues Page.enable + lifecycle enable before resume.
     // Re-issue here only as best-effort and do not block page registration on
     // their acknowledgements; some remote CDP backends can delay these replies
     // long after the target is otherwise ready.
-    void session.send("Page.enable").catch(() => {});
-    void session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => {});
+    if (!deferInstrumentation) {
+      void session.send("Page.enable").catch(() => {});
+      void session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => {});
+    }
     const { frameTree } = await session.send<{
       frameTree: Protocol.Page.FrameTree;
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(conn, session, targetId, mainFrameId, logger, apiClient, browserIsRemote);
+    const page = new Page(
+      conn,
+      session,
+      targetId,
+      mainFrameId,
+      logger,
+      apiClient,
+      browserIsRemote,
+      deferInstrumentation,
+    );
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);

@@ -23,6 +23,7 @@ import {
  * Aggregates network information for all CDP sessions owned by a Page.
  */
 export class NetworkManager {
+  private enabled: boolean;
   readonly sessions = new Map<
     string,
     {
@@ -36,6 +37,10 @@ export class NetworkManager {
   readonly requests = new Map<string, NetworkRequestInfo>();
 
   readonly documentRequestsByFrame = new Map<string, string>();
+
+  constructor(enabled = true) {
+    this.enabled = enabled;
+  }
 
   /**
    * Begin tracking network traffic for a CDP session (top-level or OOPIF).
@@ -139,8 +144,10 @@ export class NetworkManager {
     session.on("Network.responseReceived", onResponse);
     session.on("Page.frameStoppedLoading", onFrameStopped);
 
-    void session.send("Network.enable").catch(() => {});
-    void session.send("Page.enable").catch(() => {});
+    if (this.enabled) {
+      void session.send("Network.enable").catch(() => {});
+      void session.send("Page.enable").catch(() => {});
+    }
 
     this.sessions.set(sid, {
       session,
@@ -153,6 +160,18 @@ export class NetworkManager {
         session.off("Page.frameStoppedLoading", onFrameStopped);
       },
     });
+  }
+
+  /** Enable event-producing domains after resident bootstrap has been initialized. */
+  public async enable(): Promise<void> {
+    if (this.enabled) return;
+    this.enabled = true;
+    await Promise.all(
+      [...this.sessions.values()].map(async ({ session }) => {
+        await session.send("Network.enable");
+        await session.send("Page.enable");
+      }),
+    );
   }
 
   /**

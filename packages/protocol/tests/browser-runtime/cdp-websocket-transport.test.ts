@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browserWebSocketFactory } from "../../../server/understudy/browserWebSocketTransport.js";
 import { CdpConnection } from "../../../server/understudy/cdp.js";
+import { createPid2WebSocketFactory } from "../../../server/service-worker-lifecycle/pid2-transport.js";
 
 const discardCdpLogs = {
   debug: () => {},
@@ -173,5 +174,28 @@ describe("CdpConnection browser WebSocket transport", () => {
     });
 
     await connection.close();
+  });
+
+  it("buffers raw CDP that follows the pid2 activation frame before the parser attaches", async () => {
+    const factory = createPid2WebSocketFactory(browserWebSocketFactory, vi.fn());
+    const transportPromise = factory("ws://pid2.test");
+    await vi.waitFor(() => expect(latestSocket().readyState).toBe(FakeWebSocket.OPEN));
+    const socket = latestSocket();
+    socket.receive(
+      JSON.stringify({
+        type: "stagehand.activation",
+        protocolVersion: "1",
+        state: "active",
+        activationEpoch: "reservation-a",
+      }),
+    );
+    socket.receive(JSON.stringify({ method: "Target.targetCreated", params: {} }));
+
+    const transport = await transportPromise;
+    const messages: string[] = [];
+    transport.onMessage((message) => messages.push(message));
+
+    await vi.waitFor(() => expect(messages).toHaveLength(1));
+    expect(JSON.parse(messages[0]!)).toMatchObject({ method: "Target.targetCreated" });
   });
 });

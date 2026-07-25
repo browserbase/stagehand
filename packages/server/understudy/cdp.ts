@@ -3,6 +3,12 @@ import type { Protocol } from "devtools-protocol";
 import { z } from "zod/v4";
 import type { StagehandLogger } from "../logger.js";
 
+export const STAGEHAND_WEB_TARGET_FILTER: Protocol.Target.TargetFilter = [
+  { type: "page" },
+  { type: "iframe" },
+  { exclude: true },
+];
+
 /**
  * CDP transport & session multiplexer
  *
@@ -28,7 +34,7 @@ export interface CdpWebSocketTransport {
   readonly connected: boolean;
   send(payload: string): void;
   close(): Promise<void>;
-  onMessage(handler: (data: string) => void): void;
+  onMessage(handler: (data: string) => void): () => void;
   onClose(handler: (event: CdpWebSocketCloseEvent) => void): void;
   onError(handler: (error: Error) => void): void;
 }
@@ -161,6 +167,7 @@ export class CdpConnection implements CDPSessionLike {
       autoAttach: true,
       flatten: true,
       waitForDebuggerOnStart: true,
+      filter: STAGEHAND_WEB_TARGET_FILTER,
     });
     await this.send("Target.setDiscoverTargets", { discover: true });
   }

@@ -197,6 +197,7 @@ export type UnderstudyRuntimeLocator = {
 
 export type StagehandBrowserSession = {
   readonly connected: boolean;
+  prepareForInitialization?(): Promise<void>;
   getVersion(): Promise<BrowserGetVersionResult>;
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
@@ -221,6 +222,7 @@ export type StagehandBrowserSessionFactory = (
 
 export type StagehandBrowserSessionLifecycle = {
   onConnecting?(): void;
+  onActivation?(activationEpoch: string): void | Promise<void>;
   onConnected?(): void;
   onDisconnected?(): void;
 };
@@ -318,6 +320,7 @@ export class StagehandRuntime {
       throw new Error("Stagehand has already been initialized");
     }
 
+    await this.browserSession?.prepareForInitialization?.();
     const pages = await this.contextPages();
     this.tracing.configure(params.telemetry);
     this.state.setState(

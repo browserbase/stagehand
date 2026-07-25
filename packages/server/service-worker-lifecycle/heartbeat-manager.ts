@@ -7,6 +7,7 @@ type ChromeEvent<Arguments extends unknown[] = []> = {
 
 type RuntimePort = {
   name: string;
+  disconnect?(): void;
   onDisconnect: ChromeEvent;
   onMessage: ChromeEvent<[message: unknown]>;
 };
@@ -18,6 +19,7 @@ export type ServiceWorkerHeartbeatChrome = {
       reasons: string[];
       url: string;
     }): Promise<void>;
+    closeDocument?(): Promise<void>;
   };
   runtime: {
     getContexts(filter: {
@@ -35,6 +37,8 @@ export type ServiceWorkerHeartbeatChrome = {
 
 export type ServiceWorkerHeartbeatManager = {
   ensure(): Promise<void>;
+  start(): Promise<void>;
+  stop(): Promise<void>;
   install(): void;
 };
 
@@ -47,6 +51,7 @@ export function createServiceWorkerHeartbeatManager(
   let creatingDocument: Promise<void> | null = null;
   let heartbeatPort: RuntimePort | null = null;
   let installed = false;
+  let active = false;
 
   async function ensure(): Promise<void> {
     const offscreen = chromeApi.offscreen;
@@ -78,6 +83,7 @@ export function createServiceWorkerHeartbeatManager(
   }
 
   function requestEnsure(): void {
+    if (!active) return;
     void ensure().catch(onError);
   }
 
@@ -100,15 +106,31 @@ export function createServiceWorkerHeartbeatManager(
     chromeApi.runtime.onConnect.addListener(onConnect);
     chromeApi.runtime.onStartup.addListener(requestEnsure);
     chromeApi.tabs.onCreated.addListener(requestEnsure);
-    requestEnsure();
   }
 
-  return { ensure, install };
+  async function start(): Promise<void> {
+    active = true;
+    await ensure();
+  }
+
+  async function stop(): Promise<void> {
+    active = false;
+    heartbeatPort?.disconnect?.();
+    heartbeatPort = null;
+    await chromeApi.offscreen?.closeDocument?.().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("No current offscreen document")) throw error;
+    });
+  }
+
+  return { ensure, start, stop, install };
 }
 
-export function installServiceWorkerHeartbeat(): void {
+export function installServiceWorkerHeartbeat(): ServiceWorkerHeartbeatManager | undefined {
   const chromeApi = (globalThis as typeof globalThis & { chrome?: ServiceWorkerHeartbeatChrome })
     .chrome;
-  if (chromeApi == null) return;
-  createServiceWorkerHeartbeatManager(chromeApi).install();
+  if (chromeApi == null) return undefined;
+  const manager = createServiceWorkerHeartbeatManager(chromeApi);
+  manager.install();
+  return manager;
 }
