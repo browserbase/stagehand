@@ -1,0 +1,253 @@
+---
+title: clipboard
+description: 'Complete API reference for the browser clipboard'
+icon: 'clipboard'
+---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+
+<CardGroup cols={1}>
+<Card title="Context" icon="window" href="/v3/references/context">
+  Learn about the browser context that exposes the clipboard API
+</Card>
+</CardGroup>
+
+## Overview
+
+The `clipboard` object reads from and writes to the browser clipboard for the active page or an explicit page. Use it to seed text before pasting into focused fields, inspect copied text, or perform keyboard-driven copy, cut, and paste actions.
+
+Access the clipboard through your Stagehand context:
+
+```typescript
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const clipboard = stagehand.context.clipboard;
+```
+
+By default, clipboard operations target `context.activePage()`. Pass a `page` option when you need to use a specific tab.
+
+<Note>
+Browser clipboard access requires page focus. When you pass a `page` argument, Stagehand uses that page for clipboard access, brings it to the front when possible, and makes it the context's active page before running the operation.
+</Note>
+
+## Methods
+
+### writeText()
+
+Write text to the browser clipboard.
+
+```typescript
+await context.clipboard.writeText(text: string, options?: ClipboardOptions): Promise<void>
+```
+
+<ParamField path="text" type="string" required>
+  The text to write to the clipboard.
+</ParamField>
+
+<ParamField path="options" type="ClipboardOptions" optional>
+  Optional page targeting.
+
+  <Expandable title="ClipboardOptions">
+    <ParamField path="page" type="Page" optional>
+      Page to use for clipboard access. Defaults to the active page.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### readText()
+
+Read text from the browser clipboard.
+
+```typescript
+await context.clipboard.readText(options?: ClipboardOptions): Promise<string>
+```
+
+<ParamField path="options" type="ClipboardOptions" optional>
+  Optional page targeting. Defaults to the active page.
+
+  <Expandable title="ClipboardOptions">
+    <ParamField path="page" type="Page" optional>
+      Page to use for clipboard access. Defaults to the active page.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+**Returns:** `Promise<string>` - The current clipboard text.
+
+### clear()
+
+Clear the browser clipboard by writing an empty string.
+
+```typescript
+await context.clipboard.clear(options?: ClipboardOptions): Promise<void>
+```
+
+<ParamField path="options" type="ClipboardOptions" optional>
+  Optional page targeting. Defaults to the active page.
+
+  <Expandable title="ClipboardOptions">
+    <ParamField path="page" type="Page" optional>
+      Page to use for clipboard access. Defaults to the active page.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### paste()
+
+Paste the current clipboard text into the focused element.
+
+```typescript
+await context.clipboard.paste(options?: ClipboardPasteOptions): Promise<void>
+```
+
+<ParamField path="options" type="ClipboardPasteOptions" optional>
+  Optional page targeting and keyboard shortcut configuration.
+
+  <Expandable title="ClipboardPasteOptions">
+    <ParamField path="page" type="Page" optional>
+      Page where the paste shortcut should run. Defaults to the active page.
+    </ParamField>
+
+    <ParamField path="shortcut" type='"ControlOrMeta+V" | "Meta+V" | "Control+V"' optional>
+      Keyboard shortcut to use for paste.
+
+      **Default:** `"ControlOrMeta+V"`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<Note>
+`paste()` uses a keyboard shortcut, so the destination element must be focused before calling it.
+</Note>
+
+### copy()
+
+Copy the selected content from the focused page.
+
+```typescript
+await context.clipboard.copy(options?: ClipboardOptions): Promise<void>
+```
+
+<ParamField path="options" type="ClipboardOptions" optional>
+  Optional page targeting. Defaults to the active page.
+
+  <Expandable title="ClipboardOptions">
+    <ParamField path="page" type="Page" optional>
+      Page where the copy shortcut should run. Defaults to the active page.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<Note>
+`copy()` sends `ControlOrMeta+C`, so it copies whatever the page currently has selected.
+</Note>
+
+### cut()
+
+Cut the selected content from the focused page and place it on the clipboard.
+
+```typescript
+await context.clipboard.cut(options?: ClipboardOptions): Promise<void>
+```
+
+<ParamField path="options" type="ClipboardOptions" optional>
+  Optional page targeting. Defaults to the active page.
+
+  <Expandable title="ClipboardOptions">
+    <ParamField path="page" type="Page" optional>
+      Page where the cut shortcut should run. Defaults to the active page.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<Note>
+`cut()` sends `ControlOrMeta+X`, so it cuts whatever the page currently has selected.
+</Note>
+
+## Code Examples
+
+<Tabs>
+<Tab title="Paste Text">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+await page.evaluate(() => {
+  document.body.innerHTML = "<textarea autofocus></textarea>";
+  document.querySelector("textarea")?.focus();
+});
+
+await stagehand.context.clipboard.writeText("Hello from Stagehand");
+await stagehand.context.clipboard.paste();
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Copy Selection">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+await page.evaluate(() => {
+  document.body.innerHTML = "<textarea>copy me</textarea>";
+  const textarea = document.querySelector(
+    "textarea",
+  ) as HTMLTextAreaElement | null;
+  textarea?.focus();
+  textarea?.select();
+});
+
+await stagehand.context.clipboard.copy();
+const copied = await stagehand.context.clipboard.readText();
+console.log(copied);
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Specific Page">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+const firstPage = stagehand.context.pages()[0];
+const secondPage = await stagehand.context.newPage();
+
+await firstPage.goto("https://example.com");
+await secondPage.goto("https://example.com");
+await firstPage.evaluate(() => {
+  document.body.innerHTML = "<textarea autofocus></textarea>";
+  document.querySelector("textarea")?.focus();
+});
+
+await stagehand.context.clipboard.writeText("Use this tab", {
+  page: firstPage,
+});
+await stagehand.context.clipboard.paste({ page: firstPage });
+
+await stagehand.close();
+```
+
+</Tab>
+</Tabs>
+
+## Behavior
+
+- `readText()`, `writeText()`, and `clear()` grant browser clipboard permissions for the page origin when possible.
+- `paste()`, `copy()`, and `cut()` use keyboard shortcuts and depend on focus and selection state in the target page.
