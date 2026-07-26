@@ -6,19 +6,11 @@ import { describe, expect, it } from "vitest";
 
 import { addModel, parseModelName } from "../../../../scripts/add-model.js";
 
-const fixture = `export const MODEL_CATALOG = {
-  openai: [
+const fixture = `export const OpenAIModelIdSchema = z
+  .enum([
     "gpt-existing",
-  ],
-  anthropic: [
-  ],
-  google: [
-  ],
-  groq: [
-  ],
-  cerebras: [
-  ],
-} as const;\n`;
+  ])
+  .meta({ id: "OpenAIModelId" });\n`;
 
 describe("add-model", () => {
   it("keeps the provider prefix and supports model IDs that contain slashes", () => {
@@ -35,11 +27,22 @@ describe("add-model", () => {
 
   it("adds an entry once and rejects duplicates", async () => {
     const directory = await mkdtemp(join(tmpdir(), "stagehand-model-catalog-"));
-    const path = join(directory, "modelCatalog.ts");
+    const path = join(directory, "schemas.ts");
     await writeFile(path, fixture);
 
     await addModel("openai/gpt-new", path);
     expect(await readFile(path, "utf8")).toContain('    "gpt-new",');
     await expect(addModel("openai/gpt-new", path)).rejects.toThrow("already cataloged");
+  });
+
+  it("preserves dollar-sign sequences and escaped IDs", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "stagehand-model-catalog-"));
+    const path = join(directory, "schemas.ts");
+    await writeFile(path, fixture);
+
+    await addModel('openai/gpt-$&-\\"preview', path);
+    const source = await readFile(path, "utf8");
+    expect(source).toContain('    "gpt-$&-\\\\\\"preview",');
+    await expect(addModel('openai/gpt-$&-\\"preview', path)).rejects.toThrow("already cataloged");
   });
 });

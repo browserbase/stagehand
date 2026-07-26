@@ -1,12 +1,18 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import { MODEL_PROVIDERS } from "../packages/protocol/modelCatalog.ts";
+const PROVIDER_SCHEMAS = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  google: "Google",
+  groq: "Groq",
+  cerebras: "Cerebras",
+} as const;
 
-const catalogPath = fileURLToPath(new URL("../packages/protocol/modelCatalog.ts", import.meta.url));
+const catalogPath = fileURLToPath(new URL("../packages/protocol/schemas.ts", import.meta.url));
 
 export function parseModelName(value: string): {
-  provider: (typeof MODEL_PROVIDERS)[number];
+  provider: keyof typeof PROVIDER_SCHEMAS;
   modelId: string;
 } {
   const separator = value.indexOf("/");
@@ -17,30 +23,37 @@ export function parseModelName(value: string): {
     throw new Error("Expected a provider-qualified model name, such as openai/gpt-5.");
   }
 
-  if (!MODEL_PROVIDERS.includes(provider as (typeof MODEL_PROVIDERS)[number])) {
+  if (!(provider in PROVIDER_SCHEMAS)) {
     throw new Error(
-      `Unsupported provider "${provider}". Choose one of: ${MODEL_PROVIDERS.join(", ")}.`,
+      `Unsupported provider "${provider}". Choose one of: ${Object.keys(PROVIDER_SCHEMAS).join(", ")}.`,
     );
   }
 
-  return { provider: provider as (typeof MODEL_PROVIDERS)[number], modelId };
+  return { provider: provider as keyof typeof PROVIDER_SCHEMAS, modelId };
 }
 
 export async function addModel(modelName: string, path = catalogPath): Promise<void> {
   const { provider, modelId } = parseModelName(modelName);
   const source = await readFile(path, "utf8");
-  const catalogEntry = new RegExp(`(  ${provider}: \\[\\n)([\\s\\S]*?)(  \\],)`);
+  const schemaName = PROVIDER_SCHEMAS[provider];
+  const catalogEntry = new RegExp(
+    `(export const ${schemaName}ModelIdSchema = z\\n  \\.enum\\(\\[\\n)([\\s\\S]*?)(  \\]\\)\\n  \\.meta\\(\\{ id: "${schemaName}ModelId" \\}\\);)`,
+  );
   const match = source.match(catalogEntry);
 
   if (!match) {
     throw new Error(`Could not find the ${provider} catalog entry.`);
   }
 
-  if (match[2].includes(`"${modelId}"`)) {
+  const serializedModelId = JSON.stringify(modelId);
+  if (match[2].includes(serializedModelId)) {
     throw new Error(`Model "${modelName}" is already cataloged.`);
   }
 
-  const updated = source.replace(catalogEntry, `$1$2    ${JSON.stringify(modelId)},\n$3`);
+  const updated = source.replace(
+    catalogEntry,
+    (_match, start, entries, end) => `${start}${entries}    ${serializedModelId},\n${end}`,
+  );
   await writeFile(path, updated);
 }
 

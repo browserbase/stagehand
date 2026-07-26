@@ -13,7 +13,6 @@ generate:
 add-model model:
     pnpm exec tsx scripts/add-model.ts {{model}}
     just generate
-    just fmt
     just check
 
 check:
