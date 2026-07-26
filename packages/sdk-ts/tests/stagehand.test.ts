@@ -18,19 +18,16 @@ class FakeRPCClient extends RPCClient {
   notificationListeners = new Set<(notification: StagehandRpcNotification) => void>();
 
   constructor() {
-    super(
-      {
-        serviceWorker: {
-          targetId: "worker-target",
-          url: "chrome-extension://stagehand/service-worker.js",
-          title: "Stagehand",
-          extensionId: "stagehand",
-        },
-        send: async () => {},
-        close: () => {},
+    super({
+      serviceWorker: {
+        targetId: "worker-target",
+        url: "chrome-extension://stagehand/service-worker.js",
+        title: "Stagehand",
+        extensionId: "stagehand",
       },
-      1_000,
-    );
+      send: async () => {},
+      close: () => {},
+    });
     this.queueResponse(StagehandMethods.stagehandInit, { initialized: true, pages: [] });
   }
 

@@ -55,6 +55,9 @@ describe("client LLM generation", () => {
         getVersion: async () => ({}),
         pages: () => [],
         activePage: async () => undefined,
+        awaitActivePage: async () => {
+          throw new Error("Not used by this test");
+        },
         setActivePage: async () => {},
         addInitScript: async () => {},
         setExtraHTTPHeaders: async () => {},

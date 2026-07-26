@@ -16,7 +16,7 @@ import type {
 import { InitScriptSource } from "../types/private/index.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { ContextClipboard } from "./clipboard.js";
-import { TimeoutError } from "../errors.js";
+import { PageNotFoundError, TimeoutError } from "../errors.js";
 import {
   filterCookies,
   normalizeCookieParams,
@@ -99,6 +99,7 @@ export class V3Context {
   ) {}
 
   readonly _targetSessionListeners = new Set<SessionId>();
+  private _lastPopupSignalAt = 0;
   readonly _domainPolicySessionListeners = new Map<
     SessionId,
     (evt: Protocol.Fetch.RequestPausedEvent) => void
@@ -269,6 +270,46 @@ export class V3Context {
   public async activePage(): Promise<Page | undefined> {
     const targetId = await this.chromeTabs.activeTargetId();
     return targetId === undefined ? undefined : this.pagesByTarget.get(targetId);
+  }
+
+  private notePopupSignal(): void {
+    this._lastPopupSignalAt = Date.now();
+  }
+
+  /**
+   * Return the active page, waiting briefly for a newly opened popup target
+   * to be registered when Chrome has just emitted Page.windowOpen.
+   */
+  public async awaitActivePage(timeoutMs?: number): Promise<Page> {
+    const defaultTimeout = this.env === "BROWSERBASE" ? 4000 : 2000;
+    const timeout = timeoutMs ?? defaultTimeout;
+    const recentWindowMs = this.env === "BROWSERBASE" ? 1000 : 300;
+    const now = Date.now();
+    const hasRecentPopup = now - this._lastPopupSignalAt <= recentWindowMs;
+
+    const immediate = await this.activePage();
+    if (!hasRecentPopup && immediate) return immediate;
+
+    const deadline = now + timeout;
+    while (Date.now() < deadline) {
+      let newestTargetId: TargetId | undefined;
+      let newestCreatedAt = -1;
+      for (const [targetId] of this.pagesByTarget) {
+        const createdAt = this.createdAtByTarget.get(targetId) ?? 0;
+        if (createdAt > newestCreatedAt) {
+          newestCreatedAt = createdAt;
+          newestTargetId = targetId;
+        }
+      }
+      if (newestTargetId) {
+        const page = this.pagesByTarget.get(newestTargetId);
+        if (page && newestCreatedAt >= this._lastPopupSignalAt) return page;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+
+    if (immediate) return immediate;
+    throw new PageNotFoundError("awaitActivePage: no page available");
   }
 
   /** Select the Chrome tab that owns a known understudy Page. */
@@ -615,6 +656,7 @@ export class V3Context {
     this.conn.on<Protocol.Target.TargetCreatedEvent>("Target.targetCreated", (evt) => {
       const info = evt.targetInfo;
       if (info.type === "page" && (info.openerId || info.openerFrameId)) {
+        this.notePopupSignal();
         void this.closePopupIfBlockedByDomainPolicy(info, "targetCreated");
       }
     });
@@ -1139,6 +1181,10 @@ export class V3Context {
         owner.onNavigatedWithinDocument(evt.frameId, evt.url, session);
       },
     );
+
+    session.on<Protocol.Page.WindowOpenEvent>("Page.windowOpen", () => {
+      this.notePopupSignal();
+    });
   }
 
   /**

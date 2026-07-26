@@ -4,6 +4,7 @@ import type {
   ContextActivePageResult,
   ContextAddCookiesParams,
   ContextAddInitScriptParams,
+  ContextAwaitActivePageParams,
   ContextClearCookiesParams,
   ContextClipboardClearParams,
   ContextClipboardCopyParams,
@@ -203,6 +204,7 @@ export type StagehandBrowserSession = {
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
   activePage(): Promise<UnderstudyRuntimePage | undefined>;
+  awaitActivePage(timeoutMs?: number): Promise<UnderstudyRuntimePage>;
   setActivePage(page: UnderstudyRuntimePage): Promise<void>;
   addInitScript(source: string): Promise<void>;
   setExtraHTTPHeaders(headers: ContextSetExtraHTTPHeadersParams["headers"]): Promise<void>;
@@ -340,6 +342,12 @@ export class StagehandRuntime {
   async contextActivePage(): Promise<ContextActivePageResult> {
     const page = await this.requireBrowserSession().activePage();
     if (!page) return null;
+    this.registerPage(page);
+    return pageRefFromUnderstudyPage(page);
+  }
+
+  async contextAwaitActivePage(params: ContextAwaitActivePageParams): Promise<PageRef> {
+    const page = await this.requireBrowserSession().awaitActivePage(params.timeout);
     this.registerPage(page);
     return pageRefFromUnderstudyPage(page);
   }

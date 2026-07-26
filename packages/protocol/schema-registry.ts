@@ -12,6 +12,7 @@ import {
   ContextActivePageResultSchema,
   ContextAddCookiesParamsSchema,
   ContextAddInitScriptParamsSchema,
+  ContextAwaitActivePageParamsSchema,
   ContextClearCookiesParamsSchema,
   ContextClipboardClearParamsSchema,
   ContextClipboardCopyParamsSchema,
@@ -181,6 +182,11 @@ export const StagehandMethods = {
     name: "context.active_page",
     params: EmptyParamsSchema,
     result: ContextActivePageResultSchema,
+  },
+  contextAwaitActivePage: {
+    name: "context.await_active_page",
+    params: ContextAwaitActivePageParamsSchema,
+    result: PageRefSchema,
   },
   contextSetActivePage: {
     name: "context.set_active_page",

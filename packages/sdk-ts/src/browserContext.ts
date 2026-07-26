@@ -44,6 +44,14 @@ export class BrowserContext {
     return pageRef ? new Page(this.rpcClient, pageRef) : undefined;
   }
 
+  async awaitActivePage(timeoutMs?: number): Promise<Page> {
+    const pageRef = await this.rpcClient.send(
+      StagehandMethods.contextAwaitActivePage,
+      timeoutMs === undefined ? {} : { timeout: timeoutMs },
+    );
+    return new Page(this.rpcClient, pageRef);
+  }
+
   async setActivePage(page: Page): Promise<void> {
     await this.rpcClient.send(StagehandMethods.contextSetActivePage, {
       pageId: page.pageId,

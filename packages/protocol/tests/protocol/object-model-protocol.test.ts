@@ -300,6 +300,7 @@ describe("Stagehand object-model protocol", () => {
       "context.pages",
       "context.new_page",
       "context.active_page",
+      "context.await_active_page",
       "context.set_active_page",
       "context.close",
       "context.add_init_script",

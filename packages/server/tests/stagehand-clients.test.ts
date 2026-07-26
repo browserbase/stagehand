@@ -101,6 +101,7 @@ class FakeBrowserSession implements StagehandBrowserSession {
   getVersionCalls = 0;
   readonly pageRefs: FakeUnderstudyRuntimePage[];
   activePageRef: UnderstudyRuntimePage | undefined;
+  readonly awaitActivePageTimeouts: Array<number | undefined> = [];
   readonly setActivePageCalls: UnderstudyRuntimePage[] = [];
   readonly contextAddInitScriptCalls: string[] = [];
   readonly contextSetExtraHTTPHeadersCalls: ContextSetExtraHTTPHeadersParams["headers"][] = [];
@@ -143,6 +144,12 @@ class FakeBrowserSession implements StagehandBrowserSession {
   }
 
   async activePage(): Promise<UnderstudyRuntimePage | undefined> {
+    return this.activePageRef;
+  }
+
+  async awaitActivePage(timeoutMs?: number): Promise<UnderstudyRuntimePage> {
+    this.awaitActivePageTimeouts.push(timeoutMs);
+    if (!this.activePageRef) throw new Error("No active page");
     return this.activePageRef;
   }
 
@@ -1021,6 +1028,23 @@ describe("Stagehand worker clients", () => {
         url: "https://example.test/b",
       },
     });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 90,
+        method: "context.await_active_page",
+        params: { timeout: 4_000 },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 90,
+      result: {
+        page_id: "page-b",
+        url: "https://example.test/b",
+      },
+    });
+    expect(context.awaitActivePageTimeouts).toStrictEqual([4_000]);
 
     await expect(
       handle({

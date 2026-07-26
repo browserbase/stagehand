@@ -1375,6 +1375,15 @@ export const ContextNewPageParamsSchema = z
   .strict()
   .meta({ id: "ContextNewPageParams" });
 
+export const ContextAwaitActivePageParamsSchema = z
+  .object({
+    timeout: z.number().int().nonnegative().optional().meta({
+      description: "Maximum time in milliseconds to wait for the active page",
+    }),
+  })
+  .strict()
+  .meta({ id: "ContextAwaitActivePageParams" });
+
 export const ContextSetActivePageParamsSchema = z
   .object({
     pageId: z.string(),

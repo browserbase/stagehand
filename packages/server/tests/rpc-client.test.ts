@@ -1,6 +1,6 @@
 import { ROOT_CONTEXT, TraceFlags, context, trace } from "@opentelemetry/api";
 import { StackContextManager } from "@opentelemetry/sdk-trace-web";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { JSONRPCRequestSchema } from "../../protocol/json-rpc/schemas.ts";
 import { StagehandMethods } from "../../protocol/schema-registry.ts";
 import { ChromeRuntimeClient } from "../clients/chromeRuntimeClient.ts";
@@ -37,7 +37,7 @@ describe("worker RPCClient", () => {
       },
     };
     runtimeClient = new ChromeRuntimeClient(scope, "sendToHost");
-    const client = new RPCClient(runtimeClient, new RPCRouter(runtime), 1_000);
+    const client = new RPCClient(runtimeClient, new RPCRouter(runtime));
 
     await expect(client.send(StagehandMethods.ping, {})).resolves.toStrictEqual({
       ok: true,
@@ -77,7 +77,7 @@ describe("worker RPCClient", () => {
       },
     };
     runtimeClient = new ChromeRuntimeClient(scope, "sendToHost");
-    const client = new RPCClient(runtimeClient, new RPCRouter(runtime), 1_000);
+    const client = new RPCClient(runtimeClient, new RPCRouter(runtime));
     const parentContext = trace.setSpanContext(ROOT_CONTEXT, {
       traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
       spanId: "00f067aa0ba902b7",
@@ -91,6 +91,44 @@ describe("worker RPCClient", () => {
     } finally {
       client.close();
       context.disable();
+    }
+  });
+
+  it("keeps reverse requests pending without a response deadline", async () => {
+    vi.useFakeTimers();
+    let runtimeClient: ChromeRuntimeClient | undefined;
+    let requestId: number | undefined;
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => {
+        throw new Error("Stagehand browser session factory is not configured");
+      },
+    });
+    const scope = {
+      sendToHost(payload: string): void {
+        requestId = JSONRPCRequestSchema.parse(JSON.parse(payload)).id;
+      },
+    };
+    runtimeClient = new ChromeRuntimeClient(scope, "sendToHost");
+    const client = new RPCClient(runtimeClient, new RPCRouter(runtime));
+
+    try {
+      const request = client.send(StagehandMethods.ping, {});
+      await vi.advanceTimersByTimeAsync(60_001);
+      await runtimeClient.receive(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: requestId,
+          result: { ok: true, runtime: "service_worker" },
+        }),
+      );
+
+      await expect(request).resolves.toStrictEqual({
+        ok: true,
+        runtime: "service_worker",
+      });
+    } finally {
+      client.close();
+      vi.useRealTimers();
     }
   });
 });

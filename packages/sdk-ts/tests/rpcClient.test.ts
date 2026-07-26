@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
@@ -60,7 +60,7 @@ class ManualCDPTransport implements CDPTransport {
 describe("RPCClient", () => {
   it("accepts page methods without SDK wrapper methods", async () => {
     const cdp = new FakeCDPTransport({ matched: true });
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
 
     const request = client.send(StagehandMethods.pageWaitForSelector, {
       pageId: "page-1",
@@ -97,7 +97,7 @@ describe("RPCClient", () => {
         },
       ],
     });
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
 
     const request = client.send(StagehandMethods.contextCookies, {
       urls: ["https://example.com/account"],
@@ -144,7 +144,7 @@ describe("RPCClient", () => {
       page_id: "page-1",
       url: "https://example.com",
     });
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
 
     await expect(
       client.send(StagehandMethods.pageGoto, {
@@ -169,7 +169,7 @@ describe("RPCClient", () => {
 
   it("rejects invalid method params before sending them over CDP", async () => {
     const cdp = new FakeCDPTransport({ ok: true, runtime: "service_worker" });
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
 
     await expect(client.send(StagehandMethods.ping, { extra: true } as never)).rejects.toThrow();
 
@@ -178,7 +178,7 @@ describe("RPCClient", () => {
 
   it("lets the worker request client work while the original SDK request is still pending", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     client.onRequest(UppercaseMethod, async ({ value }) => ({ value: value.toUpperCase() }));
 
     const originalRequest = client.send(StagehandMethods.ping, {});
@@ -208,7 +208,7 @@ describe("RPCClient", () => {
 
   it("validates incoming request parameters before invoking the SDK handler", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     let calls = 0;
     client.onRequest(UppercaseMethod, async ({ value }) => {
       calls += 1;
@@ -235,7 +235,7 @@ describe("RPCClient", () => {
 
   it("validates an SDK handler result before returning it to the worker", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     client.onRequest(UppercaseMethod, async () => ({ value: 42 }) as never);
 
     await cdp.receive({
@@ -257,7 +257,7 @@ describe("RPCClient", () => {
 
   it("returns method not found when no SDK handler is registered", async () => {
     const cdp = new ManualCDPTransport();
-    new RPCClient(cdp, 1_000);
+    new RPCClient(cdp);
 
     await cdp.receive({
       jsonrpc: "2.0",
@@ -278,7 +278,7 @@ describe("RPCClient", () => {
 
   it("returns a JSON-RPC error when an SDK handler throws", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     client.onRequest(UppercaseMethod, async () => {
       throw new Error("Client handler failed");
     });
@@ -303,7 +303,7 @@ describe("RPCClient", () => {
 
   it("rejects a failed request with a plain Error that preserves the JSON-RPC failure", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     const request = client.send(StagehandMethods.ping, {});
     const rpcError = {
       code: JSONRPCErrorCodes.internalError,
@@ -320,9 +320,32 @@ describe("RPCClient", () => {
     });
   });
 
+  it("keeps a request pending without a transport response deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      const cdp = new ManualCDPTransport();
+      const client = new RPCClient(cdp);
+      const request = client.send(StagehandMethods.ping, {});
+
+      await vi.advanceTimersByTimeAsync(60_001);
+      await cdp.receive({
+        jsonrpc: "2.0",
+        id: 1,
+        result: { ok: true, runtime: "service_worker" },
+      });
+
+      await expect(request).resolves.toStrictEqual({
+        ok: true,
+        runtime: "service_worker",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("removes incoming SDK request handlers when the RPC client closes", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     let calls = 0;
     client.onRequest(UppercaseMethod, async ({ value }) => {
       calls += 1;

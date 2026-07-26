@@ -394,15 +394,7 @@ async def test_error_responses_preserve_the_json_rpc_code_and_data() -> None:
 
 
 @pytest.mark.asyncio
-async def test_timeout_and_transport_close_reject_pending_requests() -> None:
-    timeout_transport = QueueTransport()
-    timeout_client = RPCClient(timeout_transport, request_timeout_ms=10)
-    try:
-        with pytest.raises(TimeoutError, match="RPC request timed out: ping"):
-            await timeout_client.send("ping", models.EmptyParams(), models.StagehandPingResult)
-    finally:
-        await timeout_client.close()
-
+async def test_transport_close_rejects_pending_requests() -> None:
     failing_transport = FailingReceiveTransport()
     failing_client = RPCClient(failing_transport)
     call = asyncio.create_task(

@@ -9,6 +9,7 @@ from ._generated.models import (
     ContextActivePageResult,
     ContextAddCookiesParams,
     ContextAddInitScriptParams,
+    ContextAwaitActivePageParams,
     ContextClearCookiesParams,
     ContextCloseResult,
     ContextCookiesParams,
@@ -66,6 +67,15 @@ class BrowserContext:
             ContextActivePageResult,
         )
         return None if result.root is None else Page(self._rpc_client, result.root)
+
+    async def await_active_page(self, timeout: int | None = None) -> Page:
+        params = ContextAwaitActivePageParams(timeout=timeout)
+        page_ref = await self._rpc_client.send(
+            "context.await_active_page",
+            params,
+            PageRef,
+        )
+        return Page(self._rpc_client, page_ref)
 
     async def set_active_page(self, page: Page) -> None:
         await self._rpc_client.send(

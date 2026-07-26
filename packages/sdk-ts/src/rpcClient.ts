@@ -47,7 +47,6 @@ type PendingRequest = {
   method: RPCMethod;
   resolve(value: unknown): void;
   reject(error: Error): void;
-  timeout: ReturnType<typeof setTimeout>;
 };
 
 type RegisteredRequestHandler = {
@@ -113,11 +112,9 @@ export class RPCClient {
   pendingNotifications: StagehandRpcNotification[] = [];
   closed = false;
   readonly cdp: CDPTransport;
-  readonly requestTimeoutMs: number;
 
-  constructor(cdp: CDPTransport, requestTimeoutMs: number) {
+  constructor(cdp: CDPTransport) {
     this.cdp = cdp;
-    this.requestTimeoutMs = requestTimeoutMs;
     this.serviceWorker = cdp.serviceWorker;
     this.cdp.onmessage = (message) => this.receive(message);
     this.cdp.onclose = (reason) => this.close(reason);
@@ -219,12 +216,7 @@ export class RPCClient {
 
   waitForResponse(id: number, method: RPCMethod): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        if (!this.pending.delete(id)) return;
-        reject(new Error(`RPC request timed out: ${method.name}`));
-      }, this.requestTimeoutMs);
-
-      this.pending.set(id, { method, resolve, reject, timeout });
+      this.pending.set(id, { method, resolve, reject });
     });
   }
 
@@ -349,7 +341,6 @@ export class RPCClient {
     if (!pending) return;
 
     this.pending.delete(response.id);
-    clearTimeout(pending.timeout);
 
     if ("error" in response) {
       pending.reject(new Error(response.error.message, { cause: response.error }));
@@ -369,7 +360,6 @@ export class RPCClient {
     const pending = this.pending.get(id);
     if (!pending) return;
     this.pending.delete(id);
-    clearTimeout(pending.timeout);
     pending.reject(error);
   }
 
@@ -413,7 +403,7 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
     cdpConnectTimeoutMs: options.cdpConnectTimeoutMs ?? 10_000,
     commandTimeoutMs,
   });
-  const client = new RPCClient(cdpClient, commandTimeoutMs);
+  const client = new RPCClient(cdpClient);
 
   try {
     await client.send(StagehandMethods.runtimeConfigure, {

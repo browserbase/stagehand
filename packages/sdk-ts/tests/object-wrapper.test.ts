@@ -16,19 +16,16 @@ class FakeProtocolClient extends RPCClient {
   responses = new Map<string, unknown[]>();
 
   constructor() {
-    super(
-      {
-        serviceWorker: {
-          targetId: "worker-target",
-          url: "chrome-extension://stagehand/service-worker.js",
-          title: "Stagehand",
-          extensionId: "stagehand",
-        },
-        send: async () => {},
-        close: () => {},
+    super({
+      serviceWorker: {
+        targetId: "worker-target",
+        url: "chrome-extension://stagehand/service-worker.js",
+        title: "Stagehand",
+        extensionId: "stagehand",
       },
-      1_000,
-    );
+      send: async () => {},
+      close: () => {},
+    });
     this.queueResponse(StagehandMethods.stagehandInit, { initialized: true, pages: [] });
   }
 
@@ -176,6 +173,28 @@ describe("Stagehand TS object wrapper", () => {
       stagehandInitCall,
       requestCall(StagehandMethods.contextActivePage, {}),
       requestCall(StagehandMethods.contextActivePage, {}),
+    ]);
+  });
+
+  it("waits for and wraps the active page", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.contextAwaitActivePage, {
+      pageId: "new-active-page",
+      url: "https://example.com/new",
+    });
+    const stagehand = createStagehandWithClientForTest(client);
+    await stagehand.init();
+
+    const page = await stagehand.context.awaitActivePage(4_000);
+
+    expect(page).toBeInstanceOf(Page);
+    expect(page.ref).toStrictEqual({
+      pageId: "new-active-page",
+      url: "https://example.com/new",
+    });
+    expect(client.calls).toStrictEqual([
+      stagehandInitCall,
+      requestCall(StagehandMethods.contextAwaitActivePage, { timeout: 4_000 }),
     ]);
   });
 

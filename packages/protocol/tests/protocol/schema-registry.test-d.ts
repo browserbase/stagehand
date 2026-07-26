@@ -21,6 +21,17 @@ expectTypeOf<z.output<typeof StagehandMethods.contextActivePage.result>>().toEqu
   title?: string;
 } | null>();
 expectTypeOf(
+  StagehandMethods.contextAwaitActivePage.name,
+).toEqualTypeOf<"context.await_active_page">();
+expectTypeOf<z.input<typeof StagehandMethods.contextAwaitActivePage.params>>().toEqualTypeOf<{
+  timeout?: number;
+}>();
+expectTypeOf<z.output<typeof StagehandMethods.contextAwaitActivePage.result>>().toEqualTypeOf<{
+  pageId: string;
+  url?: string;
+  title?: string;
+}>();
+expectTypeOf(
   StagehandMethods.contextSetDomainPolicy.name,
 ).toEqualTypeOf<"context.set_domain_policy">();
 expectTypeOf<z.input<typeof StagehandMethods.contextSetDomainPolicy.params>>().toEqualTypeOf<{

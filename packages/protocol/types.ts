@@ -34,6 +34,7 @@ import type {
   ContextActivePageResultSchema,
   ContextAddCookiesParamsSchema,
   ContextAddInitScriptParamsSchema,
+  ContextAwaitActivePageParamsSchema,
   ContextClearCookiesParamsSchema,
   ContextClipboardClearParamsSchema,
   ContextClipboardCopyParamsSchema,
@@ -328,6 +329,7 @@ export type StagehandActParams = z.infer<typeof StagehandActParamsSchema>;
 export type StagehandObserveParams = z.infer<typeof StagehandObserveParamsSchema>;
 export type StagehandExtractParams = z.infer<typeof StagehandExtractParamsSchema>;
 export type ContextNewPageParams = z.infer<typeof ContextNewPageParamsSchema>;
+export type ContextAwaitActivePageParams = z.infer<typeof ContextAwaitActivePageParamsSchema>;
 export type ContextCookiesParams = z.infer<typeof ContextCookiesParamsSchema>;
 export type ContextAddCookiesParams = z.infer<typeof ContextAddCookiesParamsSchema>;
 export type ContextClearCookiesParams = z.infer<typeof ContextClearCookiesParamsSchema>;

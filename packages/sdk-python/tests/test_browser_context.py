@@ -22,6 +22,7 @@ async def test_browser_context_wraps_generated_page_references() -> None:
         "context.pages": [PageRef(page_id="page-1")],
         "context.new_page": PageRef(page_id="page-2"),
         "context.active_page": PageRef(page_id="page-2"),
+        "context.await_active_page": PageRef(page_id="page-3"),
         "context.set_active_page": ContextVoidResult(ok=True),
     })
     context = BrowserContext(cast(RPCClient, recording))
@@ -29,18 +30,22 @@ async def test_browser_context_wraps_generated_page_references() -> None:
     pages = await context.pages()
     new_page = await context.new_page(url="https://example.com")
     active_page = await context.active_page()
+    awaited_page = await context.await_active_page(timeout=4_000)
     await context.set_active_page(new_page)
 
     assert [page.page_id for page in pages] == ["page-1"]
     assert new_page.page_id == "page-2"
     assert active_page is not None and active_page.page_id == "page-2"
+    assert awaited_page.page_id == "page-3"
     assert [call[0] for call in recording.calls] == [
         "context.pages",
         "context.new_page",
         "context.active_page",
+        "context.await_active_page",
         "context.set_active_page",
     ]
     assert recording.calls[1][1].model_dump(exclude_unset=True) == {"url": "https://example.com"}
+    assert recording.calls[3][1].model_dump(exclude_unset=True) == {"timeout": 4_000}
 
 
 def test_browser_context_reuses_one_clipboard_wrapper() -> None:

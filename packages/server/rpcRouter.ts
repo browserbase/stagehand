@@ -149,6 +149,11 @@ export class RPCRouter {
           parseParams(StagehandMethods.contextActivePage, request.params),
           context,
         );
+      case "context.await_active_page":
+        return this.contextController.awaitActivePage(
+          parseParams(StagehandMethods.contextAwaitActivePage, request.params),
+          context,
+        );
       case "context.set_active_page":
         return this.contextController.setActivePage(
           parseParams(StagehandMethods.contextSetActivePage, request.params),

@@ -323,6 +323,15 @@ class ContextAddInitScriptParams(WireModel):
     source: StrictStr
 
 
+class ContextAwaitActivePageParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    """Maximum time in milliseconds to wait for the active page"""
+
+
 class ContextClearCookiesParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",

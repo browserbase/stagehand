@@ -188,6 +188,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "context.await_active_page": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/ContextAwaitActivePageParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageRef"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "context.set_active_page": {
           "type": "object",
           "properties": {
@@ -893,6 +906,7 @@
         "context.pages",
         "context.new_page",
         "context.active_page",
+        "context.await_active_page",
         "context.set_active_page",
         "context.close",
         "context.add_init_script",
@@ -2815,6 +2829,18 @@
         }
       ]
     },
+    "ContextAwaitActivePageParams": {
+      "type": "object",
+      "properties": {
+        "timeout": {
+          "description": "Maximum time in milliseconds to wait for the active page",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
     "ContextSetActivePageParams": {
       "type": "object",
       "properties": {
@@ -4735,6 +4761,33 @@
             },
             "params": {
               "$ref": "#/$defs/EmptyParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "context.await_active_page"
+            },
+            "params": {
+              "$ref": "#/$defs/ContextAwaitActivePageParams"
             },
             "traceparent": {
               "type": "string"

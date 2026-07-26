@@ -81,12 +81,8 @@ class RPCError(RuntimeError):
 
 
 class RPCClient:
-    def __init__(self, transport: _Transport, *, request_timeout_ms: int = 10_000) -> None:
-        if request_timeout_ms <= 0:
-            raise ValueError("request_timeout_ms must be positive")
-
+    def __init__(self, transport: _Transport) -> None:
         self._transport = transport
-        self._request_timeout_seconds = request_timeout_ms / 1_000
         self._next_request_id = 1
         self._pending: dict[
             int,
@@ -142,17 +138,14 @@ class RPCClient:
         )
 
         try:
-            async with asyncio.timeout(self._request_timeout_seconds):
-                await self._transport.send(
-                    cast(
-                        dict[str, object],
-                        request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
-                    )
+            await self._transport.send(
+                cast(
+                    dict[str, object],
+                    request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
                 )
-                result = await response
-                return cast(ResultT, result)
-        except TimeoutError as error:
-            raise TimeoutError(f"RPC request timed out: {method}") from error
+            )
+            result = await response
+            return cast(ResultT, result)
         finally:
             self._pending.pop(request_id, None)
             if not response.done():
@@ -477,7 +470,7 @@ async def connect_rpc_client(
         command_timeout_ms=command_timeout_ms,
         cdp_connect_timeout_ms=cdp_connect_timeout_ms,
     )
-    client = RPCClient(cdp, request_timeout_ms=command_timeout_ms)
+    client = RPCClient(cdp)
     configure = models.RuntimeConfigureParams(
         cdp_url=cdp.web_socket_debugger_url,
         **({"telemetry": telemetry} if telemetry is not None else {}),

@@ -1,6 +1,7 @@
 import type {
   ContextAddCookiesParams,
   ContextAddInitScriptParams,
+  ContextAwaitActivePageParams,
   ContextClearCookiesParams,
   ContextClipboardClearParams,
   ContextClipboardCopyParams,
@@ -32,6 +33,11 @@ export function createContextController(runtime: StagehandRuntime) {
   async function activePage(_params: EmptyParams, { logger }: HandlerContext) {
     logger.debug("context.active_page", {});
     return runtime.contextActivePage();
+  }
+
+  async function awaitActivePage(params: ContextAwaitActivePageParams, { logger }: HandlerContext) {
+    logger.debug("context.await_active_page", {});
+    return runtime.contextAwaitActivePage(params);
   }
 
   async function setActivePage(params: ContextSetActivePageParams, { logger }: HandlerContext) {
@@ -122,6 +128,7 @@ export function createContextController(runtime: StagehandRuntime) {
     pages,
     newPage,
     activePage,
+    awaitActivePage,
     setActivePage,
     close,
     addInitScript,
