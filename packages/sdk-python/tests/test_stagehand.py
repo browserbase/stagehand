@@ -257,7 +257,10 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         "stagehand.observe": ObserveResult(result=[action]),
         "stagehand.extract": ExtractResult(result={"heading": "Example Domain"}),
     })
-    model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
+    model = ModelConfig.model_validate({
+        "model_name": "openai/gpt-4.1-mini",
+        "api_key": "test-provider-key",
+    })
     locator = ProtocolLocator(selector="main")
 
     async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
