@@ -7,7 +7,10 @@ import type {
   StagehandActParams,
   Variables,
 } from "../../protocol/types.js";
-import { selectorAndTargetForSnapshotElement } from "../actionTarget.js";
+import {
+  rebindActionTargetsToSnapshot,
+  selectorAndTargetForSnapshotElement,
+} from "../actionTarget.js";
 import { TimeoutError } from "../errors.js";
 import {
   performUnderstudyMethod,
@@ -215,8 +218,13 @@ async function replayCachedActions(
     throw new Error("Cached act value contained no usable actions");
   }
 
+  context.ensureTimeRemaining();
+  const { combinedXpathMap } = await context.page.captureSnapshot({});
+  context.ensureTimeRemaining();
+  const reboundActions = rebindActionTargetsToSnapshot(actions, combinedXpathMap);
+
   const results: ActResultData[] = [];
-  for (const action of actions) {
+  for (const action of reboundActions) {
     const result = await takeDeterministicAction({
       action,
       variables,
@@ -337,6 +345,7 @@ async function takeDeterministicAction({
       method,
       resolvedArgs,
       placeholderArgs,
+      variables,
       context,
     });
   }
@@ -347,12 +356,14 @@ async function selfHealAction({
   method,
   resolvedArgs,
   placeholderArgs,
+  variables,
   context,
 }: {
   action: Action;
   method: string;
   resolvedArgs: string[];
   placeholderArgs: string[];
+  variables?: Variables;
   context: ActContext;
 }): Promise<ActResultData> {
   const actionInstruction = action.description
@@ -380,14 +391,27 @@ async function selfHealAction({
       };
     }
 
-    const selector = inferenceResult.action?.selector ?? action.selector;
+    const healed = inferenceResult.action ?? action;
+    const selector = healed.selector;
+    // Drag-and-drop destinations are re-inferred as XPaths paired with
+    // argumentTargets. Other methods (e.g. fill) must keep the caller's
+    // already-substituted argument values.
+    const useHealedArgs =
+      method === SupportedUnderstudyAction.DRAG_AND_DROP &&
+      Array.isArray(inferenceResult.action?.arguments);
+    const healedPlaceholders = useHealedArgs
+      ? [...inferenceResult.action!.arguments!]
+      : placeholderArgs;
+    const healedResolvedArgs = useHealedArgs
+      ? (substituteVariablesInArguments(healedPlaceholders, variables) ?? healedPlaceholders)
+      : resolvedArgs;
     context.ensureTimeRemaining();
     const actionArgs = [
       context.page,
       context.page.mainFrame(),
       method,
       selector,
-      resolvedArgs,
+      healedResolvedArgs,
       context.logger,
       context.domSettleTimeoutMs,
     ] as const;
@@ -399,12 +423,7 @@ async function selfHealAction({
     } else {
       await performUnderstudyMethod(...actionArgs);
     }
-    return successfulActionResult(
-      inferenceResult.action ?? action,
-      method,
-      selector,
-      placeholderArgs,
-    );
+    return successfulActionResult(healed, method, selector, healedPlaceholders);
   } catch (error) {
     if (error instanceof TimeoutError) throw error;
     const message = error instanceof Error ? error.message : String(error);

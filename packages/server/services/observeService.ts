@@ -6,7 +6,7 @@ import type {
   StagehandObserveParams,
 } from "../../protocol/types.js";
 import {
-  actionTargetForSnapshotSelector,
+  rebindActionTargetsToSnapshot,
   selectorAndTargetForSnapshotElement,
 } from "../actionTarget.js";
 import { TimeoutError } from "../errors.js";
@@ -169,34 +169,12 @@ export async function observe({
   }
 
   async function bindActionsToCurrentSnapshot(actions: Action[]): Promise<Action[]> {
+    ensureTimeRemaining();
     const { combinedXpathMap } = await page.captureSnapshot({
       focusSelector: focusSelector || undefined,
       ignoreSelectors: options?.ignoreSelectors,
     });
-    return actions.map((action) => {
-      const target = actionTargetForSnapshotSelector(action.selector, combinedXpathMap);
-      if (!target) {
-        throw new Error(`Cached observe action no longer resolves: ${action.selector}`);
-      }
-
-      const destinationSelector =
-        action.method === SupportedUnderstudyAction.DRAG_AND_DROP
-          ? action.arguments?.[0]
-          : undefined;
-      const destinationTarget = destinationSelector
-        ? actionTargetForSnapshotSelector(destinationSelector, combinedXpathMap)
-        : undefined;
-      if (destinationSelector && !destinationTarget) {
-        throw new Error(
-          `Cached observe action argument no longer resolves: ${destinationSelector}`,
-        );
-      }
-
-      return {
-        ...action,
-        target,
-        ...(destinationTarget ? { argumentTargets: { "0": destinationTarget } } : {}),
-      };
-    });
+    ensureTimeRemaining();
+    return rebindActionTargetsToSnapshot(actions, combinedXpathMap);
   }
 }

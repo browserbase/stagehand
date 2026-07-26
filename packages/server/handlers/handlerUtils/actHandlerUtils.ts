@@ -25,10 +25,11 @@ export interface UnderstudyMethodHandlerContext {
 }
 
 // Normalize cases where the XPath is the root "/" to point to the HTML element.
+// Prefer `/html[1]` to match snapshot xpath maps built by buildChildXPathSegments.
 function normalizeRootXPath(input: string): string {
   const s = String(input ?? "").trim();
-  if (s === "/") return "/html";
-  if (/^xpath=\/$/i.test(s)) return "xpath=/html";
+  if (s === "/") return "/html[1]";
+  if (/^xpath=\/$/i.test(s)) return "xpath=/html[1]";
   return s;
 }
 
@@ -196,7 +197,13 @@ async function scrollByPixelOffset(ctx: UnderstudyMethodHandlerContext): Promise
 }
 
 async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { frame, args, logger } = ctx;
+  const { locator, frame, args, logger } = ctx;
+  const { objectId } = await locator.resolveNode();
+  await locator
+    .getFrame()
+    .session.send("Runtime.releaseObject", { objectId })
+    .catch(() => {});
+
   const deltaY = Number(args[0] ?? 200);
   logger.debug("Dispatching mouse wheel", {
     category: "action",
@@ -243,9 +250,22 @@ async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { args, xpath, page, logger } = ctx;
+  const { locator, args, xpath, page, logger } = ctx;
   const key = args[0] ?? "";
   try {
+    // Resolve (and focus) so observed target guards run before key input.
+    const session = locator.getFrame().session;
+    const { objectId } = await locator.resolveNode();
+    try {
+      await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: "function() { this.focus?.(); }",
+        returnByValue: true,
+      });
+    } finally {
+      await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
+    }
+
     logger.debug("Pressing key", {
       category: "action",
       key,
@@ -303,7 +323,7 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const targetLocator = bindTargetGuard(page, resolvedTargetLocator, argumentTargets?.["0"]);
 
   try {
-    // 1) Centers in local (owning-frame) viewport
+    // 1) Centers in local (owning-frame) viewport (hit-checks when guarded)
     const { x: fromLocalX, y: fromLocalY } = await locator.centroid();
     const { x: toLocalX, y: toLocalY } = await targetLocator.centroid();
 
@@ -347,6 +367,11 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         },
         { x: toLocalX, y: toLocalY },
       );
+
+    // Re-check immediately before coordinate drag — centroid alone leaves a
+    // window during abs conversion where a rerender can steal the drop.
+    await locator.assertPointerTargetAt(fromLocalX, fromLocalY);
+    await targetLocator.assertPointerTargetAt(toLocalX, toLocalY);
 
     // 3) Perform drag in main session
     await page.dragAndDrop(fromAbs.x, fromAbs.y, toAbs.x, toAbs.y, {

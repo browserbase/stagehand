@@ -234,6 +234,80 @@ describe("act service", () => {
     });
   });
 
+  it("self-heals drag-and-drop with a fresh destination selector and target", async () => {
+    const frame = {};
+    const captureSnapshot = vi.fn(async () => ({
+      combinedTree: "[0-20] listitem: Source\n[0-21] listitem: Target",
+      combinedXpathMap: {
+        "0-20": "/html/body/ul/li[1]",
+        "0-21": "/html/body/ul/li[2]",
+      },
+      combinedUrlMap: {},
+    }));
+    const page = actPage(frame, captureSnapshot);
+    const clientLLMGenerate = vi.fn(
+      async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-20",
+          description: "Drag source onto target",
+          method: "dragAndDrop",
+          arguments: ["0-21"],
+        }),
+    );
+    performAction
+      .mockRejectedValueOnce(
+        new Error(
+          "Observed action target changed: expected frame 0 node 12, resolved frame 0 node 99",
+        ),
+      )
+      .mockResolvedValueOnce();
+
+    const result = await actService.act({
+      params: {
+        pageId: "page-1",
+        input: {
+          selector: "xpath=/html/body/ul/li[1]",
+          description: "Drag source onto target",
+          method: "dragAndDrop",
+          arguments: ["xpath=/html/body/ul/li[3]"],
+          target: { frameOrdinal: 0, backendNodeId: 12 },
+          argumentTargets: { "0": { frameOrdinal: 0, backendNodeId: 30 } },
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+      selfHeal: true,
+    });
+
+    expect(performAction).toHaveBeenNthCalledWith(
+      2,
+      page,
+      frame,
+      "dragAndDrop",
+      "xpath=/html/body/ul/li[1]",
+      ["xpath=/html/body/ul/li[2]"],
+      expect.any(StagehandLogger),
+      undefined,
+      {
+        target: { frameOrdinal: 0, backendNodeId: 20 },
+        argumentTargets: { "0": { frameOrdinal: 0, backendNodeId: 21 } },
+      },
+    );
+    expect(result.result).toMatchObject({
+      success: true,
+      actions: [
+        {
+          selector: "xpath=/html/body/ul/li[1]",
+          arguments: ["xpath=/html/body/ul/li[2]"],
+          target: { frameOrdinal: 0, backendNodeId: 20 },
+          argumentTargets: { "0": { frameOrdinal: 0, backendNodeId: 21 } },
+        },
+      ],
+    });
+  });
+
   it("fails safely when an observed Action resolves to a different target", async () => {
     const page = actPage({}, vi.fn());
     const clientLLMGenerate = vi.fn();

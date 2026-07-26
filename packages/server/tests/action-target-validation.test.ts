@@ -108,6 +108,77 @@ describe("action target validation", () => {
 
     expect(dragAndDrop).not.toHaveBeenCalled();
   });
+
+  it("blocks drag-and-drop when a replacement appears under the drop point before dispatch", async () => {
+    const dragAndDrop = vi.fn();
+    const page = pageWithOrdinals(dragAndDrop);
+    const source = locatorForNode(0, 12, vi.fn());
+    const destination = locatorForNode(0, 20, vi.fn());
+    const guardedDestination = destination.withTargetGuard(
+      { frameOrdinal: 0, backendNodeId: 20 },
+      0,
+    );
+    guardedDestination.assertPointerTargetAt = async () => {
+      throw new ActionTargetMismatchError(
+        { frameOrdinal: 0, backendNodeId: 20 },
+        { frameOrdinal: 0, backendNodeId: 99 },
+      );
+    };
+    destination.withTargetGuard = () => guardedDestination;
+    resolveLocator.mockResolvedValueOnce(source).mockResolvedValueOnce(destination);
+
+    await expect(
+      performUnderstudyMethod(
+        page,
+        rootFrame(),
+        "dragAndDrop",
+        "xpath=/html/body/source",
+        ["xpath=/html/body/destination"],
+        logger,
+        undefined,
+        {
+          target: { frameOrdinal: 0, backendNodeId: 12 },
+          argumentTargets: { "0": { frameOrdinal: 0, backendNodeId: 20 } },
+        },
+      ),
+    ).rejects.toBeInstanceOf(ActionTargetMismatchError);
+
+    expect(dragAndDrop).not.toHaveBeenCalled();
+  });
+
+  it("resolves the guarded locator before press so stale targets fail closed", async () => {
+    const resolveNode = vi.fn(async () => {
+      throw new ActionTargetMismatchError(
+        { frameOrdinal: 0, backendNodeId: 12 },
+        { frameOrdinal: 0, backendNodeId: 99 },
+      );
+    });
+    const keyPress = vi.fn();
+    resolveLocator.mockResolvedValue(
+      locatorForNode(
+        0,
+        99,
+        vi.fn(),
+        vi.fn(async () => 99),
+        resolveNode,
+      ),
+    );
+
+    await expect(
+      performUnderstudyMethod(
+        Object.assign(pageWithOrdinals(), { keyPress }) as unknown as Page,
+        rootFrame(),
+        "press",
+        "xpath=/html/body/input",
+        ["Enter"],
+        logger,
+        undefined,
+        { target: { frameOrdinal: 0, backendNodeId: 12 } },
+      ),
+    ).rejects.toBeInstanceOf(ActionTargetMismatchError);
+
+    expect(keyPress).not.toHaveBeenCalled();
+  });
 });
 
 function rootFrame(): Frame {
@@ -129,10 +200,16 @@ function locatorForNode(
   backendNodeId: number,
   click: () => unknown,
   readBackendNodeId: () => Promise<number> = vi.fn(async () => backendNodeId),
+  resolveNode: () => Promise<{ objectId: string }> = vi.fn(async () => ({
+    objectId: `object-${backendNodeId}`,
+  })),
 ): Locator {
   const frame = {
     frameId: frameOrdinal === 0 ? "target-frame" : `target-frame-${frameOrdinal}`,
     evaluate: vi.fn(async (_fn: unknown, value: unknown) => value),
+    session: {
+      send: vi.fn(async () => ({})),
+    },
   } as unknown as Frame;
   const centroid = vi.fn(async () => ({ x: 10, y: 20 }));
   const validate = async (expected: { frameOrdinal: number; backendNodeId: number }) => {
@@ -150,10 +227,16 @@ function locatorForNode(
   const locator = {
     getFrame: () => frame,
     backendNodeId: readBackendNodeId,
+    resolveNode,
     click,
     centroid,
+    assertPointerTargetAt: vi.fn(async () => undefined),
     withTargetGuard: (expected: { frameOrdinal: number; backendNodeId: number }) => ({
       ...locator,
+      resolveNode: async () => {
+        await validate(expected);
+        return await resolveNode();
+      },
       click: async () => {
         await validate(expected);
         await click();
@@ -161,6 +244,9 @@ function locatorForNode(
       centroid: async () => {
         await validate(expected);
         return await centroid();
+      },
+      assertPointerTargetAt: async () => {
+        await validate(expected);
       },
     }),
   };
