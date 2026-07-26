@@ -243,17 +243,15 @@ export class Page {
   }
 
   async url(): Promise<string> {
-    const result = await this.rpcClient.send(StagehandMethods.pageUrl, {
+    return await this.rpcClient.send(StagehandMethods.pageUrl, {
       pageId: this.pageId,
     });
-    return result.url;
   }
 
   async title(): Promise<string> {
-    const result = await this.rpcClient.send(StagehandMethods.pageTitle, {
+    return await this.rpcClient.send(StagehandMethods.pageTitle, {
       pageId: this.pageId,
     });
-    return result.title;
   }
 
   async close(): Promise<void> {

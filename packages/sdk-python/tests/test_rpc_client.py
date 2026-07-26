@@ -86,7 +86,7 @@ async def test_send_strictly_validates_root_model_results() -> None:
         "id": request["id"],
         "result": [{"page_id": "page-1"}],
     })
-    assert (await asyncio.wait_for(call, timeout=1)).root == [models.PageRef(page_id="page-1")]
+    assert await asyncio.wait_for(call, timeout=1) == [models.PageRef(page_id="page-1")]
 
     invalid_call = asyncio.create_task(
         client.send("context.pages", models.EmptyParams(), models.ContextPagesResult)
@@ -130,7 +130,7 @@ async def test_send_revalidates_mutated_params_and_strictly_validates_results() 
         await transport.incoming.put({
             "jsonrpc": "2.0",
             "id": request["id"],
-            "result": {"count": "1"},
+            "result": "1",
         })
         with pytest.raises(ValidationError):
             await call

@@ -9,7 +9,6 @@ from stagehand._generated.models import (
     LocatorClickResult,
     LocatorCountResult,
     LocatorDescriptor,
-    LocatorSelectOptionResult,
 )
 from stagehand.locator import Locator
 from stagehand.rpc_client import RPCClient
@@ -21,8 +20,8 @@ from ._support import RecordingRPCClient
 async def test_locator_methods_use_generated_models_and_keep_the_descriptor_internal() -> None:
     recording = RecordingRPCClient({
         "locator.click": LocatorClickResult(clicked=True),
-        "locator.count": LocatorCountResult(count=2),
-        "locator.select_option": LocatorSelectOptionResult(values=["one"]),
+        "locator.count": 2,
+        "locator.select_option": ["one"],
     })
     locator = Locator(
         cast(RPCClient, recording),

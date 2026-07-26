@@ -9,7 +9,6 @@ from stagehand._generated.models import (
     PageEvaluateResult,
     PageGotoParams,
     PageRef,
-    PageTitleResult,
 )
 from stagehand.page import Page
 from stagehand.rpc_client import RPCClient
@@ -25,7 +24,7 @@ class EvaluationResult(BaseModel):
 async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_reference() -> None:
     recording = RecordingRPCClient({
         "page.goto": PageRef(page_id="page-2", url="https://example.com"),
-        "page.title": PageTitleResult(title="Example Domain"),
+        "page.title": "Example Domain",
     })
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
 

@@ -2874,21 +2874,14 @@
       "additionalProperties": false
     },
     "ContextGetDomainPolicyResult": {
-      "type": "object",
-      "properties": {
-        "policy": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DomainPolicy"
-            },
-            {
-              "type": "null"
-            }
-          ]
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DomainPolicy"
+        },
+        {
+          "type": "null"
         }
-      },
-      "required": ["policy"],
-      "additionalProperties": false
+      ]
     },
     "DomainPolicy": {
       "type": "object",
@@ -2945,17 +2938,10 @@
       "additionalProperties": false
     },
     "ContextCookiesResult": {
-      "type": "object",
-      "properties": {
-        "cookies": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Cookie"
-          }
-        }
-      },
-      "required": ["cookies"],
-      "additionalProperties": false
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Cookie"
+      }
     },
     "Cookie": {
       "type": "object",
@@ -3104,14 +3090,7 @@
       "additionalProperties": false
     },
     "ContextClipboardReadTextResult": {
-      "type": "object",
-      "properties": {
-        "text": {
-          "type": "string"
-        }
-      },
-      "required": ["text"],
-      "additionalProperties": false
+      "type": "string"
     },
     "ContextClipboardWriteTextParams": {
       "type": "object",
@@ -3185,24 +3164,10 @@
       "additionalProperties": false
     },
     "PageUrlResult": {
-      "type": "object",
-      "properties": {
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": ["url"],
-      "additionalProperties": false
+      "type": "string"
     },
     "PageTitleResult": {
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": ["title"],
-      "additionalProperties": false
+      "type": "string"
     },
     "PageCloseResult": {
       "type": "object",
@@ -3970,76 +3935,27 @@
       "additionalProperties": false
     },
     "LocatorCountResult": {
-      "type": "object",
-      "properties": {
-        "count": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        }
-      },
-      "required": ["count"],
-      "additionalProperties": false
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
     },
     "LocatorIsCheckedResult": {
-      "type": "object",
-      "properties": {
-        "checked": {
-          "type": "boolean"
-        }
-      },
-      "required": ["checked"],
-      "additionalProperties": false
+      "type": "boolean"
     },
     "LocatorInputValueResult": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "string"
-        }
-      },
-      "required": ["value"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorIsVisibleResult": {
-      "type": "object",
-      "properties": {
-        "visible": {
-          "type": "boolean"
-        }
-      },
-      "required": ["visible"],
-      "additionalProperties": false
+      "type": "boolean"
     },
     "LocatorInnerTextResult": {
-      "type": "object",
-      "properties": {
-        "text": {
-          "type": "string"
-        }
-      },
-      "required": ["text"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorInnerHtmlResult": {
-      "type": "object",
-      "properties": {
-        "html": {
-          "type": "string"
-        }
-      },
-      "required": ["html"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorTextContentResult": {
-      "type": "object",
-      "properties": {
-        "text_content": {
-          "type": "string"
-        }
-      },
-      "required": ["text_content"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorScrollToParams": {
       "type": "object",
@@ -4293,17 +4209,10 @@
       "additionalProperties": false
     },
     "LocatorSelectOptionResult": {
-      "type": "object",
-      "properties": {
-        "values": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": ["values"],
-      "additionalProperties": false
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "StagehandLog": {
       "type": "object",
