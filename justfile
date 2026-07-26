@@ -8,6 +8,14 @@ generate:
     pnpm --filter ./packages/protocol build
     uv --directory {{python_dir}} run --locked python scripts/generate.py
 
+# Adds a model to the curated catalog, then regenerates and validates shared SDK artifacts.
+# This never commits, publishes, or deploys a release.
+add-model model:
+    pnpm exec tsx scripts/add-model.ts {{model}}
+    just generate
+    just fmt
+    just check
+
 check:
     pnpm check
     uv --directory {{python_dir}} lock --check

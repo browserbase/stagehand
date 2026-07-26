@@ -33,6 +33,16 @@ Follow these steps to add a method to the protocol:
 7. Add protocol, server, and SDK tests for the method.
 8. Regenerate `stagehand.v4.json` with `just generate`, then run `just check` and `just test` from the repository root.
 
+## Model support
+
+There are three intentional paths for model names:
+
+- Test a provider model that is not yet cataloged by passing an explicitly unlisted, provider-qualified name with `type: "unlisted"` and the provider API key.
+- Use a custom OpenAI-compatible endpoint by configuring `baseURL` and its endpoint-specific model name.
+- Add type-safe known support with `just add-model <provider/model>`. The command updates the curated catalog, regenerates TypeScript and Python protocol artifacts, and runs checks. It does not commit, publish, or deploy a release.
+
+The curated catalog is the shared protocol source of truth for TypeScript clients and the extension runtime. Adding a model is additive and does not require a protocol-version bump. An explicitly unlisted model remains the right path for immediate EAP testing before a cataloged release is available.
+
 ## Runtime protocol versions
 
 Use `protocolVersion` as the only compatibility gate. Bump it only for breaking wire changes:
