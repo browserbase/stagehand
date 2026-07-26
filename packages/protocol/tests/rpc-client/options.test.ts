@@ -34,7 +34,6 @@ describe("RPCClientOptionsSchema", () => {
       }),
     ).toStrictEqual({
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
-      logLevel: "info",
       preloadedExtension: true,
     });
   });

@@ -5,6 +5,7 @@ import { createStagehandRuntime } from "../runtime.js";
 const clientMetadata = {
   protocolVersion: 4 as const,
   clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+  logLevel: "info" as const,
 };
 
 function createBrowserSession(

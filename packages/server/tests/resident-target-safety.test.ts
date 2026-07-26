@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChromeTabTargetController } from "../understudy/chromeTabs.js";
 import { V3Context, isSupportedWebTarget } from "../understudy/context.js";
 import { CdpConnection, STAGEHAND_WEB_TARGET_FILTER } from "../understudy/cdp.js";

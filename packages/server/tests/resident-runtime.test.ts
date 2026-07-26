@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.js";
 import type {
   StagehandBrowserSession,
@@ -45,6 +45,7 @@ function residentFactory(
 const initParams = {
   protocolVersion: 4 as const,
   clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+  logLevel: "info" as const,
   telemetry: {
     traces: { endpoint: "http://127.0.0.1:4318/v1/traces", headers: {} },
   },

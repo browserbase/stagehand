@@ -18,6 +18,7 @@ describe("Stagehand object-model protocol", () => {
     const params = StagehandMethods.stagehandInit.params.parse({
       protocolVersion: 4,
       clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+      logLevel: "info",
       apiKey: "bb_key",
       browser: {
         type: "browserbase",
@@ -31,6 +32,7 @@ describe("Stagehand object-model protocol", () => {
     expect(params).toStrictEqual({
       protocolVersion: 4,
       clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+      logLevel: "info",
       apiKey: "bb_key",
       browser: {
         type: "browserbase",

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getChromePath, launch, Launcher, type LaunchedChrome } from "chrome-launcher";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import { StagehandMethods } from "../../schema-registry.js";
 import type { StagehandRpcNotification } from "../../types.js";

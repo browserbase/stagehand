@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import { resolveLocalDebuggerUrl } from "../service-worker-lifecycle/local-debugger.js";
 
 describe("local Chromium debugger resolver", () => {

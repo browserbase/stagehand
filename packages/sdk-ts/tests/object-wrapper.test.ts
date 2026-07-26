@@ -71,6 +71,7 @@ function requestCall<Method extends RPCMethod>(
 const stagehandInitCall = requestCall(StagehandMethods.stagehandInit, {
   protocolVersion: 4,
   clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+  logLevel: "info",
   browserCdpUrl: "test://stagehand",
   telemetry: {
     traces: {

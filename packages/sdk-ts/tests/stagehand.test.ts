@@ -382,6 +382,7 @@ describe("Stagehand", () => {
         params: {
           protocolVersion: 4,
           clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          logLevel: "info",
           browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
           model: { source: "client" },
           telemetry: {
@@ -424,6 +425,7 @@ describe("Stagehand", () => {
         params: {
           protocolVersion: 4,
           clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          logLevel: "info",
           telemetry: {
             traces: {
               endpoint: "https://example.com/v1/traces",
@@ -530,6 +532,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
+          autoAttach: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,

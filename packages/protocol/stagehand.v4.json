@@ -16,10 +16,7 @@
               "$ref": "#/$defs/StagehandPingResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "runtime.loopback_status": {
@@ -32,10 +29,7 @@
               "$ref": "#/$defs/RuntimeLoopbackStatusResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "browser.get_version": {
@@ -48,10 +42,7 @@
               "$ref": "#/$defs/BrowserGetVersionResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "stagehand.init": {
@@ -64,10 +55,7 @@
               "$ref": "#/$defs/StagehandInitResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "stagehand.close": {
@@ -80,10 +68,7 @@
               "$ref": "#/$defs/StagehandCloseResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "stagehand.act": {
@@ -96,10 +81,7 @@
               "$ref": "#/$defs/ActResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "stagehand.observe": {
@@ -112,10 +94,7 @@
               "$ref": "#/$defs/ObserveResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "stagehand.extract": {
@@ -128,10 +107,7 @@
               "$ref": "#/$defs/ExtractResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "stagehand.metrics": {
@@ -144,10 +120,7 @@
               "$ref": "#/$defs/StagehandMetrics"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "llm.generate": {
@@ -160,10 +133,7 @@
               "$ref": "#/$defs/LLMGenerateResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.pages": {
@@ -176,10 +146,7 @@
               "$ref": "#/$defs/ContextPagesResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.new_page": {
@@ -192,10 +159,7 @@
               "$ref": "#/$defs/PageRef"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.active_page": {
@@ -208,10 +172,7 @@
               "$ref": "#/$defs/ContextActivePageResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.set_active_page": {
@@ -224,10 +185,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.close": {
@@ -240,10 +198,7 @@
               "$ref": "#/$defs/ContextCloseResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.add_init_script": {
@@ -256,10 +211,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.set_extra_http_headers": {
@@ -272,10 +224,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.get_domain_policy": {
@@ -288,10 +237,7 @@
               "$ref": "#/$defs/ContextGetDomainPolicyResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.set_domain_policy": {
@@ -304,10 +250,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.cookies": {
@@ -320,10 +263,7 @@
               "$ref": "#/$defs/ContextCookiesResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.add_cookies": {
@@ -336,10 +276,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.clear_cookies": {
@@ -352,10 +289,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.clipboard_read_text": {
@@ -368,10 +302,7 @@
               "$ref": "#/$defs/ContextClipboardReadTextResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.clipboard_write_text": {
@@ -384,10 +315,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.clipboard_clear": {
@@ -400,10 +328,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.clipboard_paste": {
@@ -416,10 +341,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.clipboard_copy": {
@@ -432,10 +354,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "context.clipboard_cut": {
@@ -448,10 +367,7 @@
               "$ref": "#/$defs/ContextVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.goto": {
@@ -464,10 +380,7 @@
               "$ref": "#/$defs/PageRef"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.url": {
@@ -480,10 +393,7 @@
               "$ref": "#/$defs/PageUrlResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.title": {
@@ -496,10 +406,7 @@
               "$ref": "#/$defs/PageTitleResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.close": {
@@ -512,10 +419,7 @@
               "$ref": "#/$defs/PageCloseResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.reload": {
@@ -528,10 +432,7 @@
               "$ref": "#/$defs/PageRef"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.go_back": {
@@ -544,10 +445,7 @@
               "$ref": "#/$defs/PageRef"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.go_forward": {
@@ -560,10 +458,7 @@
               "$ref": "#/$defs/PageRef"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.click": {
@@ -576,10 +471,7 @@
               "$ref": "#/$defs/PageCoordinateResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.hover": {
@@ -592,10 +484,7 @@
               "$ref": "#/$defs/PageCoordinateResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.scroll": {
@@ -608,10 +497,7 @@
               "$ref": "#/$defs/PageCoordinateResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.drag_and_drop": {
@@ -624,10 +510,7 @@
               "$ref": "#/$defs/PageDragAndDropResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.type": {
@@ -640,10 +523,7 @@
               "$ref": "#/$defs/PageVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.key_press": {
@@ -656,10 +536,7 @@
               "$ref": "#/$defs/PageVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.evaluate": {
@@ -672,10 +549,7 @@
               "$ref": "#/$defs/PageEvaluateResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.add_init_script": {
@@ -688,10 +562,7 @@
               "$ref": "#/$defs/PageVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.set_extra_http_headers": {
@@ -704,10 +575,7 @@
               "$ref": "#/$defs/PageVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.screenshot": {
@@ -720,10 +588,7 @@
               "$ref": "#/$defs/PageScreenshotResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.snapshot": {
@@ -736,10 +601,7 @@
               "$ref": "#/$defs/SnapshotResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.set_viewport_size": {
@@ -752,10 +614,7 @@
               "$ref": "#/$defs/PageVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.wait_for_load_state": {
@@ -768,10 +627,7 @@
               "$ref": "#/$defs/PageVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.wait_for_timeout": {
@@ -784,10 +640,7 @@
               "$ref": "#/$defs/PageVoidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "page.wait_for_selector": {
@@ -800,10 +653,7 @@
               "$ref": "#/$defs/PageWaitForSelectorResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.click": {
@@ -816,10 +666,7 @@
               "$ref": "#/$defs/LocatorClickResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.fill": {
@@ -832,10 +679,7 @@
               "$ref": "#/$defs/LocatorFillResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.hover": {
@@ -848,10 +692,7 @@
               "$ref": "#/$defs/LocatorHoverResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.count": {
@@ -864,10 +705,7 @@
               "$ref": "#/$defs/LocatorCountResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.is_checked": {
@@ -880,10 +718,7 @@
               "$ref": "#/$defs/LocatorIsCheckedResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.input_value": {
@@ -896,10 +731,7 @@
               "$ref": "#/$defs/LocatorInputValueResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.is_visible": {
@@ -912,10 +744,7 @@
               "$ref": "#/$defs/LocatorIsVisibleResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.inner_text": {
@@ -928,10 +757,7 @@
               "$ref": "#/$defs/LocatorInnerTextResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.inner_html": {
@@ -944,10 +770,7 @@
               "$ref": "#/$defs/LocatorInnerHtmlResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.text_content": {
@@ -960,10 +783,7 @@
               "$ref": "#/$defs/LocatorTextContentResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.scroll_to": {
@@ -976,10 +796,7 @@
               "$ref": "#/$defs/LocatorScrollToResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.centroid": {
@@ -992,10 +809,7 @@
               "$ref": "#/$defs/LocatorCentroidResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.highlight": {
@@ -1008,10 +822,7 @@
               "$ref": "#/$defs/LocatorHighlightResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.send_click_event": {
@@ -1024,10 +835,7 @@
               "$ref": "#/$defs/LocatorSendClickEventResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.type": {
@@ -1040,10 +848,7 @@
               "$ref": "#/$defs/LocatorTypeResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         },
         "locator.select_option": {
@@ -1056,10 +861,7 @@
               "$ref": "#/$defs/LocatorSelectOptionResult"
             }
           },
-          "required": [
-            "params",
-            "result"
-          ],
+          "required": ["params", "result"],
           "additionalProperties": false
         }
       },
@@ -1143,15 +945,11 @@
               "$ref": "#/$defs/StagehandLog"
             }
           },
-          "required": [
-            "params"
-          ],
+          "required": ["params"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "stagehand.log"
-      ],
+      "required": ["stagehand.log"],
       "additionalProperties": false
     },
     "jsonrpc": {
@@ -1170,20 +968,11 @@
           "$ref": "#/$defs/JSONRPCErrorResponse"
         }
       },
-      "required": [
-        "request",
-        "notification",
-        "successResponse",
-        "errorResponse"
-      ],
+      "required": ["request", "notification", "successResponse", "errorResponse"],
       "additionalProperties": false
     }
   },
-  "required": [
-    "methods",
-    "notifications",
-    "jsonrpc"
-  ],
+  "required": ["methods", "notifications", "jsonrpc"],
   "additionalProperties": false,
   "title": "Stagehand V4 Protocol",
   "$defs": {
@@ -1204,10 +993,7 @@
           "const": "service_worker"
         }
       },
-      "required": [
-        "ok",
-        "runtime"
-      ],
+      "required": ["ok", "runtime"],
       "additionalProperties": false
     },
     "RuntimeLoopbackStatusResult": {
@@ -1220,10 +1006,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "configured",
-        "connected"
-      ],
+      "required": ["configured", "connected"],
       "additionalProperties": false
     },
     "BrowserGetVersionResult": {
@@ -1290,13 +1073,7 @@
         "log_level": {
           "default": "info",
           "type": "string",
-          "enum": [
-            "off",
-            "error",
-            "warn",
-            "info",
-            "debug"
-          ]
+          "enum": ["off", "error", "warn", "info", "debug"]
         },
         "system_prompt": {
           "type": "string"
@@ -1314,10 +1091,7 @@
           "$ref": "#/$defs/Caching"
         }
       },
-      "required": [
-        "protocol_version",
-        "client_info"
-      ],
+      "required": ["protocol_version", "client_info"],
       "additionalProperties": false
     },
     "ImplementationInfo": {
@@ -1332,10 +1106,7 @@
           "minLength": 1
         }
       },
-      "required": [
-        "name",
-        "version"
-      ],
+      "required": ["name", "version"],
       "additionalProperties": false
     },
     "BrowserbaseBrowserSource": {
@@ -1385,10 +1156,7 @@
           "minLength": 1
         }
       },
-      "required": [
-        "type",
-        "session_id"
-      ],
+      "required": ["type", "session_id"],
       "additionalProperties": false
     },
     "BrowserbaseBrowserSettings": {
@@ -1420,13 +1188,7 @@
         },
         "os": {
           "type": "string",
-          "enum": [
-            "windows",
-            "mac",
-            "linux",
-            "mobile",
-            "tablet"
-          ]
+          "enum": ["windows", "mac", "linux", "mobile", "tablet"]
         },
         "record_session": {
           "type": "boolean"
@@ -1452,9 +1214,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "id"
-      ]
+      "required": ["id"]
     },
     "BrowserbaseFingerprint": {
       "type": "object",
@@ -1463,30 +1223,19 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "chrome",
-              "edge",
-              "firefox",
-              "safari"
-            ]
+            "enum": ["chrome", "edge", "firefox", "safari"]
           }
         },
         "devices": {
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "desktop",
-              "mobile"
-            ]
+            "enum": ["desktop", "mobile"]
           }
         },
         "http_version": {
           "type": "string",
-          "enum": [
-            "1",
-            "2"
-          ]
+          "enum": ["1", "2"]
         },
         "locales": {
           "type": "array",
@@ -1498,13 +1247,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "android",
-              "ios",
-              "linux",
-              "macos",
-              "windows"
-            ]
+            "enum": ["android", "ios", "linux", "macos", "windows"]
           }
         },
         "screen": {
@@ -1564,9 +1307,7 @@
           "$ref": "#/$defs/BrowserbaseProxyGeolocation"
         }
       },
-      "required": [
-        "type"
-      ]
+      "required": ["type"]
     },
     "BrowserbaseProxyGeolocation": {
       "type": "object",
@@ -1581,9 +1322,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "country"
-      ]
+      "required": ["country"]
     },
     "ExternalProxyConfig": {
       "type": "object",
@@ -1605,19 +1344,11 @@
           "type": "string"
         }
       },
-      "required": [
-        "type",
-        "server"
-      ]
+      "required": ["type", "server"]
     },
     "BrowserbaseRegion": {
       "type": "string",
-      "enum": [
-        "us-west-2",
-        "us-east-1",
-        "eu-central-1",
-        "ap-southeast-1"
-      ]
+      "enum": ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
     },
     "ModelConfig": {
       "anyOf": [
@@ -1653,9 +1384,7 @@
           "$ref": "#/$defs/ModelName"
         }
       },
-      "required": [
-        "model_name"
-      ],
+      "required": ["model_name"],
       "additionalProperties": false
     },
     "OpenAIModelName": {
@@ -1730,10 +1459,7 @@
           "example": "https://models.example.com/v1"
         }
       },
-      "required": [
-        "model_name",
-        "base_url"
-      ],
+      "required": ["model_name", "base_url"],
       "additionalProperties": false
     },
     "ClientModelReference": {
@@ -1744,9 +1470,7 @@
           "const": "client"
         }
       },
-      "required": [
-        "source"
-      ],
+      "required": ["source"],
       "additionalProperties": false
     },
     "TelemetryConfig": {
@@ -1756,9 +1480,7 @@
           "$ref": "#/$defs/TelemetryTraces"
         }
       },
-      "required": [
-        "traces"
-      ],
+      "required": ["traces"],
       "additionalProperties": false
     },
     "TelemetryTraces": {
@@ -1779,9 +1501,7 @@
           }
         }
       },
-      "required": [
-        "endpoint"
-      ],
+      "required": ["endpoint"],
       "additionalProperties": false
     },
     "Caching": {
@@ -1816,10 +1536,7 @@
           }
         }
       },
-      "required": [
-        "initialized",
-        "pages"
-      ],
+      "required": ["initialized", "pages"],
       "additionalProperties": false
     },
     "PageRef": {
@@ -1835,9 +1552,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "page_id"
-      ],
+      "required": ["page_id"],
       "additionalProperties": false
     },
     "StagehandCloseResult": {
@@ -1848,9 +1563,7 @@
           "const": true
         }
       },
-      "required": [
-        "closed"
-      ],
+      "required": ["closed"],
       "additionalProperties": false
     },
     "StagehandActParams": {
@@ -1868,10 +1581,7 @@
           "$ref": "#/$defs/ActOptions"
         }
       },
-      "required": [
-        "page_id",
-        "input"
-      ],
+      "required": ["page_id", "input"],
       "additionalProperties": false
     },
     "ActOptions": {
@@ -1949,9 +1659,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "value"
-      ],
+      "required": ["value"],
       "additionalProperties": false
     },
     "Locator": {
@@ -1967,9 +1675,7 @@
           "maximum": 9007199254740991
         }
       },
-      "required": [
-        "selector"
-      ],
+      "required": ["selector"],
       "additionalProperties": false
     },
     "ActResult": {
@@ -1987,9 +1693,7 @@
           "$ref": "#/$defs/CacheStatus"
         }
       },
-      "required": [
-        "result"
-      ]
+      "required": ["result"]
     },
     "ActResultData": {
       "type": "object",
@@ -2017,12 +1721,7 @@
           "description": "List of actions that were executed"
         }
       },
-      "required": [
-        "success",
-        "message",
-        "action_description",
-        "actions"
-      ]
+      "required": ["success", "message", "action_description", "actions"]
     },
     "Action": {
       "type": "object",
@@ -2044,27 +1743,19 @@
         },
         "arguments": {
           "description": "Arguments to pass to the method",
-          "example": [
-            "Hello World"
-          ],
+          "example": ["Hello World"],
           "type": "array",
           "items": {
             "type": "string"
           }
         }
       },
-      "required": [
-        "selector",
-        "description"
-      ],
+      "required": ["selector", "description"],
       "description": "Action object returned by observe and used by act"
     },
     "CacheStatus": {
       "type": "string",
-      "enum": [
-        "HIT",
-        "MISS"
-      ]
+      "enum": ["HIT", "MISS"]
     },
     "StagehandObserveParams": {
       "type": "object",
@@ -2080,9 +1771,7 @@
           "$ref": "#/$defs/ObserveOptions"
         }
       },
-      "required": [
-        "page_id"
-      ],
+      "required": ["page_id"],
       "additionalProperties": false
     },
     "ObserveOptions": {
@@ -2115,11 +1804,7 @@
         },
         "ignore_selectors": {
           "description": "Selectors for elements and subtrees that should be excluded from observation",
-          "example": [
-            "nav",
-            ".cookie-banner",
-            "#sidebar-ads"
-          ],
+          "example": ["nav", ".cookie-banner", "#sidebar-ads"],
           "type": "array",
           "items": {
             "type": "string"
@@ -2153,9 +1838,7 @@
           "$ref": "#/$defs/CacheStatus"
         }
       },
-      "required": [
-        "result"
-      ]
+      "required": ["result"]
     },
     "StagehandExtractParams": {
       "type": "object",
@@ -2175,11 +1858,7 @@
           "$ref": "#/$defs/ExtractOptions"
         }
       },
-      "required": [
-        "page_id",
-        "instruction",
-        "schema"
-      ],
+      "required": ["page_id", "instruction", "schema"],
       "additionalProperties": false
     },
     "__schema0": {
@@ -2232,11 +1911,7 @@
         },
         "ignore_selectors": {
           "description": "Selectors for elements and subtrees that should be excluded from extraction",
-          "example": [
-            "nav",
-            ".cookie-banner",
-            "#sidebar-ads"
-          ],
+          "example": ["nav", ".cookie-banner", "#sidebar-ads"],
           "type": "array",
           "items": {
             "type": "string"
@@ -2272,9 +1947,7 @@
           "$ref": "#/$defs/CacheStatus"
         }
       },
-      "required": [
-        "result"
-      ]
+      "required": ["result"]
     },
     "StagehandMetrics": {
       "type": "object",
@@ -2399,10 +2072,7 @@
           "$ref": "#/$defs/LLMJsonSchemaResponseFormat"
         }
       },
-      "required": [
-        "messages",
-        "response_format"
-      ],
+      "required": ["messages", "response_format"],
       "additionalProperties": false
     },
     "LLMMessage": {
@@ -2425,18 +2095,12 @@
           ]
         }
       },
-      "required": [
-        "role",
-        "content"
-      ],
+      "required": ["role", "content"],
       "additionalProperties": false
     },
     "LLMRole": {
       "type": "string",
-      "enum": [
-        "user",
-        "assistant"
-      ]
+      "enum": ["user", "assistant"]
     },
     "LLMMessageContentBlock": {
       "oneOf": [
@@ -2468,10 +2132,7 @@
           "$ref": "#/$defs/LLMAnnotations"
         }
       },
-      "required": [
-        "type",
-        "text"
-      ],
+      "required": ["type", "text"],
       "additionalProperties": false
     },
     "LLMAnnotations": {
@@ -2514,11 +2175,7 @@
           "$ref": "#/$defs/LLMAnnotations"
         }
       },
-      "required": [
-        "type",
-        "data",
-        "mime_type"
-      ],
+      "required": ["type", "data", "mime_type"],
       "additionalProperties": false
     },
     "LLMToolUseContent": {
@@ -2544,12 +2201,7 @@
           }
         }
       },
-      "required": [
-        "type",
-        "id",
-        "name",
-        "input"
-      ],
+      "required": ["type", "id", "name", "input"],
       "additionalProperties": false
     },
     "__schema1": {
@@ -2612,11 +2264,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "type",
-        "tool_use_id",
-        "content"
-      ],
+      "required": ["type", "tool_use_id", "content"],
       "additionalProperties": false
     },
     "LLMToolResultContentBlock": {
@@ -2677,11 +2325,7 @@
           "$ref": "#/$defs/__schema3"
         }
       },
-      "required": [
-        "type",
-        "name",
-        "schema"
-      ],
+      "required": ["type", "name", "schema"],
       "additionalProperties": false
     },
     "__schema3": {
@@ -2749,9 +2393,7 @@
           "$ref": "#/$defs/LLMTextResponseFormat"
         }
       },
-      "required": [
-        "messages"
-      ],
+      "required": ["messages"],
       "additionalProperties": false
     },
     "LLMClientTool": {
@@ -2785,10 +2427,7 @@
           "$ref": "#/$defs/LLMToolAnnotations"
         }
       },
-      "required": [
-        "name",
-        "input_schema"
-      ],
+      "required": ["name", "input_schema"],
       "additionalProperties": false
     },
     "LLMToolIcon": {
@@ -2809,15 +2448,10 @@
         },
         "theme": {
           "type": "string",
-          "enum": [
-            "light",
-            "dark"
-          ]
+          "enum": ["light", "dark"]
         }
       },
-      "required": [
-        "src"
-      ],
+      "required": ["src"],
       "additionalProperties": false
     },
     "LLMToolJson": {
@@ -2852,9 +2486,7 @@
           }
         }
       },
-      "required": [
-        "type"
-      ],
+      "required": ["type"],
       "additionalProperties": false
     },
     "__schema4": {
@@ -2893,11 +2525,7 @@
       "properties": {
         "task_support": {
           "type": "string",
-          "enum": [
-            "forbidden",
-            "optional",
-            "required"
-          ]
+          "enum": ["forbidden", "optional", "required"]
         }
       },
       "additionalProperties": false
@@ -2928,11 +2556,7 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": [
-            "auto",
-            "required",
-            "none"
-          ]
+          "enum": ["auto", "required", "none"]
         }
       },
       "additionalProperties": false
@@ -2945,9 +2569,7 @@
           "const": "text"
         }
       },
-      "required": [
-        "type"
-      ],
+      "required": ["type"],
       "additionalProperties": false
     },
     "LLMGenerateResult": {
@@ -2990,11 +2612,7 @@
           "const": "text"
         }
       },
-      "required": [
-        "role",
-        "content",
-        "output_format"
-      ],
+      "required": ["role", "content", "output_format"],
       "additionalProperties": {
         "$ref": "#/$defs/__schema5"
       }
@@ -3028,11 +2646,7 @@
           "maximum": 9007199254740991
         }
       },
-      "required": [
-        "input_tokens",
-        "output_tokens",
-        "total_tokens"
-      ],
+      "required": ["input_tokens", "output_tokens", "total_tokens"],
       "additionalProperties": false
     },
     "__schema5": {
@@ -3099,12 +2713,7 @@
           "$ref": "#/$defs/__schema6"
         }
       },
-      "required": [
-        "role",
-        "content",
-        "output_format",
-        "structured_content"
-      ],
+      "required": ["role", "content", "output_format", "structured_content"],
       "additionalProperties": {
         "$ref": "#/$defs/__schema5"
       }
@@ -3172,9 +2781,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "page_id"
-      ],
+      "required": ["page_id"],
       "additionalProperties": false
     },
     "ContextVoidResult": {
@@ -3185,9 +2792,7 @@
           "const": true
         }
       },
-      "required": [
-        "ok"
-      ],
+      "required": ["ok"],
       "additionalProperties": false
     },
     "ContextCloseResult": {
@@ -3198,9 +2803,7 @@
           "const": true
         }
       },
-      "required": [
-        "closed"
-      ],
+      "required": ["closed"],
       "additionalProperties": false
     },
     "ContextAddInitScriptParams": {
@@ -3210,9 +2813,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "source"
-      ],
+      "required": ["source"],
       "additionalProperties": false
     },
     "ContextSetExtraHTTPHeadersParams": {
@@ -3228,9 +2829,7 @@
           }
         }
       },
-      "required": [
-        "headers"
-      ],
+      "required": ["headers"],
       "additionalProperties": false
     },
     "ContextGetDomainPolicyResult": {
@@ -3247,9 +2846,7 @@
           ]
         }
       },
-      "required": [
-        "policy"
-      ],
+      "required": ["policy"],
       "additionalProperties": false
     },
     "DomainPolicy": {
@@ -3284,9 +2881,7 @@
           ]
         }
       },
-      "required": [
-        "policy"
-      ],
+      "required": ["policy"],
       "additionalProperties": false
     },
     "ContextCookiesParams": {
@@ -3318,9 +2913,7 @@
           }
         }
       },
-      "required": [
-        "cookies"
-      ],
+      "required": ["cookies"],
       "additionalProperties": false
     },
     "Cookie": {
@@ -3349,11 +2942,7 @@
         },
         "same_site": {
           "type": "string",
-          "enum": [
-            "Strict",
-            "Lax",
-            "None"
-          ]
+          "enum": ["Strict", "Lax", "None"]
         }
       },
       "required": [
@@ -3378,9 +2967,7 @@
           }
         }
       },
-      "required": [
-        "cookies"
-      ],
+      "required": ["cookies"],
       "additionalProperties": false
     },
     "CookieParam": {
@@ -3412,17 +2999,10 @@
         },
         "same_site": {
           "type": "string",
-          "enum": [
-            "Strict",
-            "Lax",
-            "None"
-          ]
+          "enum": ["Strict", "Lax", "None"]
         }
       },
-      "required": [
-        "name",
-        "value"
-      ],
+      "required": ["name", "value"],
       "additionalProperties": false
     },
     "ContextClearCookiesParams": {
@@ -3470,9 +3050,7 @@
           "pattern": "^[dgimsuvy]*$"
         }
       },
-      "required": [
-        "source"
-      ],
+      "required": ["source"],
       "additionalProperties": false
     },
     "ContextClipboardTarget": {
@@ -3491,9 +3069,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "text"
-      ],
+      "required": ["text"],
       "additionalProperties": false
     },
     "ContextClipboardWriteTextParams": {
@@ -3506,9 +3082,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "text"
-      ],
+      "required": ["text"],
       "additionalProperties": false
     },
     "ContextClipboardPasteParams": {
@@ -3519,11 +3093,7 @@
         },
         "shortcut": {
           "type": "string",
-          "enum": [
-            "ControlOrMeta+V",
-            "Meta+V",
-            "Control+V"
-          ]
+          "enum": ["ControlOrMeta+V", "Meta+V", "Control+V"]
         }
       },
       "additionalProperties": false
@@ -3542,10 +3112,7 @@
           "$ref": "#/$defs/PageNavigationOptions"
         }
       },
-      "required": [
-        "page_id",
-        "url"
-      ],
+      "required": ["page_id", "url"],
       "additionalProperties": false
     },
     "PageNavigationOptions": {
@@ -3564,11 +3131,7 @@
     },
     "LoadState": {
       "type": "string",
-      "enum": [
-        "load",
-        "domcontentloaded",
-        "networkidle"
-      ]
+      "enum": ["load", "domcontentloaded", "networkidle"]
     },
     "PageIdParams": {
       "type": "object",
@@ -3577,9 +3140,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "page_id"
-      ],
+      "required": ["page_id"],
       "additionalProperties": false
     },
     "PageUrlResult": {
@@ -3589,9 +3150,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "url"
-      ],
+      "required": ["url"],
       "additionalProperties": false
     },
     "PageTitleResult": {
@@ -3601,9 +3160,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "title"
-      ],
+      "required": ["title"],
       "additionalProperties": false
     },
     "PageCloseResult": {
@@ -3614,9 +3171,7 @@
           "const": true
         }
       },
-      "required": [
-        "closed"
-      ],
+      "required": ["closed"],
       "additionalProperties": false
     },
     "PageReloadParams": {
@@ -3629,9 +3184,7 @@
           "$ref": "#/$defs/PageReloadOptions"
         }
       },
-      "required": [
-        "page_id"
-      ],
+      "required": ["page_id"],
       "additionalProperties": false
     },
     "PageReloadOptions": {
@@ -3661,9 +3214,7 @@
           "$ref": "#/$defs/PageNavigationOptions"
         }
       },
-      "required": [
-        "page_id"
-      ],
+      "required": ["page_id"],
       "additionalProperties": false
     },
     "PageGoForwardParams": {
@@ -3676,9 +3227,7 @@
           "$ref": "#/$defs/PageNavigationOptions"
         }
       },
-      "required": [
-        "page_id"
-      ],
+      "required": ["page_id"],
       "additionalProperties": false
     },
     "PageClickParams": {
@@ -3697,11 +3246,7 @@
           "$ref": "#/$defs/PageClickOptions"
         }
       },
-      "required": [
-        "page_id",
-        "x",
-        "y"
-      ],
+      "required": ["page_id", "x", "y"],
       "additionalProperties": false
     },
     "PageClickOptions": {
@@ -3723,11 +3268,7 @@
     },
     "MouseButton": {
       "type": "string",
-      "enum": [
-        "left",
-        "right",
-        "middle"
-      ]
+      "enum": ["left", "right", "middle"]
     },
     "PageCoordinateResult": {
       "type": "object",
@@ -3736,9 +3277,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "xpath"
-      ],
+      "required": ["xpath"],
       "additionalProperties": false
     },
     "PageHoverParams": {
@@ -3757,11 +3296,7 @@
           "$ref": "#/$defs/PageHoverOptions"
         }
       },
-      "required": [
-        "page_id",
-        "x",
-        "y"
-      ],
+      "required": ["page_id", "x", "y"],
       "additionalProperties": false
     },
     "PageHoverOptions": {
@@ -3795,13 +3330,7 @@
           "$ref": "#/$defs/PageScrollOptions"
         }
       },
-      "required": [
-        "page_id",
-        "x",
-        "y",
-        "delta_x",
-        "delta_y"
-      ],
+      "required": ["page_id", "x", "y", "delta_x", "delta_y"],
       "additionalProperties": false
     },
     "PageScrollOptions": {
@@ -3835,13 +3364,7 @@
           "$ref": "#/$defs/PageDragAndDropOptions"
         }
       },
-      "required": [
-        "page_id",
-        "from_x",
-        "from_y",
-        "to_x",
-        "to_y"
-      ],
+      "required": ["page_id", "from_x", "from_y", "to_x", "to_y"],
       "additionalProperties": false
     },
     "PageDragAndDropOptions": {
@@ -3875,10 +3398,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "from_xpath",
-        "to_xpath"
-      ],
+      "required": ["from_xpath", "to_xpath"],
       "additionalProperties": false
     },
     "PageTypeParams": {
@@ -3894,10 +3414,7 @@
           "$ref": "#/$defs/PageTypeOptions"
         }
       },
-      "required": [
-        "page_id",
-        "text"
-      ],
+      "required": ["page_id", "text"],
       "additionalProperties": false
     },
     "PageTypeOptions": {
@@ -3921,9 +3438,7 @@
           "const": true
         }
       },
-      "required": [
-        "ok"
-      ],
+      "required": ["ok"],
       "additionalProperties": false
     },
     "PageKeyPressParams": {
@@ -3940,10 +3455,7 @@
           "$ref": "#/$defs/PageKeyPressOptions"
         }
       },
-      "required": [
-        "page_id",
-        "key"
-      ],
+      "required": ["page_id", "key"],
       "additionalProperties": false
     },
     "PageKeyPressOptions": {
@@ -3966,10 +3478,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "page_id",
-        "expression"
-      ],
+      "required": ["page_id", "expression"],
       "additionalProperties": false
     },
     "PageEvaluateResult": {
@@ -3979,9 +3488,7 @@
           "$ref": "#/$defs/__schema7"
         }
       },
-      "required": [
-        "value"
-      ],
+      "required": ["value"],
       "additionalProperties": false
     },
     "__schema7": {
@@ -4025,10 +3532,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "page_id",
-        "source"
-      ],
+      "required": ["page_id", "source"],
       "additionalProperties": false
     },
     "PageSetExtraHTTPHeadersParams": {
@@ -4047,10 +3551,7 @@
           }
         }
       },
-      "required": [
-        "page_id",
-        "headers"
-      ],
+      "required": ["page_id", "headers"],
       "additionalProperties": false
     },
     "PageScreenshotParams": {
@@ -4063,9 +3564,7 @@
           "$ref": "#/$defs/PageScreenshotOptions"
         }
       },
-      "required": [
-        "page_id"
-      ],
+      "required": ["page_id"],
       "additionalProperties": false
     },
     "PageScreenshotOptions": {
@@ -4073,17 +3572,11 @@
       "properties": {
         "animations": {
           "type": "string",
-          "enum": [
-            "disabled",
-            "allow"
-          ]
+          "enum": ["disabled", "allow"]
         },
         "caret": {
           "type": "string",
-          "enum": [
-            "hide",
-            "initial"
-          ]
+          "enum": ["hide", "initial"]
         },
         "clip": {
           "$ref": "#/$defs/PageScreenshotClip"
@@ -4110,10 +3603,7 @@
         },
         "scale": {
           "type": "string",
-          "enum": [
-            "css",
-            "device"
-          ]
+          "enum": ["css", "device"]
         },
         "style": {
           "type": "string"
@@ -4124,10 +3614,7 @@
         },
         "type": {
           "type": "string",
-          "enum": [
-            "png",
-            "jpeg"
-          ]
+          "enum": ["png", "jpeg"]
         }
       },
       "additionalProperties": false
@@ -4150,12 +3637,7 @@
           "exclusiveMinimum": 0
         }
       },
-      "required": [
-        "x",
-        "y",
-        "width",
-        "height"
-      ],
+      "required": ["x", "y", "width", "height"],
       "additionalProperties": false
     },
     "LocatorDescriptor": {
@@ -4174,10 +3656,7 @@
           "maximum": 9007199254740991
         }
       },
-      "required": [
-        "page_id",
-        "selector"
-      ],
+      "required": ["page_id", "selector"],
       "additionalProperties": false
     },
     "PageScreenshotResult": {
@@ -4191,16 +3670,10 @@
         },
         "type": {
           "type": "string",
-          "enum": [
-            "png",
-            "jpeg"
-          ]
+          "enum": ["png", "jpeg"]
         }
       },
-      "required": [
-        "data",
-        "type"
-      ],
+      "required": ["data", "type"],
       "additionalProperties": false
     },
     "PageSnapshotParams": {
@@ -4213,9 +3686,7 @@
           "$ref": "#/$defs/PageSnapshotOptions"
         }
       },
-      "required": [
-        "page_id"
-      ],
+      "required": ["page_id"],
       "additionalProperties": false
     },
     "PageSnapshotOptions": {
@@ -4252,11 +3723,7 @@
           }
         }
       },
-      "required": [
-        "formatted_tree",
-        "xpath_map",
-        "url_map"
-      ],
+      "required": ["formatted_tree", "xpath_map", "url_map"],
       "additionalProperties": false
     },
     "PageSetViewportSizeParams": {
@@ -4279,11 +3746,7 @@
           "$ref": "#/$defs/PageSetViewportSizeOptions"
         }
       },
-      "required": [
-        "page_id",
-        "width",
-        "height"
-      ],
+      "required": ["page_id", "width", "height"],
       "additionalProperties": false
     },
     "PageSetViewportSizeOptions": {
@@ -4311,10 +3774,7 @@
           "maximum": 9007199254740991
         }
       },
-      "required": [
-        "page_id",
-        "state"
-      ],
+      "required": ["page_id", "state"],
       "additionalProperties": false
     },
     "PageWaitForTimeoutParams": {
@@ -4329,10 +3789,7 @@
           "maximum": 9007199254740991
         }
       },
-      "required": [
-        "page_id",
-        "ms"
-      ],
+      "required": ["page_id", "ms"],
       "additionalProperties": false
     },
     "PageWaitForSelectorParams": {
@@ -4349,10 +3806,7 @@
           "$ref": "#/$defs/PageWaitForSelectorOptions"
         }
       },
-      "required": [
-        "page_id",
-        "selector"
-      ],
+      "required": ["page_id", "selector"],
       "additionalProperties": false
     },
     "PageWaitForSelectorOptions": {
@@ -4360,12 +3814,7 @@
       "properties": {
         "state": {
           "type": "string",
-          "enum": [
-            "attached",
-            "detached",
-            "visible",
-            "hidden"
-          ]
+          "enum": ["attached", "detached", "visible", "hidden"]
         },
         "timeout": {
           "type": "integer",
@@ -4385,9 +3834,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "matched"
-      ],
+      "required": ["matched"],
       "additionalProperties": false
     },
     "LocatorClickParams": {
@@ -4409,10 +3856,7 @@
           "$ref": "#/$defs/LocatorClickOptions"
         }
       },
-      "required": [
-        "page_id",
-        "selector"
-      ],
+      "required": ["page_id", "selector"],
       "additionalProperties": false
     },
     "LocatorClickOptions": {
@@ -4437,9 +3881,7 @@
           "const": true
         }
       },
-      "required": [
-        "clicked"
-      ],
+      "required": ["clicked"],
       "additionalProperties": false
     },
     "LocatorFillParams": {
@@ -4461,11 +3903,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "page_id",
-        "selector",
-        "value"
-      ],
+      "required": ["page_id", "selector", "value"],
       "additionalProperties": false
     },
     "LocatorFillResult": {
@@ -4476,9 +3914,7 @@
           "const": true
         }
       },
-      "required": [
-        "filled"
-      ],
+      "required": ["filled"],
       "additionalProperties": false
     },
     "LocatorHoverResult": {
@@ -4489,9 +3925,7 @@
           "const": true
         }
       },
-      "required": [
-        "hovered"
-      ],
+      "required": ["hovered"],
       "additionalProperties": false
     },
     "LocatorCountResult": {
@@ -4503,9 +3937,7 @@
           "maximum": 9007199254740991
         }
       },
-      "required": [
-        "count"
-      ],
+      "required": ["count"],
       "additionalProperties": false
     },
     "LocatorIsCheckedResult": {
@@ -4515,9 +3947,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "checked"
-      ],
+      "required": ["checked"],
       "additionalProperties": false
     },
     "LocatorInputValueResult": {
@@ -4527,9 +3957,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "value"
-      ],
+      "required": ["value"],
       "additionalProperties": false
     },
     "LocatorIsVisibleResult": {
@@ -4539,9 +3967,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "visible"
-      ],
+      "required": ["visible"],
       "additionalProperties": false
     },
     "LocatorInnerTextResult": {
@@ -4551,9 +3977,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "text"
-      ],
+      "required": ["text"],
       "additionalProperties": false
     },
     "LocatorInnerHtmlResult": {
@@ -4563,9 +3987,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "html"
-      ],
+      "required": ["html"],
       "additionalProperties": false
     },
     "LocatorTextContentResult": {
@@ -4575,9 +3997,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "text_content"
-      ],
+      "required": ["text_content"],
       "additionalProperties": false
     },
     "LocatorScrollToParams": {
@@ -4606,11 +4026,7 @@
           ]
         }
       },
-      "required": [
-        "page_id",
-        "selector",
-        "percent"
-      ],
+      "required": ["page_id", "selector", "percent"],
       "additionalProperties": false
     },
     "LocatorScrollToResult": {
@@ -4621,9 +4037,7 @@
           "const": true
         }
       },
-      "required": [
-        "scrolled"
-      ],
+      "required": ["scrolled"],
       "additionalProperties": false
     },
     "LocatorCentroidResult": {
@@ -4636,10 +4050,7 @@
           "type": "number"
         }
       },
-      "required": [
-        "x",
-        "y"
-      ],
+      "required": ["x", "y"],
       "additionalProperties": false
     },
     "LocatorHighlightParams": {
@@ -4661,10 +4072,7 @@
           "$ref": "#/$defs/LocatorHighlightOptions"
         }
       },
-      "required": [
-        "page_id",
-        "selector"
-      ],
+      "required": ["page_id", "selector"],
       "additionalProperties": false
     },
     "LocatorHighlightOptions": {
@@ -4700,11 +4108,7 @@
           "type": "number"
         }
       },
-      "required": [
-        "r",
-        "g",
-        "b"
-      ],
+      "required": ["r", "g", "b"],
       "additionalProperties": false
     },
     "LocatorHighlightResult": {
@@ -4715,9 +4119,7 @@
           "const": true
         }
       },
-      "required": [
-        "highlighted"
-      ],
+      "required": ["highlighted"],
       "additionalProperties": false
     },
     "LocatorSendClickEventParams": {
@@ -4739,10 +4141,7 @@
           "$ref": "#/$defs/LocatorSendClickEventOptions"
         }
       },
-      "required": [
-        "page_id",
-        "selector"
-      ],
+      "required": ["page_id", "selector"],
       "additionalProperties": false
     },
     "LocatorSendClickEventOptions": {
@@ -4771,9 +4170,7 @@
           "const": true
         }
       },
-      "required": [
-        "clicked"
-      ],
+      "required": ["clicked"],
       "additionalProperties": false
     },
     "LocatorTypeParams": {
@@ -4798,11 +4195,7 @@
           "$ref": "#/$defs/LocatorTypeOptions"
         }
       },
-      "required": [
-        "page_id",
-        "selector",
-        "text"
-      ],
+      "required": ["page_id", "selector", "text"],
       "additionalProperties": false
     },
     "LocatorTypeOptions": {
@@ -4823,9 +4216,7 @@
           "const": true
         }
       },
-      "required": [
-        "typed"
-      ],
+      "required": ["typed"],
       "additionalProperties": false
     },
     "LocatorSelectOptionParams": {
@@ -4857,11 +4248,7 @@
           ]
         }
       },
-      "required": [
-        "page_id",
-        "selector",
-        "values"
-      ],
+      "required": ["page_id", "selector", "values"],
       "additionalProperties": false
     },
     "LocatorSelectOptionResult": {
@@ -4874,9 +4261,7 @@
           }
         }
       },
-      "required": [
-        "values"
-      ],
+      "required": ["values"],
       "additionalProperties": false
     },
     "StagehandLog": {
@@ -4893,21 +4278,12 @@
           "$ref": "#/$defs/StagehandLogData"
         }
       },
-      "required": [
-        "level",
-        "message",
-        "data"
-      ],
+      "required": ["level", "message", "data"],
       "additionalProperties": false
     },
     "StagehandLogLevel": {
       "type": "string",
-      "enum": [
-        "debug",
-        "info",
-        "warn",
-        "error"
-      ]
+      "enum": ["debug", "info", "warn", "error"]
     },
     "StagehandLogData": {
       "type": "object",
@@ -4975,12 +4351,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5007,12 +4378,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5039,12 +4405,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5071,12 +4432,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5103,12 +4459,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5135,12 +4486,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5167,12 +4513,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5199,12 +4540,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5231,12 +4567,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5263,12 +4594,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5295,12 +4621,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5327,12 +4648,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5359,12 +4675,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5391,12 +4702,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5423,12 +4729,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5455,12 +4756,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5487,12 +4783,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5519,12 +4810,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5551,12 +4837,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5583,12 +4864,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5615,12 +4891,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5647,12 +4918,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5679,12 +4945,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5711,12 +4972,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5743,12 +4999,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5775,12 +5026,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5807,12 +5053,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5839,12 +5080,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5871,12 +5107,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5903,12 +5134,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5935,12 +5161,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5967,12 +5188,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -5999,12 +5215,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6031,12 +5242,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6063,12 +5269,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6095,12 +5296,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6127,12 +5323,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6159,12 +5350,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6191,12 +5377,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6223,12 +5404,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6255,12 +5431,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6287,12 +5458,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6319,12 +5485,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6351,12 +5512,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6383,12 +5539,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6415,12 +5566,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6447,12 +5593,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6479,12 +5620,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6511,12 +5647,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6543,12 +5674,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6575,12 +5701,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6607,12 +5728,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6639,12 +5755,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6671,12 +5782,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6703,12 +5809,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6735,12 +5836,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6767,12 +5863,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6799,12 +5890,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6831,12 +5917,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6863,12 +5944,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6895,12 +5971,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6927,12 +5998,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6959,12 +6025,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -6991,12 +6052,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -7023,12 +6079,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         },
         {
@@ -7055,12 +6106,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "jsonrpc",
-            "id",
-            "method",
-            "params"
-          ],
+          "required": ["jsonrpc", "id", "method", "params"],
           "additionalProperties": false
         }
       ]
@@ -7085,11 +6131,7 @@
           "$ref": "#/$defs/StagehandLog"
         }
       },
-      "required": [
-        "jsonrpc",
-        "method",
-        "params"
-      ],
+      "required": ["jsonrpc", "method", "params"],
       "additionalProperties": false
     },
     "JSONRPCSuccessResponse": {
@@ -7106,11 +6148,7 @@
           "$ref": "#/$defs/JSONRPCRequestId"
         }
       },
-      "required": [
-        "jsonrpc",
-        "result",
-        "id"
-      ],
+      "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
     "__schema9": {
@@ -7158,11 +6196,7 @@
           "$ref": "#/$defs/JSONRPCErrorResponseId"
         }
       },
-      "required": [
-        "jsonrpc",
-        "error",
-        "id"
-      ],
+      "required": ["jsonrpc", "error", "id"],
       "additionalProperties": false
     },
     "JSONRPCErrorObject": {
@@ -7180,10 +6214,7 @@
           "$ref": "#/$defs/__schema10"
         }
       },
-      "required": [
-        "code",
-        "message"
-      ],
+      "required": ["code", "message"],
       "additionalProperties": false
     },
     "__schema10": {

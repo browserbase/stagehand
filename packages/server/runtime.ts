@@ -320,6 +320,7 @@ export class StagehandRuntime {
       throw new Error("Stagehand has already been initialized");
     }
 
+    this.logger.setLevel(params.logLevel);
     await this.browserSession?.prepareForInitialization?.();
     const pages = await this.contextPages();
     this.tracing.configure(params.telemetry);
