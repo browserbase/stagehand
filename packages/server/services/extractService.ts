@@ -9,6 +9,7 @@ import { TimeoutError } from "../errors.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { StagehandLogger } from "../logger.js";
+import { bytesToBase64 } from "../understudy/fileUploadUtils.js";
 import type { Page } from "../understudy/page.js";
 import type { EncodedId, ZodPathSegments } from "../types/private/internal.js";
 import { injectUrls, transformSchema } from "../utils.js";
@@ -45,7 +46,7 @@ export async function extract({
   cache,
 }: {
   params: StagehandExtractParams;
-  page: Pick<Page, "captureSnapshot">;
+  page: Pick<Page, "captureSnapshot" | "screenshot">;
   model: ModelConfig | ClientModelReference;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
@@ -57,11 +58,6 @@ export async function extract({
     options?.timeout,
     (ms) => new TimeoutError("extract()", ms),
   );
-
-  if (options?.screenshot) {
-    // TODO: Add image content to the shared LLM protocol before enabling screenshot extraction.
-    throw new TypeError("extract({ screenshot: true }) is not implemented yet.");
-  }
 
   const focusSelector = options?.selector?.replace(/^xpath=/i, "") ?? "";
 
@@ -85,10 +81,27 @@ export async function extract({
     });
     ensureTimeRemaining();
 
-    logger.info("Starting extraction using an accessibility snapshot", {
-      category: "extraction",
-      instruction,
-    });
+    const screenshot = options?.screenshot
+      ? await (async () => {
+          ensureTimeRemaining();
+          const image = await page.screenshot({
+            fullPage: false,
+            type: "png",
+          });
+          ensureTimeRemaining();
+          return image;
+        })()
+      : undefined;
+
+    logger.info(
+      screenshot
+        ? "Starting extraction using an accessibility snapshot and viewport screenshot"
+        : "Starting extraction using an accessibility snapshot",
+      {
+        category: "extraction",
+        instruction,
+      },
+    );
 
     const schema = z.fromJSONSchema(params.schema as Parameters<typeof z.fromJSONSchema>[0]);
     const isObjectSchema = schema instanceof z.ZodObject;
@@ -108,6 +121,13 @@ export async function extract({
         schema: transformedSchema as z.ZodObject,
         generate: (input) => llmService.generate(model, input, clientLLMGenerate),
         userProvidedInstructions: systemPrompt,
+        screenshot: screenshot
+          ? {
+              type: "image",
+              data: bytesToBase64(screenshot),
+              mimeType: "image/png",
+            }
+          : undefined,
       });
     ensureTimeRemaining();
 
