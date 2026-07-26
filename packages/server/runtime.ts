@@ -97,6 +97,7 @@ import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
 import { createStore } from "zustand/vanilla";
 import type { StagehandLogEmitter } from "./logger.js";
 import { StagehandLogger } from "./logger.js";
+import { buildGatewayContext } from "./llm/gatewayClient.js";
 import * as llmService from "./services/llmService.js";
 import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runtimeState.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
@@ -317,12 +318,21 @@ export class StagehandRuntime {
 
   async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {
     const state = this.state.getState();
-    const model = state.status === "initialized" ? state.initParams.model : undefined;
+    if (state.status !== "initialized") {
+      throw new Error("Stagehand must be initialized before generating LLM output");
+    }
+
+    const model = state.initParams.model;
     if (!model) {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
-    return await llmService.generate(model, input, this.adapters.clientLLMGenerate);
+    return await llmService.generate(
+      model,
+      input,
+      this.adapters.clientLLMGenerate,
+      buildGatewayContext(state.initParams),
+    );
   }
 
   async contextPages(): Promise<ContextPagesResult> {

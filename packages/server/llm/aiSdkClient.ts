@@ -7,22 +7,16 @@ import { generateText, Output } from "ai";
 import type { LanguageModel, ModelMessage } from "ai";
 import { z } from "zod/v4";
 import {
-  AnthropicModelIdSchema,
-  CerebrasModelIdSchema,
   createLLMGenerateResultSchema,
-  GoogleModelIdSchema,
-  GroqModelIdSchema,
   LLMGenerateParamsSchema,
   LLMMessageSchema,
   LLMGenerateResultSchema,
   ModelProviderSchema,
-  OpenAIModelIdSchema,
 } from "../../protocol/schemas.js";
-import type {
-  KnownModelConfig,
-  LLMGenerateParams,
-  LLMGenerateResult,
-} from "../../protocol/types.js";
+import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+import type { DirectModelTarget } from "./modelTarget.js";
+
+type DirectModelConnection = Omit<DirectModelTarget, "type">;
 
 const AiSdkMessagesSchema = z.array(LLMMessageSchema).transform((messages): ModelMessage[] => {
   const toolNames = new Map<string, string>();
@@ -128,7 +122,7 @@ const AiSdkGenerationSchema = z
   .strip();
 
 /** Creates a direct AI SDK model from a validated Stagehand model configuration. */
-export function createAiSdkLanguageModel(config: KnownModelConfig): LanguageModel {
+export function createAiSdkLanguageModel(config: DirectModelConnection): LanguageModel {
   const separator = config.modelName.indexOf("/");
   const provider = ModelProviderSchema.parse(config.modelName.slice(0, separator));
   const modelId = config.modelName.slice(separator + 1);
@@ -139,15 +133,15 @@ export function createAiSdkLanguageModel(config: KnownModelConfig): LanguageMode
 
   switch (provider) {
     case "openai":
-      return createOpenAI(connection).responses(OpenAIModelIdSchema.parse(modelId));
+      return createOpenAI(connection).responses(modelId);
     case "anthropic":
-      return createAnthropic(connection)(AnthropicModelIdSchema.parse(modelId));
+      return createAnthropic(connection)(modelId);
     case "google":
-      return createGoogleGenerativeAI(connection)(GoogleModelIdSchema.parse(modelId));
+      return createGoogleGenerativeAI(connection)(modelId);
     case "groq":
-      return createGroq(connection)(GroqModelIdSchema.parse(modelId));
+      return createGroq(connection)(modelId);
     case "cerebras":
-      return createCerebras(connection)(CerebrasModelIdSchema.parse(modelId));
+      return createCerebras(connection)(modelId);
   }
 }
 

@@ -48,7 +48,11 @@ describe("Stagehand runtime state", () => {
       },
     });
     await runtime.initialize({
-      model: { modelName: "openai/gpt-5" },
+      model: {
+        type: "unlisted",
+        modelName: "openai/gpt-5",
+        apiKey: "provider-secret",
+      },
       telemetry: {
         traces: {
           endpoint: "https://collector.example.com/v1/traces",
@@ -61,7 +65,11 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({
       status: "initialized",
       initParams: {
-        model: { modelName: "openai/gpt-5" },
+        model: {
+          type: "unlisted",
+          modelName: "openai/gpt-5",
+          apiKey: "provider-secret",
+        },
         telemetry: {
           traces: {
             endpoint: "https://collector.example.com/v1/traces",
