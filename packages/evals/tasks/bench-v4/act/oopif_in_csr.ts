@@ -10,7 +10,7 @@ export default defineBenchV4Task(
 
     try {
       await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-open-shadow-dom/",
+        "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/",
       );
       await stagehand.act("fill 'nunya' into the first name field");
 
