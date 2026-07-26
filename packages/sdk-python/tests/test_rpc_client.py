@@ -116,7 +116,7 @@ async def test_send_revalidates_mutated_params_and_strictly_validates_results() 
 
     try:
         with pytest.raises(ValidationError):
-            await client.send("page.set_extra_http_headers", params, models.PageVoidResult)
+            await client.send("page.set_extra_http_headers", params, models.AcknowledgementResult)
         assert transport.sent == []
 
         call = asyncio.create_task(

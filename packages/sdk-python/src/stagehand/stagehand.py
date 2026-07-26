@@ -13,6 +13,7 @@ from typing import Literal, Self, TypeVar, overload
 from pydantic import BaseModel
 
 from ._generated.models import (
+    AcknowledgementResult,
     Action,
     ActOptions,
     ActResult,
@@ -34,7 +35,6 @@ from ._generated.models import (
     ProxyConfig,
     RuntimeLoopbackStatusResult,
     StagehandActParams,
-    StagehandCloseResult,
     StagehandExtractParams,
     StagehandInitParams,
     StagehandInitResult,
@@ -579,7 +579,7 @@ class Stagehand:
                         await self._rpc_client.send(
                             "stagehand.close",
                             EmptyParams(),
-                            StagehandCloseResult,
+                            AcknowledgementResult,
                         )
                     except CDPConnectionClosedError:
                         pass

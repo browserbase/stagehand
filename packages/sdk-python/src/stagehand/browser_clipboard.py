@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from ._generated.models import (
+    AcknowledgementResult,
     ContextClipboardPasteParams,
     ContextClipboardReadTextResult,
     ContextClipboardTarget,
     ContextClipboardWriteTextParams,
-    ContextVoidResult,
     Shortcut,
 )
 from .rpc_client import RPCClient
@@ -35,14 +35,14 @@ class BrowserClipboard:
         await self._rpc_client.send(
             "context.clipboard_write_text",
             params,
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
     async def clear(self, *, page: Page | None = None) -> None:
         await self._rpc_client.send(
             "context.clipboard_clear",
             _clipboard_target(page),
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
     async def paste(
@@ -62,21 +62,21 @@ class BrowserClipboard:
         await self._rpc_client.send(
             "context.clipboard_paste",
             params,
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
     async def copy(self, *, page: Page | None = None) -> None:
         await self._rpc_client.send(
             "context.clipboard_copy",
             _clipboard_target(page),
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
     async def cut(self, *, page: Page | None = None) -> None:
         await self._rpc_client.send(
             "context.clipboard_cut",
             _clipboard_target(page),
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
 

@@ -5,12 +5,12 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from ._generated.models import (
+    AcknowledgementResult,
     ClearCookieOptions,
     ContextActivePageResult,
     ContextAddCookiesParams,
     ContextAddInitScriptParams,
     ContextClearCookiesParams,
-    ContextCloseResult,
     ContextCookiesParams,
     ContextCookiesResult,
     ContextGetDomainPolicyResult,
@@ -19,7 +19,6 @@ from ._generated.models import (
     ContextSetActivePageParams,
     ContextSetDomainPolicyParams,
     ContextSetExtraHTTPHeadersParams,
-    ContextVoidResult,
     Cookie,
     CookieFilter,
     CookieParam,
@@ -71,7 +70,7 @@ class BrowserContext:
         await self._rpc_client.send(
             "context.set_active_page",
             ContextSetActivePageParams(page_id=page.page_id),
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
     async def close(self) -> None:
@@ -79,7 +78,7 @@ class BrowserContext:
         await self._rpc_client.send(
             "context.close",
             EmptyParams(),
-            ContextCloseResult,
+            AcknowledgementResult,
         )
 
     async def add_init_script(self, source: str | Path) -> None:
@@ -91,14 +90,14 @@ class BrowserContext:
         await self._rpc_client.send(
             "context.add_init_script",
             ContextAddInitScriptParams(source=script),
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
     async def set_extra_http_headers(self, headers: Mapping[str, str]) -> None:
         await self._rpc_client.send(
             "context.set_extra_http_headers",
             ContextSetExtraHTTPHeadersParams(headers=dict(headers)),
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
     async def get_domain_policy(self) -> DomainPolicy | None:
@@ -113,7 +112,7 @@ class BrowserContext:
         await self._rpc_client.send(
             "context.set_domain_policy",
             ContextSetDomainPolicyParams(policy=policy),
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
     async def cookies(self, urls: str | Sequence[str] | None = None) -> list[Cookie]:
@@ -131,7 +130,7 @@ class BrowserContext:
         await self._rpc_client.send(
             "context.add_cookies",
             ContextAddCookiesParams(cookies=list(cookies)),
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
     async def clear_cookies(
@@ -152,7 +151,7 @@ class BrowserContext:
         await self._rpc_client.send(
             "context.clear_cookies",
             params,
-            ContextVoidResult,
+            AcknowledgementResult,
         )
 
 

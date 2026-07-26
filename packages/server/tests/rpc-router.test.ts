@@ -109,7 +109,7 @@ describe("Stagehand RPC router", () => {
 
     await expect(
       router.handle(request({ id: 13, method: "stagehand.close", params: {} })),
-    ).resolves.toStrictEqual({ closed: true });
+    ).resolves.toStrictEqual(true);
 
     expect(lifecycle.slice(-2)).toStrictEqual(["ended:stagehand.close", "shutdown"]);
   });

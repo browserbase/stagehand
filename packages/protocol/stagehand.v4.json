@@ -78,7 +78,7 @@
               "$ref": "#/$defs/EmptyParams"
             },
             "result": {
-              "$ref": "#/$defs/StagehandCloseResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -195,7 +195,7 @@
               "$ref": "#/$defs/ContextSetActivePageParams"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -208,7 +208,7 @@
               "$ref": "#/$defs/EmptyParams"
             },
             "result": {
-              "$ref": "#/$defs/ContextCloseResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -221,7 +221,7 @@
               "$ref": "#/$defs/ContextAddInitScriptParams"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -234,7 +234,7 @@
               "$ref": "#/$defs/ContextSetExtraHTTPHeadersParams"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -260,7 +260,7 @@
               "$ref": "#/$defs/ContextSetDomainPolicyParams"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -286,7 +286,7 @@
               "$ref": "#/$defs/ContextAddCookiesParams"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -299,7 +299,7 @@
               "$ref": "#/$defs/ContextClearCookiesParams"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -325,7 +325,7 @@
               "$ref": "#/$defs/ContextClipboardWriteTextParams"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -338,7 +338,7 @@
               "$ref": "#/$defs/ContextClipboardTarget"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -351,7 +351,7 @@
               "$ref": "#/$defs/ContextClipboardPasteParams"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -364,7 +364,7 @@
               "$ref": "#/$defs/ContextClipboardTarget"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -377,7 +377,7 @@
               "$ref": "#/$defs/ContextClipboardTarget"
             },
             "result": {
-              "$ref": "#/$defs/ContextVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -429,7 +429,7 @@
               "$ref": "#/$defs/PageIdParams"
             },
             "result": {
-              "$ref": "#/$defs/PageCloseResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -533,7 +533,7 @@
               "$ref": "#/$defs/PageTypeParams"
             },
             "result": {
-              "$ref": "#/$defs/PageVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -546,7 +546,7 @@
               "$ref": "#/$defs/PageKeyPressParams"
             },
             "result": {
-              "$ref": "#/$defs/PageVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -572,7 +572,7 @@
               "$ref": "#/$defs/PageAddInitScriptParams"
             },
             "result": {
-              "$ref": "#/$defs/PageVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -585,7 +585,7 @@
               "$ref": "#/$defs/PageSetExtraHTTPHeadersParams"
             },
             "result": {
-              "$ref": "#/$defs/PageVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -624,7 +624,7 @@
               "$ref": "#/$defs/PageSetViewportSizeParams"
             },
             "result": {
-              "$ref": "#/$defs/PageVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -637,7 +637,7 @@
               "$ref": "#/$defs/PageWaitForLoadStateParams"
             },
             "result": {
-              "$ref": "#/$defs/PageVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -650,7 +650,7 @@
               "$ref": "#/$defs/PageWaitForTimeoutParams"
             },
             "result": {
-              "$ref": "#/$defs/PageVoidResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -676,7 +676,7 @@
               "$ref": "#/$defs/LocatorClickParams"
             },
             "result": {
-              "$ref": "#/$defs/LocatorClickResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -689,7 +689,7 @@
               "$ref": "#/$defs/LocatorFillParams"
             },
             "result": {
-              "$ref": "#/$defs/LocatorFillResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -702,7 +702,7 @@
               "$ref": "#/$defs/LocatorDescriptor"
             },
             "result": {
-              "$ref": "#/$defs/LocatorHoverResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -806,7 +806,7 @@
               "$ref": "#/$defs/LocatorScrollToParams"
             },
             "result": {
-              "$ref": "#/$defs/LocatorScrollToResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -832,7 +832,7 @@
               "$ref": "#/$defs/LocatorHighlightParams"
             },
             "result": {
-              "$ref": "#/$defs/LocatorHighlightResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -845,7 +845,7 @@
               "$ref": "#/$defs/LocatorSendClickEventParams"
             },
             "result": {
-              "$ref": "#/$defs/LocatorSendClickEventResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -858,7 +858,7 @@
               "$ref": "#/$defs/LocatorTypeParams"
             },
             "result": {
-              "$ref": "#/$defs/LocatorTypeResult"
+              "$ref": "#/$defs/AcknowledgementResult"
             }
           },
           "required": ["params", "result"],
@@ -1596,16 +1596,9 @@
       "required": ["page_id"],
       "additionalProperties": false
     },
-    "StagehandCloseResult": {
-      "type": "object",
-      "properties": {
-        "closed": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["closed"],
-      "additionalProperties": false
+    "AcknowledgementResult": {
+      "type": "boolean",
+      "const": true
     },
     "StagehandActParams": {
       "type": "object",
@@ -2825,28 +2818,6 @@
       "required": ["page_id"],
       "additionalProperties": false
     },
-    "ContextVoidResult": {
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["ok"],
-      "additionalProperties": false
-    },
-    "ContextCloseResult": {
-      "type": "object",
-      "properties": {
-        "closed": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["closed"],
-      "additionalProperties": false
-    },
     "ContextAddInitScriptParams": {
       "type": "object",
       "properties": {
@@ -3204,17 +3175,6 @@
       "required": ["title"],
       "additionalProperties": false
     },
-    "PageCloseResult": {
-      "type": "object",
-      "properties": {
-        "closed": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["closed"],
-      "additionalProperties": false
-    },
     "PageReloadParams": {
       "type": "object",
       "properties": {
@@ -3469,17 +3429,6 @@
           "type": "boolean"
         }
       },
-      "additionalProperties": false
-    },
-    "PageVoidResult": {
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["ok"],
       "additionalProperties": false
     },
     "PageKeyPressParams": {
@@ -3914,17 +3863,6 @@
       },
       "additionalProperties": false
     },
-    "LocatorClickResult": {
-      "type": "object",
-      "properties": {
-        "clicked": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["clicked"],
-      "additionalProperties": false
-    },
     "LocatorFillParams": {
       "type": "object",
       "properties": {
@@ -3945,28 +3883,6 @@
         }
       },
       "required": ["page_id", "selector", "value"],
-      "additionalProperties": false
-    },
-    "LocatorFillResult": {
-      "type": "object",
-      "properties": {
-        "filled": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["filled"],
-      "additionalProperties": false
-    },
-    "LocatorHoverResult": {
-      "type": "object",
-      "properties": {
-        "hovered": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["hovered"],
       "additionalProperties": false
     },
     "LocatorCountResult": {
@@ -4070,17 +3986,6 @@
       "required": ["page_id", "selector", "percent"],
       "additionalProperties": false
     },
-    "LocatorScrollToResult": {
-      "type": "object",
-      "properties": {
-        "scrolled": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["scrolled"],
-      "additionalProperties": false
-    },
     "LocatorCentroidResult": {
       "type": "object",
       "properties": {
@@ -4152,17 +4057,6 @@
       "required": ["r", "g", "b"],
       "additionalProperties": false
     },
-    "LocatorHighlightResult": {
-      "type": "object",
-      "properties": {
-        "highlighted": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["highlighted"],
-      "additionalProperties": false
-    },
     "LocatorSendClickEventParams": {
       "type": "object",
       "properties": {
@@ -4203,17 +4097,6 @@
       },
       "additionalProperties": false
     },
-    "LocatorSendClickEventResult": {
-      "type": "object",
-      "properties": {
-        "clicked": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["clicked"],
-      "additionalProperties": false
-    },
     "LocatorTypeParams": {
       "type": "object",
       "properties": {
@@ -4247,17 +4130,6 @@
           "minimum": 0
         }
       },
-      "additionalProperties": false
-    },
-    "LocatorTypeResult": {
-      "type": "object",
-      "properties": {
-        "typed": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["typed"],
       "additionalProperties": false
     },
     "LocatorSelectOptionParams": {

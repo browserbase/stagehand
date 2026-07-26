@@ -63,6 +63,13 @@ def test_generated_models_validate_and_serialize_wire_values() -> None:
     }
 
 
+def test_acknowledgement_result_accepts_only_true() -> None:
+    assert models.AcknowledgementResult.model_validate(True).root is True
+
+    with pytest.raises(ValidationError):
+        models.AcknowledgementResult.model_validate(False)
+
+
 def test_generated_models_retain_cross_field_validation() -> None:
     with pytest.raises(ValidationError, match="fullPage and clip"):
         models.PageScreenshotOptions.model_validate({

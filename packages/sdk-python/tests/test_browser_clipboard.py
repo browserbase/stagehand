@@ -5,8 +5,8 @@ from typing import cast
 import pytest
 
 from stagehand._generated.models import (
+    AcknowledgementResult,
     ContextClipboardReadTextResult,
-    ContextVoidResult,
     PageRef,
 )
 from stagehand.browser_clipboard import BrowserClipboard
@@ -20,7 +20,7 @@ from ._support import RecordingRPCClient
 async def test_browser_clipboard_uses_the_optional_page_as_its_wire_target() -> None:
     recording = RecordingRPCClient({
         "context.clipboard_read_text": ContextClipboardReadTextResult(text="hello"),
-        "context.clipboard_write_text": ContextVoidResult(ok=True),
+        "context.clipboard_write_text": AcknowledgementResult(root=True),
     })
     rpc_client = cast(RPCClient, recording)
     clipboard = BrowserClipboard(rpc_client)

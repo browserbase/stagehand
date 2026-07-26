@@ -835,9 +835,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 5,
-      result: {
-        closed: true,
-      },
+      result: true,
     });
 
     expect(session.closed).toBe(true);
@@ -1032,7 +1030,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 10,
-      result: { ok: true },
+      result: true,
     });
 
     expect(context.setActivePageCalls).toStrictEqual([pageA]);
@@ -1146,7 +1144,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 9,
-      result: { closed: true },
+      result: true,
     });
     expect(context.closed).toBe(true);
   });
@@ -1162,7 +1160,7 @@ describe("Stagehand worker clients", () => {
         method: "context.add_init_script",
         params: { source: "globalThis.ready = true" },
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
     await expect(
       handle({
         jsonrpc: "2.0",
@@ -1172,7 +1170,7 @@ describe("Stagehand worker clients", () => {
           headers: { "X-Request-ID": "request-1", doNotRenameMe: "value" },
         },
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
     await expect(
       handle({
         jsonrpc: "2.0",
@@ -1185,7 +1183,7 @@ describe("Stagehand worker clients", () => {
           },
         },
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
     await expect(
       handle({
         jsonrpc: "2.0",
@@ -1227,7 +1225,7 @@ describe("Stagehand worker clients", () => {
         method: "context.set_domain_policy",
         params: { policy: null },
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
     await expect(
       handle({
         jsonrpc: "2.0",
@@ -1302,7 +1300,7 @@ describe("Stagehand worker clients", () => {
           ],
         },
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
     await expect(
       handle({
         jsonrpc: "2.0",
@@ -1315,7 +1313,7 @@ describe("Stagehand worker clients", () => {
           },
         },
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
     await expect(
       handle({
         jsonrpc: "2.0",
@@ -1323,7 +1321,7 @@ describe("Stagehand worker clients", () => {
         method: "context.clear_cookies",
         params: {},
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
 
     expect(context.cookiesCalls).toStrictEqual([["https://example.test/account"]]);
     expect(context.addCookiesCalls).toStrictEqual([
@@ -1369,7 +1367,7 @@ describe("Stagehand worker clients", () => {
         method: "context.clipboard_write_text",
         params: { text: "new clipboard text" },
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
     await expect(
       handle({
         jsonrpc: "2.0",
@@ -1377,7 +1375,7 @@ describe("Stagehand worker clients", () => {
         method: "context.clipboard_clear",
         params: { page_id: "page-a" },
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
     await expect(
       handle({
         jsonrpc: "2.0",
@@ -1385,7 +1383,7 @@ describe("Stagehand worker clients", () => {
         method: "context.clipboard_paste",
         params: { page_id: "page-a", shortcut: "Meta+V" },
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
     await expect(
       handle({
         jsonrpc: "2.0",
@@ -1393,7 +1391,7 @@ describe("Stagehand worker clients", () => {
         method: "context.clipboard_copy",
         params: {},
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
     await expect(
       handle({
         jsonrpc: "2.0",
@@ -1401,7 +1399,7 @@ describe("Stagehand worker clients", () => {
         method: "context.clipboard_cut",
         params: { page_id: "page-a" },
       }),
-    ).resolves.toMatchObject({ result: { ok: true } });
+    ).resolves.toMatchObject({ result: true });
 
     expect(context.clipboard.readTextCalls).toStrictEqual([{ page }]);
     expect(context.clipboard.writeTextCalls).toStrictEqual([
@@ -1640,7 +1638,7 @@ describe("Stagehand worker clients", () => {
           options: { delay: 25, with_mistakes: true },
         },
       }),
-    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 20, result: { ok: true } });
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 20, result: true });
 
     await expect(
       handle({
@@ -1649,7 +1647,7 @@ describe("Stagehand worker clients", () => {
         method: "page.key_press",
         params: { page_id: "page-a", key: "Control+A", options: { delay: 10 } },
       }),
-    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 21, result: { ok: true } });
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 21, result: true });
 
     expect(page.pageTypeCalls).toStrictEqual([
       { text: "hello", options: { delay: 25, withMistakes: true } },
@@ -1696,7 +1694,7 @@ describe("Stagehand worker clients", () => {
         method: "page.add_init_script",
         params: { page_id: "page-a", source: "globalThis.ready = true" },
       }),
-    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 24, result: { ok: true } });
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 24, result: true });
 
     expect(page.evaluateCalls).toStrictEqual(["({ camelCase: true })", "undefined"]);
     expect(page.addInitScriptCalls).toStrictEqual(["globalThis.ready = true"]);
@@ -1716,7 +1714,7 @@ describe("Stagehand worker clients", () => {
           headers: { "X-Request-ID": "request-1", doNotRenameMe: "value" },
         },
       }),
-    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 25, result: { ok: true } });
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 25, result: true });
 
     await expect(
       handle({
@@ -1730,7 +1728,7 @@ describe("Stagehand worker clients", () => {
           options: { device_scale_factor: 2 },
         },
       }),
-    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 26, result: { ok: true } });
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 26, result: true });
 
     expect(page.setExtraHTTPHeadersCalls).toStrictEqual([
       { "X-Request-ID": "request-1", doNotRenameMe: "value" },
@@ -1752,7 +1750,7 @@ describe("Stagehand worker clients", () => {
         method: "page.wait_for_load_state",
         params: { page_id: "page-a", state: "networkidle", timeout: 0 },
       }),
-    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 27, result: { ok: true } });
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 27, result: true });
 
     await expect(
       handle({
@@ -1761,7 +1759,7 @@ describe("Stagehand worker clients", () => {
         method: "page.wait_for_timeout",
         params: { page_id: "page-a", ms: 250 },
       }),
-    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 28, result: { ok: true } });
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 28, result: true });
 
     await expect(
       handle({
@@ -1917,9 +1915,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 12,
-      result: {
-        closed: true,
-      },
+      result: true,
     });
 
     expect(page.closed).toBe(true);
@@ -1984,9 +1980,7 @@ describe("Stagehand worker clients", () => {
           clickCount: 2,
         },
       }),
-    ).resolves.toStrictEqual({
-      clicked: true,
-    });
+    ).resolves.toStrictEqual(true);
 
     expect(page.locatorRefs).toHaveLength(1);
     expect(page.locatorRefs[0]?.selector).toBe("button.submit");
@@ -2008,9 +2002,7 @@ describe("Stagehand worker clients", () => {
         selector: "input[name=email]",
         value: "user@example.com",
       }),
-    ).resolves.toStrictEqual({
-      filled: true,
-    });
+    ).resolves.toStrictEqual(true);
 
     expect(page.locatorRefs).toHaveLength(1);
     expect(page.locatorRefs[0]?.selector).toBe("input[name=email]");
@@ -2123,22 +2115,22 @@ describe("Stagehand worker clients", () => {
       selector: "input.email",
     };
 
-    await expect(runtime.locatorHover(descriptor)).resolves.toStrictEqual({ hovered: true });
-    await expect(runtime.locatorScrollTo({ ...descriptor, percent: 50 })).resolves.toStrictEqual({
-      scrolled: true,
-    });
+    await expect(runtime.locatorHover(descriptor)).resolves.toStrictEqual(true);
+    await expect(runtime.locatorScrollTo({ ...descriptor, percent: 50 })).resolves.toStrictEqual(
+      true,
+    );
     await expect(
       runtime.locatorHighlight({
         ...descriptor,
         options: { durationMs: 0, borderColor: { r: 1, g: 2, b: 3 } },
       }),
-    ).resolves.toStrictEqual({ highlighted: true });
+    ).resolves.toStrictEqual(true);
     await expect(
       runtime.locatorSendClickEvent({ ...descriptor, options: { detail: 2 } }),
-    ).resolves.toStrictEqual({ clicked: true });
+    ).resolves.toStrictEqual(true);
     await expect(
       runtime.locatorType({ ...descriptor, text: "hello", options: { delay: 1 } }),
-    ).resolves.toStrictEqual({ typed: true });
+    ).resolves.toStrictEqual(true);
     await expect(
       runtime.locatorSelectOption({ ...descriptor, values: ["a", "b"] }),
     ).resolves.toStrictEqual({ values: ["b"] });
@@ -2195,9 +2187,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 13,
-      result: {
-        clicked: true,
-      },
+      result: true,
     });
 
     expect(page.locatorRefs).toHaveLength(1);
@@ -2228,9 +2218,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 14,
-      result: {
-        filled: true,
-      },
+      result: true,
     });
 
     expect(page.locatorRefs).toHaveLength(1);

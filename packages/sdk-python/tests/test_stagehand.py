@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from stagehand import LLMGenerateInput, LLMGenerateOutput, Page, ProtocolLocator, Stagehand
 from stagehand._generated.models import (
+    AcknowledgementResult,
     Action,
     ActResult,
     ActResultData,
@@ -28,7 +29,6 @@ from stagehand._generated.models import (
     PageRef,
     RuntimeLoopbackStatusResult,
     StagehandActParams,
-    StagehandCloseResult,
     StagehandExtractParams,
     StagehandInitParams,
     StagehandInitResult,
@@ -467,7 +467,7 @@ async def test_stagehand_closes_the_browser_when_rpc_cleanup_fails(
     )
     recording = FailingCloseRPCClient({
         "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
-        "stagehand.close": StagehandCloseResult(closed=True),
+        "stagehand.close": AcknowledgementResult(root=True),
     })
 
     async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:

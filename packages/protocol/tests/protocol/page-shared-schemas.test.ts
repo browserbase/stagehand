@@ -5,7 +5,6 @@ import {
   PageNavigationOptionsSchema,
   PageScreenshotClipSchema,
   PageSnapshotOptionsSchema,
-  PageVoidResultSchema,
   SnapshotResultSchema,
 } from "../../schemas.js";
 
@@ -24,12 +23,10 @@ describe("shared page protocol schemas", () => {
     expect(() => PageNavigationOptionsSchema.parse({ timeout: 0 })).toThrow();
   });
 
-  it("keeps command result schemas strict", () => {
-    expect(PageVoidResultSchema.parse({ ok: true })).toStrictEqual({ ok: true });
+  it("keeps coordinate results strict", () => {
     expect(PageCoordinateResultSchema.parse({ xpath: "/html/body/button" })).toStrictEqual({
       xpath: "/html/body/button",
     });
-    expect(() => PageVoidResultSchema.parse({ ok: true, extra: true })).toThrow();
   });
 
   it("validates screenshot clips", () => {

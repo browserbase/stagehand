@@ -148,7 +148,7 @@ describe("Stagehand service worker RPC client smoke", () => {
           pageId: page.pageId,
           selector: "#blank-page-button",
         }),
-      ).resolves.toStrictEqual({ clicked: true });
+      ).resolves.toStrictEqual(true);
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
@@ -195,7 +195,7 @@ describe("Stagehand service worker RPC client smoke", () => {
           pageId: page.pageId,
           selector: "#data-button",
         }),
-      ).resolves.toStrictEqual({ clicked: true });
+      ).resolves.toStrictEqual(true);
       await expect(
         activeRpcClient.send(StagehandMethods.locatorTextContent, {
           pageId: page.pageId,
@@ -289,9 +289,7 @@ describe("Stagehand service worker RPC client smoke", () => {
 
     await expect(
       activeRpcClient.send(StagehandMethods.pageClose, { pageId: page.pageId }),
-    ).resolves.toStrictEqual({
-      closed: true,
-    });
+    ).resolves.toStrictEqual(true);
   });
 
   it("routes locator actions through real PageRefs in a browser session", async () => {
@@ -329,18 +327,14 @@ describe("Stagehand service worker RPC client smoke", () => {
         selector: "#locator-input",
         value: "user@example.com",
       }),
-    ).resolves.toStrictEqual({
-      filled: true,
-    });
+    ).resolves.toStrictEqual(true);
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorClick, {
         pageId: page.pageId,
         selector: "#locator-button",
       }),
-    ).resolves.toStrictEqual({
-      clicked: true,
-    });
+    ).resolves.toStrictEqual(true);
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
@@ -357,7 +351,7 @@ describe("Stagehand service worker RPC client smoke", () => {
         selector: "#locator-date",
         value: "2026-07-21",
       }),
-    ).resolves.toStrictEqual({ filled: true });
+    ).resolves.toStrictEqual(true);
     await expect(
       activeRpcClient.send(StagehandMethods.locatorInputValue, {
         pageId: page.pageId,

@@ -7,6 +7,7 @@ import {
 } from "./json-rpc/schemas.ts";
 import { wireSchema } from "./json-rpc/wire-casing.ts";
 import {
+  AcknowledgementResultSchema,
   ActResultSchema,
   BrowserGetVersionResultSchema,
   ContextActivePageResultSchema,
@@ -20,7 +21,6 @@ import {
   ContextClipboardReadTextParamsSchema,
   ContextClipboardReadTextResultSchema,
   ContextClipboardWriteTextParamsSchema,
-  ContextCloseResultSchema,
   ContextCookiesParamsSchema,
   ContextCookiesResultSchema,
   ContextGetDomainPolicyResultSchema,
@@ -29,39 +29,30 @@ import {
   ContextSetActivePageParamsSchema,
   ContextSetDomainPolicyParamsSchema,
   ContextSetExtraHTTPHeadersParamsSchema,
-  ContextVoidResultSchema,
   EmptyParamsSchema,
   ExtractResultSchema,
   LocatorClickParamsSchema,
-  LocatorClickResultSchema,
   LocatorCentroidResultSchema,
   LocatorCountResultSchema,
   LocatorDescriptorSchema,
   LocatorFillParamsSchema,
-  LocatorFillResultSchema,
   LocatorHighlightParamsSchema,
-  LocatorHighlightResultSchema,
-  LocatorHoverResultSchema,
   LocatorInnerHtmlResultSchema,
   LocatorInnerTextResultSchema,
   LocatorInputValueResultSchema,
   LocatorIsCheckedResultSchema,
   LocatorIsVisibleResultSchema,
   LocatorScrollToParamsSchema,
-  LocatorScrollToResultSchema,
   LocatorSelectOptionParamsSchema,
   LocatorSelectOptionResultSchema,
   LocatorSendClickEventParamsSchema,
-  LocatorSendClickEventResultSchema,
   LocatorTextContentResultSchema,
   LocatorTypeParamsSchema,
-  LocatorTypeResultSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
   PageClickParamsSchema,
-  PageCloseResultSchema,
   PageCoordinateResultSchema,
   PageDragAndDropParamsSchema,
   PageDragAndDropResultSchema,
@@ -84,7 +75,6 @@ import {
   PageTitleResultSchema,
   PageTypeParamsSchema,
   PageUrlResultSchema,
-  PageVoidResultSchema,
   PageWaitForLoadStateParamsSchema,
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
@@ -93,7 +83,6 @@ import {
   RuntimeConfigureResultSchema,
   RuntimeLoopbackStatusResultSchema,
   StagehandActParamsSchema,
-  StagehandCloseResultSchema,
   StagehandExtractParamsSchema,
   StagehandInitParamsSchema,
   StagehandInitResultSchema,
@@ -134,7 +123,7 @@ export const StagehandMethods = {
   stagehandClose: {
     name: "stagehand.close",
     params: EmptyParamsSchema,
-    result: StagehandCloseResultSchema,
+    result: AcknowledgementResultSchema,
   },
   stagehandAct: {
     name: "stagehand.act",
@@ -185,22 +174,22 @@ export const StagehandMethods = {
   contextSetActivePage: {
     name: "context.set_active_page",
     params: ContextSetActivePageParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   contextClose: {
     name: "context.close",
     params: EmptyParamsSchema,
-    result: ContextCloseResultSchema,
+    result: AcknowledgementResultSchema,
   },
   contextAddInitScript: {
     name: "context.add_init_script",
     params: ContextAddInitScriptParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   contextSetExtraHTTPHeaders: {
     name: "context.set_extra_http_headers",
     params: ContextSetExtraHTTPHeadersParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
     paramsWire: { opaqueKeys: ["headers"] },
   },
   contextGetDomainPolicy: {
@@ -211,7 +200,7 @@ export const StagehandMethods = {
   contextSetDomainPolicy: {
     name: "context.set_domain_policy",
     params: ContextSetDomainPolicyParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   contextCookies: {
     name: "context.cookies",
@@ -221,12 +210,12 @@ export const StagehandMethods = {
   contextAddCookies: {
     name: "context.add_cookies",
     params: ContextAddCookiesParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   contextClearCookies: {
     name: "context.clear_cookies",
     params: ContextClearCookiesParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   contextClipboardReadText: {
     name: "context.clipboard_read_text",
@@ -236,32 +225,36 @@ export const StagehandMethods = {
   contextClipboardWriteText: {
     name: "context.clipboard_write_text",
     params: ContextClipboardWriteTextParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   contextClipboardClear: {
     name: "context.clipboard_clear",
     params: ContextClipboardClearParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   contextClipboardPaste: {
     name: "context.clipboard_paste",
     params: ContextClipboardPasteParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   contextClipboardCopy: {
     name: "context.clipboard_copy",
     params: ContextClipboardCopyParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   contextClipboardCut: {
     name: "context.clipboard_cut",
     params: ContextClipboardCutParamsSchema,
-    result: ContextVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   pageGoto: { name: "page.goto", params: PageGotoParamsSchema, result: PageRefSchema },
   pageUrl: { name: "page.url", params: PageIdParamsSchema, result: PageUrlResultSchema },
   pageTitle: { name: "page.title", params: PageIdParamsSchema, result: PageTitleResultSchema },
-  pageClose: { name: "page.close", params: PageIdParamsSchema, result: PageCloseResultSchema },
+  pageClose: {
+    name: "page.close",
+    params: PageIdParamsSchema,
+    result: AcknowledgementResultSchema,
+  },
   pageReload: { name: "page.reload", params: PageReloadParamsSchema, result: PageRefSchema },
   pageGoBack: { name: "page.go_back", params: PageGoBackParamsSchema, result: PageRefSchema },
   pageGoForward: {
@@ -289,11 +282,15 @@ export const StagehandMethods = {
     params: PageDragAndDropParamsSchema,
     result: PageDragAndDropResultSchema,
   },
-  pageType: { name: "page.type", params: PageTypeParamsSchema, result: PageVoidResultSchema },
+  pageType: {
+    name: "page.type",
+    params: PageTypeParamsSchema,
+    result: AcknowledgementResultSchema,
+  },
   pageKeyPress: {
     name: "page.key_press",
     params: PageKeyPressParamsSchema,
-    result: PageVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   pageEvaluate: {
     name: "page.evaluate",
@@ -304,12 +301,12 @@ export const StagehandMethods = {
   pageAddInitScript: {
     name: "page.add_init_script",
     params: PageAddInitScriptParamsSchema,
-    result: PageVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   pageSetExtraHTTPHeaders: {
     name: "page.set_extra_http_headers",
     params: PageSetExtraHTTPHeadersParamsSchema,
-    result: PageVoidResultSchema,
+    result: AcknowledgementResultSchema,
     paramsWire: { opaqueKeys: ["headers"] },
   },
   pageScreenshot: {
@@ -326,17 +323,17 @@ export const StagehandMethods = {
   pageSetViewportSize: {
     name: "page.set_viewport_size",
     params: PageSetViewportSizeParamsSchema,
-    result: PageVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   pageWaitForLoadState: {
     name: "page.wait_for_load_state",
     params: PageWaitForLoadStateParamsSchema,
-    result: PageVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   pageWaitForTimeout: {
     name: "page.wait_for_timeout",
     params: PageWaitForTimeoutParamsSchema,
-    result: PageVoidResultSchema,
+    result: AcknowledgementResultSchema,
   },
   pageWaitForSelector: {
     name: "page.wait_for_selector",
@@ -346,17 +343,17 @@ export const StagehandMethods = {
   locatorClick: {
     name: "locator.click",
     params: LocatorClickParamsSchema,
-    result: LocatorClickResultSchema,
+    result: AcknowledgementResultSchema,
   },
   locatorFill: {
     name: "locator.fill",
     params: LocatorFillParamsSchema,
-    result: LocatorFillResultSchema,
+    result: AcknowledgementResultSchema,
   },
   locatorHover: {
     name: "locator.hover",
     params: LocatorDescriptorSchema,
-    result: LocatorHoverResultSchema,
+    result: AcknowledgementResultSchema,
   },
   locatorCount: {
     name: "locator.count",
@@ -396,7 +393,7 @@ export const StagehandMethods = {
   locatorScrollTo: {
     name: "locator.scroll_to",
     params: LocatorScrollToParamsSchema,
-    result: LocatorScrollToResultSchema,
+    result: AcknowledgementResultSchema,
   },
   locatorCentroid: {
     name: "locator.centroid",
@@ -406,17 +403,17 @@ export const StagehandMethods = {
   locatorHighlight: {
     name: "locator.highlight",
     params: LocatorHighlightParamsSchema,
-    result: LocatorHighlightResultSchema,
+    result: AcknowledgementResultSchema,
   },
   locatorSendClickEvent: {
     name: "locator.send_click_event",
     params: LocatorSendClickEventParamsSchema,
-    result: LocatorSendClickEventResultSchema,
+    result: AcknowledgementResultSchema,
   },
   locatorType: {
     name: "locator.type",
     params: LocatorTypeParamsSchema,
-    result: LocatorTypeResultSchema,
+    result: AcknowledgementResultSchema,
   },
   locatorSelectOption: {
     name: "locator.select_option",

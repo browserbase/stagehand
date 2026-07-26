@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
@@ -77,6 +77,16 @@ const stagehandInitCall = requestCall(StagehandMethods.stagehandInit, {
 });
 
 describe("Stagehand TS object wrapper", () => {
+  it("keeps acknowledgement methods void at the public boundary", () => {
+    type TestStagehand = ReturnType<typeof createStagehandWithClientForTest>;
+
+    expectTypeOf<ReturnType<TestStagehand["close"]>>().toEqualTypeOf<Promise<void>>();
+    expectTypeOf<ReturnType<BrowserContext["close"]>>().toEqualTypeOf<Promise<void>>();
+    expectTypeOf<ReturnType<BrowserClipboard["writeText"]>>().toEqualTypeOf<Promise<void>>();
+    expectTypeOf<ReturnType<Page["close"]>>().toEqualTypeOf<Promise<void>>();
+    expectTypeOf<ReturnType<Locator["click"]>>().toEqualTypeOf<Promise<void>>();
+  });
+
   it("initializes the remote Stagehand configuration", async () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);
@@ -91,7 +101,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("closes the remote runtime", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.stagehandClose, { closed: true });
+    client.queueResponse(StagehandMethods.stagehandClose, true);
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
 
@@ -181,8 +191,8 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes context.setActivePage and context.close", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.contextSetActivePage, { ok: true });
-    client.queueResponse(StagehandMethods.contextClose, { closed: true });
+    client.queueResponse(StagehandMethods.contextSetActivePage, true);
+    client.queueResponse(StagehandMethods.contextClose, true);
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
     const page = new Page(client, { pageId: "page-1" });
@@ -199,8 +209,8 @@ describe("Stagehand TS object wrapper", () => {
 
   it("normalizes context init script content and functions", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.contextAddInitScript, { ok: true });
-    client.queueResponse(StagehandMethods.contextAddInitScript, { ok: true });
+    client.queueResponse(StagehandMethods.contextAddInitScript, true);
+    client.queueResponse(StagehandMethods.contextAddInitScript, true);
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
     const script = (arg: { ready: boolean }) => {
@@ -223,7 +233,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes context headers and adapts domain policy results", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.contextSetExtraHTTPHeaders, { ok: true });
+    client.queueResponse(StagehandMethods.contextSetExtraHTTPHeaders, true);
     client.queueResponse(StagehandMethods.contextGetDomainPolicy, {
       policy: {
         allowedDomains: ["example.com"],
@@ -231,8 +241,8 @@ describe("Stagehand TS object wrapper", () => {
       },
     });
     client.queueResponse(StagehandMethods.contextGetDomainPolicy, { policy: null });
-    client.queueResponse(StagehandMethods.contextSetDomainPolicy, { ok: true });
-    client.queueResponse(StagehandMethods.contextSetDomainPolicy, { ok: true });
+    client.queueResponse(StagehandMethods.contextSetDomainPolicy, true);
+    client.queueResponse(StagehandMethods.contextSetDomainPolicy, true);
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
 
@@ -276,9 +286,9 @@ describe("Stagehand TS object wrapper", () => {
     };
     client.queueResponse(StagehandMethods.contextCookies, { cookies: [cookie] });
     client.queueResponse(StagehandMethods.contextCookies, { cookies: [] });
-    client.queueResponse(StagehandMethods.contextAddCookies, { ok: true });
-    client.queueResponse(StagehandMethods.contextClearCookies, { ok: true });
-    client.queueResponse(StagehandMethods.contextClearCookies, { ok: true });
+    client.queueResponse(StagehandMethods.contextAddCookies, true);
+    client.queueResponse(StagehandMethods.contextClearCookies, true);
+    client.queueResponse(StagehandMethods.contextClearCookies, true);
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
     const cookieParam = {
@@ -322,11 +332,11 @@ describe("Stagehand TS object wrapper", () => {
   it("lazily exposes a clipboard facade and routes all clipboard operations", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.contextClipboardReadText, { text: "clipboard text" });
-    client.queueResponse(StagehandMethods.contextClipboardWriteText, { ok: true });
-    client.queueResponse(StagehandMethods.contextClipboardClear, { ok: true });
-    client.queueResponse(StagehandMethods.contextClipboardPaste, { ok: true });
-    client.queueResponse(StagehandMethods.contextClipboardCopy, { ok: true });
-    client.queueResponse(StagehandMethods.contextClipboardCut, { ok: true });
+    client.queueResponse(StagehandMethods.contextClipboardWriteText, true);
+    client.queueResponse(StagehandMethods.contextClipboardClear, true);
+    client.queueResponse(StagehandMethods.contextClipboardPaste, true);
+    client.queueResponse(StagehandMethods.contextClipboardCopy, true);
+    client.queueResponse(StagehandMethods.contextClipboardCut, true);
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
     const page = new Page(client, { pageId: "page-1" });
@@ -490,8 +500,8 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes page keyboard interactions", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageType, { ok: true });
-    client.queueResponse(StagehandMethods.pageKeyPress, { ok: true });
+    client.queueResponse(StagehandMethods.pageType, true);
+    client.queueResponse(StagehandMethods.pageKeyPress, true);
     const page = new Page(client, { pageId: "page-1" });
 
     await page.type("hello", { delay: 25, withMistakes: true });
@@ -533,8 +543,8 @@ describe("Stagehand TS object wrapper", () => {
 
   it("normalizes page init script content and functions", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageAddInitScript, { ok: true });
-    client.queueResponse(StagehandMethods.pageAddInitScript, { ok: true });
+    client.queueResponse(StagehandMethods.pageAddInitScript, true);
+    client.queueResponse(StagehandMethods.pageAddInitScript, true);
     const page = new Page(client, { pageId: "page-1" });
     const script = (arg: { ready: boolean }) => {
       globalThis.document.title = String(arg.ready);
@@ -557,8 +567,8 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes page headers and viewport configuration", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageSetExtraHTTPHeaders, { ok: true });
-    client.queueResponse(StagehandMethods.pageSetViewportSize, { ok: true });
+    client.queueResponse(StagehandMethods.pageSetExtraHTTPHeaders, true);
+    client.queueResponse(StagehandMethods.pageSetViewportSize, true);
     const page = new Page(client, { pageId: "page-1" });
 
     await page.setExtraHTTPHeaders({ "X-Request-ID": "request-1", doNotRenameMe: "value" });
@@ -580,8 +590,8 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes page wait methods and unwraps selector results", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageWaitForLoadState, { ok: true });
-    client.queueResponse(StagehandMethods.pageWaitForTimeout, { ok: true });
+    client.queueResponse(StagehandMethods.pageWaitForLoadState, true);
+    client.queueResponse(StagehandMethods.pageWaitForTimeout, true);
     client.queueResponse(StagehandMethods.pageWaitForSelector, { matched: false });
     const page = new Page(client, { pageId: "page-1" });
 
@@ -687,7 +697,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes page.close", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageClose, { closed: true });
+    client.queueResponse(StagehandMethods.pageClose, true);
     const page = new Page(client, { pageId: "page-1" });
 
     await page.close();
@@ -894,7 +904,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes locator.click with the page descriptor", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.locatorClick, { clicked: true });
+    client.queueResponse(StagehandMethods.locatorClick, true);
     const page = new Page(client, { pageId: "page-1" });
 
     await page.locator("button").click({
@@ -916,7 +926,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes locator.fill with the page descriptor", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.locatorFill, { filled: true });
+    client.queueResponse(StagehandMethods.locatorFill, true);
     const page = new Page(client, { pageId: "page-1" });
 
     await page.locator("#email").fill("user@example.com");
@@ -988,11 +998,11 @@ describe("Stagehand TS object wrapper", () => {
 
   it("routes write locator methods with their options", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.locatorHover, { hovered: true });
-    client.queueResponse(StagehandMethods.locatorScrollTo, { scrolled: true });
-    client.queueResponse(StagehandMethods.locatorHighlight, { highlighted: true });
-    client.queueResponse(StagehandMethods.locatorSendClickEvent, { clicked: true });
-    client.queueResponse(StagehandMethods.locatorType, { typed: true });
+    client.queueResponse(StagehandMethods.locatorHover, true);
+    client.queueResponse(StagehandMethods.locatorScrollTo, true);
+    client.queueResponse(StagehandMethods.locatorHighlight, true);
+    client.queueResponse(StagehandMethods.locatorSendClickEvent, true);
+    client.queueResponse(StagehandMethods.locatorType, true);
     client.queueResponse(StagehandMethods.locatorSelectOption, { values: ["pro"] });
     const page = new Page(client, { pageId: "page-1" });
     const locator = page.locator("#field");
@@ -1037,7 +1047,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("creates descriptor-backed nth locators without sending protocol calls", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.locatorClick, { clicked: true });
+    client.queueResponse(StagehandMethods.locatorClick, true);
     const page = new Page(client, { pageId: "page-1" });
 
     const locator = page.locator("button").first().nth(2);

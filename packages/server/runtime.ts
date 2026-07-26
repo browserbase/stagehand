@@ -1,4 +1,5 @@
 import type {
+  AcknowledgementResult,
   BrowserGetVersionResult,
   ClearCookieOptions,
   ContextActivePageResult,
@@ -12,7 +13,6 @@ import type {
   ContextClipboardReadTextParams,
   ContextClipboardReadTextResult,
   ContextClipboardWriteTextParams,
-  ContextCloseResult,
   ContextCookiesParams,
   ContextCookiesResult,
   ContextGetDomainPolicyResult,
@@ -21,7 +21,6 @@ import type {
   ContextSetActivePageParams,
   ContextSetDomainPolicyParams,
   ContextSetExtraHTTPHeadersParams,
-  ContextVoidResult,
   Cookie,
   CookieFilter,
   CookieParam,
@@ -30,31 +29,23 @@ import type {
   LLMGenerateResult,
   LoadState,
   LocatorClickParams,
-  LocatorClickResult,
   LocatorCentroidResult,
   LocatorCountResult,
   LocatorDescriptor,
   LocatorFillParams,
-  LocatorFillResult,
   LocatorHighlightParams,
-  LocatorHighlightResult,
-  LocatorHoverResult,
   LocatorInnerHtmlResult,
   LocatorInnerTextResult,
   LocatorInputValueResult,
   LocatorIsCheckedResult,
   LocatorIsVisibleResult,
   LocatorScrollToParams,
-  LocatorScrollToResult,
   LocatorSelectOptionParams,
   LocatorSelectOptionResult,
   LocatorSendClickEventParams,
-  LocatorSendClickEventResult,
   LocatorTextContentResult,
   LocatorTypeParams,
-  LocatorTypeResult,
   PageClickParams,
-  PageCloseResult,
   PageCoordinateResult,
   PageAddInitScriptParams,
   PageDragAndDropParams,
@@ -81,7 +72,6 @@ import type {
   PageTitleResult,
   PageTypeParams,
   PageUrlResult,
-  PageVoidResult,
   PageWaitForLoadStateParams,
   PageWaitForSelectorParams,
   PageWaitForSelectorResult,
@@ -344,50 +334,52 @@ export class StagehandRuntime {
     return pageRefFromUnderstudyPage(page);
   }
 
-  async contextSetActivePage(params: ContextSetActivePageParams): Promise<ContextVoidResult> {
+  async contextSetActivePage(params: ContextSetActivePageParams): Promise<AcknowledgementResult> {
     const page = this.resolvePage(params.pageId);
     await this.requireBrowserSession().setActivePage(page);
-    return { ok: true };
+    return true as const;
   }
 
-  async contextClose(): Promise<ContextCloseResult> {
+  async contextClose(): Promise<AcknowledgementResult> {
     await this.close();
-    return { closed: true };
+    return true as const;
   }
 
-  async contextAddInitScript(params: ContextAddInitScriptParams): Promise<ContextVoidResult> {
+  async contextAddInitScript(params: ContextAddInitScriptParams): Promise<AcknowledgementResult> {
     await this.requireBrowserSession().addInitScript(params.source);
-    return { ok: true };
+    return true as const;
   }
 
   async contextSetExtraHTTPHeaders(
     params: ContextSetExtraHTTPHeadersParams,
-  ): Promise<ContextVoidResult> {
+  ): Promise<AcknowledgementResult> {
     await this.requireBrowserSession().setExtraHTTPHeaders(params.headers);
-    return { ok: true };
+    return true as const;
   }
 
   contextGetDomainPolicy(): ContextGetDomainPolicyResult {
     return { policy: this.requireBrowserSession().getDomainPolicy() };
   }
 
-  async contextSetDomainPolicy(params: ContextSetDomainPolicyParams): Promise<ContextVoidResult> {
+  async contextSetDomainPolicy(
+    params: ContextSetDomainPolicyParams,
+  ): Promise<AcknowledgementResult> {
     await this.requireBrowserSession().setDomainPolicy(params.policy);
-    return { ok: true };
+    return true as const;
   }
 
   async contextCookies(params: ContextCookiesParams): Promise<ContextCookiesResult> {
     return { cookies: await this.requireBrowserSession().cookies(params.urls) };
   }
 
-  async contextAddCookies(params: ContextAddCookiesParams): Promise<ContextVoidResult> {
+  async contextAddCookies(params: ContextAddCookiesParams): Promise<AcknowledgementResult> {
     await this.requireBrowserSession().addCookies(params.cookies);
-    return { ok: true };
+    return true as const;
   }
 
-  async contextClearCookies(params: ContextClearCookiesParams): Promise<ContextVoidResult> {
+  async contextClearCookies(params: ContextClearCookiesParams): Promise<AcknowledgementResult> {
     await this.requireBrowserSession().clearCookies(hydrateClearCookieOptions(params.options));
-    return { ok: true };
+    return true as const;
   }
 
   async contextClipboardReadText(
@@ -399,19 +391,19 @@ export class StagehandRuntime {
 
   async contextClipboardWriteText(
     params: ContextClipboardWriteTextParams,
-  ): Promise<ContextVoidResult> {
+  ): Promise<AcknowledgementResult> {
     const clipboard = this.requireBrowserSession().clipboard;
     await clipboard.writeText(params.text, this.clipboardOptions(params.pageId));
-    return { ok: true };
+    return true as const;
   }
 
-  async contextClipboardClear(params: ContextClipboardClearParams): Promise<ContextVoidResult> {
+  async contextClipboardClear(params: ContextClipboardClearParams): Promise<AcknowledgementResult> {
     const clipboard = this.requireBrowserSession().clipboard;
     await clipboard.clear(this.clipboardOptions(params.pageId));
-    return { ok: true };
+    return true as const;
   }
 
-  async contextClipboardPaste(params: ContextClipboardPasteParams): Promise<ContextVoidResult> {
+  async contextClipboardPaste(params: ContextClipboardPasteParams): Promise<AcknowledgementResult> {
     const clipboard = this.requireBrowserSession().clipboard;
     const pageOptions = this.clipboardOptions(params.pageId);
     const options =
@@ -422,19 +414,19 @@ export class StagehandRuntime {
           }
         : undefined;
     await clipboard.paste(options);
-    return { ok: true };
+    return true as const;
   }
 
-  async contextClipboardCopy(params: ContextClipboardCopyParams): Promise<ContextVoidResult> {
+  async contextClipboardCopy(params: ContextClipboardCopyParams): Promise<AcknowledgementResult> {
     const clipboard = this.requireBrowserSession().clipboard;
     await clipboard.copy(this.clipboardOptions(params.pageId));
-    return { ok: true };
+    return true as const;
   }
 
-  async contextClipboardCut(params: ContextClipboardCutParams): Promise<ContextVoidResult> {
+  async contextClipboardCut(params: ContextClipboardCutParams): Promise<AcknowledgementResult> {
     const clipboard = this.requireBrowserSession().clipboard;
     await clipboard.cut(this.clipboardOptions(params.pageId));
-    return { ok: true };
+    return true as const;
   }
 
   async pageGoto(params: PageGotoParams): Promise<PageRef> {
@@ -490,14 +482,14 @@ export class StagehandRuntime {
     return { fromXpath, toXpath };
   }
 
-  async pageType(params: PageTypeParams): Promise<PageVoidResult> {
+  async pageType(params: PageTypeParams): Promise<AcknowledgementResult> {
     await this.resolvePage(params.pageId).type(params.text, params.options);
-    return { ok: true };
+    return true as const;
   }
 
-  async pageKeyPress(params: PageKeyPressParams): Promise<PageVoidResult> {
+  async pageKeyPress(params: PageKeyPressParams): Promise<AcknowledgementResult> {
     await this.resolvePage(params.pageId).keyPress(params.key, params.options);
-    return { ok: true };
+    return true as const;
   }
 
   async pageEvaluate(params: PageEvaluateParams): Promise<PageEvaluateResult> {
@@ -507,33 +499,35 @@ export class StagehandRuntime {
     };
   }
 
-  async pageAddInitScript(params: PageAddInitScriptParams): Promise<PageVoidResult> {
+  async pageAddInitScript(params: PageAddInitScriptParams): Promise<AcknowledgementResult> {
     await this.resolvePage(params.pageId).addInitScript(params.source);
-    return { ok: true };
+    return true as const;
   }
 
-  async pageSetExtraHTTPHeaders(params: PageSetExtraHTTPHeadersParams): Promise<PageVoidResult> {
+  async pageSetExtraHTTPHeaders(
+    params: PageSetExtraHTTPHeadersParams,
+  ): Promise<AcknowledgementResult> {
     await this.resolvePage(params.pageId).setExtraHTTPHeaders(params.headers);
-    return { ok: true };
+    return true as const;
   }
 
-  async pageSetViewportSize(params: PageSetViewportSizeParams): Promise<PageVoidResult> {
+  async pageSetViewportSize(params: PageSetViewportSizeParams): Promise<AcknowledgementResult> {
     await this.resolvePage(params.pageId).setViewportSize(
       params.width,
       params.height,
       params.options,
     );
-    return { ok: true };
+    return true as const;
   }
 
-  async pageWaitForLoadState(params: PageWaitForLoadStateParams): Promise<PageVoidResult> {
+  async pageWaitForLoadState(params: PageWaitForLoadStateParams): Promise<AcknowledgementResult> {
     await this.resolvePage(params.pageId).waitForLoadState(params.state, params.timeout);
-    return { ok: true };
+    return true as const;
   }
 
-  async pageWaitForTimeout(params: PageWaitForTimeoutParams): Promise<PageVoidResult> {
+  async pageWaitForTimeout(params: PageWaitForTimeoutParams): Promise<AcknowledgementResult> {
     await this.resolvePage(params.pageId).waitForTimeout(params.ms);
-    return { ok: true };
+    return true as const;
   }
 
   async pageWaitForSelector(params: PageWaitForSelectorParams): Promise<PageWaitForSelectorResult> {
@@ -585,26 +579,26 @@ export class StagehandRuntime {
     };
   }
 
-  async pageClose(params: PageIdParams): Promise<PageCloseResult> {
+  async pageClose(params: PageIdParams): Promise<AcknowledgementResult> {
     const page = this.resolvePage(params.pageId);
     await page.close();
     this.pagesById.delete(params.pageId);
-    return { closed: true };
+    return true as const;
   }
 
-  async locatorClick(params: LocatorClickParams): Promise<LocatorClickResult> {
+  async locatorClick(params: LocatorClickParams): Promise<AcknowledgementResult> {
     await this.resolveLocator(params).click(params.options);
-    return { clicked: true };
+    return true as const;
   }
 
-  async locatorHover(params: LocatorDescriptor): Promise<LocatorHoverResult> {
+  async locatorHover(params: LocatorDescriptor): Promise<AcknowledgementResult> {
     await this.resolveLocator(params).hover();
-    return { hovered: true };
+    return true as const;
   }
 
-  async locatorFill(params: LocatorFillParams): Promise<LocatorFillResult> {
+  async locatorFill(params: LocatorFillParams): Promise<AcknowledgementResult> {
     await this.resolveLocator(params).fill(params.value);
-    return { filled: true };
+    return true as const;
   }
 
   async locatorCount(params: LocatorDescriptor): Promise<LocatorCountResult> {
@@ -649,30 +643,28 @@ export class StagehandRuntime {
     };
   }
 
-  async locatorScrollTo(params: LocatorScrollToParams): Promise<LocatorScrollToResult> {
+  async locatorScrollTo(params: LocatorScrollToParams): Promise<AcknowledgementResult> {
     await this.resolveLocator(params).scrollTo(params.percent);
-    return { scrolled: true };
+    return true as const;
   }
 
   async locatorCentroid(params: LocatorDescriptor): Promise<LocatorCentroidResult> {
     return await this.resolveLocator(params).centroid();
   }
 
-  async locatorHighlight(params: LocatorHighlightParams): Promise<LocatorHighlightResult> {
+  async locatorHighlight(params: LocatorHighlightParams): Promise<AcknowledgementResult> {
     await this.resolveLocator(params).highlight(params.options);
-    return { highlighted: true };
+    return true as const;
   }
 
-  async locatorSendClickEvent(
-    params: LocatorSendClickEventParams,
-  ): Promise<LocatorSendClickEventResult> {
+  async locatorSendClickEvent(params: LocatorSendClickEventParams): Promise<AcknowledgementResult> {
     await this.resolveLocator(params).sendClickEvent(params.options);
-    return { clicked: true };
+    return true as const;
   }
 
-  async locatorType(params: LocatorTypeParams): Promise<LocatorTypeResult> {
+  async locatorType(params: LocatorTypeParams): Promise<AcknowledgementResult> {
     await this.resolveLocator(params).type(params.text, params.options);
-    return { typed: true };
+    return true as const;
   }
 
   async locatorSelectOption(params: LocatorSelectOptionParams): Promise<LocatorSelectOptionResult> {

@@ -6,8 +6,8 @@ from typing import cast
 import pytest
 
 from stagehand._generated.models import (
+    AcknowledgementResult,
     ContextClearCookiesParams,
-    ContextVoidResult,
     PageRef,
 )
 from stagehand.browser_context import BrowserContext
@@ -22,7 +22,7 @@ async def test_browser_context_wraps_generated_page_references() -> None:
         "context.pages": [PageRef(page_id="page-1")],
         "context.new_page": PageRef(page_id="page-2"),
         "context.active_page": PageRef(page_id="page-2"),
-        "context.set_active_page": ContextVoidResult(ok=True),
+        "context.set_active_page": AcknowledgementResult(root=True),
     })
     context = BrowserContext(cast(RPCClient, recording))
 
@@ -51,7 +51,7 @@ def test_browser_context_reuses_one_clipboard_wrapper() -> None:
 
 @pytest.mark.asyncio
 async def test_browser_context_serializes_python_cookie_filters() -> None:
-    recording = RecordingRPCClient({"context.clear_cookies": ContextVoidResult(ok=True)})
+    recording = RecordingRPCClient({"context.clear_cookies": AcknowledgementResult(root=True)})
     context = BrowserContext(cast(RPCClient, recording))
 
     await context.clear_cookies(

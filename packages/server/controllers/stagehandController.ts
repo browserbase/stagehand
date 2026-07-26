@@ -21,7 +21,7 @@ export function createStagehandController(runtime: StagehandRuntime) {
   async function close(_params: EmptyParams, { logger }: HandlerContext) {
     logger.info("stagehand.close", {});
     await runtime.close();
-    return { closed: true as const };
+    return true as const;
   }
 
   async function act(params: StagehandActParams, { logger }: HandlerContext) {

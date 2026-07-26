@@ -6,6 +6,7 @@ import type {
   StagehandSendToHostBindingSchema,
 } from "./schema-registry.js";
 import type {
+  AcknowledgementResultSchema,
   ActionSchema,
   ActOptionsSchema,
   ActResultDataSchema,
@@ -46,7 +47,6 @@ import type {
   ContextClipboardReadTextResultSchema,
   ContextClipboardTargetSchema,
   ContextClipboardWriteTextParamsSchema,
-  ContextCloseResultSchema,
   ContextCookiesParamsSchema,
   ContextCookiesResultSchema,
   ContextGetDomainPolicyResultSchema,
@@ -55,7 +55,6 @@ import type {
   ContextSetActivePageParamsSchema,
   ContextSetDomainPolicyParamsSchema,
   ContextSetExtraHTTPHeadersParamsSchema,
-  ContextVoidResultSchema,
   CookieFilterSchema,
   CookieParamSchema,
   CookieRegexSchema,
@@ -72,15 +71,11 @@ import type {
   GoogleServiceAccountCredentialsSchema,
   ImplementationInfoSchema,
   LocatorClickParamsSchema,
-  LocatorClickResultSchema,
   LocatorCentroidResultSchema,
   LocatorCountResultSchema,
   LocatorDescriptorSchema,
   LocatorFillParamsSchema,
-  LocatorFillResultSchema,
   LocatorHighlightParamsSchema,
-  LocatorHighlightResultSchema,
-  LocatorHoverResultSchema,
   LocatorInnerHtmlResultSchema,
   LocatorInnerTextResultSchema,
   LocatorInputValueResultSchema,
@@ -88,14 +83,11 @@ import type {
   LocatorIsVisibleResultSchema,
   LocatorSchema,
   LocatorScrollToParamsSchema,
-  LocatorScrollToResultSchema,
   LocatorSelectOptionParamsSchema,
   LocatorSelectOptionResultSchema,
   LocatorSendClickEventParamsSchema,
-  LocatorSendClickEventResultSchema,
   LocatorTextContentResultSchema,
   LocatorTypeParamsSchema,
-  LocatorTypeResultSchema,
   LoadStateSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
@@ -135,7 +127,6 @@ import type {
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
   PageClickParamsSchema,
-  PageCloseResultSchema,
   PageCoordinateResultSchema,
   PageDragAndDropParamsSchema,
   PageDragAndDropResultSchema,
@@ -163,7 +154,6 @@ import type {
   PageTitleResultSchema,
   PageTypeParamsSchema,
   PageUrlResultSchema,
-  PageVoidResultSchema,
   PageWaitForLoadStateParamsSchema,
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
@@ -175,7 +165,6 @@ import type {
   RuntimeLoopbackStatusResultSchema,
   RgbaColorSchema,
   StagehandActParamsSchema,
-  StagehandCloseResultSchema,
   StagehandExtractParamsSchema,
   StagehandInitParamsSchema,
   StagehandInitResultSchema,
@@ -259,11 +248,9 @@ export type ExtractResult = z.infer<typeof ExtractResultSchema>;
 export type ObserveOptions = z.infer<typeof ObserveOptionsSchema>;
 export type ObserveResult = z.infer<typeof ObserveResultSchema>;
 export type EmptyParams = z.infer<typeof EmptyParamsSchema>;
-export type ContextVoidResult = z.infer<typeof ContextVoidResultSchema>;
-export type ContextCloseResult = z.infer<typeof ContextCloseResultSchema>;
+export type AcknowledgementResult = z.infer<typeof AcknowledgementResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
 export type PageNavigationOptions = z.infer<typeof PageNavigationOptionsSchema>;
-export type PageVoidResult = z.infer<typeof PageVoidResultSchema>;
 export type PageCoordinateResult = z.infer<typeof PageCoordinateResultSchema>;
 export type PageScreenshotClip = z.infer<typeof PageScreenshotClipSchema>;
 export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
@@ -328,7 +315,6 @@ export type RuntimeConfigureResult = z.infer<typeof RuntimeConfigureResultSchema
 export type RuntimeLoopbackStatusResult = z.infer<typeof RuntimeLoopbackStatusResultSchema>;
 export type BrowserGetVersionResult = z.infer<typeof BrowserGetVersionResultSchema>;
 export type StagehandInitResult = z.infer<typeof StagehandInitResultSchema>;
-export type StagehandCloseResult = z.infer<typeof StagehandCloseResultSchema>;
 export type ContextPagesResult = z.infer<typeof ContextPagesResultSchema>;
 export type ContextCookiesResult = z.infer<typeof ContextCookiesResultSchema>;
 export type ContextClipboardReadTextResult = z.infer<typeof ContextClipboardReadTextResultSchema>;
@@ -336,14 +322,10 @@ export type ContextActivePageResult = z.infer<typeof ContextActivePageResultSche
 export type ContextGetDomainPolicyResult = z.infer<typeof ContextGetDomainPolicyResultSchema>;
 export type PageUrlResult = z.infer<typeof PageUrlResultSchema>;
 export type PageTitleResult = z.infer<typeof PageTitleResultSchema>;
-export type PageCloseResult = z.infer<typeof PageCloseResultSchema>;
 export type PageDragAndDropResult = z.infer<typeof PageDragAndDropResultSchema>;
 export type PageEvaluateResult = z.infer<typeof PageEvaluateResultSchema>;
 export type PageScreenshotResult = z.infer<typeof PageScreenshotResultSchema>;
 export type PageWaitForSelectorResult = z.infer<typeof PageWaitForSelectorResultSchema>;
-export type LocatorClickResult = z.infer<typeof LocatorClickResultSchema>;
-export type LocatorFillResult = z.infer<typeof LocatorFillResultSchema>;
-export type LocatorHoverResult = z.infer<typeof LocatorHoverResultSchema>;
 export type LocatorCountResult = z.infer<typeof LocatorCountResultSchema>;
 export type LocatorIsCheckedResult = z.infer<typeof LocatorIsCheckedResultSchema>;
 export type LocatorInputValueResult = z.infer<typeof LocatorInputValueResultSchema>;
@@ -351,11 +333,7 @@ export type LocatorIsVisibleResult = z.infer<typeof LocatorIsVisibleResultSchema
 export type LocatorInnerTextResult = z.infer<typeof LocatorInnerTextResultSchema>;
 export type LocatorInnerHtmlResult = z.infer<typeof LocatorInnerHtmlResultSchema>;
 export type LocatorTextContentResult = z.infer<typeof LocatorTextContentResultSchema>;
-export type LocatorScrollToResult = z.infer<typeof LocatorScrollToResultSchema>;
 export type LocatorCentroidResult = z.infer<typeof LocatorCentroidResultSchema>;
-export type LocatorHighlightResult = z.infer<typeof LocatorHighlightResultSchema>;
-export type LocatorSendClickEventResult = z.infer<typeof LocatorSendClickEventResultSchema>;
-export type LocatorTypeResult = z.infer<typeof LocatorTypeResultSchema>;
 export type LocatorSelectOptionResult = z.infer<typeof LocatorSelectOptionResultSchema>;
 export type StagehandLogData = z.infer<typeof StagehandLogDataSchema>;
 export type StagehandLog = z.infer<typeof StagehandLogSchema>;

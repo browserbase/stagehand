@@ -9,6 +9,7 @@ from typing import Literal, Self, TypeVar, cast, overload
 from pydantic import JsonValue, TypeAdapter
 
 from ._generated.models import (
+    AcknowledgementResult,
     Animations,
     Caret,
     LoadState,
@@ -16,7 +17,6 @@ from ._generated.models import (
     PageAddInitScriptParams,
     PageClickOptions,
     PageClickParams,
-    PageCloseResult,
     PageCoordinateResult,
     PageDragAndDropOptions,
     PageDragAndDropParams,
@@ -50,7 +50,6 @@ from ._generated.models import (
     PageTypeOptions,
     PageTypeParams,
     PageUrlResult,
-    PageVoidResult,
     PageWaitForLoadStateParams,
     PageWaitForSelectorOptions,
     PageWaitForSelectorParams,
@@ -267,13 +266,13 @@ class Page:
         })
         if options.model_fields_set:
             params.options = options
-        await self._rpc_client.send("page.type", params, PageVoidResult)
+        await self._rpc_client.send("page.type", params, AcknowledgementResult)
 
     async def key_press(self, key: str, *, delay: float | None = None) -> None:
         params = PageKeyPressParams(page_id=self.page_id, key=key)
         if delay is not None:
             params.options = PageKeyPressOptions(delay=delay)
-        await self._rpc_client.send("page.key_press", params, PageVoidResult)
+        await self._rpc_client.send("page.key_press", params, AcknowledgementResult)
 
     @overload
     async def evaluate(self, expression: str) -> JsonValue: ...
@@ -311,14 +310,14 @@ class Page:
         await self._rpc_client.send(
             "page.add_init_script",
             PageAddInitScriptParams(page_id=self.page_id, source=script),
-            PageVoidResult,
+            AcknowledgementResult,
         )
 
     async def set_extra_http_headers(self, headers: Mapping[str, str]) -> None:
         await self._rpc_client.send(
             "page.set_extra_http_headers",
             PageSetExtraHTTPHeadersParams(page_id=self.page_id, headers=dict(headers)),
-            PageVoidResult,
+            AcknowledgementResult,
         )
 
     async def set_viewport_size(
@@ -333,7 +332,7 @@ class Page:
             params.options = PageSetViewportSizeOptions(
                 device_scale_factor=device_scale_factor,
             )
-        await self._rpc_client.send("page.set_viewport_size", params, PageVoidResult)
+        await self._rpc_client.send("page.set_viewport_size", params, AcknowledgementResult)
 
     async def wait_for_load_state(
         self,
@@ -346,13 +345,13 @@ class Page:
         })
         if timeout is not None:
             params.timeout = timeout
-        await self._rpc_client.send("page.wait_for_load_state", params, PageVoidResult)
+        await self._rpc_client.send("page.wait_for_load_state", params, AcknowledgementResult)
 
     async def wait_for_timeout(self, ms: int) -> None:
         await self._rpc_client.send(
             "page.wait_for_timeout",
             PageWaitForTimeoutParams(page_id=self.page_id, ms=ms),
-            PageVoidResult,
+            AcknowledgementResult,
         )
 
     async def wait_for_selector(
@@ -459,7 +458,7 @@ class Page:
         await self._rpc_client.send(
             "page.close",
             PageIdParams(page_id=self.page_id),
-            PageCloseResult,
+            AcknowledgementResult,
         )
 
     def locator(self, selector: str) -> Locator:

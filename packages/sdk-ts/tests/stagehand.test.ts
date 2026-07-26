@@ -429,7 +429,7 @@ describe("Stagehand", () => {
   it("prints info and higher logs while hiding debug by default", async () => {
     const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
+    rpcClient.queueResponse(StagehandMethods.stagehandClose, true);
     const stagehand = createStagehandWithDependenciesForTest(
       {
         browser: {
@@ -543,7 +543,7 @@ describe("Stagehand", () => {
   it("does not close a keepAlive browser source", async () => {
     const closeBrowser = vi.fn();
     const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
+    rpcClient.queueResponse(StagehandMethods.stagehandClose, true);
     const stagehand = createStagehandWithDependenciesForTest(
       {
         browser: {

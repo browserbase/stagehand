@@ -11,14 +11,12 @@ import {
   ContextClipboardReadTextParamsSchema,
   ContextClipboardReadTextResultSchema,
   ContextClipboardWriteTextParamsSchema,
-  ContextCloseResultSchema,
   ContextCookiesParamsSchema,
   ContextCookiesResultSchema,
   ContextGetDomainPolicyResultSchema,
   ContextSetActivePageParamsSchema,
   ContextSetDomainPolicyParamsSchema,
   ContextSetExtraHTTPHeadersParamsSchema,
-  ContextVoidResultSchema,
   EmptyParamsSchema,
 } from "../../schemas.js";
 
@@ -99,13 +97,6 @@ describe("context lifecycle and configuration command schemas", () => {
     expect(() => ContextSetDomainPolicyParamsSchema.parse({})).toThrow();
     expect(() => ContextSetDomainPolicyParamsSchema.parse({ policy: undefined })).toThrow();
     expect(() => ContextGetDomainPolicyResultSchema.parse({ policy: null, extra: true })).toThrow();
-  });
-
-  it("keeps context mutation and close results strict", () => {
-    expect(ContextVoidResultSchema.parse({ ok: true })).toStrictEqual({ ok: true });
-    expect(ContextCloseResultSchema.parse({ closed: true })).toStrictEqual({ closed: true });
-    expect(() => ContextVoidResultSchema.parse({ ok: true, extra: true })).toThrow();
-    expect(() => ContextCloseResultSchema.parse({ closed: false })).toThrow();
   });
 });
 

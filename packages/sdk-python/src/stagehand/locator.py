@@ -4,34 +4,28 @@ from collections.abc import Sequence
 from typing import Literal, Self
 
 from ._generated.models import (
+    AcknowledgementResult,
     LocatorCentroidResult,
     LocatorClickOptions,
     LocatorClickParams,
-    LocatorClickResult,
     LocatorCountResult,
     LocatorDescriptor,
     LocatorFillParams,
-    LocatorFillResult,
     LocatorHighlightOptions,
     LocatorHighlightParams,
-    LocatorHighlightResult,
-    LocatorHoverResult,
     LocatorInnerHtmlResult,
     LocatorInnerTextResult,
     LocatorInputValueResult,
     LocatorIsCheckedResult,
     LocatorIsVisibleResult,
     LocatorScrollToParams,
-    LocatorScrollToResult,
     LocatorSelectOptionParams,
     LocatorSelectOptionResult,
     LocatorSendClickEventOptions,
     LocatorSendClickEventParams,
-    LocatorSendClickEventResult,
     LocatorTextContentResult,
     LocatorTypeOptions,
     LocatorTypeParams,
-    LocatorTypeResult,
     MouseButton,
     RgbaColor,
 )
@@ -85,14 +79,14 @@ class Locator:
         await self._rpc_client.send(
             "locator.click",
             LocatorClickParams.model_validate(values),
-            LocatorClickResult,
+            AcknowledgementResult,
         )
 
     async def hover(self) -> None:
         await self._rpc_client.send(
             "locator.hover",
             self._descriptor,
-            LocatorHoverResult,
+            AcknowledgementResult,
         )
 
     async def fill(self, value: str) -> None:
@@ -102,7 +96,7 @@ class Locator:
                 **self._descriptor.model_dump(exclude_unset=True),
                 "value": value,
             }),
-            LocatorFillResult,
+            AcknowledgementResult,
         )
 
     async def count(self) -> int:
@@ -168,7 +162,7 @@ class Locator:
                 **self._descriptor.model_dump(exclude_unset=True),
                 "percent": percent,
             }),
-            LocatorScrollToResult,
+            AcknowledgementResult,
         )
 
     async def centroid(self) -> LocatorCentroidResult:
@@ -200,7 +194,7 @@ class Locator:
         await self._rpc_client.send(
             "locator.highlight",
             LocatorHighlightParams.model_validate(values),
-            LocatorHighlightResult,
+            AcknowledgementResult,
         )
 
     async def send_click_event(
@@ -227,7 +221,7 @@ class Locator:
         await self._rpc_client.send(
             "locator.send_click_event",
             LocatorSendClickEventParams.model_validate(values),
-            LocatorSendClickEventResult,
+            AcknowledgementResult,
         )
 
     async def type(self, text: str, *, delay: float | None = None) -> None:
@@ -237,7 +231,7 @@ class Locator:
         await self._rpc_client.send(
             "locator.type",
             LocatorTypeParams.model_validate(values),
-            LocatorTypeResult,
+            AcknowledgementResult,
         )
 
     async def select_option(self, values: str | Sequence[str]) -> list[str]:

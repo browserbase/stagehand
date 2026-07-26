@@ -5,8 +5,8 @@ from typing import cast
 import pytest
 
 from stagehand._generated.models import (
+    AcknowledgementResult,
     LocatorClickParams,
-    LocatorClickResult,
     LocatorCountResult,
     LocatorDescriptor,
     LocatorSelectOptionResult,
@@ -20,7 +20,7 @@ from ._support import RecordingRPCClient
 @pytest.mark.asyncio
 async def test_locator_methods_use_generated_models_and_keep_the_descriptor_internal() -> None:
     recording = RecordingRPCClient({
-        "locator.click": LocatorClickResult(clicked=True),
+        "locator.click": AcknowledgementResult(root=True),
         "locator.count": LocatorCountResult(count=2),
         "locator.select_option": LocatorSelectOptionResult(values=["one"]),
     })
@@ -44,7 +44,7 @@ async def test_locator_methods_use_generated_models_and_keep_the_descriptor_inte
         "nth": 1,
         "options": {"button": "left", "click_count": 2},
     })
-    assert result_model is LocatorClickResult
+    assert result_model is AcknowledgementResult
     assert recording.calls[1] == (
         "locator.count",
         LocatorDescriptor(page_id="page-1", selector="select", nth=1),

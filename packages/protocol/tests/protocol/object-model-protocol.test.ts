@@ -375,9 +375,7 @@ describe("Stagehand object-model protocol", () => {
     expect(StagehandMethods.locatorHover.params.parse(locatorDescriptor())).toStrictEqual(
       locatorDescriptor(),
     );
-    expect(StagehandMethods.locatorHover.result.parse({ hovered: true })).toStrictEqual({
-      hovered: true,
-    });
+    expect(StagehandMethods.locatorHover.result.parse(true)).toBe(true);
 
     expect(StagehandMethods.locatorCount.result.parse({ count: 2 })).toStrictEqual({
       count: 2,

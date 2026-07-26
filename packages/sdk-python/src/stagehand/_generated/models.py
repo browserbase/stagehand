@@ -23,6 +23,10 @@ from stagehand._validation import (
 )
 
 
+class AcknowledgementResult(RootModel[Literal[True]]):
+    root: Literal[True]
+
+
 class ActOptions(WireModel):
     model_config = ConfigDict(
         validate_by_name=True,
@@ -365,14 +369,6 @@ class ContextClipboardWriteTextParams(WireModel):
     text: StrictStr
 
 
-class ContextCloseResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    closed: Literal[True]
-
-
 class ContextCookiesParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -427,14 +423,6 @@ class ContextSetExtraHTTPHeadersParams(WireModel):
         validate_by_name=True,
     )
     headers: dict[StrictStr, StrictStr]
-
-
-class ContextVoidResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    ok: Literal[True]
 
 
 class Cookie(WireModel):
@@ -1038,14 +1026,6 @@ class LocatorClickParams(WireModel):
     options: Optional[LocatorClickOptions] = None
 
 
-class LocatorClickResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    clicked: Literal[True]
-
-
 class LocatorCountResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1075,14 +1055,6 @@ class LocatorFillParams(WireModel):
     value: StrictStr
 
 
-class LocatorFillResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    filled: Literal[True]
-
-
 class LocatorHighlightOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1102,22 +1074,6 @@ class LocatorHighlightParams(WireModel):
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorHighlightOptions] = None
-
-
-class LocatorHighlightResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    highlighted: Literal[True]
-
-
-class LocatorHoverResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    hovered: Literal[True]
 
 
 class LocatorInnerHtmlResult(WireModel):
@@ -1171,14 +1127,6 @@ class LocatorScrollToParams(WireModel):
     percent: Union[StrictFloat, StrictStr]
 
 
-class LocatorScrollToResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    scrolled: Literal[True]
-
-
 class LocatorSelectOptionParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1220,14 +1168,6 @@ class LocatorSendClickEventParams(WireModel):
     options: Optional[LocatorSendClickEventOptions] = None
 
 
-class LocatorSendClickEventResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    clicked: Literal[True]
-
-
 class LocatorTextContentResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1254,14 +1194,6 @@ class LocatorTypeParams(WireModel):
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     text: StrictStr
     options: Optional[LocatorTypeOptions] = None
-
-
-class LocatorTypeResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    typed: Literal[True]
 
 
 class LogLevel(StrEnum):
@@ -1403,14 +1335,6 @@ class PageClickParams(WireModel):
     x: StrictFloat
     y: StrictFloat
     options: Optional[PageClickOptions] = None
-
-
-class PageCloseResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    closed: Literal[True]
 
 
 class PageCoordinateResult(WireModel):
@@ -1745,14 +1669,6 @@ class PageUrlResult(WireModel):
     url: StrictStr
 
 
-class PageVoidResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    ok: Literal[True]
-
-
 class PageWaitForLoadStateParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1883,14 +1799,6 @@ class StagehandActParams(WireModel):
     page_id: Annotated[StrictStr, Field(min_length=1)]
     input: Annotated[StrictStr, Field(min_length=1)]
     options: Optional[ActOptions] = None
-
-
-class StagehandCloseResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    closed: Literal[True]
 
 
 class StagehandExtractParams(WireModel):

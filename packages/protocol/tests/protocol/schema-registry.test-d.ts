@@ -23,6 +23,9 @@ expectTypeOf<z.output<typeof StagehandMethods.contextActivePage.result>>().toEqu
 expectTypeOf(
   StagehandMethods.contextSetDomainPolicy.name,
 ).toEqualTypeOf<"context.set_domain_policy">();
+expectTypeOf<
+  z.output<typeof StagehandMethods.contextSetDomainPolicy.result>
+>().toEqualTypeOf<true>();
 expectTypeOf<z.input<typeof StagehandMethods.contextSetDomainPolicy.params>>().toEqualTypeOf<{
   policy: {
     allowedDomains?: string[];
@@ -81,6 +84,7 @@ expectTypeOf<z.input<typeof StagehandMethods.browserGetVersion.params>>().toEqua
   Record<string, never>
 >();
 expectTypeOf(StagehandMethods.locatorSelectOption.name).toEqualTypeOf<"locator.select_option">();
+expectTypeOf<z.output<typeof StagehandMethods.locatorClick.result>>().toEqualTypeOf<true>();
 expectTypeOf<z.input<typeof StagehandMethods.locatorSelectOption.params>>().toEqualTypeOf<{
   pageId: string;
   selector: string;
