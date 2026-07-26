@@ -1274,7 +1274,8 @@
         "viewport": {
           "$ref": "#/$defs/BrowserbaseViewport"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "BrowserbaseContext": {
       "type": "object",
@@ -1286,7 +1287,8 @@
           "type": "boolean"
         }
       },
-      "required": ["id"]
+      "required": ["id"],
+      "additionalProperties": false
     },
     "BrowserbaseFingerprint": {
       "type": "object",
@@ -1325,7 +1327,8 @@
         "screen": {
           "$ref": "#/$defs/BrowserbaseFingerprintScreen"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "BrowserbaseFingerprintScreen": {
       "type": "object",
@@ -1342,7 +1345,8 @@
         "min_width": {
           "type": "number"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "BrowserbaseViewport": {
       "type": "object",
@@ -1353,7 +1357,8 @@
         "height": {
           "type": "number"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ProxyConfig": {
       "oneOf": [
@@ -1379,7 +1384,8 @@
           "$ref": "#/$defs/BrowserbaseProxyGeolocation"
         }
       },
-      "required": ["type"]
+      "required": ["type"],
+      "additionalProperties": false
     },
     "BrowserbaseProxyGeolocation": {
       "type": "object",
@@ -1394,7 +1400,8 @@
           "type": "string"
         }
       },
-      "required": ["country"]
+      "required": ["country"],
+      "additionalProperties": false
     },
     "ExternalProxyConfig": {
       "type": "object",
@@ -1416,7 +1423,8 @@
           "type": "string"
         }
       },
-      "required": ["type", "server"]
+      "required": ["type", "server"],
+      "additionalProperties": false
     },
     "BrowserbaseRegion": {
       "type": "string",
@@ -1656,7 +1664,8 @@
           "description": "Override the instance-level cache setting for this request",
           "$ref": "#/$defs/Caching"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Variables": {
       "type": "object",
@@ -1734,7 +1743,8 @@
           "$ref": "#/$defs/CacheStatus"
         }
       },
-      "required": ["result"]
+      "required": ["result"],
+      "additionalProperties": false
     },
     "ActResultData": {
       "type": "object",
@@ -1762,7 +1772,8 @@
           "description": "List of actions that were executed"
         }
       },
-      "required": ["success", "message", "action_description", "actions"]
+      "required": ["success", "message", "action_description", "actions"],
+      "additionalProperties": false
     },
     "Action": {
       "type": "object",
@@ -1792,6 +1803,7 @@
         }
       },
       "required": ["selector", "description"],
+      "additionalProperties": false,
       "description": "Action object returned by observe and used by act"
     },
     "CacheStatus": {
@@ -1859,7 +1871,8 @@
           "description": "Override the instance-level cache setting for this request",
           "$ref": "#/$defs/Caching"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ObserveResult": {
       "type": "object",
@@ -1879,7 +1892,8 @@
           "$ref": "#/$defs/CacheStatus"
         }
       },
-      "required": ["result"]
+      "required": ["result"],
+      "additionalProperties": false
     },
     "StagehandExtractParams": {
       "type": "object",
@@ -1971,7 +1985,8 @@
           "description": "Override the instance-level cache setting for this request",
           "$ref": "#/$defs/Caching"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ExtractResult": {
       "type": "object",
@@ -1988,7 +2003,8 @@
           "$ref": "#/$defs/CacheStatus"
         }
       },
-      "required": ["result"]
+      "required": ["result"],
+      "additionalProperties": false
     },
     "StagehandMetrics": {
       "type": "object",
@@ -2654,9 +2670,7 @@
         }
       },
       "required": ["role", "content", "output_format"],
-      "additionalProperties": {
-        "$ref": "#/$defs/__schema5"
-      }
+      "additionalProperties": false
     },
     "LLMUsage": {
       "type": "object",
@@ -2690,37 +2704,6 @@
       "required": ["input_tokens", "output_tokens", "total_tokens"],
       "additionalProperties": false
     },
-    "__schema5": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema5"
-          }
-        },
-        {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema5"
-          }
-        }
-      ]
-    },
     "LLMStructuredGenerateResult": {
       "type": "object",
       "properties": {
@@ -2751,15 +2734,13 @@
           "const": "json_schema"
         },
         "structured_content": {
-          "$ref": "#/$defs/__schema6"
+          "$ref": "#/$defs/__schema5"
         }
       },
       "required": ["role", "content", "output_format", "structured_content"],
-      "additionalProperties": {
-        "$ref": "#/$defs/__schema5"
-      }
+      "additionalProperties": false
     },
-    "__schema6": {
+    "__schema5": {
       "anyOf": [
         {
           "type": "string"
@@ -2776,7 +2757,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema6"
+            "$ref": "#/$defs/__schema5"
           }
         },
         {
@@ -2785,7 +2766,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema6"
+            "$ref": "#/$defs/__schema5"
           }
         }
       ]
@@ -3526,13 +3507,13 @@
       "type": "object",
       "properties": {
         "value": {
-          "$ref": "#/$defs/__schema7"
+          "$ref": "#/$defs/__schema6"
         }
       },
       "required": ["value"],
       "additionalProperties": false
     },
-    "__schema7": {
+    "__schema6": {
       "anyOf": [
         {
           "type": "string"
@@ -3549,7 +3530,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema7"
+            "$ref": "#/$defs/__schema6"
           }
         },
         {
@@ -3558,7 +3539,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema7"
+            "$ref": "#/$defs/__schema6"
           }
         }
       ]
@@ -4332,10 +4313,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema8"
+        "$ref": "#/$defs/__schema7"
       }
     },
-    "__schema8": {
+    "__schema7": {
       "anyOf": [
         {
           "type": "string"
@@ -4352,7 +4333,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema8"
+            "$ref": "#/$defs/__schema7"
           }
         },
         {
@@ -4361,7 +4342,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema8"
+            "$ref": "#/$defs/__schema7"
           }
         }
       ]
@@ -6210,7 +6191,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema9"
+          "$ref": "#/$defs/__schema8"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -6219,7 +6200,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema9": {
+    "__schema8": {
       "anyOf": [
         {
           "type": "string"
@@ -6236,7 +6217,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/__schema8"
           }
         },
         {
@@ -6245,7 +6226,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/__schema8"
           }
         }
       ]
@@ -6279,13 +6260,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema10"
+          "$ref": "#/$defs/__schema9"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema10": {
+    "__schema9": {
       "anyOf": [
         {
           "type": "string"
@@ -6302,7 +6283,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema9"
           }
         },
         {
@@ -6311,7 +6292,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema9"
           }
         }
       ]
