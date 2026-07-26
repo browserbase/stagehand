@@ -209,6 +209,32 @@ export const ModelNameSchema = z
     description: "An explicitly supported model name with its provider prefix",
   });
 
+/** A Browserbase gateway model name with a cataloged upstream provider/model. */
+export const BrowserbaseModelNameSchema = z
+  .union([z.literal("browserbase/auto"), z.templateLiteral(["browserbase/", ModelNameSchema])])
+  .meta({
+    id: "BrowserbaseModelName",
+    description:
+      "A Browserbase-managed model name. The browserbase prefix selects the gateway; the remainder identifies the upstream model.",
+  });
+
+/** A provider-qualified model name that is not yet in Stagehand's catalog. */
+export const UnlistedModelNameSchema = z
+  .templateLiteral([ModelProviderSchema, "/", z.string().min(1)])
+  .meta({
+    id: "UnlistedModelName",
+    description: "A provider-qualified model name forwarded without Stagehand catalog metadata.",
+  });
+
+/** An unlisted upstream model routed through the Browserbase gateway. */
+export const BrowserbaseUnlistedModelNameSchema = z
+  .templateLiteral(["browserbase/", UnlistedModelNameSchema])
+  .meta({
+    id: "BrowserbaseUnlistedModelName",
+    description:
+      "A Browserbase-managed, provider-qualified model name that is not yet in Stagehand's catalog.",
+  });
+
 export const CookieSchema = z
   .object({
     name: z.string(),
@@ -879,14 +905,48 @@ const ModelConnectionSchema = z
   .strict()
   .meta({ id: "ModelConnection" });
 
+/** A direct request to a cataloged model using the provider's API key. */
 export const KnownModelConfigSchema = ModelConnectionSchema.extend({
   modelName: ModelNameSchema.meta({
     description: "An explicitly supported model name with its provider prefix",
     example: "openai/gpt-5.4-mini",
   }),
+  apiKey: z.string().min(1).meta({
+    description: "API key for the model provider",
+    example: "sk-some-openai-api-key",
+  }),
 })
   .strict()
   .meta({ id: "KnownModelConfig" });
+
+/** A direct request to a provider model that is not yet in Stagehand's catalog. */
+export const UnlistedModelConfigSchema = ModelConnectionSchema.extend({
+  type: z.literal("unlisted"),
+  modelName: UnlistedModelNameSchema,
+  apiKey: z.string().min(1).meta({
+    description: "API key for the model provider",
+    example: "sk-some-openai-api-key",
+  }),
+})
+  .strict()
+  .meta({ id: "UnlistedModelConfig" });
+
+/** A Browserbase-managed request to a cataloged upstream model. */
+export const BrowserbaseModelConfigSchema = z
+  .object({
+    modelName: BrowserbaseModelNameSchema,
+  })
+  .strict()
+  .meta({ id: "BrowserbaseModelConfig" });
+
+/** A Browserbase-managed request to an upstream model outside Stagehand's catalog. */
+export const BrowserbaseUnlistedModelConfigSchema = z
+  .object({
+    type: z.literal("unlisted"),
+    modelName: BrowserbaseUnlistedModelNameSchema,
+  })
+  .strict()
+  .meta({ id: "BrowserbaseUnlistedModelConfig" });
 
 export const CustomModelConfigSchema = ModelConnectionSchema.extend({
   modelName: z.string().min(1).meta({
@@ -902,7 +962,13 @@ export const CustomModelConfigSchema = ModelConnectionSchema.extend({
   .meta({ id: "CustomModelConfig" });
 
 export const ModelConfigSchema = z
-  .union([KnownModelConfigSchema, CustomModelConfigSchema])
+  .union([
+    KnownModelConfigSchema,
+    UnlistedModelConfigSchema,
+    BrowserbaseModelConfigSchema,
+    BrowserbaseUnlistedModelConfigSchema,
+    CustomModelConfigSchema,
+  ])
   .meta({ id: "ModelConfig" });
 
 /** Serializable reference to an LLM implemented by the connected Stagehand client. */

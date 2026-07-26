@@ -23,7 +23,7 @@ describe("Stagehand object-model protocol", () => {
         region: "eu-central-1",
         userMetadata: { suite: "smoke" },
       },
-      model: { modelName: "openai/gpt-5-mini" },
+      model: { modelName: "openai/gpt-5-mini", apiKey: "openai_key" },
     });
 
     expect(params).toStrictEqual({
@@ -34,7 +34,7 @@ describe("Stagehand object-model protocol", () => {
         region: "eu-central-1",
         userMetadata: { suite: "smoke" },
       },
-      model: { modelName: "openai/gpt-5-mini" },
+      model: { modelName: "openai/gpt-5-mini", apiKey: "openai_key" },
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
