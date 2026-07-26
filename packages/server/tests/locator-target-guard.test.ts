@@ -15,6 +15,12 @@ vi.mock("../understudy/selectorResolver.js", () => ({
   },
 }));
 
+vi.mock("../understudy/executionContextRegistry.js", () => ({
+  executionContexts: {
+    waitForLocatorWorld: vi.fn(async () => ({ contextId: 7 })),
+  },
+}));
+
 describe("locator target guard", () => {
   it("validates and mutates the same resolved object", async () => {
     resolveAtIndex.mockResolvedValueOnce({ nodeId: null, objectId: "object-12" });
@@ -28,6 +34,10 @@ describe("locator target guard", () => {
 
     expect(send).toHaveBeenCalledWith("DOM.describeNode", { objectId: "object-12" });
     expect(send).toHaveBeenCalledWith("DOM.getBoxModel", { objectId: "object-12" });
+    expect(send).toHaveBeenCalledWith("DOM.resolveNode", {
+      backendNodeId: 12,
+      executionContextId: 7,
+    });
     expect(send).toHaveBeenCalledWith("Input.dispatchMouseEvent", expect.anything());
   });
 
@@ -71,6 +81,7 @@ describe("locator target guard", () => {
 
 function frameWithSession(send: ReturnType<typeof vi.fn>, hitBackendNodeId: number): Frame {
   return {
+    frameId: "frame-1",
     session: { send },
     getNodeAtLocation: vi.fn(async () => ({ backendNodeId: hitBackendNodeId })),
   } as unknown as Frame;

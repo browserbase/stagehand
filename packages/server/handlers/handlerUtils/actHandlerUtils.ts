@@ -198,11 +198,15 @@ async function scrollByPixelOffset(ctx: UnderstudyMethodHandlerContext): Promise
 
 async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { locator, frame, args, logger } = ctx;
-  const { objectId } = await locator.resolveNode();
-  await locator
-    .getFrame()
-    .session.send("Runtime.releaseObject", { objectId })
-    .catch(() => {});
+  // Only resolve when an observed target guard is present; legacy wheel keeps
+  // the page-level (0,0) path without requiring the selector to resolve.
+  if (locator.targetGuard) {
+    const { objectId } = await locator.resolveNode();
+    await locator
+      .getFrame()
+      .session.send("Runtime.releaseObject", { objectId })
+      .catch(() => {});
+  }
 
   const deltaY = Number(args[0] ?? 200);
   logger.debug("Dispatching mouse wheel", {
@@ -253,17 +257,20 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { locator, args, xpath, page, logger } = ctx;
   const key = args[0] ?? "";
   try {
-    // Resolve (and focus) so observed target guards run before key input.
-    const session = locator.getFrame().session;
-    const { objectId } = await locator.resolveNode();
-    try {
-      await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-        objectId,
-        functionDeclaration: "function() { this.focus?.(); }",
-        returnByValue: true,
-      });
-    } finally {
-      await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
+    // Only resolve/focus when an observed target guard is present. Legacy
+    // targetless press must keep sending keys to the currently focused element.
+    if (locator.targetGuard) {
+      const session = locator.getFrame().session;
+      const { objectId } = await locator.resolveNode();
+      try {
+        await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: "function() { this.focus?.(); }",
+          returnByValue: true,
+        });
+      } finally {
+        await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
+      }
     }
 
     logger.debug("Pressing key", {

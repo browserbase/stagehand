@@ -23,6 +23,7 @@ import type { ActionTarget, MouseButton } from "../../protocol/types.js";
 import { ActionTargetMismatchError } from "../actionTarget.js";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
+import { executionContexts } from "./executionContextRegistry.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
 
@@ -860,9 +861,17 @@ export class Locator {
     await this.validateTarget(expectedObjectId);
 
     const hit = await this.frame.getNodeAtLocation(Math.round(x), Math.round(y));
+    const { contextId } = await executionContexts.waitForLocatorWorld(
+      this.frame.session,
+      this.frame.frameId,
+      1000,
+    );
     const { object } = await this.frame.session.send<{
       object: { objectId?: Protocol.Runtime.RemoteObjectId };
-    }>("DOM.resolveNode", { backendNodeId: hit.backendNodeId });
+    }>("DOM.resolveNode", {
+      backendNodeId: hit.backendNodeId,
+      executionContextId: contextId,
+    });
     const hitObjectId = object.objectId;
     if (!hitObjectId) {
       throw new ActionTargetMismatchError(this.targetGuard.expected, {

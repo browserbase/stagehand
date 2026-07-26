@@ -150,9 +150,7 @@ function normalizeCachedActionTarget(value: unknown): ActionTarget | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
-function normalizeCachedArgumentTargets(
-  value: unknown,
-): Action["argumentTargets"] | undefined {
+function normalizeCachedArgumentTargets(value: unknown): Action["argumentTargets"] | undefined {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
 
   const argumentTargets: NonNullable<Action["argumentTargets"]> = {};

@@ -179,6 +179,34 @@ describe("action target validation", () => {
 
     expect(keyPress).not.toHaveBeenCalled();
   });
+
+  it("keeps targetless press on the focused element without resolving the locator", async () => {
+    const resolveNode = vi.fn(async () => {
+      throw new Error("should not resolve for targetless press");
+    });
+    const keyPress = vi.fn();
+    resolveLocator.mockResolvedValue(
+      locatorForNode(
+        0,
+        99,
+        vi.fn(),
+        vi.fn(async () => 99),
+        resolveNode,
+      ),
+    );
+
+    await performUnderstudyMethod(
+      Object.assign(pageWithOrdinals(), { keyPress }) as unknown as Page,
+      rootFrame(),
+      "press",
+      "xpath=/html/body/stale",
+      ["Enter"],
+      logger,
+    );
+
+    expect(resolveNode).not.toHaveBeenCalled();
+    expect(keyPress).toHaveBeenCalledWith("Enter");
+  });
 });
 
 function rootFrame(): Frame {
@@ -231,8 +259,12 @@ function locatorForNode(
     click,
     centroid,
     assertPointerTargetAt: vi.fn(async () => undefined),
-    withTargetGuard: (expected: { frameOrdinal: number; backendNodeId: number }) => ({
+    withTargetGuard: (
+      expected: { frameOrdinal: number; backendNodeId: number },
+      frameOrdinal: number = expected.frameOrdinal,
+    ) => ({
       ...locator,
+      targetGuard: { expected, frameOrdinal },
       resolveNode: async () => {
         await validate(expected);
         return await resolveNode();

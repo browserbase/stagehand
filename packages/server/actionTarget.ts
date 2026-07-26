@@ -1,4 +1,5 @@
 import type { Action, ActionTarget } from "../protocol/types.js";
+import { CachedActionRebindError } from "./errors.js";
 import type { EncodedId } from "./types/private/internal.js";
 import { trimTrailingTextNode } from "./utils.js";
 
@@ -67,7 +68,7 @@ export function rebindActionTargetsToSnapshot(
   return actions.map((action) => {
     const target = actionTargetForSnapshotSelector(action.selector, xpathMap);
     if (!target) {
-      throw new Error(`Cached action no longer resolves: ${action.selector}`);
+      throw new CachedActionRebindError("selector");
     }
 
     const destinationSelector = action.method === "dragAndDrop" ? action.arguments?.[0] : undefined;
@@ -75,7 +76,7 @@ export function rebindActionTargetsToSnapshot(
       ? actionTargetForSnapshotSelector(destinationSelector, xpathMap)
       : undefined;
     if (destinationSelector && !destinationTarget) {
-      throw new Error(`Cached action argument no longer resolves: ${destinationSelector}`);
+      throw new CachedActionRebindError("argument");
     }
 
     return {
