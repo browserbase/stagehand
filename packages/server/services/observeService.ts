@@ -5,6 +5,10 @@ import type {
   ObserveResult,
   StagehandObserveParams,
 } from "../../protocol/types.js";
+import {
+  actionTargetForSnapshotSelector,
+  selectorAndTargetForSnapshotElement,
+} from "../actionTarget.js";
 import { TimeoutError } from "../errors.js";
 import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import * as inference from "../inference.js";
@@ -13,7 +17,6 @@ import type { StagehandLogger } from "../logger.js";
 import type { Page } from "../understudy/page.js";
 import { SupportedUnderstudyAction } from "../types/private/handlers.js";
 import type { EncodedId } from "../types/private/internal.js";
-import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
 
@@ -58,12 +61,13 @@ export async function observe({
     caching: options?.cache,
     context: cache,
     logger,
-    onHit: (value) => {
+    onHit: async (value) => {
       const actions = cacheService.normalizeCachedActions(value);
       if (actions.length === 0) {
         throw new Error("Cached observe value contained no usable actions");
       }
-      return { result: actions };
+      const reboundActions = await bindActionsToCurrentSnapshot(actions);
+      return { result: reboundActions };
     },
     execute: () => runObservation(),
   });
@@ -94,8 +98,8 @@ export async function observe({
     const actions: Action[] = [];
 
     for (const element of observation.elements) {
-      const sourceXpath = trimTrailingTextNode(xpathMap[element.elementId as EncodedId]);
-      if (!sourceXpath) {
+      const source = selectorAndTargetForSnapshotElement(element.elementId as EncodedId, xpathMap);
+      if (!source) {
         logger.warn("Observed element could not be resolved to an XPath", {
           category: "observation",
           elementId: element.elementId,
@@ -104,6 +108,7 @@ export async function observe({
       }
 
       let resolvedArguments = element.arguments;
+      let argumentTargets: Action["argumentTargets"];
       if (element.method === SupportedUnderstudyAction.DRAG_AND_DROP) {
         const targetElementId = element.arguments[0];
         if (!targetElementId || !/^\d+-\d+$/.test(targetElementId)) {
@@ -115,8 +120,11 @@ export async function observe({
           continue;
         }
 
-        const targetXpath = trimTrailingTextNode(xpathMap[targetElementId as EncodedId]);
-        if (!targetXpath) {
+        const destination = selectorAndTargetForSnapshotElement(
+          targetElementId as EncodedId,
+          xpathMap,
+        );
+        if (!destination) {
           logger.warn("Drag-and-drop target could not be resolved to an XPath", {
             category: "observation",
             sourceElementId: element.elementId,
@@ -124,14 +132,17 @@ export async function observe({
           });
           continue;
         }
-        resolvedArguments = [`xpath=${targetXpath}`, ...element.arguments.slice(1)];
+        resolvedArguments = [destination.selector, ...element.arguments.slice(1)];
+        if (destination.target) argumentTargets = { "0": destination.target };
       }
 
       actions.push({
-        selector: `xpath=${sourceXpath}`,
+        selector: source.selector,
         description: element.description,
         method: element.method,
         arguments: resolvedArguments,
+        ...(source.target ? { target: source.target } : {}),
+        ...(argumentTargets ? { argumentTargets } : {}),
       });
     }
 
@@ -155,5 +166,37 @@ export async function observe({
         llmDurationMs: observation.inference_time_ms,
       },
     };
+  }
+
+  async function bindActionsToCurrentSnapshot(actions: Action[]): Promise<Action[]> {
+    const { combinedXpathMap } = await page.captureSnapshot({
+      focusSelector: focusSelector || undefined,
+      ignoreSelectors: options?.ignoreSelectors,
+    });
+    return actions.map((action) => {
+      const target = actionTargetForSnapshotSelector(action.selector, combinedXpathMap);
+      if (!target) {
+        throw new Error(`Cached observe action no longer resolves: ${action.selector}`);
+      }
+
+      const destinationSelector =
+        action.method === SupportedUnderstudyAction.DRAG_AND_DROP
+          ? action.arguments?.[0]
+          : undefined;
+      const destinationTarget = destinationSelector
+        ? actionTargetForSnapshotSelector(destinationSelector, combinedXpathMap)
+        : undefined;
+      if (destinationSelector && !destinationTarget) {
+        throw new Error(
+          `Cached observe action argument no longer resolves: ${destinationSelector}`,
+        );
+      }
+
+      return {
+        ...action,
+        target,
+        ...(destinationTarget ? { argumentTargets: { "0": destinationTarget } } : {}),
+      };
+    });
   }
 }

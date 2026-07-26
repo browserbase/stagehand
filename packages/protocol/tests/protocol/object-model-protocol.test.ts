@@ -134,6 +134,36 @@ describe("Stagehand object-model protocol", () => {
     });
   });
 
+  it("accepts observed Action targets and rejects invalid identities", () => {
+    const action = {
+      selector: "xpath=/html/body/button",
+      description: "Submit button",
+      method: "click",
+      arguments: [],
+      target: { frameOrdinal: 0, backendNodeId: 12 },
+      argumentTargets: { "0": { frameOrdinal: 0, backendNodeId: 20 } },
+    };
+
+    expect(
+      StagehandMethods.stagehandAct.params.parse({ pageId: "target-1", input: action }),
+    ).toStrictEqual({ pageId: "target-1", input: action });
+    expect(() =>
+      StagehandMethods.stagehandAct.params.parse({
+        pageId: "target-1",
+        input: { ...action, target: { frameOrdinal: -1, backendNodeId: 0 } },
+      }),
+    ).toThrow();
+    expect(() =>
+      StagehandMethods.stagehandAct.params.parse({
+        pageId: "target-1",
+        input: {
+          ...action,
+          argumentTargets: { destination: { frameOrdinal: 0, backendNodeId: 20 } },
+        },
+      }),
+    ).toThrow();
+  });
+
   it("defines extraction with a page, instruction, JSON Schema, and optional call settings", () => {
     const params = StagehandMethods.stagehandExtract.params.parse({
       pageId: "target-1",

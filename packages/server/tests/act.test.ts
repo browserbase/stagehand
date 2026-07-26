@@ -139,6 +139,7 @@ describe("act service", () => {
       ["user@example.com"],
       logger,
       2_000,
+      { target: { frameOrdinal: 0, backendNodeId: 13 } },
     );
     expect(result).toStrictEqual({
       result: {
@@ -151,6 +152,7 @@ describe("act service", () => {
             description: "Email field",
             method: "fill",
             arguments: ["%accountEmail%"],
+            target: { frameOrdinal: 0, backendNodeId: 13 },
           },
         ],
       },
@@ -170,7 +172,13 @@ describe("act service", () => {
           arguments: [],
         }),
     );
-    performAction.mockRejectedValueOnce(new Error("Element detached")).mockResolvedValueOnce();
+    performAction
+      .mockRejectedValueOnce(
+        new Error(
+          "Observed action target changed: expected frame 0 node 12, resolved frame 0 node 99",
+        ),
+      )
+      .mockResolvedValueOnce();
 
     const result = await actService.act({
       params: {
@@ -180,6 +188,7 @@ describe("act service", () => {
           description: "Submit button",
           method: "click",
           arguments: [],
+          target: { frameOrdinal: 0, backendNodeId: 12 },
         },
       },
       page,
@@ -201,6 +210,7 @@ describe("act service", () => {
       [],
       expect.any(StagehandLogger),
       undefined,
+      { target: { frameOrdinal: 0, backendNodeId: 12 } },
     );
     expect(performAction).toHaveBeenNthCalledWith(
       2,
@@ -211,10 +221,52 @@ describe("act service", () => {
       [],
       expect.any(StagehandLogger),
       undefined,
+      { target: { frameOrdinal: 0, backendNodeId: 20 } },
     );
     expect(result.result).toMatchObject({
       success: true,
-      actions: [{ selector: "xpath=/html/body/button[2]" }],
+      actions: [
+        {
+          selector: "xpath=/html/body/button[2]",
+          target: { frameOrdinal: 0, backendNodeId: 20 },
+        },
+      ],
+    });
+  });
+
+  it("fails safely when an observed Action resolves to a different target", async () => {
+    const page = actPage({}, vi.fn());
+    const clientLLMGenerate = vi.fn();
+    performAction.mockRejectedValueOnce(
+      new Error(
+        "Observed action target changed: expected frame 0 node 12, resolved frame 0 node 99",
+      ),
+    );
+
+    const result = await actService.act({
+      params: {
+        pageId: "page-1",
+        input: {
+          selector: "xpath=/html/body/button[1]",
+          description: "Delete Alice",
+          method: "click",
+          arguments: [],
+          target: { frameOrdinal: 0, backendNodeId: 12 },
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+      selfHeal: false,
+    });
+
+    expect(performAction).toHaveBeenCalledOnce();
+    expect(clientLLMGenerate).not.toHaveBeenCalled();
+    expect(result.result).toMatchObject({
+      success: false,
+      message: expect.stringContaining("Observed action target changed"),
+      actions: [],
     });
   });
 
@@ -306,10 +358,16 @@ describe("act service", () => {
       [],
       expect.any(StagehandLogger),
       undefined,
+      { target: { frameOrdinal: 0, backendNodeId: 20 } },
     );
     expect(result.result).toMatchObject({
       success: true,
-      actions: [{ selector: "xpath=/html/body/button[2]" }],
+      actions: [
+        {
+          selector: "xpath=/html/body/button[2]",
+          target: { frameOrdinal: 0, backendNodeId: 20 },
+        },
+      ],
     });
   });
 
@@ -393,9 +451,15 @@ function actGeneration(
 }
 
 function snapshot(elementId: string, xpath: string) {
+  const combinedXpathMap: Record<string, string> = { [elementId]: xpath };
+  const normalizedXpath = xpath.replace(/\/text\(\)(\[\d+\])?$/u, "");
+  if (normalizedXpath !== xpath) {
+    const [frameOrdinal, backendNodeId] = elementId.split("-").map(Number);
+    combinedXpathMap[`${frameOrdinal}-${backendNodeId! + 1}`] = normalizedXpath;
+  }
   return {
     combinedTree: `[${elementId}] button: Target`,
-    combinedXpathMap: { [elementId]: xpath },
+    combinedXpathMap,
     combinedUrlMap: {},
   };
 }

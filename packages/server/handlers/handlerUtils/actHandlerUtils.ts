@@ -2,11 +2,14 @@
 import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame.js";
 import { Locator } from "../../understudy/locator.js";
-import type { MouseButton } from "../../../protocol/types.js";
+import type { Action, ActionTarget, MouseButton } from "../../../protocol/types.js";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import type { StagehandLogger } from "../../logger.js";
 import { toTitleCase } from "../../utils.js";
+export { ActionTargetMismatchError } from "../../actionTarget.js";
+
+export type ActionTargetConstraints = Pick<Action, "target" | "argumentTargets">;
 
 export interface UnderstudyMethodHandlerContext {
   method: string;
@@ -18,6 +21,7 @@ export interface UnderstudyMethodHandlerContext {
   initialUrl: string;
   logger: StagehandLogger;
   domSettleTimeoutMs?: number;
+  argumentTargets?: Record<string, ActionTarget>;
 }
 
 // Normalize cases where the XPath is the root "/" to point to the HTML element.
@@ -50,6 +54,7 @@ export async function performUnderstudyMethod(
   args: ReadonlyArray<unknown>,
   logger: StagehandLogger,
   domSettleTimeoutMs?: number,
+  targetConstraints?: ActionTargetConstraints,
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
 
@@ -59,7 +64,8 @@ export async function performUnderstudyMethod(
       { target: selectorRaw },
       async (spanLogger) => {
         // Unified resolver: supports '>>' hops and XPath across iframes.
-        const locator: Locator = await resolveLocatorWithHops(page, frame, selectorRaw);
+        const resolvedLocator: Locator = await resolveLocatorWithHops(page, frame, selectorRaw);
+        const locator = bindTargetGuard(page, resolvedLocator, targetConstraints?.target);
         const initialUrl = await getFrameUrl(frame);
 
         spanLogger.debug("Performing understudy method", {
@@ -79,6 +85,7 @@ export async function performUnderstudyMethod(
           initialUrl,
           logger: spanLogger,
           domSettleTimeoutMs,
+          argumentTargets: targetConstraints?.argumentTargets,
         };
         const handler = METHOD_HANDLER_MAP[method] ?? null;
 
@@ -107,6 +114,12 @@ export async function performUnderstudyMethod(
     });
     throw e;
   }
+}
+
+function bindTargetGuard(page: Page, locator: Locator, target?: ActionTarget): Locator {
+  return target
+    ? locator.withTargetGuard(target, page.getOrdinal(locator.getFrame().frameId))
+    : locator;
 }
 
 /* ===================== Handlers & Map ===================== */
@@ -282,11 +295,12 @@ async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { page, frame, locator, args, xpath, logger } = ctx;
+  const { page, frame, locator, args, xpath, logger, argumentTargets } = ctx;
   const toXPath = String(args[0] ?? "").trim();
   if (!toXPath) throw new Error("dragAndDrop requires a target XPath arg");
 
-  const targetLocator = await resolveLocatorWithHops(page, frame, toXPath);
+  const resolvedTargetLocator = await resolveLocatorWithHops(page, frame, toXPath);
+  const targetLocator = bindTargetGuard(page, resolvedTargetLocator, argumentTargets?.["0"]);
 
   try {
     // 1) Centers in local (owning-frame) viewport

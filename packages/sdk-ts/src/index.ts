@@ -16,6 +16,7 @@ export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand } from "./stagehand.js";
 export type {
   Action,
+  ActionTarget,
   ActResultData,
   BrowserGetVersionResult,
   RuntimeLoopbackStatusResult,

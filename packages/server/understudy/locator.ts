@@ -19,11 +19,17 @@ import {
 import type { Frame } from "./frame.js";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver.js";
 import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
-import type { MouseButton } from "../../protocol/types.js";
+import type { ActionTarget, MouseButton } from "../../protocol/types.js";
+import { ActionTargetMismatchError } from "../actionTarget.js";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
+
+type LocatorTargetGuard = {
+  expected: ActionTarget;
+  frameOrdinal: number;
+};
 
 /**
  * Locator
@@ -57,6 +63,7 @@ export class Locator {
     readonly selector: string,
     readonly options?: { deep?: boolean; depth?: number },
     nthIndex: number = -1,
+    readonly targetGuard?: LocatorTargetGuard,
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
@@ -67,6 +74,14 @@ export class Locator {
   /** Return the owning Frame for this locator (typed accessor, no private access). */
   public getFrame(): Frame {
     return this.frame;
+  }
+
+  /** Bind an observed identity to every subsequent resolution by this locator. */
+  public withTargetGuard(expected: ActionTarget, frameOrdinal: number): Locator {
+    return new Locator(this.frame, this.selector, this.options, this.nthIndex, {
+      expected,
+      frameOrdinal,
+    });
   }
 
   /**
@@ -752,7 +767,7 @@ export class Locator {
       return this;
     }
 
-    return new Locator(this.frame, this.selector, this.options, nextIndex);
+    return new Locator(this.frame, this.selector, this.options, nextIndex, this.targetGuard);
   }
 
   // ---------- helpers ----------
@@ -776,7 +791,34 @@ export class Locator {
       throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
     }
 
+    await this.validateTarget(resolved.objectId);
+
     return resolved;
+  }
+
+  private async validateTarget(objectId: Protocol.Runtime.RemoteObjectId): Promise<void> {
+    if (!this.targetGuard) return;
+
+    try {
+      const { node } = await this.frame.session.send<{ node: Protocol.DOM.Node }>(
+        "DOM.describeNode",
+        { objectId },
+      );
+      const actual: ActionTarget = {
+        frameOrdinal: this.targetGuard.frameOrdinal,
+        backendNodeId: node.backendNodeId,
+      };
+      const { expected } = this.targetGuard;
+      if (
+        actual.frameOrdinal !== expected.frameOrdinal ||
+        actual.backendNodeId !== expected.backendNodeId
+      ) {
+        throw new ActionTargetMismatchError(expected, actual);
+      }
+    } catch (error) {
+      await this.frame.session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      throw error;
+    }
   }
 
   /**

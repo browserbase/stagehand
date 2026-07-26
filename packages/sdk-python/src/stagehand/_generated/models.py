@@ -14,6 +14,7 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
+    constr,
 )
 from stagehand._validation import (
     PageScreenshotOptionsValidation,
@@ -125,6 +126,25 @@ class Action(WireModel):
 
     Example: ['Hello World']
     """
+    target: Optional[ActionTarget] = None
+    """Optional observed target identity. When present, act validates it before mutating the page."""
+    argument_targets: Optional[dict[constr(pattern=r"^\d+$", strict=True), ActionTarget]] = (
+        None
+    )
+    """Optional observed identities for selector arguments, keyed by their argument index."""
+
+
+class ActionTarget(WireModel):
+    """Short-lived identity of the DOM node selected by an observed action"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    frame_ordinal: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    """Stable frame ordinal assigned for the lifetime of the page"""
+    backend_node_id: Annotated[StrictInt, Field(gt=0, le=9007199254740991)]
+    """CDP backend node ID captured when the action was observed"""
 
 
 class Animations(StrEnum):

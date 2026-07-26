@@ -2,6 +2,7 @@
 
 from ._generated.models import (
     Action,
+    ActionTarget,
     ActResultData,
     Animations,
     BrowserbaseBrowserSettings,
@@ -55,6 +56,7 @@ from .stagehand import Stagehand
 __all__ = [
     "ActResultData",
     "Action",
+    "ActionTarget",
     "Animations",
     "BrowserGetVersionResult",
     "BrowserClipboard",

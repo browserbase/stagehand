@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
 import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";
+import * as cacheService from "../services/cacheService.js";
 import * as observeService from "../services/observeService.js";
 
 describe("observe inference", () => {
@@ -89,8 +90,10 @@ describe("observe service", () => {
       combinedTree: "[0-12] textbox: Email\n[0-20] listitem: Source\n[0-21] listitem: Target",
       combinedXpathMap: {
         "0-12": "/html/body/main/input/text()",
+        "0-13": "/html/body/main/input",
         "0-20": "/html/body/main/ul/li[1]",
         "0-21": "/html/body/main/ul/li[2]/text()",
+        "0-22": "/html/body/main/ul/li[2]",
       },
       combinedUrlMap: {},
     }));
@@ -158,12 +161,15 @@ describe("observe service", () => {
           description: "Email field",
           method: "fill",
           arguments: ["%accountEmail%"],
+          target: { frameOrdinal: 0, backendNodeId: 13 },
         },
         {
           selector: "xpath=/html/body/main/ul/li[1]",
           description: "Draggable source",
           method: "dragAndDrop",
           arguments: ["xpath=/html/body/main/ul/li[2]"],
+          target: { frameOrdinal: 0, backendNodeId: 20 },
+          argumentTargets: { "0": { frameOrdinal: 0, backendNodeId: 22 } },
         },
       ],
     });
@@ -209,6 +215,66 @@ describe("observe service", () => {
     } finally {
       now.mockRestore();
     }
+  });
+
+  it("rebinds cached actions to target identities from the current snapshot", async () => {
+    const captureSnapshot = vi.fn(async () => ({
+      combinedTree: "[0-99] button: Submit",
+      combinedXpathMap: { "0-99": "/html/body/button" },
+      combinedUrlMap: {},
+    }));
+    const frame = {
+      frameId: "root-frame",
+      getAccessibilityTree: vi.fn(async () => []),
+    };
+    const page = {
+      captureSnapshot,
+      url: () => "https://example.test",
+      frames: () => [frame],
+      mainFrame: () => frame,
+    };
+    const get = vi.fn(async () => ({
+      hit: true,
+      value: [
+        {
+          selector: "xpath=/html/body/button",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+          target: { frameOrdinal: 0, backendNodeId: 12 },
+        },
+      ],
+    }));
+
+    const result = await observeService.observe({
+      params: { pageId: "page-1" },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate: vi.fn(),
+      logger: new StagehandLogger(
+        { tracer: trace.getTracer("observe-cache-target-test") },
+        () => {},
+      ),
+      cache: {
+        sessionId: "session-1",
+        defaultCaching: true,
+        client: { get } as unknown as cacheService.CacheContext["client"],
+      },
+    });
+
+    expect(result).toStrictEqual({
+      result: [
+        {
+          selector: "xpath=/html/body/button",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+          target: { frameOrdinal: 0, backendNodeId: 99 },
+        },
+      ],
+      cacheStatus: "HIT",
+    });
+    expect(captureSnapshot).toHaveBeenCalledOnce();
   });
 });
 

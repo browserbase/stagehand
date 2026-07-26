@@ -1,0 +1,168 @@
+import { trace } from "@opentelemetry/api";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveLocatorWithHops } from "../understudy/deepLocator.js";
+import {
+  ActionTargetMismatchError,
+  performUnderstudyMethod,
+} from "../handlers/handlerUtils/actHandlerUtils.js";
+import { StagehandLogger } from "../logger.js";
+import type { Frame } from "../understudy/frame.js";
+import type { Locator } from "../understudy/locator.js";
+import type { Page } from "../understudy/page.js";
+
+vi.mock("../understudy/deepLocator.js", () => ({
+  resolveLocatorWithHops: vi.fn(),
+}));
+
+const resolveLocator = vi.mocked(resolveLocatorWithHops);
+
+describe("action target validation", () => {
+  const logger = new StagehandLogger(
+    { tracer: trace.getTracer("action-target-validation-test") },
+    () => {},
+  );
+
+  beforeEach(() => {
+    resolveLocator.mockReset();
+  });
+
+  it("blocks the action handler when the selector resolves to a different node", async () => {
+    const click = vi.fn();
+    resolveLocator.mockResolvedValue(locatorForNode(0, 20, click));
+
+    await expect(
+      performUnderstudyMethod(
+        pageWithOrdinals(),
+        rootFrame(),
+        "click",
+        "xpath=/html/body/button[1]",
+        [],
+        logger,
+        undefined,
+        { target: { frameOrdinal: 0, backendNodeId: 12 } },
+      ),
+    ).rejects.toBeInstanceOf(ActionTargetMismatchError);
+
+    expect(click).not.toHaveBeenCalled();
+  });
+
+  it("executes the action handler when the observed target still matches", async () => {
+    const click = vi.fn().mockResolvedValue(undefined);
+    resolveLocator.mockResolvedValue(locatorForNode(0, 12, click));
+
+    await performUnderstudyMethod(
+      pageWithOrdinals(),
+      rootFrame(),
+      "click",
+      "xpath=/html/body/button[1]",
+      [],
+      logger,
+      undefined,
+      { target: { frameOrdinal: 0, backendNodeId: 12 } },
+    );
+
+    expect(click).toHaveBeenCalledOnce();
+  });
+
+  it("keeps legacy actions without target metadata working", async () => {
+    const click = vi.fn().mockResolvedValue(undefined);
+    const readBackendNodeId = vi.fn(async () => 20);
+    const locator = locatorForNode(0, 20, click, readBackendNodeId);
+    resolveLocator.mockResolvedValue(locator);
+
+    await performUnderstudyMethod(
+      pageWithOrdinals(),
+      rootFrame(),
+      "click",
+      "xpath=/html/body/button[1]",
+      [],
+      logger,
+    );
+
+    expect(readBackendNodeId).not.toHaveBeenCalled();
+    expect(click).toHaveBeenCalledOnce();
+  });
+
+  it("blocks drag-and-drop when the destination resolves to a different node", async () => {
+    const dragAndDrop = vi.fn();
+    const page = pageWithOrdinals(dragAndDrop);
+    resolveLocator
+      .mockResolvedValueOnce(locatorForNode(0, 12, vi.fn()))
+      .mockResolvedValueOnce(locatorForNode(0, 99, vi.fn()));
+
+    await expect(
+      performUnderstudyMethod(
+        page,
+        rootFrame(),
+        "dragAndDrop",
+        "xpath=/html/body/source",
+        ["xpath=/html/body/destination"],
+        logger,
+        undefined,
+        {
+          target: { frameOrdinal: 0, backendNodeId: 12 },
+          argumentTargets: { "0": { frameOrdinal: 0, backendNodeId: 20 } },
+        },
+      ),
+    ).rejects.toBeInstanceOf(ActionTargetMismatchError);
+
+    expect(dragAndDrop).not.toHaveBeenCalled();
+  });
+});
+
+function rootFrame(): Frame {
+  return {
+    frameId: "root-frame",
+    evaluate: vi.fn(async () => "https://example.test"),
+  } as unknown as Frame;
+}
+
+function pageWithOrdinals(dragAndDrop: ReturnType<typeof vi.fn> = vi.fn()): Page {
+  return {
+    getOrdinal: (frameId: string) => (frameId === "target-frame" ? 0 : 1),
+    dragAndDrop,
+  } as unknown as Page;
+}
+
+function locatorForNode(
+  frameOrdinal: number,
+  backendNodeId: number,
+  click: () => unknown,
+  readBackendNodeId: () => Promise<number> = vi.fn(async () => backendNodeId),
+): Locator {
+  const frame = {
+    frameId: frameOrdinal === 0 ? "target-frame" : `target-frame-${frameOrdinal}`,
+    evaluate: vi.fn(async (_fn: unknown, value: unknown) => value),
+  } as unknown as Frame;
+  const centroid = vi.fn(async () => ({ x: 10, y: 20 }));
+  const validate = async (expected: { frameOrdinal: number; backendNodeId: number }) => {
+    const actual = {
+      frameOrdinal,
+      backendNodeId: await readBackendNodeId(),
+    };
+    if (
+      actual.frameOrdinal !== expected.frameOrdinal ||
+      actual.backendNodeId !== expected.backendNodeId
+    ) {
+      throw new ActionTargetMismatchError(expected, actual);
+    }
+  };
+  const locator = {
+    getFrame: () => frame,
+    backendNodeId: readBackendNodeId,
+    click,
+    centroid,
+    withTargetGuard: (expected: { frameOrdinal: number; backendNodeId: number }) => ({
+      ...locator,
+      click: async () => {
+        await validate(expected);
+        await click();
+      },
+      centroid: async () => {
+        await validate(expected);
+        return await centroid();
+      },
+    }),
+  };
+  return locator as unknown as Locator;
+}
