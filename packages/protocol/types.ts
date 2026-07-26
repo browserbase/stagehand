@@ -18,6 +18,10 @@ import type {
   BrowserGetVersionResultSchema,
   BrowserbaseBrowserSettingsSchema,
   BrowserbaseBrowserSourceSchema,
+  BrowserbaseModelConfigSchema,
+  BrowserbaseModelNameSchema,
+  BrowserbaseUnlistedModelConfigSchema,
+  BrowserbaseUnlistedModelNameSchema,
   BrowserbaseContextSchema,
   BrowserbaseFingerprintSchema,
   BrowserbaseFingerprintScreenSchema,
@@ -124,6 +128,8 @@ import type {
   GroqModelIdSchema,
   GroqModelNameSchema,
   KnownModelConfigSchema,
+  UnlistedModelConfigSchema,
+  UnlistedModelNameSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
@@ -272,9 +278,15 @@ export type GoogleModelName = z.infer<typeof GoogleModelNameSchema>;
 export type GroqModelName = z.infer<typeof GroqModelNameSchema>;
 export type CerebrasModelName = z.infer<typeof CerebrasModelNameSchema>;
 export type KnownModelConfig = z.infer<typeof KnownModelConfigSchema>;
+export type UnlistedModelConfig = z.infer<typeof UnlistedModelConfigSchema>;
+export type BrowserbaseModelConfig = z.infer<typeof BrowserbaseModelConfigSchema>;
+export type BrowserbaseUnlistedModelConfig = z.infer<typeof BrowserbaseUnlistedModelConfigSchema>;
 export type CustomModelConfig = z.infer<typeof CustomModelConfigSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type ModelName = z.infer<typeof ModelNameSchema>;
+export type UnlistedModelName = z.infer<typeof UnlistedModelNameSchema>;
+export type BrowserbaseModelName = z.infer<typeof BrowserbaseModelNameSchema>;
+export type BrowserbaseUnlistedModelName = z.infer<typeof BrowserbaseUnlistedModelNameSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;
 export type LLMAnnotations = z.infer<typeof LLMAnnotationsSchema>;
 export type LLMClientTool = z.infer<typeof LLMClientToolSchema>;
