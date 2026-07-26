@@ -471,14 +471,19 @@ export class Locator {
       if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      await session.send<never>("Input.dispatchTouchEvent", {
-        type: "touchStart",
-        touchPoints: [{ x: cx, y: cy }],
-      } as Protocol.Input.DispatchTouchEventRequest);
-      await session.send<never>("Input.dispatchTouchEvent", {
-        type: "touchEnd",
-        touchPoints: [],
-      } as Protocol.Input.DispatchTouchEventRequest);
+      // Pipelined burst, matching click's press/release batching: CDP preserves
+      // per-session command order, so awaiting each dispatch in turn would only
+      // add a round trip (a full network RTT against a remote browser).
+      await Promise.all([
+        session.send<never>("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [{ x: cx, y: cy }],
+        } as Protocol.Input.DispatchTouchEventRequest),
+        session.send<never>("Input.dispatchTouchEvent", {
+          type: "touchEnd",
+          touchPoints: [],
+        } as Protocol.Input.DispatchTouchEventRequest),
+      ]);
     } finally {
       try {
         await session.send<never>("Runtime.releaseObject", { objectId });

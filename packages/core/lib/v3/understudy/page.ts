@@ -1928,14 +1928,21 @@ export class Page {
     // Keep the cursor overlay in sync with the action, like every other
     // coordinate action (click/hover/drag), even though touch has no cursor.
     await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [{ x, y }],
-    } as Protocol.Input.DispatchTouchEventRequest);
-    await this.mainSession.send<never>("Input.dispatchTouchEvent", {
-      type: "touchEnd",
-      touchPoints: [],
-    } as Protocol.Input.DispatchTouchEventRequest);
+    // Dispatch touchStart/touchEnd as one pipelined burst, the same way click
+    // batches press/release. CDP processes commands on a session in the order
+    // they were written, so the pair still arrives ordered; awaiting each in
+    // turn only adds a round trip of latency (a full network RTT when the
+    // browser is remote).
+    await Promise.all([
+      this.mainSession.send<never>("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x, y }],
+      } as Protocol.Input.DispatchTouchEventRequest),
+      this.mainSession.send<never>("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      } as Protocol.Input.DispatchTouchEventRequest),
+    ]);
 
     return xpathResult ?? "";
   }
