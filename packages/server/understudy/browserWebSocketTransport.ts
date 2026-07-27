@@ -39,8 +39,9 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
     });
   }
 
-  onMessage(handler: (data: string) => void): void {
+  onMessage(handler: (data: string) => void): () => void {
     this.messageHandlers.add(handler);
+    return () => this.messageHandlers.delete(handler);
   }
 
   onClose(handler: (event: CdpWebSocketCloseEvent) => void): void {
