@@ -37,8 +37,7 @@ const readCallsites = () => {
 };
 
 const readCallsitePath = (callsite) => {
-  const rawPath =
-    callsite.getFileName?.() ?? callsite.getScriptNameOrSourceURL?.();
+  const rawPath = callsite.getFileName?.() ?? callsite.getScriptNameOrSourceURL?.();
   if (!rawPath) return null;
   if (rawPath.startsWith("node:")) return null;
   if (EVAL_FRAMES.has(rawPath)) return null;

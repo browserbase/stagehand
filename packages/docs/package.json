@@ -2,6 +2,9 @@
   "name": "@browserbasehq/stagehand-docs",
   "version": "1.0.0",
   "description": "",
+  "keywords": [],
+  "license": "ISC",
+  "author": "",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -9,9 +12,6 @@
     "upgrade": "mintlify upgrade",
     "sync-sdk": "node scripts/sync-sdk-docs.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "mintlify": "^4.2.563",
     "zod": "^4.2.1"
