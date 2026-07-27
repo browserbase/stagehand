@@ -1,9 +1,11 @@
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { RPCClient, type CDPTransport } from "../src/rpcClient.js";
+import sdkPackageJson from "../package.json" with { type: "json" };
+import { CDPClient } from "../src/cdpClient.js";
+import { connectRPCClient, RPCClient, type CDPTransport } from "../src/rpcClient.js";
 
 const UppercaseMethod = {
   name: "test.uppercase",
@@ -12,6 +14,7 @@ const UppercaseMethod = {
 } as const satisfies RPCMethod;
 
 class FakeCDPTransport implements CDPTransport {
+  readonly webSocketDebuggerUrl = "ws://127.0.0.1:9222/devtools/browser/test";
   readonly serviceWorker = {
     targetId: "worker-target",
     url: "chrome-extension://stagehand/service-worker.js",
@@ -58,6 +61,34 @@ class ManualCDPTransport implements CDPTransport {
 }
 
 describe("RPCClient", () => {
+  it("reports the SDK package version when configuring the runtime", async () => {
+    const cdp = new FakeCDPTransport({ configured: true });
+    const connect = vi.spyOn(CDPClient, "connect").mockResolvedValue(cdp as unknown as CDPClient);
+
+    try {
+      const client = await connectRPCClient({
+        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
+        extensionId: "stagehand",
+      });
+      try {
+        expect(cdp.sent[0]).toMatchObject({
+          jsonrpc: "2.0",
+          method: "runtime.configure",
+          params: {
+            client_info: {
+              name: "stagehand-sdk-ts",
+              version: sdkPackageJson.version,
+            },
+          },
+        });
+      } finally {
+        client.close();
+      }
+    } finally {
+      connect.mockRestore();
+    }
+  });
+
   it("accepts page methods without SDK wrapper methods", async () => {
     const cdp = new FakeCDPTransport({ matched: true });
     const client = new RPCClient(cdp, 1_000);
