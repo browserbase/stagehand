@@ -17,7 +17,7 @@
     "check": "oxfmt --check . && oxlint . && tsc --noEmit -p packages/protocol/tsconfig.json && tsc --noEmit -p packages/evals/tsconfig.json && pnpm --filter ./packages/docs check",
     "docs": "pnpm --filter ./packages/docs dev",
     "fmt": "oxfmt --write .",
-    "test": "pnpm --filter ./packages/server build && pnpm --filter ./packages/sdk-ts build && pnpm --recursive --if-present test && vitest run rules/ast-grep",
+    "test": "pnpm --filter ./packages/server test && pnpm --filter ./packages/sdk-ts build && pnpm --filter ./packages/sdk-ts test && pnpm --filter ./packages/protocol test && vitest run rules/ast-grep",
     "build": "pnpm --filter ./packages/protocol build && pnpm --filter ./packages/server build && pnpm --filter ./packages/sdk-ts build"
   },
   "devDependencies": {

@@ -1,4 +1,14 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "tsdown";
+import { assertPublicExtensionArtifact } from "./extensionArtifactPackaging.ts";
+
+const extensionMetadata: unknown = JSON.parse(
+  readFileSync(
+    new URL("../server/artifacts/stagehand-extension.metadata.json", import.meta.url),
+    "utf8",
+  ),
+);
+assertPublicExtensionArtifact(extensionMetadata);
 
 export default defineConfig({
   entry: "src/index.ts",
@@ -21,10 +31,6 @@ export default defineConfig({
     ],
   },
   copy: [
-    {
-      from: "../server/artifacts/stagehand-extension.zip",
-      to: "dist/assets",
-    },
     {
       from: "../server/dist",
       to: "dist",

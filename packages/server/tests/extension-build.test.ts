@@ -4,18 +4,24 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { unzipSync, zipSync, type Zippable } from "fflate";
 import { describe, expect, it } from "vitest";
+import { loadEnv } from "vite";
 import { z } from "zod/v4";
 import serverPackageJson from "../package.json" with { type: "json" };
 
 const stagehandExtensionDistDir = fileURLToPath(new URL("../dist", import.meta.url));
+const serverRoot = fileURLToPath(new URL("..", import.meta.url));
 const stagehandExtensionArchive = fileURLToPath(
   new URL("../artifacts/stagehand-extension.zip", import.meta.url),
+);
+const stagehandExtensionMetadata = fileURLToPath(
+  new URL("../artifacts/stagehand-extension.metadata.json", import.meta.url),
 );
 const expectedManifestVersion = serverPackageJson.version.replace(/[+-].*$/u, "");
 
 const ManifestSchema = z.looseObject({
   manifest_version: z.literal(3),
   name: z.string(),
+  key: z.string().min(1),
   version: z.string(),
   minimum_chrome_version: z.literal("116"),
   permissions: z.array(z.string()),
@@ -110,7 +116,7 @@ describe("extension build", () => {
     expect(offscreenScript).toContain("StagehandExtensionServiceWorkerHeartbeat");
     expect(serviceWorker).not.toContain("src/shims");
     expect(serviceWorker).toContain("new WebSocket");
-    expect(serviceWorker).toContain('binaryType = "arraybuffer"');
+    expect(serviceWorker).toMatch(/binaryType\s*=\s*[`"']arraybuffer[`"']/u);
     expect(serviceWorker).not.toContain("__vite-browser-external");
     expect(serviceWorker).not.toContain("__vite_browser_external");
     expect(serviceWorker).not.toContain("Node WebSocket transport is unavailable");
@@ -139,11 +145,46 @@ describe("extension build", () => {
       ];
     }
     expect(sha256(archiveBytes)).toBe(sha256(zipSync(deterministicEntries, { level: 9 })));
+
+    const metadata = z
+      .object({
+        chromeExtensionId: z.string().regex(/^[a-p]{32}$/u),
+        extensionVersion: z.literal(expectedManifestVersion),
+        stagehandProtocolVersion: z.literal(4),
+        residentTransportConfigured: z.boolean(),
+        sha256: z.string().regex(/^[0-9a-f]{64}$/u),
+        serviceWorkerPath: z.literal("service-worker.js"),
+        sourceCommit: z.string().regex(/^[0-9a-f]{40}$/u),
+      })
+      .parse(JSON.parse(await readFile(stagehandExtensionMetadata, "utf8")));
+    const archivedManifest = ManifestSchema.parse(
+      JSON.parse(new TextDecoder().decode(archive["manifest.json"])),
+    );
+    expect(metadata.chromeExtensionId).toBe(chromeExtensionId(archivedManifest.key));
+    const env = loadEnv("production", serverRoot, "VITE_STAGEHAND_");
+    expect(metadata.residentTransportConfigured).toBe(
+      Boolean(
+        (
+          process.env.VITE_STAGEHAND_BROWSER_PROXY_URL ?? env.VITE_STAGEHAND_BROWSER_PROXY_URL
+        )?.trim(),
+      ),
+    );
+    expect(metadata.sha256).toBe(sha256(archiveBytes));
   }, 30_000);
 });
 
 function sha256(value: Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function chromeExtensionId(publicKey: string): string {
+  return createHash("sha256")
+    .update(Buffer.from(publicKey, "base64"))
+    .digest("hex")
+    .slice(0, 32)
+    .replace(/[0-9a-f]/gu, (character) =>
+      String.fromCharCode("a".charCodeAt(0) + Number.parseInt(character, 16)),
+    );
 }
 
 async function readBuiltExtensionFiles(

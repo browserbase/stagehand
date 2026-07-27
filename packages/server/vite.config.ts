@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { zipSync, type Zippable } from "fflate";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
+import { STAGEHAND_PROTOCOL_VERSION } from "../protocol/schemas.ts";
 import { instrumentedDecoratorBuild } from "./instrumentedDecoratorBuild.ts";
 import packageJson from "./package.json" with { type: "json" };
 
@@ -9,9 +12,10 @@ const root = import.meta.dirname;
 const outDir = path.join(root, "dist");
 const artifactsDir = path.join(root, "artifacts");
 const extensionArchivePath = path.join(artifactsDir, "stagehand-extension.zip");
+const extensionMetadataPath = path.join(artifactsDir, "stagehand-extension.metadata.json");
 const zipModifiedAt = new Date(1980, 0, 1);
 
-function buildExtensionArtifacts() {
+function buildExtensionArtifacts(residentTransportConfigured: boolean) {
   return {
     name: "stagehand-extension-artifacts",
     async closeBundle() {
@@ -44,8 +48,51 @@ function buildExtensionArtifacts() {
       } finally {
         await rm(temporaryArchivePath, { force: true });
       }
+      const manifestKey = manifest.key;
+      if (typeof manifestKey !== "string" || manifestKey.length === 0) {
+        throw new Error("Stagehand extension manifest must contain a stable public key");
+      }
+      await writeFile(
+        extensionMetadataPath,
+        `${JSON.stringify(
+          {
+            chromeExtensionId: chromeExtensionId(manifestKey),
+            extensionVersion: chromeManifestVersion(packageJson.version),
+            stagehandProtocolVersion: STAGEHAND_PROTOCOL_VERSION,
+            residentTransportConfigured,
+            sha256: sha256(archive),
+            serviceWorkerPath: "service-worker.js",
+            sourceCommit: sourceCommit(),
+          },
+          null,
+          2,
+        )}\n`,
+      );
     },
   };
+}
+
+function sha256(value: Uint8Array): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function chromeExtensionId(publicKey: string): string {
+  return createHash("sha256")
+    .update(Buffer.from(publicKey, "base64"))
+    .digest("hex")
+    .slice(0, 32)
+    .replace(/[0-9a-f]/gu, (character) =>
+      String.fromCharCode("a".charCodeAt(0) + Number.parseInt(character, 16)),
+    );
+}
+
+function sourceCommit(): string {
+  const suppliedCommit = process.env.GITHUB_SHA?.trim();
+  if (suppliedCommit) return suppliedCommit;
+  return execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: path.resolve(root, "../.."),
+    encoding: "utf8",
+  }).trim();
 }
 
 function chromeManifestVersion(version: string): string {
@@ -106,27 +153,38 @@ async function readExtensionFiles(directory: string, relativeDirectory = ""): Pr
   return files;
 }
 
-export default defineConfig({
-  build: {
-    emptyOutDir: true,
-    minify: false,
-    modulePreload: false,
-    outDir,
-    target: "es2022",
-    rolldownOptions: {
-      input: {
-        "service-worker": path.join(root, "service-worker.ts"),
-        "content-script": path.join(root, "content-script.ts"),
-        "offscreen/service-worker-heartbeat": path.join(
-          root,
-          "service-worker-lifecycle/heartbeat.ts",
-        ),
-        "wake-service-worker": path.join(root, "service-worker-lifecycle/wake.ts"),
-      },
-      output: {
-        entryFileNames: "[name].js",
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, root, "VITE_STAGEHAND_");
+  const residentTransportConfigured = Boolean(
+    (process.env.VITE_STAGEHAND_BROWSER_PROXY_URL ?? env.VITE_STAGEHAND_BROWSER_PROXY_URL)?.trim(),
+  );
+  return {
+    build: {
+      emptyOutDir: true,
+      minify: "oxc",
+      modulePreload: false,
+      outDir,
+      target: "es2022",
+      rolldownOptions: {
+        input: {
+          "service-worker": path.join(root, "service-worker.ts"),
+          "content-script": path.join(root, "content-script.ts"),
+          "offscreen/service-worker-heartbeat": path.join(
+            root,
+            "service-worker-lifecycle/heartbeat.ts",
+          ),
+          "wake-service-worker": path.join(root, "service-worker-lifecycle/wake.ts"),
+        },
+        output: {
+          entryFileNames: "[name].js",
+          // Decorated handlers and the RPC router rely on stable runtime names.
+          minify: {
+            compress: { keepNames: { function: true, class: true } },
+            mangle: { keepNames: { function: true, class: true } },
+          },
+        },
       },
     },
-  },
-  plugins: [instrumentedDecoratorBuild(), buildExtensionArtifacts()],
+    plugins: [instrumentedDecoratorBuild(), buildExtensionArtifacts(residentTransportConfigured)],
+  };
 });
