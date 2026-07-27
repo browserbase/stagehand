@@ -255,19 +255,13 @@ export class StagehandRuntime {
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
+  private initializationInProgress = false;
 
   constructor(
     readonly adapters: ResolvedStagehandRuntimeAdapters,
     readonly tracing: StagehandTracing,
   ) {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
-  }
-
-  browserConnectionStatus(): { configured: boolean; connected: boolean } {
-    return {
-      configured: this.browserSession !== undefined,
-      connected: this.browserSession?.connected ?? false,
-    };
   }
 
   async replaceBrowserConnection(params: { cdpUrl: string }): Promise<void> {
@@ -290,29 +284,37 @@ export class StagehandRuntime {
     if (this.state.getState().status !== "created") {
       throw new Error("Stagehand has already been initialized");
     }
-
-    this.logger.setLevel(params.logLevel);
-    if (!this.browserSession) {
-      if (!params.browserCdpUrl) {
-        throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
-      }
-      await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl });
+    if (this.initializationInProgress) {
+      throw new Error("Stagehand initialization is already in progress");
     }
-    await this.browserSession?.prepareForInitialization?.();
-    const pages = await this.contextPages();
-    this.tracing.configure(params.telemetry);
-    this.state.setState(
-      StagehandRuntimeStateSchema.parse({
-        status: "initialized",
-        initParams: params,
-      }),
-      true,
-    );
+    this.initializationInProgress = true;
 
-    return {
-      initialized: true,
-      pages,
-    };
+    try {
+      this.logger.setLevel(params.logLevel);
+      if (!this.browserSession) {
+        if (!params.browserCdpUrl) {
+          throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
+        }
+        await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl });
+      }
+      await this.browserSession?.prepareForInitialization?.();
+      const pages = await this.contextPages();
+      this.tracing.configure(params.telemetry);
+      this.state.setState(
+        StagehandRuntimeStateSchema.parse({
+          status: "initialized",
+          initParams: params,
+        }),
+        true,
+      );
+
+      return {
+        initialized: true,
+        pages,
+      };
+    } finally {
+      this.initializationInProgress = false;
+    }
   }
 
   async browserGetVersion(): Promise<BrowserGetVersionResult> {
