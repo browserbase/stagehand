@@ -310,9 +310,13 @@ type NativeXPathMirrorCache = {
   source: Document;
   context: NativeXPathEvaluationContext;
   observer: MutationObserver;
+  synchronize: (records: MutationRecord[]) => boolean;
+  pendingRecords: MutationRecord[];
+  pendingMutationCost: number;
 };
 
 let nativeXPathMirrorCache: NativeXPathMirrorCache | null = null;
+const MAX_INCREMENTAL_MIRROR_MUTATION_COST = 256;
 
 function disposeNativeXPathMirror(cache: NativeXPathMirrorCache | null): void {
   if (!cache) return;
@@ -320,6 +324,7 @@ function disposeNativeXPathMirror(cache: NativeXPathMirrorCache | null): void {
   // subtrees through the observer's delivery queue.
   cache.observer.takeRecords();
   cache.observer.disconnect();
+  cache.pendingRecords.length = 0;
   if (nativeXPathMirrorCache === cache) nativeXPathMirrorCache = null;
 }
 
@@ -336,7 +341,9 @@ function createNativeXPathEvaluationContext(): NativeXPathEvaluationContext {
 
   const cached = nativeXPathMirrorCache;
   if (cached?.source === document) {
-    if (cached.observer.takeRecords().length === 0) return cached.context;
+    const records = cached.pendingRecords.splice(0).concat(cached.observer.takeRecords());
+    cached.pendingMutationCost = 0;
+    if (records.length === 0 || cached.synchronize(records)) return cached.context;
     disposeNativeXPathMirror(cached);
   } else if (cached) {
     disposeNativeXPathMirror(cached);
@@ -348,6 +355,9 @@ function createNativeXPathEvaluationContext(): NativeXPathEvaluationContext {
   const mirror = document.implementation.createHTMLDocument("");
   while (mirror.firstChild) mirror.removeChild(mirror.firstChild);
   const originals = new WeakMap<Node, Node>();
+  const mirrors = new WeakMap<Node, Node>();
+  originals.set(mirror, document);
+  mirrors.set(document, mirror);
 
   const cloneIntoMirror = (source: Node): Node | null => {
     if (source instanceof Element) {
@@ -357,6 +367,7 @@ function createNativeXPathEvaluationContext(): NativeXPathEvaluationContext {
         : source.localName;
       const clone = mirror.createElementNS(source.namespaceURI, qualifiedName);
       originals.set(clone, source);
+      mirrors.set(source, clone);
       for (const attribute of source.attributes) {
         try {
           clone.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value);
@@ -392,6 +403,7 @@ function createNativeXPathEvaluationContext(): NativeXPathEvaluationContext {
     }
 
     if (clone) originals.set(clone, source);
+    if (clone) mirrors.set(source, clone);
     return clone;
   };
 
@@ -404,14 +416,148 @@ function createNativeXPathEvaluationContext(): NativeXPathEvaluationContext {
     document: mirror,
     toOriginal: (node) => (node ? (originals.get(node) ?? null) : null),
   };
+
+  // Bring the detached tree current in proportion to the mutations made by
+  // the page. Synchronization is deferred until the next XPath lookup so pages
+  // that stop using XPath do not pay a permanent mutation-time cost.
+  const synchronize = (records: MutationRecord[]): boolean => {
+    try {
+      const clonedSourceRoots: Node[] = [];
+      const detachPreviouslyMirroredSubtree = (source: Node): void => {
+        const previousMirror = mirrors.get(source);
+        if (previousMirror?.parentNode) previousMirror.parentNode.removeChild(previousMirror);
+        for (const child of source.childNodes) detachPreviouslyMirroredSubtree(child);
+      };
+
+      for (const record of records) {
+        // Added subtrees are cloned from their final live state. Later records
+        // inside one would replay changes already captured by that clone (and
+        // can otherwise duplicate children).
+        if (clonedSourceRoots.some((root) => root.contains(record.target))) continue;
+
+        const mirroredTarget = mirrors.get(record.target);
+        // The indicator host and everything below it is deliberately absent.
+        if (!mirroredTarget) continue;
+
+        if (record.type === "attributes") {
+          const source = record.target as Element;
+          const target = mirroredTarget as Element;
+          const namespace = record.attributeNamespace;
+          const localName = record.attributeName!;
+          const sourceAttribute = source.getAttributeNodeNS(namespace, localName);
+          if (!sourceAttribute) {
+            target.removeAttributeNS(namespace, localName);
+            continue;
+          }
+          target.setAttributeNS(namespace, sourceAttribute.name, sourceAttribute.value);
+          const targetAttribute = target.getAttributeNodeNS(namespace, sourceAttribute.localName);
+          if (targetAttribute) {
+            originals.set(targetAttribute, sourceAttribute);
+            mirrors.set(sourceAttribute, targetAttribute);
+          }
+          continue;
+        }
+
+        if (record.type === "characterData") {
+          mirroredTarget.nodeValue = record.target.nodeValue;
+          continue;
+        }
+
+        for (const removed of record.removedNodes) {
+          const mirroredRemoved = mirrors.get(removed);
+          if (mirroredRemoved?.parentNode === mirroredTarget) {
+            mirroredTarget.removeChild(mirroredRemoved);
+          }
+        }
+
+        for (const added of record.addedNodes) {
+          // Descendants may have moved here from elsewhere in the document.
+          // Detach their old mirror nodes before cloneIntoMirror remaps them.
+          detachPreviouslyMirroredSubtree(added);
+
+          const mirroredAdded = cloneIntoMirror(added);
+          if (!mirroredAdded) continue;
+          clonedSourceRoots.push(added);
+          let sourceNext = record.nextSibling;
+          let mirroredNext: Node | null = null;
+          while (sourceNext) {
+            const candidate = mirrors.get(sourceNext);
+            if (candidate?.parentNode === mirroredTarget) {
+              mirroredNext = candidate;
+              break;
+            }
+            sourceNext = sourceNext.nextSibling;
+          }
+          mirroredTarget.insertBefore(mirroredAdded, mirroredNext);
+        }
+      }
+      return true;
+    } catch {
+      // A rare DOM shape that cannot be mirrored safely falls back to a fresh
+      // snapshot on this lookup rather than returning stale XPath results.
+      return false;
+    }
+  };
+
+  const mutationCostWithinLimit = (records: MutationRecord[], limit: number): number | null => {
+    let cost = 0;
+    const visitAddedNode = (node: Node): boolean => {
+      cost += 1;
+      if (node instanceof Element) cost += node.attributes.length;
+      if (cost > limit) return false;
+      for (const child of node.childNodes) {
+        if (!visitAddedNode(child)) return false;
+      }
+      return true;
+    };
+
+    for (const record of records) {
+      cost += 1 + record.removedNodes.length;
+      if (cost > limit) return null;
+      for (const added of record.addedNodes) {
+        if (!visitAddedNode(added)) return null;
+      }
+    }
+    return cost;
+  };
+
   let cache: NativeXPathMirrorCache;
-  const observer = new MutationObserver(() => {
-    disposeNativeXPathMirror(cache);
+  const observer = new MutationObserver((records) => {
+    // Mutations inside a newly added subtree are already represented by the
+    // eventual clone of its queued ancestor. The indicator is absent too.
+    const relevantRecords = records.filter((record) => mirrors.has(record.target));
+    if (relevantRecords.length === 0) return;
+
+    const remainingBudget = MAX_INCREMENTAL_MIRROR_MUTATION_COST - cache.pendingMutationCost;
+    const cost = mutationCostWithinLimit(relevantRecords, remainingBudget);
+    if (cost === null) {
+      disposeNativeXPathMirror(cache);
+      return;
+    }
+
+    const containsRemovedNodes = relevantRecords.some(
+      (record) => record.type === "childList" && record.removedNodes.length > 0,
+    );
+    if (containsRemovedNodes) {
+      // Apply removal batches immediately so records cannot retain detached
+      // subtrees. This is still proportional to the changed subtree, and also
+      // covers common SPA list reconciliation without rebuilding the document.
+      const pending = cache.pendingRecords.splice(0);
+      cache.pendingMutationCost = 0;
+      if (!synchronize(pending.concat(relevantRecords))) disposeNativeXPathMirror(cache);
+      return;
+    }
+
+    cache.pendingRecords.push(...relevantRecords);
+    cache.pendingMutationCost += cost;
   });
   cache = {
     source: document,
     context,
     observer,
+    synchronize,
+    pendingRecords: [],
+    pendingMutationCost: 0,
   };
   observer.observe(document, {
     attributes: true,

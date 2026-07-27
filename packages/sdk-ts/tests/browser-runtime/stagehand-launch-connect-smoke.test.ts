@@ -154,6 +154,14 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     ).resolves.toBe(true);
 
     await page.evaluate(`(() => {
+      globalThis.__stagehandCreateElementNSCalls = 0;
+      globalThis.__stagehandOriginalCreateElementNS = Document.prototype.createElementNS;
+      Document.prototype.createElementNS = function (...args) {
+        globalThis.__stagehandCreateElementNSCalls += 1;
+        return globalThis.__stagehandOriginalCreateElementNS.apply(this, args);
+      };
+    })()`);
+    await page.evaluate(`(() => {
       const collision = document.createElement("div");
       collision.id = "__stagehand_agent_indicator__";
       collision.textContent = "page-owned collision";
@@ -182,6 +190,39 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await expect(page.locator("xpath=/html/div[1]").innerText()).resolves.toBe(
       "shadow positional candidate",
     );
+    await expect(page.evaluate<number>(`globalThis.__stagehandCreateElementNSCalls`)).resolves.toBe(
+      2,
+    );
+    await page.evaluate(`(() => {
+      globalThis.__stagehandCreateElementNSCalls = 0;
+      document.querySelector("#locator-output").setAttribute("data-updated", "true");
+    })()`);
+    await expect(page.locator("xpath=//*[@data-updated='true']").count()).resolves.toBe(1);
+    await expect(page.evaluate<number>(`globalThis.__stagehandCreateElementNSCalls`)).resolves.toBe(
+      0,
+    );
+    await page.evaluate(`(() => {
+      document.querySelector("#shadow-positional-candidate").remove();
+    })()`);
+    await expect(page.locator("xpath=/html/div").count()).resolves.toBe(0);
+    await expect(page.evaluate<number>(`globalThis.__stagehandCreateElementNSCalls`)).resolves.toBe(
+      0,
+    );
+    await page.evaluate(`(() => {
+      const wrapper = document.createElement("section");
+      wrapper.id = "moved-output-wrapper";
+      document.body.append(wrapper);
+      wrapper.append(document.querySelector("#locator-output"));
+    })()`);
+    await expect(page.locator("xpath=//*[@id='locator-output']").count()).resolves.toBe(1);
+    await expect(page.evaluate<number>(`globalThis.__stagehandCreateElementNSCalls`)).resolves.toBe(
+      2,
+    );
+    await page.evaluate(`(() => {
+      Document.prototype.createElementNS = globalThis.__stagehandOriginalCreateElementNS;
+      delete globalThis.__stagehandOriginalCreateElementNS;
+      delete globalThis.__stagehandCreateElementNSCalls;
+    })()`);
     await page.locator("#locator-input").fill("user@example.com");
     await page.locator("#locator-button").click();
 
