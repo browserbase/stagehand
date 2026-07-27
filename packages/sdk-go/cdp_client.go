@@ -36,16 +36,16 @@ var (
 	ErrCDPConnectionClosed = errors.New("stagehand CDP connection closed")
 )
 
-// CDPCommandError is an error response returned by the browser for a CDP
+// cdpCommandError is an error response returned by the browser for a CDP
 // command. Code and Data preserve the browser's original error object.
-type CDPCommandError struct {
+type cdpCommandError struct {
 	Method  string
 	Code    int
 	Message string
 	Data    json.RawMessage
 }
 
-func (e *CDPCommandError) Error() string {
+func (e *cdpCommandError) Error() string {
 	return fmt.Sprintf("CDP command failed: %s: %s", e.Method, e.Message)
 }
 
@@ -201,7 +201,7 @@ func connectRPCClient(
 	if err != nil {
 		return nil, err
 	}
-	rpc, err := newRPCClient(cdp, options.commandTimeout)
+	rpc, err := newRPCClient(cdp)
 	if err != nil {
 		return nil, errors.Join(err, cdp.Close())
 	}
@@ -553,7 +553,7 @@ func (c *cdpClient) sendCommand(
 	if err != nil {
 		return fmt.Errorf("encode CDP command %s: %w", method, err)
 	}
-	if err := c.socket.Write(ctx, websocket.MessageText, encoded); err != nil {
+	if err := c.socket.Write(c.ctx, websocket.MessageText, encoded); err != nil {
 		return fmt.Errorf("send CDP command %s: %w", method, err)
 	}
 
@@ -757,7 +757,7 @@ func (c *cdpClient) shutdown(reason error) {
 	})
 }
 
-func decodeCDPCommandError(method string, raw json.RawMessage) (*CDPCommandError, error) {
+func decodeCDPCommandError(method string, raw json.RawMessage) (*cdpCommandError, error) {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return nil, err
@@ -782,7 +782,7 @@ func decodeCDPCommandError(method string, raw json.RawMessage) (*CDPCommandError
 	if err != nil {
 		return nil, err
 	}
-	return &CDPCommandError{
+	return &cdpCommandError{
 		Method:  method,
 		Code:    int(code),
 		Message: object.Message,
@@ -815,7 +815,7 @@ func (c *cdpClient) loadUnpackedExtension(
 		&loaded,
 	)
 	if err != nil {
-		var commandError *CDPCommandError
+		var commandError *cdpCommandError
 		if errors.As(err, &commandError) &&
 			(commandError.Code == -32601 ||
 				strings.Contains(strings.ToLower(commandError.Message), "method not found") ||

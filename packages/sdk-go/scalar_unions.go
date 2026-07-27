@@ -60,8 +60,9 @@ func (value Caching) MarshalJSON() ([]byte, error) {
 	case cachingBoolean:
 		return json.Marshal(value.enabled)
 	case cachingOptions:
-		if value.options.Threshold != nil && *value.options.Threshold <= 0 {
-			return nil, errors.New("stagehand.Caching threshold must be positive")
+		if threshold := value.options.Threshold; threshold != nil &&
+			(*threshold <= 0 || int64(*threshold) > 9007199254740991) {
+			return nil, errors.New("stagehand.Caching threshold must be between 1 and 9007199254740991")
 		}
 		return json.Marshal(value.options)
 	default:
@@ -86,8 +87,9 @@ func (value *Caching) UnmarshalJSON(data []byte) error {
 		if err := json.Unmarshal(data, &options); err != nil {
 			return fmt.Errorf("decode caching options: %w", err)
 		}
-		if options.Threshold != nil && *options.Threshold <= 0 {
-			return errors.New("decode caching options: threshold must be positive")
+		if threshold := options.Threshold; threshold != nil &&
+			(*threshold <= 0 || int64(*threshold) > 9007199254740991) {
+			return errors.New("decode caching options: threshold must be between 1 and 9007199254740991")
 		}
 		*value = CacheWithOptions(options)
 		return nil

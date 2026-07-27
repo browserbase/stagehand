@@ -5,21 +5,27 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sync"
 )
 
 // Page is a thin wrapper around a generated PageRef.
 type Page struct {
 	rpc protocolClient
+	mu  sync.RWMutex
 	ref PageRef
 }
 
 // PageID returns the stable protocol page identifier.
 func (p *Page) PageID() string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	return p.ref.PageID
 }
 
 // Ref returns the page's latest generated protocol reference.
 func (p *Page) Ref() PageRef {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	return p.ref
 }
 
@@ -30,7 +36,7 @@ func (p *Page) Goto(ctx context.Context, url string, options *PageNavigationOpti
 	if err := p.rpc.call(ctx, "page.goto", params, &result); err != nil {
 		return err
 	}
-	p.ref = result
+	p.setRef(result)
 	return nil
 }
 
@@ -41,7 +47,7 @@ func (p *Page) Reload(ctx context.Context, options *PageReloadOptions) error {
 	if err := p.rpc.call(ctx, "page.reload", params, &result); err != nil {
 		return err
 	}
-	p.ref = result
+	p.setRef(result)
 	return nil
 }
 
@@ -52,7 +58,7 @@ func (p *Page) GoBack(ctx context.Context, options *PageNavigationOptions) error
 	if err := p.rpc.call(ctx, "page.go_back", params, &result); err != nil {
 		return err
 	}
-	p.ref = result
+	p.setRef(result)
 	return nil
 }
 
@@ -63,7 +69,7 @@ func (p *Page) GoForward(ctx context.Context, options *PageNavigationOptions) er
 	if err := p.rpc.call(ctx, "page.go_forward", params, &result); err != nil {
 		return err
 	}
-	p.ref = result
+	p.setRef(result)
 	return nil
 }
 
@@ -290,4 +296,10 @@ func (p *Page) Locator(selector string) *PageLocator {
 		rpc:        p.rpc,
 		descriptor: LocatorDescriptor{PageID: p.PageID(), Selector: selector},
 	}
+}
+
+func (p *Page) setRef(ref PageRef) {
+	p.mu.Lock()
+	p.ref = ref
+	p.mu.Unlock()
 }

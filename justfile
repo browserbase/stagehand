@@ -23,7 +23,7 @@ check:
     go -C {{go_generator_dir}} run . --check
     pnpm --filter ./packages/server build
     go -C {{go_dir}} run ./internal/extensionpack --check
-    test -z "$(gofmt -l $(find {{go_dir}} -name '*.go' -type f))"
+    test -z "$(find {{go_dir}} -name '*.go' -type f -exec gofmt -l {} +)"
     go -C {{go_dir}} vet ./...
     go -C {{go_generator_dir}} vet ./...
 
@@ -46,7 +46,7 @@ fmt:
     pnpm fmt
     uv --directory {{python_dir}} run --locked ruff check --fix .
     uv --directory {{python_dir}} run --locked ruff format .
-    gofmt -w $(find {{go_dir}} -name '*.go' -type f)
+    find {{go_dir}} -name '*.go' -type f -exec gofmt -w {} +
 
 build:
     pnpm build

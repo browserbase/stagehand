@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 )
 
 // Stagehand is the root SDK client.
 type Stagehand struct {
+	mu                        sync.RWMutex
 	initParams                StagehandClientInitParams
 	adapters                  clientAdapters
 	rpc                       protocolClient
@@ -26,6 +28,8 @@ func New(initParams StagehandClientInitParams) *Stagehand {
 
 // Context returns the initialized browser context.
 func (s *Stagehand) Context() (*BrowserContext, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if s.context == nil {
 		return nil, ErrNotInitialized
 	}
@@ -34,6 +38,8 @@ func (s *Stagehand) Context() (*BrowserContext, error) {
 
 // Initialized reports whether Init completed successfully.
 func (s *Stagehand) Initialized() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.initialized
 }
 
@@ -182,6 +188,9 @@ func ExtractAs[T any](
 // Init resolves the browser, connects the protocol transport, and initializes
 // the worker. Browser resolution is intentionally stubbed in this first client PR.
 func (s *Stagehand) Init(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.initialized {
 		return nil
 	}
@@ -223,16 +232,24 @@ func (s *Stagehand) Init(ctx context.Context) error {
 
 // Close releases the remote Stagehand context and all local resources.
 func (s *Stagehand) Close(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	var closeErr error
 	if s.context != nil && s.rpc != nil {
 		var result StagehandCloseResult
 		closeErr = s.rpc.call(ctx, "stagehand.close", EmptyParams{}, &result)
+		if errors.Is(closeErr, ErrCDPConnectionClosed) {
+			closeErr = nil
+		}
 	}
 	cleanupErr := s.release(ctx)
 	return errors.Join(closeErr, cleanupErr)
 }
 
 func (s *Stagehand) connectedProtocol() (protocolClient, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if !s.initialized || s.rpc == nil {
 		return nil, ErrNotInitialized
 	}

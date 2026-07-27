@@ -4,8 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 type recordedCall struct {
@@ -14,10 +18,11 @@ type recordedCall struct {
 }
 
 type recordingProtocolClient struct {
-	calls     []recordedCall
-	responses map[string]any
-	handlers  map[string]requestHandler
-	closed    bool
+	calls      []recordedCall
+	responses  map[string]any
+	callErrors map[string]error
+	handlers   map[string]requestHandler
+	closed     bool
 }
 
 func (c *recordingProtocolClient) call(
@@ -27,6 +32,9 @@ func (c *recordingProtocolClient) call(
 	result any,
 ) error {
 	c.calls = append(c.calls, recordedCall{method: method, params: params})
+	if err := c.callErrors[method]; err != nil {
+		return err
+	}
 	response, ok := c.responses[method]
 	if !ok {
 		return nil
@@ -207,5 +215,140 @@ func TestClientLLMHandlerUsesGeneratedUnions(t *testing.T) {
 	}
 	if _, ok := result.(LLMGenerateResult); !ok {
 		t.Fatalf("handler result type = %T, want LLMGenerateResult", result)
+	}
+}
+
+func TestClientSerializesConcurrentInitAndClose(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"runtime.configure": RuntimeConfigureResult{Configured: true},
+		"stagehand.init":    StagehandInitResult{Initialized: true},
+		"stagehand.close":   StagehandCloseResult{Closed: true},
+	}}
+	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
+	var resolves atomic.Int32
+	client.adapters.resolveBrowserSource = func(
+		context.Context,
+		StagehandClientInitParams,
+	) (resolvedBrowserSource, error) {
+		resolves.Add(1)
+		return resolvedBrowserSource{cdpURL: "test://stagehand", keepAlive: true}, nil
+	}
+
+	var initGroup sync.WaitGroup
+	initErrors := make(chan error, 8)
+	for range 8 {
+		initGroup.Add(1)
+		go func() {
+			defer initGroup.Done()
+			initErrors <- client.Init(context.Background())
+		}()
+	}
+	initGroup.Wait()
+	close(initErrors)
+	for err := range initErrors {
+		if err != nil {
+			t.Fatalf("concurrent Init() error = %v", err)
+		}
+	}
+	if resolves.Load() != 1 {
+		t.Fatalf("browser resolutions = %d, want 1", resolves.Load())
+	}
+
+	var closeGroup sync.WaitGroup
+	closeErrors := make(chan error, 8)
+	for range 8 {
+		closeGroup.Add(1)
+		go func() {
+			defer closeGroup.Done()
+			closeErrors <- client.Close(context.Background())
+		}()
+	}
+	closeGroup.Wait()
+	close(closeErrors)
+	for err := range closeErrors {
+		if err != nil {
+			t.Fatalf("concurrent Close() error = %v", err)
+		}
+	}
+
+	var initCalls, closeCalls int
+	for _, call := range rpc.calls {
+		switch call.method {
+		case "stagehand.init":
+			initCalls++
+		case "stagehand.close":
+			closeCalls++
+		}
+	}
+	if initCalls != 1 || closeCalls != 1 {
+		t.Fatalf("lifecycle calls: init = %d, close = %d; want 1 each", initCalls, closeCalls)
+	}
+	if client.Initialized() {
+		t.Fatal("client remained initialized after Close")
+	}
+}
+
+func TestClientCloseWaitsForInFlightInit(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"runtime.configure": RuntimeConfigureResult{Configured: true},
+		"stagehand.init":    StagehandInitResult{Initialized: true},
+		"stagehand.close":   StagehandCloseResult{Closed: true},
+	}}
+	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
+	resolveStarted := make(chan struct{})
+	continueResolve := make(chan struct{})
+	client.adapters.resolveBrowserSource = func(
+		context.Context,
+		StagehandClientInitParams,
+	) (resolvedBrowserSource, error) {
+		close(resolveStarted)
+		<-continueResolve
+		return resolvedBrowserSource{cdpURL: "test://stagehand", keepAlive: true}, nil
+	}
+
+	initDone := make(chan error, 1)
+	go func() { initDone <- client.Init(context.Background()) }()
+	<-resolveStarted
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- client.Close(context.Background()) }()
+	select {
+	case err := <-closeDone:
+		t.Fatalf("Close() returned before Init() completed: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(continueResolve)
+	if err := <-initDone; err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	if err := <-closeDone; err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
+func TestClientCloseIgnoresDisconnectedTransport(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{
+		responses: map[string]any{
+			"runtime.configure": RuntimeConfigureResult{Configured: true},
+			"stagehand.init":    StagehandInitResult{Initialized: true},
+		},
+		callErrors: map[string]error{
+			"stagehand.close": fmt.Errorf("close RPC: %w", ErrCDPConnectionClosed),
+		},
+	}
+	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
+	if err := client.Init(context.Background()); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	if err := client.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v, want nil", err)
+	}
+	if !rpc.closed {
+		t.Fatal("protocol client was not closed")
 	}
 }

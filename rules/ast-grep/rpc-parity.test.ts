@@ -78,8 +78,18 @@ describe("JSON-RPC clients retain the same core behavior", () => {
       readFile(clients.go.file, "utf8"),
     ]);
 
-    for (const code of ["-32700", "-32600", "-32601", "-32602", "-32603"]) {
+    const errorCodes = [
+      { code: "-32700", typescriptName: "parseError" },
+      { code: "-32600", typescriptName: "invalidRequest" },
+      { code: "-32601", typescriptName: "methodNotFound" },
+      { code: "-32602", typescriptName: "invalidParams" },
+      { code: "-32603", typescriptName: "internalError" },
+    ] as const;
+    for (const { code, typescriptName } of errorCodes) {
       expect(protocol, `protocol must declare JSON-RPC error ${code}`).toContain(code);
+      expect(typescript, `TypeScript must use JSON-RPC error ${code}`).toContain(
+        `JSONRPCErrorCodes.${typescriptName}`,
+      );
       expect(pythonSource, `Python must use JSON-RPC error ${code}`).toContain(code);
       expect(goSource, `Go must use JSON-RPC error ${code}`).toContain(code);
     }
