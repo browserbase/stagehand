@@ -28,10 +28,36 @@ describe("V3Context active page", () => {
     expect(chromeTabs.activeTargetId).toHaveBeenCalledOnce();
   });
 
-  it("returns undefined when Chrome's active target is not registered", async () => {
-    const { context } = createContext("unregistered-target");
+  it("waits for Chrome's active target to be registered", async () => {
+    const { context } = createContext("popup-target");
+    const page = createPage("popup-target");
+
+    const activePage = context.activePage();
+    setTimeout(() => context.pagesByTarget.set("popup-target", page), 10);
+
+    await expect(activePage).resolves.toBe(page);
+  });
+
+  it("returns undefined when Chrome has no active page target", async () => {
+    const { context } = createContext();
 
     await expect(context.activePage()).resolves.toBeUndefined();
+  });
+
+  it("times out when Chrome's active target is never registered", async () => {
+    vi.useFakeTimers();
+    try {
+      const { context } = createContext("unregistered-target");
+      const activePage = expect(context.activePage()).rejects.toThrow(
+        "activePage: active target not registered (unregistered-target) timed out after 5000ms",
+      );
+
+      await vi.advanceTimersByTimeAsync(5000);
+
+      await activePage;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("uses the Chrome-backed active page for implicit clipboard operations", async () => {
