@@ -11,12 +11,12 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import type { AgentToolMode } from "@browserbasehq/stagehand";
 import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
 import { AssertionError } from "./assertions.js";
 import { EvalLogger } from "../logger.js";
+import { resolveV4SdkPath } from "../v4SdkLoader.js";
 import { EvalsError } from "../errors.js";
 import { exactMatch, errorMatch, passRate } from "../scoring.js";
 import { generateExperimentName } from "../utils.js";
@@ -96,8 +96,7 @@ const SDK_COMPARISON_PROJECT = "stagehand-v4";
 async function assertBraintrustProjectReachable(
   projectName: string,
 ): Promise<void> {
-  const apiUrl =
-    process.env.BRAINTRUST_API_URL ?? "https://api.braintrust.dev";
+  const apiUrl = process.env.BRAINTRUST_API_URL ?? "https://api.braintrust.dev";
   let body: { objects?: unknown[] };
   try {
     const response = await fetch(
@@ -133,16 +132,15 @@ async function assertBraintrustProjectReachable(
 }
 
 /**
- * Resolve the commit SHA of the linked v4-spike checkout so v4 experiments
- * stay reproducible against a moving SDK. Follows the pnpm link symlink to
- * the real checkout. Best-effort: returns "unknown" on any failure.
+ * Resolve the commit SHA of the v4-spike checkout pointed at by
+ * STAGEHAND_V4_SDK_PATH so v4 experiments stay reproducible against a
+ * moving SDK. Best-effort: returns "unknown" on any failure.
  */
 function resolveV4SpikeSha(): string {
   try {
-    const sdkEntry = fileURLToPath(
-      import.meta.resolve("@browserbasehq/stagehand-v4-spike-sdk-ts"),
-    );
-    // src/index.ts → package root → (realpath) v4-spike/packages/sdk-ts → repo root
+    const sdkEntry = resolveV4SdkPath();
+    if (!sdkEntry) return "unknown";
+    // <checkout>/packages/sdk-ts/src/index.ts → checkout root
     const sdkPackageRoot = fs.realpathSync(
       path.dirname(path.dirname(sdkEntry)),
     );

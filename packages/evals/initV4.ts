@@ -6,13 +6,14 @@
  * Kept deliberately minimal: no agent support (agent tasks are not ported)
  * and no USE_API path (v3-only concept).
  */
-import {
+import type {
   Stagehand,
-  type Page,
-  type StagehandClientInitParams,
+  Page,
+  StagehandClientInitParams,
 } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
 import { getEnv } from "./env.js";
 import type { EvalLogger } from "./logger.js";
+import { loadV4Sdk } from "./v4SdkLoader.js";
 
 export type InitV4Args = {
   logger: EvalLogger;
@@ -77,6 +78,11 @@ export async function initV4({
 }: InitV4Args): Promise<V4InitResult> {
   const env = configOverrides?.env ?? getEnv();
 
+  // The SDK is loaded dynamically from STAGEHAND_V4_SDK_PATH so that
+  // v3-only runs (and CI, which has no v4-spike checkout) never resolve
+  // the v4 package at module-load time.
+  const sdk = await loadV4Sdk();
+
   // The model allow-list is enforced at runtime by the SDK's zod schema
   // (loud, descriptive error on an unsupported model), so the cast here is
   // runtime-checked.
@@ -85,7 +91,7 @@ export async function initV4({
     apiKey: resolveModelApiKey(modelName),
   } as NonNullable<StagehandClientInitParams["model"]>;
 
-  const stagehand = new Stagehand({
+  const stagehand = new sdk.Stagehand({
     browser:
       env === "BROWSERBASE"
         ? { type: "browserbase" }
