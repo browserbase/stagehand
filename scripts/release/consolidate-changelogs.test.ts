@@ -21,6 +21,12 @@ describe("formatPackageChangelog", () => {
 
 - Add a feature.`);
   });
+
+  it("rejects a package changelog without a version heading", () => {
+    expect(() => formatPackageChangelog("# Package\n\nNo releases yet.\n", "Python SDK")).toThrow(
+      "The Python SDK changelog does not contain a version heading",
+    );
+  });
 });
 
 describe("consolidateChangelog", () => {
@@ -76,5 +82,30 @@ Release notes for the public SDKs.
   it("does not add a generated release twice", () => {
     const consolidated = consolidateChangelog(rootChangelog, [typescriptSection]);
     expect(consolidateChangelog(consolidated, [typescriptSection])).toBe(consolidated);
+  });
+
+  it("recognizes an existing heading at end of file", () => {
+    const rootAtHeading = `${rootChangelog.trim()}\n\n${typescriptSection.split("\n")[0]}`;
+    expect(consolidateChangelog(rootAtHeading, [typescriptSection])).toBe(rootAtHeading);
+  });
+
+  it("rejects a root changelog without version headings", () => {
+    expect(() => consolidateChangelog("# Stagehand\n", [typescriptSection])).toThrow(
+      "The root changelog does not contain a version heading",
+    );
+  });
+
+  it("rejects generated sections without version headings", () => {
+    expect(() => consolidateChangelog(rootChangelog, ["No version heading."])).toThrow(
+      "A generated changelog section does not contain a version heading",
+    );
+  });
+
+  it("rejects a partially consolidated generated section", () => {
+    const section = `${typescriptSection}\n\n${pythonSection}`;
+    const rootWithTypeScript = consolidateChangelog(rootChangelog, [typescriptSection]);
+    expect(() => consolidateChangelog(rootWithTypeScript, [section])).toThrow(
+      "The root changelog contains only part of",
+    );
   });
 });

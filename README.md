@@ -49,5 +49,5 @@ public SDK or the protocol compatibility contract. Tests, documentation,
 formatting, and internal refactors do not need a Changeset.
 
 Changesets maintains the release pull request on `main`. Merging it publishes the
-TypeScript SDK to npm and the Python SDK to PyPI. Underscored `just` recipes are
-internal CI commands.
+TypeScript SDK to npm. The Python SDK is published to PyPI only when that version
+is not already present. Underscored `just` recipes are internal CI commands.
