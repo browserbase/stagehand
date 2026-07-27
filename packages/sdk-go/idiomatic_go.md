@@ -181,7 +181,7 @@ if errors.As(err, &rpcErr) {
 - Keep dynamic JSON as `json.RawMessage` at the wire boundary. Avoid eagerly spreading `any` throughout the public API.
 - `additionalProperties: false` must be tested; ordinary `json.Unmarshal` does not by itself make the entire generated model contract obvious to users.
 - Validate both inbound results and outbound params at the RPC boundary if generated types do not enforce the full schema in both directions.
-- Add golden tests for every difficult schema shape, then run whole-protocol round trips. Current schema pressure points are substantial: 67 methods, 195 definitions, 52 `anyOf` uses, 4 `oneOf` uses, 167 `const` uses, 23 enums, and 304 `additionalProperties` uses.
+- Add golden tests for every difficult schema shape, then run whole-protocol round trips. Current schema pressure points are substantial: 67 methods, 196 definitions, 31 `anyOf` uses, 4 `oneOf` uses, 167 `const` uses, 24 enums, and 305 `additionalProperties` uses.
 
 ### Dynamic JSON and Go-specific API gaps
 
