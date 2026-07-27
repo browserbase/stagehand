@@ -430,6 +430,42 @@ func TestRPCClientValidatesAndFlushesBufferedNotifications(t *testing.T) {
 	}
 }
 
+func TestRPCClientDeliversNotificationToHandlersInRegistrationOrder(t *testing.T) {
+	t.Parallel()
+
+	transport := newQueueRPCTransport()
+	client := newTestRPCClient(t, transport)
+	received := make(chan string, 2)
+	client.onNotification("stagehand.log", func(log StagehandLog) {
+		received <- "first:" + log.Message
+	})
+	client.onNotification("stagehand.log", func(log StagehandLog) {
+		received <- "second:" + log.Message
+	})
+
+	transport.receiveJSON(`{
+		"jsonrpc": "2.0",
+		"method": "stagehand.log",
+		"params": {"level": "info", "message": "one notification", "data": {}}
+	}`)
+
+	for _, want := range []string{"first:one notification", "second:one notification"} {
+		select {
+		case got := <-received:
+			if got != want {
+				t.Fatalf("handler delivery = %q, want %q", got, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for %q", want)
+		}
+	}
+	select {
+	case got := <-received:
+		t.Fatalf("unexpected extra handler delivery %q", got)
+	default:
+	}
+}
+
 func TestRPCClientBoundsQueuedLogDeliveries(t *testing.T) {
 	t.Parallel()
 
