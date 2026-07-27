@@ -469,16 +469,19 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const result = await activeStagehand.act("Click the Submit button", { page });
 
     expect(result).toMatchObject({
-      success: true,
-      actionDescription: "Submit button",
-      actions: [
-        {
-          selector: expect.stringMatching(/^xpath=/),
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        },
-      ],
+      data: {
+        success: true,
+        actionDescription: "Submit button",
+        actions: [
+          {
+            selector: expect.stringMatching(/^xpath=/),
+            description: "Submit button",
+            method: "click",
+            arguments: [],
+          },
+        ],
+      },
+      metadata: {},
     });
     await expect(page.locator("#locator-output").textContent()).resolves.toBe("clicked:");
   });

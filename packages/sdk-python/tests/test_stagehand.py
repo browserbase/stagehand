@@ -253,18 +253,18 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     recording = RecordingRPCClient({
         "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
         "context.active_page": PageRef(page_id="active-page"),
-        "stagehand.act": ActResult(
-            data=act_result,
-            metadata={"cache_status": "HIT"},
-        ),
-        "stagehand.observe": ObserveResult(
-            data=[action],
-            metadata={"cache_status": "MISS"},
-        ),
-        "stagehand.extract": ExtractResult(
-            data={"heading": "Example Domain"},
-            metadata={"cache_status": "HIT"},
-        ),
+        "stagehand.act": ActResult.model_validate({
+            "data": act_result,
+            "metadata": {"cache_status": "HIT"},
+        }),
+        "stagehand.observe": ObserveResult.model_validate({
+            "data": [action],
+            "metadata": {"cache_status": "MISS"},
+        }),
+        "stagehand.extract": ExtractResult.model_validate({
+            "data": {"heading": "Example Domain"},
+            "metadata": {"cache_status": "HIT"},
+        }),
     })
     model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
     locator = ProtocolLocator(selector="main")

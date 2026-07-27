@@ -275,6 +275,9 @@ const result = await stagehand.act("Click the sign in button");
 <ResponseField name="result" type="Promise<ActResult>">
   The operation result.
 
+<ResponseField name="result.data" type="ActResultData">
+  The action outcome.
+
 <ResponseField name="result.data.actionDescription" type="string">
   A summary of the completed action.
 </ResponseField>
@@ -307,14 +310,19 @@ const result = await stagehand.act("Click the sign in button");
   <ResponseField name="result.data.success" type="boolean">
     Whether the action succeeded.
   </ResponseField>
+</ResponseField>
 
-  <ResponseField name="result.metadata.cacheStatus" type='"HIT" | "MISS"' optional>
+<ResponseField name="result.metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.metadata.cacheStatus" type="CacheStatus" optional>
     Whether server-side caching served or computed the result.
   </ResponseField>
 
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the operation.
   </ResponseField>
+</ResponseField>
 </ResponseField>
 
 ## observe()
@@ -395,6 +403,9 @@ const actions = await stagehand.observe("Find the sign in button");
 <ResponseField name="result" type="Promise<ObserveResult>">
   The operation result.
 
+<ResponseField name="result.data" type="Action[]">
+  Candidate actions found on the page.
+
 <ResponseField name="result.data.arguments" type="string[]" optional>
   Arguments passed to the action.
 </ResponseField>
@@ -410,14 +421,19 @@ const actions = await stagehand.observe("Find the sign in button");
   <ResponseField name="result.data.selector" type="string">
     The action target selector.
   </ResponseField>
+</ResponseField>
 
-  <ResponseField name="result.metadata.cacheStatus" type='"HIT" | "MISS"' optional>
+<ResponseField name="result.metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.metadata.cacheStatus" type="CacheStatus" optional>
     Whether server-side caching served or computed the result.
   </ResponseField>
 
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the operation.
   </ResponseField>
+</ResponseField>
 </ResponseField>
 
 ## extract()
@@ -507,12 +523,16 @@ console.log(product.data, product.metadata.cacheStatus);
     Data validated against the caller's schema.
   </ResponseField>
 
-  <ResponseField name="result.metadata.cacheStatus" type='"HIT" | "MISS"' optional>
+  <ResponseField name="result.metadata" type="StagehandResultMetadata">
+    Metadata associated with the extraction.
+
+  <ResponseField name="result.metadata.cacheStatus" type="CacheStatus" optional>
     Whether server-side caching served or computed the result.
   </ResponseField>
 
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the extraction.
+  </ResponseField>
   </ResponseField>
 </ResponseField>
 
@@ -784,6 +804,9 @@ result = await stagehand.act("Click the sign in button")
 <ResponseField name="result" type="ActResult">
   The operation result.
 
+<ResponseField name="result.data" type="ActResultData">
+  The action outcome.
+
 <ResponseField name="result.data.action_description" type="str">
   A summary of the completed action.
 </ResponseField>
@@ -816,14 +839,19 @@ result = await stagehand.act("Click the sign in button")
   <ResponseField name="result.data.success" type="bool">
     Whether the action succeeded.
   </ResponseField>
+</ResponseField>
 
-  <ResponseField name="result.metadata.cache_status" type='"HIT" | "MISS"' optional>
+<ResponseField name="result.metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.metadata.cache_status" type="CacheStatus" optional>
     Whether server-side caching served or computed the result.
   </ResponseField>
 
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the operation.
   </ResponseField>
+</ResponseField>
 </ResponseField>
 
 ## observe()
@@ -901,6 +929,9 @@ actions = await stagehand.observe(instruction="Find the sign in button")
 <ResponseField name="result" type="ObserveResult">
   The operation result.
 
+<ResponseField name="result.data" type="list[Action]">
+  Candidate actions found on the page.
+
 <ResponseField name="result.data.arguments" type="list[str]" optional>
   Arguments passed to the action.
 </ResponseField>
@@ -916,14 +947,19 @@ actions = await stagehand.observe(instruction="Find the sign in button")
   <ResponseField name="result.data.selector" type="str">
     The action target selector.
   </ResponseField>
+</ResponseField>
 
-  <ResponseField name="result.metadata.cache_status" type='"HIT" | "MISS"' optional>
+<ResponseField name="result.metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.metadata.cache_status" type="CacheStatus" optional>
     Whether server-side caching served or computed the result.
   </ResponseField>
 
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the operation.
   </ResponseField>
+</ResponseField>
 </ResponseField>
 
 ## extract()
@@ -1010,12 +1046,16 @@ print(product.data, product.metadata.cache_status)
     Data validated against the caller's Pydantic model.
   </ResponseField>
 
-  <ResponseField name="result.metadata.cache_status" type='"HIT" | "MISS"' optional>
+  <ResponseField name="result.metadata" type="StagehandResultMetadata">
+    Metadata associated with the extraction.
+
+  <ResponseField name="result.metadata.cache_status" type="CacheStatus" optional>
     Whether server-side caching served or computed the result.
   </ResponseField>
 
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the extraction.
+  </ResponseField>
   </ResponseField>
 </ResponseField>
 

@@ -12,6 +12,7 @@ from typing import Literal, Self, TypeVar, overload
 
 from pydantic import BaseModel
 
+from ._generated import models as generated_models
 from ._generated.models import (
     ActOptions,
     ActResult,
@@ -41,9 +42,6 @@ from ._generated.models import (
     StagehandPingResult,
     TelemetryConfig,
     Variables,
-)
-from ._generated.models import (
-    ExtractResult as WireExtractResult,
 )
 from ._generated.models import (
     Locator as ProtocolLocator,
@@ -567,7 +565,7 @@ class Stagehand:
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send(
-            "stagehand.extract", params, WireExtractResult
+            "stagehand.extract", params, generated_models.ExtractResult
         )
         value = result.data.model_dump() if isinstance(result.data, BaseModel) else result.data
         return ExtractResult(
