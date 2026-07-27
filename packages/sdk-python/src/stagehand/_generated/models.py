@@ -162,6 +162,7 @@ class BrowserGetVersionResult(WireModel):
 
 class BrowserbaseBrowserSettings(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     advanced_stealth: Optional[StrictBool] = None
