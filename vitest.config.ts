@@ -7,8 +7,7 @@ export default defineConfig({
     include: [
       "packages/protocol/tests/**/*.test.ts",
       "packages/protocol/json-rpc/tests/**/*.test.ts",
-      // TODO(docs-migration): Re-enable when the docs conformance tests return.
-      // "packages/docs/tests/**/*.test.ts",
+      "packages/docs/tests/**/*.test.ts",
       "packages/server/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/server/understudy/**/*.test.ts",

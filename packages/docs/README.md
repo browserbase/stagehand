@@ -1,6 +1,6 @@
 # Stagehand docs
 
-This site contains the Stagehand v2 and v3 documentation.
+This site contains the Stagehand v2, v3, and v4 documentation. V4 is the default version.
 
 ## Local development
 
