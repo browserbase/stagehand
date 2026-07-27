@@ -9,10 +9,43 @@ const AGENT_INDICATOR_CSS = `
   pointer-events: none !important;
   user-select: none !important;
   border: 2px solid rgba(255, 157, 91, .82) !important;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 225, 181, .95), transparent) top left / 36% 2px no-repeat,
+    linear-gradient(180deg, transparent, rgba(255, 183, 94, .9), transparent) top right / 2px 36% no-repeat,
+    linear-gradient(270deg, transparent, rgba(255, 225, 181, .95), transparent) bottom right / 36% 2px no-repeat,
+    linear-gradient(0deg, transparent, rgba(255, 183, 94, .9), transparent) bottom left / 2px 36% no-repeat !important;
   box-shadow:
     inset 0 0 3px rgba(255, 235, 209, .94),
     inset 0 0 12px rgba(255, 198, 114, .72),
     inset 0 0 34px rgba(255, 69, 0, .36) !important;
+  animation:
+    stagehand-agent-indicator-wave 4s linear infinite,
+    stagehand-agent-indicator-breathe 2.4s ease-in-out infinite alternate !important;
+}
+
+@keyframes stagehand-agent-indicator-wave {
+  from {
+    background-position: -56% 0, 100% -56%, 156% 100%, 0 156%;
+  }
+  to {
+    background-position: 156% 0, 100% 156%, -56% 100%, 0 -56%;
+  }
+}
+
+@keyframes stagehand-agent-indicator-breathe {
+  to {
+    border-color: rgba(255, 129, 43, .96);
+    box-shadow:
+      inset 0 0 4px rgba(255, 244, 224, .98),
+      inset 0 0 16px rgba(255, 190, 91, .82),
+      inset 0 0 42px rgba(255, 69, 0, .48);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root::after {
+    animation: none !important;
+  }
 }
 `;
 

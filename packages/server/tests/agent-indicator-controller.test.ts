@@ -53,6 +53,8 @@ describe("agent indicator controller", () => {
     });
     expect(firstInjection.css).toContain("position: fixed !important");
     expect(firstInjection.css).toContain("pointer-events: none !important");
+    expect(firstInjection.css).toContain("stagehand-agent-indicator-wave");
+    expect(firstInjection.css).toContain("prefers-reduced-motion: reduce");
 
     await controller.setActive(false);
 
