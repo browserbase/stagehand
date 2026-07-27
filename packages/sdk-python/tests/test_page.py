@@ -6,6 +6,7 @@ import pytest
 from pydantic import BaseModel
 
 from stagehand._generated.models import (
+    AcknowledgementResult,
     PageEvaluateResult,
     PageGotoParams,
     PageRef,
@@ -79,3 +80,32 @@ async def test_page_evaluate_returns_json_or_a_requested_typed_result() -> None:
 
     assert raw == {"answer": True}
     assert typed == EvaluationResult(answer=True)
+
+
+@pytest.mark.asyncio
+async def test_page_side_effects_use_acknowledgement_results() -> None:
+    methods = [
+        "page.type",
+        "page.key_press",
+        "page.add_init_script",
+        "page.set_extra_http_headers",
+        "page.set_viewport_size",
+        "page.wait_for_load_state",
+        "page.wait_for_timeout",
+        "page.close",
+    ]
+    recording = RecordingRPCClient({method: AcknowledgementResult(root=True) for method in methods})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    await page.type("hello")
+    await page.key_press("Enter")
+    await page.add_init_script("globalThis.ready = true")
+    await page.set_extra_http_headers({"x-test": "true"})
+    await page.set_viewport_size(1280, 720)
+    await page.wait_for_load_state("load")
+    await page.wait_for_timeout(100)
+    await page.close()
+
+    assert [(method, result_model) for method, _, result_model in recording.calls] == [
+        (method, AcknowledgementResult) for method in methods
+    ]

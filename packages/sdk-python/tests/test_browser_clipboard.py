@@ -32,3 +32,24 @@ async def test_browser_clipboard_uses_the_optional_page_as_its_wire_target() -> 
     assert text == "hello"
     assert recording.calls[0][1].model_dump(exclude_unset=True) == {"page_id": "page-1"}
     assert recording.calls[1][1].model_dump(exclude_unset=True) == {"text": "updated"}
+
+
+@pytest.mark.asyncio
+async def test_browser_clipboard_side_effects_use_acknowledgement_results() -> None:
+    methods = [
+        "context.clipboard_clear",
+        "context.clipboard_paste",
+        "context.clipboard_copy",
+        "context.clipboard_cut",
+    ]
+    recording = RecordingRPCClient({method: AcknowledgementResult(root=True) for method in methods})
+    clipboard = BrowserClipboard(cast(RPCClient, recording))
+
+    await clipboard.clear()
+    await clipboard.paste()
+    await clipboard.copy()
+    await clipboard.cut()
+
+    assert [(method, result_model) for method, _, result_model in recording.calls] == [
+        (method, AcknowledgementResult) for method in methods
+    ]

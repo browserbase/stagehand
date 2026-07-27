@@ -27,6 +27,9 @@ describe("shared page protocol schemas", () => {
     expect(PageCoordinateResultSchema.parse({ xpath: "/html/body/button" })).toStrictEqual({
       xpath: "/html/body/button",
     });
+    expect(() =>
+      PageCoordinateResultSchema.parse({ xpath: "/html/body/button", extra: true }),
+    ).toThrow();
   });
 
   it("validates screenshot clips", () => {
