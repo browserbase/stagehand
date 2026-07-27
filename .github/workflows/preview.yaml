@@ -12,10 +12,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: preview-pr-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
   build:
     name: Build preview
@@ -28,6 +24,9 @@ jobs:
           contains(github.event.pull_request.labels.*.name, 'preview')
         )
       )
+    concurrency:
+      group: preview-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -111,12 +110,24 @@ jobs:
       - name: Update pull request comment
         uses: actions/github-script@v8
         env:
+          ARTIFACT_ID: ${{ steps.artifact.outputs.artifact-id }}
           ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
           PYTHON_INSTALL: ${{ steps.preview.outputs.python-install }}
           TYPESCRIPT_INSTALL: ${{ steps.preview.outputs.typescript-install }}
         with:
           script: |
             const marker = "<!-- stagehand-preview -->";
+            const { data: artifact } = await github.rest.actions.getArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: Number(process.env.ARTIFACT_ID),
+            });
+            const expiresOn = artifact.expires_at
+              ? new Date(artifact.expires_at).toISOString().slice(0, 10)
+              : undefined;
+            const availability = expiresOn
+              ? `This artifact expires on ${expiresOn}.`
+              : "This artifact is retained for up to 30 days.";
             const body = [
               marker,
               "## Stagehand preview",
@@ -127,7 +138,8 @@ jobs:
               `- Python: \`${process.env.PYTHON_INSTALL}\``,
               "- Extension: `stagehand-extension.zip`",
               "",
-              "This artifact is available to signed-in repository users. It updates when this pull request changes and is removed when the `preview` label is removed or the pull request closes.",
+              `This artifact is available to signed-in repository users. ${availability}`,
+              "Push a commit or remove and reapply the `preview` label to refresh it. Removing the label or closing the pull request removes the artifact and this comment.",
             ].join("\n");
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
@@ -160,6 +172,9 @@ jobs:
         github.event.action == 'closed' ||
         (github.event.action == 'unlabeled' && github.event.label.name == 'preview')
       )
+    concurrency:
+      group: preview-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

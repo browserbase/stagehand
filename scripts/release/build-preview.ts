@@ -9,7 +9,11 @@ import {
   sha256,
   typescriptPreviewVersion,
   verifyPreviewBundle,
-} from "./preview-contract.ts";
+} from "./preview-contract.js";
+import {
+  parsePreviewPythonProject,
+  updatePreviewPythonProjectVersion,
+} from "./preview-python-project.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(import.meta.dirname, "../..");
@@ -54,7 +58,8 @@ try {
   const pythonProxyManifest = await readPackageManifest(pythonProxyManifestPath);
   const serverManifest = await readPackageManifest(serverManifestPath);
   const protocolManifest = await readPackageManifest(protocolManifestPath);
-  const pythonProject = await readPythonProject(pythonProjectPath);
+  const pythonProjectContents = await readFile(pythonProjectPath, "utf8");
+  const pythonProject = parsePreviewPythonProject(pythonProjectContents);
 
   if (pythonProxyManifest.version !== pythonProject.version) {
     throw new Error(
@@ -68,7 +73,7 @@ try {
   await writePackageVersion(pythonProxyManifestPath, pythonProxyManifest.contents, pythonVersion);
   await writeFile(
     pythonProjectPath,
-    pythonProject.contents.replace(pythonProject.versionLine, `version = "${pythonVersion}"`),
+    updatePreviewPythonProjectVersion(pythonProjectContents, pythonVersion),
   );
 
   await run("uv", ["--directory", "packages/sdk-python", "lock"], checkout);
@@ -178,30 +183,6 @@ async function writePackageVersion(
   version: string,
 ): Promise<void> {
   await writeFile(file, `${JSON.stringify({ ...contents, version }, null, 2)}\n`);
-}
-
-async function readPythonProject(file: string): Promise<{
-  contents: string;
-  name: string;
-  version: string;
-  versionLine: string;
-}> {
-  const contents = await readFile(file, "utf8");
-  const projectStart = contents.indexOf("[project]\n");
-  if (projectStart === -1) {
-    throw new Error(`${file} does not contain a [project] section`);
-  }
-  const projectContents = contents.slice(projectStart + "[project]\n".length);
-  const nextSection = projectContents.search(/^\[/mu);
-  const projectSection =
-    nextSection === -1 ? projectContents : projectContents.slice(0, nextSection);
-  const name = projectSection?.match(/^name = "(?<value>[^"]+)"$/mu)?.groups?.value;
-  const versionLine = projectSection?.match(/^version = "[^"]+"$/mu)?.[0];
-  const version = versionLine?.match(/^version = "(?<value>[^"]+)"$/u)?.groups?.value;
-  if (name === undefined || version === undefined || versionLine === undefined) {
-    throw new Error(`${file} must define project name and version fields`);
-  }
-  return { contents, name, version, versionLine };
 }
 
 async function capture(command: string, args: string[]): Promise<string> {

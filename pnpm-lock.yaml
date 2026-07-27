@@ -298,6 +298,9 @@ catalogs:
     publint:
       specifier: ^0.3.8
       version: 0.3.21
+    smol-toml:
+      specifier: 1.7.0
+      version: 1.7.0
     snakecase-keys:
       specifier: ^9.0.2
       version: 9.0.2
@@ -372,6 +375,9 @@ importers:
       oxlint-tsgolint:
         specifier: 'catalog:'
         version: 0.24.0
+      smol-toml:
+        specifier: 'catalog:'
+        version: 1.7.0
       tsx:
         specifier: 'catalog:'
         version: 4.23.1
@@ -5242,6 +5248,10 @@ packages:
   smart-buffer@4.2.0:
     resolution: {integrity: sha512-94hK0Hh8rPqQl2xXc3HsaBoOXKV20MToPkcXvwbISWLEs+64sBq5kFgn2kJDHb1Pry9yrP0dxrCI9RRci7RXKg==}
     engines: {node: '>= 6.0.0', npm: '>= 3.0.0'}
+
+  smol-toml@1.7.0:
+    resolution: {integrity: sha512-aqVvWoyO21L23mb+drl4RmMXbf6N7FdHjAhTRA9ZBL7apWBgfWC16KjrASI+1p9GAroljyMHj6fK67i0UiTNvQ==}
+    engines: {node: '>= 18'}
 
   snakecase-keys@9.0.2:
     resolution: {integrity: sha512-Tr4gONsDj1Pa6HJH9D3b411r6tuRyCGgb1l7YpzDFp/thjVSWs7rcbNjyTyRqJi5SUV23sFpzf9epIJRbLR6Yw==}
@@ -11484,6 +11494,8 @@ snapshots:
       is-fullwidth-code-point: 5.1.0
 
   smart-buffer@4.2.0: {}
+
+  smol-toml@1.7.0: {}
 
   snakecase-keys@9.0.2:
     dependencies:
