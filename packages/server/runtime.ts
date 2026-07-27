@@ -309,16 +309,6 @@ export class StagehandRuntime {
     return { configured: true };
   }
 
-  /** Returns this runtime to a fresh reservation while keeping the worker alive. */
-  async resetForReservation(): Promise<void> {
-    ++this.browserSessionGeneration;
-    const previousSession = this.browserSession;
-    this.browserSession = undefined;
-    this.pagesById.clear();
-    this.state.setState(StagehandRuntimeStateSchema.parse({ status: "created" }), true);
-    await previousSession?.close();
-  }
-
   async initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
     if (this.state.getState().status !== "created") {
       throw new Error("Stagehand has already been initialized");

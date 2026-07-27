@@ -127,47 +127,34 @@ describe("Stagehand runtime state", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it("returns the runtime to created state for a new reservation", async () => {
-    const close = vi.fn(async () => {});
-    const runtime = createStagehandRuntime({
-      browserSessionFactory: async () => createBrowserSession({ close }),
-    });
-
-    await runtime.configureLoopback({ cdpUrl: "ws://browser.example" });
-    await runtime.initialize({
-      model: { modelName: "openai/gpt-5" },
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
-    });
-    runtime.pagesById.set("previous-page", {} as never);
-
-    await runtime.resetForReservation();
-
-    expect(close).toHaveBeenCalledOnce();
-    expect(runtime.pagesById.size).toBe(0);
-    expect(runtime.state.getState()).toStrictEqual({ status: "created" });
-    expect(runtime.loopbackStatus()).toStrictEqual({ configured: false, connected: false });
-  });
-
-  it("does not let an older close overwrite a reservation reset", async () => {
+  it("does not let an older close overwrite a replacement browser session", async () => {
     let finishClose: (() => void) | undefined;
     const closeStarted = new Promise<void>((resolve) => {
       finishClose = resolve;
     });
-    const close = vi.fn(async () => await closeStarted);
+    const oldClose = vi.fn(async () => await closeStarted);
+    const replacementSession = createBrowserSession();
     const runtime = createStagehandRuntime({
-      browserSessionFactory: async () => createBrowserSession({ close }),
+      browserSessionFactory: async (cdpUrl) =>
+        cdpUrl.endsWith("replacement")
+          ? replacementSession
+          : createBrowserSession({ close: oldClose }),
     });
 
     await runtime.configureLoopback({ cdpUrl: "ws://browser.example" });
+    await runtime.initialize({
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    });
     const closing = runtime.close();
-    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(oldClose).toHaveBeenCalledOnce());
 
-    await runtime.resetForReservation();
+    await runtime.configureLoopback({ cdpUrl: "ws://browser.replacement" });
     finishClose?.();
     await closing;
 
-    expect(runtime.state.getState()).toStrictEqual({ status: "created" });
+    expect(runtime.browserSession).toBe(replacementSession);
+    expect(runtime.state.getState().status).toBe("initialized");
   });
 });
