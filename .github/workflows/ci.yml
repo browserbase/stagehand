@@ -150,6 +150,9 @@ jobs:
 
   go-windows:
     name: Go (Windows process management)
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
     timeout-minutes: 10
     defaults:
