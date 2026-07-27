@@ -241,7 +241,7 @@ def _find_chrome_path(
     current_home = str(Path.home()) if home_directory is None else home_directory
     file_exists = (lambda candidate: Path(candidate).is_file()) if is_file is None else is_file
     find_on_path = (
-        (lambda name: shutil.which(name, path=current_environ.get("PATH")))
+        (lambda name: shutil.which(name, path=current_environ.get("PATH", "")))
         if which is None
         else which
     )

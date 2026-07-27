@@ -144,6 +144,24 @@ def test_linux_browser_lookup_uses_release_channel_order() -> None:
     ]
 
 
+def test_linux_browser_lookup_does_not_use_process_path_when_omitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths: list[str | None] = []
+
+    def which(_name: str, *, path: str | None = None) -> str | None:
+        paths.append(path)
+        return "/host/google-chrome" if path is None else None
+
+    monkeypatch.setattr("stagehand.browser_source.shutil.which", which)
+
+    with pytest.raises(RuntimeError):
+        _find_chrome_path(platform="linux", environ={}, is_file=lambda _candidate: False)
+
+    assert paths
+    assert set(paths) == {""}
+
+
 @pytest.mark.parametrize(
     "installed",
     [
