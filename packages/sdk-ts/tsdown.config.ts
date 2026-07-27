@@ -32,10 +32,6 @@ export default defineConfig({
   },
   copy: [
     {
-      from: "../server/artifacts/stagehand-extension.zip",
-      to: "dist/assets",
-    },
-    {
       from: "../server/dist",
       to: "dist",
       rename: "extension",
