@@ -13,13 +13,13 @@ import {
   ExtractOptionsSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
+  LocalBrowserLaunchOptionsSchema,
   ModelConfigSchema,
   ObserveOptionsSchema,
   StagehandInitParamsSchema,
   StagehandLogLevelSchema,
   StagehandLogSchema,
 } from "../../protocol/schemas.js";
-import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
 import { Page } from "./page.js";
 
 const BrowserbaseClientBrowserSettingsSchema = BrowserbaseBrowserSettingsSchema.omit({

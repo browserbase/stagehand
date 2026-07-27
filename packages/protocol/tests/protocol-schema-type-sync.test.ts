@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const protocolDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const schemaTypePairs = [
   {
-    schemaFiles: ["schemas.ts", "pending-schemas.ts", "schema-registry.ts"],
+    schemaFiles: ["schemas.ts", "schema-registry.ts"],
     typesFile: "types.ts",
   },
   {
